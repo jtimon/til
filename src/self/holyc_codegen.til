@@ -17,10 +17,19 @@ priv HolyCEmitState := struct {
     enum_types := Map(Str, Str).new()
     payload_enum_names := Set(Str).new()
     niche_ref_types := Map(Str, Str).new()
+    collection_elements := Map(Str, Str).new()
+    vec_names := Set(Str).new()
+    usize_ctype := "U64"
     switch_id : USize = 0
     temp_id : USize = 0
     needs_i64_div := false
     needs_i64_mod := false
+    needs_str_array_clone := false
+    needs_str_array_get := false
+    needs_str_array_concat := false
+    needs_str_array_to_vec := false
+    needs_str_array_copy := false
+    needs_panic_parts := false
 }
 
 priv HolyCLocalState := struct {
@@ -31,6 +40,7 @@ priv HolyCLocalState := struct {
     str_names := Set(Str).new()
     str_pointer_names := Set(Str).new()
     str_array_names := Set(Str).new()
+    str_array_pointer_names := Set(Str).new()
     struct_types := Map(Str, Str).new()
     struct_pointer_types := Map(Str, Str).new()
 }
@@ -67,6 +77,7 @@ priv holyc_bind_name := func(name: Str, emitted_name: Str, mut locals: HolyCLoca
     locals.str_names.remove(name)
     locals.str_pointer_names.remove(name)
     locals.str_array_names.remove(name)
+    locals.str_array_pointer_names.remove(name)
     locals.struct_types.remove(name)
     locals.struct_pointer_types.remove(name)
     locals.pointer_types.remove(name)
@@ -169,6 +180,7 @@ priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState
         str_names = locals.str_names.clone(),
         str_pointer_names = locals.str_pointer_names.clone(),
         str_array_names = locals.str_array_names.clone(),
+        str_array_pointer_names = locals.str_array_pointer_names.clone(),
         struct_types = locals.struct_types.clone(),
         struct_pointer_types = locals.struct_pointer_types.clone())
 }
@@ -267,6 +279,11 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
         case .FieldAccess:
             owner := holyc_field_owner_name(e.children[0], ctx.symbols)
             if state.niche_ref_types.has(owner) { return holyc_expr(e, ctx, state, locals, error) }
+            if state.collection_elements.has(owner).or(owner.eq("Array__Str"))
+                .and(holyc_field_call_name(e, ctx).eq("unsafe_get")
+                    .or(holyc_field_call_name(e, ctx).eq("get"))) {
+                return holyc_expr(e, ctx, state, locals, error)
+            }
         case:
         }
         if holyc_expr_is_pointer(e, ctx, locals) {
@@ -463,6 +480,8 @@ priv holyc_call_args := func(e: Expr, start: USize, ctx: Context,
         }
         if is_str {
             value = holyc_str_ref(arg, ctx, locals, error)
+        } else if type_name_o.is_some().and(type_name_o.unwrap().eq("Array__Str")) {
+            value = holyc_str_array_ref(arg, ctx, locals, error)
         } else if is_struct {
             value = holyc_struct_ref(arg, ctx, locals, error)
         } else if state.user_ref_params.has(direct_name)
@@ -500,6 +519,12 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
         }
         method := holyc_field_call_name(e, ctx)
         owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols))
+        if state.vec_names.has(owner).and(state.collection_elements[owner].eq("Str"))
+            .and(method.eq("pop")) {
+            if e.children.len() != 2 { error = "invalid Vec(Str).pop call"; return "" }
+            self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+            return format(owner, "_Pop(&", dest, ", ", self_ref, ")")
+        }
         if owner == "Str" {
             if method.eq("clone").or(method.eq("to_str")) {
                 if e.children.len() != 2 { error = format("invalid Str.", method, " call"); return "" }
@@ -546,6 +571,7 @@ priv holyc_str_array_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
     case .Ident(id):
         ref name : Str = id.ident_name(ctx.symbols.names)
         if locals.str_array_names.has(name) { return format("&", holyc_local_name(name, locals)) }
+        if locals.str_array_pointer_names.has(name) { return holyc_local_name(name, locals) }
     case:
     }
     error = format("unsupported Array(Str) value '", node_name(e.node_type), "'")
@@ -554,16 +580,43 @@ priv holyc_str_array_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
 
 priv holyc_str_array_init := func(dest: Str, e: Expr, ctx: Context,
     mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
-    if e.node_type.is(NodeType.FCall).not().or(e.children.len().neq(2)) {
+    if e.node_type.is(NodeType.Ident) {
+        src := holyc_str_array_ref(e, ctx, locals, error)
+        state.needs_str_array_copy = true
+        return format("TilStrArrayCopyValue(&", dest, ", ", src, ")")
+    }
+    if e.node_type.is(NodeType.FCall).not() {
         error = "unsupported Array(Str) initializer"
         return ""
     }
     method := holyc_field_call_name(e, ctx)
     owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols))
+    direct_name := holyc_direct_call_name(e, ctx)
+    if state.user_return_types.has(direct_name)
+        .and(state.user_return_types[direct_name].eq("Array__Str")) {
+        args := holyc_call_args(e, 1, ctx, state, locals, error)
+        mut suffix := ""
+        if args.len() > 0 { suffix = format(", ", args) }
+        return format(direct_name, "(&", dest, suffix, ")")
+    }
+    if owner.eq("Array__Str").and(method.eq("clone")) {
+        if e.children.len() != 2 { error = "invalid Array(Str).clone call"; return "" }
+        src := holyc_str_array_ref(e.children[1], ctx, locals, error)
+        state.needs_str_array_clone = true
+        return format("TilStrArrayClone(&", dest, ", ", src, ")")
+    }
+    if owner.eq("Array__Str").and(method.eq("concat")) {
+        if e.children.len() != 3 { error = "invalid Array(Str).concat call"; return "" }
+        a := holyc_str_array_ref(e.children[1], ctx, locals, error)
+        b := holyc_str_array_ref(e.children[2], ctx, locals, error)
+        state.needs_str_array_concat = true
+        return format("TilStrArrayConcat(&", dest, ", ", a, ", ", b, ")")
+    }
     if owner.neq("Array__Str").or(method.neq("new")) {
         error = format("unsupported Array(Str) initializer call '", owner, ".", method, "'")
         return ""
     }
+    if e.children.len() != 2 { error = "invalid Array(Str).new call"; return "" }
     cap := holyc_expr(e.children[1], ctx, state, locals, error)
     return format("TilStrArrayNew(&", dest, ", ", cap, ")")
 }
@@ -636,6 +689,13 @@ priv holyc_delete_free_flag := func(receiver: Expr, flag: Expr, ctx: Context,
 priv holyc_struct_copy := func(type_name: Str, dest: Str, dest_sep: Str,
     src: Str, src_sep: Str, depth: USize, ctx: Context, state: HolyCEmitState,
     mut error: Str) returns Str {
+    if state.collection_elements.has(type_name) {
+        mut dest_ref := format("&", dest)
+        mut src_ref := format("&", src)
+        if dest_sep == "->" { dest_ref = dest }
+        if src_sep == "->" { src_ref = src }
+        return format(holyc_indent(depth), type_name, "_CopyValue(", dest_ref, ", ", src_ref, ");\n")
+    }
     if state.payload_enum_names.has(type_name) {
         mut dest_ref := format("&", dest)
         mut src_ref := format("&", src)
@@ -709,11 +769,133 @@ priv holyc_owned_field_init := func(field_type: Str, dest: Str, value: Expr,
     return out
 }
 
+priv holyc_collection_init := func(type_name: Str, dest: Str, e: Expr,
+    depth: USize, ctx: Context, mut state: HolyCEmitState, locals: HolyCLocalState,
+    mut error: Str) returns Str {
+    prefix := holyc_indent(depth)
+    if e.node_type.is(NodeType.Ident).or(e.node_type.is(NodeType.FieldAccess)) {
+        src := holyc_struct_ref(e, ctx, locals, error)
+        return format(prefix, type_name, "_CopyValue(&", dest, ", ", src, ");\n")
+    }
+    if e.node_type.is(NodeType.PrecomputedSequence) {
+        switch e.node_type {
+        case .PrecomputedSequence(seq):
+            cap := seq.capacity.to_str()
+            mut out := ""
+            if state.vec_names.has(type_name) {
+                out = format(prefix, type_name, "_WithCapacity(&", dest, ", ", cap, ");\n")
+            } else {
+                out = format(prefix, type_name, "_New(&", dest, ", ", cap, ");\n")
+            }
+            for i in 0..e.children.len() {
+                value := holyc_expr(e.children[i], ctx, state, locals, error)
+                if error.len() > 0 { return "" }
+                if state.vec_names.has(type_name) {
+                    out = format(out, prefix, type_name, "_Push(&", dest, ", ", value, ");\n")
+                } else {
+                    out = format(out, prefix, type_name, "_UnsafeSet(&", dest, ", ", i.to_str(), ", ", value, ");\n")
+                }
+            }
+            return out
+        case:
+        }
+    }
+    if e.node_type.is(NodeType.FCall) {
+        method := holyc_field_call_name(e, ctx)
+        owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+        if owner == type_name {
+            if method == "new" {
+                if state.vec_names.has(type_name) {
+                    if e.children.len() != 1 { error = "invalid Vec.new call"; return "" }
+                    return format(prefix, type_name, "_New(&", dest, ");\n")
+                }
+                if e.children.len() != 2 { error = "invalid Array.new call"; return "" }
+                cap := holyc_expr(e.children[1], ctx, state, locals, error)
+                return format(prefix, type_name, "_New(&", dest, ", ", cap, ");\n")
+            }
+            if method == "with_capacity" {
+                if state.vec_names.has(type_name).not().or(e.children.len() != 2) {
+                    error = "invalid Vec.with_capacity call"
+                    return ""
+                }
+                cap := holyc_expr(e.children[1], ctx, state, locals, error)
+                return format(prefix, type_name, "_WithCapacity(&", dest, ", ", cap, ");\n")
+            }
+            if method == "clone" {
+                if e.children.len() != 2 { error = "invalid collection clone call"; return "" }
+                src := holyc_struct_ref(e.children[1], ctx, locals, error)
+                return format(prefix, type_name, "_Clone(&", dest, ", ", src, ");\n")
+            }
+            if method == "concat" {
+                if state.vec_names.has(type_name).or(e.children.len() != 3) {
+                    error = "invalid Array.concat call"
+                    return ""
+                }
+                a := holyc_struct_ref(e.children[1], ctx, locals, error)
+                b := holyc_struct_ref(e.children[2], ctx, locals, error)
+                return format(prefix, type_name, "_Concat(&", dest, ", ", a, ", ", b, ");\n")
+            }
+            if method == "take" {
+                if state.vec_names.has(type_name).not().or(e.children.len() != 2) {
+                    error = "invalid Vec.take call"
+                    return ""
+                }
+                src := holyc_struct_ref(e.children[1], ctx, locals, error)
+                return format(prefix, type_name, "_Take(&", dest, ", ", src, ");\n")
+            }
+            if method == "take_prefix" {
+                if state.vec_names.has(type_name).not().or(e.children.len() != 3) {
+                    error = "invalid Vec.take_prefix call"
+                    return ""
+                }
+                src := holyc_struct_ref(e.children[1], ctx, locals, error)
+                count := holyc_expr(e.children[2], ctx, state, locals, error)
+                return format(prefix, type_name, "_TakePrefix(&", dest, ", ", src, ", ", count, ");\n")
+            }
+        }
+        if method.eq("to_vec").and(state.vec_names.has(type_name))
+            .and(state.collection_elements.has(owner))
+            .and(state.collection_elements[owner].eq(state.collection_elements[type_name])) {
+            if e.children.len() != 2 { error = "invalid Array.to_vec call"; return "" }
+            src := holyc_struct_ref(e.children[1], ctx, locals, error)
+            return format(prefix, owner, "_ToVec(&", dest, ", ", src, ");\n")
+        }
+        if method.eq("to_vec").and(owner.eq("Array__Str"))
+            .and(type_name.eq("Vec__Str")) {
+            if e.children.len() != 2 { error = "invalid Array(Str).to_vec call"; return "" }
+            src := holyc_str_array_ref(e.children[1], ctx, locals, error)
+            state.needs_str_array_to_vec = true
+            return format(prefix, "TilStrArrayToVec(&", dest, ", ", src, ");\n")
+        }
+        name := holyc_direct_call_name(e, ctx)
+        if state.user_return_types.has(name).and(state.user_return_types[name].eq(type_name)) {
+            args := holyc_call_args(e, 1, ctx, state, locals, error)
+            mut suffix := ""
+            if args.len() > 0 { suffix = format(", ", args) }
+            return format(prefix, name, "(&", dest, suffix, ");\n")
+        }
+    }
+    error = format("unsupported initializer for collection '", type_name, "'")
+    return ""
+}
+
 priv holyc_struct_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
     ctx: Context, mut state: HolyCEmitState, locals: HolyCLocalState,
     mut error: Str) returns Str {
+    if state.collection_elements.has(type_name) {
+        return holyc_collection_init(type_name, dest, e, depth, ctx, state, locals, error)
+    }
     if state.payload_enum_names.has(type_name) {
         return holyc_enum_init(type_name, dest, e, depth, ctx, state, locals, error)
+    }
+    if e.node_type.is(NodeType.FCall) {
+        owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+        if state.vec_names.has(owner).and(state.collection_elements[owner].eq(type_name))
+            .and(holyc_field_call_name(e, ctx).eq("pop")) {
+            if e.children.len() != 2 { error = "invalid Vec.pop call"; return "" }
+            self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+            return format(holyc_indent(depth), owner, "_Pop(&", dest, ", ", self_ref, ");\n")
+        }
     }
     if e.node_type.is(NodeType.Ident).or(e.node_type.is(NodeType.FieldAccess)) {
         src := holyc_field_path(e, ctx, locals, error)
@@ -929,18 +1111,91 @@ priv holyc_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
     }
 }
 
-priv holyc_prepare_state := func(program: Expr, mut state: HolyCEmitState, mut error: Str) {
+priv holyc_collection_type_arg := func(e: Expr, ctx: Context, mut error: Str) returns Str {
+    switch e.node_type {
+    case .Ident(id): return id.ident_name(ctx.symbols.names).clone()
+    case .FCall:
+        if e.children.len() == 2 {
+            switch e.children[0].node_type {
+            case .Ident(id):
+                ref constructor : Str = id.ident_name(ctx.symbols.names)
+                if constructor.eq("Vec").or(constructor.eq("Array")) {
+                    arg := holyc_collection_type_arg(e.children[1], ctx, error)
+                    return format(constructor, "__", arg)
+                }
+            case:
+            }
+        }
+    case:
+    }
+    error = format("unsupported collection type argument '", node_name(e.node_type), "'")
+    return ""
+}
+
+priv holyc_register_collection := func(name: Str, ctx: Context,
+    mut state: HolyCEmitState, mut error: Str) {
+    mut prefix_len : USize = 0
+    if name.starts_with("Array__").and(name.neq("Array__Str")) {
+        prefix_len = 7
+    } else if name.starts_with("Vec__") {
+        prefix_len = 5
+    }
+    if prefix_len == 0 { return }
+    if state.collection_elements.has(name) { return }
+    mut element := name.substr(prefix_len, name.len() - prefix_len)
+    if ctx.type_gen_binding_sources.has(name) {
+        ref call : Expr = ctx.type_gen_binding_sources[name]
+        if call.children.len() != 2 {
+            error = format("invalid collection specialization '", name, "'")
+            return
+        }
+        element = holyc_collection_type_arg(call.children[1], ctx, error)
+        if error.len() > 0 { return }
+    } else if element.starts_with("call_") {
+        error = format("missing collection specialization source for '", name, "'")
+        return
+    }
+    state.struct_names.add(own name.clone())
+    state.collection_elements.set(name, own element.clone())
+    if prefix_len == 5 { state.vec_names.add(own name.clone()) }
+    if element.starts_with("Vec__").or(element.starts_with("Array__")) {
+        holyc_register_collection(element, ctx, state, error)
+    }
+}
+
+priv holyc_collect_collection_types := func(e: Expr, ctx: Context,
+    mut state: HolyCEmitState, mut error: Str) {
+    name_o := expr_type_name_ref(e)
+    if name_o.is_some() { holyc_register_collection(name_o.unwrap(), ctx, state, error) }
+    if error.len() > 0 { return }
+    switch e.node_type {
+    case .Decl(dd): holyc_register_collection(dd.type_name(), ctx, state, error)
+    case:
+    }
+    if error.len() > 0 { return }
+    for child : Expr in e.children {
+        holyc_collect_collection_types(child, ctx, state, error)
+        if error.len() > 0 { return }
+    }
+}
+
+priv holyc_prepare_state := func(program: Expr, ctx: Context,
+    mut state: HolyCEmitState, mut error: Str) {
     for stmt : Expr in program.children {
+        holyc_collect_collection_types(stmt, ctx, state, error)
+        if error.len() > 0 { return }
         switch stmt.node_type {
         case .Decl(decl):
             if stmt.children.len() == 1 {
                 switch stmt.children[0].node_type {
                 case .FuncDef(fdef):
+                    if decl.name.starts_with("adopt__") { continue }
                     state.user_functions.add(own decl.name.clone())
                     state.user_return_types.set(decl.name, own fdef.sig.return_type.clone())
                     if fdef.sig.return_own_type.is(OwnType.Ref) {
                         state.ref_return_functions.add(own decl.name.clone())
-                    } else if holyc_storage_type_name(fdef.sig.return_type) == "Str" {
+                    } else if holyc_storage_type_name(fdef.sig.return_type).eq("Str")
+                        .or(fdef.sig.return_type.eq("Array__Str")) {
                         state.str_return_functions.add(own decl.name.clone())
                     }
                     mut ref_params := Set(USize).new()
@@ -953,6 +1208,7 @@ priv holyc_prepare_state := func(program: Expr, mut state: HolyCEmitState, mut e
                     state.user_ref_params.set(decl.name, own ref_params)
                 case .StructDef:
                     state.struct_names.add(own decl.name.clone())
+                    holyc_register_collection(decl.name, ctx, state, error)
                 case .EnumDef:
                     ref def : Expr = stmt.children[0]
                     if enum_has_payloads(def) {
@@ -1017,6 +1273,8 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
                     return ""
                 }
                 return_type = format(holyc_value_ctype(return_type_name, state), " *")
+            } else if return_type_name == "Array__Str" {
+                aggregate_return_type = "TilStrArray"
             } else if return_type_name == "Str" {
                 aggregate_return_type = "TilStr"
             } else if holyc_aggregate_type(return_type_name, state) {
@@ -1045,6 +1303,11 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
             if param_type == "Str" {
                 if params.len() > 0 { params = format(params, ", ") }
                 params = format(params, "TilStr *", param.name)
+                continue
+            }
+            if param_type == "Array__Str" {
+                if params.len() > 0 { params = format(params, ", ") }
+                params = format(params, "TilStrArray *", param.name)
                 continue
             }
             if holyc_aggregate_type(param_type, state) {
@@ -1143,6 +1406,124 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         case .FieldAccess(fa):
             ref method : Str = fa.field_access_name(ctx.symbols.names)
             owner := holyc_storage_type_name(holyc_field_owner_name(callee, ctx.symbols))
+            if state.collection_elements.has(owner) {
+                ref elem : Str = state.collection_elements[owner]
+                if method == "len" {
+                    if e.children.len() != 2 { error = "invalid collection length call"; return "" }
+                    self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    mut field := "cap"
+                    if state.vec_names.has(owner) { field = "count" }
+                    return format("(", self_ref, ")->", field)
+                }
+                if method == "unsafe_get" {
+                    if e.children.len() != 3 { error = "invalid collection unsafe_get call"; return "" }
+                    self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    return format(owner, "_UnsafeGet(", self_ref, ", ", index, ")")
+                }
+                if method == "get" {
+                    if e.children.len() != 4 { error = "invalid collection get call"; return "" }
+                    self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    err := holyc_pointer_expr(e.children[3], ctx, state, locals, error)
+                    return format(owner, "_Get(", self_ref, ", ", index, ", ", err, ")")
+                }
+                if method == "unsafe_set" {
+                    if e.children.len() != 4 { error = "invalid collection unsafe_set call"; return "" }
+                    self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    mut value := ""
+                    if elem == "Str" { value = holyc_str_ref(e.children[3], ctx, locals, error) }
+                    else if holyc_aggregate_type(elem, state) { value = holyc_struct_ref(e.children[3], ctx, locals, error) }
+                    else { value = holyc_expr(e.children[3], ctx, state, locals, error) }
+                    return format(owner, "_UnsafeSet(", self_ref, ", ", index, ", ", value, ")")
+                }
+                if method == "set" {
+                    if e.children.len() != 5 { error = "invalid collection set call"; return "" }
+                    self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    mut value := ""
+                    if elem == "Str" { value = holyc_str_ref(e.children[3], ctx, locals, error) }
+                    else if holyc_aggregate_type(elem, state) { value = holyc_struct_ref(e.children[3], ctx, locals, error) }
+                    else { value = holyc_expr(e.children[3], ctx, state, locals, error) }
+                    err := holyc_pointer_expr(e.children[4], ctx, state, locals, error)
+                    return format(owner, "_Set(", self_ref, ", ", index, ", ", value, ", ", err, ")")
+                }
+                if state.vec_names.has(owner) {
+                    if method == "append" {
+                        if e.children.len() != 3 { error = "invalid Vec.append call"; return "" }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        other := holyc_struct_ref(e.children[2], ctx, locals, error)
+                        return format(owner, "_Append(", self_ref, ", ", other, ")")
+                    }
+                    if method == "move_to" {
+                        if e.children.len() != 3 { error = "invalid Vec.move_to call"; return "" }
+                        src := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        dest := holyc_struct_ref(e.children[2], ctx, locals, error)
+                        return format(owner, "_MoveTo(", src, ", ", dest, ")")
+                    }
+                    if method == "move_from" {
+                        if e.children.len() != 3 { error = "invalid Vec.move_from call"; return "" }
+                        dest := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        src := holyc_struct_ref(e.children[2], ctx, locals, error)
+                        return format(owner, "_MoveTo(", src, ", ", dest, ")")
+                    }
+                    if method == "truncate" {
+                        if e.children.len() != 3 { error = "invalid Vec.truncate call"; return "" }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        n := holyc_expr(e.children[2], ctx, state, locals, error)
+                        return format(owner, "_Truncate(", self_ref, ", ", n, ")")
+                    }
+                    if method == "remove_at" {
+                        if e.children.len() != 4 { error = "invalid Vec.remove_at call"; return "" }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        i := holyc_expr(e.children[2], ctx, state, locals, error)
+                        err := holyc_pointer_expr(e.children[3], ctx, state, locals, error)
+                        return format(owner, "_RemoveAt(", self_ref, ", ", i, ", ", err, ")")
+                    }
+                    if method == "push_take" {
+                        if e.children.len() != 4 { error = "invalid Vec.push_take call"; return "" }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        src := holyc_struct_ref(e.children[2], ctx, locals, error)
+                        i := holyc_expr(e.children[3], ctx, state, locals, error)
+                        return format(owner, "_PushTake(", self_ref, ", ", src, ", ", i, ")")
+                    }
+                    if method == "delete_marked" {
+                        if e.children.len() != 3 { error = "invalid Vec.delete_marked call"; return "" }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        marks := holyc_pointer_expr(e.children[2], ctx, state, locals, error)
+                        return format(owner, "_DeleteMarked(", self_ref, ", ", marks, ")")
+                    }
+                    if method == "push" {
+                        if e.children.len() != 3 { error = "invalid Vec.push call"; return "" }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        mut value := ""
+                        if elem == "Str" { value = holyc_str_ref(e.children[2], ctx, locals, error) }
+                        else if holyc_aggregate_type(elem, state) { value = holyc_struct_ref(e.children[2], ctx, locals, error) }
+                        else { value = holyc_expr(e.children[2], ctx, state, locals, error) }
+                        return format(owner, "_Push(", self_ref, ", ", value, ")")
+                    }
+                    if method.eq("pop").or(method.eq("clear")) {
+                        if e.children.len() != 2 { error = format("invalid Vec.", method, " call"); return "" }
+                        if method.eq("pop").and(elem.eq("Str").or(holyc_aggregate_type(elem, state))) {
+                            error = "aggregate Vec.pop call requires a destination"
+                            return ""
+                        }
+                        self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                        mut helper := "_Clear"
+                        if method == "pop" { helper = "_Pop" }
+                        return format(owner, helper, "(", self_ref, ")")
+                    }
+                }
+                if method == "delete" {
+                    if e.children.len() != 3 { error = "invalid collection delete call"; return "" }
+                    self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
+                    call_free := holyc_delete_free_flag(e.children[1], e.children[2], ctx, state, locals, error)
+                    return format(owner, "_Delete(", self_ref, ", ", call_free, ")")
+                }
+                error = format("unsupported collection call '", owner, ".", method, "' for '", elem, "'")
+                return ""
+            }
             if state.niche_ref_types.has(owner) {
                 if method == "Some" {
                     if e.children.len() != 2 { error = "invalid borrowed niche constructor"; return "" }
@@ -1237,6 +1618,20 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                     if e.children.len() != 2 { error = "invalid Array(Str).len call"; return "" }
                     array := holyc_str_array_ref(e.children[1], ctx, locals, error)
                     return format("(", array, ")->cap")
+                }
+                if method == "unsafe_get" {
+                    if e.children.len() != 3 { error = "invalid Array(Str).unsafe_get call"; return "" }
+                    array := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    return format("&(", array, ")->data[", index, "]")
+                }
+                if method == "get" {
+                    if e.children.len() != 4 { error = "invalid Array(Str).get call"; return "" }
+                    array := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                    index := holyc_expr(e.children[2], ctx, state, locals, error)
+                    err := holyc_pointer_expr(e.children[3], ctx, state, locals, error)
+                    state.needs_str_array_get = true
+                    return format("TilStrArrayGet(", array, ", ", index, ", ", err, ")")
                 }
                 if method.eq("set").or(method.eq("unsafe_set")) {
                     mut expected_len : USize = 4
@@ -1437,6 +1832,13 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             return value
         case .Ident(id):
             ref name : Str = id.ident_name(ctx.symbols.names)
+            if name == "panic" {
+                if e.children.len() != 3 { error = "invalid panic call"; return "" }
+                parts := holyc_str_array_ref(e.children[1], ctx, locals, error)
+                loc := holyc_str_ref(e.children[2], ctx, locals, error)
+                state.needs_panic_parts = true
+                return format("TilPanicParts(", parts, ", ", loc, ")")
+            }
             if name == "not" {
                 if e.children.len() != 2 { error = "invalid Bool.not call"; return "" }
                 value := holyc_expr(e.children[1], ctx, state, locals, error)
@@ -1974,6 +2376,15 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                     value := holyc_pointer_expr(stmt.children[0], ctx, state, locals, error)
                     if error.len() > 0 { return "" }
                     out = format(out, prefix, "return ", value, ";\n")
+                } else if aggregate_return_type == "Array__Str" {
+                    return_value := holyc_temp("return_value", state)
+                    value := holyc_str_array_init(return_value, stmt.children[0], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    state.needs_str_array_copy = true
+                    out = format(out, prefix, "{\n", prefix, "    TilStrArray ", return_value, ";\n",
+                        prefix, "    ", value, ";\n",
+                        prefix, "    TilStrArrayCopyValue(return_out, &", return_value, ");\n",
+                        prefix, "    return;\n", prefix, "}\n")
                 } else if aggregate_return_type == "Str" {
                     return_value := holyc_temp("return_value", state)
                     value := holyc_str_init(return_value, stmt.children[0], ctx, state, locals, error)
@@ -2041,6 +2452,7 @@ priv holyc_struct_field_ctype := func(owner: Str, field_name: Str,
 priv holyc_payload_lifecycle := func(name: Str, ctx: Context,
     state: HolyCEmitState, mut error: Str) {
     if holyc_aggregate_type(name, state).not() { return }
+    if state.collection_elements.has(name) { return }
     ref def : Expr = ctx.scope.get_struct(name, ctx.symbols).unwrap()
     for method : Str in "clone delete".split(" ") {
         if def_ns_has(def, method).and(holyc_struct_method_is_generated(name, method, ctx).not()) {
@@ -2157,6 +2569,241 @@ priv holyc_enum_definition := func(name: Str, def: Expr, ctx: Context,
     return out
 }
 
+priv holyc_collection_drop_element := func(elem: Str, slot: Str,
+    indent: Str, state: HolyCEmitState) returns Str {
+    if elem == "Str" { return format(indent, "TilStrDelete(&", slot, ", FALSE);\n") }
+    if holyc_aggregate_type(elem, state) {
+        return format(indent, elem, "_Delete(&", slot, ", FALSE);\n")
+    }
+    return ""
+}
+
+priv holyc_collection_clone_element := func(elem: Str, dest: Str, src: Str,
+    indent: Str, state: HolyCEmitState) returns Str {
+    if elem == "Str" { return format(indent, "TilStrClone(&", dest, ", &", src, ");\n") }
+    if holyc_aggregate_type(elem, state) {
+        return format(indent, elem, "_Clone(&", dest, ", &", src, ");\n")
+    }
+    return format(indent, dest, " = ", src, ";\n")
+}
+
+priv holyc_collection_move_element := func(elem: Str, dest: Str, src: Str,
+    indent: Str, state: HolyCEmitState) returns Str {
+    if elem.eq("Str").or(holyc_aggregate_type(elem, state)) {
+        ctype := holyc_value_ctype(elem, state)
+        return format(indent, "TilMemCpy(&", dest, ", &", src, ", sizeof(", ctype, "));\n",
+            indent, "TilMemSet(&", src, ", 0, sizeof(", ctype, "));\n")
+    }
+    return format(indent, dest, " = ", src, ";\n", indent, src, " = 0;\n")
+}
+
+priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEmitState,
+    mut error: Str) returns Str {
+    ref elem : Str = state.collection_elements[name]
+    ctype := holyc_value_ctype(elem, state)
+    is_managed := elem.eq("Str").or(holyc_aggregate_type(elem, state))
+    if holyc_scalar_type_name(ctype).or(state.niche_ref_types.has(elem)).or(is_managed).not() {
+        error = format("unsupported collection element type '", elem, "'")
+        return ""
+    }
+    if holyc_aggregate_type(elem, state) {
+        holyc_payload_lifecycle(elem, ctx, state, error)
+        if error.len() > 0 { return "" }
+    }
+    mut value_param := format(ctype, " value")
+    if is_managed { value_param = format(ctype, " *value") }
+    sz := state.usize_ctype
+    mut max_cap := "I64_MAX"
+    if sz == "U32" { max_cap = "4294967295" }
+    is_vec := state.vec_names.has(name)
+    mut out := format("class ", name, " {\n  ", ctype, " *data;\n")
+    if is_vec { out = format(out, "  ", sz, " count;\n") }
+    out = format(out, "  ", sz, " cap;\n};\n\n",
+        "U0 ", name, "_CopyValue(", name, " *out, ", name, " *src)\n{\n",
+        "  out->data = src->data;\n")
+    if is_vec { out = format(out, "  out->count = src->count;\n") }
+    out = format(out, "  out->cap = src->cap;\n}\n\n")
+    if is_vec {
+        out = format(out, "U0 ", name, "_New(", name, " *out)\n{\n",
+            "  out->data = NULL;\n  out->count = 0;\n  out->cap = 0;\n}\n\n",
+            "U0 ", name, "_WithCapacity(", name, " *out, ", sz, " cap)\n{\n",
+            "  out->data = NULL;\n",
+            "  if (cap && cap > I64_MAX / sizeof(", ctype, ")) TilPanicZ(\"til: allocation size overflow\n\");\n",
+            "  if (cap) out->data = (TilMAlloc(cap * sizeof(", ctype, ")))(", ctype, " *);\n",
+            "  out->count = 0;\n  out->cap = cap;\n}\n\n")
+    } else {
+        out = format(out, "U0 ", name, "_New(", name, " *out, ", sz, " cap)\n{\n",
+            "  out->data = (TilCAlloc(cap, sizeof(", ctype, ")))(", ctype, " *);\n",
+            "  out->cap = cap;\n}\n\n")
+    }
+    out = format(out, "U0 ", name, "_Clone(", name, " *out, ", name, " *src)\n{\n",
+        "  out->data = (TilCAlloc(src->cap, sizeof(", ctype, ")))(", ctype, " *);\n")
+    if is_vec { out = format(out, "  out->count = src->count;\n") }
+    out = format(out, "  out->cap = src->cap;\n  ", sz, " i = 0;\n",
+        "  while (i < ")
+    if is_vec { out = format(out, "src->count") }
+    else { out = format(out, "src->cap") }
+    out = format(out, ") {\n")
+    out = format(out, holyc_collection_clone_element(elem, "out->data[i]", "src->data[i]", "    ", state))
+    out = format(out, "    i++;\n  }\n}\n\n",
+        ctype, " *", name, "_UnsafeGet(", name, " *self, ", sz, " i)\n{\n",
+        "  return &self->data[i];\n}\n\n",
+        "U0 ", name, "_UnsafeSet(", name, " *self, ", sz, " i, ", value_param, ")\n{\n")
+    if is_managed {
+        out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "  ", state))
+        out = format(out, "  TilMemCpy(&self->data[i], value, sizeof(", ctype, "));\n",
+            "  TilMemSet(value, 0, sizeof(", ctype, "));\n")
+    } else {
+        out = format(out, "  self->data[i] = value;\n")
+    }
+    out = format(out, "}\n\n")
+    out = format(out, ctype, " *", name, "_Get(", name, " *self, ", sz,
+        " i, I64 *err_kind)\n{\n",
+        "  *err_kind = 0;\n  if (i >= self->")
+    if is_vec { out = format(out, "count") }
+    else { out = format(out, "cap") }
+    out = format(out, ") {\n    *err_kind = 1;\n    return NULL;\n  }\n",
+        "  return ", name, "_UnsafeGet(self, i);\n}\n\n",
+        "U0 ", name, "_Set(", name, " *self, ", sz, " i, ", value_param,
+        ", I64 *err_kind)\n{\n",
+        "  *err_kind = 0;\n  if (i >= self->")
+    if is_vec { out = format(out, "count") }
+    else { out = format(out, "cap") }
+    out = format(out, ") {\n    *err_kind = 1;\n    return;\n  }\n",
+        "  ", name, "_UnsafeSet(self, i, value);\n}\n\n")
+    if is_vec {
+        out = format(out, "U0 ", name, "_Push(", name, " *self, ", value_param, ")\n{\n",
+            "  if (self->count == self->cap) {\n",
+            "    if (self->cap > ", max_cap, "/2) TilPanicZ(\"Vec.push: capacity overflow\n\");\n",
+            "    ", sz, " new_cap = self->cap * 2;\n",
+            "    if (!new_cap) new_cap = 1;\n",
+            "    if (new_cap > I64_MAX / sizeof(", ctype, ")) TilPanicZ(\"til: allocation size overflow\n\");\n",
+            "    self->data = (TilReAlloc(self->data, new_cap * sizeof(", ctype, ")))(", ctype, " *);\n",
+            "    self->cap = new_cap;\n  }\n")
+        if is_managed {
+            out = format(out, "  TilMemCpy(&self->data[self->count], value, sizeof(", ctype, "));\n",
+                "  TilMemSet(value, 0, sizeof(", ctype, "));\n")
+        } else {
+            out = format(out, "  self->data[self->count] = value;\n")
+        }
+        out = format(out, "  self->count++;\n}\n\n")
+        if is_managed { out = format(out, "U0 ", name, "_Pop(", ctype, " *out, ", name, " *self)\n{\n") }
+        else { out = format(out, ctype, " ", name, "_Pop(", name, " *self)\n{\n") }
+        out = format(out, "  if (!self->count) TilPanicZ(\"Vec.pop: empty vec\n\");\n",
+            "  self->count--;\n")
+        if is_managed {
+            out = format(out, "  TilMemCpy(out, &self->data[self->count], sizeof(", ctype, "));\n",
+                "  TilMemSet(&self->data[self->count], 0, sizeof(", ctype, "));\n")
+        } else {
+            out = format(out, "  return self->data[self->count];\n")
+        }
+        out = format(out, "}\n\n",
+            "U0 ", name, "_Clear(", name, " *self)\n{\n")
+        if is_managed {
+            out = format(out, "  ", sz, " i = 0;\n  while (i < self->count) {\n")
+            out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "    ", state))
+            out = format(out, "    i++;\n  }\n")
+        }
+        out = format(out, "  self->count = 0;\n}\n\n")
+    }
+    out = format(out, "U0 ", name, "_Delete(", name, " *self, Bool call_free)\n{\n",
+        "")
+    if is_vec { out = format(out, "  ", name, "_Clear(self);\n") }
+    else if is_managed {
+        out = format(out, "  ", sz, " i = 0;\n  while (i < self->cap) {\n")
+        out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "    ", state))
+        out = format(out, "    i++;\n  }\n")
+    }
+    out = format(out, "  TilFree(self->data);\n",
+        "  self->data = NULL;\n  self->cap = 0;\n")
+    if is_vec { out = format(out, "  self->count = 0;\n") }
+    out = format(out, "  if (call_free) TilFree(self);\n}\n\n")
+    if is_vec {
+        out = format(out, "U0 ", name, "_Take(", name, " *out, ", name, " *self)\n{\n",
+            "  ", name, "_CopyValue(out, self);\n",
+            "  self->data = NULL;\n  self->count = 0;\n  self->cap = 0;\n}\n\n",
+            "U0 ", name, "_Append(", name, " *self, ", name, " *other)\n{\n",
+            "  if (!other->count) {\n    ", name, "_Delete(other, FALSE);\n    return;\n  }\n",
+            "  if (other->count > ", max_cap, " - self->count) TilPanicZ(\"Vec.append: size overflow\n\");\n",
+            "  ", sz, " needed = self->count + other->count;\n",
+            "  if (needed > self->cap) {\n    ", sz, " next_cap = self->cap;\n",
+            "    if (!next_cap) next_cap = 1;\n",
+            "    while (next_cap < needed) {\n",
+            "      if (next_cap > ", max_cap, " / 2) TilPanicZ(\"Vec.append: capacity overflow\n\");\n",
+            "      next_cap = next_cap * 2;\n    }\n",
+            "    if (next_cap > I64_MAX / sizeof(", ctype, ")) TilPanicZ(\"Vec.append: allocation overflow\n\");\n",
+            "    self->data = (TilReAlloc(self->data, next_cap * sizeof(", ctype, ")))(", ctype, " *);\n",
+            "    self->cap = next_cap;\n  }\n",
+            "  TilMemCpy(&self->data[self->count], other->data, other->count * sizeof(", ctype, "));\n",
+            "  self->count = needed;\n  other->count = 0;\n",
+            "  ", name, "_Delete(other, FALSE);\n}\n\n",
+            "U0 ", name, "_MoveTo(", name, " *src, ", name, " *dest)\n{\n",
+            "  ", name, "_Delete(dest, FALSE);\n  ", name, "_Take(dest, src);\n}\n\n")
+        out = format(out, "U0 ", name, "_Truncate(", name, " *self, ", sz, " n)\n{\n",
+            "  if (n > self->count) TilPanicZ(\"Vec.truncate: out of bounds\n\");\n",
+            "  ", sz, " i = n;\n  while (i < self->count) {\n",
+            holyc_collection_drop_element(elem, "self->data[i]", "    ", state),
+            "    i++;\n  }\n  self->count = n;\n}\n\n",
+            "U0 ", name, "_RemoveAt(", name, " *self, ", sz, " i, I64 *err_kind)\n{\n",
+            "  *err_kind = 0;\n  if (i >= self->count) { *err_kind = 1; return; }\n",
+            holyc_collection_drop_element(elem, "self->data[i]", "  ", state),
+            "  ", sz, " last = self->count - 1;\n",
+            "  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(", ctype, "));\n",
+            "  self->count = last;\n  TilMemSet(&self->data[last], 0, sizeof(", ctype, "));\n}\n\n")
+        out = format(out, "U0 ", name, "_PushTake(", name, " *self, ", name, " *src, ", sz, " i)\n{\n",
+            "  if (i >= src->count) TilPanicZ(\"Vec.push_take: out of bounds\n\");\n",
+            "  if (self->count == self->cap) {\n",
+            "    if (self->cap > ", max_cap, "/2) TilPanicZ(\"Vec.push_take: capacity overflow\n\");\n",
+            "    ", sz, " next_cap = self->cap * 2;\n",
+            "    if (!next_cap) next_cap = 1;\n",
+            "    if (next_cap > I64_MAX/sizeof(", ctype, ")) TilPanicZ(\"Vec.push_take: allocation overflow\n\");\n",
+            "    self->data = (TilReAlloc(self->data, next_cap*sizeof(", ctype, ")))(", ctype, " *);\n",
+            "    self->cap = next_cap;\n  }\n",
+            holyc_collection_move_element(elem, "self->data[self->count]", "src->data[i]", "  ", state),
+            "  self->count++;\n}\n\n")
+        out = format(out, "U0 ", name, "_TakePrefix(", name, " *out, ", name,
+            " *self, ", sz, " n)\n{\n",
+            "  if (n > self->count) TilPanicZ(\"Vec.take_prefix: out of bounds\n\");\n",
+            "  ", sz, " cap = n;\n  if (!cap) cap = 1;\n",
+            "  if (cap > I64_MAX/sizeof(", ctype, ")) TilPanicZ(\"Vec.take_prefix: allocation overflow\n\");\n",
+            "  out->data = (TilMAlloc(cap*sizeof(", ctype, ")))(", ctype, " *);\n",
+            "  out->count = n;\n  out->cap = cap;\n",
+            "  if (n) TilMemCpy(out->data, self->data, n*sizeof(", ctype, "));\n",
+            "  ", sz, " tail = self->count - n;\n",
+            "  if (tail) TilMemMove(self->data, &self->data[n], tail*sizeof(", ctype, "));\n",
+            "  if (n) TilMemSet(&self->data[tail], 0, n*sizeof(", ctype, "));\n",
+            "  self->count = tail;\n}\n\n",
+            "U0 ", name, "_DeleteMarked(", name, " *self, U8 *marks)\n{\n",
+            "  ", sz, " i = 0;\n  while (i < self->count) {\n",
+            "    if (marks[i]) {\n",
+            holyc_collection_drop_element(elem, "self->data[i]", "      ", state),
+            "      TilMemSet(&self->data[i], 0, sizeof(", ctype, "));\n",
+            "    }\n    i++;\n  }\n",
+            "  ", sz, " w = 0;\n  ", sz, " r = 0;\n",
+            "  while (r < self->count) {\n    if (!marks[r]) {\n",
+            "      if (w != r) TilMemCpy(&self->data[w], &self->data[r], sizeof(", ctype, "));\n",
+            "      w++;\n    }\n    r++;\n  }\n  self->count = w;\n}\n\n")
+    } else {
+        out = format(out, "U0 ", name, "_Concat(", name, " *out, ", name, " *a, ", name, " *b)\n{\n",
+            "  if (b->cap > ", max_cap, " - a->cap) TilPanicZ(\"Array.concat: size overflow\n\");\n",
+            "  ", name, "_New(out, a->cap + b->cap);\n",
+            "  ", sz, " i = 0;\n  while (i < a->cap) {\n",
+            holyc_collection_clone_element(elem, "out->data[i]", "a->data[i]", "    ", state),
+            "    i++;\n  }\n  ", sz, " j = 0;\n  while (j < b->cap) {\n",
+            holyc_collection_clone_element(elem, "out->data[a->cap+j]", "b->data[j]", "    ", state),
+            "    j++;\n  }\n}\n\n")
+        vec_name := format("Vec__", elem)
+        if state.vec_names.has(vec_name) {
+            out = format(out, "U0 ", name, "_ToVec(", vec_name, " *out, ", name, " *src)\n{\n",
+                "  ", vec_name, "_WithCapacity(out, src->cap);\n",
+                "  ", sz, " i = 0;\n  while (i < src->cap) {\n",
+                holyc_collection_clone_element(elem, "out->data[i]", "src->data[i]", "    ", state),
+                "    i++;\n  }\n  out->count = src->cap;\n}\n\n")
+        }
+    }
+    return out
+}
+
 priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitState,
     mut output: Str, mut error: Str) {
     mut emitted := Set(Str).new()
@@ -2186,6 +2833,20 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                     remaining--
                     progress = true
                 case .StructDef(sdef):
+                    if state.collection_elements.has(decl.name) {
+                        ref elem : Str = state.collection_elements[decl.name]
+                        if holyc_aggregate_type(elem, state).and(emitted.has(elem).not()) { continue }
+                        vec_name := format("Vec__", elem)
+                        if state.vec_names.has(vec_name).and(state.vec_names.has(decl.name).not())
+                            .and(emitted.has(vec_name).not()) { continue }
+                        collection := holyc_collection_definition(decl.name, lp.ctx, state, error)
+                        if error.len() > 0 { return }
+                        output = format(output, collection)
+                        emitted.add(own decl.name.clone())
+                        remaining--
+                        progress = true
+                        continue
+                    }
                     if sdef.is_interface {
                         error = format("interface '", decl.name, "' is not supported yet")
                         return
@@ -2220,15 +2881,19 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                         if field.own_type.is(OwnType.Ref) {
                             output = format(output, "  out->", field_name, " = src->", field_name, ";\n")
                         } else if field.own_type.is(OwnType.Own) {
+                            // Array.new zeroes every slot; moving an element
+                            // also empties its source. Both have null own fields.
                             ctype := holyc_value_ctype(field_type, state)
-                            output = format(output, "  out->", field_name,
+                            output = format(output, "  if (src->", field_name, ") {\n",
+                                "    out->", field_name,
                                 " = (TilMAlloc(sizeof(", ctype, ")))(", ctype, " *);\n")
                             if field_type == "Str" {
-                                output = format(output, "  TilStrClone(out->", field_name, ", src->", field_name, ");\n")
+                                output = format(output, "    TilStrClone(out->", field_name, ", src->", field_name, ");\n")
                             } else if holyc_aggregate_type(field_type, state) {
-                                output = format(output, "  ", field_type, "_Clone(out->", field_name,
+                                output = format(output, "    ", field_type, "_Clone(out->", field_name,
                                     ", src->", field_name, ");\n")
                             }
+                            output = format(output, "  } else {\n    out->", field_name, " = NULL;\n  }\n")
                         } else if state.niche_ref_types.has(field_type).or(holyc_scalar_type_name(field_type)) {
                             output = format(output, "  out->", field_name, " = src->", field_name, ";\n")
                         } else if field_type == "Str" {
@@ -2249,9 +2914,9 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                         if field.own_type.is(OwnType.Ref) { continue }
                         if field.own_type.is(OwnType.Own) {
                             if field_type == "Str" {
-                                output = format(output, "  TilStrDelete(self->", field_name, ", TRUE);\n")
+                                output = format(output, "  if (self->", field_name, ") TilStrDelete(self->", field_name, ", TRUE);\n")
                             } else if holyc_aggregate_type(field_type, state) {
-                                output = format(output, "  ", field_type, "_Delete(self->", field_name, ", TRUE);\n")
+                                output = format(output, "  if (self->", field_name, ") ", field_type, "_Delete(self->", field_name, ", TRUE);\n")
                             }
                         } else if field_type == "Str" {
                             output = format(output, "  TilStrDelete(&self->", field_name, ", FALSE);\n")
@@ -2292,6 +2957,20 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                 }
             }
         }
+        for name : Str in state.collection_elements.keys {
+            if emitted.has(name) { continue }
+            ref elem : Str = state.collection_elements[name]
+            if holyc_aggregate_type(elem, state).and(emitted.has(elem).not()) { continue }
+            vec_name := format("Vec__", elem)
+            if state.vec_names.has(vec_name).and(state.vec_names.has(name).not())
+                .and(emitted.has(vec_name).not()) { continue }
+            collection := holyc_collection_definition(name, lp.ctx, state, error)
+            if error.len() > 0 { return }
+            output = format(output, collection)
+            emitted.add(own name.clone())
+            remaining--
+            progress = true
+        }
         if progress.not() {
             error = "cyclic inline struct dependency"
             return
@@ -2306,6 +2985,7 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
         switch stmt.node_type {
         case .Decl(decl):
             if stmt.children.len().neq(1).or(stmt.children[0].node_type.is(NodeType.FuncDef).not()) { continue }
+            if decl.name.starts_with("adopt__") { continue }
             ref func_expr : Expr = stmt.children[0]
             signature := holyc_function_signature(decl.name, func_expr, state, error)
             if error.len() > 0 { return }
@@ -2320,13 +3000,17 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
                 return_type := holyc_storage_type_name(fdef.sig.return_type)
                 if fdef.sig.return_own_type.is(OwnType.Ref) {
                     locals.ref_return_type = return_type.clone()
-                } else if return_type.eq("Str").or(holyc_aggregate_type(return_type, state)) {
+                } else if return_type.eq("Str").or(return_type.eq("Array__Str"))
+                    .or(holyc_aggregate_type(return_type, state)) {
                     aggregate_return_type = return_type
                 }
                 for param : Declaration in fdef.sig.params {
                     param_type := holyc_storage_type_name(param.type_name())
                     if param_type == "Str" {
                         locals.str_pointer_names.add(own param.name.clone())
+                        locals.param_pointer_names.add(own param.name.clone())
+                    } else if param_type == "Array__Str" {
+                        locals.str_array_pointer_names.add(own param.name.clone())
                         locals.param_pointer_names.add(own param.name.clone())
                     } else if holyc_aggregate_type(param_type, state) {
                         locals.struct_pointer_types.set(param.name, own param_type)
@@ -2391,10 +3075,11 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     }
 
     mut state := HolyCEmitState()
+    state.usize_ctype = lp.ctx.target_usize_pname.clone()
     mut validation_error := ""
     for unit : ProgramUnit in lp.units {
         ref program : Expr = lp.ctx.imported[unit.path].ast
-        holyc_prepare_state(program, state, validation_error)
+        holyc_prepare_state(program, lp.ctx, state, validation_error)
         if validation_error.len() > 0 {
             println("error: HolyC codegen: ", validation_error)
             return 1
@@ -2429,6 +3114,39 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     f := File.new(output_path, true)
     f.write(holyc_runtime_prelude())
     f.write(structs)
+    if state.needs_str_array_clone {
+        f.write("U0 TilStrArrayClone(TilStrArray *out, TilStrArray *src)\n{\n")
+        f.write("  TilStrArrayNew(out, src->cap);\n  U32 i = 0;\n")
+        f.write("  while (i < src->cap) {\n    TilStrClone(&out->data[i], &src->data[i]);\n    i++;\n  }\n}\n\n")
+    }
+    if state.needs_str_array_copy {
+        f.write("U0 TilStrArrayCopyValue(TilStrArray *out, TilStrArray *src)\n{\n")
+        f.write("  out->data = src->data;\n  out->cap = src->cap;\n}\n\n")
+    }
+    if state.needs_str_array_get {
+        f.write("TilStr *TilStrArrayGet(TilStrArray *array, U32 i, I64 *err_kind)\n{\n")
+        f.write("  *err_kind = 0;\n  if (i >= array->cap) { *err_kind = 1; return NULL; }\n")
+        f.write("  return &array->data[i];\n}\n\n")
+    }
+    if state.needs_str_array_concat {
+        f.write("U0 TilStrArrayConcat(TilStrArray *out, TilStrArray *a, TilStrArray *b)\n{\n")
+        f.write("  U64 total = a->cap + b->cap;\n")
+        f.write("  if (total > 0xFFFFFFFF) TilPanicZ(\"Array(Str).concat: capacity overflow\n\");\n")
+        f.write("  TilStrArrayNew(out, total);\n  U32 i = 0;\n")
+        f.write("  while (i < a->cap) { TilStrClone(&out->data[i], &a->data[i]); i++; }\n")
+        f.write("  U32 j = 0;\n  while (j < b->cap) { TilStrClone(&out->data[a->cap+j], &b->data[j]); j++; }\n}\n\n")
+    }
+    if state.needs_str_array_to_vec {
+        f.write("U0 TilStrArrayToVec(Vec__Str *out, TilStrArray *src)\n{\n")
+        f.write("  Vec__Str_WithCapacity(out, src->cap);\n  U32 i = 0;\n")
+        f.write("  while (i < src->cap) { TilStrClone(&out->data[i], &src->data[i]); i++; }\n")
+        f.write("  out->count = src->cap;\n}\n\n")
+    }
+    if state.needs_panic_parts {
+        f.write("U0 TilPanicParts(TilStrArray *parts, TilStr *loc)\n{\n")
+        f.write("  TilStrWrite(loc);\n  TilRawWrite(\": \", 2);\n  TilPrintln(parts);\n")
+        f.write("  TilPanicZ(\"\");\n}\n\n")
+    }
     if state.needs_i64_div {
         f.write("I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
     }

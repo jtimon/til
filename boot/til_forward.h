@@ -1234,6 +1234,7 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Set__Str str_names;
     Set__Str str_pointer_names;
     Set__Str str_array_names;
+    Set__Str str_array_pointer_names;
     Map__Str_Str struct_types;
     Map__Str_Str struct_pointer_types;
 } priv___src_self_holyc_codegen_til__HolyCLocalState;
@@ -2061,10 +2062,19 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str enum_types;
     Set__Str payload_enum_names;
     Map__Str_Str niche_ref_types;
+    Map__Str_Str collection_elements;
+    Set__Str vec_names;
+    Str usize_ctype;
     USize switch_id;
     USize temp_id;
     Bool needs_i64_div;
     Bool needs_i64_mod;
+    Bool needs_str_array_clone;
+    Bool needs_str_array_get;
+    Bool needs_str_array_concat;
+    Bool needs_str_array_to_vec;
+    Bool needs_str_array_copy;
+    Bool needs_panic_parts;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;
 
 

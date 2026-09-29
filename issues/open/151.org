@@ -362,6 +362,28 @@
   TempleOS 5.03 under QEMU TCG produced the same 65 output lines and
   ~TILTEST:PASS~.
 
+  The eighteenth slice adds typed ~Array(T)~ and ~Vec(T)~ lowering alongside
+  the existing ~TilStrArray~ print runtime. Specializations come from the
+  frontend's typed AST and existing type-generation sources, including nested
+  collections; no new persisted type registry is needed. HolyC emits typed
+  contiguous element storage and native helpers for constructors, checked and
+  unchecked get/set, deep clone/delete, Vec push/pop/clear, grow, append,
+  remove, truncate, take/take_prefix, move and marked compaction, and Array
+  concat/to_vec. Ownership-transferring writes clear moved-from aggregate
+  slots, while zeroed own-field slots are valid during Array clone/delete.
+  ~Array(Str)~ keeps its existing representation and gains clone, checked get,
+  concat and to_vec; aggregate parameters and caller-owned returns work for
+  both collection representations. Checked accesses set the shared error slot,
+  and a tested out-of-bounds guest call throws with the expected message.
+
+  The expanded shared ~test/script_struct_runtime.til~ covers scalar, Str,
+  struct, payload-enum and nested-Vec elements with host interpreter/compiled
+  C parity. TempleOS 5.03 under QEMU TCG produced the same 80 output lines and
+  ~TILTEST:PASS~. Dynamic/F64 elements and custom aggregate lifecycle remain
+  unsupported by this HolyC subset. A zeroed Array of a struct with an own
+  POD field also still hits the host C backend's own-field clone value/pointer
+  mismatch; it needs a shared compiler fix before it can join the guest corpus.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI
