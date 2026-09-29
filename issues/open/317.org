@@ -12,17 +12,44 @@ the C backend stays the default and the bootstrap path.
 - MLIR is organized around "dialects" (func, arith, scf/cf, memref,
   vector, gpu, llvm, ...) and progressive lowering: high-level ops stay
   target-independent until late, then lower dialect-by-dialect to LLVM
-  IR and finally per-target machine code. One input IR can target x86
-  (SSE/AVX/AVX-512), ARM (NEON/SVE), RISC-V vectors, and GPUs
-  (NVVM/ROCDL) from the same source.
-- Mojo is the proof that a small language can ride this: the whole
-  language is a thin frontend over MLIR (Lattner's team; see the 2025
-  LLVM devmtg talk "Building Modern Language Frontends with MLIR:
-  Lessons from Mojo"). Mojo gets state-of-the-art CPU/GPU codegen and
-  performance portability without owning any of that infrastructure.
-- For til it opens what C emission cannot express directly: real vector
-  types with target legalization (issue #318 is the first customer),
-  GPU kernels, and compiler optimization passes below the C level.
+  IR and finally per-target machine code. CPU lowering can reuse LLVM's
+  instruction selection. GPU support additionally needs a device execution
+  model, address spaces, kernel launch/runtime integration and target-specific
+  lowering; CPU IR does not become a GPU program just by selecting a target.
+- Mojo demonstrates the approach, but is not a thin frontend receiving all
+  its performance infrastructure for free. The now-public compiler contains
+  custom LIT/KGEN/POP/HLCF dialects and substantial elaboration, lifetime,
+  target and LLVM-lowering code. Its source is a concrete reference, not a
+  ready-made til backend.
+- For til the reason to add MLIR is access to explicit IR transformations,
+  structured/vector operations and a possible future accelerator pipeline.
+  Fixed-width SIMD and ISA legalization alone do NOT require it: #318 can
+  use GCC/Clang vector extensions, and LLVM IR supports vectors directly.
+
+*** Mojo source review (2026-09-29)
+
+Reviewed modular/modular ~ce67c4bba4~, whose compiler and stdlib are available
+under Apache-2.0 with LLVM exceptions. ~Mojo/stdlib/std/simd.mojo~ stores
+~!kgen.simd~ and emits ~pop.add~, ~pop.simd.select~, ~pop.simd.splat~, etc.
+~Mojo/lib/KGENToLLVM/LowerPOPToLLVM.cpp~ converts those operations to LLVM
+dialect operations, with additional stdlib LLVM-intrinsic/target-specific
+paths. The earlier description of Mojo SIMD as necessarily passing through
+the upstream ~vector~ dialect was incorrect. See [[./318.org][#318]] for the
+syntax/semantics review and proposed til contract.
+That issue also contains paired Mojo/til arithmetic, comparison, mask,
+selection and matrix-multiplication examples. The human has chosen
+elementwise comparisons: ~a == b~ and ~a.eq(b)~ return masks, while
+~(a == b).all()~ / ~a.eq(b).all()~ return whole-vector value equality.
+Possible ~reduce_eq~ shorthand and ~reduce_and/reduce_or~ mask-reduction
+aliases remain naming proposals. This backend must preserve the chosen
+contract, including mask normalization and explicit all/any reductions;
+fusing compare-and-reduce must not change its semantics. The matrix example uses ordinary SIMD
+row combinations and does not require a tensor dialect or matrix type.
+
+Recommendation: use upstream dialects for til's first implementation and
+external tools, keeping Mojo's custom dialects out of the dependency graph.
+The C SIMD backend remains supported after MLIR lands. This issue is neither
+a dependency of #318 nor a promise that a vector op will be one instruction.
 
 *** Fit with existing til structure
 
@@ -30,50 +57,70 @@ the C backend stays the default and the bootstrap path.
   in mind: ~core_func~ is the mandatory primitive ISA every backend
   must lower inline (C -> ~a*b~, MLIR -> ~arith.muli~), ~ext_func~ is
   the per-backend symbol layer. That contract is the backend interface.
-- ~Lang~ in src/self/targets.til already enumerates codegen languages
-  (C, HolyC, TIL). MLIR would be a new ~Lang~ variant plus an emitter
-  selected by src/self/builder.til alongside the C-family emitter in
-  src/self/c_codegen.til, the same boundary HolyC uses.
+- ~Lang~ in src/self/targets.til enumerates C, HolyC, TIL and Java at
+  master ~24b032796~. MLIR would be another emitter selected by
+  src/self/builder.til. Target/Lang validation currently associates a
+  platform with its default language: supporting C AND MLIR for one CPU
+  requires an explicit backend-selection design, not merely an enum case.
+- Reuse the prepared AST and inserted ownership/throw cleanup. Existing
+  synthetic error-kind/payload reference parameters are the language-level
+  calling contract; their machine ABI, especially aggregate passing, must
+  be matched explicitly. Do not move destruction decisions into this emitter.
 
 *** Implementation plan (staged; C backend stays green at every stage)
 
   Strategy in one line: emit the textual .mlir format into gen/ the
   way the C backend emits textual C, drive external tools
-  (~mlir-translate~, ~clang~/~llc~) to get objects, keep the whole
-  ~ext_func~ layer as the already-compiled C runtime linked in, and
+  (~mlir-opt~, ~mlir-translate~, ~clang~/~llc~) to get objects, retain the
+  C runtime implementation of the native ~ext_func~ layer, and
   never link MLIR's C++ libraries into til itself. Only ~core_func~
   ops, control flow, and data layout are emitted as MLIR.
 
-  1. Toolchain probe, zero compiler changes: hand-write a hello world
-     .mlir (func + arith + llvm dialects, calling a C symbol), compile
-     it with ~mlir-translate --mlir-to-llvmir~ + ~clang~, link it
-     against the existing C runtime objects, run it. Record the exact
-     tool invocations and minimum tool versions in this issue.
+   1. Toolchain/ABI probe, zero compiler changes: on an approved pinned LLVM
+      toolchain, hand-write a hello world .mlir (func + arith + llvm,
+      calling a C symbol). Run ~mlir-opt~ conversions to LLVM-translatable
+      dialects BEFORE ~mlir-translate --mlir-to-llvmir~, then compile/link
+      with ~clang~. Translation alone does not lower func/arith/cf/vector.
+      Pin the conversion pipeline, data layout and target triple; record
+      exact versions/commands and use a matching toolchain for each stage.
+      Add mixed C/MLIR calls with narrow scalars, aggregates, pointers and
+      error out-parameters. A matching-looking ~func.func~ signature does
+      not itself implement Clang's platform ABI (sret/byval/coercions and
+      extension attributes may matter). Test C calling MLIR and vice versa.
   2. Backend plumbing: new ~Lang.MLIR~ variant in src/self/targets.til
-     mirroring HolyC (lang_to_str, target/lang selection, output
-     paths). Proposed surface, to be approved at implementation time:
-     .mlir emitted under gen/ next to the C output, compile driven by
-     the existing build entry points, no new top-level commands.
+      with explicit target/lang selection and output paths. Proposed surface,
+      to be approved at implementation time: til writes textual .mlir under
+      gen/, read by humans and mlir-opt; converted IR is passed to
+      mlir-translate and LLVM/Clang. Existing build entry points regenerate
+      everything from til source. C output cannot carry these MLIR operations;
+      the tradeoff is a separate optional toolchain and generated IR path.
+      Approve exact paths, any persisted intermediate artifacts, backend
+      selection syntax and tool installation before implementing them. No
+      second source of truth or persistent compilation cache is proposed.
   3. Emitter skeleton alongside src/self/c_codegen.til:
-     module header, ~func.func~ signatures using the SAME ABI the C
-     backend emits (return value, ~_err_kind~ and payload out-params
-     as pointer arguments), plus extern declarations for every
-     ~ext_func~ symbol. ABI-compatibility with the C runtime is the
+      module header and signatures implementing the C ABI established by
+      the probe, including return values and existing synthetic error
+      out-parameters, plus declarations for reachable ~ext_func~ symbols.
+      ABI-compatibility with the C runtime is the
      load-bearing decision: the runtime is not re-implemented, MLIR
      code just calls it (#288's ~ext_func~ layer).
   4. Minimal end-to-end subset: main, scalar locals, ~core_func~ ops
-     lowered inline to ~arith.*~ (the #288 contract: C -> ~a*b~,
-     MLIR -> ~arith.muli~), direct calls, string literals as globals,
+      lowered inline to ~arith/llvm~ with til's scalar semantics (zero
+      division, signedness and shifts are not blindly mapped to bare ops),
+      direct calls, string literals as globals,
      print via ~ext_func~. A til hello world runs through the MLIR
      pipeline.
   5. Control flow: if/while/for/switch, and the throw/catch tag checks
      after calls, lowered with cf blocks (cf matches the shape the C
      emitter produces more directly than scf; revisit if scf's
      structured ops make the emitter simpler).
-  6. Aggregates and memory: structs as ~llvm.struct~ with GEP field
-     access, own/ref pointers as ~llvm.ptr~, constructor/clone/delete
-     calls into the runtime. Str/Vec/Map/Set work at this point since
-     they are field access + ~ext_func~ calls.
+   6. Aggregates and memory: structs as ~llvm.struct~ with GEP field
+      access, own/ref pointers as ~llvm.ptr~, matching size/alignment and
+      calling conventions. Constructors/clone/delete and collection methods
+      written in til must also be emitted; they are not all C runtime
+      symbols. Verify Str/Vec/Map/Set, layout, aliasing and cleanup before
+      claiming collections work. SIMD memory layout must match #318 even
+      when register vectors/masks have a different representation.
   7. Suite burn-down: run the test corpus under the MLIR backend and
      close the gap (dyn/FuncPtr, closures, FFI, gui mode last). Every
      landed stage keeps ~make test~ (C backend) green; the MLIR
@@ -83,20 +130,39 @@ the C backend stays the default and the bootstrap path.
 
   - A smoke program compiles through gen/ .mlir and runs with output
     identical to its C-backend build.
-  - ~Lang.C~ remains the default; boot/ and the self-hosting loop are
-    untouched (the MLIR backend never enters the bootstrap).
+   - ~Lang.C~ remains the default native backend and bootstrap path.
+     Compiler changes may regenerate boot/ through the normal C build;
+     building til itself does not require or select MLIR.
   - ~core_func~ ops appear inline as arith/llvm dialect ops in the
     emitted .mlir (no calls); ~ext_func~ calls link against the
     unchanged C runtime objects.
   - ~make test~ does not require MLIR tools; the MLIR path has its own
     opt-in target/mode gated on the tools being installed.
-  - #318's Simd ops have their vector-dialect emission point in the
-    new emitter.
+   - Mixed C/MLIR ABI probes pass on each claimed native target, and the
+     supported semantic corpus matches the interpreter/C backend. Smoke
+     hello-world success is the first milestone, not suite completion.
+   - When #318 exists, its same value/mask/memory contract passes here.
+     Use arith/vector/llvm operations as appropriate; fixed-order FP
+     reductions and uncontracted arithmetic cannot silently become
+     reassociating reductions or fused multiply-adds. Inactive lanes of
+     masked memory ops must not access memory. Do not gate source-language
+     SIMD semantics on this emitter merely because C lacks one intrinsic.
+
+*** Verification status
+
+This review inspected source and upstream MLIR documentation; no MLIR
+pipeline or Mojo compiler was built. The local PATH probe found clang and
+llvm-config, but no unversioned mlir-opt or mlir-translate. Minimum tool
+versions, conversion flags and ABI results remain tasks for the probe,
+not claims established by this issue update.
 
 *** References
 
 - https://mlir.llvm.org/ and https://mlir.llvm.org/docs/Dialects/
+- https://mlir.llvm.org/docs/TargetLLVMIR/ (conversion versus translation,
+  type lowering and C interface conventions)
+- https://github.com/modular/modular/tree/ce67c4bba4/Mojo/lib
+- ~Mojo/stdlib/std/simd.mojo~ and
+  ~Mojo/lib/KGENToLLVM/LowerPOPToLLVM.cpp~ at the pinned revision above
 - https://llvm.org/devmtg/2025-10/slides/technical_talks/lattner_zhu.pdf
-- https://en.wikipedia.org/wiki/Mojo_(programming_language)
 - Mojo HPC kernels paper: https://arxiv.org/abs/2509.21039
-- https://hexshift.medium.com/how-mojo-mlir-infrastructure-delivers-performance-python-cannot-reach-a1d07aa644df
