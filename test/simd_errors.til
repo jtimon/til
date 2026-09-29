@@ -1,0 +1,19 @@
+mode script
+
+I4 := Simd(I32, 4)
+I2 := Simd(I32, 2)
+F4 := Simd(F32, 4)
+
+a := I4.splat(1)
+b := I2.splat(2)
+f := F4.splat(3.0)
+_mixed_width := a + b
+_mixed_type := a + f
+_broadcast := a + 1
+_arity := I4.new(1, 2)
+mask := a == a
+_wrong_selection := mask.select(b, b)
+if mask { println("a mask is not a Bool") }
+
+// Floating-to-integer casts have no approved out-of-range/NaN contract.
+_float_cast := f.cast(I32)

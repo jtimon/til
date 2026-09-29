@@ -6862,6 +6862,37 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
     ref mut src_expr : Expr = e.children[1]
     mut src_info := raw_result_info_new()
     mut src : Dynamic = eval_expr_raw_info(s, src_expr, ctx, src_info)
+    target_name := ident_of(e.children[2]).ident_name(ctx.symbols.names).clone()
+    target_def := lookup_interp_type_def(target_name, ctx)
+    if target_def.is_some().and(target_def.unwrap().node_type.is(NodeType.StructDef)) {
+        ref target_simd : StructDef = structdef_of(target_def.unwrap())
+        if target_simd.simd_width > 0 {
+            source_name := expr_type_name_ref(src_expr).unwrap().clone()
+            ref source_simd : StructDef = structdef_of(lookup_interp_type_def(source_name, ctx).unwrap())
+            source_lane := source_simd.fields[0].type_name()
+            target_lane := target_simd.fields[0].type_name()
+            source_t := type_from_name_init_name(source_lane, ctx.scope, ctx.symbols)
+            target_t := type_from_name_init_name(target_lane, ctx.scope, ctx.symbols)
+            source_stride := raw_type_size(source_t, ctx)
+            target_stride := raw_type_size(target_t, ctx)
+            ptr : Dynamic = raw_arg_pointer(src, src_info, ctx)
+            for i in 0..target_simd.simd_width {
+                if source_lane.eq("F32").and(target_lane.eq("F64")) {
+                    ref value : F32 = ptr_add(ptr, i * source_stride)
+                    converted := value.to_f64()
+                    memcpy(ptr_add(r, i * target_stride), converted, target_stride)
+                } else if source_lane.eq("F64").and(target_lane.eq("F32")) {
+                    ref value : F64 = ptr_add(ptr, i * source_stride)
+                    write_f32(ptr_add(r, i * target_stride), value.to_f32())
+                } else {
+                    raw := raw_to_u64(source_t, scalar_word_load(source_t, ptr_add(ptr, i * source_stride), ctx), ctx)
+                    scalar_word_store(target_t, ptr_add(r, i * target_stride), bits_word(raw), ctx)
+                }
+            }
+            raw_result_drop(src_expr.til_type(), src, src_info.is_ref, ctx)
+            return true
+        }
+    }
     tn := til_type_name_c(e.til_type())
     if (tn == "Fn").or(tn == "Body") {
         ref stored_ref : Dynamic = deref(src)
@@ -9329,7 +9360,11 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
             // F64 operands stay U64 bit words (this source predates the F64
             // type in its own bootstrap); ext.c compares the doubles and
             // returns the three-way sign, ordered like scalar_cmp_i64's input.
-            cmp_result = scalar_cmp_i64(op_str, f64_bits_cmp(word_bits(av), word_bits(bv)), 0)
+            if floating_word_is_nan("F64", av).or(floating_word_is_nan("F64", bv)) {
+                cmp_result = op_str == "neq"
+            } else {
+                cmp_result = scalar_cmp_i64(op_str, f64_bits_cmp(word_bits(av), word_bits(bv)), 0)
+            }
         }
         else { cmp_result = scalar_cmp_f32(op_str, raw_to_f32(scalar_type, av, ctx), raw_to_f32(scalar_type, bv, ctx)) }
         write_bool(result, cmp_result)
@@ -9421,10 +9456,143 @@ priv enum_core_is_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut res
     return true
 }
 
+priv floating_word_is_nan := func(elem: Str, value: Dynamic) returns Bool {
+    if elem == "F32" { return word_bits(value).band(2147483647) > 2139095040 }
+    if elem == "F64" { return word_bits(value).band(9223372036854775807) > 9218868437227405312 }
+    return false
+}
+
+priv simd_lane_compare := func(elem: Str, lane_type: Type, op: Str, a: Dynamic, b: Dynamic, ctx: Context) returns Bool {
+    if floating_word_is_nan(elem, a).or(floating_word_is_nan(elem, b)) { return op == "neq" }
+    if elem == "Bool" {
+        if op == "eq" { return word_bits(a) == word_bits(b) }
+        return word_bits(a) != word_bits(b)
+    }
+    cat := scalar_op_cat(elem)
+    if cat == "u" { return scalar_cmp_u64(op, raw_to_u64(lane_type, a, ctx), raw_to_u64(lane_type, b, ctx)) }
+    if cat == "i" { return scalar_cmp_i64(op, raw_to_i64(lane_type, a, ctx), raw_to_i64(lane_type, b, ctx)) }
+    if cat == "f" { return scalar_cmp_f32(op, raw_to_f32(lane_type, a, ctx), raw_to_f32(lane_type, b, ctx)) }
+    return scalar_cmp_i64(op, f64_bits_cmp(word_bits(a), word_bits(b)), 0)
+}
+
+priv simd_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
+    if name.starts_with("Simd__").not() { return false }
+    mut split := name.rfind("_").to_usize()
+    if name.ends_with("_reduce_min").or(name.ends_with("_reduce_max")) { split = name.len() - 11 }
+    op := name.substr(split + 1, name.len() - split - 1)
+    if scalar_is_cmp(op).or(op.eq("add")).or(op.eq("sub")).or(op.eq("mul")).or(op.eq("band")).or(op.eq("bor")).or(op.eq("bxor")).or(op.eq("select")).or(op.eq("reduce_min")).or(op.eq("reduce_max")).or(op.eq("len")).not() { return false }
+    type_name := name.substr(0, split)
+    // Dispatch also sees ordinary constructors. A user's name can share the
+    // generated prefix/suffix; only registered SIMD metadata identifies an op.
+    definition_o := lookup_interp_type_def(type_name, ctx)
+    if definition_o.is_none() { return false }
+    ref definition : Expr = definition_o.unwrap()
+    if definition.node_type.is(NodeType.StructDef).not() { return false }
+    ref simd : StructDef = structdef_of(definition)
+    if simd.simd_width == 0 { return false }
+    elem := simd.fields[0].type_name()
+    lane_type := type_from_name_init_name(elem, ctx.scope, ctx.symbols)
+    stride := raw_type_size(lane_type, ctx)
+    if op == "len" {
+        mut input_info := raw_result_info_new()
+        mut input : Dynamic = eval_expr_raw_info(scope, e.children[1], ctx, input_info)
+        scalar_write_raw(ctx.target_usize_pname, result, simd.simd_width.to_i64())
+        raw_result_drop(e.children[1].til_type(), input, input_info.is_ref, ctx)
+        return true
+    }
+    if op.eq("reduce_min").or(op.eq("reduce_max")) {
+        mut input_info := raw_result_info_new()
+        mut input : Dynamic = eval_expr_raw_info(scope, e.children[1], ctx, input_info)
+        ptr : Dynamic = raw_arg_pointer(input, input_info, ctx)
+        mut lanes := Array(U64).new(simd.simd_width)
+        for i in 0..simd.simd_width { lanes.set(i, own word_bits(scalar_word_load(lane_type, ptr_add(ptr, i * stride), ctx)))! }
+        mut comparison := "lt"
+        if op == "reduce_max" { comparison = "gt" }
+        mut half := simd.simd_width / 2
+        while half > 0 {
+            for i in 0..half {
+                lhs : Dynamic = bits_word(lanes[i])
+                rhs : Dynamic = bits_word(lanes[i + half])
+                mut choose_rhs := floating_word_is_nan(elem, rhs)
+                if floating_word_is_nan(elem, lhs).not() {
+                    choose_rhs = choose_rhs.or(simd_lane_compare(elem, lane_type, comparison, rhs, lhs, ctx))
+                    mut magnitude : U64 = 0
+                    mut sign : U64 = 0
+                    if elem == "F32" { magnitude = 2147483647; sign = 2147483648 }
+                    if elem == "F64" { magnitude = 9223372036854775807; sign = 9223372036854775808 }
+                    if magnitude > 0 {
+                        if word_bits(lhs).band(magnitude).eq(0).and(word_bits(rhs).band(magnitude).eq(0)) {
+                            choose_rhs = word_bits(rhs).band(sign) != 0
+                            if op == "reduce_max" { choose_rhs = choose_rhs.not() }
+                        }
+                    }
+                }
+                if choose_rhs { lanes.set(i, own word_bits(rhs))! }
+            }
+            half = half / 2
+        }
+        scalar_word_store(lane_type, result, bits_word(lanes[0]), ctx)
+        raw_result_drop(e.children[1].til_type(), input, input_info.is_ref, ctx)
+        return true
+    }
+    if op == "select" {
+        mut mask_info := raw_result_info_new()
+        mut true_info := raw_result_info_new()
+        mut false_info := raw_result_info_new()
+        mut mask_raw : Dynamic = eval_expr_raw_info(scope, e.children[1], ctx, mask_info)
+        mut true_raw : Dynamic = eval_expr_raw_info(scope, e.children[2], ctx, true_info)
+        mut false_raw : Dynamic = eval_expr_raw_info(scope, e.children[3], ctx, false_info)
+        mask_ptr : Dynamic = raw_arg_pointer(mask_raw, mask_info, ctx)
+        true_ptr : Dynamic = raw_arg_pointer(true_raw, true_info, ctx)
+        false_ptr : Dynamic = raw_arg_pointer(false_raw, false_info, ctx)
+        for i in 0..simd.simd_width {
+            mut chosen : Dynamic = false_ptr
+            ref mask_lane : Bool = ptr_add(mask_ptr, i)
+            if mask_lane { chosen = true_ptr }
+            memcpy(ptr_add(result, i * stride), ptr_add(chosen, i * stride), stride)
+        }
+        raw_result_drop(e.children[1].til_type(), mask_raw, mask_info.is_ref, ctx)
+        raw_result_drop(e.children[2].til_type(), true_raw, true_info.is_ref, ctx)
+        raw_result_drop(e.children[3].til_type(), false_raw, false_info.is_ref, ctx)
+        return true
+    }
+    ref mut ae : Expr = e.children[1]
+    ref mut be : Expr = e.children[2]
+    mut ai := raw_result_info_new()
+    mut bi := raw_result_info_new()
+    mut av : Dynamic = eval_expr_raw_info(scope, ae, ctx, ai)
+    mut bv : Dynamic = eval_expr_raw_info(scope, be, ctx, bi)
+    ap : Dynamic = raw_arg_pointer(av, ai, ctx)
+    bp : Dynamic = raw_arg_pointer(bv, bi, ctx)
+    cat := scalar_op_cat(elem)
+    for i in 0..simd.simd_width {
+        a : Dynamic = scalar_word_load(lane_type, ptr_add(ap, i * stride), ctx)
+        b : Dynamic = scalar_word_load(lane_type, ptr_add(bp, i * stride), ctx)
+        if scalar_is_cmp(op) {
+            write_bool(ptr_add(result, i), simd_lane_compare(elem, lane_type, op, a, b, ctx))
+        } else {
+            ref mut dest : Dynamic = ptr_add(result, i * stride)
+            if cat == "u" {
+                scalar_write_raw(elem, dest, scalar_apply_u64(op, raw_to_u64(lane_type, a, ctx), raw_to_u64(lane_type, b, ctx)).cast(I64))
+            } else if cat == "i" {
+                scalar_write_raw(elem, dest, scalar_apply_u64(op, raw_to_u64(lane_type, a, ctx), raw_to_u64(lane_type, b, ctx)).cast(I64))
+            } else if cat == "f" {
+                write_f32(dest, scalar_apply_f32(op, raw_to_f32(lane_type, a, ctx), raw_to_f32(lane_type, b, ctx)))
+            } else {
+                write_u64(dest, f64_bits_apply(op, word_bits(a), word_bits(b)))
+            }
+        }
+    }
+    raw_result_drop(ae.til_type(), av, ai.is_ref, ctx)
+    raw_result_drop(be.til_type(), bv, bi.is_ref, ctx)
+    return true
+}
+
 priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
     if ctx.ffi.dispatch_inited.not() { dispatch_init(ctx) }
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
     if scalar_core_op_eval(name, scope, e, result, ctx) { return true }
+    if simd_core_op_eval(name, scope, e, result, ctx) { return true }
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }

@@ -34,7 +34,7 @@ under Apache-2.0 with LLVM exceptions. ~Mojo/stdlib/std/simd.mojo~ stores
 ~Mojo/lib/KGENToLLVM/LowerPOPToLLVM.cpp~ converts those operations to LLVM
 dialect operations, with additional stdlib LLVM-intrinsic/target-specific
 paths. The earlier description of Mojo SIMD as necessarily passing through
-the upstream ~vector~ dialect was incorrect. See [[./318.org][#318]] for the
+the upstream ~vector~ dialect was incorrect. See [[../fixed/318.org][#318]] for the
 syntax/semantics review and proposed til contract.
 That issue also contains paired Mojo/til arithmetic, comparison, mask,
 selection and matrix-multiplication examples. The human has chosen

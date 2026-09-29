@@ -112,6 +112,16 @@ target_usize_name := func(target: Target) returns Str {
 
 // ---------- Target/Lang compatibility
 
+target_simd_bits := func(target: Target) returns USize {
+    switch target {
+    case .LinuxX64, .WindowsX64, .MacosX64, .LinuxArm64, .MacosArm64:
+        return 128
+    case .LinuxX86, .WindowsX86, .LinuxArm32, .LinuxRiscv32, .LinuxRiscv64,
+         .Wasm32, .TempleosX86, .Jvm:
+        return 0
+    }
+}
+
 target_lang := func(target: Target) returns Lang {
     switch target {
     case .TempleosX86: return Lang.HolyC

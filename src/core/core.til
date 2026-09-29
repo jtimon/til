@@ -24,3 +24,10 @@ import("vec")
 // #216) -- it is a constfolder escape hatch, not a syscall, and lives here in
 // the aggregator because it doesn't belong to any data-type module.
 noop_proc := ext_proc() {}
+
+// The initializer materializes this builtin family before ordinary typing.
+Simd := macro(T: Type, N: I64) returns StructDef {
+    return struct {}
+}
+
+simd_width := core_func(T: Type) returns shallow USize {}

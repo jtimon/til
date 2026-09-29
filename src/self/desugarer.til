@@ -1929,13 +1929,7 @@ priv hoist_walk_consolidated := proc(
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
     inject_err_args_on_one_fcall_consolidated(scope, ctx, cloned, body)
-    mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
-    if fcall_is_get_method(cloned, ctx.symbols).or(fcall_returns_ref(cloned, ctx.scope, ctx.symbols).neq(0)) {
-        switch tmp_decl.node_type {
-        case .Decl(dd): dd.own_type = OwnType.Ref
-        case:
-        }
-    }
+    mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), infer_call_ownership = true)), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
     ref tts : Vec(Str) = ctx.throws_global[found_key]

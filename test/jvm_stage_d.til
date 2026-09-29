@@ -41,7 +41,12 @@ scalar_checks := proc(mut seed: I64) {
     inf := huge_f.mul(big_f)
     nan_value := inf.sub(inf)
     neg_zero := F32.from_i64(seed.sub(2)).div(inf)
-    zero_div_f_ok := one_f.div(zero_f).eq(zero_f)
+    zero_div_f_ok := one_f.div(zero_f).eq(inf)
+    one_d := F64.from_i64(seed)
+    zero_d := F64.from_i64(seed.sub(seed))
+    infinity_d := one_d.div(zero_d)
+    nan_d := zero_d.div(zero_d)
+    ieee_d_ok := infinity_d.gt(one_d).and(nan_d.neq(nan_d))
     nan_ok := nan_value.eq(nan_value).not()
     inf_ok := inf.gt(one_f)
     neg_zero_ok := neg_zero.to_str().eq("-0")
@@ -51,7 +56,7 @@ scalar_checks := proc(mut seed: I64) {
 
     println(wrap_u8.to_str(), " ", zero_div.to_str(), " ",
         zero_mod.to_str(), " ", u32_gt.to_str(), " ", u64_gt.to_str(), " ",
-        shifted.to_str(), " ", zero_div_f_ok.to_str(), " ", nan_ok.to_str(), " ", inf_ok.to_str(), " ",
+        shifted.to_str(), " ", zero_div_f_ok.and(ieee_d_ok).to_str(), " ", nan_ok.to_str(), " ", inf_ok.to_str(), " ",
         neg_zero_ok.to_str(), " ", nan_cmp_ok.to_str(), " ", clone_ok.to_str(),
         " ", max_u32.to_i64().to_str(), " ", u64_float_ok.to_str())
 }

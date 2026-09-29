@@ -398,6 +398,7 @@ typedef struct Option__ref_Dynamic Option__ref_Dynamic;
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
+typedef struct Array__U64 Array__U64;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
 typedef struct priv___src_self_binder_til__AuditedDecl priv___src_self_binder_til__AuditedDecl;
@@ -505,6 +506,7 @@ typedef struct Declaration {
     Str orig_name;
     GcStorage gc_storage;
     Str external_symbol;
+    Bool infer_call_ownership;
 } Declaration;
 
 
@@ -549,6 +551,7 @@ typedef struct StructDef {
     Bool is_interface;
     Bool interface_ns_marker;
     Str implements_name;
+    USize simd_width;
 } StructDef;
 
 
@@ -1420,6 +1423,12 @@ struct Option__ref_ffi_type {
     ffi_type *data;
 };
 
+typedef struct Array__U64 {
+    U8 *data;
+    USize cap;
+} Array__U64;
+
+
 typedef struct Vec__HeapBinding {
     U8 *data;
     USize count;
@@ -1923,6 +1932,7 @@ typedef struct Context {
     Str target_usize_pname;
     Str target_uptr_pname;
     USize target_usize_bytes;
+    USize target_simd_bits;
     I64 anon_type_counter;
     Bool compile_mode;
     Map__Str_FuncType constfolder_foldables;

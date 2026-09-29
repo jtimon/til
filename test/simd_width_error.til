@@ -1,0 +1,4 @@
+mode script
+
+Bad := Simd(I32, 3)
+println(Bad.size())

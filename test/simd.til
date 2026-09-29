@@ -1,0 +1,204 @@
+mode test
+
+F4 := Simd(F32, 4)
+F2 := Simd(F32, 2)
+I4 := Simd(I32, 4)
+SIMD_TEST_WIDTH : I64 = 2 * 2
+I4Alias := Simd(I32, SIMD_TEST_WIDTH)
+NativeF := Simd(F32, simd_width(F32))
+I1 := Simd(I64, 1)
+F8 := Simd(F32, 8)
+
+// An ordinary constructor whose name resembles the intrinsic dispatch names.
+Simd__ordinary_add := struct { value: I64 = 0 }
+
+test_simd_dispatch_identity := test() {
+    value := Simd__ordinary_add(value = 7)
+    assert_eq(I64, value.value, 7)
+}
+
+test_simd_arithmetic := test() {
+    a := F4.new(1.0, 2.0, 3.0, 4.0)
+    b := F4.splat(10.0)
+    c := a + b
+    assert_eq(F32, c[0], 11.0)
+    assert_eq(F32, c[3], 14.0)
+    assert_eq(F32, a.reduce_add(), 10.0)
+    assert((a == a).all())
+    assert((a == b).any().not())
+}
+
+test_simd_masks := test() {
+    a := I4.new(1, 5, 3, 8)
+    b := I4.new(2, 4, 3, 9)
+    mask := a < b
+    assert(mask[0])
+    assert(mask[1].not())
+    assert(mask[2].not())
+    assert(mask[3])
+    assert(mask.any())
+    assert(mask.all().not())
+    assert(a.eq(b).any())
+    assert(a.neq(b).all().not())
+}
+
+test_simd_copy := test() {
+    a := I4.new(1, 2, 3, 4)
+    mut b := a
+    b[0] = 9
+    assert_eq(I32, a[0], 1)
+    assert_eq(I32, b[0], 9)
+}
+
+test_simd_selection := test() {
+    a := F4.new(-2.0, 3.0, -1.0, 4.0)
+    zero := F4.zero()
+    positive := a > zero
+    clipped := positive.select(a, zero)
+    assert_eq(F32, clipped.reduce_add(), 7.0)
+    assert(positive.bnot().any())
+    assert((positive | positive.bnot()).all())
+}
+
+test_simd_memory := test() {
+    mut values := array(I32, 10, 20, 30, 40, 50, 60)
+    v := I4.load(values, 1)!
+    assert_eq(I32, v[0], 20)
+    assert_eq(I32, v[3], 50)
+    v.store(values, 2)!
+    assert_eq(I32, values[2], 20)
+    assert_eq(I32, values[5], 50)
+}
+
+test_simd_matrix := test() {
+    a0 := F2.new(1.0, 2.0)
+    a1 := F2.new(3.0, 4.0)
+    b0 := F2.new(5.0, 6.0)
+    b1 := F2.new(7.0, 8.0)
+    c0 := F2.splat(a0[0]) * b0 + F2.splat(a0[1]) * b1
+    c1 := F2.splat(a1[0]) * b0 + F2.splat(a1[1]) * b1
+    assert_eq(F32, c0[0], 19.0)
+    assert_eq(F32, c0[1], 22.0)
+    assert_eq(F32, c1[0], 43.0)
+    assert_eq(F32, c1[1], 50.0)
+}
+
+test_simd_width_and_reductions := test() {
+    a := I4Alias.new(4, -3, 9, 2)
+    b := I4.splat(1)
+    c := a + b
+    assert_eq(I32, c.reduce_min(), -2)
+    assert_eq(I32, c.reduce_max(), 10)
+    assert_eq(USize, NativeF.zero().len(), simd_width(F32))
+    f := F4.new(8.0, -5.0, 2.0, 6.0)
+    assert_eq(F32, f.reduce_min(), -5.0)
+    assert_eq(F32, f.reduce_max(), 8.0)
+}
+
+test_simd_container := test() {
+    mut vectors := Vec(Simd(I32, 4)).new()
+    original := I4.new(1, 2, 3, 4)
+    vectors.push(own original)
+    mut copy := vectors[0].clone()
+    copy[2] = 99
+    assert_eq(I32, vectors[0].get(2)!, 3)
+    assert_eq(I32, copy[2], 99)
+}
+
+test_simd_conversion := test() {
+    a := I4.new(-1, 2, -3, 4)
+    wide := a.cast(I64)
+    assert_eq(I64, wide[0], -1)
+    assert_eq(I64, wide[2], -3)
+    f := F4.new(1.5, 2.5, 3.5, 4.5)
+    lanes64 := f.cast(F64)
+    assert_eq(F64, lanes64[0], 1.5)
+    assert_eq(F64, lanes64.reduce_add(), 12.0)
+    single := lanes64.cast(F32)
+    assert(single.eq(f).all())
+}
+
+test_simd_integer_edges := test() {
+    max := I1.splat(I64.MAX)
+    one := I1.splat(1)
+    wrapped := max + one
+    assert_eq(I64, wrapped[0], I64.MIN)
+    quotient := wrapped / I1.splat(-1)
+    assert_eq(I64, quotient[0], I64.MIN)
+    zero_divisor := max / I1.zero()
+    assert_eq(I64, zero_divisor[0], 0)
+    assert((max == max).all())
+    assert_eq(USize, (max == max).len(), 1)
+    wide := F8.splat(3.0) * F8.splat(2.0)
+    assert_eq(F32, wide.reduce_add(), 48.0)
+}
+
+test_simd_float_edges := test() {
+    ordered := F4.new(100000000000000000000.0, 1.0, -100000000000000000000.0, 1.0)
+    assert_eq(F32, ordered.reduce_add(), 2.0)
+    zeros := F4.new(0.0, -0.0, 0.0, -0.0)
+    assert_eq(Str, zeros.reduce_min().to_repr(), "-0")
+    assert_eq(Str, zeros.reduce_max().to_repr(), "0")
+    nan := "nan".to_f32()
+    values := F4.new(nan, 1.0, 2.0, 3.0)
+    assert(values.eq(values)[0].not())
+    assert(values.neq(values)[0])
+    assert(values.lt(values)[0].not())
+    minimum := values.reduce_min()
+    assert(minimum.neq(minimum))
+    nan64 := values.cast(F64)
+    assert(nan64.eq(nan64)[0].not())
+    assert(nan64.neq(nan64)[0])
+}
+
+test_simd_bounds := test() {
+    mut values := array(I32, 1, 2, 3, 4, 5)
+    v := I4.splat(9)
+    mut caught := false
+    v.store(values, 2)?
+    catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+    assert_eq(I32, values[2], 3)
+    caught = false
+    _loaded := I4.load(values, USize.MAX)?
+    catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+    caught = false
+    _lane := v.get(4)?
+    catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+}
+
+simd_counted := proc(mut calls: I64, value: I32) returns I4 {
+    noop_proc()
+    calls++
+    return I4.splat(value)
+}
+
+test_simd_select_eager := test() {
+    mut calls := 0
+    mask := I4.splat(1) == I4.splat(1)
+    selected := mask.select(simd_counted(calls, 7), simd_counted(calls, 8))
+    assert_eq(I64, calls, 2)
+    assert_eq(I32, selected[3], 7)
+}
+
+simd_runtime_float := proc(value: F4) returns F4 {
+    noop_proc()
+    return value
+}
+
+test_simd_ieee_division := test() {
+    numerator := simd_runtime_float(F4.new(1.0, 1.0, -1.0, 0.0))
+    denominator := simd_runtime_float(F4.new(0.0, -0.0, 0.0, 0.0))
+    result := numerator / denominator
+    assert_eq(Str, result[0].to_repr(), "inf")
+    assert_eq(Str, result[1].to_repr(), "-inf")
+    assert_eq(Str, result[2].to_repr(), "-inf")
+    assert(result.neq(result)[3])
+    result64 := numerator.cast(F64) / denominator.cast(F64)
+    assert_eq(Str, result64[0].to_repr(), "inf")
+    assert_eq(Str, result64[1].to_repr(), "-inf")
+    assert_eq(Str, result64[2].to_repr(), "-inf")
+    assert(result64.neq(result64)[3])
+}

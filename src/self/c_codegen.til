@@ -3404,6 +3404,12 @@ priv emit_str_lit_temp_expr := proc(f: File, s: Str, ctx: Context) {
 // stripped. The U64 path (#219, huge hex/decimal) is preserved because
 // those forms never route through to_i64 here.
 priv num_lit_to_c := func(text: Str) returns Str {
+    // Constant evaluation can produce IEEE exceptional values even though
+    // source numeric tokens do not spell these names. They are constants,
+    // not references to C identifiers named nan/inf.
+    if text.eq("nan").or(text.eq("-nan")) { return "__builtin_nan(\"\")" }
+    if text == "inf" { return "__builtin_inf()" }
+    if text == "-inf" { return "(-__builtin_inf())" }
     n := text.len()
     mut start : USize = 0
     mut neg := false
@@ -3433,6 +3439,11 @@ priv num_lit_to_c := func(text: Str) returns Str {
     // #219 added for U64 literals above LLONG_MAX.
     if out == "9223372036854775808" { return "(-9223372036854775807LL - 1)" }
     return format("-", out)
+}
+
+priv typed_num_lit_to_c := func(text: Str, t: Type) returns Str {
+    if text.eq("-0").and(type_is_primitive(t, Primitive.F32).or(type_is_primitive(t, Primitive.F64))) { return "-0.0" }
+    return num_lit_to_c(text)
 }
 
 priv ns_member_is_data := func(def: Expr, idx: USize) returns Bool {
@@ -3596,7 +3607,7 @@ priv global_decl_has_c_static_initializer := func(stmt: Expr, mut ctx: Context) 
 priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
     switch e.node_type {
     case .Literal(Literal.Num(num)):
-        f.write(num_lit_to_c(num.literal_num_text()))
+        f.write(typed_num_lit_to_c(num.literal_num_text(), e.til_type()))
         if type_is_primitive(e.til_type(), Primitive.U64) { f.write("ULL") }
     case .Literal(Literal.Bool(b)):
         if b { f.write("1") } else { f.write("0") }
@@ -3735,12 +3746,93 @@ priv emit_precomputed_sequence_templates := proc(f: File, mut lp: LoadedProgram)
     if emitted.len() > 0 { f.write("\n") }
 }
 
+priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, depth: I32, mut ctx: Context) returns Bool {
+    definition := ctx.scope.get_struct(sname, ctx.symbols)
+    if definition.is_none() { return false }
+    if definition.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+    ref simd : StructDef = structdef_of(definition.unwrap())
+    if simd.simd_width == 0 { return false }
+    if op == "len" {
+        f.write("({ ").write(sname).write(" til_simd_value = ")
+        emit_deref(f, e.children[1], depth, ctx)
+        f.write("; (void)til_simd_value; (USize)").write(simd.simd_width.to_str()).write("; })")
+        return true
+    }
+    if op.eq("reduce_min").or(op.eq("reduce_max")) {
+        floating := simd.fields[0].type_name().eq("F32").or(simd.fields[0].type_name().eq("F64"))
+        mut comparison := "<"
+        if op == "reduce_max" { comparison = ">" }
+        f.write("({ ").write(sname).write(" til_simd_a = ")
+        emit_deref(f, e.children[1], depth, ctx)
+        f.write("; ")
+        mut half := simd.simd_width / 2
+        while half > 0 {
+            for i in 0..half {
+                lhs := format("til_simd_a.lane", i.to_str())
+                rhs := format("til_simd_a.lane", (i + half).to_str())
+                f.write("if (")
+                if floating { f.write("__builtin_isnan(").write(rhs).write(") || (!__builtin_isnan(").write(lhs).write(") && (") }
+                f.write(rhs).write(" ").write(comparison).write(" ").write(lhs)
+                if floating {
+                    f.write(" || (").write(lhs).write(" == 0 && ").write(rhs).write(" == 0 && ")
+                    if op == "reduce_max" { f.write("!") }
+                    f.write("__builtin_signbit(").write(rhs).write("))))")
+                }
+                f.write(") ").write(lhs).write(" = ").write(rhs).write("; ")
+            }
+            half = half / 2
+        }
+        f.write("til_simd_a.lane0; })")
+        return true
+    }
+    if op == "select" {
+        mask_name := simd_instance_name("Bool", simd.simd_width)
+        f.write("({ ").write(mask_name).write(" til_simd_mask = ")
+        emit_deref(f, e.children[1], depth, ctx)
+        f.write("; ").write(sname).write(" til_simd_a = ")
+        emit_deref(f, e.children[2], depth, ctx)
+        f.write("; ").write(sname).write(" til_simd_b = ")
+        emit_deref(f, e.children[3], depth, ctx)
+        f.write("; ").write(sname).write(" til_simd_result; ")
+        for i in 0..simd.simd_width {
+            lane := format("lane", i.to_str())
+            f.write("til_simd_result.").write(lane).write(" = til_simd_mask.").write(lane).write(" ? til_simd_a.").write(lane).write(" : til_simd_b.").write(lane).write("; ")
+        }
+        f.write("til_simd_result; })")
+        return true
+    }
+    mut lane_c := simd.fields[0].type_name().clone()
+    comparison := op.eq("eq").or(op.eq("neq")).or(op.eq("lt")).or(op.eq("lte")).or(op.eq("gt")).or(op.eq("gte"))
+    // Unsigned arithmetic gives defined modulo-2^bits lane results even for
+    // signed vectors. Copying the bits back retains the declared signed type.
+    if comparison.not().and(lane_c.starts_with("I")) { lane_c = format("U", lane_c.substr(1, lane_c.len() - 1)) }
+    if lane_c == "Bool" { lane_c = "U8" }
+    result_c := func_return_ctype(funcdef_of(find_callee_fdef(flat, ctx).unwrap()), ctx)
+    f.write("({ ").write(sname).write(" til_simd_a = ")
+    emit_deref(f, e.children[1], depth, ctx)
+    f.write("; ").write(sname).write(" til_simd_b = ")
+    emit_deref(f, e.children[2], depth, ctx)
+    f.write("; typedef ").write(lane_c).write(" til_simd_v __attribute__((vector_size(sizeof(").write(lane_c).write(") * ").write(simd.simd_width.to_str()).write("))); ")
+    f.write("til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, &til_simd_a, sizeof(til_simd_x)); memcpy(&til_simd_y, &til_simd_b, sizeof(til_simd_y)); ")
+    f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+    f.write(result_c).write(" til_simd_result; ")
+    if comparison {
+        for i in 0..simd.simd_width {
+            f.write("til_simd_result.lane").write(i.to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
+        }
+    } else {
+        f.write("memcpy(&til_simd_result, &til_simd_z, sizeof(til_simd_result)); ")
+    }
+    f.write("til_simd_result; })")
+    return true
+}
+
 priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
     switch e.node_type {
     case .Literal(Literal.Str(s)):
         emit_str_lit_expr(f, s, ctx)
     case .Literal(Literal.Num(num)):
-        f.write(num_lit_to_c(num.literal_num_text()))
+        f.write(typed_num_lit_to_c(num.literal_num_text(), e.til_type()))
         // Issue #219: U64 literals whose value exceeds LLONG_MAX need
         // the ULL suffix or `cc -Werror` rejects "integer constant is
         // so large that it is unsigned". The constfolder marks the
@@ -3802,6 +3894,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 // operator inline -- no call, no symbol. The result cast is
                 // the method's declared return type, e.g. ((U32)(a + b)).
                 ref core_op : Str = mname.field_access_name(ctx.symbols.names)
+                if emit_simd_core(f, e, sname, core_op, flat, depth, ctx) { return f }
                 // The cast is the method's DECLARED return type. Reading
                 // e.til_type() instead let an arg-position USize/UPtr
                 // coercion (validate_fcall_arg's can_implicit_usize_coerce
@@ -3825,11 +3918,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                     emit_deref(f, e.children[1], depth, ctx)
                     f.write(")))")
                 } else if (core_op == "div").or(core_op == "mod") {
-                    // #288 follow-up: div/mod keep ext.c's divide-by-zero
-                    // guard -- they return 0 on a zero divisor (safe_div is
-                    // the throwing variant). A statement expression binds
-                    // both operands to temps so the guarded divisor is
-                    // evaluated exactly once: ((T)(_b==0 ? 0 : _a OP _b)).
+                    // Integer div/mod retain their zero-divisor rule. Floating
+                    // division follows IEEE; safe_div is the throwing API.
+                    // Bind operands once in their original evaluation order.
                     mut divmod_c_op := "/"
                     if core_op == "mod" { divmod_c_op = "%" }
                     f.write("({ ")
@@ -3842,6 +3933,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                     emit_deref(f, e.children[2], depth, ctx)
                     f.write("; (")
                     f.write(core_ret_c)
+                    if core_ret_c.eq("F32").or(core_ret_c.eq("F64")) {
+                        f.write(")(_cf_a / _cf_b); })")
+                        return f
+                    }
                     f.write(")((_cf_b == 0) ? 0 : (_cf_a ")
                     f.write(divmod_c_op)
                     f.write(" _cf_b)); })")
@@ -4074,6 +4169,22 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             }
             f.write(")")
         } else if name.ident_name(ctx.symbols.names) == "cast" {
+            target_name := ident_of(e.children[2]).ident_name(ctx.symbols.names).clone()
+            target_def := ctx.scope.get_struct(target_name, ctx.symbols)
+            if target_def.is_some().and(target_def.unwrap().node_type.is(NodeType.StructDef)) {
+                ref target_simd : StructDef = structdef_of(target_def.unwrap())
+                if target_simd.simd_width > 0 {
+                    source_name := expr_type_name_ref(e.children[1]).unwrap().clone()
+                    f.write("({ ").write(source_name).write(" til_simd_source = ")
+                    emit_deref(f, e.children[1], depth, ctx)
+                    f.write("; ").write(target_name).write(" til_simd_result; ")
+                    for i in 0..target_simd.simd_width {
+                        f.write("til_simd_result.lane").write(i.to_str()).write(" = (").write(target_simd.fields[0].type_name()).write(")til_simd_source.lane").write(i.to_str()).write("; ")
+                    }
+                    f.write("til_simd_result; })")
+                    return f
+                }
+            }
             // Issue #212: integer reinterpret or same-signedness
             // widening -> bare C cast. The typer set this FCall's
             // til_type to the target type T.
@@ -10086,6 +10197,22 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // gated emission (the forward-declaration block).
 
     emit_monolithic_header_lp(f, lp)
+
+    mut has_simd := false
+    for simd_path : Str in lp.unit_paths() {
+        for simd_stmt : Expr in lp.ctx.imported[simd_path].ast.children {
+            if simd_stmt.children.len() == 0 { continue }
+            switch simd_stmt.children[0].node_type {
+            case .StructDef(sd): if sd.simd_width > 0 { has_simd = true }
+            case:
+            }
+        }
+    }
+    // SIMD promises separate rounding for multiply then add. GCC otherwise
+    // permits cross-statement contraction on targets with native FMA.
+    if has_simd {
+        f.write("#if defined(__clang__)\n#pragma clang fp contract(off)\n#elif defined(__GNUC__)\n#pragma GCC optimize (\"fp-contract=off\")\n#endif\n\n")
+    }
 
     // Ext decls from user units only.
     for u : ProgramUnit in lp.units {

@@ -714,6 +714,22 @@ priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Tar
         return theme_codegen_translate(lp, paths.theme_path)
     }
     lang := target_lang(target)
+    if lang.is(Lang.Java).or(lang.is(Lang.HolyC)) {
+        for unit : ProgramUnit in lp.units {
+            for stmt : Expr in lp.ctx.imported[unit.path].ast.children {
+                if stmt.children.len() == 0 { continue }
+                switch stmt.children[0].node_type {
+                case .StructDef(def):
+                    if def.simd_width > 0 {
+                        context_enter_file(lp.ctx, unit.path)
+                        stmt.type_error("SIMD is not supported by this backend", lp.ctx)
+                        return 1
+                    }
+                case:
+                }
+            }
+        }
+    }
     if lang.is(Lang.Java) {
         return jvm_codegen_translate(lp, paths.jvm_source_dir,
             paths.jvm_package_dir, paths.jvm_source_path,

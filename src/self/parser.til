@@ -430,6 +430,24 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         return name
     }
     advance(p) // consume '('
+    if name == "Simd" {
+        // Width is a value expression, unlike ordinary type-only applications.
+        // The initializer canonicalizes this lifted declaration after resolving
+        // constants, and rewrites all annotations to the resulting type name.
+        mut simd_call := Expr.new(NodeType.FCall(FCallData()), tr_line, tr_col)
+        simd_call.add_child(own Expr.new(ident_node(p.symbols.intern(name)), tr_line, tr_col))
+        simd_elem := parse_type_ref(p)
+        simd_call.add_child(own Expr.new(ident_node(p.symbols.intern(simd_elem)), tr_line, tr_col))
+        expect_token(p, TokenType.Comma)
+        simd_call.add_child(own parse_expression(p))
+        expect_token(p, TokenType.RParen)
+        lifted := format("Simd__source", p.anon_type_counter.to_str())
+        p.anon_type_counter++
+        mut simd_decl := Expr.new(NodeType.Decl(Declaration(name = lifted.clone())), tr_line, tr_col)
+        simd_decl.add_child(own simd_call)
+        p.type_gen_decls.push(own simd_decl)
+        return lifted
+    }
     mut mangled := format(name, "__")
     mut args := Vec(Str).new()
     mut arg_refs := Vec(Bool).new()

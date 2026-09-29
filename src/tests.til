@@ -2099,6 +2099,23 @@ main := proc(args: ..Str) {
     add_both(tests, "test/errors.til", flags)
     add_both(tests, "test/top_level_bang_generic.til", flags)
     add_both(tests, "test/tuples.til", flags)
+    add_both(tests, "test/simd.til", flags)
+    add_count(tests, "simd_java_unsupported", "typer",
+        "SIMD is not supported by this backend", 1,
+        format(til_bin, " translate --target=jvm test/simd.til"))
+    add_count(tests, "simd_holyc_unsupported", "typer",
+        "SIMD is not supported by this backend", 1,
+        format(til_bin, " translate --target=templeos-x86 test/simd.til"))
+    add_count(tests, "simd_errors_interp", "typer", "error:", 8,
+        format(til_bin, " interpret test/simd_errors.til"))
+    add_count(tests, "simd_errors_build", "typer", "error:", 8,
+        format(til_bin, " build", asan_flag, " test/simd_errors.til"))
+    add_count(tests, "simd_width_error_interp", "typer",
+        "Simd width must be a power of two", 1,
+        format(til_bin, " interpret test/simd_width_error.til"))
+    add_count(tests, "simd_width_error_build", "typer",
+        "Simd width must be a power of two", 1,
+        format(til_bin, " build", asan_flag, " test/simd_width_error.til"))
     add_both(tests, "test/auto.til", flags)
     add_both(tests, "test/first_class.til", flags)
     // The reflect primitives with a RUNTIME index -- the shape that reaches

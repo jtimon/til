@@ -1,0 +1,560 @@
+# priority: low
+# category: features
+** FIXED #318 Portable SIMD vector type like Mojo's SIMD[dtype, width]
+
+Give til fixed-width, first-class SIMD values with one semantic contract
+across the interpreter and compiled backends. Start with the C backend;
+[[../open/317.org][#317]] is an additional lowering route, NOT a prerequisite for SIMD,
+shuffles, or masks. Hardware vector instructions are an implementation of
+the contract, not a promise that every operation takes one instruction.
+
+Implementation scope approved: interpreter and C support are required to
+close this issue. HolyC and Java reject SIMD at translation time with a
+source-located unsupported diagnostic; later support belongs to their
+backend issues. The proposed type, constructors, masks, checked lane and
+array access, reductions, conversions and target-width query are approved.
+Use all/any initially; optional reduction aliases remain outside this scope.
+
+*** Post-mortem (FIXED; implemented on master 8225629b9)
+
+The missing pieces were a width-bearing value type, defined lane/mask
+semantics and matching backend/interpreter operations. Reused the existing
+type-generation, struct-layout and late-declaration machinery rather than
+adding another type registry or a dependency on MLIR. The approved initial
+scope is complete; later shuffles, masked memory operations and additional
+backend support are extensions, not prerequisites for this closure.
+
+- Implemented builtin family expansion, scalar-aligned inline storage,
+  auto-shallow values, constructors, checked lane access, arithmetic,
+  elementwise comparison masks, all/any/select, integer/mask bit operations,
+  Array load/store, fixed-tree sum/min/max and target-baseline width queries.
+- Interpreter and C share the generated ordinary wrappers. Primitive C
+  arithmetic uses GCC/Clang vector expressions with memcpy at storage
+  boundaries; interpreter intrinsics evaluate individual lanes. Signed
+  add/sub/mul and sum use unsigned intermediates for defined wrapping;
+  signed MIN/-1 division wraps to MIN rather than invoking C overflow.
+- Conversions initially support the scalar integer cast pairs (same-width
+  reinterpretation and same-signedness widening) and F32/F64 conversion.
+  Result families materialize through the existing late-declaration queue.
+  Float-to-int conversion remains a hard unsupported diagnostic until its
+  NaN/out-of-range policy is specified. No implicit broadcast or truthiness.
+- Widths are bounded at 1024 lanes because checked accessors and wrappers
+  currently expand to scalar field operations. Larger widths are rejected
+  explicitly. This is an implementation bound, not the native register size.
+- HolyC and Java reject SIMD with a source-located translation error. Their
+  eventual SIMD support belongs to their backend issues, not this closure.
+- Checked-call hoisting now records deferred result-ownership inference:
+  the typer consults the resolved signature instead of assuming every get
+  returns ref. This preserves collection borrows and SIMD lane values.
+- Constant C emission now handles NaN/infinity and retains floating -0;
+  generated translation units using SIMD disable implicit FP contraction.
+- Verification: ~make clean && make test_two_pass~ passed 491/491, including
+  ASAN, JVM regression checks and self-translation. The first clean run exposed a self-hosting regression
+  in early ownership inference; resolving ownership after typing fixed it.
+  The focused SIMD suite passed 15/15 in the interpreter, GCC and Clang;
+  ~test/float_literals.til~ also passed 9/9 with Clang.
+  x86-64 disassembly of the Clang build contains ~mulps~ and ~addps~ in the
+  matrix example. No AArch64 execution or performance benchmark is claimed.
+- Regression sources: ~test/simd.til~, ~test/simd_errors.til~ and
+  ~test/simd_width_error.til~. The test registry also checks the Java/HolyC
+  unsupported diagnostics. Scalar IEEE and safe_div regressions are in
+  ~test/float_literals.til~; ~test/jvm_stage_d.til~ covers Java's scalar path.
+
+**** Approved IEEE division correction
+
+Confirmed and fixed a pre-existing scalar discrepancy: runtime F64
+~1.0 / 0.0~ printed ~inf~ interpreted but ~0~ compiled. The interpreter's
+~f64_bits_div~ used IEEE division, while the C emitter and Java runtime
+guarded floating divisors and returned zero. With explicit human approval,
+F32/F64 division now follows IEEE rules in both scalar and SIMD operations.
+Integer zero division retains its existing rule. ~safe_div~ still throws
+DivideByZero on either sign of floating zero.
+
+Also corrected interpreted F64 Boolean comparisons with NaN: a three-way
+cmp result cannot distinguish unordered from equal. The scalar and SIMD
+comparators now share NaN classification, so NaN is unequal to itself and
+~safe_div~ does not mistake a NaN divisor for zero. The three-way cmp API
+itself is unchanged.
+
+Regression shape (now prints ~inf~ in both modes; the proc prevents constant
+folding from hiding an interpreter/backend disagreement):
+
+#+begin_src til
+mode script
+value := proc() returns F64 {
+    noop_proc()
+    return 1.0
+}
+println(value() / 0.0)
+#+end_src
+
+Regression tests cover positive/negative zero divisors, signed infinities,
+zero/zero NaN, NaN comparisons and the throwing safe_div path. A two-pass
+build is required because the interpreter's F32 evaluator is itself compiled
+from til: the new C emission must be applied to it before testing IEEE
+runtime behavior. Use the ~Two-pass:~ commit prefix for integration.
+
+The source review and original proposal below retain the design discussion;
+the post-mortem above records the delivered initial scope.
+
+*** Source review (2026-09-29)
+
+Reviewed modular/modular at ~ce67c4bba4~ (local clone
+~$HOME/code/probe/modular~), against til master ~24b032796~. The compiler and
+stdlib are present under the Apache-2.0 license with LLVM exceptions.
+Findings below come from source inspection, not a Mojo build or benchmark.
+
+**** Mojo syntax and semantics
+
+- The declaration is ~SIMD[dtype: DType, length: SIMDLength]~. Typical use:
+  ~SIMD[.float32, 4](1.0, 2.0, 3.0, 4.0)~. Empty construction makes zero;
+  one scalar broadcasts; a lane list must have the right length. DType is
+  Mojo's numeric-format descriptor, not an arbitrary user-defined type.
+- Length is a positive compile-time power of two, including 1. This uses
+  Mojo's general compile-time parameter system, NOT a SIMD-only exception
+  to otherwise type-only generics. A documented 2**15 limit has its assert
+  commented out in this snapshot; do not present it as an enforced limit.
+- ~Scalar[T]~ is width-1 SIMD; ~Float32~ etc. alias those scalars. Arithmetic
+  methods operate on ~Self~; constructors/implicit conversions provide
+  scalar broadcast conveniences. Wider-than-register vectors can split
+  into several instructions. This is fixed-width SIMD, not a scalable
+  SVE/RVV value, and its lanes are not GPU warp/workgroup threads.
+- Important distinction: ~a == b~ returns one Bool (all lanes equal), and
+  ~a != b~ returns its negation. ~a.eq(b)~, ~a.ne(b)~, ~a.lt(b)~ etc.
+  instead return ~SIMD[.bool, N]~. Ordering operators ~< <= > >=~ require
+  width 1. ~__bool__~ currently reduces "lane != 0" with OR, despite its
+  scalar-sounding docstring; this is not a good default to copy into til.
+- Boolean vectors support logic and ~mask.select(a, b)~. Selection chooses
+  already-evaluated lane values; it is not short-circuit control flow and
+  cannot make an invalid load in an argument safe.
+- ~v[i]~ extracts a scalar; assignment inserts a lane. These methods emit
+  POP extract/insert directly without an explicit source-level bounds
+  check. ~cast[target_dtype]()~ preserves lane count and converts values;
+  bit reinterpretation is a separate operation.
+- ~reduce_add()~ returns a scalar by default, with optional smaller SIMD
+  output. Its recursive reduction combines lower and upper halves, then
+  repeats: four lanes reduce as ~(x0+x2)+(x1+x3)~, not a left fold.
+  Min/max sometimes use LLVM reduction intrinsics and sometimes library
+  reductions. Floating-point ordering and NaN behavior must be specified
+  independently rather than inferred from a generic "reduce" name.
+- Division is not one universal operation: ~/~ emits ~pop.div~, whereas
+  integer ~//~ and ~%~ explicitly replace zero divisors before computing
+  and select zero afterwards. This does not establish til's arithmetic
+  semantics; til's scalar operations remain the reference.
+- Vector memory operations live on ~Pointer~. ~unsafe_load[width=N]()~
+  needs N valid elements and its declared alignment; a raw pointer carries
+  no length. Bool memory loads handle byte-per-element storage explicitly
+  rather than confusing it with LLVM's packed i1 vector representation.
+- ~std.sys.simd_width_of[T]()~ uses the compilation target's SIMD bit
+  width and element size (the old ~simdwidthof~ spelling is stale).
+  ~vectorize~ specializes a width-parametric callback. One overload uses
+  a scalar remainder loop; another passes an effective vector length and
+  requires the callback to honor it with masked accesses.
+
+**** Actual lowering
+
+The stdlib stores ~!kgen.simd<N, dtype>~ and emits ~pop.add~, ~pop.cmp~,
+~pop.simd.splat~, ~pop.simd.select~, etc. ~LowerPOPToLLVM.cpp~ lowers
+selection to ~LLVM::SelectOp~, splat to insert+shuffle, and lane access
+to LLVM insert/extract. Some stdlib operations also call LLVM intrinsics
+or target-specific code directly. The previous claim that Mojo SIMD
+necessarily goes through the upstream MLIR ~vector~ dialect was wrong.
+MLIR supplies infrastructure; Mojo owns substantial dialects and lowering.
+
+*** Til surface: comparison decision and remaining proposal (not implemented)
+
+Use til's existing type-application and method syntax. Human decision:
+comparisons, including ~==~, are ELEMENTWISE, consistently with ~+~ and ~*~.
+~a == b~ and ~a.eq(b)~ both return a mask; ~(a == b).all()~ and
+~a.eq(b).all()~ test whole-vector value equality. Separate ~lane_eq/eq_lane~
+methods are not the chosen design. The remaining type/construction/memory
+surface below is still a proposal. Optional reduction shorthand names are
+discussed separately; the decision does not imply SIMD is implemented.
+
+#+begin_src til
+F4 := Simd(F32, 4)
+a := F4.new(1.0, 2.0, 3.0, 4.0)
+b := F4.splat(2.0)
+c := a * b + F4.splat(1.0)
+positive := c > F4.zero()
+clamped := positive.select(c, F4.zero())
+sum := clamped.reduce_add()
+same : Bool = (a == b).all()
+if positive.any() { println(sum) }
+mut changed := c
+changed[0] = 7.0
+first := changed[0]
+#+end_src
+
+**** Type and construction
+
+- ~Simd(T, N)~: T is initially one of I8/U8/I16/U16/I32/U32/I64/U64,
+  F32/F64, or Bool (mask lanes). Resolve aliases before checking T. Reject
+  aggregate, pointer, nested SIMD, and arbitrary user-defined lane types.
+- N is a positive power-of-two integer constant. Accept literals and named
+  compile-time constants/expressions, not runtime values. Canonicalize the
+  evaluated pair (T, N) before interning/monomorphization so ~2*2~ and ~4~
+  identify the same type. Width must be known before layout, not only at
+  the ordinary late constant-folding pass. An implementation limit needs
+  an explicit diagnostic and a recorded reason, not truncation.
+- Initially make this a builtin type family; do not invent general integer
+  generic declaration syntax as part of SIMD. Existing generics can accept
+  the fully instantiated type, e.g. ~Vec(Simd(F32, 4))~. A future
+  width-parametric callback like Mojo's needs additional language work.
+- Keep ~Simd(T, 1)~ distinct from T; use ~splat~ and ~get(0)!~ explicitly.
+  Existing scalar aliases, arithmetic and ownership do not change.
+- ~zero()~ initializes every lane; ~splat(x)~ broadcasts one T;
+  ~new(x0, ..., xNminus1)~ takes exactly N T values. Numeric literals use
+  the expected lane type. Other conversions and broadcast are explicit:
+  ~a + 1~ is rejected, ~a + F4.splat(1.0)~ is valid. No uninitialized
+  public constructor. ~new~ must not allocate an intermediate Array.
+- Values are auto-shallow, inline and copied by value like numeric scalars;
+  they have no owned children or per-lane destruction. A ~mut~ reference
+  permits replacement/lane updates. Copying then mutating must not alias
+  the original, including through interpreter storage and generic calls.
+
+**** Operators, masks and lane access
+
+Til's parser maps ~==~ directly to ~eq~ and ~<~ directly to ~lt~. It cannot
+copy Mojo's distinction between dunder operators and same-named methods.
+The chosen design preserves that mapping and returns comparison masks:
+
+| Proposed operation                 | Result / rule                         |
+|------------------------------------+---------------------------------------|
+| ~a + b~, ~a - b~, ~a * b~, ~a / b~ | Same numeric Simd(T,N), lane-wise      |
+| ~a.eq(b)~, ~a == b~                | Simd(Bool,N), equality per lane        |
+| ~a.neq(b)~, ~a != b~               | Simd(Bool,N), inequality per lane      |
+| ~lt/lte/gt/gte~, ~< <= > >=~      | Simd(Bool,N), scalar comparison/lane   |
+| ~mask.any()~, ~mask.all()~         | Explicit Bool reductions              |
+| ~band/bor/bxor/bnot~               | Integer bits or Boolean lane logic    |
+| ~mask.select(a,b)~                 | Same-width values, selected per lane  |
+| ~v.len()~                         | N as USize                            |
+| ~v.get(i)!~, ~v[i]~               | T by value, checked index             |
+| ~v.set(i,x)!~, ~v[i] = x~         | Mutate lane, checked index            |
+
+Both arithmetic operands must have identical resolved T and N. Bool lanes
+have equality and logical operations, not numeric arithmetic or ordering.
+All supported comparisons return masks, including for width 1. Generic
+code requiring ~eq~ to return Bool cannot accept SIMD without adaptation;
+it must explicitly reduce the mask where whole-value equality is wanted.
+There is no implicit mask-to-Bool conversion in an ~if~ and no proposed
+lexicographic ~cmp~ or total ordering for ordered collection keys.
+Masks use eager ~& | ^~ / named bit operations; Boolean ~&& ||~ remain
+scalar short-circuit operations. ~select~ evaluates each argument once
+using ordinary til call evaluation; it never suppresses effects or errors
+in the unselected argument.
+
+~get/set~ throw the existing ~OutOfBounds~, with indexing following til's
+panic-on-throw sugar. Extracted lanes are VALUES, not addressable references
+into a register. ~unsafe_get/unsafe_set~ can supply proven-in-range core
+loops, with the same explicit unchecked contract as Array. Do not allow a
+lane address or borrowed lane reference to escape a temporary SIMD value.
+
+***** Whole-value predicates and optional reduction shorthand
+
+The compositional forms are the baseline:
+
+#+begin_src til
+same := (a == b).all()       // Every corresponding pair is equal.
+same_named := a.eq(b).all()  // Exactly the same operation.
+some_equal := a.eq(b).any()
+different := a.neq(b).any()  // At least one pair differs.
+every_different := a.neq(b).all()
+#+end_src
+
+The human also suggested ~a.reduce_eq(b)~ as a possible convenience for
+~a.eq(b).all()~. This is compare-then-reduce across TWO vectors, not a
+reduction asking whether all lanes within one vector are equal. It could
+coexist with the compositional syntax; exact name and inclusion remain open.
+Even without a shorthand, the backend may fuse comparison plus reduction
+without materializing a mask in memory, while preserving evaluation/FP rules.
+
+Mojo's ~mask.reduce_and()~ is ~mask.all()~, and ~mask.reduce_or()~ is
+~mask.any()~. Providing those reduction-style names instead of, or alongside,
+~all/any~ is also an open naming choice. If supplied as aliases, the forms
+would be:
+
+#+begin_src til
+// Optional shorthand/aliases, not yet selected for the API:
+same := a.reduce_eq(b)           // a.eq(b).all()
+same_expanded := a.eq(b).reduce_and()
+different := a.neq(b).reduce_or() // a.neq(b).any()
+#+end_src
+
+Keep these semantics distinct: ~neq(b).all()~ means EVERY lane differs,
+not merely "the vectors differ". Do not automatically invent ~reduce_neq~
+or ordered-comparison shortcuts with ambiguous all/any meaning. The optional
+~reduce_eq~ would be a named whole-value predicate, never a change to ~eq~
+or ~==~. Floating equality remains scalar value equality: +0 equals -0 and
+NaN does not equal itself, so none of these means pointer or bit identity.
+
+**** Paired examples: Mojo and proposed til
+
+These are illustrative snippets based on the pinned Mojo API, not executed
+tests. Til SIMD is not implemented. Direct comparisons below reflect the
+chosen elementwise semantics. ~all~ means every lane is true, ~any~ means
+at least one is true. Mojo spells these ~reduce_and~ and ~reduce_or~.
+
+***** Arithmetic and broadcast
+
+#+begin_src mojo
+var a = SIMD[.float32, 4](1.0, 2.0, 3.0, 4.0)
+var b = SIMD[.float32, 4](10.0)
+var c = a + b  # [11.0, 12.0, 13.0, 14.0]
+#+end_src
+
+#+begin_src til
+F4 := Simd(F32, 4)
+a := F4.new(1.0, 2.0, 3.0, 4.0)
+b := F4.splat(10.0)
+c := a + b  // [11.0, 12.0, 13.0, 14.0]
+#+end_src
+
+***** Comparisons, all/any and equality
+
+#+begin_src mojo
+var a = SIMD[.int32, 4](1, 5, 3, 8)
+var b = SIMD[.int32, 4](2, 4, 3, 9)
+var smaller = a.lt(b)                    # [True, False, False, True]
+var some_smaller = smaller.reduce_or()   # True
+var every_smaller = smaller.reduce_and() # False
+var equal_lanes = a.eq(b)                # [False, False, True, False]
+var identical = a == b                  # False (value equality)
+var any_equal = equal_lanes.reduce_or()  # True
+#+end_src
+
+Til with elementwise operators:
+
+#+begin_src til
+I4 := Simd(I32, 4)
+a := I4.new(1, 5, 3, 8)
+b := I4.new(2, 4, 3, 9)
+smaller := a < b               // [true, false, false, true]
+some_smaller := smaller.any()  // true
+every_smaller := smaller.all() // false
+equal_lanes := a == b          // [false, false, true, false]
+identical := equal_lanes.all() // false
+any_equal := equal_lanes.any() // true
+#+end_src
+
+"Identical" here means all corresponding values compare equal, NOT pointer
+identity or bit identity: NaN and signed-zero behavior follows scalar equality.
+Mojo's ~a.eq(b)~ and ~a == b~ differ; til's must remain equivalent.
+
+***** Selection and reduction
+
+#+begin_src mojo
+var values = SIMD[.float32, 4](-2.0, 3.0, -1.0, 4.0)
+var zero = SIMD[.float32, 4](0.0)
+var positive = values.gt(zero)
+var clipped = positive.select(values, zero) # [0.0, 3.0, 0.0, 4.0]
+var total = clipped.reduce_add()           # 7.0
+#+end_src
+
+#+begin_src til
+F4 := Simd(F32, 4)
+values := F4.new(-2.0, 3.0, -1.0, 4.0)
+zero := F4.zero()
+positive := values > zero
+clipped := positive.select(values, zero) // [0.0, 3.0, 0.0, 4.0]
+total := clipped.reduce_add()           // 7.0
+#+end_src
+
+Selection evaluates both input values; it is not a
+lazy conditional. Reducing a numeric vector adds its lanes; reducing a mask
+answers a Boolean question about the lanes.
+
+***** Matrix multiplication: SIMD lanes are output columns
+
+For a small 2x2 example, store each row as a two-lane vector:
+
+#+begin_example
+A = [1 2]    B = [5 6]    C = A*B = [19 22]
+    [3 4]        [7 8]              [43 50]
+
+C[i,j] = sum over k of A[i,k] * B[k,j]
+C row i = splat(A[i,0])*B row 0 + splat(A[i,1])*B row 1
+#+end_example
+
+Mojo (inside a function):
+
+#+begin_src mojo
+var a0 = SIMD[.float32, 2](1.0, 2.0)
+var a1 = SIMD[.float32, 2](3.0, 4.0)
+var b0 = SIMD[.float32, 2](5.0, 6.0)
+var b1 = SIMD[.float32, 2](7.0, 8.0)
+var c0 = SIMD[.float32, 2](a0[0]) * b0 + SIMD[.float32, 2](a0[1]) * b1
+var c1 = SIMD[.float32, 2](a1[0]) * b0 + SIMD[.float32, 2](a1[1]) * b1
+# c0: [19.0, 22.0]; c1: [43.0, 50.0]
+#+end_src
+
+Proposed til:
+
+#+begin_src til
+F2 := Simd(F32, 2)
+a0 := F2.new(1.0, 2.0)
+a1 := F2.new(3.0, 4.0)
+b0 := F2.new(5.0, 6.0)
+b1 := F2.new(7.0, 8.0)
+c0 := F2.splat(a0[0]) * b0 + F2.splat(a0[1]) * b1
+c1 := F2.splat(a1[0]) * b0 + F2.splat(a1[1]) * b1
+// c0: [19.0, 22.0]; c1: [43.0, 50.0]
+#+end_src
+
+SIMD multiplication itself is elementwise; the row-combination algorithm
+makes this matrix multiplication. No matrix type or new multiplication
+operator is implied. Each lane accumulates one output column, so there is
+no horizontal ~reduce_add~ here. A row-dot-column implementation could use
+~(row * column).reduce_add()~, but gathering/transposing columns introduces
+a different memory-access cost and the reduction has its specified tree.
+For larger matrices, iterate over output rows and column tiles, load a
+contiguous B row tile and accumulate ~splat(A[i,k])*B_tile~ over k. Handle
+column tails explicitly. Cache blocking, multiple accumulators and explicit
+FMA are later optimizations; this small example is not a tuned GEMM kernel.
+
+**** Numeric semantics and reductions
+
+- Each lane follows T's scalar contract: width, signedness, rounding and
+  exceptional arithmetic. No implicit widening, saturating math, fast-math,
+  or FMA contraction of ~a*b+c~. A later explicit FMA can promise one rounding.
+- Pin scalar edge cases before lowering SIMD arithmetic. At this base,
+  ~src/self/c_codegen.til~ guards zero divisors for core div/mod (including
+  the shared floating path), while ~src/core/numbers.til~ describes F32.div
+  as NaN/Inf on zero. This source/doc discrepancy is not resolved by this
+  proposal. Test actual interpreter/C behavior before deciding the SIMD
+  contract; never emit bare vector division where it would differ.
+- Record signed overflow, MIN/-1, remainder signs and oversized shift
+  behavior as well. Proposed wrapping add/sub/mul must use defined unsigned
+  intermediate bits where signed C would be undefined. Do not infer defined
+  behavior merely from the fact that one compiler build wraps.
+- ~reduce_add()~ returns T and uses a fixed lower-half/upper-half tree like
+  Mojo: ~(x0+x2)+(x1+x3)~ for N=4; N=1 returns lane 0 without adding zero.
+  Round every floating operation to T. Interpreter and C use the SAME tree;
+  an MLIR/LLVM reduction permitting reassociation is not interchangeable.
+- Proposed min/max: same tree; floating operations propagate a NaN if either
+  operand is NaN (payload unspecified), min prefers -0 over +0, max prefers
+  +0 over -0. Specify and test these before enabling ~reduce_min/max~ or lane
+  min/max; do not inherit a backend intrinsic's different NaN convention.
+- Proposed ~v.cast(U)~ preserves N and performs lane-wise numeric conversion
+  using scalar conversion rules, with U known at compile time. Restrict the
+  first implementation to specified conversion pairs; float-to-int NaN,
+  overflow and narrowing require an explicit contract before support.
+  Bit reinterpretation is separate and has no proposed public API yet.
+
+**** Storage and useful loops
+
+Recommendation: memory representation is N consecutive scalar lanes in
+lane order, with scalar alignment; Bool masks use N canonical 0/1 bytes.
+~Simd(T,N).size()~ is N*T.size(). Native register representation may differ.
+This makes arrays/Vecs/struct fields possible without requiring the existing
+allocator to provide AVX/AVX-512 over-alignment or packing masks into bits.
+It adds loads/stores/conversions at representation boundaries; measure that
+cost before claiming zero overhead. Never cast a scalar-aligned buffer to
+an over-aligned C vector pointer. C can use fixed-size memcpy into/out of
+local native vectors; the optimizer can remove the copy.
+
+Propose ~Simd(T,N).load(array, start)!~ and ~value.store(array, start)!~
+over Array(T), with store taking a mutable array reference. Both require
+N elements, throw OutOfBounds BEFORE any access/write, and use an
+overflow-safe range check. No vector alignment requirement. They copy
+values, retain no references, and introduce no allocation. Vec wrappers
+must check its logical length rather than spare capacity. Raw-pointer
+variants, if later needed, must name their unchecked contract explicitly.
+
+Start with ordinary til while loops advancing by N plus a scalar tail;
+this works without new loop syntax or Mojo's parametric callbacks. Test
+lengths 0, N-1, N, N+1 and non-vector-aligned start positions. A later masked
+load/store must suppress accesses in inactive lanes, not load everything
+then select. Gather/scatter additionally need bounds and duplicate-index
+semantics. Those are separate additions within this issue, not MLIR-only
+features automatically obtained by changing the backend.
+
+**** Target width and backends
+
+- Proposed ~simd_width(T)~ is a compile-time RECOMMENDED fixed lane count
+  for the selected target's enabled features, not host CPUID and not an
+  assurance that every operation has that many physical lanes. Until CPU
+  feature selection exists, use the documented target baseline (e.g. four
+  F32 lanes on baseline x86-64/AArch64). Define a scalar width of 1 for a
+  supported target with no guaranteed SIMD; reject unknown target/type
+  combinations rather than guessing. Keep its table and compiler flags in
+  agreement. Do not add a per-CPU CLI flag as part of this proposal.
+- Fixed-width SIMD and runtime-scalable SVE/RVV are different models. The
+  initial query does not report a runtime register length. GPU thread/warp
+  width also needs a distinct API if GPU support is ever added.
+- C is a supported implementation, not a disposable stopgap. GCC/Clang
+  vector extensions handle arithmetic and legalization; shared shuffle
+  builtins can handle constant permutations too, subject to tool-version
+  probes. Normalize comparison results into the specified byte masks;
+  GCC/Clang comparison vectors are not til Bool vectors, and ~vector_size~
+  cannot simply be applied to C Bool for a portable mask representation.
+- Scalar lane expansion is a legitimate explicit lowering when an operation
+  lacks an instruction, provided semantics are identical. Do not advertise
+  such cases as hardware acceleration. HolyC/JVM need either that documented
+  implementation or a translation-time unsupported diagnostic with source
+  location; a new core primitive must never become an unresolved runtime call.
+- #317 may emit upstream ~arith/vector/llvm~ rather than importing Mojo's
+  custom dialects. It must preserve these value/memory/mask/reduction rules.
+  LLVM alone can also represent fixed vectors; MLIR is not needed for their
+  existence. Primitive ops follow [[../fixed/288.org][#288]]: inline lowering,
+  no runtime symbol/address-taking/dyn_fn. Ordinary wrappers retain their
+  normal function behavior; FFI/dyn passing of new vector layouts requires
+  explicit ABI coverage before enabling it.
+
+*** Staging and acceptance
+
+A. Elementwise comparisons and explicit whole-value reduction are decided.
+   Approve the remaining type, methods, storage layout, width-query meaning
+   and numeric rules; settle optional reduction shorthand names. Prototype C register/storage
+   boundaries and record GCC/Clang versions, flags and assembly for x86-64
+   and AArch64 before fixing the ABI. No new dependency is needed for the
+   C path. Resolve scalar semantic uncertainties with focused tests.
+B. Add canonical type/constant-width handling, inline layout and interpreter
+   values; implement constructors, arithmetic, masks and checked lane access
+   with matching C lowering. Propose ~test/simd.til~ as the regression source,
+   read by the existing test runner; use existing generated C/binary paths.
+   No SIMD cache, manifest, second type registry or generated file format.
+C. Add contiguous loads/stores and reductions with the specified order;
+   prove copy independence, generic container layout, mask conversion,
+   bounds failures and correct tails. Support conversions only with pinned
+   scalar edge semantics. Type errors cover bad T/N/arity, mixed widths,
+   implicit broadcast, implicit truthiness and unsupported operations.
+   Verify operator/method equivalence for every comparison, mask results at
+   width 1, ~(a == b).all()~ versus ~a.eq(b).all()~, and the distinction
+   between ~neq(b).any()~ and ~neq(b).all()~. If reduction aliases or
+   ~reduce_eq~ are added, prove their equivalence to the compositional forms.
+D. Add the target width query and verify compilation-target, not host,
+   specialization (including named constant widths). Inspect a nonconstant
+   F32 vector-add kernel's optimized assembly; wider-than-register vectors
+   may split, so do not require a single machine instruction.
+E. Extend permutation/masked/gather operations after their contracts and
+   compiler support are tested. This does not depend on #317. When #317 is
+   available, run the same semantic corpus through it as an extra backend.
+
+At each implemented stage run the existing full suite and interpret/C
+comparisons. FP tests include rounding-sensitive reductions, NaNs, infinities
+and signed zero, not just decimal printouts; integer tests include overflow,
+zero division and signed extremes. Separate code-generation measurements
+from correctness tests. Existing scalar output and ownership stay unchanged.
+Follow ~doc/self.org~ for any preparation/use migration: teach the compiler
+the new type before using it in bootstrap-loaded source that old til_boot
+must understand. A proposal update does not mark implementation work done.
+
+*** Source references
+
+Paths below are relative to modular/modular at ~ce67c4bba4~:
+
+- ~Mojo/stdlib/std/simd.mojo~: construction checks 269-293, declaration 445,
+  representation 596, indexing 1031, arithmetic 1070, comparison split 1439,
+  truth conversion 2005, cast 2263, reduction tree 3090, select 3328.
+- ~Mojo/stdlib/std/builtin/simd_length.mojo~: compile-time length wrapper.
+- ~Mojo/stdlib/std/sys/info.mojo~: simd_bit_width 1339, simd_width_of 1567.
+- ~Mojo/stdlib/std/memory/pointer.mojo~: unsafe_load 1343, Boolean memory
+  normalization 1425, gather/scatter methods.
+- ~Mojo/stdlib/std/algorithm/backend/vectorize.mojo~: scalar-tail loop 25,
+  effective-vector-length overload 132.
+- ~Mojo/lib/KGENToLLVM/LowerPOPToLLVM.cpp~: select 531, splat 550,
+  insert/extract/shuffle lowering.
+- https://github.com/modular/modular/tree/ce67c4bba4/Mojo
+- https://mlir.llvm.org/docs/Dialects/Vector/
+- https://gcc.gnu.org/onlinedocs/gcc/Vector-Extensions.html

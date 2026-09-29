@@ -2087,6 +2087,85 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     }
     infer_expr(scope, obj, in_func, ctx)
 
+    if method.eq("cast").and(e.children.len() == 2) {
+        source_name := obj_method_type_name(obj)
+        source_def := scope.get_struct(source_name, ctx.symbols)
+        if source_def.is_some().and(source_def.unwrap().node_type.is(NodeType.StructDef)) {
+            ref source_simd : StructDef = structdef_of(source_def.unwrap())
+            if source_simd.simd_width > 0 {
+                mut target_lane := ""
+                switch e.children[1].node_type {
+                case .Ident(t): target_lane = resolve_type_alias(scope, t.ident_name(ctx.symbols.names), ctx.symbols).clone()
+                case:
+                }
+                source_lane := source_simd.fields[0].type_name()
+                source_t := type_from_name_init_name(source_lane, scope, ctx.symbols)
+                target_t := type_from_name_init_name(target_lane, scope, ctx.symbols)
+                float_pair := source_lane.eq("F32").and(target_lane.eq("F64")).or(source_lane.eq("F64").and(target_lane.eq("F32")))
+                if cast_pair_ok(source_t, target_t).or(float_pair).not() {
+                    e.type_error("SIMD cast supports scalar integer cast pairs and F32/F64 conversion", ctx)
+                    e.set_til_type(Type.Unknown)
+                    return true
+                }
+                width := source_simd.simd_width
+                pending_start := ctx.generic_pending.children.len()
+                target_name := init_require_simd(target_lane, width, e.line, e.col, ctx)
+                type_methods_from(ctx.generic_pending, pending_start, ctx)
+                type_repl_delta_fields_from(ctx.generic_pending, pending_start, ctx)
+                type_repl_delta_decls_from(ctx.generic_pending, pending_start, ctx)
+                for pi in pending_start..ctx.generic_pending.children.len() {
+                    extend_throwing_func_sigs(ctx, ctx.generic_pending.children[pi])
+                }
+                compute_ref_return_summaries(ctx.generic_pending, ctx.scope, ctx)
+                mut value := obj.clone()
+                e.children.clear()
+                e.add_child(own Expr.new(ident_node(ctx.symbols.intern("cast")), e.line, e.col))
+                e.add_child(own value)
+                mut target := Expr.new(ident_node(ctx.symbols.intern(target_name)), e.line, e.col)
+                target.set_til_type(Type.Enum("Type"))
+                e.add_child(own target)
+                e.set_til_type(Type.Struct(target_name.clone()))
+                mark_fcall_direct(e)
+                return true
+            }
+        }
+    }
+
+    // Select is polymorphic in the VALUE type, not in the mask's Bool lanes.
+    // Resolve it to the value family's typed intrinsic; ordinary argument
+    // validation then enforces identical values and the exact mask width.
+    if method.eq("select").and(e.children.len() == 3) {
+        receiver_name := obj_method_type_name(obj)
+        receiver_def := scope.get_struct(receiver_name, ctx.symbols)
+        if receiver_def.is_some().and(receiver_def.unwrap().node_type.is(NodeType.StructDef)) {
+            ref receiver_simd : StructDef = structdef_of(receiver_def.unwrap())
+            if receiver_simd.simd_width > 0 {
+                infer_expr(scope, e.children[1], in_func, ctx)
+                value_name := obj_method_type_name(e.children[1])
+                value_def := scope.get_struct(value_name, ctx.symbols)
+                mut valid_values := false
+                if value_def.is_some().and(value_def.unwrap().node_type.is(NodeType.StructDef)) {
+                    valid_values = structdef_of(value_def.unwrap()).simd_width == receiver_simd.simd_width
+                }
+                if valid_values.not().or(receiver_simd.fields[0].type_name() != "Bool") {
+                    e.type_error("SIMD select requires a Bool mask and same-width SIMD values", ctx)
+                    e.set_til_type(Type.Unknown)
+                    return true
+                }
+                mut mask_arg := obj.clone()
+                fa.children[0] = Expr.new(ident_node(ctx.symbols.intern(value_name)), obj.line, obj.col)
+                mut select_args := Vec(Expr).new()
+                select_args.push(own fa.clone())
+                select_args.push(own mask_arg)
+                select_args.push(own e.children[1].clone())
+                select_args.push(own e.children[2].clone())
+                e.children.move_from(own select_args)
+                infer_fcall_expr(scope, e, in_func, ctx)
+                return true
+            }
+        }
+    }
+
     // A function pointer is a pointer-sized value, but a funcsig is not a
     // struct, so it has no `size` metatype method of its own. Route a funcptr
     // type-token's `.size()` through Dynamic (the universal 8-byte pointer,
@@ -2912,6 +2991,23 @@ priv infer_cast_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     mut target_type := declaration_type_from_name(tname)
     if target_type.is(Type.Custom) {
         target_type = type_from_name(tname, scope, ctx)
+    }
+    if src_type.is(Type.Struct).and(target_type.is(Type.Struct)) {
+        source_name := expr_type_name_ref(e.children[1]).unwrap().clone()
+        ref source_def : Expr = scope.get_struct(source_name, ctx.symbols).unwrap()
+        ref target_def : Expr = scope.get_struct(tname, ctx.symbols).unwrap()
+        ref source_simd : StructDef = structdef_of(source_def)
+        ref target_simd : StructDef = structdef_of(target_def)
+        if source_simd.simd_width.gt(0).and(source_simd.simd_width == target_simd.simd_width) {
+            source_lane := source_simd.fields[0].type_name()
+            target_lane := target_simd.fields[0].type_name()
+            float_pair := source_lane.eq("F32").and(target_lane.eq("F64")).or(source_lane.eq("F64").and(target_lane.eq("F32")))
+            if cast_pair_ok(type_from_name_init_name(source_lane, scope, ctx.symbols), type_from_name_init_name(target_lane, scope, ctx.symbols)).or(float_pair) {
+                e.children[2].set_til_type(Type.Enum("Type"))
+                e.set_til_type(target_type)
+                return
+            }
+        }
     }
     if cast_pair_ok(src_type, target_type).not() {
         e.type_error(format(
@@ -4806,7 +4902,9 @@ priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) r
         // Tagged enums stay pointer-passed (issue #223's open item).
         return enum_is_niche(sdef)
     case .StructDef(sdd):
-        if ctx_total_size(type_name, ctx) > PTR_SIZE_BYTES { return false }
+        if sdd.simd_width == 0 {
+            if ctx_total_size(type_name, ctx) > PTR_SIZE_BYTES { return false }
+        }
         if sdd.fields.len() == 0 { return false }
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
@@ -7495,7 +7593,12 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     if infer_decl_type_def(scope, stmt, ctx) { return }
     if infer_decl_func_def(scope, stmt, declared_name_at_entry, ctx) { return }
     if infer_decl_type_alias_passthrough(scope, stmt, ctx.symbols) { return }
-    ref sdecl : Declaration = decl_of(stmt)
+    ref mut sdecl : Declaration = decl_of(stmt)
+    if sdecl.infer_call_ownership {
+        sdecl.own_type = OwnType.Shallow
+        if fcall_returns_ref(stmt.children[0], scope, ctx.symbols) != 0 { sdecl.own_type = OwnType.Ref }
+        sdecl.infer_call_ownership = false
+    }
     if sdecl.til_type.is(Type.Unknown).not() {
         infer_decl_typed_value(scope, stmt, in_func, ctx)
     } else {

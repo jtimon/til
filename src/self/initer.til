@@ -643,7 +643,7 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
         }
     }
 
-    if init_ns_has_func(sdef, "cmp").not().and(struct_fields_support_generated_method(sdd, "cmp", scope, ctx.symbols)) {
+    if sdd.simd_width.eq(0).and(init_ns_has_func(sdef, "cmp").not()).and(struct_fields_support_generated_method(sdd, "cmp", scope, ctx.symbols)) {
         generate_struct_cmp_method(sdef, sname, stmt.line, stmt.col, ctx.symbols)
     }
 
@@ -3487,7 +3487,7 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
                 // Type argument canonicalized above, rewrite every annotation
                 // that points at the old generated name as well.
                 generated_prefix := format(cname, "__")
-                if dd.name.starts_with(generated_prefix) {
+                if dd.name.starts_with(generated_prefix).or(cname == "Simd") {
                     canonical_names.set(dd.name, own genname.clone())
                 }
                 if ctx.type_gen_synths.has(genname).not() {
@@ -3787,7 +3787,7 @@ priv init_generic_source_mentions_type_name := func(program: Expr, name: Str, sy
 // pass. A same-name scope entry belongs to a surviving expansion in another
 // unit and must remain; assert pointer identity before removal rather than
 // erasing registry state by name.
-priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) {
+priv init_dedup_direct_type_gen_decls := proc(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) {
     mut last_direct := Map(Str, I64).new()
     for i in 0..program.children.len() {
         ref stmt0 : Expr = program.children[i]
@@ -4654,8 +4654,345 @@ init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope, sym
     return drop_idxs.len() > 0
 }
 
-priv init_expand_type_gen_decl := func(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
+priv init_simd_target_width := proc(arg: Expr, mut ctx: Context) returns I64 {
+    switch arg.node_type {
+    case .Ident(id):
+        name := resolve_type_alias(ctx.scope, id.ident_name(ctx.symbols.names), ctx.symbols).clone()
+        mut lane : Primitive = Primitive.I64
+        mut size : USize = 0
+        mut alignment : USize = 0
+        if builtin_primitive_from_name(name, lane) {
+            builtin_primitive_size_align(lane, size, alignment)
+            lanes := ctx.target_simd_bits / (size * 8)
+            if lanes > 0 { return lanes.to_i64() }
+            return 1
+        }
+    case:
+    }
+    arg.type_error("simd_width requires a scalar element type", ctx)
+    return 0
+}
+
+priv init_simd_integer := proc(e: Expr, program: Expr, mut visiting: Set(Str), mut ctx: Context) returns I64 {
+    switch e.node_type {
+    case .Literal(Literal.Num(n)):
+        if n.is_float().not().and(literal_in_range(n.literal_num_text(), Type.Primitive(Primitive.I64))) { return n.literal_num_text().to_i64() }
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if visiting.has(name) {
+            e.type_error("cyclic SIMD width constant", ctx)
+            return 0
+        }
+        visiting.add(own name.clone())
+        for stmt : Expr in program.children {
+            switch stmt.node_type {
+            case .Decl(d):
+                if d.name.eq(name).and(d.is_mut.not()).and(stmt.children.len() > 0) {
+                    result := init_simd_integer(stmt.children[0], program, visiting, ctx)
+                    visiting.remove(name)
+                    return result
+                }
+            case:
+            }
+        }
+        binding := ctx.scope.get_binding_name(name, ctx.symbols)
+        if binding.is_some() {
+            ref b : TypeBinding = binding.unwrap()
+            if b.is_mut.not().and(b.is_priv.not()).and(b.path != ctx.path).and(ctx.imported.has(b.path)) {
+                note_cross_file_type_use(ctx.scope, ctx, name)
+                ref imported : Expr = ctx.imported[b.path].ast
+                for stmt : Expr in imported.children {
+                    switch stmt.node_type {
+                    case .Decl(d):
+                        if d.name.eq(name).and(stmt.children.len() > 0) {
+                            result := init_simd_integer(stmt.children[0], imported, visiting, ctx)
+                            visiting.remove(name)
+                            return result
+                        }
+                    case:
+                    }
+                }
+            }
+        }
+        visiting.remove(name)
+    case .FCall:
+        if e.children.len() == 2 {
+            switch e.children[0].node_type {
+            case .Ident(fn):
+                if fn.ident_name(ctx.symbols.names) == "simd_width" { return init_simd_target_width(e.children[1], ctx) }
+            case .FieldAccess(method):
+                lhs := init_simd_integer(e.children[0].children[0], program, visiting, ctx)
+                rhs := init_simd_integer(e.children[1], program, visiting, ctx)
+                switch method.field_access_name(ctx.symbols.names).clone() {
+                case "add":
+                    if rhs.gt(0).and(lhs > I64.MAX - rhs).or(rhs.lt(0).and(lhs < I64.MIN - rhs)).not() { return lhs + rhs }
+                case "sub":
+                    if rhs.lt(0).and(lhs > I64.MAX + rhs).or(rhs.gt(0).and(lhs < I64.MIN + rhs)).not() { return lhs - rhs }
+                case "mul":
+                    if lhs.eq(0).or(rhs.eq(0)) { return 0 }
+                    if lhs > 0 {
+                        if rhs > 0 { if lhs <= I64.MAX / rhs { return lhs * rhs } }
+                        else { if rhs >= I64.MIN / lhs { return lhs * rhs } }
+                    } else {
+                        if rhs > 0 { if lhs >= I64.MIN / rhs { return lhs * rhs } }
+                        else { if lhs >= I64.MAX / rhs { return lhs * rhs } }
+                    }
+                case "div":
+                    if rhs.neq(0).and(lhs.eq(I64.MIN).and(rhs.eq(-1)).not()) { return lhs / rhs }
+                case "mod":
+                    if lhs.eq(I64.MIN).and(rhs.eq(-1)) { return 0 }
+                    if rhs != 0 { return lhs.mod(rhs) }
+                case:
+                }
+            case:
+            }
+        }
+    case:
+    }
+    e.type_error("SIMD width requires a compile-time integer constant", ctx)
+    return 0
+}
+
+priv init_simd_constants := proc(mut e: Expr, program: Expr, mut ctx: Context) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
+        switch e.children[0].node_type {
+        case .Ident(callee):
+            if callee.ident_name(ctx.symbols.names) == "simd_width" {
+                lanes := init_simd_target_width(e.children[1], ctx)
+                e.node_type = literal_num_node(lanes.to_str())
+                e.children.clear()
+                e.set_til_type(type_from_name_init_name(ctx.target_usize_pname, ctx.scope, ctx.symbols))
+                return
+            }
+        case:
+        }
+    }
+    if e.node_type.is(NodeType.FCall).and(e.children.len() == 3) {
+        switch e.children[0].node_type {
+        case .Ident(callee):
+            if callee.ident_name(ctx.symbols.names) == "Simd" {
+                switch e.children[1].node_type {
+                case .Ident(element):
+                    resolved := resolve_type_alias(ctx.scope, element.ident_name(ctx.symbols.names), ctx.symbols).clone()
+                    e.children[1] = Expr.new(ident_node(ctx.symbols.intern(resolved)), e.line, e.col)
+                case:
+                }
+                width := init_simd_integer(e.children[2], program, Set(Str).new(), ctx)
+                e.children[2] = Expr.new(literal_num_node(width.to_str()), e.line, e.col)
+            }
+        case:
+        }
+    }
+    switch e.node_type {
+    case .FuncDef(fd):
+        if fd.sig.func_type.is(FuncType.Macro) { return }
+    case .StructDef(sd):
+        for mut nd : Declaration in sd.ns_decls {
+            if nd.default_value.is_some() { init_simd_constants(nd.default_expr(), program, ctx) }
+        }
+    case:
+    }
+    for mut child : Expr in e.children { init_simd_constants(child, program, ctx) }
+}
+
+// Builtin expansion uses the ordinary struct layout and type registries.
+// The scalar fields are the addressable representation, never vector-aligned.
+priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context, mut nested: Vec(Expr)) returns Bool {
+    ref call : Expr = stmt.children[0]
+    if call.children.len() != 3 {
+        call.type_error("Simd requires an element type and a constant width", ctx)
+        return false
+    }
+    mut elem := ""
+    switch call.children[1].node_type {
+    case .Ident(id): elem = resolve_type_alias(scope, id.ident_name(ctx.symbols.names), ctx.symbols).clone()
+    case:
+    }
+    mut valid := false
+    for scalar : Str in array(Str, "I8", "U8", "I16", "U16", "I32", "U32", "I64", "U64", "F32", "F64", "Bool") {
+        if elem == scalar { valid = true }
+    }
+    if valid.not() {
+        call.type_error("Simd element type must be a numeric scalar or Bool", ctx)
+        return false
+    }
+    mut width : USize = 0
+    switch call.children[2].node_type {
+    case .Literal(Literal.Num(n)):
+        parsed := n.literal_num_text().to_i64()
+        // Accessors are expanded to scalar field operations. Bound this
+        // expansion explicitly, rather than truncating a host-sized count.
+        if parsed > 1024 {
+            call.type_error("Simd width exceeds the current 1024-lane implementation limit", ctx)
+            return false
+        }
+        if parsed > 0 { width = parsed.to_usize() }
+    case:
+    }
+    if width == 0 {
+        call.type_error("Simd width must be a positive compile-time integer", ctx)
+        return false
+    }
+    if width.band(width - 1) != 0 {
+        call.type_error("Simd width must be a power of two", ctx)
+        return false
+    }
+    name := simd_instance_name(elem, width)
+    mask := simd_instance_name("Bool", width)
+    mut source := ""
+    if elem != "Bool" { source = format(mask, " := Simd(Bool, ", width.to_str(), ")\n") }
+    source = format(source, name, " := struct {\n")
+    mut params := ""
+    mut fields := ""
+    mut splat_fields := ""
+    mut zero := "0"
+    if elem == "Bool" { zero = "false" }
+    for i in 0..width {
+        lane := format("lane", i.to_str())
+        source = format(source, "priv ", lane, " : ", elem, " = ", zero, "\n")
+        if i > 0 {
+            params = format(params, ", ")
+            fields = format(fields, ", ")
+            splat_fields = format(splat_fields, ", ")
+        }
+        params = format(params, lane, ": ", elem)
+        fields = format(fields, lane, " = ", lane)
+        splat_fields = format(splat_fields, lane, " = value")
+    }
+    source = format(source, "namespace:\nnew := func(", params, ") returns ", name, " { return ", name, "(", fields, ") }\n",
+        "splat := func(value: ", elem, ") returns ", name, " { return ", name, "(", splat_fields, ") }\n",
+        "zero := func() returns ", name, " { return ", name, ".splat(", zero, ") }\n",
+        "len := core_func(shallow self: ", name, ") returns shallow USize {}\n")
+    // The checked accessors return lane values, not references into registers.
+    source = format(source, "get := func(self: ", name, ", i: USize) returns ", elem, " throws OutOfBounds {\n")
+    for i in 0..width { source = format(source, "if i == ", i.to_str(), " { return self.lane", i.to_str(), " }\n") }
+    source = format(source, "throw OutOfBounds()\n}\nset := func(mut self: ", name, ", i: USize, own value: ", elem, ") throws OutOfBounds {\n")
+    for i in 0..width { source = format(source, "if i == ", i.to_str(), " { self.lane", i.to_str(), " = value; return }\n") }
+    source = format(source, "throw OutOfBounds()\n}\n")
+    for op : Str in array(Str, "eq", "neq", "lt", "lte", "gt", "gte", "add", "sub", "mul", "band", "bor", "bxor") {
+        if elem == "Bool" {
+            if op.eq("eq").or(op.eq("neq")).not() { continue }
+        }
+        if elem.starts_with("F").and(op.eq("band").or(op.eq("bor")).or(op.eq("bxor"))) { continue }
+        mut result := name.clone()
+        if op.eq("eq").or(op.eq("neq")).or(op.eq("lt")).or(op.eq("lte")).or(op.eq("gt")).or(op.eq("gte")) { result = mask }
+        source = format(source, op, " := core_func(shallow a: ", name, ", shallow b: ", name, ") returns shallow ", result, " {}\n")
+    }
+    if elem == "Bool" {
+        for reduction : Str in array(Str, "all", "any") {
+            mut expression := "self.lane0"
+            mut op := "and"
+            if reduction == "any" { op = "or" }
+            for i in 1..width { expression = format(expression, ".", op, "(self.lane", i.to_str(), ")") }
+            source = format(source, reduction, " := func(self: ", name, ") returns Bool { return ", expression, " }\n")
+        }
+        for bit_op : Str in array(Str, "band", "bor", "bxor") {
+            mut bool_op := "and"
+            if bit_op == "bor" { bool_op = "or" }
+            if bit_op == "bxor" { bool_op = "neq" }
+            source = format(source, bit_op, " := func(a: ", name, ", b: ", name, ") returns ", name, " { return ", name, "(")
+            for i in 0..width {
+                if i > 0 { source = format(source, ", ") }
+                source = format(source, "lane", i.to_str(), " = a.lane", i.to_str(), ".", bool_op, "(b.lane", i.to_str(), ")")
+            }
+            source = format(source, ") }\n")
+        }
+        source = format(source, "bnot := func(self: ", name, ") returns ", name, " { return ", name, "(")
+        for i in 0..width {
+            if i > 0 { source = format(source, ", ") }
+            source = format(source, "lane", i.to_str(), " = self.lane", i.to_str(), ".not()")
+        }
+        source = format(source, ") }\n")
+    } else {
+        // Scalar division retains til's defined zero-divisor behavior.
+        source = format(source, "priv div_lane := func(a: ", elem, ", b: ", elem, ") returns ", elem, " {\n")
+        if elem.starts_with("I") {
+            source = format(source, "if b == -1 { if a == ", elem, ".MIN { return a } }\n")
+        }
+        source = format(source, "return a / b\n}\n")
+        source = format(source, "div := func(a: ", name, ", b: ", name, ") returns ", name, " { return ", name, "(")
+        for i in 0..width {
+            if i > 0 { source = format(source, ", ") }
+            source = format(source, "lane", i.to_str(), " = ", name, ".div_lane(a.lane", i.to_str(), ", b.lane", i.to_str(), ")")
+        }
+        source = format(source, ") }\nreduce_add := func(self: ", name, ") returns ", elem, " {\n")
+        for i in 0..width {
+            if i < width / 2 { source = format(source, "mut ") }
+            source = format(source, "r", i.to_str(), " := self.lane", i.to_str())
+            if elem.starts_with("I") { source = format(source, ".cast(U", elem.substr(1, elem.len() - 1), ")") }
+            source = format(source, "\n")
+        }
+        mut half := width / 2
+        while half > 0 {
+            for i in 0..half { source = format(source, "r", i.to_str(), " = r", i.to_str(), " + r", (i + half).to_str(), "\n") }
+            half = half / 2
+        }
+        source = format(source, "return r0")
+        if elem.starts_with("I") { source = format(source, ".cast(", elem, ")") }
+        source = format(source, "\n}\n")
+        if elem.starts_with("F").not() {
+            source = format(source, "bnot := func(self: ", name, ") returns ", name, " { return ", name, "(")
+            for i in 0..width {
+                if i > 0 { source = format(source, ", ") }
+                source = format(source, "lane", i.to_str(), " = self.lane", i.to_str(), ".bnot()")
+            }
+            source = format(source, ") }\n")
+        }
+        for reduction : Str in array(Str, "reduce_min", "reduce_max") {
+            source = format(source, reduction, " := core_func(shallow self: ", name, ") returns shallow ", elem, " {}\n")
+        }
+    }
+    source = format(source, "select := core_func(shallow mask: ", mask, ", shallow a: ", name, ", shallow b: ", name, ") returns shallow ", name, " {}\n")
+    source = format(source, "priv store_lane := func(mut dest: ", elem, ", value: ", elem, ") { dest = value }\n")
+    source = format(source, "load := func(values: Array(", elem, "), start: USize) returns ", name, " throws OutOfBounds {\n",
+        "if start > values.len() { throw OutOfBounds() }\n",
+        "if values.len() - start < ", width.to_str(), " { throw OutOfBounds() }\nreturn ", name, "(")
+    for i in 0..width {
+        if i > 0 { source = format(source, ", ") }
+        source = format(source, "lane", i.to_str(), " = values.unsafe_get(start + ", i.to_str(), ")")
+    }
+    source = format(source, ")\n}\nstore := func(self: ", name, ", mut values: Array(", elem, "), start: USize) throws OutOfBounds {\n",
+        "if start > values.len() { throw OutOfBounds() }\n",
+        "if values.len() - start < ", width.to_str(), " { throw OutOfBounds() }\n")
+    for i in 0..width {
+        source = format(source, name, ".store_lane(values.unsafe_get(start + ", i.to_str(), "), self.lane", i.to_str(), ")\n")
+    }
+    source = format(source, "}\n")
+    source = format(source, "}\n")
+    tokens := tokenize(source, ctx.path)
+    mut mode := ""
+    mut anon : I64 = 0
+    mut errors : I32 = 0
+    mut generated := parse(tokens, source, ctx.path, mode, anon, ctx.symbols, errors)
+    if errors != 0 { panic("invalid compiler-generated SIMD definition: ", source) }
+    for mut decl : Expr in generated.children {
+        if decl.children.len() == 0 { continue }
+        if decl.children[0].node_type.is(NodeType.StructDef) {
+            ref mut definition : StructDef = structdef_of(decl.children[0])
+            definition.simd_width = width
+            stmt.children[0] = decl.children[0].clone()
+        } else {
+            switch decl.node_type {
+            case .Decl(d):
+                if ctx.type_gen_synths.has(d.name).not() {
+                    ctx.type_gen_synths.add(own d.name.clone())
+                    nested.push(own decl.clone())
+                }
+            case:
+                panic("unexpected SIMD support declaration")
+            }
+        }
+    }
+    return true
+}
+
+priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
     ref rhs : Expr = stmt.children[0]
+    switch rhs.children[0].node_type {
+    case .Ident(callee):
+        if callee.ident_name(ctx.symbols.names) == "Simd" { return init_expand_simd(stmt, scope, ctx, nested_synthesized) }
+    case:
+    }
     if macro_fdef.children.len() == 0 { return false }
     ref body : Expr = macro_fdef.children[0]
     if body.node_type.is(NodeType.Body).not() { return false }
@@ -4721,6 +5058,8 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
     for mut stmt0 : Expr in program.children {
         init_canonicalize_local_type_args(stmt0, macros, scope, local_types, ctx)
     }
+    for mut simd_stmt : Expr in program.children { init_simd_constants(simd_stmt, program, ctx) }
+    if ctx.errors > 0 { return }
 
     // Normalize explicit aliases (`Alias := Template(I64)`) before dedup so
     // every instantiated template has one deterministic real type name.
@@ -4785,7 +5124,10 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
             case:
             }
             mut nested_synthesized := Vec(Expr).new()
-            if init_expand_type_gen_decl(stmt, macro_fdef, macros, scope, ctx, true, nested_synthesized).not() { continue }
+            if init_expand_type_gen_decl(stmt, macro_fdef, macros, scope, ctx, true, nested_synthesized).not() {
+                if ctx.errors > 0 { return }
+                continue
+            }
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }
@@ -4968,6 +5310,7 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     // body's return literal with type-params substituted, so X becomes a
     // normal named struct/enum decl for the registration walk below.
     init_expand_type_gen_macros(program, scope, ctx)
+    if ctx.errors > 0 { return ctx.errors }
 
     // Issue #58 "Phase now": monomorphize direct generic functions
     // `name := func(T: Type, ...)` called as `name(I64, args)`. Runs
@@ -5480,6 +5823,28 @@ init_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns 
     mut errors : I32 = 0
     errors = errors + init_declarations_unit(path, program, ctx.scope, ctx)
     return errors
+}
+
+// A lane conversion can discover its result family during type inference.
+// Queue it through the existing late-declaration path, not a second registry.
+init_require_simd := proc(elem: Str, width: USize, line: U32, col: U32, mut ctx: Context) returns Str {
+    name := simd_instance_name(elem, width)
+    if ctx.scope.get_struct(name, ctx.symbols).is_some() { return name }
+    mut program := Expr.new(NodeType.Body, line, col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own Expr.new(ident_node(ctx.symbols.intern("Simd")), line, col))
+    call.add_child(own Expr.new(ident_node(ctx.symbols.intern(elem)), line, col))
+    call.add_child(own Expr.new(literal_num_node(width.to_str()), line, col))
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
+    decl.add_child(own call)
+    program.add_child(own decl)
+    path := ctx.path.clone()
+    if init_declarations_unit(path, program, ctx.scope, ctx) != 0 { panic("failed to materialize SIMD conversion type") }
+    start := ctx.generic_pending.children.len()
+    ctx.generic_pending.take_children(program)
+    init_refresh_seeded_scope_defs(ctx.generic_pending, ctx.scope, ctx.symbols)
+    init_refresh_interp_type_defs_from(ctx.generic_pending, start, ctx)
+    return name
 }
 
 // sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls

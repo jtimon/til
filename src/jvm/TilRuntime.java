@@ -754,8 +754,8 @@ public final class TilRuntime {
     public static int divU32(int a, int b) { return b == 0 ? 0 : Integer.divideUnsigned(a, b); }
     public static long divI64(long a, long b) { return b == 0 ? 0 : a / b; }
     public static long divU64(long a, long b) { return b == 0 ? 0 : Long.divideUnsigned(a, b); }
-    public static float divF32(float a, float b) { return b == 0 ? 0 : a / b; }
-    public static double divF64(double a, double b) { return b == 0 ? 0 : a / b; }
+    public static float divF32(float a, float b) { return a / b; }
+    public static double divF64(double a, double b) { return a / b; }
 
     public static byte modI8(byte a, byte b) { return b == 0 ? 0 : (byte) (a % b); }
     public static int modU8(int a, int b) { return b == 0 ? 0 : (a & 0xff) % (b & 0xff); }

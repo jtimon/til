@@ -78,3 +78,57 @@ test_f32_constructor_literals_keep_field_width := test() {
     assert_eq(F32, nested.point.x, 1.5)
     assert_eq(F32, nested.point.y, 2.5)
 }
+
+// Runtime operands prevent constant folding from hiding a disagreement
+// between the interpreter's arithmetic and the generated backend code.
+runtime_f32 := proc(value: F32) returns F32 {
+    noop_proc()
+    return value
+}
+
+runtime_f64 := proc(value: F64) returns F64 {
+    noop_proc()
+    return value
+}
+
+test_ieee_f32_division := test() {
+    one := runtime_f32(1.0)
+    negative := runtime_f32(-1.0)
+    zero := runtime_f32(0.0)
+    minus_zero := runtime_f32(-0.0)
+    assert_eq(Str, (one / zero).to_repr(), "inf")
+    assert_eq(Str, (one / minus_zero).to_repr(), "-inf")
+    assert_eq(Str, (negative / zero).to_repr(), "-inf")
+    assert_eq(Str, (negative / minus_zero).to_repr(), "inf")
+    nan_value := zero / zero
+    assert(nan_value != nan_value)
+    assert(nan_value.lt(one).not())
+    mut caught := false
+    _quotient := one.safe_div(minus_zero)?
+    catch (err: DivideByZero) { caught = true }
+    assert(caught)
+}
+
+test_ieee_f64_division := test() {
+    one := runtime_f64(1.0)
+    negative := runtime_f64(-1.0)
+    zero := runtime_f64(0.0)
+    minus_zero := runtime_f64(-0.0)
+    assert_eq(Str, (one / zero).to_repr(), "inf")
+    assert_eq(Str, (one / minus_zero).to_repr(), "-inf")
+    assert_eq(Str, (negative / zero).to_repr(), "-inf")
+    assert_eq(Str, (negative / minus_zero).to_repr(), "inf")
+    nan_value := zero / zero
+    assert(nan_value != nan_value)
+    assert(nan_value.eq(one).not())
+    assert(nan_value.lt(one).not())
+    assert(nan_value.lte(one).not())
+    assert(nan_value.gt(one).not())
+    assert(nan_value.gte(one).not())
+    mut caught := false
+    _quotient := one.safe_div(minus_zero)?
+    catch (err: DivideByZero) { caught = true }
+    assert(caught)
+    propagated := one.safe_div(nan_value)!
+    assert(propagated != propagated)
+}

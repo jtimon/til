@@ -31,7 +31,6 @@
 *** [[./open/310.org][#310]] expr_macro / str_macro: compile-time macros that emit AST or source
 *** [[./open/313.org][#313]] Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 *** [[./open/314.org][#314]] Pluggable custom allocators (arena / bump / fixed-buffer), like Zig and Odin
-*** [[./open/318.org][#318]] Portable SIMD vector type like Mojo's SIMD[dtype, width]
 *** [[./open/336.org][#336]] Element-wise cmp for the core containers, so Set(Vec(T)) etc. work
 *** [[./open/339.org][#339]] Add Ed25519, Ed448, and ECDSA/secp256r1 signature backends
 *** [[./open/370.org][#370]] til embeds in the lua/lisp sense: host program, guest til
