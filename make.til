@@ -45,6 +45,8 @@ TINYFD_SRC := "vendor/tinyfiledialogs/tinyfiledialogs.c"
 NNG_LIB := "vendor/nng/libnng.a"
 NNG_SO := "vendor/nng/libnng.so"
 NNG_WIN_LIB := "vendor/nng/build-win64/libnng.a"
+SECP256K1_LIB := "vendor/secp256k1/libsecp256k1.a"
+SECP256K1_SO := "vendor/secp256k1/libsecp256k1.so"
 LIBFFI_DIR := "vendor/libffi"
 LIBFFI_STAMP := "vendor/libffi/.built"
 LIBFFI_WIN64_LIB := "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
@@ -412,6 +414,7 @@ build_ffi_twins := proc(mut b: Build) {
     build_raylib(b)
     build_tinyfd(b)
     build_nng(b)
+    build_secp256k1(b)
 
     mut raylib_inputs := Vec(Str).new()
     raylib_inputs.push(own RAYLIB_LIB.clone())
@@ -456,6 +459,19 @@ build_ffi_twins := proc(mut b: Build) {
         argv.append(own nng_sys_flags(b.host))
         run_argv(argv)
     }
+
+    mut secp_inputs := Vec(Str).new()
+    secp_inputs.push(own SECP256K1_LIB.clone())
+    if needs_rebuild(SECP256K1_SO, secp_inputs) {
+        mut argv := Vec(Str).new()
+        argv.push(own "cc")
+        argv.push(own "-shared")
+        argv.push(own "-fPIC")
+        argv.push(own "-o")
+        argv.push(own SECP256K1_SO.clone())
+        argv.append(own force_load_args(b.host, SECP256K1_LIB))
+        run_argv(argv)
+    }
 }
 
 /// nng, built from vendored source via cmake. Static only, no
@@ -480,6 +496,40 @@ build_nng := proc(mut b: Build) {
     copy("vendor/nng/build/libnng.a", NNG_LIB)
 }
 
+/// libsecp256k1 (issue #235), built from the vendored upstream release
+/// via cmake. Static only, with exactly the modules BIP-340 needs:
+/// extrakeys (x-only public keys) and schnorrsig. ECDH, recovery,
+/// musig, ellswift and silent payments are switched off, as are the
+/// benchmarks, tests and examples, so the build is the library alone
+/// and needs no system package. The upstream test suite is run by hand
+/// when the vendored release is imported or updated (see the REM in
+/// doc/ffi.org), not here.
+///
+/// POSITION_INDEPENDENT_CODE for the same reason as nng: the archive
+/// is relinked into a shared twin by build_ffi_twins, and this file is
+/// an input so an archive built before a flag change is rebuilt.
+build_secp256k1 := proc(mut b: Build) {
+    if b.begin("secp256k1").not() { return }
+    mut inputs := Vec(Str).new()
+    inputs.push(own SELF_SRC.clone())
+    if needs_rebuild(SECP256K1_LIB, inputs).not() { return }
+    run("cmake", "-S", "vendor/secp256k1", "-B", "vendor/secp256k1/build",
+        "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF",
+        "-DSECP256K1_ENABLE_MODULE_ECDH=OFF",
+        "-DSECP256K1_ENABLE_MODULE_RECOVERY=OFF",
+        "-DSECP256K1_ENABLE_MODULE_EXTRAKEYS=ON",
+        "-DSECP256K1_ENABLE_MODULE_SCHNORRSIG=ON",
+        "-DSECP256K1_ENABLE_MODULE_MUSIG=OFF",
+        "-DSECP256K1_ENABLE_MODULE_ELLSWIFT=OFF",
+        "-DSECP256K1_ENABLE_MODULE_SILENTPAYMENTS=OFF",
+        "-DSECP256K1_BUILD_BENCHMARK=OFF", "-DSECP256K1_BUILD_TESTS=OFF",
+        "-DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF", "-DSECP256K1_BUILD_CTIME_TESTS=OFF",
+        "-DSECP256K1_BUILD_EXAMPLES=OFF", "-DSECP256K1_INSTALL=OFF",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+    run("cmake", "--build", "vendor/secp256k1/build", "--parallel")
+    copy("vendor/secp256k1/build/lib/libsecp256k1.a", SECP256K1_LIB)
+}
+
 /// Everything a native til build links or dlopens. bin/til_boot needs
 /// none of it -- it links libffi and nothing else vendored, which is
 /// why the Makefile's bootstrap does not build these.
@@ -489,6 +539,7 @@ build_vendor := proc(mut b: Build) {
     build_tinyfd(b)
     build_ffi_twins(b)
     build_nng(b)
+    build_secp256k1(b)
 }
 
 // --- Steps ---
@@ -826,6 +877,13 @@ run_update_c_libs := proc(mut b: Build) {
         "vendor/libffi/x86_64-pc-linux-gnu/include/ffi.h")
     run(TIL, "bindings", "-o", "vendor/bindings/nng.til",
         "vendor/nng/include/nng/nng.h")
+    // secp256k1_schnorrsig.h includes secp256k1.h and
+    // secp256k1_extrakeys.h from the same directory, and the binder
+    // keeps every declaration from the input header's directory, so
+    // this one pass covers the whole enabled API (context, x-only
+    // keys, BIP-340 signatures).
+    run(TIL, "bindings", "-o", "vendor/bindings/secp256k1.til",
+        "vendor/secp256k1/include/secp256k1_schnorrsig.h")
     // raylib.til is TWO headers in one audited file, so both passes must be
     // seeded from it or the audit-preservation pass reads a stale tmp file
     // and the 161 raylib audits are lost anyway. Seed the rcamera pass
@@ -887,7 +945,7 @@ run_clean := proc(mut b: Build) {
 run_clean_vendor := proc(mut b: Build) {
     if b.begin("clean_vendor").not() { return }
     run("git", "clean", "-fdx", "vendor/raylib", "vendor/tinyfiledialogs",
-        "vendor/nng", "vendor/libffi", EMSDK_DIR)
+        "vendor/nng", "vendor/secp256k1", "vendor/libffi", EMSDK_DIR)
 }
 
 /// ~rm -rf <dir>/*~: the entries go, the directory stays.

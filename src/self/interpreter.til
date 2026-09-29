@@ -7732,7 +7732,16 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
     switch struct_def.node_type {
     case .StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
-        mut elements : Dynamic = malloc(nfields.add(1) * Dynamic.size())
+        // A field-less (opaque) ext_struct has no libffi layout of its own:
+        // ffi_get_struct_offsets rejects an empty element list, so every
+        // ref binding to a library-owned object of such a type (a
+        // secp256k1_context, an nng_msg) died here with "cannot borrow
+        // foreign layout". The C backend gives the same struct one
+        // `char _;` member (emit_struct_typedef); mirror that with one
+        // uint8 element -- a one-byte struct only ever reached by pointer.
+        mut nelements := nfields
+        if nfields == 0 { nelements = 1 }
+        mut elements : Dynamic = malloc(nelements.add(1) * Dynamic.size())
         mut i : USize = 0
         for fd : Declaration in bsf_sdd.fields {
             ref ft : ffi_type = field_ffi_type(fd, ctx, host_layout)
@@ -7742,7 +7751,11 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
             write_ptr(ptr_add(elements, i * Dynamic.size()), ft)
             i = i + 1
         }
-        memset(ptr_add(elements, nfields * Dynamic.size()), 0, Dynamic.size())
+        if nfields == 0 {
+            ref placeholder : ffi_type = ffi_type_ref("ffi_type_uint8")
+            write_ptr(elements, placeholder)
+        }
+        memset(ptr_add(elements, nelements * Dynamic.size()), 0, Dynamic.size())
         mut st : ffi_type = malloc(ffi_type.size())
         // Zero before any field assign: st's fields are OWNED now, so an
         // assign drains the old value -- on unzeroed malloc garbage that is
@@ -7756,7 +7769,7 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
         // The extra slot also gives field-less structs a valid output buffer.
         // Keep a rejected layout cached: registration already defers unsupported
         // signatures until use; marshalling must report the layout failure.
-        mut offsets : Dynamic = calloc(nfields.add(1), U64.size())
+        mut offsets : Dynamic = calloc(nelements.add(1), U64.size())
         ref mut offsets_arg : USize = to_ptr(offsets)
         status := ffi_get_struct_offsets(ffi_host_default_abi(), st, offsets_arg)
         box := FFITypePtrBox(ptr = st, offsets = offsets, layout_status = status)

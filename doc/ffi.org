@@ -344,9 +344,12 @@ really is pure -- often the right fix is to flip *it* to
 ~make update_c_libs~ runs ~bin/til bindings~ against
 ~vendor/raylib/src/raylib.h~, ~vendor/raylib/src/rcamera.h~,
 ~vendor/tinyfiledialogs/tinyfiledialogs.h~,
-~vendor/nng/include/nng/nng.h~, and libffi's
+~vendor/nng/include/nng/nng.h~,
+~vendor/secp256k1/include/secp256k1_schnorrsig.h~ (which pulls in
+~secp256k1.h~ and ~secp256k1_extrakeys.h~ from the same directory,
+so one pass covers the whole enabled API), and libffi's
 ~ffi.h~, and writes the output to
-~vendor/bindings/{raylib,tinyfd,nng,libffi}.til~.
+~vendor/bindings/{raylib,tinyfd,nng,secp256k1,libffi}.til~.
 
 *The audit survives.*  The committed ~.til~ IS the audit record, so
 the generator reads the file it is about to overwrite and keeps what
@@ -446,6 +449,40 @@ which must be re-applied after regeneration:
    ~u_scheme~, ~u_hostname~, ~u_port~, ~u_path~, ~u_requri~) back
    to mandatory ~ref field : I8~.  The four genuinely nullable url
    fields and ~nng_iov.iov_buf~ stay exactly as generated.
+
+libsecp256k1 (issue #235; vendored from the upstream v0.8.0 tag,
+whose signing key matches the SECURITY.md maintainer list -- REM:
+rerun upstream's own suite, ~cmake -DSECP256K1_BUILD_TESTS=ON~ +
+~ctest~ in a scratch build, whenever the vendored tree is updated)
+has these hand-edits beyond the ext_proc flips (every call reads or
+mutates a run-time context, so none is foldable):
+
+1. *Opaque caller-allocated structs.*  ~secp256k1_pubkey~,
+   ~secp256k1_xonly_pubkey~, ~secp256k1_ecdsa_signature~ (64 bytes)
+   and ~secp256k1_keypair~ (96 bytes) are ~unsigned char data[N]~
+   upstream, which the binder cannot express, so it emits them
+   field-less -- one byte on both backends.  But the CALLER
+   allocates these and the library writes N bytes through the
+   pointer, so their bodies are re-spelled as N/8 ~U64~ words.
+   ~secp256k1_context~ stays field-less: it is only ever reached
+   through the pointer ~secp256k1_context_create~ returns.
+   ~secp256k1_schnorrsig_extraparams~ stays field-less too (its
+   magic bytes cannot be initialised from til; use
+   ~secp256k1_schnorrsig_sign32~).
+2. *Function-pointer typedefs.*  ~secp256k1_nonce_function~ and
+   ~secp256k1_sha256_compression_function~ are added as ~Dynamic~
+   aliases, and the two parameters of those types lose their
+   ~shallow~ (same as nng's logger).
+3. *Flag constants.*  ~SECP256K1_CONTEXT_NONE~ / ~_VERIFY~ / ~_SIGN~
+   / ~_DECLASSIFY~ and ~SECP256K1_EC_COMPRESSED~ / ~_UNCOMPRESSED~
+   are ~#define~d as expressions over ~SECP256K1_FLAGS_*~, which the
+   binder does not fold; their values are added by hand.
+
+The context is bound as ~ref mut ctx : secp256k1_context =
+secp256k1_context_create(...)~ and released with
+~secp256k1_context_destroy(ctx)~; a plain ~returns~ (owned) would
+make the interpreter marshal the struct BY VALUE, which is what
+~returns ref~ is for.  ~test/secp256k1.til~ is the worked example.
 
 tinyfd has one hand-edit beyond the ext_proc flips: the file
 dialogs pass NULL both ways (filter args in, "user cancelled"

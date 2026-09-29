@@ -29,6 +29,9 @@ vendor/nng/libnng.a
 vendor/nng/libnng.so
 vendor/nng/build/
 vendor/nng/build-win64/
+vendor/secp256k1/libsecp256k1.a
+vendor/secp256k1/libsecp256k1.so
+vendor/secp256k1/build/
 vendor/emscripten/.emscripten
 vendor/emscripten/.emscripten.old
 vendor/emscripten/.til-emsdk-*

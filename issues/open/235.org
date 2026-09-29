@@ -1,6 +1,32 @@
 # priority: low
 # category: features
-** OPEN #235 Vendor libsecp256k1 for experimental BIP-340 signatures
+** WIP #235 Vendor libsecp256k1 for experimental BIP-340 signatures
+
+*** Progress
+
+  - [X] Vendor upstream v0.8.0 under ~vendor/secp256k1~ (exported from the
+    signed git tag; the signing key is Sebastian Falbesoner's per upstream
+    SECURITY.md, the tag commit is 6e2c8bc; keyservers are unreachable from
+    bot sessions so the signature itself was not gpg-verified). Upstream's
+    own suite (153 tests, exhaustive tests included) passed on the imported
+    tree in a scratch cmake build with tests enabled.
+  - [X] ~make.til~: ~build_secp256k1~ (cmake, static, extrakeys + schnorrsig
+    only, no tests/benchmarks/examples, -fPIC) plus the ~libsecp256k1.so~
+    twin for the interpreter, ~clean_vendor~, ~update_c_libs~.
+  - [X] ~vendor/bindings/secp256k1.til~, generated and hand-audited (see
+    doc/ffi.org). The binder learned to strip trailing
+    ~__attribute__ ((...))~ groups, which every libsecp256k1 prototype
+    carries; the interpreter learned to lay out a field-less ext_struct
+    as the one-byte struct the C backend already emits, so a ref binding
+    to the opaque context works interpreted.
+  - [X] ~test/secp256k1.til~: BIP-340 vectors 0-14 (sign, derive the x-only
+    key, verify; the invalid signatures and the unparseable keys), both
+    backends, and invalid secret keys.
+  - [ ] ~mode crypto~ with the owned wrapper types, the warning, and the
+    CURVES enum described below.
+  - [ ] Cross targets: only the native archive is built; a windows twin of
+    ~build_nng_win~ is needed before a ~--target=windows-*~ program can
+    link it.
 
 *** Decision
 

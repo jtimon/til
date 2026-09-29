@@ -2168,6 +2168,13 @@ main := proc(args: ..Str) {
     // interpreter goes through libffi and its own `returns ref` handling,
     // which is what borrows the environ pointer.
     add_both(tests, "test/ext_libc.til", flags)
+    // Issue #235: the vendored libsecp256k1 through its generated bindings,
+    // BIP-340 signing and verification against the official vectors. Both
+    // backends for the same reason as ext_libc: the interpreter calls the
+    // .so twin through libffi (and borrows the opaque context through a
+    // ref binding, which needs the one-byte layout of a field-less
+    // ext_struct), the compiled program links the archive.
+    add_both(tests, "test/secp256k1.til", flags)
     add_both(tests, "examples/priv_demo.til", flags)
     add_both(tests, "test/imports.til", flags)
     add_both(tests, "test/arrays.til", flags)

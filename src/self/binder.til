@@ -929,6 +929,45 @@ priv emit_define := func(mut out: Str, line: Str) returns Bool {
 
 // --- function declaration ---------------------------------------------
 
+// Drop every `__attribute__ ((...))` group from a joined signature, so
+// that the parameter list's closing paren is the last `)` in it and the
+// return type is not prefixed by one. Which attributes appear depends on
+// the header: raylib and nng carry `deprecated` / `noreturn` before the
+// name, and libsecp256k1 appends SECP256K1_ARG_NONNULL(n) and
+// SECP256K1_WARN_UNUSED_RESULT after the parameter list, which cc -E
+// expands to `__attribute__ ((__nonnull__(1)))` and friends -- nested
+// parens, so the group is matched by depth rather than by spelling.
+priv strip_attributes := func(sig: Str) returns Str {
+    n := sig.len()
+    mut out := Str.with_capacity(n)
+    mut i : USize = 0
+    while i < n {
+        if range_eq_lit(sig, i, i + 13, "__attribute__") {
+            mut j := skip_ws(sig, i + 13)
+            if j.lt(n).and(sig.unsafe_get(j).eq('(')) {
+                mut depth : I32 = 0
+                while j < n {
+                    ref c : I8 = sig.unsafe_get(j)
+                    if c == '(' { depth = depth + 1 }
+                    else if c == ')' {
+                        depth = depth - 1
+                        if depth == 0 { j++; break }
+                    }
+                    j++
+                }
+                // The group goes with the whitespace after it; what was
+                // before it stays, so `) __attribute__ (...);` becomes `);`
+                // and `__attribute__ (...) void f` becomes `void f`.
+                i = skip_ws(sig, j)
+                continue
+            }
+        }
+        out.push_str(sig.substr(i, 1))
+        i++
+    }
+    return out
+}
+
 priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start: USize, end: USize) returns Bool {
     // Join [start, end] into one signature, dropping line comments. End-of-
     // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
@@ -993,10 +1032,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     sig = sig.replace("RLAPI ", "")
     sig = sig.replace("extern \"C\" ", "")
     sig = sig.replace("extern ", "")
-    sig = sig.replace(" __attribute__((deprecated))", "")
-    sig = sig.replace("__attribute__((deprecated)) ", "")
-    sig = sig.replace(" __attribute__((noreturn))", "")
-    sig = sig.replace("__attribute__((noreturn)) ", "")
+    sig = strip_attributes(sig)
     if sig.len() == 0 { return false }
     // The trailing `;` (declaration terminator) is left on `sig`: it
     // sits after the closing `)` (cp below) and is never read -- the
