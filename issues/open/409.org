@@ -1,6 +1,6 @@
 # priority: low
 # category: optimizations
-** OPEN #409 CPU SIMD feature targeting and performance validation
+** WIP #409 CPU SIMD feature targeting and performance validation
 
 Follow up [[../fixed/318.org][#318]] with explicit CPU-feature targeting and
 measurements of useful vector loops. Ordinary til SIMD remains CPU code;
@@ -39,3 +39,510 @@ or cross-architecture bit identity beyond the language contract is promised.
 Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
+
+*** Measurement phase (2026-09-29, master ca6398086)
+
+Status: native x86 measurements and AArch64 cross-codegen/emulated correctness
+are complete for the probe below. Production targeting/optimization controls
+are NOT implemented. Native AArch64 performance remains unmeasured; QEMU is
+not evidence of ARM hardware speed. This issue remains WIP.
+
+**** Environment and method
+
+- CPU: AMD Ryzen 9 9950X3D, 16 cores/32 threads, AVX2 and AVX-512 available.
+  Benchmarks pinned with ~taskset -c 0~. CPU 0's L3 is 98304 KiB; machine-wide
+  L3 totals 128 MiB. Boost remained enabled; no frequency or system settings
+  were changed. These are single-host screening measurements, not guarantees.
+- GCC 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1), Clang 18.1.3
+  (1ubuntu1), AArch64 GCC 13.3.0 with the same Ubuntu package revision.
+  QEMU aarch64 8.2.2 (1:8.2.2+ds-0ubuntu1.18).
+- TIL kernels were translated once per target and compiled with the existing
+  C toolchains. The C harness calls those GENERATED functions; it does not
+  substitute hand-written C kernels. Including generated C makes its static
+  functions callable without changing til's public ABI or emitter.
+- F32 array addition; F32 comparison plus selection (~x > y ? x : y~);
+  U32 reduction with modulo-2^32 arithmetic. Integer reduction avoids changing
+  floating reduction order to manufacture a speedup. The vector reduction
+  reduces each block then adds its scalar result; keeping vector accumulators
+  across iterations is a separate algorithm variant still worth measuring.
+- Checked scalar, unchecked scalar, and explicit widths 2/4/8/16. SIMD bulk
+  accesses use checked load/store; tails use scalar accesses within the valid
+  supplied range. Unchecked scalar is a lower-overhead comparison, NOT an
+  equivalent bounds-checking implementation. Neither scalar version has
+  auto-vectorization disabled.
+- Timed cases: N=17/start=1; N=4096/start=0 and 1; N=33554432/start=1.
+  Buffers are 64-byte aligned; start=1 offsets access by four bytes. The large
+  map working set is 384 MiB; reduction input is 128 MiB, both larger than
+  CPU 0's L3. Allocation, initialization and validation are outside timing.
+- CLOCK_MONOTONIC_RAW; warm/calibrate by doubling repetitions until a batch
+  takes at least 50 ms, then report the median of three batch means. Calls
+  pass through a volatile function pointer; reduction results reach a volatile
+  sink, preventing removal of repeated work. Raw logs also report min/max and
+  repetition counts. Order is fixed, not randomized; do not interpret small
+  differences as statistically established improvements.
+- Every compiled configuration passed bitwise map-output checks, exact U32
+  sums and untouched guard-element checks at N=0,1,2,3,4,5,7,8,9,15,16,17,31,
+  32,33 with starts 0 and 1. Timed ranges were also checked. Interpreter/native
+  CLI smoke output matched for N=0,1,3,4,5,17,33 (the CLI prints reductions).
+
+**** Results: median nanoseconds per element (lower is better)
+
+N=4096, start=1, F32 addition. "Scalar checked" is the appropriate checked-API
+comparison; "scalar unchecked" shows the cost floor available with unsafe_get.
+
+| Compiler / flags       | Scalar checked | Scalar unchecked | SIMD 2 | SIMD 4 | SIMD 8 | SIMD 16 |
+|------------------------+----------------+------------------+--------+--------+--------+---------|
+| GCC -O0 baseline       |         6.5966 |           2.4044 | 12.1411| 7.8751 | 5.6133 |  4.4006 |
+| GCC -O2 baseline       |         0.5718 |           0.3059 | 0.9497 | 1.4001 | 0.5906 |  0.6772 |
+| GCC -O2 x86-64-v3      |         0.4844 |           0.2129 | 0.8609 | 1.3482 | 0.6011 |  0.6721 |
+| GCC -O2 x86-64-v4      |         0.5701 |           0.2824 | 0.8665 | 1.3938 | 0.5994 |  0.6463 |
+| GCC -O3 baseline       |         0.5209 |           0.2135 | 0.4900 | 0.3281 | 0.3888 |  0.5296 |
+| Clang -O2 baseline     |         0.4928 |           0.0702 | 0.4079 | 0.5815 | 0.8213 |  0.5351 |
+| Clang -O2 x86-64-v4    |         0.5200 |           0.0467 | 0.4171 | 0.7115 | 0.7738 |  0.5374 |
+
+Selected other operations, same N/start:
+
+| Compiler / operation           | Scalar checked | Scalar unchecked | SIMD 4 | SIMD 8 | SIMD 16 |
+|--------------------------------+----------------+------------------+--------+--------+---------|
+| GCC -O2 baseline, select        |         0.5064 |           0.2840 | 1.7920 | 0.7660 |  0.8411 |
+| GCC -O3 baseline, select        |         0.5723 |           0.2133 | 0.4580 | 0.6684 |  0.7225 |
+| Clang -O2 baseline, select      |         0.4872 |           0.0697 | 0.5826 | 0.8733 |  0.5866 |
+| Clang -O2 v4, select            |         0.5174 |           0.0467 | 0.6256 | 0.7515 |  0.7251 |
+| GCC -O2 baseline, U32 reduction |         0.2475 |           0.1913 | 0.1959 | 0.1764 |  0.2292 |
+| GCC -O3 baseline, U32 reduction |         0.2222 |           0.1933 | 0.1960 | 0.1762 |  0.2299 |
+| Clang -O2 baseline, reduction   |         0.0448 |           0.0431 | 0.2025 | 0.2014 |  0.2151 |
+| Clang -O2 v4, reduction         |         0.0156 |           0.0131 | 0.2027 | 0.1989 |  0.2147 |
+
+Large working set, N=33554432/start=1:
+
+| Compiler / operation       | Scalar checked | Scalar unchecked | SIMD 2 | SIMD 4 | SIMD 8 | SIMD 16 |
+|----------------------------+----------------+------------------+--------+--------+--------+---------|
+| GCC -O2 baseline, add       |         0.7774 |           0.4681 | 1.5349 | 1.9033 | 1.2195 |  1.2944 |
+| GCC -O2 baseline, select    |         0.6987 |           0.4413 | 1.5793 | 2.2643 | 1.4241 |  1.4324 |
+| GCC -O2 baseline, reduction |         0.2229 |           0.1980 | 0.2342 | 0.1975 | 0.1847 |  0.2321 |
+| Clang -O2 v4, add           |         0.6551 |           0.2535 | 0.5988 | 1.1519 | 1.3323 |  1.1281 |
+| Clang -O2 v4, select        |         0.6558 |           0.2535 | 0.6010 | 1.1250 | 1.3111 |  1.2436 |
+| Clang -O2 v4, reduction     |         0.0566 |           0.0567 | 0.2772 | 0.2102 | 0.2058 |  0.2218 |
+
+O0 and the supplementary GCC O3 run covered the small cases only. For a tail
+example, Clang O2/v4 addition at N=17/start=1 measured 0.5280 checked-scalar,
+0.4725 SIMD2 and 0.7404 SIMD4 ns/element. For alignment, its unchecked scalar
+addition at N=4096 measured 0.0240 at start=0 versus 0.0467 at start=1; SIMD4
+was 0.7093 versus 0.7115. Alignment matters once other overhead is removed.
+
+**** Code-generation findings and next optimization work
+
+- Ordinary ~compile_c~ currently adds ~-g~ and warnings, but NO optimization
+  level. Treat O0 and optimized builds separately; SIMD instructions alone
+  do not compensate for unoptimized wrappers and copying.
+- GCC O2 baseline ~add_vector__n1_4~ contains two calls to
+  ~Simd__F32_n1_4_load~ per iteration, return-value register/stack transfers,
+  error-kind/bounds checks, then ~addps~ and ~movups~. The add is vectorized;
+  the surrounding memory path is expensive. GCC O3 inlines those calls and
+  improves this kernel from 1.4001 to 0.3281 ns/element, but scalar lane loads,
+  per-lane null checks and register packing still remain.
+- GCC's baseline scalar add loop uses ~addss~. Clang auto-vectorizes the
+  unchecked scalar map loops, and even its checked U32 reduction: comparing
+  against "scalar source" does not mean comparing against scalar instructions.
+- x86-64-v3 emits YMM ~vaddps~ for width 8 and splits width 16 across YMM
+  operations. v4 emits ZMM ~vaddps~ for width 16. Wider instructions are real,
+  but the tables show they do not automatically improve these complete loops.
+- AArch64 ~-march=armv8-a~ emits NEON ~fadd v0.4s, ...~ at width 4, two
+  four-lane additions at width 8 and four at width 16. The full small-case
+  correctness matrix passed QEMU; no native ARM timing was collected.
+- Next internal work: lower checked contiguous SIMD loads/stores so successful
+  accesses do not require N independent scalar dereferences and aggregate-call
+  round trips. Preserve the bounds/throw contract, including no partial writes;
+  do not remove checks merely because a benchmark's input is valid. Measure
+  inlining/code-size tradeoffs instead of imposing blanket always_inline.
+- Also measure a U32 vector-accumulator reduction with one final horizontal
+  reduction. The present per-block reduction has a scalar accumulation chain;
+  it is not evidence that all SIMD reduction algorithms are slower. Do not
+  apply that reassociation to floating sums with the fixed-tree contract.
+
+*** Proposed controls (approval required before implementation)
+
+One explicit CPU profile, separate from Target's OS/architecture:
+
+- ~--cpu=baseline|x86-64-v3|x86-64-v4~. Default remains baseline; no ~native~,
+  host CPUID probing, runtime dispatch or per-chip tuning in the first version.
+- Resolve profile and target together in ~src/self/targets.til~ to ONE in-memory
+  result containing C compiler flags and recommended SIMD bits. Stamp the
+  existing Context width fact from that same result before type expansion.
+- Baseline x86-64/AArch64 stays 128 bits; x86 v3 selects 256 and v4 selects
+  512. Thus F32 queries give 4/8/16 respectively. These are predictable profile
+  defaults, not measured optimal widths for every loop. Explicit Simd widths
+  remain usable above/below them. Reject incompatible profiles on other targets.
+- Apply the selection consistently to compiler-owned C compilation and user
+  link_c compilation. Interpret/translate must use the selected profile for
+  compile-time width/type decisions without executing host CPUID. GPU execution
+  is unrelated; unsupported non-C backend/profile combinations get diagnostics.
+
+Also propose ~--opt=0|2|3~ for C compilation, default 0 to retain current build
+behavior. It controls optimization only, never fast-math or implicit FMA.
+Interpretation does not optimize native user code; translation alone has no C
+compilation step. Specify command applicability/diagnostics when implementing.
+CPU-profile and optimization flags should take precedence over contradictory
+options embedded in the existing compiler override; document that precedence.
+
+Why the current ~--cc~ override is insufficient: this was actually run:
+
+#+begin_src sh
+bin/til run --force-rebuild --cc='gcc -O2 -march=x86-64-v4' \
+  -c tmp/simd409_width.c -o tmp/simd409_width tmp/simd409_width.til
+#+end_src
+
+For ~mode script; println(simd_width(F32))~, the result is still ~4~. Changing
+C compiler flags alone cannot change a type-width query already folded by til.
+
+The compiler would write the existing generated C/binary artifacts; the C
+toolchain and program loader remain their readers. Regeneration stays in the
+existing translate/build/run paths; no extra installation layout, dependencies,
+feature database, manifest, cache files or alternate source tree are proposed.
+The tradeoff is maintaining a small explicit profile table and testing flags,
+width queries, diagnostics and cross-compilation together.
+
+*** Freshness gate and remaining acceptance
+
+[[./406.org][#406]]'s existing mtime-only cache does not identify the program,
+compiler or options that produced an artifact. Selectable profiles MUST NOT
+land with stale reuse when switching v4 -> baseline, optimization levels or
+custom output paths. Bypassing only non-default invocations is insufficient:
+the following default invocation could reuse their output. Resolve artifact
+identity under #406, or obtain approval for a conservative cache-bypass policy,
+before enabling these controls. Any new persistent stamp/sidecar design still
+requires its own explicit approval; none was added for this investigation.
+
+Remaining: approve the controls above, address measured memory-path costs,
+integrate option-aware freshness, run profile/width/rebuild regressions, and
+obtain real AArch64 performance measurements. The scratch benchmark below is
+preserved here so ~make clean~ does not erase the reproduction. It is not a
+new installed command or a new benchmark artifact format.
+
+*** Reproduction commands
+
+Save the two source blocks below as ~tmp/simd409.til~ and
+~tmp/simd409_harness.c~. All generated files/logs are disposable under tmp/.
+The harness's include selector only selects the scratch generated C file;
+it is not a til configuration variable.
+
+#+begin_src sh
+bin/til translate --force-rebuild -c tmp/simd409.c tmp/simd409.til
+# Repeat with GCC O2: x86-64, x86-64-v3, x86-64-v4;
+# Clang O2: x86-64, x86-64-v4. No -ffast-math or LTO.
+gcc -std=gnu11 -Wall -Wextra -Werror -O2 -march=x86-64 -mtune=generic \
+  -DTIL_USIZE64 -Isrc/c tmp/simd409_harness.c src/c/ext.c \
+  -lm -ldl -lpthread -o tmp/simd409-gcc-x86-64
+taskset -c 0 tmp/simd409-gcc-x86-64 > tmp/simd409-gcc-x86-64.log 2>&1
+objdump -d tmp/simd409-gcc-x86-64 > tmp/simd409-gcc-x86-64.asm.log
+# GCC O0 and O3 baseline runs use the same command with -O0/-O3,
+# then pass "small" to the harness to omit the large working set.
+
+bin/til translate --force-rebuild --target=linux-arm64 \
+  -c tmp/simd409-arm.c tmp/simd409.til
+aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 \
+  -march=armv8-a -fsigned-char -DTIL_USIZE64 \
+  -DSIMD409_SOURCE='"simd409-arm.c"' -Isrc/c \
+  tmp/simd409_harness.c src/c/ext.c -lm -ldl -lpthread -o tmp/simd409-arm
+qemu-aarch64 -L /usr/aarch64-linux-gnu tmp/simd409-arm check
+aarch64-linux-gnu-objdump -d tmp/simd409-arm > tmp/simd409-arm.asm.log
+
+# Interpreter smoke checks use the original CLI entry point, not the harness.
+gcc -std=gnu11 -O2 -DTIL_USIZE64 -Isrc/c tmp/simd409.c src/c/ext.c \
+  -lm -ldl -lpthread -o tmp/simd409-original
+for n in 0 1 3 4 5 17 33; do
+  bin/til interpret tmp/simd409.til "$n" > "tmp/simd409-interp-$n.log" 2>&1
+  tmp/simd409-original "$n" > "tmp/simd409-native-$n.log" 2>&1
+  cmp "tmp/simd409-interp-$n.log" "tmp/simd409-native-$n.log" || exit 1
+done
+#+end_src
+
+*** Scratch kernel source
+
+#+begin_src til
+mode cli
+
+F2 := Simd(F32, 2)
+F4 := Simd(F32, 4)
+F8 := Simd(F32, 8)
+F16 := Simd(F32, 16)
+U2 := Simd(U32, 2)
+U4 := Simd(U32, 4)
+U8V := Simd(U32, 8)
+U16V := Simd(U32, 16)
+
+write_value := func(mut dest: F32, value: F32) { dest = value }
+
+add_checked := func(a: Array(F32), b: Array(F32), mut output: Array(F32), start: USize, n: USize) {
+    for i in 0..n {
+        pos := start + i
+        value := a.get(pos)! + b.get(pos)!
+        output.set(pos, own value)!
+    }
+}
+
+select_checked := func(a: Array(F32), b: Array(F32), mut output: Array(F32), start: USize, n: USize) {
+    for i in 0..n {
+        pos := start + i
+        x := a.get(pos)!.clone()
+        y := b.get(pos)!.clone()
+        mut value := y
+        if x > y { value = x }
+        output.set(pos, own value)!
+    }
+}
+
+reduce_checked := func(a: Array(U32), start: USize, n: USize) returns U32 {
+    mut sum : U32 = 0
+    for i in 0..n { sum = sum + a.get(start + i)! }
+    return sum
+}
+
+add_scalar := func(a: Array(F32), b: Array(F32), mut output: Array(F32), start: USize, n: USize) {
+    for i in 0..n {
+        pos := start + i
+        write_value(output.unsafe_get(pos), a.unsafe_get(pos) + b.unsafe_get(pos))
+    }
+}
+
+select_scalar := func(a: Array(F32), b: Array(F32), mut output: Array(F32), start: USize, n: USize) {
+    for i in 0..n {
+        pos := start + i
+        x := a.unsafe_get(pos).clone()
+        y := b.unsafe_get(pos).clone()
+        mut value := y
+        if x > y { value = x }
+        write_value(output.unsafe_get(pos), value)
+    }
+}
+
+add_vector := macro(N: I64) returns FuncDef {
+return func(a: Array(F32), b: Array(F32), mut output: Array(F32), start: USize, n: USize) {
+    width := Simd(F32, N).zero().len()
+    bulk := n - n.mod(width)
+    mut i : USize = 0
+    while i < bulk {
+        value := Simd(F32, N).load(a, start + i)! + Simd(F32, N).load(b, start + i)!
+        value.store(output, start + i)!
+        i = i + width
+    }
+    while i < n {
+        pos := start + i
+        write_value(output.unsafe_get(pos), a.unsafe_get(pos) + b.unsafe_get(pos))
+        i++
+    }
+}
+}
+
+select_vector := macro(N: I64) returns FuncDef {
+return func(a: Array(F32), b: Array(F32), mut output: Array(F32), start: USize, n: USize) {
+    width := Simd(F32, N).zero().len()
+    bulk := n - n.mod(width)
+    mut i : USize = 0
+    while i < bulk {
+        x := Simd(F32, N).load(a, start + i)!
+        y := Simd(F32, N).load(b, start + i)!
+        value := (x > y).select(x, y)
+        value.store(output, start + i)!
+        i = i + width
+    }
+    if i < n { select_scalar(a, b, output, start + i, n - i) }
+}
+}
+
+reduce_scalar := func(a: Array(U32), start: USize, n: USize) returns U32 {
+    mut sum : U32 = 0
+    for i in 0..n { sum = sum + a.unsafe_get(start + i) }
+    return sum
+}
+
+reduce_vector := macro(N: I64) returns FuncDef {
+return func(a: Array(U32), start: USize, n: USize) returns U32 {
+    width := Simd(U32, N).zero().len()
+    bulk := n - n.mod(width)
+    mut sum : U32 = 0
+    mut i : USize = 0
+    while i < bulk {
+        sum = sum + Simd(U32, N).load(a, start + i)!.reduce_add()
+        i = i + width
+    }
+    while i < n { sum = sum + a.unsafe_get(start + i); i++ }
+    return sum
+}
+}
+
+main := proc(size: I64) {
+    n := size.to_usize()
+    mut a := Array(F32).new(n + 2)
+    mut b := Array(F32).new(n + 2)
+    mut output := Array(F32).new(n + 2)
+    mut ints := Array(U32).new(n + 2)
+    for i in 0..(n + 2) {
+        a.set(i, own F32.from_i64(i.to_i64().mod(16) - 8))!
+        b.set(i, own F32.from_i64(i.to_i64().mod(7)))!
+        ints.set(i, own i.to_u32())!
+    }
+    add_checked(a, b, output, 1, n)
+    select_checked(a, b, output, 1, n)
+    println("checked ", reduce_checked(ints, 1, n))
+    add_scalar(a, b, output, 1, n)
+    add_vector(2)(a, b, output, 1, n)
+    add_vector(4)(a, b, output, 1, n)
+    add_vector(8)(a, b, output, 1, n)
+    add_vector(16)(a, b, output, 1, n)
+    select_scalar(a, b, output, 1, n)
+    select_vector(2)(a, b, output, 1, n)
+    select_vector(4)(a, b, output, 1, n)
+    select_vector(8)(a, b, output, 1, n)
+    select_vector(16)(a, b, output, 1, n)
+    println(reduce_scalar(ints, 1, n), " ", reduce_vector(2)(ints, 1, n), " ",
+        reduce_vector(4)(ints, 1, n), " ", reduce_vector(8)(ints, 1, n), " ", reduce_vector(16)(ints, 1, n))
+}
+#+end_src
+
+*** Scratch timing/validation harness
+
+#+begin_src c
+#define main til_benchmark_original_main
+#ifndef SIMD409_SOURCE
+#define SIMD409_SOURCE "simd409.c"
+#endif
+#include SIMD409_SOURCE
+#undef main
+#include <stdint.h>
+#include <time.h>
+#include <math.h>
+
+typedef void (*map_fn)(Array__F32 *, Array__F32 *, Array__F32 *, U64, U64);
+typedef U32 (*sum_fn)(Array__U32 *, U64, U64);
+static map_fn const adds[] = {add_checked, add_scalar, add_vector__n1_2,
+    add_vector__n1_4, add_vector__n1_8, add_vector__n2_16};
+static map_fn const selects[] = {select_checked, select_scalar, select_vector__n1_2,
+    select_vector__n1_4, select_vector__n1_8, select_vector__n2_16};
+static sum_fn const sums[] = {reduce_checked, reduce_scalar, reduce_vector__n1_2,
+    reduce_vector__n1_4, reduce_vector__n1_8, reduce_vector__n2_16};
+static const int widths[] = {1, 1, 2, 4, 8, 16};
+static const char *const variants[] = {"checked", "unchecked", "simd2", "simd4", "simd8", "simd16"};
+static volatile U32 sink;
+
+static uint64_t now_ns(void) {
+    struct timespec t;
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &t)) { perror("clock_gettime"); exit(1); }
+    return (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec;
+}
+
+static double run_map(map_fn fn, Array__F32 *a, Array__F32 *b,
+                      Array__F32 *out, U64 start, U64 n, uint64_t repetitions) {
+    map_fn volatile call = fn; /* Keep repeated calls observable to the compiler. */
+    uint64_t t = now_ns();
+    for (uint64_t i = 0; i < repetitions; ++i) { call(a, b, out, start, n); }
+    return (double)(now_ns() - t) / repetitions;
+}
+
+static double run_sum(sum_fn fn, Array__U32 *a, U64 start, U64 n,
+                      uint64_t repetitions) {
+    sum_fn volatile call = fn;
+    uint64_t t = now_ns();
+    for (uint64_t i = 0; i < repetitions; ++i) { sink = call(a, start, n); }
+    return (double)(now_ns() - t) / repetitions;
+}
+
+static int compare_double(const void *a, const void *b) {
+    double x = *(const double *)a, y = *(const double *)b;
+    return (x > y) - (x < y);
+}
+
+static void verify(Array__F32 *a, Array__F32 *b, Array__F32 *out,
+                   Array__U32 *ints, U64 start, U64 n) {
+    float *x = (float *)a->data, *y = (float *)b->data, *z = (float *)out->data;
+    U32 expected_sum = 0;
+    for (U64 i = start; i < start + n; ++i) { expected_sum += ((U32 *)ints->data)[i]; }
+    for (int k = 0; k < 6; ++k) {
+        for (int op = 0; op < 2; ++op) {
+            for (U64 i = 0; i < out->cap; ++i) { z[i] = -999.0f; }
+            (op ? selects[k] : adds[k])(a, b, out, start, n);
+            for (U64 i = 0; i < out->cap; ++i) {
+                float expected = -999.0f;
+                if (i >= start && i < start + n) {
+                    expected = op ? (x[i] > y[i] ? x[i] : y[i]) : x[i] + y[i];
+                }
+                if (memcmp(&z[i], &expected, sizeof(float))) {
+                    fprintf(stderr, "mismatch op=%d width=%d n=%llu start=%llu i=%llu\n",
+                            op, widths[k], n, start, i);
+                    exit(1);
+                }
+            }
+        }
+        if (sums[k](ints, start, n) != expected_sum) {
+            fprintf(stderr, "reduction mismatch width=%d n=%llu\n", widths[k], n);
+            exit(1);
+        }
+    }
+}
+
+int main(int argc, char **argv) {
+    int check_only = argc > 1 && !strcmp(argv[1], "check");
+    int small_only = argc > 1 && !strcmp(argv[1], "small");
+    U64 capacity = check_only || small_only ? 4128 : 33554464;
+    size_t bytes = ((size_t)capacity * sizeof(float) + 63) & ~(size_t)63;
+    Array__F32 a = {(U8 *)aligned_alloc(64, bytes), capacity};
+    Array__F32 b = {(U8 *)aligned_alloc(64, bytes), capacity};
+    Array__F32 out = {(U8 *)aligned_alloc(64, bytes), capacity};
+    Array__U32 ints = {(U8 *)aligned_alloc(64, bytes), capacity};
+    if (!a.data || !b.data || !out.data || !ints.data) { perror("allocation"); return 1; }
+    for (U64 i = 0; i < capacity; ++i) {
+        ((float *)a.data)[i] = (float)((int)(i % 16) - 8) * 0.125f;
+        ((float *)b.data)[i] = (float)(i % 7) * 0.25f;
+        ((float *)out.data)[i] = 0;
+        ((U32 *)ints.data)[i] = (U32)(i % 32);
+    }
+    /* Keep small-case checking independent of the timed working-set size. */
+    Array__F32 ca = {a.data, 64}, cb = {b.data, 64}, co = {out.data, 64};
+    Array__U32 ci = {ints.data, 64};
+    const U64 checks[] = {0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33};
+    for (size_t i = 0; i < sizeof(checks) / sizeof(*checks); ++i) {
+        verify(&ca, &cb, &co, &ci, 0, checks[i]);
+        verify(&ca, &cb, &co, &ci, 1, checks[i]);
+    }
+    if (!check_only) {
+        const U64 sizes[] = {17, 4096, 4096, 33554432};
+        const U64 starts[] = {1, 0, 1, 1};
+        puts("op,n,start,variant,width,ns_per_element,speedup,min_ns,max_ns,repetitions");
+        for (int c = 0; c < (small_only ? 3 : 4); ++c) {
+            U64 n = sizes[c], start = starts[c];
+            /* Validate the full timed range and guard elements before timing. */
+            Array__F32 va = {a.data, n + 2}, vb = {b.data, n + 2}, vo = {out.data, n + 2};
+            Array__U32 vi = {ints.data, n + 2};
+            verify(&va, &vb, &vo, &vi, start, n);
+            for (int op = 0; op < 3; ++op) {
+                double baseline = 0;
+                for (int k = 0; k < 6; ++k) {
+                    uint64_t repetitions = 1;
+                    double elapsed;
+                    do {
+                        elapsed = op == 2 ? run_sum(sums[k], &ints, start, n, repetitions)
+                            : run_map(op ? selects[k] : adds[k], &a, &b, &out, start, n, repetitions);
+                        if (elapsed * repetitions >= 50000000.0) { break; }
+                        repetitions *= 2;
+                    } while (repetitions < (1ULL << 32));
+                    double samples[3];
+                    for (int r = 0; r < 3; ++r) {
+                        samples[r] = op == 2 ? run_sum(sums[k], &ints, start, n, repetitions)
+                            : run_map(op ? selects[k] : adds[k], &a, &b, &out, start, n, repetitions);
+                    }
+                    qsort(samples, 3, sizeof(double), compare_double);
+                    if (!k) { baseline = samples[1]; }
+                    printf("%s,%llu,%llu,%s,%d,%.6f,%.3f,%.0f,%.0f,%llu\n",
+                           op == 0 ? "add" : op == 1 ? "select" : "reduce",
+                           n, start, variants[k], widths[k], samples[1] / n, baseline / samples[1],
+                           samples[0], samples[2], (unsigned long long)repetitions);
+                    fflush(stdout);
+                }
+            }
+        }
+    }
+    puts("correctness: passed");
+    free(a.data); free(b.data); free(out.data); free(ints.data);
+    return 0;
+}
+#+end_src
