@@ -100,3 +100,19 @@ group removed
 8
 1
 3
+changed:a
+ordered removed
+ordered absent
+aardvark
+2
+nested removed
+2
+custom removed
+custom clone retained
+2:11
+custom map removed
+tag declaration order
+2
+2
+custom enum order
+1

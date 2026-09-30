@@ -370,7 +370,9 @@ typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_s
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Set_USize Map__Str_call_Set_USize;
+typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
 typedef struct Vec__call_Set_USize Vec__call_Set_USize;
+typedef struct Vec__call_Map_Str_Bool Vec__call_Map_Str_Bool;
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
 typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__ThemeSpec;
@@ -1247,6 +1249,13 @@ typedef struct Vec__call_Set_USize {
 } Vec__call_Set_USize;
 
 
+typedef struct Vec__call_Map_Str_Bool {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__call_Map_Str_Bool;
+
+
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
     Str path;
     I32 errors;
@@ -1815,6 +1824,12 @@ typedef struct Map__Str_call_Set_USize {
 } Map__Str_call_Set_USize;
 
 
+typedef struct Map__Str_call_Map_Str_Bool {
+    Vec__Str keys;
+    Vec__call_Map_Str_Bool values;
+} Map__Str_call_Map_Str_Bool;
+
+
 typedef struct priv___src_self_theme_codegen_til__ThemeSpec {
     Str name;
     Str header;
@@ -2069,6 +2084,8 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str map_values;
     Map__Str_Str map_key_vecs;
     Map__Str_Str map_value_vecs;
+    Map__Str_call_Map_Str_Bool needed_methods;
+    Str method_definitions;
     Str usize_ctype;
     USize switch_id;
     USize temp_id;

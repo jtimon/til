@@ -540,3 +540,115 @@ own literal_values.delete(false)
 literal_members := {3, 1, 2}
 println(literal_members.len().to_i64().to_str())
 own literal_members.delete(false)
+
+OrderedKey := struct {
+    rank := 0
+    name := ""
+}
+OrderedNestedKey := struct {
+    key := OrderedKey()
+    tail := 0
+}
+custom_key_weight := func(rank: I64) returns I64 { return rank * 2 }
+CustomOrderedKey := struct {
+    rank := 0
+    name := ""
+    ignored := 0
+namespace:
+    score := func(self: CustomOrderedKey) returns I64 { return custom_key_weight(self.rank) }
+    cmp := func(a: CustomOrderedKey, b: CustomOrderedKey) returns I64 {
+        c := b.score().cmp(a.score())
+        if c != 0 { return c }
+        return a.name.cmp(b.name)
+    }
+}
+OrderedTag := enum(U16) { First = 20, Second = 7, Third = 1 }
+OrderedPayload := enum { Empty, Word: Str, Number: I64 }
+ReverseTag := enum(U16) {
+    First = 7, Second = 20
+namespace:
+    cmp := func(a: ReverseTag, b: ReverseTag) returns I64 {
+        if a.eq(ReverseTag.Second) {
+            if b.eq(ReverseTag.Second) { return 0 }
+            return -1
+        }
+        if b.eq(ReverseTag.Second) { return 1 }
+        return 0
+    }
+}
+
+mut ordered_values := Map(OrderedKey, Str).new()
+ordered_values.set(OrderedKey(rank=2, name="beta"), own "b")
+ordered_values.set(OrderedKey(rank=1, name="alpha"), own "a")
+ordered_values.set(OrderedKey(rank=1, name="aardvark"), own "aa")
+mut ordered_values_copy := ordered_values.clone()
+ordered_values.set(OrderedKey(rank=1, name="alpha"), own "changed")
+println(ordered_values[OrderedKey(rank=1, name="alpha")], ":",
+    ordered_values_copy[OrderedKey(rank=1, name="alpha")])
+if ordered_values.remove(OrderedKey(rank=2, name="beta")) { println("ordered removed") }
+if ordered_values.has(OrderedKey(rank=2, name="beta")).not() { println("ordered absent") }
+ref smallest_key : OrderedKey = ordered_values.keys.unsafe_get(0)
+println(smallest_key.name)
+own ordered_values.delete(false)
+own ordered_values_copy.delete(false)
+
+mut nested_keys := Set(OrderedNestedKey).new()
+nested_keys.add(own OrderedNestedKey(key=OrderedKey(rank=1, name="a"), tail=2))
+nested_keys.add(own OrderedNestedKey(key=OrderedKey(rank=1, name="a"), tail=1))
+nested_keys.add(own OrderedNestedKey(key=OrderedKey(rank=1, name="a"), tail=2))
+println(nested_keys.len().to_i64().to_str())
+if nested_keys.remove(OrderedNestedKey(key=OrderedKey(rank=1, name="a"), tail=1)) {
+    println("nested removed")
+}
+own nested_keys.delete(false)
+
+mut custom_keys := Set(CustomOrderedKey).new()
+custom_keys.add(own CustomOrderedKey(rank=1, name="a", ignored=1))
+custom_keys.add(own CustomOrderedKey(rank=2, name="b", ignored=2))
+custom_keys.add(own CustomOrderedKey(rank=2, name="b", ignored=99))
+if custom_keys.has(CustomOrderedKey(rank=2, name="b")) {
+    println(custom_keys.len().to_i64().to_str())
+}
+mut custom_copy := custom_keys.clone()
+if custom_keys.remove(CustomOrderedKey(rank=1, name="a")) { println("custom removed") }
+if custom_copy.has(CustomOrderedKey(rank=1, name="a")) { println("custom clone retained") }
+own custom_keys.delete(false)
+own custom_copy.delete(false)
+
+mut custom_values := Map(CustomOrderedKey, I64).new()
+custom_values.set(CustomOrderedKey(rank=1, name="a", ignored=3), own 10)
+custom_values.set(CustomOrderedKey(rank=2, name="b", ignored=5), own 20)
+custom_values.set(CustomOrderedKey(rank=1, name="a", ignored=99), own 11)
+ref first_custom_key : CustomOrderedKey = custom_values.keys.unsafe_get(0)
+println(first_custom_key.rank.to_str(), ":",
+    custom_values[CustomOrderedKey(rank=1, name="a")].to_str())
+if custom_values.remove(CustomOrderedKey(rank=2, name="b")) {
+    println("custom map removed")
+}
+own custom_values.delete(false)
+
+mut ordered_tags := Map(OrderedTag, I64).new()
+ordered_tags.set(OrderedTag.Third, own 3)
+ordered_tags.set(OrderedTag.First, own 1)
+ordered_tags.set(OrderedTag.Second, own 2)
+ref first_tag : OrderedTag = ordered_tags.keys.unsafe_get(0)
+if first_tag.is(OrderedTag.First) { println("tag declaration order") }
+println(ordered_tags[OrderedTag.Second].to_str())
+own ordered_tags.delete(false)
+
+mut ordered_payloads := Set(OrderedPayload).new()
+ordered_payloads.add(own OrderedPayload.Word("alpha"))
+ordered_payloads.add(own OrderedPayload.Number(5))
+ordered_payloads.add(own OrderedPayload.Word("alpha"))
+if ordered_payloads.has(OrderedPayload.Number(5)) {
+    println(ordered_payloads.len().to_i64().to_str())
+}
+own ordered_payloads.delete(false)
+
+mut reverse_tags := Map(ReverseTag, I64).new()
+reverse_tags.set(ReverseTag.First, own 1)
+reverse_tags.set(ReverseTag.Second, own 2)
+ref reverse_first : ReverseTag = reverse_tags.keys.unsafe_get(0)
+if reverse_first.is(ReverseTag.Second) { println("custom enum order") }
+println(reverse_tags[ReverseTag.First].to_str())
+own reverse_tags.delete(false)

@@ -24,6 +24,8 @@ priv HolyCEmitState := struct {
     map_values := Map(Str, Str).new()
     map_key_vecs := Map(Str, Str).new()
     map_value_vecs := Map(Str, Str).new()
+    needed_methods := Map(Str, Map(Str, Bool)).new()
+    method_definitions := ""
     usize_ctype := "U64"
     switch_id : USize = 0
     temp_id : USize = 0
@@ -1363,6 +1365,67 @@ priv holyc_prepare_state := func(program: Expr, ctx: Context,
     }
 }
 
+priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
+    mut state: HolyCEmitState, mut error: Str) {
+    if state.struct_names.has(owner).or(state.enum_types.has(owner)).not() { return }
+    if state.needed_methods.has(owner).not() {
+        state.needed_methods.set(owner, own Map(Str, Bool).new())
+    }
+    if state.needed_methods[owner].has(method) { return }
+    ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+    if def_ns_has(def, method).not() {
+        error = format("missing comparison method '", owner, ".", method, "'")
+        return
+    }
+    mut func_expr : Option(ref Expr) = Option(ref Expr).None
+    switch def.node_type {
+    case .StructDef(sd):
+        ref member : Declaration = sd.member_at(sd.ns_index[method])
+        func_expr = Option(ref Expr).Some(member.default_expr())
+    case .EnumDef(ed):
+        ref member : Declaration = ed.member_at(ed.ns_index[method])
+        func_expr = Option(ref Expr).Some(member.default_expr())
+    case:
+    }
+    ref body : Expr = func_expr.unwrap()
+    if body.node_type.is(NodeType.FuncDef).not() {
+        error = format("unsupported comparison method '", owner, ".", method, "'")
+        return
+    }
+    state.needed_methods[owner].set(method, own true)
+    holyc_scan_method_calls(body, ctx, state, error)
+}
+
+priv holyc_scan_method_calls := func(e: Expr, ctx: Context,
+    mut state: HolyCEmitState, mut error: Str) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
+        switch e.children[0].node_type {
+        case .FieldAccess:
+            owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+            method := holyc_field_call_name(e, ctx)
+            if state.struct_names.has(owner).or(state.enum_types.has(owner)) {
+                ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+                if def_ns_has(def, method) {
+                    mut handled := method.eq("is").or(method.eq("size"))
+                        .or(method.eq("clone")).or(method.eq("delete"))
+                    if method.eq("eq").or(method.eq("neq")) {
+                        handled = holyc_struct_method_is_generated(owner, method, ctx)
+                    }
+                    if handled.not() {
+                        holyc_register_method(owner, method, ctx, state, error)
+                        if error.len() > 0 { return }
+                    }
+                }
+            }
+        case:
+        }
+    }
+    for child : Expr in e.children {
+        holyc_scan_method_calls(child, ctx, state, error)
+        if error.len() > 0 { return }
+    }
+}
+
 priv holyc_function_signature := func(name: Str, func_expr: Expr,
     state: HolyCEmitState, mut error: Str) returns Str {
     switch func_expr.node_type {
@@ -1729,6 +1792,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported borrowed niche call '", owner, ".", method, "'")
                 return ""
             }
+            if state.needed_methods.has(owner).and(state.needed_methods[owner].has(method)) {
+                args := holyc_call_args(e, 1, ctx, state, locals, error)
+                mut function_name := format(owner, "_", method)
+                if method == "cmp" { function_name = format(owner, "_Cmp") }
+                return format(function_name, "(", args, ")")
+            }
             if state.enum_types.has(owner) {
                 if method == "size" {
                     if e.children.len() != 1 { error = "invalid enum size call"; return "" }
@@ -1962,6 +2031,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             if holyc_scalar_type_name(owner).not() {
                 error = format("unsupported call '", owner, ".", method, "'")
                 return ""
+            }
+            if method == "cmp" {
+                if e.children.len() != 3 { error = "invalid scalar cmp call"; return "" }
+                left := holyc_expr(e.children[1], ctx, state, locals, error)
+                right := holyc_expr(e.children[2], ctx, state, locals, error)
+                return format("((", left, " > ", right, ") - (", left, " < ", right, "))")
             }
             if method == "clone" {
                 if e.children.len() != 2 { error = "invalid scalar clone call"; return "" }
@@ -2202,6 +2277,18 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 return ""
             }
             mut decl_type := holyc_storage_type_name(decl.type_name())
+            if decl_type.eq("Enum").and(stmt.children[0].node_type.is(NodeType.FCall)) {
+                ref call : Expr = stmt.children[0]
+                if call.children.len() > 0 {
+                    owner := holyc_field_owner_name(call.children[0], ctx.symbols)
+                    if state.collection_elements.has(owner).and(state.enum_types.has(state.collection_elements[owner])) {
+                        decl_type = state.collection_elements[owner].clone()
+                    }
+                    if state.map_values.has(owner).and(state.enum_types.has(state.map_values[owner])) {
+                        decl_type = state.map_values[owner].clone()
+                    }
+                }
+            }
             mut decl_name := decl.name.clone()
             if locals.payload_names.has(decl.name).or(decl.own_type.is(OwnType.Ref)) {
                 decl_name = holyc_temp("ref_value", state)
@@ -2269,7 +2356,8 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 holyc_bind_name(decl.name, decl_name, locals)
                 locals.struct_types.set(decl.name, own decl_type)
             } else {
-                pointer_type := holyc_decl_pointer_type(decl, stmt.children[0], ctx.symbols)
+                mut pointer_type := holyc_decl_pointer_type(decl, stmt.children[0], ctx.symbols)
+                if pointer_type == "Enum" { pointer_type = decl_type.clone() }
                 if pointer_type.len() > 0 {
                     if pointer_type.neq("Dynamic").and(holyc_scalar_type_name(pointer_type).not()) {
                         error = format("unsupported pointer declaration type '", pointer_type, "'")
@@ -3008,12 +3096,13 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
     if is_map { key = state.map_keys[name].clone() }
     else { key = state.set_elements[name].clone() }
     key_ctype := holyc_value_ctype(key, state)
-    if holyc_scalar_type_name(key_ctype).or(key.eq("Str")).not() {
+    key_managed := key.eq("Str").or(holyc_aggregate_type(key, state))
+    if holyc_scalar_type_name(key_ctype).or(key_managed).not() {
         error = format("unsupported ordered collection key type '", key, "'")
         return ""
     }
     mut key_param := format(key_ctype, " value")
-    if key == "Str" { key_param = "TilStr *value" }
+    if key_managed { key_param = format(key_ctype, " *value") }
     sz := state.usize_ctype
     mut max_cap := "I64_MAX"
     if sz == "U32" { max_cap = "4294967295" }
@@ -3082,7 +3171,11 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
     mut slot := "self->data[mid]"
     if is_map { slot = "self->keys.data[mid]" }
     if key == "Str" { out = format(out, "TilStrCmp(&", slot, ", value);\n") }
-    else { out = format(out, "(", slot, " > value) - (", slot, " < value);\n") }
+    else if holyc_aggregate_type(key, state) {
+        out = format(out, key, "_Cmp(&", slot, ", value);\n")
+    } else if state.enum_types.has(key) {
+        out = format(out, key, "_Cmp(", slot, ", value);\n")
+    } else { out = format(out, "(", slot, " > value) - (", slot, " < value);\n") }
     out = format(out, "    if (cmp < 0) lo = mid+1;\n",
         "    else if (cmp > 0) hi = mid;\n",
         "    else { *index = mid; return TRUE; }\n",
@@ -3119,6 +3212,9 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
             "    TilMemMove(&self->values.data[i+1], &self->values.data[i], tail*sizeof(", val_ctype, "));\n",
             "  }\n")
         if key == "Str" { out = format(out, "  TilStrClone(&self->keys.data[i], value);\n") }
+        else if holyc_aggregate_type(key, state) {
+            out = format(out, "  ", key, "_Clone(&self->keys.data[i], value);\n")
+        }
         else { out = format(out, "  self->keys.data[i] = value;\n") }
         if value.eq("Str").or(holyc_aggregate_type(value, state)) {
             out = format(out, "  TilMemCpy(&self->values.data[i], val, sizeof(", val_ctype, "));\n",
@@ -3134,7 +3230,11 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
     } else {
         out = format(out, "U0 ", name, "_Add(", name, " *self, ", key_param, ")\n{\n",
             "  ", sz, " i;\n  if (", name, "_Find(self, value, &i)) {\n")
-        if key == "Str" { out = format(out, "    TilStrDelete(value, FALSE);\n") }
+        if key_managed {
+            if key == "Str" { out = format(out, "    TilStrDelete(value, FALSE);\n") }
+            else { out = format(out, "    ", key, "_Delete(value, FALSE);\n",
+                "    TilMemSet(value, 0, sizeof(", key_ctype, "));\n") }
+        }
         out = format(out, "    return;\n  }\n",
             "  if (self->count == self->cap) {\n",
             "    if (self->cap > ", max_cap, "/2) TilPanicZ(\"Set: capacity overflow\\n\");\n",
@@ -3144,7 +3244,7 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
             "    self->cap = cap;\n  }\n",
             "  ", sz, " tail = self->count-i;\n",
             "  if (tail) TilMemMove(&self->data[i+1], &self->data[i], tail*sizeof(", key_ctype, "));\n")
-        if key == "Str" {
+        if key_managed {
             out = format(out, "  TilMemCpy(&self->data[i], value, sizeof(", key_ctype, "));\n",
                 "  TilMemSet(value, 0, sizeof(", key_ctype, "));\n")
         } else { out = format(out, "  self->data[i] = value;\n") }
@@ -3161,7 +3261,92 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
     return out
 }
 
-priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitState,
+priv holyc_namespace_methods := func(name: Str, def: Expr, ctx: Context,
+    mut state: HolyCEmitState, mut error: Str) returns Str {
+    if state.needed_methods.has(name).not() { return "" }
+    mut prototypes := ""
+    mut definitions := ""
+    for method : Str in state.needed_methods[name].keys {
+        if method.eq("cmp").and(state.enum_types.has(name))
+            .and(holyc_struct_method_is_generated(name, method, ctx)) { continue }
+        mut func_expr : Option(ref Expr) = Option(ref Expr).None
+        switch def.node_type {
+        case .StructDef(sd):
+            ref member : Declaration = sd.member_at(sd.ns_index[method])
+            func_expr = Option(ref Expr).Some(member.default_expr())
+        case .EnumDef(ed):
+            ref member : Declaration = ed.member_at(ed.ns_index[method])
+            func_expr = Option(ref Expr).Some(member.default_expr())
+        case:
+        }
+        mut function_name := format(name, "_", method)
+        if method == "cmp" { function_name = format(name, "_Cmp") }
+        holyc_emit_function(function_name, func_expr.unwrap(), ctx, state,
+            prototypes, definitions, error)
+        if error.len() > 0 { return "" }
+    }
+    state.method_definitions = format(state.method_definitions, definitions)
+    if state.enum_types.has(name).and(state.needed_methods[name].has("cmp"))
+        .and(holyc_struct_method_is_generated(name, "cmp", ctx)) {
+        ref ed : EnumDef = enumdef_of(def)
+        ref member : Declaration = ed.member_at(ed.ns_index["cmp"])
+        signature := holyc_function_signature(format(name, "_Cmp"), member.default_expr(), state, error)
+        if error.len() > 0 { return "" }
+        prototypes = format(prototypes, "extern ", signature, ";\n")
+        state.method_definitions = format(state.method_definitions,
+            holyc_enum_cmp_definition(name, def, state, error))
+    }
+    if error.len() > 0 { return "" }
+    return format(prototypes, "\n")
+}
+
+priv holyc_enum_cmp_definition := func(name: Str, def: Expr, state: HolyCEmitState,
+    mut error: Str) returns Str {
+    ref ed : EnumDef = enumdef_of(def)
+    mut a_type := format(name, " *")
+    if state.payload_enum_names.has(name).not() {
+        a_type = format(holyc_value_ctype(name, state), " ")
+    }
+    mut out := format("I64 ", name, "_Cmp(", a_type, "a, ", a_type,
+        "b)\n{\n")
+    mut a_tag := "a->tag"
+    mut b_tag := "b->tag"
+    if state.payload_enum_names.has(name).not() { a_tag = "a"; b_tag = "b" }
+    for variant : VariantDef in ed.variants {
+        tag := variant.tag_value.to_str()
+        out = format(out, "  if (", a_tag, " == ", tag, ") {\n",
+            "    if (", b_tag, " == ", tag, ") {\n")
+        payload := holyc_storage_type_name(variant.payload_type)
+        if payload.len() > 0 {
+            mut left := format("a->payload_", variant.name)
+            mut right := format("b->payload_", variant.name)
+            mut left_ptr := format("&", left)
+            mut right_ptr := format("&", right)
+            if variant.payload_ref { left_ptr = left; right_ptr = right }
+            if payload == "Str" {
+                out = format(out, "      return TilStrCmp(", left_ptr, ", ", right_ptr, ");\n")
+            } else if holyc_aggregate_type(payload, state) {
+                out = format(out, "      return ", payload, "_Cmp(", left_ptr, ", ", right_ptr, ");\n")
+            } else if holyc_scalar_type_name(holyc_value_ctype(payload, state)) {
+                if variant.payload_ref {
+                    left = holyc_checked_load(left, holyc_value_ctype(payload, state))
+                    right = holyc_checked_load(right, holyc_value_ctype(payload, state))
+                }
+                out = format(out, "      return (", left, " > ", right,
+                    ") - (", left, " < ", right, ");\n")
+            } else {
+                error = format("unsupported ordered enum payload '", name, ".", variant.name, "'")
+                return ""
+            }
+        } else { out = format(out, "      return 0;\n") }
+        out = format(out, "    }\n    return -1;\n  }\n",
+            "  if (", b_tag, " == ", tag, ") return 1;\n")
+    }
+    return format(out, "  TilPanicZ(\"invalid ", name, " tag\");\n",
+        "  return 0;\n}\n\n")
+}
+
+priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmitState,
     mut output: Str, mut error: Str) {
     mut emitted := Set(Str).new()
     mut remaining := state.struct_names.len() + state.payload_enum_names.len()
@@ -3172,6 +3357,14 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
             for stmt : Expr in program.children {
                 if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().neq(1)) { continue }
                 ref decl : Declaration = decl_of(stmt)
+                if state.enum_types.has(decl.name).and(state.payload_enum_names.has(decl.name).not())
+                    .and(emitted.has(decl.name).not()) {
+                    output = format(output, holyc_namespace_methods(decl.name, stmt.children[0], lp.ctx, state, error))
+                    if error.len() > 0 { return }
+                    emitted.add(own decl.name.clone())
+                    progress = true
+                    continue
+                }
                 if holyc_aggregate_type(decl.name, state).not().or(emitted.has(decl.name)) { continue }
                 ref def : Expr = stmt.children[0]
                 switch def.node_type {
@@ -3186,6 +3379,8 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                     out_enum := holyc_enum_definition(decl.name, def, lp.ctx, state, error)
                     if error.len() > 0 { return }
                     output = format(output, out_enum)
+                    output = format(output, holyc_namespace_methods(decl.name, def, lp.ctx, state, error))
+                    if error.len() > 0 { return }
                     emitted.add(own decl.name.clone())
                     remaining--
                     progress = true
@@ -3323,6 +3518,8 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
                         }
                         output = format(output, "  return TRUE;\n}\n\n")
                     }
+                    output = format(output, holyc_namespace_methods(decl.name, def, lp.ctx, state, error))
+                    if error.len() > 0 { return }
                     emitted.add(own decl.name.clone())
                     remaining--
                     progress = true
@@ -3373,6 +3570,49 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, state: HolyCEmitStat
     }
 }
 
+priv holyc_emit_function := func(name: Str, func_expr: Expr, ctx: Context,
+    mut state: HolyCEmitState, mut prototypes: Str, mut definitions: Str,
+    mut error: Str) {
+    signature := holyc_function_signature(name, func_expr, state, error)
+    if error.len() > 0 { return }
+    if func_expr.children.len() != 1 {
+        error = format("function '", name, "' has no body")
+        return
+    }
+    mut locals := HolyCLocalState()
+    mut aggregate_return_type := ""
+    switch func_expr.node_type {
+    case .FuncDef(fdef):
+        return_type := holyc_storage_type_name(fdef.sig.return_type)
+        if fdef.sig.return_own_type.is(OwnType.Ref) {
+            locals.ref_return_type = return_type.clone()
+        } else if return_type.eq("Str").or(return_type.eq("Array__Str"))
+            .or(holyc_aggregate_type(return_type, state)) {
+            aggregate_return_type = return_type
+        }
+        for param : Declaration in fdef.sig.params {
+            param_type := holyc_storage_type_name(param.type_name())
+            if param_type == "Str" {
+                locals.str_pointer_names.add(own param.name.clone())
+                locals.param_pointer_names.add(own param.name.clone())
+            } else if param_type == "Array__Str" {
+                locals.str_array_pointer_names.add(own param.name.clone())
+                locals.param_pointer_names.add(own param.name.clone())
+            } else if holyc_aggregate_type(param_type, state) {
+                locals.struct_pointer_types.set(param.name, own param_type)
+                locals.param_pointer_names.add(own param.name.clone())
+            } else if holyc_param_is_pointer(param, state) {
+                locals.pointer_types.set(param.name, own holyc_value_ctype(param_type, state))
+            }
+        }
+    case:
+    }
+    body := holyc_body(func_expr.children[0], 1, false, aggregate_return_type, ctx, state, locals, error)
+    if error.len() > 0 { return }
+    prototypes = format(prototypes, "extern ", signature, ";\n")
+    definitions = format(definitions, signature, "\n{\n", body, "}\n\n")
+}
+
 priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
     mut state: HolyCEmitState, mut prototypes: Str, mut definitions: Str,
     mut error: Str) {
@@ -3381,45 +3621,8 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
         case .Decl(decl):
             if stmt.children.len().neq(1).or(stmt.children[0].node_type.is(NodeType.FuncDef).not()) { continue }
             if decl.name.starts_with("adopt__") { continue }
-            ref func_expr : Expr = stmt.children[0]
-            signature := holyc_function_signature(decl.name, func_expr, state, error)
+            holyc_emit_function(decl.name, stmt.children[0], ctx, state, prototypes, definitions, error)
             if error.len() > 0 { return }
-            if func_expr.children.len() != 1 {
-                error = format("function '", decl.name, "' has no body")
-                return
-            }
-            mut locals := HolyCLocalState()
-            mut aggregate_return_type := ""
-            switch func_expr.node_type {
-            case .FuncDef(fdef):
-                return_type := holyc_storage_type_name(fdef.sig.return_type)
-                if fdef.sig.return_own_type.is(OwnType.Ref) {
-                    locals.ref_return_type = return_type.clone()
-                } else if return_type.eq("Str").or(return_type.eq("Array__Str"))
-                    .or(holyc_aggregate_type(return_type, state)) {
-                    aggregate_return_type = return_type
-                }
-                for param : Declaration in fdef.sig.params {
-                    param_type := holyc_storage_type_name(param.type_name())
-                    if param_type == "Str" {
-                        locals.str_pointer_names.add(own param.name.clone())
-                        locals.param_pointer_names.add(own param.name.clone())
-                    } else if param_type == "Array__Str" {
-                        locals.str_array_pointer_names.add(own param.name.clone())
-                        locals.param_pointer_names.add(own param.name.clone())
-                    } else if holyc_aggregate_type(param_type, state) {
-                        locals.struct_pointer_types.set(param.name, own param_type)
-                        locals.param_pointer_names.add(own param.name.clone())
-                    } else if holyc_param_is_pointer(param, state) {
-                        locals.pointer_types.set(param.name, own holyc_value_ctype(param_type, state))
-                    }
-                }
-            case:
-            }
-            body := holyc_body(func_expr.children[0], 1, false, aggregate_return_type, ctx, state, locals, error)
-            if error.len() > 0 { return }
-            prototypes = format(prototypes, "extern ", signature, ";\n")
-            definitions = format(definitions, signature, "\n{\n", body, "}\n\n")
         case:
         }
     }
@@ -3475,6 +3678,20 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     for unit : ProgramUnit in lp.units {
         ref program : Expr = lp.ctx.imported[unit.path].ast
         holyc_prepare_state(program, lp.ctx, state, validation_error)
+        if validation_error.len() > 0 {
+            println("error: HolyC codegen: ", validation_error)
+            return 1
+        }
+    }
+    for key : Str in state.map_keys.values {
+        holyc_register_method(key, "cmp", lp.ctx, state, validation_error)
+        if validation_error.len() > 0 {
+            println("error: HolyC codegen: ", validation_error)
+            return 1
+        }
+    }
+    for elem : Str in state.set_elements.values {
+        holyc_register_method(elem, "cmp", lp.ctx, state, validation_error)
         if validation_error.len() > 0 {
             println("error: HolyC codegen: ", validation_error)
             return 1
@@ -3549,6 +3766,7 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         f.write("I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")
     }
     f.write(prototypes)
+    f.write(state.method_definitions)
     f.write(definitions)
     f.write("I64 TilMain()\n{\n")
     f.write(body)

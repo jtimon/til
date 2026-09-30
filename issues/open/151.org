@@ -397,6 +397,22 @@
   the same 102 output lines and ~TILTEST:PASS~. Aggregate keys and custom
   comparison methods remain outside this slice.
 
+  The twentieth slice extends Map keys and Set elements to comparable value
+  structs and enums. Their generated comparison methods run from the shared
+  lowered AST, including nested struct fields; user-defined ~cmp~ methods and
+  the namespace methods they call use the same function emitter. Method
+  declarations precede collection helpers, while definitions follow the
+  ordinary function prototypes so custom comparators can call user functions.
+  Generated payload-free enum comparison uses variant declaration order, even
+  when explicit tag values are out of order; payload enums compare active
+  scalar and Str payloads. Custom enum comparators can override tag order.
+  Aggregate insertion and duplicate Set disposal retain the shared ownership
+  behavior, and borrowed enum keys use their concrete tag width. The expanded
+  shared ~test/script_struct_runtime.til~ exercises
+  generated, nested, and custom comparisons on both Map and Set, including
+  deep cloning, replacement, removal, and enum order. TempleOS 5.03 under
+  QEMU TCG produced the same 118 output lines and ~TILTEST:PASS~.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI
