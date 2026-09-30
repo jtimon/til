@@ -16,6 +16,20 @@ test_cmd_runs_and_captures_stdout := test() {
     assert_eq(Str, c.out(), "hello\n")
 }
 
+// The capture must live in local tmp/ while the child writes it, then
+// disappear when the parent collects it. Match the child's stdout inode
+// so other concurrent captures cannot make this pass accidentally.
+test_cmd_capture_uses_local_tmp := test() {
+    c := Cmd.new("sh", "-c",
+        "for f in tmp/til_cmd_*; do if test \"$f\" -ef /dev/fd/1; then printf '%s\\n' \"$f\"; exit 0; fi; done; exit 1")
+    c.capture_out()
+    assert_eq(I64, c.run(), 0)
+    output := c.out()
+    path := output.trim().clone()
+    assert(path.starts_with("tmp/til_cmd_"))
+    assert(File.exists(path).not())
+}
+
 // No shell means no expansion: $HOME stays four characters plus a name,
 // and * stays one character. Under system_cmd both would have been
 // rewritten by /bin/sh before the program ever saw them.

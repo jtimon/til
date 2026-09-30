@@ -76,6 +76,15 @@ endif
 # environment (bin/make also takes --riscv32-cc=<path> directly).
 export RISCV32_CC EMCC EMAR EMRANLIB
 
+# A sudo invocation must bootstrap as the caller too: otherwise it leaves
+# root-owned bin/, gen/ and tmp/boot files before make.til can take over.
+BOOTSTRAP_AS_USER :=
+ifneq ($(filter-out 0,$(SUDO_UID)),)
+ifeq ($(shell id -u),0)
+BOOTSTRAP_AS_USER := sudo -u "\#$(SUDO_UID)" -g "\#$(SUDO_GID)" --
+endif
+endif
+
 ifneq ($(DELEGATED),)
 .PHONY: .til-delegate $(DELEGATED)
 # A real (silent) no-op recipe, not an empty one: without it make
@@ -84,8 +93,14 @@ ifneq ($(DELEGATED),)
 $(DELEGATED): .til-delegate
 	@:
 
+ifneq ($(BOOTSTRAP_AS_USER),)
+.til-delegate:
+	$(BOOTSTRAP_AS_USER) $(MAKE) bin/make
+	bin/make $(if $(J),-j$(J)) $(DELEGATED)
+else
 .til-delegate: bin/make
 	bin/make $(if $(J),-j$(J)) $(DELEGATED)
+endif
 endif
 
 # --- Bootstrap ---
@@ -137,5 +152,5 @@ bin/til_boot: $(LIBFFI_DIR)/.built
 # mtime would recompile the build program every time for nothing.
 # Prerequisites otherwise mirror make.til's own self_sources(), so both
 # entry points agree on when bin/make is stale.
-bin/make: make.til $(CORE) $(STD) $(EXT_C) | bin/til_boot
+bin/make: make.til src/self/install.til $(CORE) $(STD) $(EXT_C) | bin/til_boot
 	bin/til_boot build -o bin/make make.til

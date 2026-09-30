@@ -174,7 +174,8 @@ namespace:
     /// Collect the child's output instead of letting it through, for
     /// reading with ~out()~ and ~err()~ once it has finished. The two
     /// streams stay separate; each command captures into its own spool
-    /// file, so concurrent captures never mix.
+    /// file in the caller's local tmp/ directory (created if missing),
+    /// so concurrent captures never mix. Cmd.cwd only changes the child.
     capture := proc(self: Cmd) returns ref Cmd {
         ccmd_capture(self.handle, true, true)
         return self

@@ -415,6 +415,21 @@ human explicitly asks for teardown.
 Read `doc/self.org` for the bootstrap model and `make help` for
 targets. Use the `/build` skill for the full workflow.
 
+## Temporary Files
+
+Use the repository's local `tmp/` for ALL temporary work: logs, scratch
+files, command-output captures, test installation prefixes, and isolated
+test storage. Do not use global `/tmp`, `/tmp/opencode`, or the platform's
+system temporary directory, including as a workaround for local permission
+errors. For installed tools running outside the checkout, use `tmp/` under
+the caller's working directory; never the system installation directory.
+
+Creating, using, and cleaning temporary files must not require sudo. Keep
+builds and tests unprivileged; only writing the real system installation
+needs elevation. If old root-owned temporary files block a run, report the
+ownership problem and repair it explicitly rather than running tests as
+root or silently switching to global temporary storage.
+
 ## ASAN (remote sessions)
 
 Remote sessions may hit `AddressSanitizer failed to allocate shadow

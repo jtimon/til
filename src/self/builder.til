@@ -7,6 +7,7 @@ import("holyc_codegen")
 import("jvm_codegen")
 import("theme_codegen")
 import("targets")
+import("install")
 import("../std/sys")
 import("../std/file")
 
@@ -975,119 +976,14 @@ cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target:
     return result
 }
 
-priv default_install_prefix := proc() returns Str {
-    if host_os() == "windows" {
-        return "C:/Program Files/til"
-    }
-    return "/usr/local"
-}
-
-priv check_install_rc := proc(rc: I32, what: Str) returns I32 {
-    if rc != 0 {
-        println(format("error: failed to ", what))
-        return 1
-    }
-    return 0
-}
-
 priv builder_compiler_root := func(lp: LoadedProgram) returns Str {
     return lp.ext_c_path.strip_suffix("/src/c/ext.c")
-}
-
-priv support_root := func(prefix: Str) returns Str {
-    return format(prefix, "/lib/til")
-}
-
-priv install_file := proc(src: Str, dst: Str, what: Str) returns I32 {
-    return check_install_rc(copy_file(src, dst), what)
-}
-
-priv install_tree := proc(src: Str, dst: Str, what: Str) returns I32 {
-    return check_install_rc(copy_tree(src, dst), what)
 }
 
 priv is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns Bool {
     if paths.name.eq("til").not() { return false }
     if lp.path.eq("src/til.til").or(lp.path.eq("./src/til.til")) { return true }
     return lp.path.ends_with("/src/til.til")
-}
-
-priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I32 {
-    root := builder_compiler_root(lp)
-    dst_root := support_root(prefix)
-    mut rc := install_tree(format(root, "/src/core"), format(dst_root, "/src/core"), "install compiler core sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
-    if rc != 0 { return rc }
-    // There is no top-level lib/ to install. It held six example-only
-    // modules (alphabeta, cell, fonts, music, svg, the custom_modes
-    // preludes) and moved to examples/lib/ -- nothing in src/ ever
-    // imported them, so the installed compiler needs neither the old
-    // path nor the new one. The move updated the Makefile, the tests and
-    // the examples but not this line, and copy_tree of a directory that
-    // does not exist fails, so every `make install` since has stopped
-    // here with "failed to install compiler library sources" AFTER
-    // planting the binary. What an installed til actually needs is the
-    // source it compiles against: core, std, modes, the C runtime and
-    // boot.
-    rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/jvm"), format(dst_root, "/src/jvm"), "install compiler JVM sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/holyc"), format(dst_root, "/src/holyc"), "install compiler HolyC sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
-    if rc != 0 { return rc }
-    // What `mode gui` stands on (issue #348). src/modes/gui.til imports
-    // ../../vendor/bindings/{raylib,tinyfd} and links the vendored
-    // archives, and resolve_link_path's compiler-root candidate already
-    // finds both under dst_root -- IF they are installed at their
-    // source-relative paths. The bindings are the whole directory (small
-    // text, and a custom mode may import any of them); the archives are
-    // exactly the two gui links, each with the .so twin the interpreter
-    // dlopens for repl/interpreted FFI. The archives are build products,
-    // so require them prebuilt and fail loudly pointing at the build --
-    // installing a compiler whose gui mode cannot load is how this issue
-    // happened.
-    rc = install_tree(format(root, "/vendor/bindings"), format(dst_root, "/vendor/bindings"), "install compiler FFI bindings")
-    if rc != 0 { return rc }
-    for lib : Str in gui_link_artifacts() {
-        src_path := format(root, "/", lib)
-        if cfile_exists(src_path).not() {
-            println(format("error: '", src_path, "' is missing -- mode gui needs it; build the vendored libraries first (make, or bin/make vendor)"))
-            return 1
-        }
-        rc = install_file(src_path, format(dst_root, "/", lib), format("install ", lib))
-        if rc != 0 { return rc }
-    }
-    rc = install_tree(format(root, "/doc/concepts"), format(dst_root, "/doc/concepts"), "install compiler concept documentation")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/doc/tutorial"), format(dst_root, "/doc/tutorial"), "install compiler tutorial")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/doc/gen"), format(dst_root, "/doc/gen"), "install generated compiler documentation")
-    if rc != 0 { return rc }
-    return 0
-}
-
-// The vendored artifacts an installed `mode gui` build/interpret needs,
-// at their source-relative paths: each linked archive plus its
-// dlopen-able twin (see ffi_load_archive_twin -- the twin sits beside
-// the archive, and resolve_link_path finds both under the install
-// root). nng stays out: the server modes are --extra-modes user files
-// (examples/custom_modes.til), not installed built-ins.
-priv gui_link_artifacts := func() returns Vec(Str) {
-    mut out := Vec(Str).new()
-    out.push(own "vendor/raylib/src/libraylib.a")
-    out.push(own "vendor/raylib/src/libraylib.so")
-    out.push(own "vendor/tinyfiledialogs/libtinyfd.a")
-    out.push(own "vendor/tinyfiledialogs/libtinyfd.so")
-    return out
-}
-
-priv print_install_success := proc(path: Str) {
-    println(format("Installed: ", path))
 }
 
 cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
@@ -1144,16 +1040,11 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
     }
 
     bin_dst := format(install_prefix, "/bin/", paths.name, executable_extension(target))
-    result = install_file(paths.bin_path, bin_dst, "install executable")
-    if result != 0 { return result }
-    print_install_success(bin_dst)
-
+    mut compiler_root := ""
     if is_compiler_install(lp, paths) {
-        result = install_compiler_support(lp, install_prefix)
-        if result != 0 { return result }
-        print_install_success(support_root(install_prefix))
+        compiler_root = builder_compiler_root(lp)
     }
-    return 0
+    return install_executable(paths.bin_path, bin_dst, compiler_root, install_prefix)
 }
 
 // Prefix used when spawning a child binary that was just built with --asan.

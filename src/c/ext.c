@@ -3176,14 +3176,12 @@ static HANDLE win_out_handle(const char *path) {
 }
 
 static char *cmd_temp_path(void) {
-    char dir[MAX_PATH];
-    DWORD n = GetTempPathA((DWORD)sizeof(dir), dir);
-    if (n == 0 || n >= sizeof(dir)) {
-        fprintf(stderr, "cmd: GetTempPath failed\n");
+    if (mkdir_one("tmp") != 0) {
+        fprintf(stderr, "cmd: could not create local 'tmp' directory: %s\n", strerror(errno));
         exit(1);
     }
     char path[MAX_PATH];
-    if (GetTempFileNameA(dir, "til", 0, path) == 0) {
+    if (GetTempFileNameA("tmp", "til", 0, path) == 0) {
         fprintf(stderr, "cmd: GetTempFileName failed\n");
         exit(1);
     }
@@ -3253,17 +3251,17 @@ static int cmd_reap_impl(TilCmd *c, int block) {
 #else
 
 static char *cmd_temp_file(int *fd_out) {
-    const char *dir = getenv("TMPDIR");
-    if (!dir || !*dir) dir = "/tmp";
-    char tmpl[PATH_MAX];
-    int written = snprintf(tmpl, sizeof(tmpl), "%s/til_cmd_XXXXXX", dir);
-    if (written < 0 || (size_t)written >= sizeof(tmpl)) {
-        fprintf(stderr, "cmd: temporary directory path too long: '%s'\n", dir);
+    // Capture belongs to the caller's working directory, just like
+    // explicit redirections; Cmd.cwd only changes the child's directory.
+    // mkstemp keeps each spool private (0600) and collision-free.
+    if (mkdir("tmp", 0700) != 0 && errno != EEXIST) {
+        fprintf(stderr, "cmd: could not create local 'tmp' directory: %s\n", strerror(errno));
         exit(1);
     }
+    char tmpl[] = "tmp/til_cmd_XXXXXX";
     int fd = mkstemp(tmpl);
     if (fd < 0) {
-        fprintf(stderr, "cmd: could not create a capture file in '%s': %s\n", dir, strerror(errno));
+        fprintf(stderr, "cmd: could not create a capture file in local 'tmp': %s\n", strerror(errno));
         exit(1);
     }
     *fd_out = fd;

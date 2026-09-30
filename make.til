@@ -24,6 +24,7 @@ mode cli
 
 import("src/std/sys")
 import("src/std/file")
+import("src/self/install")
 
 // The working directory, for the absolute paths some vendored build
 // systems insist on. Same bridge src/til.til binds; not in std/sys
@@ -852,7 +853,17 @@ run_summary := proc(mut b: Build) {
 run_install := proc(mut b: Build) {
     if b.begin("install").not() { return }
     build_til(b)
-    run(TIL, "install", "--usize=32", "src/til.til")
+    copy_compiler_install(b.host)
+}
+
+// No compiler invocation here: all checkout writes must have finished
+// as the build user before sudo's privileged process copies the result.
+copy_compiler_install := proc(host: Host) {
+    prefix := default_install_prefix()
+    destination := format(prefix, "/bin/til", host.exe_suffix())
+    if install_executable(TIL, destination, get_cwd_str(), prefix) != 0 {
+        exit(1)
+    }
 }
 
 /// Regenerate the in-tree FFI bindings from the C headers. MANUAL, and
@@ -1770,6 +1781,7 @@ self_backup := func(host: Host) returns Str {
 self_sources := proc() returns Vec(Str) {
     mut out := Vec(Str).new()
     out.push(own SELF_SRC.clone())
+    out.push(own "src/self/install.til")
     add_matching(out, "src/core", ".til")
     add_matching(out, "src/std", ".til")
     add_matching(out, "src/c", ".c")
@@ -1791,7 +1803,7 @@ settle_previous := proc(host: Host) {
     File.rename(backup, self_bin(host))
 }
 
-rebuild_self_if_stale := proc(host: Host, args: ..Str) {
+rebuild_self_if_stale := proc(host: Host, build_uid: Str, args: ..Str) {
     settle_previous(host)
     self_path := self_bin(host)
     if needs_rebuild(self_path, self_sources()).not() { return }
@@ -1800,7 +1812,8 @@ rebuild_self_if_stale := proc(host: Host, args: ..Str) {
 
     backup := self_backup(host)
     if File.exists(self_path) { File.rename(self_path, backup) }
-    build := Cmd.new(BOOT, "build", "-o", self_path, SELF_SRC)
+    build := build_user_command(build_uid)
+    build.args(BOOT, "build", "-o", self_path, SELF_SRC)
     println(build.render())
     if build.run() != 0 {
         if File.exists(backup) { File.rename(backup, self_path) }
@@ -1828,9 +1841,38 @@ rebuild_self_if_stale := proc(host: Host, args: ..Str) {
 
 // --- Entry point ---
 
+// sudo supplies the original identity. An ordinary invocation never
+// needs sudo; a nested sudo -u build has SUDO_UID=0 and stays unprivileged.
+sudo_build_uid := proc(host: Host) returns Str {
+    uid := get_env("SUDO_UID")
+    if uid.is_empty().or(uid.eq("0")).or(host.os.eq("windows")) { return "" }
+    // Ask through the exit status: a capture would itself create local
+    // temporary files while this process still has root privileges.
+    identity := Cmd.new("sh", "-c", "uid=$(id -u) || exit 2; test \"$uid\" = 0")
+    status := identity.run()
+    if status == 1 { return "" }
+    if status != 0 { panic("could not determine the build user") }
+    return uid
+}
+
+build_user_command := proc(uid: Str) returns Cmd {
+    if uid.is_empty() { return Cmd.new() }
+    command := Cmd.new("sudo", "-u", format("#", uid),
+        "-g", format("#", get_env("SUDO_GID")), "--", "env")
+    // sudo resets the environment, so carry the existing build settings
+    // explicitly instead of losing cross-toolchain selections.
+    for name : Str in "RISCV32_CC EMCC EMAR EMRANLIB".split(" ") {
+        env_name := name.clone()
+        value := get_env(env_name)
+        if value.len() > 0 { command.arg(format(name, "=", value)) }
+    }
+    return command
+}
+
 main := proc(args: ..Str) {
     host := Host.detect()
-    rebuild_self_if_stale(host, ..args)
+    build_uid := sudo_build_uid(host)
+    rebuild_self_if_stale(host, build_uid, ..args)
 
     mut b := Build.new()
     mut goals := Vec(Str).new()
@@ -1857,6 +1899,22 @@ main := proc(args: ..Str) {
     // Every goal shares one Build, so a prerequisite reached by two of
     // them runs once.
     for goal : Str in goals {
-        dispatch(b, goal)
+        if build_uid.is_empty() {
+            dispatch(b, goal)
+        } else {
+            command := build_user_command(build_uid)
+            command.arg(self_bin(host))
+            if b.jobs.len() > 0 { command.arg(format("-j", b.jobs)) }
+            if b.riscv32_cc.len() > 0 {
+                command.arg(format("--riscv32-cc=", b.riscv32_cc))
+            }
+            if goal == "install" {
+                command.arg("bin/til")
+            } else {
+                command.arg(goal)
+            }
+            command.run_checked()
+            if goal == "install" { copy_compiler_install(host) }
+        }
     }
 }

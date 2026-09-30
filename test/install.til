@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("../src/self/install")
 
 // `til install` end to end, because nothing covered it and it was
 // broken for two weeks without anyone noticing.
@@ -38,6 +39,20 @@ main := proc() returns I64 {
 
     install := Cmd.new("bin/til", "install", "--usize=32", format("--prefix=", PREFIX), "src/til.til")
     install.run_checked()
+
+    // make install uses the same copy-only phase after its unprivileged
+    // build. Reinstall from those existing artifacts, then exercise that
+    // installation below. Copying must not rebuild checkout outputs.
+    binary_time := file_mtime("bin/til")
+    c_time := file_mtime("gen/til/til.c")
+    boot_time := file_mtime("boot/til.c")
+    File.remove_tree(PREFIX)
+    if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
+        panic("copy-only compiler installation failed")
+    }
+    if file_mtime("bin/til") != binary_time { panic("copy-only install rebuilt bin/til") }
+    if file_mtime("gen/til/til.c") != c_time { panic("copy-only install regenerated C") }
+    if file_mtime("boot/til.c") != boot_time { panic("copy-only install regenerated boot") }
 
     // The binary, and every source tree an installed compiler needs to
     // build a program: til sources it type-checks against, the C

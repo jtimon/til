@@ -9,7 +9,7 @@ import("../src/std/sys")
 // this pins the execvp path the suite already trusts; on Windows it is
 // the FIRST execution of win_quote_arg's CommandLineToArgvW rules, the
 // CreateProcessA command line, win_env_block's case-insensitive
-// override, and the GetTempPath capture spools -- the round trip
+// override, and the local tmp/ capture spools -- the round trip
 // through the CRT's parser is exactly the property under test, so the
 // test is self-contained on any host.
 //

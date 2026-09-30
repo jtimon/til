@@ -1,0 +1,123 @@
+mode lib
+
+import("../std/sys")
+import("../std/file")
+
+// Copy-only installation, shared by the compiler and the build program.
+// Building belongs to the caller, before entering the privileged phase.
+default_install_prefix := proc() returns Str {
+    if host_os() == "windows" {
+        return "C:/Program Files/til"
+    }
+    return "/usr/local"
+}
+
+priv check_install_rc := proc(rc: I32, what: Str) returns I32 {
+    if rc != 0 {
+        println(format("error: failed to ", what))
+        return 1
+    }
+    return 0
+}
+
+support_root := func(prefix: Str) returns Str {
+    return format(prefix, "/lib/til")
+}
+
+install_file := proc(src: Str, dst: Str, what: Str) returns I32 {
+    return check_install_rc(copy_file(src, dst), what)
+}
+
+priv install_tree := proc(src: Str, dst: Str, what: Str) returns I32 {
+    return check_install_rc(copy_tree(src, dst), what)
+}
+
+install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
+    dst_root := support_root(prefix)
+    mut rc := install_tree(format(root, "/src/core"), format(dst_root, "/src/core"), "install compiler core sources")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
+    if rc != 0 { return rc }
+    // There is no top-level lib/ to install. It held six example-only
+    // modules (alphabeta, cell, fonts, music, svg, the custom_modes
+    // preludes) and moved to examples/lib/ -- nothing in src/ ever
+    // imported them, so the installed compiler needs neither the old
+    // path nor the new one. The move updated the Makefile, the tests and
+    // the examples but not this line, and copy_tree of a directory that
+    // does not exist fails, so every `make install` since has stopped
+    // here with "failed to install compiler library sources" AFTER
+    // planting the binary. What an installed til actually needs is the
+    // source it compiles against: core, std, modes, the C runtime and
+    // boot.
+    rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/jvm"), format(dst_root, "/src/jvm"), "install compiler JVM sources")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/holyc"), format(dst_root, "/src/holyc"), "install compiler HolyC sources")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
+    if rc != 0 { return rc }
+    // What `mode gui` stands on (issue #348). src/modes/gui.til imports
+    // ../../vendor/bindings/{raylib,tinyfd} and links the vendored
+    // archives, and resolve_link_path's compiler-root candidate already
+    // finds both under dst_root -- IF they are installed at their
+    // source-relative paths. The bindings are the whole directory (small
+    // text, and a custom mode may import any of them); the archives are
+    // exactly the two gui links, each with the .so twin the interpreter
+    // dlopens for repl/interpreted FFI. The archives are build products,
+    // so require them prebuilt and fail loudly pointing at the build --
+    // installing a compiler whose gui mode cannot load is how this issue
+    // happened.
+    rc = install_tree(format(root, "/vendor/bindings"), format(dst_root, "/vendor/bindings"), "install compiler FFI bindings")
+    if rc != 0 { return rc }
+    for lib : Str in gui_link_artifacts() {
+        src_path := format(root, "/", lib)
+        if File.exists(src_path).not() {
+            println(format("error: '", src_path, "' is missing -- mode gui needs it; build the vendored libraries first (make, or bin/make vendor)"))
+            return 1
+        }
+        rc = install_file(src_path, format(dst_root, "/", lib), format("install ", lib))
+        if rc != 0 { return rc }
+    }
+    rc = install_tree(format(root, "/doc/concepts"), format(dst_root, "/doc/concepts"), "install compiler concept documentation")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/doc/tutorial"), format(dst_root, "/doc/tutorial"), "install compiler tutorial")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/doc/gen"), format(dst_root, "/doc/gen"), "install generated compiler documentation")
+    if rc != 0 { return rc }
+    return 0
+}
+
+// The vendored artifacts an installed `mode gui` build/interpret needs,
+// at their source-relative paths: each linked archive plus its
+// dlopen-able twin (see ffi_load_archive_twin -- the twin sits beside
+// the archive, and resolve_link_path finds both under the install
+// root). nng stays out: the server modes are --extra-modes user files
+// (examples/custom_modes.til), not installed built-ins.
+priv gui_link_artifacts := func() returns Vec(Str) {
+    mut out := Vec(Str).new()
+    out.push(own "vendor/raylib/src/libraylib.a")
+    out.push(own "vendor/raylib/src/libraylib.so")
+    out.push(own "vendor/tinyfiledialogs/libtinyfd.a")
+    out.push(own "vendor/tinyfiledialogs/libtinyfd.so")
+    return out
+}
+
+print_install_success := proc(path: Str) {
+    println(format("Installed: ", path))
+}
+
+install_executable := proc(binary: Str, destination: Str, compiler_root: Str, prefix: Str) returns I32 {
+    mut rc := install_file(binary, destination, "install executable")
+    if rc != 0 { return rc }
+    print_install_success(destination)
+    // Empty for ordinary programs, which have no compiler support tree.
+    if compiler_root.len() > 0 {
+        rc = install_compiler_support(compiler_root, prefix)
+        if rc != 0 { return rc }
+        print_install_success(support_root(prefix))
+    }
+    return 0
+}
