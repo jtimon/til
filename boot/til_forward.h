@@ -374,6 +374,10 @@ typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
 typedef struct Vec__call_Set_USize Vec__call_Set_USize;
 typedef struct Vec__call_Map_Str_Bool Vec__call_Map_Str_Bool;
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
+typedef struct priv___src_self_jvm_codegen_til__JvmMember priv___src_self_jvm_codegen_til__JvmMember;
+typedef struct priv___src_self_jvm_codegen_til__JvmClassOut priv___src_self_jvm_codegen_til__JvmClassOut;
+typedef struct Vec__priv___src_self_jvm_codegen_til__JvmMember Vec__priv___src_self_jvm_codegen_til__JvmMember;
+typedef struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut Vec__priv___src_self_jvm_codegen_til__JvmClassOut;
 typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__ThemeSpec;
 typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
@@ -1267,6 +1271,27 @@ typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
 } priv___src_self_jvm_codegen_til__JvmEmitState;
 
 
+typedef struct priv___src_self_jvm_codegen_til__JvmMember {
+    Str name;
+    Str text;
+    Bool live;
+} priv___src_self_jvm_codegen_til__JvmMember;
+
+
+typedef struct Vec__priv___src_self_jvm_codegen_til__JvmMember {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_jvm_codegen_til__JvmMember;
+
+
+typedef struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_jvm_codegen_til__JvmClassOut;
+
+
 typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec {
     Str name;
     Str value;
@@ -1828,6 +1853,16 @@ typedef struct Map__Str_call_Map_Str_Bool {
     Vec__Str keys;
     Vec__call_Map_Str_Bool values;
 } Map__Str_call_Map_Str_Bool;
+
+
+typedef struct priv___src_self_jvm_codegen_til__JvmClassOut {
+    Str path;
+    Str name;
+    Str head;
+    Vec__priv___src_self_jvm_codegen_til__JvmMember members;
+    Str tail;
+    Bool live;
+} priv___src_self_jvm_codegen_til__JvmClassOut;
 
 
 typedef struct priv___src_self_theme_codegen_til__ThemeSpec {

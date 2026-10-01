@@ -950,6 +950,37 @@ sole-reader deletes (structs_keeps_sole_reader_delete pins them;
 retiring the binding is #302's), and one ~(void)~ cast where the
 delete-is-not-a-read rule over-approximates.
 
+*** The other backends (closed 2026-09-30)
+
+Every audit above read generated C. The two other code-emitting
+backends had never been asked, and both build their whole output in
+memory before writing a byte -- so the finished text answers directly,
+with no prediction and no re-read.
+
+- HolyC wrote its 14-line runtime prelude unconditionally: 82 of the
+  619 lines across the committed .HC baselines declared a runtime
+  function the file never names. Each extern is now written only when
+  the rest of the output (structs, the gated helpers, prototypes,
+  definitions, main's body) spells it.
+- The JVM backend wrote one ~Unit_~ class per loaded file whether or not
+  it held a function, a class for every struct layout (every primitive
+  included), and every member of every class: 169 of the 206 classes
+  across its six fixtures were dead, plus 33 uncalled members in the
+  live ones. Classes are now split into fixed text plus named members,
+  and jvm_mark_live keeps what is reached from Main and the runtime: a
+  class once live text spells its name, a member once live text spells
+  it outside its own declaration. Java cannot use either without
+  spelling it, and TilRuntime reaches generated code only through the
+  interfaces it declares, whose method names its own text spells. Same-
+  named members of different classes keep each other (text cannot tell
+  receivers apart). 206 classes / 5,778 lines -> 37 / 3,281, zero dead.
+  javac's errors on the six fixtures are the same set before and after
+  (the backend's output does not yet compile on any of them, a
+  pre-existing gap the default suite does not see because it runs no
+  JDK); with that one call site patched by hand, the three that then
+  compile print identical output. jvm_sources_include_runtime pins
+  the source list, a dropped setter and a kept interface method.
+
 *** Related issues
 
 - #86 defines the user-visible underscore escape hatch.

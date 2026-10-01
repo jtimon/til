@@ -1226,8 +1226,19 @@ main := proc(args: ..Str) {
     // interpreter/C.
     add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
         format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
-    add_count(tests, "jvm_sources_include_runtime", "build", "src/jvm/TilRuntime.java", 1,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/jvm_unsupported/sources.args ')'"))
+    // #326: the source list names the runtime and only the classes the
+    // program reaches -- Array(Str), Point, Functions and Main, not an empty
+    // Unit_ class per loaded core file nor a class per primitive layout. In
+    // a live class, the setter nothing calls is gone while the StrParts
+    // methods the runtime calls through its interface stay. One row, since
+    // parallel rows translating one .til share gen/jvm/<name>.
+    add_counts(tests, "jvm_sources_include_runtime", "build",
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/jvm_unsupported/sources.args gen/jvm/jvm_unsupported/src/til/generated/p_jvm_x5funsupported/S_p_Array_x5f_x5fStr.java ')'"),
+        CountCheck(needle = "src/jvm/TilRuntime.java", expected_count = 1),
+        CountCheck(needle = ".java\"", expected_count = 5),
+        CountCheck(needle = "Unit_p_", expected_count = 0),
+        CountCheck(needle = "set_p_data", expected_count = 0),
+        CountCheck(needle = "public int length()", expected_count = 1))
     add_count(tests, "jvm_direct_call_source", "build", "f_p_show", 2,
         format("'(' ", til_bin, " translate --target=jvm test/jvm_scalar_smoke.til '&&' cat gen/jvm/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Unit_p_test_x2fjvm_x5fscalar_x5fsmoke_x2etil.java '&&' cat gen/jvm/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Main.java ')'"))
     add_count(tests, "jvm_stage_d_cells", "build", "TilRuntime.I64Cell", 6,

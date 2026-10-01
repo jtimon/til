@@ -13,6 +13,102 @@ priv JvmEmitState := struct {
     return_cell := false
 }
 
+// #326: one method of an emitted class, keyed by the name a caller spells.
+priv JvmMember := struct {
+    name := ""
+    text := ""
+    live := false
+}
+
+// #326: one emitted .java file. `head` and `tail` are the class's fixed
+// text; its methods are members so jvm_mark_live can keep only the ones
+// the finished program calls.
+priv JvmClassOut := struct {
+    path := ""
+    name := ""
+    head := ""
+    members := Vec(JvmMember).new()
+    tail := ""
+    live := false
+}
+
+priv jvm_add_member := func(mut cls: JvmClassOut, name: Str, text: Str) {
+    cls.members.push(own JvmMember(name = name.clone(), text = text.clone()))
+}
+
+priv jvm_file_head := func(package_name: Str) returns Str {
+    return format("package ", package_name, ";\n\nimport til.runtime.TilRuntime;\n\n")
+}
+
+// Adds every identifier `src` spells to `words`, except the first spelling
+// of `own_name`: a member's own declaration is not a call to it.
+priv jvm_add_words := func(src: Str, own_name: Str, mut words: Set(Str)) {
+    n := src.len()
+    mut skipped_own := false
+    mut i : USize = 0
+    while i < n {
+        if is_alnum(src.unsafe_get(i)).not() { i = i + 1 continue }
+        start := i
+        while i < n {
+            if is_alnum(src.unsafe_get(i)).not() { break }
+            i = i + 1
+        }
+        word := src.substr(start, i - start)
+        if skipped_own.not().and(word.eq(own_name)) {
+            skipped_own = true
+            continue
+        }
+        if words.has(word).not() { words.add(own word.clone()) }
+    }
+}
+
+// #326: the classes and members the finished program reaches. Everything
+// is in memory before a byte is written, so the text itself is the
+// authority, as in the HolyC prelude: Main and the runtime are the roots;
+// a class is live once live text spells its name, and a member of a live
+// class once live text spells its name outside its own declaration. Java
+// cannot use a class or call a method without spelling its name, and the
+// runtime reaches generated code only through the interfaces it declares,
+// whose method names its own text spells. Same-named members of different
+// classes (every `delete`) keep each other alive: text cannot tell their
+// receivers apart, and keeping is the safe side.
+priv jvm_mark_live := func(runtime_src: Str, mut classes: Vec(JvmClassOut)) {
+    mut words := Set(Str).new()
+    jvm_add_words(runtime_src, "", words)
+    words.add(own "Main")
+    mut changed := true
+    while changed {
+        changed = false
+        for i in 0..classes.len() {
+            ref mut cls : JvmClassOut = classes[i]
+            if cls.live.not().and(words.has(cls.name)) {
+                cls.live = true
+                changed = true
+                jvm_add_words(cls.head, cls.name, words)
+                jvm_add_words(cls.tail, "", words)
+            }
+            if cls.live {
+                for j in 0..cls.members.len() {
+                    ref mut member : JvmMember = cls.members[j]
+                    if member.live.not().and(words.has(member.name)) {
+                        member.live = true
+                        changed = true
+                        jvm_add_words(member.text, member.name, words)
+                    }
+                }
+            }
+        }
+    }
+}
+
+priv jvm_render_class := func(cls: JvmClassOut) returns Str {
+    mut out := cls.head.clone()
+    for member : JvmMember in cls.members {
+        if member.live { out = format(out, member.text) }
+    }
+    return format(out, cls.tail)
+}
+
 priv jvm_hex_byte := func(byte: U8) returns Str {
     digits := "0123456789abcdef"
     hi := byte.shr(4).band(15).to_usize()
@@ -2162,24 +2258,26 @@ priv jvm_struct_has_raw_fields := func(name: Str, lp: LoadedProgram) returns Boo
     return false
 }
 
-priv jvm_emit_struct := proc(decl: Expr, mut state: JvmEmitState,
-    lp: LoadedProgram) returns Str {
+priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitState,
+    lp: LoadedProgram) returns JvmClassOut {
         ref dd : Declaration = decl_of(decl)
         ref def_expr : Expr = decl.children[0]
         ref sd : StructDef = structdef_of(def_expr)
+        cls := jvm_struct_class(dd.name)
+        mut out := JvmClassOut(name = cls.clone())
         if sd.is_interface {
             jvm_fail_expr(def_expr, format("interface '", dd.name, "' before Stage F"), state, lp.ctx.symbols.names)
-            return ""
+            return out
         }
-        cls := jvm_struct_class(dd.name)
         mut fields := ""
         mut params := ""
         mut init := ""
         mut copies := ""
         mut clones := ""
         mut deletes := ""
-        mut getters := ""
-        mut setters := ""
+        jvm_add_member(out, "checkLive", format("    private void checkLive() {\n",
+            "        if (deleted) { throw new IllegalStateException(\"use after aggregate delete\"); }\n",
+            "    }\n\n"))
         for i in 0..sd.fields.len() {
             ref field : Declaration = sd.field_at(i)
             ref fname : Str = sd.field_name_at(i)
@@ -2200,11 +2298,13 @@ priv jvm_emit_struct := proc(decl: Expr, mut state: JvmEmitState,
             }
             jname := jvm_field_name(fname)
             fields = format(fields, "    ", field_type, " ", jname, ";\n")
-            getters = format(getters, "    ", field_type, " ",
-                jvm_field_getter(fname), " { checkLive(); return ", jname, "; }\n")
+            jvm_add_member(out, format("get_", jvm_package_segment(fname)),
+                format("    ", field_type, " ", jvm_field_getter(fname),
+                    " { checkLive(); return ", jname, "; }\n"))
             if is_cell.not() {
-                setters = format(setters, "    void ", jvm_field_setter(fname), "(",
-                    field_type, " value) { checkLive(); ", jname, " = value; }\n")
+                jvm_add_member(out, jvm_field_setter(fname),
+                    format("    void ", jvm_field_setter(fname), "(",
+                        field_type, " value) { checkLive(); ", jname, " = value; }\n"))
             }
             if i > 0 {
                 params = format(params, ", ")
@@ -2258,35 +2358,35 @@ priv jvm_emit_struct := proc(decl: Expr, mut state: JvmEmitState,
             }
         }
         mut interface_clause := ""
-        mut host_methods := ""
+        if dd.name == "Array__Str" { interface_clause = " implements TilRuntime.StrParts" }
+        out.head = format(jvm_file_head(package_name),
+            "final class ", cls, interface_clause, " {\n", fields,
+            "    private boolean deleted;\n",
+            "\n    ", cls, "(", params, ") {\n", init, "    }\n\n")
+        jvm_add_member(out, "copy", format("    ", cls, " copy() { checkLive(); return new ",
+            cls, "(", copies, "); }\n"))
+        jvm_add_member(out, "cloneValue", format("    ", cls,
+            " cloneValue() { checkLive(); return new ", cls, "(", clones, "); }\n"))
+        jvm_add_member(out, "delete", format("    void delete() {\n",
+            "        checkLive();\n", deletes,
+            "        deleted = true;\n",
+            "    }\n"))
         if dd.name == "Array__Str" {
-            interface_clause = " implements TilRuntime.StrParts"
             str_size := ctx_total_size("Str", lp.ctx).to_str()
-            host_methods = format(
-                "    public int length() { checkLive(); return f_p_cap; }\n",
+            jvm_add_member(out, "length",
+                "    public int length() { checkLive(); return f_p_cap; }\n")
+            jvm_add_member(out, "part", format(
                 "    public TilRuntime.Str part(int index) {\n",
                 "        checkLive();\n",
                 "        return (TilRuntime.Str) TilRuntime.loadObject(",
                 "TilRuntime.ptrAdd(f_p_data, (long) index * ", str_size, "L), ", str_size, "L);\n",
-                "    }\n")
+                "    }\n"))
         }
-        return format("final class ", cls, interface_clause, " {\n", fields,
-            "    private boolean deleted;\n",
-            "\n    ", cls, "(", params, ") {\n", init, "    }\n\n",
-            "    private void checkLive() {\n",
-            "        if (deleted) { throw new IllegalStateException(\"use after aggregate delete\"); }\n",
-            "    }\n\n", getters, setters, "\n",
-            "    ", cls, " copy() { checkLive(); return new ", cls, "(", copies, "); }\n",
-            "    ", cls, " cloneValue() { checkLive(); return new ", cls, "(", clones, "); }\n",
-            "    void delete() {\n",
-            "        checkLive();\n", deletes,
-            "        deleted = true;\n",
-            "    }\n",
-            host_methods,
-            "}\n\n")
+        out.tail = "}\n\n"
+        return out
 }
 
-priv jvm_emit_enum := func(decl: Expr) returns Str {
+priv jvm_emit_enum := func(decl: Expr, package_name: Str) returns JvmClassOut {
     ref dd : Declaration = decl_of(decl)
     ref ed : EnumDef = enumdef_of(decl.children[0])
     cls := jvm_enum_class(dd.name)
@@ -2298,43 +2398,47 @@ priv jvm_emit_enum := func(decl: Expr) returns Str {
     variant_names = format(variant_names,
         "        default: throw new IllegalStateException(\"invalid enum tag\");\n",
         "        }\n")
-    return format("final class ", cls, " implements TilRuntime.EnumValue {\n",
+    mut out := JvmClassOut(name = cls.clone())
+    out.head = format(jvm_file_head(package_name),
+        "final class ", cls, " implements TilRuntime.EnumValue {\n",
         "    long tag;\n",
         "    Object payload;\n",
         "    boolean deleted;\n\n",
         "    ", cls, "(long tag, Object payload) {\n",
         "        this.tag = tag;\n",
-            "        this.payload = payload;\n",
-            "    }\n\n",
-            "    public long tilTag() { checkLive(); return tag; }\n",
-            "    public Object tilPayload() { checkLive(); return payload; }\n",
-            "    public String tilVariantName() {\n", variant_names, "    }\n",
-            "    ", cls, " copy() {\n",
+        "        this.payload = payload;\n",
+        "    }\n\n")
+    jvm_add_member(out, "tilTag", "    public long tilTag() { checkLive(); return tag; }\n")
+    jvm_add_member(out, "tilPayload", "    public Object tilPayload() { checkLive(); return payload; }\n")
+    jvm_add_member(out, "tilVariantName", format("    public String tilVariantName() {\n",
+        variant_names, "    }\n"))
+    jvm_add_member(out, "copy", format("    ", cls, " copy() {\n",
         "        if (deleted) { throw new IllegalStateException(\"copy of deleted enum\"); }\n",
         "        return new ", cls, "(tag, payload);\n",
-        "    }\n",
-        "    ", cls, " cloneValue() { return copy(); }\n",
-        "    boolean sameTag(", cls, " other) {\n",
+        "    }\n"))
+    jvm_add_member(out, "cloneValue", format("    ", cls, " cloneValue() { return copy(); }\n"))
+    jvm_add_member(out, "sameTag", format("    boolean sameTag(", cls, " other) {\n",
         "        checkLive();\n",
         "        other.checkLive();\n",
         "        return tag == other.tag;\n",
-        "    }\n",
-        "    boolean sameValue(", cls, " other) {\n",
+        "    }\n"))
+    jvm_add_member(out, "sameValue", format("    boolean sameValue(", cls, " other) {\n",
         "        return sameTag(other) && java.util.Objects.equals(payload, other.payload);\n",
-        "    }\n",
-        "    private void checkLive() {\n",
+        "    }\n"))
+    jvm_add_member(out, "checkLive", format("    private void checkLive() {\n",
         "        if (deleted) { throw new IllegalStateException(\"use after enum delete\"); }\n",
-        "    }\n",
-        "    void delete() {\n",
+        "    }\n"))
+    jvm_add_member(out, "delete", format("    void delete() {\n",
         "        checkLive();\n",
         "        deleted = true;\n",
         "        payload = null;\n",
-        "    }\n",
-            "}\n\n")
+        "    }\n"))
+    out.tail = "}\n\n"
+    return out
 }
 
 priv jvm_emit_funcsig := func(fexpr: Expr, package_name: Str,
-    lp: LoadedProgram) returns Str {
+    lp: LoadedProgram) returns JvmClassOut {
         ref fd : FunctionDef = funcdef_of(fexpr)
         cls := jvm_funcsig_class(fd, lp.ctx.symbols)
         ret := jvm_signature_return_type(fd, lp)
@@ -2352,23 +2456,29 @@ priv jvm_emit_funcsig := func(fexpr: Expr, package_name: Str,
         mut invoke := format("        TilRuntime.checkClosure(this);\n        ")
         if ret != "void" { invoke = format(invoke, "return ") }
         invoke = format(invoke, "call(", args, ");\n")
-        return format("package ", package_name, ";\n\n",
-            "import til.runtime.TilRuntime;\n\n",
+        // `call` is the interface's one abstract method, which every
+        // implementing lambda supplies, so it stays in the fixed text.
+        mut out := JvmClassOut(name = cls.clone())
+        out.head = format(jvm_file_head(package_name),
             "@FunctionalInterface\n",
             "interface ", cls, " extends TilRuntime.Closure {\n",
-            "    ", ret, " call(", params, ");\n",
-            "    default ", ret, " invoke(", params, ") {\n",
+            "    ", ret, " call(", params, ");\n")
+        jvm_add_member(out, "invoke", format("    default ", ret, " invoke(", params, ") {\n",
             invoke,
-            "    }\n",
-            "}\n")
+            "    }\n"))
+        out.tail = "}\n"
+        return out
 }
 
 priv jvm_emit_unit := proc(unit_path: Str, root_path: Str, package_name: Str,
-    reachable: Set(Str), mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+    reachable: Set(Str), mut state: JvmEmitState, lp: LoadedProgram) returns JvmClassOut {
         ref iu : ImportUnit = lp.ctx.imported[unit_path]
         state.path = unit_path.clone()
         cls := jvm_unit_class(unit_path)
-        mut body := ""
+        mut out := JvmClassOut(name = cls.clone())
+        out.head = format(jvm_file_head(package_name),
+            "final class ", cls, " {\n",
+            "    private ", cls, "() {}\n\n")
         for stmt : Expr in iu.ast.children {
             switch stmt.node_type {
             case .Decl:
@@ -2376,17 +2486,16 @@ priv jvm_emit_unit := proc(unit_path: Str, root_path: Str, package_name: Str,
                     if stmt.children[0].node_type.is(NodeType.FuncDef) {
                         ref dd : Declaration = decl_of(stmt)
                         if unit_path.eq(root_path).or(reachable.has(dd.name)) {
-                            body = format(body, jvm_emit_function(stmt, 1, state, lp))
+                            jvm_add_member(out, jvm_func_name(dd.name),
+                                jvm_emit_function(stmt, 1, state, lp))
                         }
                     }
                 }
             case:
             }
         }
-        return format("package ", package_name, ";\n\n",
-            "import til.runtime.TilRuntime;\n\n",
-            "final class ", cls, " {\n",
-            "    private ", cls, "() {}\n\n", body, "}\n")
+        out.tail = "}\n"
+        return out
 }
 
 priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
@@ -2487,8 +2596,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
         }
 
         mut state := JvmEmitState()
-        mut paths := Vec(Str).new()
-        mut contents := Vec(Str).new()
+        mut classes := Vec(JvmClassOut).new()
         mut emitted_types := Set(Str).new()
         mut emitted_funcsigs := Set(Str).new()
         ref root : ProgramUnit = lp.units[lp.units.len() - 1]
@@ -2497,10 +2605,10 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
         mut reachable_seen := Set(Str).new()
         jvm_collect_reachable(root_iu.ast, reachable_names, reachable_seen, lp)
         for loaded_path : Str in lp.unit_paths() {
-            unit_source_path := format(package_dir, "/", jvm_unit_class(loaded_path), ".java")
-            paths.push(own unit_source_path)
-            contents.push(own jvm_emit_unit(loaded_path, root.path, package_name,
-                reachable_seen, state, lp))
+            mut unit_out := jvm_emit_unit(loaded_path, root.path, package_name,
+                reachable_seen, state, lp)
+            unit_out.path = format(package_dir, "/", unit_out.name, ".java")
+            classes.push(own unit_out)
             ref iu : ImportUnit = lp.ctx.imported[loaded_path]
             state.path = loaded_path.clone()
             for stmt : Expr in iu.ast.children {
@@ -2509,20 +2617,14 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                     if stmt.children.len() > 0 {
                         if stmt.children[0].node_type.is(NodeType.StructDef) {
                             emitted_types.add(own dd.name.clone())
-                            struct_path := format(package_dir, "/", jvm_struct_class(dd.name), ".java")
-                            struct_source := format("package ", package_name, ";\n\n",
-                                "import til.runtime.TilRuntime;\n\n",
-                                jvm_emit_struct(stmt, state, lp))
-                            paths.push(own struct_path)
-                            contents.push(own struct_source)
+                            mut struct_out := jvm_emit_struct(stmt, package_name, state, lp)
+                            struct_out.path = format(package_dir, "/", struct_out.name, ".java")
+                            classes.push(own struct_out)
                         } else if stmt.children[0].node_type.is(NodeType.EnumDef) {
                             emitted_types.add(own dd.name.clone())
-                            enum_path := format(package_dir, "/", jvm_enum_class(dd.name), ".java")
-                            enum_source := format("package ", package_name, ";\n\n",
-                                "import til.runtime.TilRuntime;\n\n",
-                                jvm_emit_enum(stmt))
-                            paths.push(own enum_path)
-                            contents.push(own enum_source)
+                            mut enum_out := jvm_emit_enum(stmt, package_name)
+                            enum_out.path = format(package_dir, "/", enum_out.name, ".java")
+                            classes.push(own enum_out)
                         } else if stmt.children[0].node_type.is(NodeType.FuncDef) {
                             ref fexpr : Expr = stmt.children[0]
                             ref fd : FunctionDef = funcdef_of(fexpr)
@@ -2530,9 +2632,9 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                                 funcsigs_class := jvm_funcsig_class(fd, lp.ctx.symbols)
                                 if emitted_funcsigs.has(funcsigs_class).not() {
                                     emitted_funcsigs.add(own funcsigs_class.clone())
-                                    funcsigs_path := format(package_dir, "/", funcsigs_class, ".java")
-                                    paths.push(own funcsigs_path)
-                                    contents.push(own jvm_emit_funcsig(fexpr, package_name, lp))
+                                    mut funcsig_out := jvm_emit_funcsig(fexpr, package_name, lp)
+                                    funcsig_out.path = format(package_dir, "/", funcsigs_class, ".java")
+                                    classes.push(own funcsig_out)
                                 }
                             }
                         }
@@ -2551,24 +2653,22 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                         def_expr.line, def_expr.col)
                     synthetic.add_child(own def_expr.clone())
                     if def_expr.node_type.is(NodeType.StructDef) {
-                        struct_path := format(package_dir, "/", jvm_struct_class(type_name), ".java")
-                        struct_source := format("package ", package_name, ";\n\n",
-                            "import til.runtime.TilRuntime;\n\n",
-                            jvm_emit_struct(synthetic, state, lp))
-                        paths.push(own struct_path)
-                        contents.push(own struct_source)
+                        mut struct_out := jvm_emit_struct(synthetic, package_name, state, lp)
+                        struct_out.path = format(package_dir, "/", struct_out.name, ".java")
+                        classes.push(own struct_out)
                     } else if def_expr.node_type.is(NodeType.EnumDef) {
-                        enum_path := format(package_dir, "/", jvm_enum_class(type_name), ".java")
-                        enum_source := format("package ", package_name, ";\n\n",
-                            "import til.runtime.TilRuntime;\n\n",
-                            jvm_emit_enum(synthetic))
-                        paths.push(own enum_path)
-                        contents.push(own enum_source)
+                        mut enum_out := jvm_emit_enum(synthetic, package_name)
+                        enum_out.path = format(package_dir, "/", enum_out.name, ".java")
+                        classes.push(own enum_out)
                     }
                 }
             }
         }
-        mut functions_body := ""
+        mut functions_out := JvmClassOut(name = "Functions")
+        functions_out.path = format(package_dir, "/Functions.java")
+        functions_out.head = format(jvm_file_head(package_name),
+            "final class Functions {\n",
+            "    private Functions() {}\n\n")
         for name : Str in reachable_names {
             if jvm_top_level_function_class(name, lp).len() == 0 {
                 fdef_o := jvm_find_fdef(name, lp)
@@ -2580,27 +2680,27 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                         mut synthetic := Expr.new(NodeType.Decl(Declaration(name = name.clone())),
                             fexpr.line, fexpr.col)
                         synthetic.add_child(own fexpr.clone())
-                        functions_body = format(functions_body,
+                        jvm_add_member(functions_out, jvm_func_name(name),
                             jvm_emit_function(synthetic, 1, state, lp))
                     }
                 }
             }
         }
-        functions_path := format(package_dir, "/Functions.java")
-        functions_source := format("package ", package_name, ";\n\n",
-            "import til.runtime.TilRuntime;\n\n",
-            "final class Functions {\n",
-            "    private Functions() {}\n\n", functions_body, "}\n")
-        paths.push(own functions_path)
-        contents.push(own functions_source)
-        paths.push(own source_path.clone())
-        contents.push(own jvm_emit_main(root, package_name, state, lp))
+        functions_out.tail = "}\n"
+        classes.push(own functions_out)
+        mut main_out := JvmClassOut(name = "Main")
+        main_out.path = source_path.clone()
+        main_out.head = jvm_emit_main(root, package_name, state, lp)
+        classes.push(own main_out)
         if state.errors > 0 { return 1 }
 
+        jvm_mark_live(File.readfile(runtime_path), classes)
         mut args := format(jvm_argfile_quote(runtime_path), "\n")
-        for i in 0..paths.len() {
-            File.writefile(paths[i], contents[i])
-            args = format(args, jvm_argfile_quote(paths[i]), "\n")
+        for cls : JvmClassOut in classes {
+            if cls.live {
+                File.writefile(cls.path, jvm_render_class(cls))
+                args = format(args, jvm_argfile_quote(cls.path), "\n")
+            }
         }
         File.writefile(args_path, args)
         return 0
