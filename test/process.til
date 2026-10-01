@@ -17,15 +17,22 @@ test_cmd_runs_and_captures_stdout := test() {
 }
 
 // The capture must live in local tmp/ while the child writes it, then
-// disappear when the parent collects it. Match the child's stdout inode
-// so other concurrent captures cannot make this pass accidentally.
+// disappear when the parent collects it. The child tags its own stdout
+// with a marker only it knows (its pid) and names the spool that carries
+// it, so other concurrent captures cannot make this pass accidentally.
+// Not `-ef /dev/fd/1`: on macOS stat(/dev/fd/N) reports the fdesc
+// filesystem's device number with the file's inode, so sh's -ef never
+// matches a regular file there, while linux resolves /dev/fd/N as a
+// symlink to the file -- the suite was red on the mac natives only.
 test_cmd_capture_uses_local_tmp := test() {
     c := Cmd.new("sh", "-c",
-        "for f in tmp/til_cmd_*; do if test \"$f\" -ef /dev/fd/1; then printf '%s\\n' \"$f\"; exit 0; fi; done; exit 1")
+        "m=til_capture_$$; printf '%s\\n' \"$m\"; for f in tmp/til_cmd_*; do if grep -q \"$m\" \"$f\" 2>/dev/null; then printf '%s\\n' \"$f\"; exit 0; fi; done; exit 1")
     c.capture_out()
     assert_eq(I64, c.run(), 0)
     output := c.out()
-    path := output.trim().clone()
+    lines := output.trim().split("\n")
+    assert_eq(USize, lines.len(), 2)
+    path := lines[1].clone()
     assert(path.starts_with("tmp/til_cmd_"))
     assert(File.exists(path).not())
 }
