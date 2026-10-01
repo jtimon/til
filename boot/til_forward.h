@@ -266,8 +266,8 @@ typedef struct ForeignPlace ForeignPlace;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
-typedef struct Map__U32_TypeBinding Map__U32_TypeBinding;
-typedef struct Map__U32_Dynamic Map__U32_Dynamic;
+typedef struct SymMap__TypeBinding SymMap__TypeBinding;
+typedef struct SymMap__Dynamic SymMap__Dynamic;
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
@@ -810,10 +810,11 @@ typedef struct Vec__BorrowRoot {
 } Vec__BorrowRoot;
 
 
-typedef struct Map__U32_Dynamic {
+typedef struct SymMap__Dynamic {
     Vec__U32 keys;
     Vec__Dynamic values;
-} Map__U32_Dynamic;
+    Vec__U32 slots;
+} SymMap__Dynamic;
 
 
 struct Option__ref_TypeScope {
@@ -1752,10 +1753,11 @@ typedef struct ForeignPlace {
 } ForeignPlace;
 
 
-typedef struct Map__U32_TypeBinding {
+typedef struct SymMap__TypeBinding {
     Vec__U32 keys;
     Vec__TypeBinding values;
-} Map__U32_TypeBinding;
+    Vec__U32 slots;
+} SymMap__TypeBinding;
 
 
 typedef struct Map__Str_FFIEntry {
@@ -1927,18 +1929,15 @@ typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl {
 
 
 typedef struct TypeScope {
-    Map__U32_TypeBinding bindings;
+    SymMap__TypeBinding bindings;
     Str target_usize_pname;
     Str target_uptr_pname;
-    Map__U32_Dynamic func_defs;
-    Map__U32_Dynamic struct_defs;
+    SymMap__Dynamic func_defs;
+    SymMap__Dynamic struct_defs;
     Option__ref_TypeScope parent;
     Bool is_func_root;
     Str current_type_name;
     TyperFuncState typer_func;
-    U64 bindings_filt;
-    U64 func_defs_filt;
-    U64 struct_defs_filt;
 } TypeScope;
 
 

@@ -176,24 +176,19 @@ namespace:
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
 // One bit of a 64-bit set fingerprint, picked from a name's length and
-// first byte. TypeScope's registry filters below are the OR of their
-// keys' bits, so a CLEAR bit proves the name is absent and the lookup
-// can skip that level's binary search; a set bit means "maybe" and the
-// search decides. Also used for the garbager's per-body fact index
-// (typer.til), which filters the same way.
-// Written for the emitted C, not for looks: this runs once per scope
-// lookup (600K+ per maps.til compile), and at -O0 every intermediate is
+// first byte, for the garbager's per-body fact index (typer.til): the
+// index's filter is the OR of its names' bits, so a CLEAR bit proves the
+// name is absent and the probe is skipped; a set bit means "maybe" and
+// the search decides. (TypeScope's registries used the same trick to
+// skip a binary search per scope level; SymMap made the probe itself as
+// cheap as the filter test, so they no longer carry one.)
+// Written for the emitted C, not for looks: at -O0 every intermediate is
 // a store plus a load. band(63) instead of mod(64) drops the emitted
 // divide-by-zero guard, and the byte goes through cast(U8) so the
 // widening is a C cast rather than the sign-extending I8_to_u64 call.
 name_fingerprint := func(name: Str) returns U64 {
     one : U64 = 1
     return one.shl(name.len().mul(31).add(name.unsafe_get(0).cast(U8).to_usize()).band(63).to_u64())
-}
-
-priv sym_fingerprint := func(sym: Sym) returns U64 {
-    one : U64 = 1
-    return one.shl(sym.to_u64().band(63))
 }
 
 // #397: the two questions every name-payload consumer actually asks,
@@ -265,8 +260,7 @@ type_name_ref := func(t: Type, symbols: SymbolPool) returns ref Str {
 // binding registry. A parent walk therefore compares U32s rather than names.
 // Keep the cell deref in this leaf: inlining the ?/catch into a multi-branch
 // scope walker makes emitted C trip -Werror=return-type.
-priv defs_lookup_one := func(filt: U64, fp: U64, m: Map(Sym, Dynamic), sym: Sym) returns Option(ref Expr) {
-    if filt.band(fp) == 0 { return Option(ref Expr).None }
+priv defs_lookup_one := func(m: SymMap(Dynamic), sym: Sym) returns Option(ref Expr) {
     ref slot : Dynamic = m.get(sym)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref fd : Expr = deref(slot)
@@ -279,7 +273,7 @@ priv defs_lookup_one := func(filt: U64, fp: U64, m: Map(Sym, Dynamic), sym: Sym)
 // scope per lookup, ~850K has() calls per self-host translate); one
 // get()?+catch does it in one probe, mirroring the interpreter's
 // scope-chain collapse.
-priv bindings_lookup_one := func(m: Map(Sym, TypeBinding), sym: Sym) returns Option(ref TypeBinding) {
+priv bindings_lookup_one := func(m: SymMap(TypeBinding), sym: Sym) returns Option(ref TypeBinding) {
     ref b : TypeBinding = m.get(sym)?
     catch (e: KeyNotFound) { return Option(ref TypeBinding).None }
     return safe_ref(b)
@@ -299,8 +293,156 @@ TyperFuncState := struct {
     lowering_param_types := Map(Str, Str).new()
 }
 
+// A Sym-keyed registry: the dense `keys`/`values` pair every scope walker
+// and iterator already reads, plus a power-of-two open-addressed index over
+// it. Syms are dense small integers (SymbolPool hands them out
+// consecutively), so `sym mod capacity` is a near-perfect hash and a probe
+// is one slot load and one key compare -- where the sorted-Vec Map this
+// replaces paid a ~10-step binary search of K.cmp calls at the global
+// root, the level nearly every type lookup ends at (Map(U32,...).get was
+// 8% of a translate, 1.5M probes at ~300 instructions each).
+//
+// Slots hold `position + 1` into keys/values; 0 marks an empty slot.
+// Insertion appends, so iteration order is INSERTION order, not Sym
+// order. Removal shifts the dense pair down like Map.remove and rebuilds
+// the index: O(n), but it only runs for batch retirement (a few hundred
+// times per translate).
+//
+// The slot is the Sym times an odd 32-bit constant (Knuth's multiplicative
+// hash), low bits kept by the power-of-two modulus. The identity `sym mod
+// capacity` is NOT usable here even though it never collides: a scope's
+// names are interned back to back, so its Syms are consecutive, and with
+// linear probing consecutive keys form one long run -- every absent-key
+// probe that lands in it walks to the run's end. Measured at 539
+// instructions per find before the multiply, against ~25 after.
+SYMMAP_MIX : U64 = 2654435761
+
+SymMap := struct<V: Type> {
+    keys : Vec(Sym)
+    values : Vec(V)
+    slots : Vec(U32)
+
+namespace:
+    /// Allocates nothing: the index is seeded on the first set, and every
+    /// reader guards on keys.count == 0 before touching slots.
+    new := func() returns SymMap(V) {
+        return SymMap(V)(keys = Vec(Sym).new(), values = Vec(V).new(), slots = Vec(U32).new())
+    }
+
+    /// Create an empty SymMap pre-sized for ~n~ entries (Map.with_capacity's
+    /// counterpart): the dense pair reallocs for none of them, and the index
+    /// is seeded wide enough that adding ~n~ never reindexes. n=0 behaves
+    /// like new().
+    with_capacity := func(n: USize) returns SymMap(V) {
+        if n == 0 { return SymMap(V).new() }
+        mut cap : USize = 16
+        while n * 2 > cap { cap = cap * 2 }
+        mut m := SymMap(V)(keys = Vec(Sym).with_capacity(n), values = Vec(V).with_capacity(n), slots = Vec(U32).with_capacity(cap))
+        for _ in 0..cap { m.slots.push(own 0) }
+        return m
+    }
+
+    len := func(self: SymMap(V)) returns USize { return self.keys.count }
+
+    /// Position of ~key~ in keys/values, or -1 if absent.
+    find := func(self: SymMap(V), key: Sym) returns I64 {
+        if self.keys.count == 0 { return -1 }
+        // Capacity is a power of two, so the modulus is a mask; the slot is
+        // read once per step (each unsafe_get is a call in the emitted C).
+        mask : USize = self.slots.count - 1
+        mut si : USize = key.cast(U64).mul(SYMMAP_MIX).to_usize().band(mask)
+        mut s : U32 = self.slots.unsafe_get(si).clone()
+        while s != 0 {
+            pos : USize = s.cast(USize) - 1
+            if self.keys.unsafe_get(pos) == key { return pos.to_i64() }
+            si = si.add(1).band(mask)
+            s = self.slots.unsafe_get(si).clone()
+        }
+        return -1
+    }
+
+    has := func(self: SymMap(V), key: Sym) returns Bool {
+        return self.find(key) >= 0
+    }
+
+    /// Return a ref to the value for ~key~. Throws KeyNotFound if absent
+    /// (Map.get's contract; call as ~m.get(k)!~ when absence would be a bug).
+    get := func(self: SymMap(V), key: Sym) returns ref V throws KeyNotFound {
+        pos := self.find(key)
+        if pos < 0 { throw KeyNotFound() }
+        return self.values.unsafe_get(pos.to_usize())
+    }
+
+    // Rebuild the index over the dense pair at ~cap~ slots (a power of two):
+    // on growth, and after a removal shifted the positions.
+    reindex := func(mut self: SymMap(V), cap: USize) {
+        self.slots.clear()
+        for _ in 0..cap { self.slots.push(own 0) }
+        for i in 0..self.keys.count {
+            mut si : USize = self.keys.unsafe_get(i).cast(U64).mul(SYMMAP_MIX).to_usize().band(cap - 1)
+            while self.slots.unsafe_get(si) != 0 { si = si.add(1).band(cap - 1) }
+            self.slots.unsafe_set(si, own i.add(1).to_u32())
+        }
+    }
+
+    /// Insert or overwrite the value for ~key~. The value is owned.
+    set := func(mut self: SymMap(V), key: Sym, own val: V) {
+        pos := self.find(key)
+        if pos >= 0 {
+            // Overwrite in place (drops the old value); the key and its
+            // position are unchanged.
+            self.values.unsafe_set(pos.to_usize(), own val)
+            return
+        }
+        self.keys.push(own key.clone())
+        self.values.push(own val)
+        // Keep the load under one half so probe runs stay short.
+        if self.keys.count * 2 > self.slots.count {
+            mut cap : USize = self.slots.count * 2
+            if cap < 16 { cap = 16 }
+            self.reindex(cap)
+            return
+        }
+        mask : USize = self.slots.count - 1
+        mut si : USize = key.cast(U64).mul(SYMMAP_MIX).to_usize().band(mask)
+        while self.slots.unsafe_get(si) != 0 { si = si.add(1).band(mask) }
+        // The new entry sits at position count - 1; slots store position + 1.
+        self.slots.unsafe_set(si, own self.keys.count.to_u32())
+    }
+
+    /// Remove ~key~, dropping its key and value. Returns false if absent
+    /// (Map.remove's contract).
+    remove := func(mut self: SymMap(V), key: Sym) returns Bool {
+        pos := self.find(key)
+        if pos < 0 { return false }
+        self.keys.remove_at(pos.to_usize())!
+        self.values.remove_at(pos.to_usize())!
+        if self.keys.count == 0 { self.slots.clear() }
+        else { self.reindex(self.slots.count) }
+        return true
+    }
+
+    /// Drop all live keys and values but keep the allocated storage.
+    clear := func(mut self: SymMap(V)) {
+        self.keys.clear()
+        self.values.clear()
+        self.slots.clear()
+    }
+
+    clone := func(self: SymMap(V)) returns SymMap(V) {
+        return SymMap(V)(keys = self.keys.clone(), values = self.values.clone(), slots = self.slots.clone())
+    }
+
+    delete := func(own self: SymMap(V), call_free: Bool = true) {
+        own self.keys.delete(false)
+        own self.values.delete(false)
+        own self.slots.delete(false)
+        if call_free { free(own self) }
+    }
+}
+
 TypeScope := struct {
-    bindings := Map(Sym, TypeBinding).new()
+    bindings := SymMap(TypeBinding).new()
     target_usize_pname := "U64"
     target_uptr_pname := "U64"
     // Issue #147/#292: Sym -> FuncDef Expr ptr (stored as Dynamic since
@@ -310,8 +452,8 @@ TypeScope := struct {
     // builder also stores binding-less C-symbol aliases here through
     // set_func_symbol; lookup_func ignores those because it gates on
     // bindings, while lookup_func_symbol reads them for codegen.
-    func_defs := Map(Sym, Dynamic).new()
-    struct_defs := Map(Sym, Dynamic).new()
+    func_defs := SymMap(Dynamic).new()
+    struct_defs := SymMap(Dynamic).new()
     // #321: None at the root scope; every lookup below walks the chain
     // until it runs out of parents. Real control flow, not a guard.
     parent := Option(ref TypeScope).None
@@ -327,19 +469,6 @@ TypeScope := struct {
     // The global root and every function root own one active typer state.
     // Lexical child scopes carry an unused default and resolve through parent.
     typer_func := TyperFuncState()
-    // Membership fingerprints of the three registries' key sets. A clear bit
-    // PROVES the key is
-    // not in that map, so the chain walk skips the binary search and the
-    // KeyNotFound catch at this level -- and skipping is the common case,
-    // because a lookup resolves at some outer scope while every level
-    // below it pays a full search first.
-    //
-    // Erasing a name temporarily leaves its bit set: a stale bit only costs
-    // the search it could have skipped, never a wrong answer. Batch retirement
-    // callers rebuild all three filters once after their removals.
-    bindings_filt : U64 = 0
-    func_defs_filt : U64 = 0
-    struct_defs_filt : U64 = 0
 namespace:
     typer_func_state := func(mut self: TypeScope) returns ref TyperFuncState {
         if self.is_func_root { return self.typer_func }
@@ -467,25 +596,14 @@ namespace:
         return self.get_struct_by_sym(sym_o.unwrap())
     }
     get_struct_by_sym := func(self: TypeScope, sym: Sym) returns Option(ref Expr) {
-        return self.get_struct_fp(sym, sym_fingerprint(sym))
-    }
-    get_struct_fp := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
         // Type defs live in the outer scopes, so a lookup from inside a
-        // function body walks the whole chain and probes a map that is
-        // EMPTY at nearly every level -- 14.3M probes per self-translate,
-        // the bulk of them on empty maps. The filter answers both of
-        // those (empty, and non-empty-but-absent) with one AND; the probe
-        // below is a call plus a search plus the KeyNotFound catch.
-        if self.struct_defs_filt.band(fp) == 0 {
-            switch self.parent {
-            case .Some(pe): return pe.get_struct_fp(sym, fp)
-            case .None: return Option(ref Expr).None
-            }
-        }
+        // function body walks the whole chain and probes a registry that
+        // is EMPTY at nearly every level; SymMap.get answers an empty
+        // registry from its count before touching the index.
         ref slot : Dynamic = self.struct_defs.get(sym)?
         catch (e: KeyNotFound) {
             switch self.parent {
-            case .Some(p): return p.get_struct_fp(sym, fp)
+            case .Some(p): return p.get_struct_by_sym(sym)
             case .None: return Option(ref Expr).None
             }
         }
@@ -499,23 +617,22 @@ namespace:
     // that binds `name` (mirroring get_binding) and returns that scope's
     // struct def or None -- it must NOT fall through to a parent type of
     // the same name, or a shadowing local var would be misread as a type.
-    struct_def_of_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
+    struct_def_of_sym := func(self: TypeScope, sym: Sym) returns Option(ref Expr) {
         if bindings_lookup_one(self.bindings, sym).is_some() {
-            return defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, sym)
+            return defs_lookup_one(self.struct_defs, sym)
         }
         switch self.parent {
-        case .Some(p): return p.struct_def_of_sym(sym, fp)
+        case .Some(p): return p.struct_def_of_sym(sym)
         case .None: return Option(ref Expr).None
         }
     }
     struct_def_of_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref Expr).None }
-        sym := sym_o.unwrap()
-        return self.struct_def_of_sym(sym, sym_fingerprint(sym))
+        return self.struct_def_of_sym(sym_o.unwrap())
     }
     struct_def_of_by_sym := func(self: TypeScope, sym: Sym, _symbols: SymbolPool) returns Option(ref Expr) {
-        return self.struct_def_of_sym(sym, sym_fingerprint(sym))
+        return self.struct_def_of_sym(sym)
     }
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
     // walking lookup. Replaces direct reads of TypeBinding.func_def.
@@ -524,23 +641,22 @@ namespace:
     // interpreter.til:lookup_interp_type_def) so the `?`/catch desugar
     // doesn't sit in a multi-branch function (which trips
     // -Werror=return-type in the emitted C).
-    lookup_func_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
+    lookup_func_sym := func(self: TypeScope, sym: Sym) returns Option(ref Expr) {
         if bindings_lookup_one(self.bindings, sym).is_some() {
-            return defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
+            return defs_lookup_one(self.func_defs, sym)
         }
         switch self.parent {
-        case .Some(p): return p.lookup_func_sym(sym, fp)
+        case .Some(p): return p.lookup_func_sym(sym)
         case .None: return Option(ref Expr).None
         }
     }
     lookup_func_by_sym := func(self: TypeScope, sym: Sym, _symbols: SymbolPool) returns Option(ref Expr) {
-        return self.lookup_func_sym(sym, sym_fingerprint(sym))
+        return self.lookup_func_sym(sym)
     }
     lookup_func_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref Expr).None }
-        sym := sym_o.unwrap()
-        return self.lookup_func_sym(sym, sym_fingerprint(sym))
+        return self.lookup_func_sym(sym_o.unwrap())
     }
     // Is ANY function named `name` reachable, IGNORING value bindings
     // that shadow it? The mirror image of lookup_func, which stops at
@@ -553,13 +669,12 @@ namespace:
     any_func_def := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return false }
-        sym := sym_o.unwrap()
-        return self.any_func_def_sym(sym, sym_fingerprint(sym))
+        return self.any_func_def_sym(sym_o.unwrap())
     }
-    any_func_def_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Bool {
-        if defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym).is_some() { return true }
+    any_func_def_sym := func(self: TypeScope, sym: Sym) returns Bool {
+        if defs_lookup_one(self.func_defs, sym).is_some() { return true }
         switch self.parent {
-        case .Some(p): return p.any_func_def_sym(sym, fp)
+        case .Some(p): return p.any_func_def_sym(sym)
         case .None: return false
         }
         return false
@@ -568,46 +683,41 @@ namespace:
     // binds -- it is iterating self.bindings. struct_def_of and
     // lookup_func both start by probing bindings to find the owning
     // scope; when the answer is "this one" by construction, that probe
-    // (a search of the biggest map in the scope) is dead weight, and so
-    // is recomputing the fingerprint for the second question.
-    local_struct_def_fp := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
-        return defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, sym)
+    // is dead weight. The callers are walking self.bindings, so they
+    // HOLD the symbol: going through the name spelling instead made
+    // SymbolPool.lookup hash a name back into the symbol the caller was
+    // iterating -- 62,711 hashes per self-translate to learn what was
+    // already in hand (#292/#337).
+    local_struct_def_sym := func(self: TypeScope, sym: Sym) returns Option(ref Expr) {
+        return defs_lookup_one(self.struct_defs, sym)
     }
-    // The Sym-taking twin of local_struct_def_fp above, for the same
-    // callers: they are walking self.bindings, so they HOLD the symbol
-    // and its fingerprint already. Going through the name spelling
-    // instead made SymbolPool.lookup hash a name back into the symbol
-    // the caller was iterating -- 62,711 hashes per self-translate to
-    // learn what was already in hand (#292/#337).
-    local_func_def_fp_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
-        return defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
+    local_func_def_sym := func(self: TypeScope, sym: Sym) returns Option(ref Expr) {
+        return defs_lookup_one(self.func_defs, sym)
     }
-    local_func_def_fp := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
+    local_func_def_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref Expr).None }
-        sym := sym_o.unwrap()
-        return defs_lookup_one(self.func_defs_filt, sym_fingerprint(sym), self.func_defs, sym)
+        return defs_lookup_one(self.func_defs, sym_o.unwrap())
     }
-    lookup_func_symbol_sym := func(self: TypeScope, sym: Sym, fp: U64) returns Option(ref Expr) {
+    lookup_func_symbol_sym := func(self: TypeScope, sym: Sym) returns Option(ref Expr) {
         bo := bindings_lookup_one(self.bindings, sym)
         if bo.is_some() {
             if bo.unwrap().is_func_decl {
-                return defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
+                return defs_lookup_one(self.func_defs, sym)
             }
             return Option(ref Expr).None
         }
-        local := defs_lookup_one(self.func_defs_filt, fp, self.func_defs, sym)
+        local := defs_lookup_one(self.func_defs, sym)
         if local.is_some() { return local }
         switch self.parent {
-        case .Some(p): return p.lookup_func_symbol_sym(sym, fp)
+        case .Some(p): return p.lookup_func_symbol_sym(sym)
         case .None: return Option(ref Expr).None
         }
     }
     lookup_func_symbol_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref Expr) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref Expr).None }
-        sym := sym_o.unwrap()
-        return self.lookup_func_symbol_sym(sym, sym_fingerprint(sym))
+        return self.lookup_func_symbol_sym(sym_o.unwrap())
     }
     // Issue #147: register a binding's FuncDef Expr in the scope-side
     // func_defs map (the replacement for the removed ref func_def
@@ -635,9 +745,7 @@ namespace:
         }
         mut cell : UPtr = malloc(UPtr.size().to_uptr())
         write_ptr(cell, fdef)
-        sym := sym_o.unwrap()
-        self.func_defs.set(sym, own cell)
-        self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(sym))
+        self.func_defs.set(sym_o.unwrap(), own cell)
     }
     set_func_symbol_name := func(mut self: TypeScope, name: Str, fdef: Expr, mut symbols: SymbolPool) {
         sym := symbols.intern(name)
@@ -645,7 +753,6 @@ namespace:
         mut cell : UPtr = malloc(UPtr.size().to_uptr())
         write_ptr(cell, fdef)
         self.func_defs.set(sym, own cell)
-        self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(sym))
     }
     // Issue #147: register a binding's StructDef/EnumDef Expr in the
     // scope-side struct_defs map (the replacement for the removed
@@ -659,9 +766,7 @@ namespace:
         write_ptr(cell, sdef)
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { panic("set_struct_def: binding name is not interned: ", name) }
-        sym := sym_o.unwrap()
-        self.struct_defs.set(sym, own cell)
-        self.struct_defs_filt = self.struct_defs_filt.bor(sym_fingerprint(sym))
+        self.struct_defs.set(sym_o.unwrap(), own cell)
     }
     is_mut_sym := func(self: TypeScope, sym: Sym) returns Bool {
         bo := self.get_binding_sym(sym)
@@ -705,20 +810,6 @@ namespace:
         self.erase_struct_def(name, symbols)
         if erase_decl_binding { self.erase_binding(name) }
     }
-    refresh_lookup_filters := func(mut self: TypeScope) {
-        self.bindings_filt = 0
-        self.func_defs_filt = 0
-        self.struct_defs_filt = 0
-        for binding : TypeBinding in self.bindings.values {
-            self.bindings_filt = self.bindings_filt.bor(name_fingerprint(binding.name))
-        }
-        for func_sym : Sym in self.func_defs.keys {
-            self.func_defs_filt = self.func_defs_filt.bor(sym_fingerprint(func_sym))
-        }
-        for struct_sym : Sym in self.struct_defs.keys {
-            self.struct_defs_filt = self.struct_defs_filt.bor(sym_fingerprint(struct_sym))
-        }
-    }
     set := func(mut self: TypeScope, name: Str, type: Type,
         is_mut: Bool,
         path: Str,
@@ -726,7 +817,7 @@ namespace:
         is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool) {
             sym := symbols.intern(name)
             if self.bindings.has(sym) {
-                ref mut b : TypeBinding = self.bindings[sym]
+                ref mut b : TypeBinding = self.bindings.get(sym)!
                 b.type = type
                 b.is_mut = is_mut
                 // path/line/col are declaration-site identity. Preserve them
@@ -742,7 +833,6 @@ namespace:
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
             self.bindings.set(sym, own nb)
-            self.bindings_filt = self.bindings_filt.bor(name_fingerprint(name))
         }
 }
 

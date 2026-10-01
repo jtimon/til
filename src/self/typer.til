@@ -4739,7 +4739,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     case:
     }
     mut inner := TypeScope(
-        bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+        bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
         parent = safe_ref(scope), current_type_name = type_name.clone())
     switch expr.node_type {
     case .StructDef:
@@ -5451,7 +5451,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             binding_capacity = binding_capacity + typer_body_binding_count(expr.children[0])
         }
         mut func_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+            bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
             parent = safe_ref(scope), is_func_root = true)
         func_scope.typer_func.current_top_func_name = top_func_name.clone()
         func_scope.typer_func.proc_def_depth = parent_func_state.proc_def_depth
@@ -5797,16 +5797,14 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
 
 check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
-    one : U64 = 1
     for bi in 0..scope.bindings.keys.count {
         ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
         ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        fp := one.shl(bsym.to_u64().band(63))
-        if scope.local_struct_def_fp(bsym, fp).is_some() { continue }
-        if scope.local_func_def_fp_sym(bsym, fp).is_some() { continue }
+        if scope.local_struct_def_sym(bsym).is_some() { continue }
+        if scope.local_func_def_sym(bsym).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         // Hoist temps are compiler-internal and always have their use
@@ -5831,16 +5829,14 @@ check_unused_locals := proc(mut scope: TypeScope, path: Str, mut ctx: Context) {
 // to distinguish "rebindable local pointer" from "write-through ref
 // mut"; tracked separately on #164).
 check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
-    one : U64 = 1
     for bi in 0..scope.bindings.keys.count {
         ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
         ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        fp := one.shl(bsym.to_u64().band(63))
-        if scope.local_struct_def_fp(bsym, fp).is_some() { continue }
-        if scope.local_func_def_fp_sym(bsym, fp).is_some() { continue }
+        if scope.local_struct_def_sym(bsym).is_some() { continue }
+        if scope.local_func_def_sym(bsym).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         if b.name.starts_with("hoisted__") { continue }
@@ -5923,7 +5919,6 @@ priv propagate_priv_refs := func(mut scope: TypeScope, ctx: Context) {
 check_unused_priv_top_level := proc(mut scope: TypeScope, mut ctx: Context) returns I32 {
     mut found : I32 = 0
     propagate_priv_refs(scope, ctx)
-    one : U64 = 1
     for bi in 0..scope.bindings.keys.count {
         ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
         ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
@@ -5938,13 +5933,12 @@ check_unused_priv_top_level := proc(mut scope: TypeScope, mut ctx: Context) retu
         // to the concrete declaration, and before #328 kept the source
         // alive it was dropped long before this check ran.
         mut b_is_generic_source := false
-        fp := one.shl(bsym.to_u64().band(63))
-        b_fd_o := scope.local_func_def_fp_sym(bsym, fp)
+        b_fd_o := scope.local_func_def_sym(bsym)
         if b_fd_o.is_some() { b_is_generic_source = init_func_is_generic(b_fd_o.unwrap(), ctx.symbols) }
         if b_is_generic_source { continue }
         mut kind := "value"
         if b_fd_o.is_some() { kind = "func" }
-        b_sd_o := scope.local_struct_def_fp(bsym, fp)
+        b_sd_o := scope.local_struct_def_sym(bsym)
         if b_sd_o.is_some() {
             if b_sd_o.unwrap().node_type.is(NodeType.EnumDef) { kind = "enum" }
             else { kind = "struct" }
@@ -6312,14 +6306,14 @@ priv infer_if_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, i
         stmt.type_error("if condition must be Bool", ctx)
     }
     mut then_scope := TypeScope(
-        bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
+        bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
         parent = safe_ref(scope))
     infer_body(then_scope, stmt.children[1], in_func, 1, in_loop, returns_ref, 0, ctx)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
     if stmt.children.len() > 2 {
         mut else_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt.children[2])),
+            bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt.children[2])),
             parent = safe_ref(scope))
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(else_scope, ctx.path, ctx)
@@ -6709,7 +6703,7 @@ priv infer_while_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32
         body.children.move_from(own new_ch)
     }
     mut while_scope := TypeScope(
-        bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
+        bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
         parent = safe_ref(scope))
     infer_body(while_scope, stmt.children[1], in_func, 1, 1, returns_ref, 0, ctx)
     check_unused_locals(while_scope, ctx.path, ctx)
@@ -7864,7 +7858,7 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
     ref mut body : Expr = expr.children[0]
     body_value_check_no_return(body, ctx)
     mut body_scope := TypeScope(
-        bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(body)),
+        bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(body)),
         parent = safe_ref(scope))
     mut capture_source_muts := Vec(Bool).new()
     mut capture_source_written := Vec(Bool).new()
@@ -8015,7 +8009,7 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
         if cap.own_type.is(OwnType.Own) { binding_capacity++ }
     }
     mut block_scope := TypeScope(
-        bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+        bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
         parent = safe_ref(scope))
     infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
@@ -8107,7 +8101,7 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case .Body:
         mut block_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(stmt)),
+            bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt)),
             parent = safe_ref(scope))
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(block_scope, ctx.path, ctx)
@@ -8145,7 +8139,7 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
         if stmt.children.len() == 3 {
             ref mut body_expr : Expr = stmt.children[2]
             mut catch_scope := TypeScope(
-                bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(body_expr)),
+                bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(body_expr)),
                 parent = safe_ref(scope))
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
             check_unused_locals(catch_scope, ctx.path, ctx)
@@ -8182,13 +8176,11 @@ priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
                         // of a self-translate.
                         ref rb_old_sd : Expr = rb_old_sd_o.unwrap()
                         scope.set_struct_def(rb.name, rstmt.children[0], symbols)
-                        one : U64 = 1
                         for bi in 0..scope.bindings.keys.count {
                             ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
                             ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
                             if b.ptr_eq(rb) { continue }
-                            fp := one.shl(bsym.to_u64().band(63))
-                            b_old_sd_o := scope.local_struct_def_fp(bsym, fp)
+                            b_old_sd_o := scope.local_struct_def_sym(bsym)
                             if b_old_sd_o.is_none() { continue }
                             if b_old_sd_o.unwrap().ptr_eq(rb_old_sd) {
                                 scope.set_struct_def(b.name, rstmt.children[0], symbols)
@@ -8204,7 +8196,7 @@ priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
                         scope.set_func_def_name(rb.name, rstmt.children[0], symbols)
                         for b in scope.bindings.values {
                             if b.ptr_eq(rb) { continue }
-                            b_old_fd_o := scope.local_func_def_fp(b.name, symbols)
+                            b_old_fd_o := scope.local_func_def_name(b.name, symbols)
                             if b_old_fd_o.is_none() { continue }
                             if b_old_fd_o.unwrap().ptr_eq(rb_old_fd) {
                                 scope.set_func_def_name(b.name, rstmt.children[0], symbols)
@@ -13286,7 +13278,7 @@ priv infer_clike_switch := proc(mut scope: TypeScope, mut stmt: Expr, enum_def_o
         }
         ref mut case_body : Expr = cn.children[body_idx]
         mut case_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(typer_body_binding_count(case_body)),
+            bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(case_body)),
             parent = safe_ref(scope))
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(case_scope, ctx.path, ctx)

@@ -232,6 +232,13 @@ over:
    +29.8% regression is to be recovered, the Map(Sym, ...) get path
    needs its own measurement, and it may be the bigger half.
 
+   Answered: TypeScope's three registries moved from the sorted-Vec
+   Map(Sym, ...) to SymMap (context.til), an open-addressed index over
+   the same dense keys/values pair -- 7,146,809,445 -> 6,842,860,731,
+   -4.25%, with the two Map__U32_*_get entries gone from the profile.
+   The hash at the door (fnv1a, 4.8% after that change) is now the
+   larger half, which raises the relative value of this issue's flip.
+
 *** Risks
 
   - Forgotten resolve() at a text edge: symbol number in a diagnostic

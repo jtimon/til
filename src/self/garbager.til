@@ -1546,7 +1546,6 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
 }
 
 priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, stack_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
-    one : U64 = 1
     for bi in 0..scope.bindings.keys.count {
         ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
         ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
@@ -1557,9 +1556,8 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // or a function; the binding came out of this scope's own map,
         // so the local probes answer exactly what struct_def_of /
         // lookup_func would, without their binding probe.
-        bfp := one.shl(bsym.to_u64().band(63))
-        if scope.local_struct_def_fp(bsym, bfp).is_some() { continue }
-        if scope.local_func_def_fp_sym(bsym, bfp).is_some().and(b.type.is_funcptr().or(b.type.is(Type.Body)).not()) { continue }
+        if scope.local_struct_def_sym(bsym).is_some() { continue }
+        if scope.local_func_def_sym(bsym).is_some().and(b.type.is_funcptr().or(b.type.is(Type.Body)).not()) { continue }
 
         // One name->bit resolution per binding; every per-statement
         // question below is then a bit test.
@@ -3689,7 +3687,7 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
     case:
     }
     mut type_scope := TypeScope(
-        bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+        bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
         parent = safe_ref(parent), current_type_name = type_name.clone())
     switch type_def.node_type {
     case .StructDef(sd):
@@ -3730,7 +3728,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         ref mut func_body : Expr = expr.children[0]
         binding_capacity := fd.sig.params.len() + garbager_body_binding_count(func_body)
         mut func_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+            bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
             parent = safe_ref(scope), is_func_root = true)
         garbager_register_params(ctx, fd, func_scope, expr.line, expr.col)
         garbager_walk_body(ctx, func_body, func_scope, true,
@@ -3744,7 +3742,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
             if cap.own_type.is(OwnType.Own) { binding_capacity++ }
         }
         mut capture_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(binding_capacity),
+            bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
             parent = safe_ref(scope))
         garbager_walk_body(ctx, capture_body, capture_scope, true,
             Option(ref FunctionDef).None, cbd.captures, insert)
@@ -3753,14 +3751,14 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         if expr.children.len() == 0 { return }
         ref mut value_body : Expr = expr.children[0]
         mut value_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(garbager_body_binding_count(value_body)),
+            bindings = SymMap(TypeBinding).with_capacity(garbager_body_binding_count(value_body)),
             parent = safe_ref(scope))
         garbager_walk_body(ctx, value_body, value_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return
     case .Body:
         mut body_scope := TypeScope(
-            bindings = Map(Sym, TypeBinding).with_capacity(garbager_body_binding_count(expr)),
+            bindings = SymMap(TypeBinding).with_capacity(garbager_body_binding_count(expr)),
             parent = safe_ref(scope))
         garbager_walk_body(ctx, expr, body_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
