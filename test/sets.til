@@ -50,6 +50,15 @@ test_set_literal_str := test() {
     assert(s.has("date").not())
 }
 
+// An ANNOTATED set literal -- the set half of test_map_literal_typed in
+// test/maps.til, same rule: the annotation is checked against the instance
+// the elements name, since the literal node carries no type itself.
+test_set_literal_typed := test() {
+    s : Set(I64) = {3, 1, 2}
+    assert_eq(USize, s.len(), 3)
+    assert(s.has(2))
+}
+
 // #323 API symmetry: Set.remove is add's removal half (Map.remove's
 // counterpart), returning whether anything was removed.
 test_set_remove := test() {

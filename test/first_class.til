@@ -2037,6 +2037,25 @@ test_generic_expected_type_field_destination := test() {
     assert_eq(I64, h2.p.n, 7)
 }
 
+// #328 follow-up: a map or set LITERAL forwards its destination to its
+// elements -- `m : Map(Str, GExp328) = {"k": gexp_default328()}` names
+// the value type for every value, the key type for every key, the
+// element type for every set element. A generic element with nothing
+// else to go on infers from the annotation like a call in any other
+// destination would. (GExp328's cmp, needed by a key or set element, is
+// the #335 derivation.)
+test_generic_expected_type_literal_elements := test() {
+    m : Map(Str, GExp328) = {"k": gexp_default328()}
+    assert_eq(I64, m["k"].n, 7)
+    km : Map(GExp328, Str) = {gexp_default328(): "v"}
+    assert_eq(USize, km.len(), 1)
+    s : Set(GExp328) = {gexp_default328()}
+    assert_eq(USize, s.len(), 1)
+    // The U8 literal narrowing the other positions give, through a value.
+    u : Map(Str, U8) = {"n": gid328(7)}
+    assert_eq(U8, u["n"], 7)
+}
+
 // #328 follow-up: a FUNCTION passed as a value argument deduces T from
 // its named signature. Every one of these shapes -- an annotated local,
 // a FuncSig-typed parameter, a FuncSig-typed struct field -- carries the

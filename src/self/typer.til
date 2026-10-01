@@ -3488,9 +3488,48 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
 // lambda argument's body) arms its own before this one is consumed.
 priv generic_expected_arm := func(mut ctx: Context, scope: TypeScope, declared_name: Str, value: Expr) {
     if declared_name.len() == 0 { return }
-    if value.node_type.is(NodeType.FCall).not() { return }
+    // A call reads the evidence itself. A map or set LITERAL cannot, but
+    // its elements can: `m : Map(Str, Point) = {"k": gdefault()}` names
+    // the value type for every value in the literal, so the literal is
+    // armed and forwards the pieces (infer_map_lit_expr / infer_set_lit_expr).
+    mut forwards := value.node_type.is(NodeType.FCall)
+    switch value.node_type {
+    case .Literal(Literal.MapLit): forwards = true
+    case .Literal(Literal.SetLit): forwards = true
+    case:
+    }
+    if forwards.not() { return }
     ctx.generic_expected_type = resolve_type_alias(scope, declared_name, ctx.symbols).clone()
     ctx.generic_expected_for = to_ptr(value)
+}
+
+// The type arguments a `Base__A_B` instance name spells, when it spells
+// exactly `count` of them -- the same conservative line-up
+// generic_decompose_nested does: a nested argument (`Map__Str_Vec__I64`)
+// splits into more segments than the shape has slots, and that declines
+// rather than guessing. Empty when the name is not that shape.
+priv instance_type_arg_names := func(name: Str, base: Str, count: USize) returns Vec(Str) {
+    mut out := Vec(Str).new()
+    prefix := format(base, "__")
+    if name.starts_with(prefix).not() { return out }
+    if name.len() <= prefix.len() { return out }
+    args := name.substr(prefix.len(), name.len().sub(prefix.len())).split("_")
+    if args.len() != count { return out }
+    for a : Str in args {
+        if a.len() == 0 { return Vec(Str).new() }
+        out.push(own a.clone())
+    }
+    return out
+}
+
+// Is the expected-type evidence pinned to THIS literal, and does its
+// name decompose into `count` element types under `base`? The pieces,
+// in slot order, or empty.
+priv literal_expected_elem_names := func(expr: Expr, base: Str, count: USize, ctx: Context) returns Vec(Str) {
+    if ctx.generic_expected_type.len() == 0 { return Vec(Str).new() }
+    if ctx.generic_expected_for.is_null() { return Vec(Str).new() }
+    if to_ptr(expr).ptr_eq(ctx.generic_expected_for).not() { return Vec(Str).new() }
+    return instance_type_arg_names(ctx.generic_expected_type, base, count)
 }
 
 // The destination NAME a settled Type imposes, for the positions that
@@ -4392,15 +4431,63 @@ priv infer_named_arg_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func:
     }
 }
 
+// #328 follow-up: a literal armed with its destination (`m : Map(Str,
+// Point) = {"k": gdefault()}`) hands each element the slot it fills --
+// keys the key type, values the value type -- so a generic element with
+// nothing else to go on infers from the annotation like a call in any
+// other destination does. Children alternate key, value.
 priv infer_map_lit_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
+    kv := literal_expected_elem_names(expr, "Map", 2, ctx)
+    saved_lit_expected_type := ctx.generic_expected_type.clone()
+    ref saved_lit_expected_for : Dynamic = ctx.generic_expected_for
+    mut i : USize = 0
     for mut e_i : Expr in expr.children {
+        if kv.len() == 2 {
+            mut slot : USize = 1
+            if i.mod(2) == 0 { slot = 0 }
+            generic_expected_arm(ctx, scope, kv[slot], e_i)
+        }
         infer_expr(scope, e_i, in_func, ctx)
+        ctx.generic_expected_type = saved_lit_expected_type.clone()
+        ctx.generic_expected_for = saved_lit_expected_for
+        i++
     }
 }
 
+// The instance a map or set literal's first elements name (`Map__Str_I64`,
+// `Set__Point`), or "" while an element is still untyped -- its own error
+// is already reported, and the desugarer names that case. The literal
+// node itself has no type slot (Expr.til_type answers the bare TYPE_MAP /
+// TYPE_SET constants for it, and set_til_type is a no-op), so the
+// instance lives on the Decl: the untyped path infers it from here, and
+// the typed path checks the annotation against it from here too.
+priv literal_instance_type_name := func(lit: Expr, symbols: SymbolPool) returns Str {
+    switch lit.node_type {
+    case .Literal(Literal.MapLit):
+        if lit.children.len() < 2 { return "" }
+        key_type := type_to_name(lit.children[0].til_type(), symbols)
+        val_type := type_to_name(lit.children[1].til_type(), symbols)
+        if key_type.len().eq(0).or(val_type.len().eq(0)) { return "" }
+        return format("Map__", key_type, "_", val_type)
+    case .Literal(Literal.SetLit):
+        if lit.children.len() == 0 { return "" }
+        elem_type := type_to_name(lit.children[0].til_type(), symbols)
+        if elem_type.len() == 0 { return "" }
+        return format("Set__", elem_type)
+    case:
+    }
+    return ""
+}
+
 priv infer_set_lit_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: Context) {
+    elem := literal_expected_elem_names(expr, "Set", 1, ctx)
+    saved_lit_expected_type := ctx.generic_expected_type.clone()
+    ref saved_lit_expected_for : Dynamic = ctx.generic_expected_for
     for mut e_i : Expr in expr.children {
+        if elem.len() == 1 { generic_expected_arm(ctx, scope, elem[0], e_i) }
         infer_expr(scope, e_i, in_func, ctx)
+        ctx.generic_expected_type = saved_lit_expected_type.clone()
+        ctx.generic_expected_for = saved_lit_expected_for
     }
 }
 
@@ -6991,6 +7078,26 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
             }
         }
     }
+    // A map or set literal has no type of its own to compare (see
+    // literal_instance_type_name): the annotation is checked against the
+    // instance its elements name. `m : Map(Str, I64) = {"k": 1}` used to
+    // be rejected here as "declared as Map__Str_I64 but value is Map" --
+    // the bare constant -- so no annotated map or set literal ever typed.
+    mut is_map_or_set_lit := false
+    switch val.node_type {
+    case .Literal(Literal.MapLit): is_map_or_set_lit = true
+    case .Literal(Literal.SetLit): is_map_or_set_lit = true
+    case:
+    }
+    if is_map_or_set_lit {
+        lit_name := literal_instance_type_name(val, ctx.symbols)
+        // "" means an element is untyped: reported at the element already.
+        if lit_name.len() == 0 { return }
+        if resolve_type_alias(scope, declared_name, ctx.symbols).eq(lit_name).not() {
+            at.type_error(format("'", name, "' declared as ", declared_name, " but value is ", lit_name), ctx)
+        }
+        return
+    }
     if can_implicit_usize_coerce(val.til_type(), declared, declared_name)
         .or(val.til_type().is(declared))
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
@@ -7134,19 +7241,12 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, mut ctx: Context) {
             inferred = Type.FuncPtr
             rhs.set_til_type(inferred.clone())
         }
-    case .Literal(Literal.SetLit):
-        if rhs.children.len() > 0 {
-            elem_type := type_to_name(rhs.children[0].til_type(), ctx.symbols)
-            if elem_type.len() > 0 { inferred = Type.Struct(format("Set__", elem_type)) }
-        }
     case .Literal(Literal.MapLit):
-        if rhs.children.len() >= 2 {
-            key_type := type_to_name(rhs.children[0].til_type(), ctx.symbols)
-            val_type := type_to_name(rhs.children[1].til_type(), ctx.symbols)
-            if key_type.len().gt(0).and(val_type.len().gt(0)) {
-                inferred = Type.Struct(format("Map__", key_type, "_", val_type))
-            }
-        }
+        lit_name := literal_instance_type_name(rhs, ctx.symbols)
+        if lit_name.len() > 0 { inferred = Type.Struct(lit_name) }
+    case .Literal(Literal.SetLit):
+        lit_name := literal_instance_type_name(rhs, ctx.symbols)
+        if lit_name.len() > 0 { inferred = Type.Struct(lit_name) }
     case:
     }
     stmt.set_til_type(inferred)

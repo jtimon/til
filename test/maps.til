@@ -99,6 +99,16 @@ test_map_literal_i64_str := test() {
 
 // `for k, v in map` visits every entry with the right key/value pairing.
 // Map iterates in sorted key order, so the concatenated keys are exact.
+// An ANNOTATED map literal. The literal node has no type of its own
+// (Expr.til_type answers the bare Map constant for it), so the annotation
+// is checked against the instance the ELEMENTS name; this form was
+// rejected as "declared as Map__Str_I64 but value is Map" before.
+test_map_literal_typed := test() {
+    m : Map(Str, I64) = {"a": 1, "b": 2}
+    assert_eq(USize, m.len(), 2)
+    assert_eq(I64, m["b"], 2)
+}
+
 test_map_for_in_kv := test() {
     mut m := Map(Str, I64).new()
     m.set("b", own 2)
