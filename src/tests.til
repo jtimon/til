@@ -707,6 +707,41 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
     return clashes
 }
 
+// Refuse a table where two rows share a result file. The file is what
+// run_all_parallel reads the RESULT line from, and for a single/count row
+// the same key names the runner's capture (gen/out/single/<label>.out): two
+// rows on one key run in parallel, the second overwrites the first, and
+// whichever landed last is what both rows are judged on -- the #395 shape
+// (a pass read from a file no run of that row wrote), and outside what
+// check_gen_c_collisions tracks. The key is the OUTFILE, not the label:
+// add_both derives it from the file's basename while the other helpers use
+// the label verbatim, so `add_both("test/foo.til")` and
+// `add_single("foo", ...)` collide with different labels. Clean today; this
+// keeps it so, including the tutorial_ labels, which come from
+// test_basename and would silently merge two chapters that write
+// modules/app.til and app.til.
+priv check_result_file_collisions := proc(tests: Vec(Test)) returns I64 {
+    mut files := Vec(Str).new()
+    mut owners := Vec(Str).new()
+    mut clashes := 0
+    for t : Test in tests {
+        mut seen := -1
+        for i in 0..files.len() {
+            if files[i] == t.outfile { seen = i.to_i64() }
+        }
+        if seen >= 0 {
+            println("FAIL: tests '", owners[seen.to_usize()], "' and '", t.label,
+                "' both write ", t.outfile, ", so one overwrites the other's result")
+            println("  note: give each row its own label; add_both's key is the .til basename")
+            clashes = clashes + 1
+        } else {
+            files.push(own t.outfile.clone())
+            owners.push(own t.label.clone())
+        }
+    }
+    return clashes
+}
+
 // --- Registration helpers ---
 
 // #395 left the runner able to REPORT a command it never ran; this refuses
@@ -3029,11 +3064,12 @@ main := proc(args: ..Str) {
         "STALE_CAPTURE_MARKER", 0, "false '&&' true")
 
     // === Run all tests in parallel ===
-    // Not one row starts until the table is known to be free of the
-    // generated-C collision above: a race there reads as a compiler bug.
-    clashes := check_gen_c_collisions(tests)
+    // Not one row starts until the table is known to be free of the two
+    // collisions above: a generated-C race reads as a compiler bug, and a
+    // shared result file reads as a pass.
+    clashes := check_gen_c_collisions(tests) + check_result_file_collisions(tests)
     if clashes > 0 {
-        println(clashes.to_str(), " generated-C collision(s); no test was run")
+        println(clashes.to_str(), " registration collision(s); no test was run")
         exit(1)
     }
     mut suite_end_ms := 0
