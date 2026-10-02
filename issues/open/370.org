@@ -48,6 +48,79 @@ Open questions:
   - Sandboxing: init.til probably runs trusted, but a buffer-local
     script should not get free rein over the process.
 
+*** Findings from Tiled's startup implementation
+
+The separate [[https://github.com/jtimon/tiled][tiled repository]] now exercises this exact use case with
+installed til ~0.0.1-2827886a4~. Its host checks for
+~$HOME/.tiled/init.til~, prints a defaults notice when absent, and opens
+an unnamed ~*scratch*~ editor buffer unless a file was requested.
+
+The current workaround for an existing init file is to generate a small
+~mode gui~ entry point importing the editor and user config, then invoke
+the installed ~til run~ to compile and execute it in a child process.
+The config defines ~init(mut config: TiledConfig)~, changing window size,
+scratch text or the initial file. This has been exercised with a copied
+example config, command-line file precedence and a failing config.
+
+That proves the config can be ordinary til, but it is NOT Lua-style
+embedding: it recompiles source and launches another program instead of
+evaluating the file inside the existing host. It also requires the
+editor's source checkout and the compiler at runtime. The startup
+workaround cannot install a guest callback into the already-running
+host's keymap or change its existing buffers.
+
+The installed support tree currently supplies core/std/modes and native
+runtime support, but not ~src/self/~ as a public embedding library (see
+~install_compiler_support~ in ~src/self/install.til~). The interpreter's
+implementation exists; expose and install a supported interface around
+it rather than requiring applications to vendor compiler internals.
+
+*** Concrete host/guest requirements
+
+- A compiled Til application owns an interpreter session in its own
+  process. Loading user code does not invoke the ~til~ executable or a C
+  compiler, generate a new entry-point program, or start a replacement
+  editor process. The host supplies the event loop and window lifecycle.
+- Make host functions and types available to the guest. The first small
+  case is passing mutable host-owned configuration to ~init~; the next
+  is registering commands such as ~find-file~, ~save-buffer~ and buffer
+  insertion. Establish which values cross by copy, borrow or ownership
+  transfer, including when a guest may retain a host reference.
+- The host can retain a guest callable after init returns and invoke it
+  later for a keybinding, hook or timer. Specify how callable handles
+  keep their session alive, and how they are released or invalidated on
+  reload. Registered callbacks must not outlive their captured state.
+- Evaluation and calls return structured diagnostics to the host,
+  including source path and location. Syntax/type errors and ordinary
+  guest evaluation failures must not terminate the application. Define
+  how guest ~panic~ and ~exit~ interact with this boundary; this is not a
+  promise to recover from arbitrary native FFI crashes.
+- A failed load must leave the host able to show the error and continue
+  accepting input. Reload needs an explicit policy for session and
+  callback replacement. Fresh-per-reload scope alone cannot roll back
+  side effects already performed through host functions; decide which
+  configuration changes are staged and when they become active.
+- Keep the API usable by a separately built application against an
+  installed Til distribution, with its required runtime assets and
+  version/ABI relationship documented. A compiler-checkout-relative
+  import of interpreter internals is not the installation contract.
+
+*** First acceptance checks
+
+- [ ] Build a small Til host using the installed embedding interface,
+  outside the compiler repository, then evaluate a config created or
+  edited after the host binary was built.
+- [ ] Pass a mutable config value into guest ~init~, then observe its
+  changes in the original host process.
+- [ ] Register a host buffer-editing function; bind a guest function to
+  a key and call it after startup to edit a host-owned scratch buffer.
+- [ ] Report a bad config with its filename/line while the host remains
+  alive; repair the file and successfully load it in the same process.
+- [ ] Exercise reload and teardown with retained callbacks and strings,
+  checking lifetime/ownership errors and multiple independent sessions.
+- [ ] Run the host with compiler executables unavailable on ~PATH~; it
+  still loads the config using its installed interpreter runtime.
+
 Related: #83 (tiled itself), #84 (mode theme -- one .til theme file
 generating .el/.vim/.json is the same "til as the one config language"
 idea, minus the runtime), [[./385.org][#385]] (Elisp backend into an existing
