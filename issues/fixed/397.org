@@ -1,6 +1,36 @@
 # priority: medium
 # category: optimizations
-** WIP #397 A Type carries its Sym: Struct/Enum/Custom payloads become symbols
+** FIXED #397 A Type carries its Sym: Struct/Enum/Custom payloads become symbols
+
+*** Post-mortem
+
+Root cause: the #292/#337 interning migration keyed the scope
+registries by Sym but left the AST's Type payloads as spellings, so
+every hot consumer hashed a name back into the symbol the Type had
+been built from (71% of SymbolPool.lookup's 540K calls). Steps 1-3e,
+kept below as the record, appended Sym twins to Type, taught every
+reader both forms, flipped the FuncPtrSig producers, then the
+Struct/Enum/Custom producers under ruling (a) -- type_kind_eq /
+type_eq answer mixed-form equality, since core's runtime Str forms
+stay forever -- and routed the hot consumers through the symbol.
+Step 5 measured the whole arc against the pre-interning compiler on
+ONE input and harvested the last round-trips that measurement
+exposed, in the C backend's name classifiers.
+
+Outcome, same input (9263b9c8's test/first_class.til) through three
+compilers: 4,656M instructions before interning, 5,649M on the
+master this closed from, 5,581M with this commit. The total is not
+below the pre-interning figure and this design cannot take it there:
+the name machinery itself is cheaper than it was (self cost ~1,055M
+-> ~550M), and what remains above the baseline is other work the
+compiler has taken on since. The hashes still standing all come off
+Str FIELDS (Declaration.name, FuncSig.return_type, LocalInfo.name,
+AssignData.name) or synthesized names, which is a different
+migration; "Step 5 as it actually went" lists them with counts.
+
+Regression tests: the full suite -- the corpus eqcheck covers the C
+backend's classifiers byte-for-byte, and test/library_namespace.til
+and test/enums.til are the two that caught step 3e's twin-arm drifts.
 
 *** Progress
 
@@ -10,10 +40,11 @@
 - [X] Step 3e: Struct/Enum/Custom producers flipped, under ruling (a)
   below; the hot consumers key on the symbol. See "Step 3e as it
   actually went" for the numbers and what still hashes.
-- [ ] Step 4: the Str forms are the runtime form and stay (see step 4
-  below); the compile-time side is done.
-- [ ] Step 5: the remaining hashes are on Str FIELDS, not Type
-  payloads; the Map(Sym, ...) get path is the open question.
+- [X] Step 4: superseded -- the Str forms are the runtime form and
+  stay (see step 4 below); the compile-time side is done.
+- [X] Step 5: measured against the pre-interning compiler on one
+  input; the C backend's round-trips harvested; what still hashes is
+  on Str FIELDS, not Type payloads. See "Step 5 as it actually went".
 
 *** Why
 
@@ -365,6 +396,95 @@ over:
    -4.25%, with the two Map__U32_*_get entries gone from the profile.
    The hash at the door (fnv1a, 4.8% after that change) is now the
    larger half, which raises the relative value of this issue's flip.
+
+*** Step 5 as it actually went: the baseline, measured on one input
+
+   The standing "4,596M at 9263b9c8" figure was taken on THAT commit's
+   test/first_class.til; the file has grown since (1,878 -> 2,216
+   lines), so no number on the current file was ever comparable to
+   it. Apples to apples: 9263b9c8's compiler built in a detached
+   worktree, ITS test/first_class.til (one `mut` added at line 519,
+   which the current typer requires) fed to each compiler, callgrind
+   on `translate` (--force-rebuild where the output cache exists):
+
+     9263b9c8  pre-interning                  4,656,456,024
+     dfe03d5   master: step 3e + SymMap       5,648,859,848   +21.3%
+     this commit                              5,580,619,981   +19.8%
+
+   The total is NOT below the baseline and this issue's design cannot
+   take it there, because the hash at the door is no longer where the
+   gap is. Self cost of the name machinery, same input:
+
+     old: Str_cmp 511M + memcmp 256M (the sorted-Vec binary searches)
+          + Map__Str_Dynamic_get 154M + Map__Str_TypeBinding_get 134M
+          = ~1,055M, 22.7% of the run
+     new: fnv1a 195M + SymbolPool.lookup/intern self 86M + the SymMap
+          finds/gets ~230M + their Str_eq confirms ~40M
+          = ~550M, 9.9% of the run
+
+   The registries cost half of what they did before interning. The
+   +924M that remain are the compiler doing more than it did at
+   9263b9c8 (the #344 borrow-tracking arc, the #326 scavenger, the
+   string-search hotspot below), not the migration's half-way cost.
+
+   The harvest this step added -- the step-2 pattern on the C backend
+   side, where the profile put the largest remaining intern source:
+   is_stack_local / is_value_global / is_ref_global / is_ref_local /
+   is_value_param / is_funcsig_type answer by SYMBOL (their registries
+   were Sym-keyed all along; the Str forms interned the spelling on
+   every probe, up to four times per is_value_global), their
+   Ident-holding callers pass ident_sym(), emit_stmt_decl and the
+   Assign arm intern a Decl's / target's name once, fcall_fn_sig's
+   FuncPtrSigSym arm probes by the twin's symbol, and the typer's
+   three resolve-then-intern round-trips (obj3_sym, fa_rid, the UFCS
+   type ident) use the symbol they held. SymbolPool.intern 298,356 ->
+   209,493 calls, fnv1a 635,812 -> 546,655, SymbolPool.lookup
+   unchanged at 314K: 5,648,859,848 -> 5,580,619,981, -1.21%.
+
+   What still hashes (this commit, same input; raw `calls=` records):
+
+     SymbolPool.lookup 314K
+       get_binding_name 96K: resolve_type_alias 37K (its callers hold
+         FuncSig.return_type -- infer_func_def_expr 10K,
+         fdef_return_carries_borrow 7K -- or a Declaration's declared
+         spelling: generic_expected_arm 5K, type_carries_borrow 7K),
+         reregister_scope_defs 17K and finish_hoist_temp 14K
+         (Declaration.name), the rest under 4K each.
+       get_struct 71K: c_codegen find_struct_def 11K (owned spellings),
+         the interpreter's static_ns_func_def 11K (dyn_call strings),
+         fdef_return_carries_borrow 7K, fcall_variant_ctor_arg_is_own
+         5K, infer_field_access_fcall 6K across its two frames.
+       lookup_func_symbol_name 57K: find_callee_fdef 56K, on the OWNED
+         flat name resolve_callee_name builds ("Type_method" for a
+         namespace call, a clone for a plain ident); a symbol path
+         for the Ident callees needs resolve_callee_name to answer a
+         Sym, and the synthesized half would still hash.
+       lookup_func_name 27K: init_lookup_type_gen_macro 7K,
+         type_from_name 6K, collect_mut_targets 4K, the fcall arg
+         validators 3K.
+     SymbolPool.intern 209K
+       TypeScope.set 43K, garbager realign_delete_call_free 53K,
+         builder_collect_decl_names 15K, builder_mark_block_liveness
+         6K: Declaration.name / LocalInfo.name, a Str field each.
+       finish_hoist_temp 14K and parse_primary 9K: NEW names; an
+         intern is the only way in.
+       make_ns_call / make_delete_call 8K, decl_type_from_name 4K:
+         synthesized or unresolved spellings.
+
+   Every one of those takes its name off a Str FIELD or synthesizes
+   it; none holds a Type. Giving Declaration.name, FuncSig.return_type
+   and LocalInfo.name a symbol is the next migration, not this one.
+
+   Beyond hashing, what the same profile ranks above all of the
+   above, for whoever opens the next optimization issue (this commit,
+   old input): Str_find 158M for 29K calls, 14K of them from the
+   scavenger's find_ns_decl_fdef_imported and scavenge_visited_imported
+   searching a name inside a large text; Str_contains 69M for 60K
+   calls, 59K of them LiteralNumData.is_float / literal_text_is_float;
+   builder_is_reflect_builtin_name's 20-arm string switch, 513K Str_eq
+   calls; Map(Str, USize) 90M from member_get 191K and def_ns_has 97K
+   (StructDef.fields_index / the ns index keyed by spelling);
+   collect_scope_locals 175K Str_eq.
 
 *** Risks
 

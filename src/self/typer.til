@@ -2278,8 +2278,9 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             return true
         }
         ufcs_desugared = true
-        mut type_ident := Expr.new(ident_node(ctx.symbols.intern(type_name)), obj.line, obj.col)
-        type_ident.set_til_type(Type.StructSym(ctx.symbols.intern(type_name)))
+        ufcs_type_sym := ctx.symbols.intern(type_name)
+        mut type_ident := Expr.new(ident_node(ufcs_type_sym), obj.line, obj.col)
+        type_ident.set_til_type(Type.StructSym(ufcs_type_sym))
         // Move the callee into its exactly-sized destination first, then move
         // the receiver directly out of that relocated callee. This reuses the
         // original subtree without the one-element holder Vec that used to
@@ -2439,7 +2440,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     // Ensure obj3 carries the resolved struct type so the interpreter can
     // extract the parent type name via til_type_name for dispatch.
     if obj3_sname.len().gt(0).and(is_struct_type(obj3.til_type()).not()) {
-        obj3.set_til_type(Type.StructSym(ctx.symbols.intern(obj3_sname)))
+        obj3.set_til_type(Type.StructSym(obj3_sym))
     }
     switch ns_func2.node_type {
     case .FuncDef(ns_fdef):
@@ -2573,10 +2574,11 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
     case .StructDef(_ns_sdef):
-        mut type_ident := Expr.new(ident_node(ctx.symbols.intern(method)), e.children[0].line, e.children[0].col)
+        method_sym := ctx.symbols.intern(method)
+        mut type_ident := Expr.new(ident_node(method_sym), e.children[0].line, e.children[0].col)
         e.children[0] = type_ident
         mark_fcall_direct(e)
-        return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, ctx.symbols.intern(method), in_func, ctx)
+        return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, method_sym, in_func, ctx)
     case:
         UNREACHABLE("unexpected ", ns_func2.node_type.head_str(ctx.symbols.names))
         return false
@@ -6411,9 +6413,9 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                 ref fa_tdef : Expr = fa_tdef_o.unwrap()
                 obj_sname_o = safe_ref(fa_rid.ident_name(ctx.symbols.names))
                 if fa_tdef.node_type.is(NodeType.EnumDef) {
-                    expr.children[0].set_til_type(Type.EnumSym(ctx.symbols.intern(fa_rid.ident_name(ctx.symbols.names))))
+                    expr.children[0].set_til_type(Type.EnumSym(fa_rid.ident_sym()))
                 } else {
-                    expr.children[0].set_til_type(Type.StructSym(ctx.symbols.intern(fa_rid.ident_name(ctx.symbols.names))))
+                    expr.children[0].set_til_type(Type.StructSym(fa_rid.ident_sym()))
                 }
             }
         case:
