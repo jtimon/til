@@ -19,11 +19,14 @@ test_func_type := test() {
 }
 
 test_til_type := test() {
-    assert_eq(Str, til_type_name_c(Type.Unknown), "unknown")
-    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.I64)), "I64")
-    assert_eq(Str, til_type_name_c(Type.FuncPtr), "Fn")
-    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.U64)), "U64")
-    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.F32)), "F32")
+    // #397: the pool only matters for the Sym-carrying variants; the
+    // tag-only ones spell themselves.
+    symbols := SymbolPool()
+    assert_eq(Str, til_type_name_c(Type.Unknown, symbols), "unknown")
+    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.I64), symbols), "I64")
+    assert_eq(Str, til_type_name_c(Type.FuncPtr, symbols), "Fn")
+    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.U64), symbols), "U64")
+    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.F32), symbols), "F32")
 }
 
 test_expr_new := test() {

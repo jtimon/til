@@ -56,3 +56,24 @@ value, where before both agreed on garbage);
 test/typer_errors.til terr399_agg_field (one rejection; count 251 ->
 252). The clone spelling and `returns ref` accessor shapes are pinned
 by the same positive test.
+
+Two wrong turns on the way, recorded so they are not retaken:
+
+- The aggregate-field rejection first fired on every non-primitive
+  field, which rejected `return e.own_type` for a payload-less enum
+  (OwnType) whose delete is a no-op -- there is nothing behind the
+  copy to die. It is gated on init_delete_is_noop now: only fields
+  whose type owns heap are refused.
+- Stale `.c` files, stale ASAN binaries and #170's build cache
+  poisoned reruns that skipped `make clean` (gc_audit,
+  capture_block_own_error_build and loop_transfer_error_build failed
+  on artifacts from the previous compiler), which is why the CLAUDE.md
+  rule is `make clean && make test_two_pass`, never a partial rerun.
+
+Sibling shapes probed AFTER the fix, all correct in both backends and
+ASAN-clean: the same borrowed field read in a binary expression
+(`return ps[0].v + 1`), as a call argument (`return id(ps[0].v)`), at
+the end of a nested chain (`return ps[0].inner.v`), and in the arm of
+an if in return position. The hoist covers the FieldAccess operand
+wherever it sits under the return; the aggregate rejection covers the
+direct form.

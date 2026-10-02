@@ -55,7 +55,7 @@ priv register_struct_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scop
     case:
     }
 
-    mut builtin_type := Type.Struct(sname.clone())
+    mut builtin_type := Type.StructSym(ctx.symbols.intern(sname))
     mut is_builtin := false
     mut prim : Primitive = Primitive.I64
     mut sz : USize = 0
@@ -194,8 +194,8 @@ priv generate_struct_cmp_method := func(mut struct_def: Expr, sname: Str, line: 
         a_name = "_a"
         b_name = "_b"
     }
-    fdecl.sig.params.push(own decl_typed(name = a_name, type_name = sname, own_type = OwnType.Ref))
-    fdecl.sig.params.push(own decl_typed(name = b_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = a_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = b_name, type_name = sname, own_type = OwnType.Ref))
     fdecl.sig.return_type = "I64"
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -241,7 +241,7 @@ priv make_struct_value_field := func(receiver: Str, field_name: Str, fd: Declara
     // local reads its pointee when passed to a by-value primitive method.
     if fd.own_type.is(OwnType.Shallow).not().and(is_primitive(fd.til_type)) {
         name := format("field_", receiver, "_", index.to_str())
-        mut binding := Expr.new(NodeType.Decl(decl_typed(name = name, type_name = decl_type_name(fd, symbols), own_type = OwnType.Ref)), line, col)
+        mut binding := Expr.new(NodeType.Decl(decl_typed(symbols, name = name, type_name = decl_type_name(fd, symbols), own_type = OwnType.Ref)), line, col)
         binding.add_child(own field)
         body.add_child(own binding)
         return Expr.new(ident_node(symbols.intern(name)), line, col)
@@ -288,8 +288,8 @@ priv generate_struct_eq_method := func(mut struct_def: Expr, sname: Str, line: U
         self_name = "_self"
         other_name = "_other"
     }
-    fdecl.sig.params.push(own decl_typed(name = self_name, type_name = sname, own_type = OwnType.Ref))
-    fdecl.sig.params.push(own decl_typed(name = other_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = self_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = other_name, type_name = sname, own_type = OwnType.Ref))
     fdecl.sig.return_type = "Bool"
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -341,7 +341,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
     fdecl.sig.func_type = FuncType.Func
     mut self_name := "self"
     if field_count == 0 { self_name = "_self" }
-    fdecl.sig.params.push(own decl_typed(name = self_name, type_name = sname, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = self_name, type_name = sname, own_type = OwnType.Ref))
     fdecl.sig.return_type = "Str"
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -438,7 +438,7 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
         func_decl.sig.func_type = FuncType.Func
         mut self_pname := "self"
         if sdd.fields.len() == 0 { self_pname = "_self" }
-        func_decl.sig.params.push(own decl_typed(name = self_pname, type_name = sname, own_type = OwnType.Ref))
+        func_decl.sig.params.push(own decl_typed(ctx.symbols, name = self_pname, type_name = sname, own_type = OwnType.Ref))
         func_decl.sig.return_type = sname.clone()
         func_decl.sig.variadic_index = -1
         func_decl.sig.kwargs_index = -1
@@ -555,7 +555,7 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
 
         mut proc_decl := FunctionDef(auto_generated = true)
         proc_decl.sig.func_type = FuncType.Func
-        proc_decl.sig.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Own))
+        proc_decl.sig.params.push(own decl_typed(ctx.symbols, name = "self", type_name = sname, own_type = OwnType.Own))
         // Issue #223: call_free is a primitive (Bool), so emit it as a
         // plain borrowed param (Ref) and let step-1 auto-shallow normalize
         // it to value -- same as a hand-written delete. (An explicit Shallow
@@ -630,7 +630,7 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
 
             mut hash_decl := FunctionDef(auto_generated = true)
             hash_decl.sig.func_type = FuncType.Func
-            hash_decl.sig.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Ref))
+            hash_decl.sig.params.push(own decl_typed(ctx.symbols, name = "self", type_name = sname, own_type = OwnType.Ref))
             hash_decl.sig.params.push(own Declaration(name = "hasher", til_type = Type.FuncPtrSigSym(ctx.symbols.intern("HashFn")), own_type = OwnType.Ref))
             hash_decl.sig.return_type = "U64"
             hash_decl.sig.variadic_index = -1
@@ -676,7 +676,7 @@ priv register_enum_definition := proc(mut ctx: Context, stmt: Expr, mut scope: T
     case:
     }
 
-    scope.set(ename, Type.Enum(ename.clone()), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
+    scope.set(ename, Type.EnumSym(ctx.symbols.intern(ename)), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
     scope.set_struct_def(ename, stmt.children[0], ctx.symbols)
     ref mut b : TypeBinding = scope.get_binding_name(ename, ctx.symbols).unwrap()
     b.is_priv = edecl.is_priv
@@ -699,7 +699,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut v
     }
 }
 
-priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope, symbols: SymbolPool) {
+priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope, mut symbols: SymbolPool) {
     ref mut evc_edd : EnumDef = enumdef_of(enum_def)
     if has_payloads.not() {
         for j in 0..variant_names.len() {
@@ -724,7 +724,7 @@ priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, 
             // #320: a `ref Type` payload is a borrow -- the ctor takes
             // the arg borrowed (no ownership transfer at call sites).
             if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
-            param := decl_typed(name = "val", type_name = vtype, own_type = payload_own_type)
+            param := decl_typed(symbols, name = "val", type_name = vtype, own_type = payload_own_type)
             func_decl.sig.params.push(own param)
         }
         func_decl.sig.return_type = ename.clone()
@@ -749,7 +749,7 @@ priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, 
     }
 }
 
-priv generate_enum_is_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32) {
+priv generate_enum_is_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, mut symbols: SymbolPool) {
     // #264/#288 unification: `is` IS the tag compare, so generate it as a
     // bodyless core_func and let the core machinery inline every call. The
     // old shape was a plain func wrapping is_n: the wrapper's BODY inlined
@@ -763,8 +763,8 @@ priv generate_enum_is_method := func(mut enum_def: Expr, ename: Str, line: U32, 
     // return would make callers deref+free the value.
     mut func_decl := FunctionDef(auto_generated = true)
     func_decl.sig.func_type = FuncType.CoreFunc
-    self_param := decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref)
-    other_param := decl_typed(name = "other", type_name = ename, own_type = OwnType.Ref)
+    self_param := decl_typed(symbols, name = "self", type_name = ename, own_type = OwnType.Ref)
+    other_param := decl_typed(symbols, name = "other", type_name = ename, own_type = OwnType.Ref)
     func_decl.sig.params.push(own self_param)
     func_decl.sig.params.push(own other_param)
     func_decl.sig.return_type = "Bool"
@@ -802,7 +802,7 @@ priv generate_enum_eq_method := func(mut enum_def: Expr, ename: Str, line: U32, 
         mut ret_cmp := Expr.new(NodeType.Return, line, col)
         ret_cmp.add_child(own tag_cmp)
         func_body.add_child(own ret_cmp)
-        finish_enum_eq_method(enum_def, ename, line, col, own func_body)
+        finish_enum_eq_method(enum_def, ename, line, col, own func_body, symbols)
     } else {
         generate_enum_eq_chain(enum_def, ename, line, col, variant_names, variant_types, scope, own func_body, symbols)
     }
@@ -876,16 +876,16 @@ priv generate_enum_eq_chain := func(mut enum_def: Expr, ename: Str, line: U32, c
     ret_false.add_child(own false_lit)
     func_body.add_child(own ret_false)
 
-    finish_enum_eq_method(enum_def, ename, line, col, own func_body)
+    finish_enum_eq_method(enum_def, ename, line, col, own func_body, symbols)
 }
 
 // Shared tail of generate_enum_eq_method: wrap the built body in the
 // eq(ref self, ref other) FuncDef and register it in the enum's ns_decls.
-priv finish_enum_eq_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, own func_body: Expr) {
+priv finish_enum_eq_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, own func_body: Expr, mut symbols: SymbolPool) {
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.sig.func_type = FuncType.Func
-    fdecl.sig.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref))
-    fdecl.sig.params.push(own decl_typed(name = "other", type_name = ename, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "self", type_name = ename, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "other", type_name = ename, own_type = OwnType.Ref))
     fdecl.sig.return_type = "Bool"
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -969,8 +969,8 @@ priv generate_enum_cmp_method := func(mut enum_def: Expr, ename: Str, line: U32,
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.sig.func_type = FuncType.Func
-    fdecl.sig.params.push(own decl_typed(name = "a", type_name = ename, own_type = OwnType.Ref))
-    fdecl.sig.params.push(own decl_typed(name = "b", type_name = ename, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "a", type_name = ename, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "b", type_name = ename, own_type = OwnType.Ref))
     fdecl.sig.return_type = "I64"
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -1040,7 +1040,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             // skips inferring it (needs_infer only fires on Unknown til_type) and
             // `self` would stay untyped -> `offsetof(, data)`. Set the receiver's
             // enum type here; the switch/clone/eq paths get it via Decl inference.
-            self_arg.set_til_type(Type.Enum(ename.clone()))
+            self_arg.set_til_type(Type.EnumSym(symbols.intern(ename)))
             mut gc := make_get_payload_fcall(own self_arg, type_from_name_init_name(vtype, scope, symbols), line, col, symbols)
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
@@ -1073,7 +1073,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.sig.func_type = FuncType.Func
-    fdecl.sig.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Own))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "self", type_name = ename, own_type = OwnType.Own))
     // Issue #223: call_free is a primitive (Bool) -> emit a plain borrowed
     // param (Ref) and let step-1 auto-shallow normalize it to value, matching
     // a hand-written delete. (An explicit Shallow trips the step-2 check.)
@@ -1176,7 +1176,7 @@ priv generate_enum_to_str_method := func(mut enum_def: Expr, ename: Str, line: U
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.sig.func_type = FuncType.Func
-    fdecl.sig.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "self", type_name = ename, own_type = OwnType.Ref))
     fdecl.sig.return_type = "Str"
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -1354,7 +1354,7 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.sig.func_type = FuncType.Func
-    fdecl.sig.params.push(own decl_typed(name = "self", type_name = ename, own_type = OwnType.Ref))
+    fdecl.sig.params.push(own decl_typed(symbols, name = "self", type_name = ename, own_type = OwnType.Ref))
     fdecl.sig.return_type = ename.clone()
     fdecl.sig.variadic_index = -1
     fdecl.sig.kwargs_index = -1
@@ -1427,7 +1427,7 @@ gen_enum_nonclone_methods_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut
     has_cmp = ens_edd.ns_index.has("cmp")
 
     if has_is.not() {
-        generate_enum_is_method(stmt.children[0], ename, line, col)
+        generate_enum_is_method(stmt.children[0], ename, line, col, symbols)
     }
     if has_eq.not().and(enum_payloads_support_generated_method(variant_types, "eq", scope, symbols)) {
         generate_enum_eq_method(stmt.children[0], ename, line, col, variant_names, variant_types, scope, symbols)
@@ -1534,7 +1534,7 @@ priv register_type_alias_for_stmt := func(mut ctx: Context, stmt: Expr, mut scop
         // constant (CamelCase heuristic doesn't work). The Found
         // arm above handles user-defined types when the target file
         // was already init'd. #165.
-        til_type := declaration_type_from_name(target_name)
+        til_type := decl_type_from_name(target_name, ctx.symbols)
         if til_type.is(Type.Unknown) { return }
         if is_custom_type(til_type) { return }
         scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
@@ -1577,7 +1577,7 @@ priv register_top_level_value_for_stmt := func(mut ctx: Context, mut stmt: Expr,
                     .or(is_enum_type(external_type))
                 if supported {
                     ref mut ext_decl : Declaration = decl_of(stmt)
-                    ext_decl.til_type = declaration_type_from_name(type_name)
+                    ext_decl.til_type = decl_type_from_name(type_name, ctx.symbols)
                     ext_decl.external_symbol = symbol
                     rhs.node_type = NodeType.Literal(Literal.Null)
                     rhs.children.clear()
@@ -1808,7 +1808,7 @@ gen_unity_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
 
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        param := decl_typed(name = "self", type_name = sname, is_mut = true, own_type = OwnType.Ref)
+        param := decl_typed(symbols, name = "self", type_name = sname, is_mut = true, own_type = OwnType.Ref)
         func_decl.sig.params.push(own param)
         func_decl.sig.variadic_index = -1
         func_decl.sig.kwargs_index = -1
@@ -1858,8 +1858,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(symbols, name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(symbols, name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.sig.params.push(own a_param)
         func_decl.sig.params.push(own b_param)
         func_decl.sig.return_type = "Bool"
@@ -1894,8 +1894,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(symbols, name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(symbols, name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.sig.params.push(own a_param)
         func_decl.sig.params.push(own b_param)
         func_decl.sig.return_type = "Bool"
@@ -1927,8 +1927,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(symbols, name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(symbols, name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.sig.params.push(own a_param)
         func_decl.sig.params.push(own b_param)
         func_decl.sig.return_type = "Bool"
@@ -1958,8 +1958,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(symbols, name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(symbols, name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.sig.params.push(own a_param)
         func_decl.sig.params.push(own b_param)
         func_decl.sig.return_type = "Bool"
@@ -1989,8 +1989,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(symbols, name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(symbols, name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.sig.params.push(own a_param)
         func_decl.sig.params.push(own b_param)
         func_decl.sig.return_type = "Bool"
@@ -2020,8 +2020,8 @@ gen_cmp_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.sig.func_type = FuncType.Func
-        a_param := decl_typed(name = "a", type_name = sname, own_type = OwnType.Ref)
-        b_param := decl_typed(name = "b", type_name = sname, own_type = OwnType.Ref)
+        a_param := decl_typed(symbols, name = "a", type_name = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(symbols, name = "b", type_name = sname, own_type = OwnType.Ref)
         func_decl.sig.params.push(own a_param)
         func_decl.sig.params.push(own b_param)
         func_decl.sig.return_type = "Bool"
@@ -2132,7 +2132,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                         if ab.is_type_alias {
                             if ab.alias_target.is_empty().not() {
                                 ftype = ab.alias_target
-                                fd.til_type = declaration_type_from_name(ftype)
+                                fd.til_type = decl_type_from_name(ftype, ctx.symbols)
                             }
                         }
                     }
@@ -2372,7 +2372,7 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
         out_type = Type.Primitive(Primitive.Bool)
         return true
     case .Literal(Literal.Str):
-        out_type = Type.Struct("Str")
+        out_type = Type.StructSym(sym_of("Str", symbols))
         return true
     case .Literal(Literal.Null):
         out_type = Type.Dynamic
@@ -2402,7 +2402,7 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
                 enum_name_o := expr_type_name_ref(rhs.children[0], symbols)
                 if enum_name_o.is_some() {
                     ref enum_name : Str = enum_name_o.unwrap()
-                    out_type = Type.Enum(enum_name.clone())
+                    out_type = Type.EnumSym(sym_of(enum_name, symbols))
                     return true
                 }
             }
@@ -2416,7 +2416,7 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
             if rhs_tname_o.is_some() {
                 ref rhs_tname : Str = rhs_tname_o.unwrap()
                 if cn.ident_name(symbols.names).eq(rhs_tname) {
-                    out_type = Type.Struct(rhs_tname.clone())
+                    out_type = Type.StructSym(sym_of(rhs_tname, symbols))
                     return true
                 }
             }
@@ -2443,7 +2443,7 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
                 rhs_tname_o := expr_type_name_ref(rhs, symbols)
                 if rhs_tname_o.is_some() {
                     ref rhs_tname : Str = rhs_tname_o.unwrap()
-                    out_type = Type.Enum(rhs_tname.clone())
+                    out_type = Type.EnumSym(sym_of(rhs_tname, symbols))
                     return true
                 }
             }
@@ -2530,11 +2530,11 @@ priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map(Str, Str), m
     }
 }
 
-priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map(Str, Str), symbols: SymbolPool) {
+priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map(Str, Str), mut symbols: SymbolPool) {
     if dd.til_type.is(Type.Unknown) { return }
     new_t := init_lookup_name(renamings, decl_type_name(dd, symbols))
     if new_t.len() > 0 {
-        dd.til_type = declaration_type_from_name(new_t)
+        dd.til_type = decl_type_from_name(new_t, symbols)
     }
 }
 
@@ -2550,7 +2550,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str), mut symbol
     case .Custom(custom_name):
         new_custom := init_lookup_name(renamings, custom_name)
         if new_custom.len() > 0 {
-            e.set_til_type(Type.Custom(new_custom.clone()))
+            e.set_til_type(Type.CustomSym(symbols.intern(new_custom)))
         }
     case .CustomSym(custom_sym):
         new_custom_sym := init_lookup_name(renamings, symbols.resolve(custom_sym))
@@ -2789,7 +2789,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
         // through to recurse into the RHS value child below.
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name(dd, symbols), symbols)
         if new_type.len() > 0 {
-            dd.til_type = declaration_type_from_name(new_type)
+            dd.til_type = decl_type_from_name(new_type, symbols)
         }
     case:
     }
@@ -2873,7 +2873,7 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr),
         if ref_params.has(decl_type_name(fd, symbols)) { fd.own_type = OwnType.Ref }
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name(fd, symbols), symbols)
         if new_type.len() > 0 {
-            fd.til_type = declaration_type_from_name(new_type)
+            fd.til_type = decl_type_from_name(new_type, symbols)
         }
         if fd.default_value.is_some() {
             init_subst_default_slot(fd, subs, ref_params, symbols)
@@ -2882,7 +2882,7 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr),
     for mut nd : Declaration in sdef.ns_decls {
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name(nd, symbols), symbols)
         if new_type.len() > 0 {
-            nd.til_type = declaration_type_from_name(new_type)
+            nd.til_type = decl_type_from_name(new_type, symbols)
         }
         if nd.default_value.is_some() {
             // Issue #243: a namespace method's value is a FuncDef. Recurse
@@ -2914,7 +2914,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
     for mut nd : Declaration in edef.ns_decls {
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name(nd, symbols), symbols)
         if new_type.len() > 0 {
-            nd.til_type = declaration_type_from_name(new_type)
+            nd.til_type = decl_type_from_name(new_type, symbols)
         }
         if nd.default_value.is_some() {
             // Issue #243 follow-up: same FuncDef dispatch as
@@ -2936,7 +2936,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), 
     for mut pd : Declaration in fdd.sig.params {
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name(pd, symbols), symbols)
         if new_type.len() > 0 {
-            pd.til_type = declaration_type_from_name(new_type)
+            pd.til_type = decl_type_from_name(new_type, symbols)
         }
         if pd.default_value.is_some() {
             init_subst_default_slot(pd, subs, ref_params, symbols)
@@ -3141,7 +3141,7 @@ priv init_arg_is_type_token := func(arg: Expr, macros: Map(Str, Expr), scope: Ty
     switch arg.node_type {
     case .Ident(an):
         mut bt := Type.Unknown
-        if builtin_type_from_name(an.ident_name(ctx.symbols.names), bt) { return true }
+        if builtin_type_from_name(an.ident_name(ctx.symbols.names), bt, ctx.symbols) { return true }
         // #192: the width aliases are types resolved per target, and the
         // loader retargets their bindings, so name them directly.
         if an.ident_name(ctx.symbols.names).eq("USize").or(an.ident_name(ctx.symbols.names).eq("UPtr")) { return true }
@@ -5487,13 +5487,13 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
 // dyn_call/dyn_call_ret on those two fields (see the typer's interface
 // dispatch rewrite). Runs BEFORE clone/delete generation so the generated
 // helpers cover the new fields.
-gen_interface_box_fields_for_stmt := func(mut stmt: Expr) {
+gen_interface_box_fields_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     switch stmt.children[0].node_type {
     case .StructDef(sdd):
         if sdd.is_interface.not() { return }
         if sdd.fields_index.has("iface_type_name") { return }
-        mut tag_decl := Declaration(name = "iface_type_name", til_type = Type.Struct("Str"),
+        mut tag_decl := Declaration(name = "iface_type_name", til_type = Type.StructSym(symbols.intern("Str")),
             is_mut = true, own_type = OwnType.Shallow,
             default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Str("")), stmt.line, stmt.col)))
         sdd.push_field(own tag_decl)
@@ -5610,7 +5610,7 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
 
             mut clone_decl := FunctionDef(auto_generated = true)
             clone_decl.sig.func_type = FuncType.Func
-            clone_decl.sig.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Ref))
+            clone_decl.sig.params.push(own decl_typed(symbols, name = "self", type_name = sname, own_type = OwnType.Ref))
             clone_decl.sig.return_type = sname.clone()
             clone_decl.sig.variadic_index = -1
             clone_decl.sig.kwargs_index = -1
@@ -5653,7 +5653,7 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
 
             mut del_decl := FunctionDef(auto_generated = true)
             del_decl.sig.func_type = FuncType.Func
-            del_decl.sig.params.push(own decl_typed(name = "self", type_name = sname, own_type = OwnType.Own))
+            del_decl.sig.params.push(own decl_typed(symbols, name = "self", type_name = sname, own_type = OwnType.Own))
             del_decl.sig.params.push(own Declaration(name = "call_free", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
             del_decl.sig.variadic_index = -1
             del_decl.sig.kwargs_index = -1
@@ -5665,7 +5665,7 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
     }
 }
 
-gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool) {
+gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut impl_name := ""
     switch stmt.node_type {
@@ -5734,11 +5734,11 @@ gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, symbo
 // name, and a return type equal to it, become the implementing type. Body
 // references resolve through the (now-substituted) `self` param, so only the
 // signature needs touching for the common cases.
-priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: Str, symbols: SymbolPool) {
+priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: Str, mut symbols: SymbolPool) {
     switch fexpr.node_type {
     case .FuncDef(fd):
         for mut pd : Declaration in fd.sig.params {
-            if decl_type_name(pd, symbols) == from_name { pd.til_type = declaration_type_from_name(to_name) }
+            if decl_type_name(pd, symbols) == from_name { pd.til_type = decl_type_from_name(to_name, symbols) }
         }
         if fd.sig.return_type == from_name { fd.sig.return_type = to_name.clone() }
     case:

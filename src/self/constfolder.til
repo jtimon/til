@@ -59,20 +59,25 @@ priv collect_target_idents := proc(e: Expr, mut names: Set(Str), symbols: Vec(St
 }
 
 priv constfolder_type_is_aggregate := func(t: Type, ctx: Context) returns Bool {
-    mut resolved := t.clone()
-    ref name : Str = type_name_ref(t, ctx.symbols)
-    cname := til_type_name_c(t)
+    // Only a named stamp can denote a struct or enum; a primitive's C
+    // spelling is never a width alias either, so the old cname test on
+    // the tag-only variants had nothing to catch.
+    if is_named_type(t).not() { return false }
+    // #397: alias resolution and the def walk key on the stamp's symbol;
+    // the spelling is re-hashed only when an alias was actually followed.
+    sym := type_sym(t, ctx.symbols)
+    if sym == 0 { return false }
+    ref name : Str = ctx.symbols.resolve(sym)
     if name.eq("USize").or(name.eq("UPtr"))
-    .or(name.eq(ctx.target_usize_pname)).or(name.eq(ctx.target_uptr_pname))
-    .or(cname.eq(ctx.target_usize_pname)).or(cname.eq(ctx.target_uptr_pname)) { return false }
-    if name.len() > 0 {
-        ref resolved_name : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
+    .or(name.eq(ctx.target_usize_pname)).or(name.eq(ctx.target_uptr_pname)) { return false }
+    ref resolved_name : Str = resolve_type_alias_sym(ctx.scope, sym, ctx.symbols)
+    mut resolved := Type.Unknown
+    if resolved_name == name {
+        resolved = type_from_sym_init(sym, ctx.scope, ctx.symbols)
+    } else {
         resolved = type_from_name_init_name(resolved_name, ctx.scope, ctx.symbols)
     }
-    switch resolved {
-    case .Struct, .StructSym, .Enum, .EnumSym: return true
-    case: return false
-    }
+    return is_struct_type(resolved).or(is_enum_type(resolved))
 }
 
 priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
@@ -318,9 +323,11 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
         case .I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         }
-    case .EnumSym(fold_esym):
-        return raw_to_expr(raw, Type.Enum(Str.clone(ctx.symbols.resolve(fold_esym))), src, ctx)
-    case .Enum(ename):
+    case .Enum, .EnumSym:
+        // #397: the spelling drives the interpreter's name-keyed tables,
+        // the symbol the identifiers the rebuilt call is spelled with.
+        ref ename : Str = type_name_ref(t, ctx.symbols)
+        ename_sym := type_sym(t, ctx.symbols)
         edef_o := lookup_interp_type_def(ename, ctx)
         if edef_o.is_none() { return Option(Expr).None }
         ref edef : Expr = edef_o.unwrap()
@@ -344,7 +351,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
             ref vname : Str = cf_vd.name
             if cf_vd.payload_type.len() > 0 {
-                mut recv := Expr.new(ident_node(ctx.symbols.intern(ename)), src.line, src.col)
+                mut recv := Expr.new(ident_node(ename_sym), src.line, src.col)
                 recv.set_til_type(t)
                 mut variant := Expr.new(field_access_node(ctx.symbols.intern(vname)), src.line, src.col)
                 variant.add_child(own recv)
@@ -376,12 +383,12 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
                 if rebuilt_ctor_payload_is_own(ename, vname, ctx) { set_own_arg(call, 1) }
                 return Option(Expr).Some(own call)
             }
-            mut variant_recv := Expr.new(ident_node(ctx.symbols.intern(ename)), src.line, src.col)
+            mut variant_recv := Expr.new(ident_node(ename_sym), src.line, src.col)
             variant_recv.set_til_type(t)
             mut variant_expr := Expr.new(field_access_node(ctx.symbols.intern(vname)), src.line, src.col)
             variant_expr.add_child(own variant_recv)
             variant_expr.set_til_type(t)
-            mut clone_recv := Expr.new(ident_node(ctx.symbols.intern(ename)), src.line, src.col)
+            mut clone_recv := Expr.new(ident_node(ename_sym), src.line, src.col)
             clone_recv.set_til_type(t)
             mut clone_callee := Expr.new(field_access_node(ctx.symbols.intern("clone")), src.line, src.col)
             clone_callee.add_child(own clone_recv)
@@ -394,9 +401,8 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
         case:
             return Option(Expr).None
         }
-    case .StructSym(fold_ssym):
-        return raw_to_expr(raw, Type.Struct(Str.clone(ctx.symbols.resolve(fold_ssym))), src, ctx)
-    case .Struct(sname):
+    case .Struct, .StructSym:
+        ref sname : Str = type_name_ref(t, ctx.symbols)
         is_sequence := sname.starts_with("Vec__").or(sname.starts_with("Array__"))
         if is_sequence {
             elem_name := container_elem_type(sname, ctx)
@@ -441,7 +447,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
         switch sdef.node_type {
         case .StructDef(sfd):
             mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-            mut callee := Expr.new(ident_node(ctx.symbols.intern(sname)), src.line, src.col)
+            mut callee := Expr.new(ident_node(type_sym(t, ctx.symbols)), src.line, src.col)
             callee.set_til_type(t)
             ctor.add_child(own callee)
             mark_fcall_direct(ctor)
@@ -489,7 +495,7 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
         case .Primitive(Primitive.F32): write_f32(result, num.to_f32())
         case .Primitive(Primitive.F64): write_u64(result, str_parse_f64_bits(num.text))
         case:
-            panic("numeric known value has non-numeric type ", til_type_name_c(t))
+            panic("numeric known value has non-numeric type ", til_type_name_c(t, ctx.symbols))
         }
         return result
     case .Literal(Literal.Str(s)):
@@ -861,7 +867,7 @@ priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns Str {
         if ns_func_def_sym(ident.ident_sym(), "size", ctx).is_some() { return Str.clone(ident.ident_name(ctx.symbols.names)) }
     case:
     }
-    return til_type_name_c(recv.til_type())
+    return til_type_name_c(recv.til_type(), ctx.symbols)
 }
 
 // Fast path: if the callee is a nullary function whose body trivially
@@ -1056,7 +1062,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                     atok_name := Str.clone(atok_id.ident_name(ctx.symbols.names))
                     if atok_name.len().gt(0).and(atok_name.eq("Type").not()) {
                         mut atok_recv := Expr.new(ident_node(ctx.symbols.intern("Type")), arg.line, arg.col)
-                        atok_recv.set_til_type(Type.Enum("Type"))
+                        atok_recv.set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
                         mut atok_fa := Expr.new(field_access_node(ctx.symbols.intern("Custom")), arg.line, arg.col)
                         atok_fa.add_child(own atok_recv)
                         mut atok_strlit := Expr.new(NodeType.Literal(Literal.Str(atok_name)), arg.line, arg.col)
@@ -1064,7 +1070,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                         atok_ctor.add_child(own atok_fa)
                         mark_fcall_direct(atok_ctor)
                         atok_ctor.add_child(own atok_strlit)
-                        atok_ctor.set_til_type(Type.Enum("Type"))
+                        atok_ctor.set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
                         ec.add_child(own atok_ctor)
                         continue
                     }
@@ -1140,7 +1146,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
 
     mut can_convert := false
     switch fcall.til_type() {
-    case .Primitive, .Enum, .Struct, .Custom: can_convert = true
+    case .Primitive, .Enum, .EnumSym, .Struct, .StructSym, .Custom, .CustomSym: can_convert = true
     case:
     }
     if can_convert.not() {

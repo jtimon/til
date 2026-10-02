@@ -2645,8 +2645,8 @@ priv lazy_build_subs := func(call: Expr, fdef: Expr) returns Map(Str, Expr) {
     return subs
 }
 
-priv lazy_make_temp_decl := func(name: Str, type_name: Str, own init: Expr, line: U32, col: U32) returns Expr {
-    mut dd := decl_typed(name = name, type_name = type_name, is_mut = true)
+priv lazy_make_temp_decl := func(name: Str, type_name: Str, own init: Expr, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
+    mut dd := decl_typed(symbols, name = name, type_name = type_name, is_mut = true)
     mut decl := Expr.new(NodeType.Decl(dd), line, col)
     decl.add_child(own init)
     return decl
@@ -2729,7 +2729,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr), mut 
     blk.add_child(own lazy_make_assign(name, own tail_expr, line, col))
 
     deflt := make_default_value_expr(ret_type, line, col, ctx.symbols)
-    new.push(own lazy_make_temp_decl(name, ret_type, own deflt, line, col))
+    new.push(own lazy_make_temp_decl(name, ret_type, own deflt, line, col, ctx.symbols))
     new.push(own blk)
     return Option(Expr).Some(Expr.new(ident_node(ctx.symbols.intern(name)), line, col))
 }
@@ -3217,8 +3217,8 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32, mut s
     fd.sig.return_own_type = OwnType.Own
     fd.sig.variadic_index = -1
     fd.sig.kwargs_index = -1
-    fd.sig.params.push(own decl_typed(name = "done", type_name = "Bool", own_type = OwnType.Ref, is_mut = true))
-    fd.sig.params.push(own decl_typed(name = "cache", type_name = ret_type, own_type = OwnType.Ref, is_mut = true))
+    fd.sig.params.push(own decl_typed(symbols, name = "done", type_name = "Bool", own_type = OwnType.Ref, is_mut = true))
+    fd.sig.params.push(own decl_typed(symbols, name = "cache", type_name = ret_type, own_type = OwnType.Ref, is_mut = true))
     fd.sig.params.push(own Declaration(name = "th", til_type = Type.FuncPtrSigSym(symbols.intern(fn_ret)), own_type = OwnType.Ref))
 
     // then: cache = th() ; done = true
@@ -3289,7 +3289,7 @@ priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pen
             // The binding TYPE is the helper's RETURN type (not None) -- a call
             // resolves its result type from here (register_function_def_for_stmt).
             ret_type := name.strip_prefix("_force_once_")
-            rt := declaration_type_from_name(ret_type)
+            rt := decl_type_from_name(ret_type, lp.ctx.symbols)
             lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow, lp.ctx.symbols)
             lp.ctx.scope.set_func_def_name(name, pushed.children[0], lp.ctx.symbols)
             ref mut fb : TypeBinding = lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).unwrap()
@@ -3310,7 +3310,7 @@ priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32
     mut d := Expr.new(NodeType.Decl(Declaration(name = format("_memo_", pname, "_done"), is_mut = true)), line, col)
     d.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), line, col))
     out.push(own d)
-    mut v := Expr.new(NodeType.Decl(decl_typed(name = format("_memo_", pname, "_v"), type_name = ret_type, own_type = OwnType.Shallow, is_mut = true)), line, col)
+    mut v := Expr.new(NodeType.Decl(decl_typed(symbols, name = format("_memo_", pname, "_v"), type_name = ret_type, own_type = OwnType.Shallow, is_mut = true)), line, col)
     v.add_child(own make_default_value_expr(ret_type, line, col, symbols))
     out.push(own v)
     return out

@@ -59,6 +59,37 @@ Complete mapping of til qualifiers to generated C, by context.
 
    so ~bump~'s ~mut o~ is justified by the write through ~i~.
 
+   The tracking follows a borrow wherever the program carries it,
+   not only while it sits in a ~ref~ local. A borrow stored in a
+   struct's ~ref~ field or an enum's ~ref~ payload is CARRIED by the
+   value that holds it, and a write through the carrier's field
+   reaches the borrowed storage (#351). A borrow DEPOSITED into
+   storage reachable from another binding -- ~hs.push(own holder)~,
+   ~m.set(k, holder)~, a helper that does the push, a plain
+   ~b.h = holder~ -- is recorded on the binding it lands in, so a
+   later write through that container's elements is credited to,
+   and checked against, the storage the holder borrows (#393, #398).
+   Every function carries two parameter-indexed summaries for this:
+   which parameters its returned borrow can reach, and which
+   parameter pairs it deposits between. A call site maps both onto
+   its arguments, so a deposit performed three helpers down is as
+   visible to the caller as one spelled inline:
+
+   #+begin_src til
+   Held := struct { n := 0 }
+   Src := struct { held := Held() }
+   Holder := struct { ref r : Held }
+   held_of := func(s: Src) returns ref Held { return s.held }
+   wrap := func(mut hs: Vec(Holder), h: Holder) { hs.push(own h.clone()) }
+
+   p := func(mut s: Src) {                 // `mut s` demanded, and justified
+       mut hs := Vec(Holder).new()
+       wrap(hs, Holder(r = held_of(s)))    // s.held now reachable from hs
+       ref mut h : Holder = hs[0]
+       h.r.n = h.r.n + 1                   // writes s.held
+   }
+   #+end_src
+
    Note that ~mut~ only governs the binding, its direct fields, and
    storage reached through a TYPED borrow of it (~p = ...~,
    ~p.f = ...~, ~accessor(p).f = ...~). Mutating state reached any

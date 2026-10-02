@@ -1,6 +1,19 @@
 # priority: medium
 # category: optimizations
-** OPEN #397 A Type carries its Sym: Struct/Enum/Custom payloads become symbols
+** WIP #397 A Type carries its Sym: Struct/Enum/Custom payloads become symbols
+
+*** Progress
+
+- [X] Step 1: Sym twins appended, accessors in context.til.
+- [X] Step 2: Ident-holding callers stop round-tripping (-0.33%).
+- [X] Step 3a-3d: readers accept both forms; FuncPtrSig flipped.
+- [X] Step 3e: Struct/Enum/Custom producers flipped, under ruling (a)
+  below; the hot consumers key on the symbol. See "Step 3e as it
+  actually went" for the numbers and what still hashes.
+- [ ] Step 4: the Str forms are the runtime form and stay (see step 4
+  below); the compile-time side is done.
+- [ ] Step 5: the remaining hashes are on Str FIELDS, not Type
+  payloads; the Map(Sym, ...) get path is the open question.
 
 *** Why
 
@@ -122,24 +135,36 @@ over:
    get_struct_by_sym without hashing a spelling, which is where this
    issue's payoff will come from once the payloads carry Syms.
 
-   The Struct/Enum/Custom PRODUCER flip itself is BLOCKED on a design
+   The Struct/Enum/Custom PRODUCER flip was blocked on a design
    question the FuncPtrSig flip did not have: MIXED-REPRESENTATION
    EQUALITY. src/core cannot intern (no SymbolPool at runtime), and
    core produces Str-form Types CONTINUOUSLY at compile time --
    Expr.til_type() lazily stamps every Str literal TYPE_STR =
    Type.Struct("Str") (ast.til), declaration_type_from_name builds
    Type.Custom(name), and the TYPE_MAP/TYPE_SET constants flow into
-   inference. Flipping the ~150 src/self producers would make the
-   typer compare Type.Struct("Str") against Type.StructSym(sym "Str")
-   at every structural .is()/eq site -- unequal, so spurious type
-   errors (loud, but everywhere). FuncPtrSig dodged this because its
-   only cross-form comparisons already went through funcptr_eq, which
-   compares by NAME.
+   inference. Flipping the ~150 src/self producers makes the typer
+   compare Type.Struct("Str") against Type.StructSym(sym "Str") at
+   every structural .is()/eq site -- unequal, so spurious type errors
+   (loud, but everywhere: the first flipped build reported "'s'
+   declared as Str but value is Str" 36 times on first_class alone).
+   FuncPtrSig dodged this because its only cross-form comparisons
+   already went through funcptr_eq, which compares by NAME.
 
-   The options, for a future ruling:
-     a. A family-aware til_type_eq(a, b, symbols) used at every site
-        that compares two Type VALUES (as opposed to a tag test), with
-        an audit to find them all. funcptr_eq is the precedent.
+   The options, and the ruling taken (step 3e):
+     a. A family-aware equality used at every site that compares two
+        Type VALUES (as opposed to a tag test), with an audit to find
+        them all. funcptr_eq is the precedent. TAKEN: type_kind_eq(a,
+        b) is `a.is(b)` modulo the twin split (the typer's shape checks
+        compare tags alone, by design -- the aggregate NAME is checked
+        separately), and type_eq(a, b, symbols) is value equality with
+        the spelling compared when the forms differ. The audit found
+        seven `.is(var)` sites (validate_fcall_arg, the variadic Str
+        arg check, infer_and_validate_fcall_args's expected type, the
+        two field-assign checks, check_declared_value_type,
+        infer_assign_stmt) and five `.eq` sites (infer_decl_type_def,
+        the ext_global type check, infer_match_expr's arm agreement,
+        and the precomputed-sequence element check in the interpreter
+        and the C backend). is_named_type(t) names the four kinds.
      b. Never flip the names core also produces ("Str", "Map", "Set",
         StructDef/EnumDef) and flip only user-defined type names --
         rejected on sight: the hot names ARE the core ones, and mixed
@@ -147,6 +172,108 @@ over:
      c. Make core's lazy stamps pool-aware -- rejected: core is the
         runtime library; threading a compiler structure through it
         inverts the layering.
+
+   With (a) in place the flip is one "Two-pass:" commit (the
+   compiler's own Type literals change tags, so pass 2 must see them):
+   every Type.Struct/Enum/Custom(name) producer in src/self builds the
+   twin -- symbols.intern where a mut pool is at hand, sym_of (lookup,
+   panic on a miss) for the Struct/Enum producers holding a borrowed
+   pool, since those name REGISTERED definitions. Custom is an
+   unresolved spelling that may be a typo the typer has yet to report,
+   so decl_type_from_name / decl_typed / set_decl_type take a mut pool
+   and always intern; core's declaration_type_from_name keeps serving
+   dyn.til's reflection Declarations. Core's pool-less accessors
+   (til_type_name, Declaration.type_name) PANIC on a twin rather than
+   answer "" -- a twin there means one leaked past a boundary.
+
+*** Step 3e as it actually went
+
+   The flip alone bought NOTHING: 7,127,947,052 -> 7,135,136,189
+   (+0.1%, measured on the pre-#326 master this was first built on).
+   Every producer built a twin, every reader matched it, and the hash
+   count did not move, because the hot consumers never took a Type --
+   they took the SPELLING the caller had just resolved off the twin
+   (SymbolPool.resolve went 36,623 -> 409,286 calls) and hashed it
+   back: fa_is_ns -> fa_is_ns_named(name), name_is_interface(name),
+   resolve_type_alias(scope, name), raw_widen_numeric(target_name),
+   type_carries_borrow(scope, tname), get_struct(expr_type_name_ref(obj)).
+   The payoff is in routing those through type_sym:
+
+     - fa_is_ns and fa_own_type key on type_sym(obj.til_type()) (the
+       Ident branch already keyed on the ident's own symbol);
+       fa_is_ns_named is gone.
+     - name_is_interface gained type_is_interface(t); the callers
+       holding a param or field Declaration use it. The namespace-call
+       path computes the receiver's symbol once (stamp twin, else
+       Ident symbol) and feeds get_struct_by_sym, def_is_interface and
+       note_cross_file_type_use_sym.
+     - resolve_type_alias gained resolve_type_alias_sym(scope, sym):
+       the width aliases answer by spelling compare, an alias binding
+       by get_binding_sym, everything else is the symbol's own
+       spelling -- no hash on any path. The param loops of
+       infer_func_sig_expr / infer_func_def_expr use it, and rebuild a
+       param's Type only when an alias was actually followed.
+     - type_carries_borrow gained type_carries_borrow_t(scope, t): a
+       primitive or tag-only type never reaches the memo, a named one
+       resolves its alias by symbol; the memo stays keyed by the
+       resolved spelling (one Set(Str) probe, was three hashes).
+     - constfolder_type_is_aggregate, fieldaccess_field_decl,
+       field_assign_declared_type_name and the field-access /
+       field-assign def lookups key on the stamp's symbol.
+     - raw_widen_numeric takes the target TYPE instead of its
+       spelling: named targets resolve by symbol, primitive ones never
+       touch the binding registry (the name form hashed "I64" on every
+       scalar widen).
+     - type_from_name / type_from_name_init_name hash ONCE (they
+       hashed two or three times); type_from_sym_init returns the
+       twins and builtin_type_from_name_sym lets Str/StructDef/EnumDef
+       take the symbol they were asked about.
+
+   Measured on the pre-#326 master (8225629, --usize=32 build,
+   translate --force-rebuild test/first_class.til): 7,127,947,052 ->
+   6,894,811,944 instructions, -3.27%; SymbolPool.lookup 604,102 ->
+   350,405 calls, fnv1a 944,646 -> 712,418, get_binding_name 207,007
+   -> 104,772, get_struct 167,997 -> 76,840, Str.clone 1,498,436 ->
+   1,335,969. The work was then ported onto 79a8304's reader
+   preparation (same flips and harvest, his spellings: type_name_ref
+   returning "" for no-name, decl_type_name, type_from_sym_init); the
+   port is verified by the suite, not re-measured -- the numbers
+   above stay the old-master figures until the next probe.
+
+   What still hashes (350K lookups), from the raw callgrind `calls=`
+   records: lookup_func_symbol_name 66K (find_callee_fdef's SYNTHESIZED
+   `<type>_delete` names -- no Type holds those); get_binding_name
+   105K on Str FIELDS (FuncSig.return_type in infer_func_def_expr and
+   fdef_return_carries_borrow, generic_expected_arm's declared name,
+   reregister_scope_defs and finish_hoist_temp on Declaration NAMES);
+   get_struct 77K (c_codegen's find_struct_def on owned spellings, the
+   interpreter's static_ns_func_def on dyn_call strings,
+   fdef_return_carries_borrow again); sym_of ~8-17K for the three
+   registered builtins reached by NAME; sym_or_zero ~5-10K for core's
+   Str-form constants meeting type_sym. Moving the field-based ones
+   needs FuncSig.return_type / TypeBinding.alias_target /
+   Declaration.name to become symbols -- a different migration from
+   "a Type carries its Sym". The 4,596M pre-interning figure is no
+   longer a comparable baseline: the compiler is built --usize=32 now
+   and carries the whole #344 borrow-tracking arc.
+
+   Three traps for whoever measures next: callgrind_annotate's caller
+   tree is NOT trustworthy on this -O0 binary (it showed Expr_delete
+   calling SymbolPool.intern); the raw out-file's `fn=` / `cfn=` /
+   `calls=N` records are exact. A reader written as "rebuild the
+   Str form and recurse so the Str arm handles it" (the constfolder's
+   raw_to_expr had two) becomes a twin recursing on itself the moment
+   the producer flips -- a stack overflow, not a type error. And a
+   Sym twin arm written as a COPY of its Str arm drifts: the port
+   found heap_move_ptr_into_slot's StructSym copy without the Str
+   arm's foreign-place branch (assigning a struct to an ext_global
+   memcpy'd over the library's storage; the consumer test caught it),
+   and elem_size_for_type with no EnumSym arm at all, so dyn_size_of
+   on a one-byte enum fell to the `case:` default and answered the
+   dispatch word (8). Neither is a compile error: the default arm
+   absorbs the twin. Every such arm must do the work ONCE under
+   `case .Struct, .StructSym:` with type_name_ref, never as two
+   bodies kept in step by hand.
 
 4. was retirement; superseded -- see step 3d above and the runtime-form
    note in step 4's original text below.

@@ -851,7 +851,7 @@ priv jvm_signature_param_type := func(fd: FunctionDef, i: USize,
         ref param : Declaration = fd.sig.params[i]
         mut param_type := param.til_type.clone()
         if fd.sig.variadic_index == i.to_i32() {
-            param_type = Type.Struct(format("Array__", decl_type_name(param, lp.ctx.symbols)))
+            param_type = Type.StructSym(sym_of(format("Array__", decl_type_name(param, lp.ctx.symbols)), lp.ctx.symbols))
         }
         mut out := jvm_type_lp(param_type, lp)
         if out.len() == 0 {

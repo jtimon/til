@@ -1859,7 +1859,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         switch stmt.node_type {
         case .Decl(dd):
             if stmt.children.len() > 0 {
-                if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow(scope, decl_type_name(dd, symbols), symbols)) {
+                if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow_t(scope, dd.til_type, symbols)) {
                     collect_call_ref_return_edges(stmt.children[0], body_last, edges, scope, symbols)
                 }
             }
@@ -3625,13 +3625,13 @@ priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut sco
     for i in 0..fd.sig.params.len() {
         ref param : Declaration = fd.sig.params[i]
         if i.to_i32() == fd.sig.variadic_index {
-            va_type := Type.Struct(variadic_carrier_type_name(scope, decl_type_name(param, ctx.symbols), ctx.symbols))
+            va_type := Type.StructSym(ctx.symbols.intern(variadic_carrier_type_name(scope, decl_type_name(param, ctx.symbols), ctx.symbols)))
             scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue
         }
         if i.to_i32() == fd.sig.kwargs_index {
-            scope.set(param.name, Type.Struct("KwargsMap"), param.is_mut, ctx.path, line, col,
+            scope.set(param.name, Type.StructSym(ctx.symbols.intern("KwargsMap")), param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue
         }

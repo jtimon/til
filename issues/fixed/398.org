@@ -123,7 +123,13 @@ mean the same thing for a template and its instantiations; the
 alias/into/carried relations are not, so they keep the narrow
 resolution.
 
-*** Why link 2 is not a small change
+*** Why link 2 is not a small change (SUPERSEDED -- kept as the record of the wrong turn)
+
+Everything in this section was disproven by the measurements listed
+under "The link-2 analysis in the original report was wrong" above;
+link 2 was one line. The text stays because the reasoning was
+plausible enough to cost a day, and the next reader should see what a
+convincing red herring looks like here.
 
 A generic's definition is a MACRO, not a StructDef: `Vec`'s Decl RHS is
 `FuncDef Macro`, so summarize_unit_walk never descends into the
@@ -160,4 +166,7 @@ Two separate links fail, and both need fixing:
 NOT a regression from #393's performance work: verified by relaxing
 fdef_may_deposit to admit unresolvable parameter types, after which the
 shape is still accepted. The gate is a filter on which bodies get
-walked, not on what the walk finds.
+walked, not on what the walk finds. (That type gate is gone since: the
+fix made fdef_may_deposit purely structural -- a mut parameter plus a
+second parameter to deposit from -- because the resolution it gated on
+is exactly what link 1 taught the summary pass to do.)

@@ -85,6 +85,11 @@ til_type_name := func(t: Type) returns Str {
     case .Enum(s):       return s.clone()
     case .Custom(s):     return s.clone()
     case .FuncPtrSig(s): return s.clone()
+    // #397: the Sym twins only exist inside the compiler, whose
+    // consumers go through the pool-aware type_name_str. A twin here
+    // means one leaked past the compiler->program boundary unresolved.
+    case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+        panic(__LOC__, "til_type_name: Sym-carrying Type reached a pool-less accessor")
     case: return ""
     }
 }

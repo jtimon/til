@@ -230,7 +230,7 @@ priv holyc_lit_byte_count := func(s: Str) returns USize {
 
 priv holyc_decl_pointer_type := func(decl: Declaration, rhs: Expr,
     symbols: SymbolPool) returns Str {
-    type_name := holyc_storage_type_name(til_type_name_c(decl.til_type))
+    type_name := holyc_storage_type_name(til_type_name_c(decl.til_type, symbols))
     if type_name == "Dynamic" { return "Dynamic" }
     if decl.own_type.is(OwnType.Ref) { return type_name }
     if rhs_is_allocator_call(rhs, symbols) { return type_name }
@@ -1581,7 +1581,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         }
         path := holyc_field_path(e, ctx, locals, error)
         if holyc_pointer_field(e, ctx) {
-            type_name := holyc_storage_type_name(til_type_name_c(e.til_type()))
+            type_name := holyc_storage_type_name(til_type_name_c(e.til_type(), ctx.symbols))
             if holyc_scalar_type_name(type_name) { return holyc_checked_load(path, type_name) }
         }
         return path
@@ -2455,7 +2455,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 error = "invalid field assignment"
                 return ""
             }
-            mut field_type := holyc_storage_type_name(til_type_name_c(stmt.children[1].til_type()))
+            mut field_type := holyc_storage_type_name(til_type_name_c(stmt.children[1].til_type(), ctx.symbols))
             mut owner_type := ""
             mut field_own_type := OwnType.Shallow
             switch stmt.children[0].node_type {

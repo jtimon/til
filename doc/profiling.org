@@ -54,6 +54,14 @@ callgrind counts instructions (deterministic, no sampling noise) but runs
 ~20-50x slower than native, so prefer a smaller target while iterating, e.g.
 examples/plot.til. Open tmp/callgrind.out in kcachegrind for a call-graph view.
 
+Two traps (#397): ~translate~ caches its output since #170, so pass
+~--force-rebuild~ or a warm cache measures a lex-and-exit (177M instead of
+~7,000M instructions, same "Generated:" lines). And callgrind_annotate's
+~--tree=caller~ view is not trustworthy on this -O0 binary: it has shown
+~Expr_delete~ calling ~SymbolPool_intern~. The raw out-file is exact:
+each ~fn=~ block lists its callees as ~cfn=~ + ~calls=N~ lines, and summing
+those per callee gives true call counts and callers (a 30-line script).
+
 ** Picking hot Maps / alloc offenders
 
 Use the flamegraph / callgrind top-N to find which Map / HashMap / Vec call

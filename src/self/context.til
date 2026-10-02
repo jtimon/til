@@ -192,25 +192,41 @@ name_fingerprint := func(name: Str) returns U64 {
 }
 
 // #397: the two questions every name-payload consumer actually asks,
-// answered for BOTH the Str payloads and their Sym twins. Step 2 routes
-// consumers through these; step 3 flips producers to build the Sym forms,
-// and only these two functions have to notice.
+// answered for BOTH the Str payloads and their Sym twins.
+//
+// Step 3 flipped every producer in src/self to the Sym twins. The Str
+// forms that still reach the compiler are core's pool-less constants
+// (TYPE_STR and friends behind Expr.til_type() on literal nodes) and the
+// reflection Declarations of src/core/dyn.til; core cannot intern, so
+// those arms stay until step 4 finds them a home. Every consumer in
+// src/self therefore accepts both forms: the family predicates
+// (is_struct_type ...) answer for both tags, the case arms carry both
+// payloads, and the pool-less core accessors (til_type_name,
+// Declaration.type_name) panic on a twin instead of returning "".
 //
 // type_sym is the one that pays off: a caller holding a Type gets the
 // symbol the scope registries are keyed by. For a Sym payload that is a
-// field read. For a Str payload it interns -- ONCE per call, where the
-// old path hashed the spelling once per scope level of the lookup walk.
-type_sym := func(t: Type, mut symbols: SymbolPool) returns Sym {
+// field read, no hashing. For a Str payload it looks the spelling up; an
+// unregistered spelling answers 0, which every by-sym registry walk
+// misses -- the same answer get_struct(name) gave for an unknown name.
+type_sym := func(t: Type, symbols: SymbolPool) returns Sym {
     switch t {
     case .StructSym(sym):     return sym.clone()
     case .EnumSym(sym):       return sym.clone()
     case .CustomSym(sym):     return sym.clone()
     case .FuncPtrSigSym(sym): return sym.clone()
-    case .Struct(s):     return symbols.intern(s)
-    case .Enum(s):       return symbols.intern(s)
-    case .Custom(s):     return symbols.intern(s)
-    case .FuncPtrSig(s): return symbols.intern(s)
+    case .Struct(s):     return sym_or_zero(s, symbols)
+    case .Enum(s):       return sym_or_zero(s, symbols)
+    case .Custom(s):     return sym_or_zero(s, symbols)
+    case .FuncPtrSig(s): return sym_or_zero(s, symbols)
     case: return 0
+    }
+}
+
+priv sym_or_zero := func(name: Str, symbols: SymbolPool) returns Sym {
+    switch symbols.lookup(name) {
+    case .Some(sym): return sym.clone()
+    case .None: return 0
     }
 }
 
@@ -254,6 +270,36 @@ type_name_ref := func(t: Type, symbols: SymbolPool) returns ref Str {
     n_o := type_name_of(t, symbols)
     if n_o.is_none() { return NO_TYPE_NAME }
     return n_o.unwrap()
+}
+
+// A Type with a name payload in either form: the four kinds type_sym
+// answers for.
+is_named_type := func(t: Type) returns Bool {
+    return is_struct_type(t).or(is_enum_type(t)).or(is_custom_type(t)).or(is_funcptr_sig(t))
+}
+
+// Tag equality modulo the Str/Sym twin split, for the typer's shape
+// checks that compare two Types with `a.is(b)` (tags alone, by design:
+// the aggregate NAME is compared separately). A Str literal's stamp is
+// core's Str-form TYPE_STR while its declared type is a producer's
+// StructSym, and both are "a struct".
+type_kind_eq := func(a: Type, b: Type) returns Bool {
+    if a.is(b) { return true }
+    if is_struct_type(a).and(is_struct_type(b)) { return true }
+    if is_enum_type(a).and(is_enum_type(b)) { return true }
+    if is_custom_type(a).and(is_custom_type(b)) { return true }
+    if is_funcptr_sig(a).and(is_funcptr_sig(b)) { return true }
+    return false
+}
+
+// Value equality modulo the twin split: the generated `==` when the tags
+// agree (a Str payload against a Str, a Sym against a Sym, a Primitive
+// against a Primitive), the spelling when one side is core's Str form
+// and the other a producer's Sym twin of the same kind.
+type_eq := func(a: Type, b: Type, symbols: SymbolPool) returns Bool {
+    if a.is(b) { return a == b }
+    if type_kind_eq(a, b).not() { return false }
+    return type_name_ref(a, symbols) == type_name_ref(b, symbols)
 }
 
 // #292: definition registries are keyed by the same interned symbol as the
@@ -1880,6 +1926,16 @@ note_cross_file_type_use := func(scope: TypeScope, mut ctx: Context, type_name: 
     note_cross_file_use(ctx, b.path)
 }
 
+// #397: the same note for a caller holding the type's symbol (a stamp's
+// Sym twin, an Ident): the binding walk keys on it, nothing is hashed.
+note_cross_file_type_use_sym := func(scope: TypeScope, mut ctx: Context, sym: Sym) {
+    if ctx.check_unused_imports.not() { return }
+    b_o := scope.get_binding_sym(sym)
+    if b_o.is_none() { return }
+    ref b : TypeBinding = b_o.unwrap()
+    note_cross_file_use(ctx, b.path)
+}
+
 scope_target_usize_pname := func(scope: TypeScope) returns ref Str {
     switch scope.parent {
     case .Some(p): return scope_target_usize_pname(p)
@@ -2156,8 +2212,8 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
 }
 
 make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false) returns Expr {
-    mut gc := make_get_payload_fcall(own arg, declaration_type_from_name(vtype), line, col, symbols)
-    mut decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+    mut gc := make_get_payload_fcall(own arg, decl_type_from_name(vtype, symbols), line, col, symbols)
+    mut decl := Expr.new(NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
     // REM: gc must be consumed in BOTH branches of a symmetric if/else --
     // an if-with-return plus fall-through consumption is a two-site
     // conditional transfer the garbager miscompiles (double free, found
@@ -2171,7 +2227,7 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
         mut dc := Expr.new(NodeType.FCall(FCallData()), line, col)
         dc.add_child(own dv)
         dc.add_child(own gc)
-        dc.set_til_type(declaration_type_from_name(vtype))
+        dc.set_til_type(decl_type_from_name(vtype, symbols))
         decl.add_child(own dc)
     } else {
         decl.add_child(own gc)
@@ -2207,7 +2263,7 @@ make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, v
     if expr_contains_ident_named(arg, bind_name, symbols) {
         out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, symbols, is_ref_payload, used))
         mut alias_rhs := Expr.new(ident_node(symbols.intern(fresh_name)), line, col)
-        mut alias_decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+        mut alias_decl := Expr.new(NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
         alias_decl.add_child(own alias_rhs)
         out.push(own alias_decl)
     } else {
@@ -2364,41 +2420,21 @@ func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool
 // dispatchers land here holding the symbol the registries are keyed by,
 // so the resolution never hashes a spelling. The builtin/USize checks
 // still need the spelling; those compare a handful of bytes against
-// short constants, resolved (a vector index), not re-hashed.
+// short constants, resolved (a vector index), not re-hashed -- and the
+// three builtins that are registered structs (Str, StructDef, EnumDef)
+// take the symbol they were asked about.
 type_from_sym_init := func(sym: Sym, scope: TypeScope, symbols: SymbolPool) returns Type {
     ref name : Str = symbols.resolve(sym)
     mut bt := Type.Unknown
-    if builtin_type_from_name(name, bt) { return bt }
+    if builtin_type_from_name_sym(name, sym, bt) { return bt }
     if name == "USize" { return type_from_name_init_name(scope_target_usize_pname(scope), scope, symbols) }
     if name == "UPtr" { return type_from_name_init_name(scope_target_uptr_pname(scope), scope, symbols) }
-    b_o := scope.get_binding_sym(sym)
-    if b_o.is_some() {
-        ref b : TypeBinding = b_o.unwrap()
-        if b.is_type_alias.and(b.alias_target.is_empty().not()) {
-            return type_from_name_init_name(b.alias_target, scope, symbols)
-        }
-        if b.is_builtin {
-            if scope.lookup_func_name(b.name, symbols).is_none() { return b.type.clone() }
-        }
-        if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
-            return Type.FuncPtrSigSym(sym)
-        }
-        if b.is_func_decl.and(is_funcptr_sig(b.type)) { return b.type.clone() }
-    }
-    sdef_o := scope.get_struct_by_sym(sym)
-    if sdef_o.is_some() {
-        if sdef_o.unwrap().node_type.is(NodeType.EnumDef) { return Type.Enum(Str.clone(name)) }
-        return Type.Struct(Str.clone(name))
-    }
-    return Type.Unknown
+    return type_from_sym_registry(sym, scope, symbols)
 }
 
-type_from_name_init_name := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type {
-    mut bt := Type.Unknown
-    if builtin_type_from_name(name, bt) { return bt }
-    if name == "USize" { return type_from_name_init_name(scope_target_usize_pname(scope), scope, symbols) }
-    if name == "UPtr" { return type_from_name_init_name(scope_target_uptr_pname(scope), scope, symbols) }
-    b_o := scope.get_binding_name(name, symbols)
+// The registry half of type_from_name_init_name, keyed by the symbol.
+priv type_from_sym_registry := func(sym: Sym, scope: TypeScope, symbols: SymbolPool) returns Type {
+    b_o := scope.get_binding_sym(sym)
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
         if b.is_type_alias.and(b.alias_target.is_empty().not()) {
@@ -2416,24 +2452,48 @@ type_from_name_init_name := func(name: Str, scope: TypeScope, symbols: SymbolPoo
         // register_funcsig_alias_for_stmt). Declaration now has one type
         // field, so this resolution must carry the alias name itself.
         if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
-            // lookup, not intern: symbols is borrowed here, and a binding
-            // for the name exists, so it is already in the pool.
-            return Type.FuncPtrSigSym(symbols.lookup(name).unwrap())
+            return Type.FuncPtrSigSym(sym)
         }
         if b.is_func_decl.and(is_funcptr_sig(b.type)) { return b.type.clone() }
     }
-    sdef_o := scope.get_struct(name, symbols)
+    sdef_o := scope.get_struct_by_sym(sym)
     if sdef_o.is_some() {
-        if sdef_o.unwrap().node_type.is(NodeType.EnumDef) { return Type.Enum(name.clone()) }
-        return Type.Struct(name.clone())
+        if sdef_o.unwrap().node_type.is(NodeType.EnumDef) { return Type.EnumSym(sym) }
+        return Type.StructSym(sym)
     }
     return Type.Unknown
 }
 
-type_from_declaration_name := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type {
+type_from_name_init_name := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Type {
+    mut bt := Type.Unknown
+    if builtin_type_from_name(name, bt, symbols) { return bt }
+    if name == "USize" { return type_from_name_init_name(scope_target_usize_pname(scope), scope, symbols) }
+    if name == "UPtr" { return type_from_name_init_name(scope_target_uptr_pname(scope), scope, symbols) }
+    // #397: one hash for the whole resolution -- the binding walk, the
+    // definition walk and the Type built at the end all key on this sym.
+    // A spelling the pool has never seen is bound nowhere.
+    switch symbols.lookup(name) {
+    case .None: return Type.Unknown
+    case .Some(sym): return type_from_sym_registry(sym, scope, symbols)
+    }
+}
+
+// #397: resolve a Custom stamp (an unresolved spelling) to its registered
+// Type -- the interpreter does this at nearly every raw-value edge. A
+// CustomSym already holds the symbol, so only the builtin and width-alias
+// spelling checks read the name; the registry walk keys on the sym.
+type_from_custom := func(t: Type, scope: TypeScope, symbols: SymbolPool) returns Type {
+    switch t {
+    case .Custom(name): return type_from_name_init_name(name, scope, symbols)
+    case .CustomSym(sym): return type_from_sym_init(sym, scope, symbols)
+    case: panic(__LOC__, "type_from_custom on a non-Custom type")
+    }
+}
+
+type_from_declaration_name := func(name: Str, scope: TypeScope, mut symbols: SymbolPool) returns Type {
     resolved := type_from_name_init_name(name, scope, symbols)
     if resolved.is(Type.Unknown).not() { return resolved }
-    return declaration_type_from_name(name)
+    return decl_type_from_name(name, symbols)
 }
 
 // Resolve a declaration type for semantic use. Only Custom is unresolved;
@@ -3441,7 +3501,7 @@ ast_print := proc(e: Expr, indent: U32, symbols: SymbolPool) {
     print("(", node_name(e.node_type))
     ref et : Type = e.til_type()
     if et.is(Type.Unknown).not() {
-        print(":", til_type_name_c(et))
+        print(":", til_type_name_c(et, symbols))
     }
     switch e.node_type {
     case .Ident(s):      print(" \"", s.ident_name(symbols.names), "\"")

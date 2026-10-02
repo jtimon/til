@@ -64,11 +64,17 @@ Type := enum {
     // lookups (get_struct, get_binding_name) stop hashing a spelling to
     // recover a symbol that was known when the Type was built.
     //
-    // NOTHING produces them yet -- this commit only teaches the compiler
-    // to hold and match them. APPENDED AT THE END for the same reason
-    // Primitive and FuncPtrSig were: master's til_boot has these tag
-    // values baked into its compiled C, so inserting anywhere else would
-    // mis-decode every Type value it creates while bootstrapping.
+    // Step 3: every producer in src/self builds these. The Str forms above
+    // survive only where no pool can intern: this file's TYPE_* constants
+    // and the reflection Declarations src/core/dyn.til assembles, plus
+    // the values user programs construct themselves. A Type crossing
+    // from the compiler into a program (write_runtime_type in the
+    // interpreter, make_til_type_expr in the typer) is resolved back to
+    // its Str form at the boundary, so programs never see a Sym.
+    // APPENDED AT THE END for the same reason Primitive and FuncPtrSig
+    // were: master's til_boot has these tag values baked into its
+    // compiled C, so inserting anywhere else would mis-decode every Type
+    // value it creates while bootstrapping.
     StructSym: Sym,
     EnumSym: Sym,
     CustomSym: Sym,
@@ -330,6 +336,11 @@ namespace:
         case .Enum(name): return name.clone()
         case .Custom(name): return name.clone()
         case .FuncPtrSig(name): return name.clone()
+        // #397: compiler-side Declarations carry the Sym twins and read
+        // them through parser.til's decl_type_name; a twin here has no
+        // pool to resolve against, so fail where it leaked.
+        case .StructSym, .EnumSym, .CustomSym, .FuncPtrSigSym:
+            panic(__LOC__, "Declaration.type_name: Sym-carrying Type reached a pool-less accessor")
         case .Primitive(Primitive.I8): return "I8"
         case .Primitive(Primitive.U8): return "U8"
         case .Primitive(Primitive.I16): return "I16"

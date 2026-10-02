@@ -191,12 +191,12 @@ priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) retu
         switch fdef.node_type {
         case .FuncDef(fd):
             if fd.sig.return_type.len() > 0 {
-                return til_type_name_c(type_from_name_init_name(fd.sig.return_type, ctx.scope, ctx.symbols))
+                return til_type_name_c(type_from_name_init_name(fd.sig.return_type, ctx.scope, ctx.symbols), ctx.symbols)
             }
         case:
         }
     }
-    return til_type_name_c(e.til_type())
+    return til_type_name_c(e.til_type(), ctx.symbols)
 }
 
 
@@ -3547,7 +3547,7 @@ priv expr_has_c_initializer := func(e: Expr, allow_sequences: Bool, mut ctx: Con
         if e.children.len() > data.capacity { return false }
         if precomputed_sequence_is_vec(data, ctx.symbols).not().and(e.children.len() != data.capacity) { return false }
         for element : Expr in e.children {
-            if element.til_type().eq(data.element_type).not() { return false }
+            if type_eq(element.til_type(), data.element_type, ctx.symbols).not() { return false }
             if expr_has_c_initializer(element, true, ctx).not() { return false }
         }
         return true
@@ -4197,12 +4197,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             // children: [Ident cast, value, TypeName] in this flattened
             // shape -- children[1] is the VALUE (emitted below), so the
             // target name is children[2].
-            mut cast_c_type := til_type_name_c(e.til_type())
+            mut cast_c_type := til_type_name_c(e.til_type(), ctx.symbols)
             if e.children.len() >= 3 {
                 switch e.children[2].node_type {
                 case .Ident(cast_target):
                     target_t := type_from_name_init_name(cast_target.ident_name(ctx.symbols.names), ctx.scope, ctx.symbols)
-                    if target_t.is(Type.Unknown).not() { cast_c_type = til_type_name_c(target_t) }
+                    if target_t.is(Type.Unknown).not() { cast_c_type = til_type_name_c(target_t, ctx.symbols) }
                 case:
                 }
             }
@@ -4454,7 +4454,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             // bytes, so both modes agree for every payload width.
             ename_o := expr_type_name_ref(e.children[1], ctx.symbols)
             if ename_o.is_none() { return f }
-            ref ename : Str = ename_o.unwrap()
+            // Owned: the name is written AFTER the payload is emitted, and
+            // emitting can intern (#397 -- the ref may point into the pool).
+            ename := Str.clone(ename_o.unwrap())
             // #321: a NICHE enum's payload is not stored inline -- the enum
             // IS one pointer to it. So the payload's ADDRESS is that
             // pointer, and get_payload must LOAD the slot rather than

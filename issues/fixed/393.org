@@ -11,10 +11,12 @@ direct field-assign form recorded nothing either (only Decl RHSes were
 read), so the deposited root vanished -- the missing diagnostic, the
 backend divergence, and the wrong blame all followed.
 
-Fix: FunctionDef.deposit_pairs, a second parameter-pair summary packed
-(sink << 32) | source, computed in the same pre-typing fixed point as
-ref_return_params for any function with a mut parameter and a second
-one. In a body, a deposit is an Assign/FieldAssign whose sink reaches a
+Fix: FunctionDef.deposit_matrix, a second parameter-pair summary -- an
+8x8 matrix in one U64, bit (sink * 8 + source) -- computed in the same
+pre-typing fixed point as ref_return_params for any function with a mut
+parameter and a second one. (It landed first as a Vec(U64) of packed
+(sink << 32) | source pairs; see "The memory regression" below for why
+that shape did not survive.) In a body, a deposit is an Assign/FieldAssign whose sink reaches a
 parameter and whose RHS carries bits of another, an adopt / adopt_from
 whose dest does (matched under BOTH spellings -- the call can already be
 monomorphized to adopt__<T> with the Type argument stripped when the
@@ -42,11 +44,53 @@ the top level of that expression.
 
 Verified: bin/til translate src/til.til clean; self-translate time
 unchanged vs master's compiler on the same source and machine (17.75s
-vs 17.71s). Regression tests: test/ref.til
+vs 17.71s -- measured on the Vec form, before the repack below).
+Regression tests: test/ref.til
 test_borrow_root_through_vec_push / _map_set / _helper_deposit /
 _field_deposit (mut s credited, both backends agree on 2);
 test/typer_errors.til terr393_vec_poke / terr393_helper_poke /
 terr393_direct_poke (one rejection each, naming s; count 236 -> 239).
+
+*** The memory regression, and the repack
+
+The first landing was reported as "a big regression in terms of
+performance and memory usage", and it was: translating src/til.til
+peaked +19 MB RSS. FunctionDef is the widest NodeType payload, so its
+size sets sizeof(Expr), and the Vec(U64) deposit_pairs grew EVERY AST
+node from 192 to 208 bytes -- the pairs were paid for by every literal
+and identifier in every program. The repack: the pair set became the
+8x8 bit matrix deposit_matrix (one word; eight parameters is the cap,
+past it the answer is the conservative 0, like summary_param_bit past
+64), and `noreturn` moved next to FunctionDef's other Bools -- alone
+between a Str and a U64 it cost a byte plus seven of padding, packed
+it costs nothing, and those eight bytes are what the matrix spends.
+BorrowRoot.deposited was likewise packed against `carried` instead of
+appended. sizeof(Expr), sizeof(FunctionDef) and sizeof(BorrowRoot)
+are back to master's exactly, and peak RSS with them. A matrix rather
+than two bitmaps on purpose: sink and source bitmaps would
+cross-multiply unrelated pairs into deposits nobody performs, and an
+invented deposit is a false "declare it 'mut'" against a correct
+program.
+
+*** After the fix
+
+- #398 (fixed): a deposit performed by a CALLEE -- `wrap(hs, h)` whose
+  body does `hs.push(own h.clone())` -- was still invisible one level
+  up, because the summary pass could not resolve a receiver that is a
+  plain parameter or a generic. Same three symptoms, same shape of
+  fix, separate issue.
+- #399 (fixed): found while probing #398 follow-ups -- a battery that
+  returned a written element field directly (`return ps[0].v`) asserted
+  on an address where an 8 belonged. Not a deposit bug: the garbager's
+  return-site exclusion is textual and freed the container before the
+  read.
+- Follow-up batteries after #398 and #399 landed (deposit through
+  nested helpers, through both push and set on the same sink, seeded
+  and overwritten sources, direct field-assign forms, callee deposits
+  via self / param / generic receivers, reads in binary, call-argument,
+  nested-chain and if-arm positions) found no remaining gap: every
+  accepted form agrees across backends and ASAN, every rejection names
+  the real source.
 
 The #344/#354 summary lattice describes only how a callee's RETURN
 relates to its parameters. A call that stores borrows carried by one
