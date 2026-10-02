@@ -1,0 +1,252 @@
+mode lib
+
+// WARNING: til and this module are experimental and have not had a
+// security review. Do not rely on this interface to protect anything
+// important. Prefer the upstream libsecp256k1 API directly, possibly
+// through a project-owned custom mode, unless you are deliberately
+// testing this experiment. In particular, til does not yet guarantee
+// that copies of secret-key bytes are securely erased from managed
+// memory; only the C temporaries this module itself fills are zeroed.
+//
+// Issue #235: SHA-256 and BIP-340 Schnorr signatures over secp256k1 --
+// what nostr signs and verifies events with. Keys, messages and digests
+// are U256 (src/core/numbers.til); a signature is the 64-byte Signature
+// below. The curve arithmetic is the vendored Bitcoin Core libsecp256k1
+// (vendor/secp256k1, extrakeys + schnorrsig modules; the raw bindings
+// are vendor/bindings/secp256k1.til). SHA-256 is written here in til:
+// libsecp256k1 exports only its BIP-340 TAGGED hash, and a nostr event
+// id is the plain SHA-256 of the event's serialization.
+//
+// Deliberately NOT the hash interface HashMap uses (HashFn / the
+// per-type `hash` method): that one hashes a value's in-memory bytes to
+// a 64-bit bucket index, this one hashes a caller-serialized byte
+// string to a 256-bit digest. Neither is a substitute for the other.
+
+import("../../vendor/bindings/secp256k1")
+link("vendor/secp256k1/libsecp256k1.a")
+
+/// Thrown for an invalid key: a secret key of zero or at least the
+/// curve order, or an x-only public key that is not on the curve.
+/// Invalid SIGNATURES are not errors: schnorr_verify returns false.
+CryptoError := struct {
+    msg : Str = ""
+}
+
+// --- SHA-256 (FIPS 180-4) ---
+
+priv SHA256_K := array(U32,
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2)
+
+priv rotr32 := func(x: U32, n: U32) returns U32 {
+    width : U32 = 32
+    return x.shr(n).bor(x.shl(width - n))
+}
+
+/// Big-endian 32-bit word at byte offset ~at~ of ~buf~.
+priv load_be32 := func(buf: Dynamic, at: USize) returns U32 {
+    ref b0 : U8 = ptr_add(buf, at.to_uptr())
+    ref b1 : U8 = ptr_add(buf, (at + 1).to_uptr())
+    ref b2 : U8 = ptr_add(buf, (at + 2).to_uptr())
+    ref b3 : U8 = ptr_add(buf, (at + 3).to_uptr())
+    return b0.cast(U32).shl(24).bor(b1.cast(U32).shl(16)).bor(b2.cast(U32).shl(8)).bor(b3.cast(U32))
+}
+
+/// One 64-byte block at byte offset ~at~ of ~buf~ into the state ~hs~.
+priv sha256_block := func(mut hs: Array(U32), buf: Dynamic, at: USize) {
+    mut w := Array(U32).new(64)
+    sixteen : USize = 16
+    sixty_four : USize = 64
+    for t in 0..sixteen {
+        w[t] = load_be32(buf, at + t * 4)
+    }
+    for t in sixteen..sixty_four {
+        w15 := w[t - 15].clone()
+        w2 := w[t - 2].clone()
+        s0 := rotr32(w15, 7).bxor(rotr32(w15, 18)).bxor(w15.shr(3))
+        s1 := rotr32(w2, 17).bxor(rotr32(w2, 19)).bxor(w2.shr(10))
+        w[t] = w[t - 16] + s0 + w[t - 7] + s1
+    }
+    mut a := hs[0].clone()
+    mut b := hs[1].clone()
+    mut c := hs[2].clone()
+    mut d := hs[3].clone()
+    mut e := hs[4].clone()
+    mut f := hs[5].clone()
+    mut g := hs[6].clone()
+    mut h := hs[7].clone()
+    for t in 0..sixty_four {
+        big_s1 := rotr32(e, 6).bxor(rotr32(e, 11)).bxor(rotr32(e, 25))
+        ch := e.band(f).bxor(e.bnot().band(g))
+        temp1 := h + big_s1 + ch + SHA256_K[t] + w[t]
+        big_s0 := rotr32(a, 2).bxor(rotr32(a, 13)).bxor(rotr32(a, 22))
+        maj := a.band(b).bxor(a.band(c)).bxor(b.band(c))
+        temp2 := big_s0 + maj
+        h = g
+        g = f
+        f = e
+        e = d + temp1
+        d = c
+        c = b
+        b = a
+        a = temp1 + temp2
+    }
+    hs[0] = hs[0] + a
+    hs[1] = hs[1] + b
+    hs[2] = hs[2] + c
+    hs[3] = hs[3] + d
+    hs[4] = hs[4] + e
+    hs[5] = hs[5] + f
+    hs[6] = hs[6] + g
+    hs[7] = hs[7] + h
+}
+
+/// SHA-256 of the ~n~ bytes at ~data~.
+sha256 := func(data: Dynamic, n: USize) returns U256 {
+    // Pad: the message, one 0x80 byte, zeros, then the bit length as a
+    // big-endian U64, to a multiple of 64 bytes.
+    total := ((n + 9 + 63) / 64) * 64
+    mut buf : U8 = malloc(total.to_uptr())
+    memset(buf, 0, total.to_uptr())
+    memcpy(buf, data, n.to_uptr())
+    write_u8(ptr_add(buf, n.to_uptr()), 128)
+    bits : U64 = n.to_u64().mul(8)
+    eight : USize = 8
+    for i in 0..eight {
+        byte := bits.shr((i * 8).to_u64()).band(255).to_i64().to_u8()
+        write_u8(ptr_add(buf, (total - 1 - i).to_uptr()), byte)
+    }
+
+    mut hs := array(U32, 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                         0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19)
+    mut at : USize = 0
+    while at < total {
+        sha256_block(hs, buf, at)
+        at = at + 64
+    }
+    free(own buf)
+
+    mut out := U256()
+    for i in 0..eight {
+        word := hs[i].clone()
+        four : USize = 4
+        for j in 0..four {
+            shift : USize = 24 - j * 8
+            byte := word.shr(shift.to_u32()).band(255).to_i64().to_u8()
+            write_u8(ptr_add(out, (i * 4 + j).to_uptr()), byte)
+        }
+    }
+    return out
+}
+
+/// SHA-256 of a string's bytes -- a nostr event id is this over the
+/// event's serialization.
+sha256_str := func(s: Str) returns U256 {
+    return sha256(s.c_str, s.count)
+}
+
+// --- BIP-340 Schnorr signatures over secp256k1 ---
+
+/// A 64-byte BIP-340 signature: the x coordinate of R, then s. Its
+/// bytes are the wire serialization, like U256's.
+Signature := struct {
+    r : U256 = U256()
+    s : U256 = U256()
+
+namespace:
+    /// Parse exactly 128 hex digits; panics on anything else.
+    from_hex := func(hex: Str) returns Signature {
+        if hex.count != 128 {
+            panic("Signature.from_hex: expected 128 hex digits, found ", hex.count.to_str(), " in '", hex, "'")
+        }
+        return Signature(r = U256.from_hex(hex.substr(0, 64)), s = U256.from_hex(hex.substr(64, 64)))
+    }
+
+    /// The 128 lowercase hex digits.
+    to_hex := func(self: Signature) returns Str {
+        return format(self.r.to_hex(), self.s.to_hex())
+    }
+
+    to_str := func(self: Signature) returns Str { return self.to_hex() }
+}
+
+priv KEYPAIR_BYTES : UPtr = 96
+
+/// The serialized x-only public key of ~seckey~.
+schnorr_pubkey := proc(seckey: U256) returns U256 throws CryptoError {
+    ref mut ctx : secp256k1_context = secp256k1_context_create(SECP256K1_CONTEXT_NONE.to_u32())
+    mut keypair := secp256k1_keypair()
+    if secp256k1_keypair_create(ctx, keypair, seckey) != 1 {
+        secp256k1_context_destroy(ctx)
+        throw CryptoError(msg = "schnorr_pubkey: invalid secret key")
+    }
+    out := xonly_of_keypair(ctx, keypair)
+    memset(keypair, 0, KEYPAIR_BYTES)
+    secp256k1_context_destroy(ctx)
+    return out
+}
+
+/// The serialized x-only public key of a keypair the library accepted.
+priv xonly_of_keypair := proc(ctx: secp256k1_context, keypair: secp256k1_keypair) returns U256 {
+    mut xonly := secp256k1_xonly_pubkey()
+    mut parity : I32 = 0
+    if secp256k1_keypair_xonly_pub(ctx, xonly, parity, keypair) != 1 {
+        panic(__LOC__, "secp256k1_keypair_xonly_pub failed on a keypair the library created")
+    }
+    mut out := U256()
+    if secp256k1_xonly_pubkey_serialize(ctx, out, xonly) != 1 {
+        panic(__LOC__, "secp256k1_xonly_pubkey_serialize failed on a key the library derived")
+    }
+    return out
+}
+
+/// Sign the 32-byte ~msg~ with ~seckey~ and the caller's 32 bytes of
+/// BIP-340 auxiliary randomness. Hashing a longer message down to
+/// ~msg~ and choosing ~aux_rand~ (fresh random bytes, or zeros for a
+/// deterministic signature) are the caller's: this module generates
+/// neither. The signature is verified before it is returned, as
+/// upstream's sign32 does not do that itself.
+schnorr_sign := proc(seckey: U256, msg: U256, aux_rand: U256) returns Signature throws CryptoError {
+    ref mut ctx : secp256k1_context = secp256k1_context_create(SECP256K1_CONTEXT_NONE.to_u32())
+    mut keypair := secp256k1_keypair()
+    if secp256k1_keypair_create(ctx, keypair, seckey) != 1 {
+        secp256k1_context_destroy(ctx)
+        throw CryptoError(msg = "schnorr_sign: invalid secret key")
+    }
+    mut sig := Signature()
+    if secp256k1_schnorrsig_sign32(ctx, sig, msg, keypair, aux_rand) != 1 {
+        panic(__LOC__, "secp256k1_schnorrsig_sign32 failed on a keypair the library created")
+    }
+    mut xonly := secp256k1_xonly_pubkey()
+    mut parity : I32 = 0
+    if secp256k1_keypair_xonly_pub(ctx, xonly, parity, keypair) != 1 {
+        panic(__LOC__, "secp256k1_keypair_xonly_pub failed on a keypair the library created")
+    }
+    memset(keypair, 0, KEYPAIR_BYTES)
+    if secp256k1_schnorrsig_verify(ctx, sig, msg, 32, xonly) != 1 {
+        panic(__LOC__, "a signature just produced by secp256k1_schnorrsig_sign32 does not verify")
+    }
+    secp256k1_context_destroy(ctx)
+    return sig
+}
+
+/// Whether ~sig~ is a valid BIP-340 signature of the 32-byte ~msg~
+/// under the serialized x-only ~pubkey~. A public key that is not on
+/// the curve throws; a bad signature is a plain false.
+schnorr_verify := proc(pubkey: U256, msg: U256, sig: Signature) returns Bool throws CryptoError {
+    ref mut ctx : secp256k1_context = secp256k1_context_create(SECP256K1_CONTEXT_NONE.to_u32())
+    mut xonly := secp256k1_xonly_pubkey()
+    if secp256k1_xonly_pubkey_parse(ctx, xonly, pubkey) != 1 {
+        secp256k1_context_destroy(ctx)
+        throw CryptoError(msg = "schnorr_verify: public key is not on the curve")
+    }
+    ok := secp256k1_schnorrsig_verify(ctx, sig, msg, 32, xonly) == 1
+    secp256k1_context_destroy(ctx)
+    return ok
+}

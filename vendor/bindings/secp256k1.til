@@ -370,7 +370,7 @@ secp256k1_context_set_sha256_compression := ext_proc(mut ctx : secp256k1_context
  *  0x03), uncompressed (65 bytes, header byte 0x04), or hybrid (65 bytes, header
  *  byte 0x06 or 0x07) format public keys.
  */
-secp256k1_ec_pubkey_parse := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, input : U8, shallow inputlen : USize) returns shallow I32 {}
+secp256k1_ec_pubkey_parse := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, input : Dynamic, shallow inputlen : USize) returns shallow I32 {}
 
 /** Serialize a pubkey object into a serialized byte sequence.
  *
@@ -387,7 +387,7 @@ secp256k1_ec_pubkey_parse := ext_proc(ctx : secp256k1_context, mut pubkey : secp
  *          flags:      SECP256K1_EC_COMPRESSED if serialization should be in
  *                      compressed format, otherwise SECP256K1_EC_UNCOMPRESSED.
  */
-secp256k1_ec_pubkey_serialize := ext_proc(ctx : secp256k1_context, mut output : U8, mut outputlen : USize, pubkey : secp256k1_pubkey, shallow flags : U32) returns shallow I32 {}
+secp256k1_ec_pubkey_serialize := ext_proc(ctx : secp256k1_context, mut output : Dynamic, mut outputlen : USize, pubkey : secp256k1_pubkey, shallow flags : U32) returns shallow I32 {}
 
 /** Compare two public keys using lexicographic (of compressed serialization) order
  *
@@ -425,7 +425,7 @@ secp256k1_ec_pubkey_sort := ext_proc(ctx : secp256k1_context, pubkeys : Dynamic,
  *  S are zero, the resulting sig value is guaranteed to fail verification for
  *  any message and public key.
  */
-secp256k1_ecdsa_signature_parse_compact := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ecdsa_signature, input64 : U8) returns shallow I32 {}
+secp256k1_ecdsa_signature_parse_compact := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ecdsa_signature, input64 : Dynamic) returns shallow I32 {}
 
 /** Parse a DER ECDSA signature.
  *
@@ -442,7 +442,7 @@ secp256k1_ecdsa_signature_parse_compact := ext_proc(ctx : secp256k1_context, mut
  *  encoded numbers are out of range, signature verification with it is
  *  guaranteed to fail for every message and public key.
  */
-secp256k1_ecdsa_signature_parse_der := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ecdsa_signature, input : U8, shallow inputlen : USize) returns shallow I32 {}
+secp256k1_ecdsa_signature_parse_der := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ecdsa_signature, input : Dynamic, shallow inputlen : USize) returns shallow I32 {}
 
 /** Serialize an ECDSA signature in DER format.
  *
@@ -455,7 +455,7 @@ secp256k1_ecdsa_signature_parse_der := ext_proc(ctx : secp256k1_context, mut sig
  *                     if 0 was returned).
  *  In:     sig:       pointer to an initialized signature object
  */
-secp256k1_ecdsa_signature_serialize_der := ext_proc(ctx : secp256k1_context, mut output : U8, mut outputlen : USize, sig : secp256k1_ecdsa_signature) returns shallow I32 {}
+secp256k1_ecdsa_signature_serialize_der := ext_proc(ctx : secp256k1_context, mut output : Dynamic, mut outputlen : USize, sig : secp256k1_ecdsa_signature) returns shallow I32 {}
 
 /** Serialize an ECDSA signature in compact (64 byte) format.
  *
@@ -466,7 +466,7 @@ secp256k1_ecdsa_signature_serialize_der := ext_proc(ctx : secp256k1_context, mut
  *
  *  See secp256k1_ecdsa_signature_parse_compact for details about the encoding.
  */
-secp256k1_ecdsa_signature_serialize_compact := ext_proc(ctx : secp256k1_context, mut output64 : U8, sig : secp256k1_ecdsa_signature) returns shallow I32 {}
+secp256k1_ecdsa_signature_serialize_compact := ext_proc(ctx : secp256k1_context, mut output64 : Dynamic, sig : secp256k1_ecdsa_signature) returns shallow I32 {}
 
 /** Verify an ECDSA signature.
  *
@@ -493,7 +493,7 @@ secp256k1_ecdsa_signature_serialize_compact := ext_proc(ctx : secp256k1_context,
  *
  * For details, see the comments for that function.
  */
-secp256k1_ecdsa_verify := ext_proc(ctx : secp256k1_context, sig : secp256k1_ecdsa_signature, msghash32 : U8, pubkey : secp256k1_pubkey) returns shallow I32 {}
+secp256k1_ecdsa_verify := ext_proc(ctx : secp256k1_context, sig : secp256k1_ecdsa_signature, msghash32 : Dynamic, pubkey : secp256k1_pubkey) returns shallow I32 {}
 
 /** Convert a signature to a normalized lower-S form.
  *
@@ -563,7 +563,7 @@ secp256k1_ecdsa_signature_normalize := ext_proc(ctx : secp256k1_context, mut sig
  * The created signature is always in lower-S form. See
  * secp256k1_ecdsa_signature_normalize for more details.
  */
-secp256k1_ecdsa_sign := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ecdsa_signature, msghash32 : U8, seckey : U8, noncefp : secp256k1_nonce_function, ndata : Dynamic) returns shallow I32 {}
+secp256k1_ecdsa_sign := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ecdsa_signature, msghash32 : Dynamic, seckey : Dynamic, noncefp : secp256k1_nonce_function, ndata : Dynamic) returns shallow I32 {}
 
 /** Verify an elliptic curve secret key.
  *
@@ -579,7 +579,7 @@ secp256k1_ecdsa_sign := ext_proc(ctx : secp256k1_context, mut sig : secp256k1_ec
  *  Args:    ctx: pointer to a context object.
  *  In:      seckey: pointer to a 32-byte secret key.
  */
-secp256k1_ec_seckey_verify := ext_proc(ctx : secp256k1_context, seckey : U8) returns shallow I32 {}
+secp256k1_ec_seckey_verify := ext_proc(ctx : secp256k1_context, seckey : Dynamic) returns shallow I32 {}
 
 /** Compute the public key for a secret key.
  *
@@ -589,7 +589,7 @@ secp256k1_ec_seckey_verify := ext_proc(ctx : secp256k1_context, seckey : U8) ret
  *  Out:     pubkey: pointer to the created public key.
  *  In:      seckey: pointer to a 32-byte secret key.
  */
-secp256k1_ec_pubkey_create := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, seckey : U8) returns shallow I32 {}
+secp256k1_ec_pubkey_create := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, seckey : Dynamic) returns shallow I32 {}
 
 /** Negates a secret key in place.
  *
@@ -601,7 +601,7 @@ secp256k1_ec_pubkey_create := ext_proc(ctx : secp256k1_context, mut pubkey : sec
  *                  secp256k1_ec_seckey_verify, this function returns 0 and
  *                  seckey will be set to some unspecified value.
  */
-secp256k1_ec_seckey_negate := ext_proc(ctx : secp256k1_context, mut seckey : U8) returns shallow I32 {}
+secp256k1_ec_seckey_negate := ext_proc(ctx : secp256k1_context, mut seckey : Dynamic) returns shallow I32 {}
 
 /** Negates a public key in place.
  *
@@ -626,7 +626,7 @@ secp256k1_ec_pubkey_negate := ext_proc(ctx : secp256k1_context, mut pubkey : sec
  *                  random 32-byte tweaks, the chance of being invalid is
  *                  negligible (around 1 in 2^128).
  */
-secp256k1_ec_seckey_tweak_add := ext_proc(ctx : secp256k1_context, mut seckey : U8, tweak32 : U8) returns shallow I32 {}
+secp256k1_ec_seckey_tweak_add := ext_proc(ctx : secp256k1_context, mut seckey : Dynamic, tweak32 : Dynamic) returns shallow I32 {}
 
 /** Tweak a public key by adding tweak times the generator to it.
  *
@@ -641,7 +641,7 @@ secp256k1_ec_seckey_tweak_add := ext_proc(ctx : secp256k1_context, mut seckey : 
  *                  random 32-byte tweaks, the chance of being invalid is
  *                  negligible (around 1 in 2^128).
  */
-secp256k1_ec_pubkey_tweak_add := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, tweak32 : U8) returns shallow I32 {}
+secp256k1_ec_pubkey_tweak_add := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, tweak32 : Dynamic) returns shallow I32 {}
 
 /** Tweak a secret key by multiplying it by a tweak.
  *
@@ -656,7 +656,7 @@ secp256k1_ec_pubkey_tweak_add := ext_proc(ctx : secp256k1_context, mut pubkey : 
  *                  uniformly random 32-byte arrays the chance of being invalid
  *                  is negligible (around 1 in 2^128).
  */
-secp256k1_ec_seckey_tweak_mul := ext_proc(ctx : secp256k1_context, mut seckey : U8, tweak32 : U8) returns shallow I32 {}
+secp256k1_ec_seckey_tweak_mul := ext_proc(ctx : secp256k1_context, mut seckey : Dynamic, tweak32 : Dynamic) returns shallow I32 {}
 
 /** Tweak a public key by multiplying it by a tweak value.
  *
@@ -669,7 +669,7 @@ secp256k1_ec_seckey_tweak_mul := ext_proc(ctx : secp256k1_context, mut seckey : 
  *                  uniformly random 32-byte arrays the chance of being invalid
  *                  is negligible (around 1 in 2^128).
  */
-secp256k1_ec_pubkey_tweak_mul := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, tweak32 : U8) returns shallow I32 {}
+secp256k1_ec_pubkey_tweak_mul := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_pubkey, tweak32 : Dynamic) returns shallow I32 {}
 
 /** Randomizes the context to provide enhanced protection against side-channel leakage.
  *
@@ -703,7 +703,7 @@ secp256k1_ec_pubkey_tweak_mul := ext_proc(ctx : secp256k1_context, mut pubkey : 
  * kind of elliptic curve point multiplication and thus does not benefit from
  * enhanced protection against side-channel leakage currently.
  */
-secp256k1_context_randomize := ext_proc(mut ctx : secp256k1_context, seed32 : U8) returns shallow I32 {}
+secp256k1_context_randomize := ext_proc(mut ctx : secp256k1_context, seed32 : Dynamic) returns shallow I32 {}
 
 /** Add a number of public keys together.
  *
@@ -732,7 +732,7 @@ secp256k1_ec_pubkey_combine := ext_proc(ctx : secp256k1_context, mut out : secp2
  *           msg: pointer to an array containing the message
  *        msglen: length of the message array
  */
-secp256k1_tagged_sha256 := ext_proc(ctx : secp256k1_context, mut hash32 : U8, tag : U8, shallow taglen : USize, msg : U8, shallow msglen : USize) returns shallow I32 {}
+secp256k1_tagged_sha256 := ext_proc(ctx : secp256k1_context, mut hash32 : Dynamic, tag : Dynamic, shallow taglen : USize, msg : Dynamic, shallow msglen : USize) returns shallow I32 {}
 
 /** Opaque data structure that holds a parsed and valid "x-only" public key.
  *  An x-only pubkey encodes a point whose Y coordinate is even. It is
@@ -792,7 +792,7 @@ secp256k1_keypair := ext_struct("secp256k1_keypair") {
  *               parsed version of input. If not, it's set to an invalid value.
  *  In: input32: pointer to a serialized xonly_pubkey.
  */
-secp256k1_xonly_pubkey_parse := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_xonly_pubkey, input32 : U8) returns shallow I32 {}
+secp256k1_xonly_pubkey_parse := ext_proc(ctx : secp256k1_context, mut pubkey : secp256k1_xonly_pubkey, input32 : Dynamic) returns shallow I32 {}
 
 /** Serialize an xonly_pubkey object into a 32-byte sequence.
  *
@@ -802,7 +802,7 @@ secp256k1_xonly_pubkey_parse := ext_proc(ctx : secp256k1_context, mut pubkey : s
  *  Out: output32: pointer to a 32-byte array to place the serialized key in.
  *  In:    pubkey: pointer to a secp256k1_xonly_pubkey containing an initialized public key.
  */
-secp256k1_xonly_pubkey_serialize := ext_proc(ctx : secp256k1_context, mut output32 : U8, pubkey : secp256k1_xonly_pubkey) returns shallow I32 {}
+secp256k1_xonly_pubkey_serialize := ext_proc(ctx : secp256k1_context, mut output32 : Dynamic, pubkey : secp256k1_xonly_pubkey) returns shallow I32 {}
 
 /** Compare two x-only public keys using lexicographic order
  *
@@ -848,7 +848,7 @@ secp256k1_xonly_pubkey_from_pubkey := ext_proc(ctx : secp256k1_context, mut xonl
  *                       bytes. For uniformly random 32-byte tweaks, the chance of
  *                       being invalid is negligible (around 1 in 2^128).
  */
-secp256k1_xonly_pubkey_tweak_add := ext_proc(ctx : secp256k1_context, mut output_pubkey : secp256k1_pubkey, internal_pubkey : secp256k1_xonly_pubkey, tweak32 : U8) returns shallow I32 {}
+secp256k1_xonly_pubkey_tweak_add := ext_proc(ctx : secp256k1_context, mut output_pubkey : secp256k1_pubkey, internal_pubkey : secp256k1_xonly_pubkey, tweak32 : Dynamic) returns shallow I32 {}
 
 /** Checks that a tweaked pubkey is the result of calling
  *  secp256k1_xonly_pubkey_tweak_add with internal_pubkey and tweak32.
@@ -873,7 +873,7 @@ secp256k1_xonly_pubkey_tweak_add := ext_proc(ctx : secp256k1_context, mut output
  *       internal_pubkey: pointer to an x-only public key object to apply the tweak to.
  *               tweak32: pointer to a 32-byte tweak.
  */
-secp256k1_xonly_pubkey_tweak_add_check := ext_proc(ctx : secp256k1_context, tweaked_pubkey32 : U8, shallow tweaked_pk_parity : I32, internal_pubkey : secp256k1_xonly_pubkey, tweak32 : U8) returns shallow I32 {}
+secp256k1_xonly_pubkey_tweak_add_check := ext_proc(ctx : secp256k1_context, tweaked_pubkey32 : Dynamic, shallow tweaked_pk_parity : I32, internal_pubkey : secp256k1_xonly_pubkey, tweak32 : Dynamic) returns shallow I32 {}
 
 /** Compute the keypair for a valid secret key.
  *
@@ -886,7 +886,7 @@ secp256k1_xonly_pubkey_tweak_add_check := ext_proc(ctx : secp256k1_context, twea
  *  Out: keypair: pointer to the created keypair.
  *  In:   seckey: pointer to a 32-byte secret key.
  */
-secp256k1_keypair_create := ext_proc(ctx : secp256k1_context, mut keypair : secp256k1_keypair, seckey : U8) returns shallow I32 {}
+secp256k1_keypair_create := ext_proc(ctx : secp256k1_context, mut keypair : secp256k1_keypair, seckey : Dynamic) returns shallow I32 {}
 
 /** Get the secret key from a keypair.
  *
@@ -895,7 +895,7 @@ secp256k1_keypair_create := ext_proc(ctx : secp256k1_context, mut keypair : secp
  *  Out: seckey: pointer to a 32-byte buffer for the secret key.
  *  In: keypair: pointer to a keypair.
  */
-secp256k1_keypair_sec := ext_proc(ctx : secp256k1_context, mut seckey : U8, keypair : secp256k1_keypair) returns shallow I32 {}
+secp256k1_keypair_sec := ext_proc(ctx : secp256k1_context, mut seckey : Dynamic, keypair : secp256k1_keypair) returns shallow I32 {}
 
 /** Get the public key from a keypair.
  *
@@ -940,7 +940,7 @@ secp256k1_keypair_xonly_pub := ext_proc(ctx : secp256k1_context, mut pubkey : se
  *                   random 32-byte tweaks, the chance of being invalid is
  *                   negligible (around 1 in 2^128).
  */
-secp256k1_keypair_xonly_tweak_add := ext_proc(ctx : secp256k1_context, mut keypair : secp256k1_keypair, tweak32 : U8) returns shallow I32 {}
+secp256k1_keypair_xonly_tweak_add := ext_proc(ctx : secp256k1_context, mut keypair : secp256k1_keypair, tweak32 : Dynamic) returns shallow I32 {}
 
 /** This module implements a variant of Schnorr signatures compliant with
  *  Bitcoin Improvement Proposal 340 "Schnorr Signatures for secp256k1"
@@ -1028,7 +1028,7 @@ secp256k1_schnorrsig_extraparams := ext_struct("secp256k1_schnorrsig_extraparams
  *                BIP-340 "Default Signing" for a full explanation of this
  *                argument and for guidance if randomness is expensive.
  */
-secp256k1_schnorrsig_sign32 := ext_proc(ctx : secp256k1_context, mut sig64 : U8, msg32 : U8, keypair : secp256k1_keypair, aux_rand32 : U8) returns shallow I32 {}
+secp256k1_schnorrsig_sign32 := ext_proc(ctx : secp256k1_context, mut sig64 : Dynamic, msg32 : Dynamic, keypair : secp256k1_keypair, aux_rand32 : Dynamic) returns shallow I32 {}
 
 /** Create a Schnorr signature with a more flexible API.
  *
@@ -1051,7 +1051,7 @@ secp256k1_schnorrsig_sign32 := ext_proc(ctx : secp256k1_context, mut sig64 : U8,
  *      keypair: pointer to an initialized keypair.
  *  extraparams: pointer to an extraparams object (can be NULL).
  */
-secp256k1_schnorrsig_sign_custom := ext_proc(ctx : secp256k1_context, mut sig64 : U8, msg : U8, shallow msglen : USize, keypair : secp256k1_keypair, mut extraparams : secp256k1_schnorrsig_extraparams) returns shallow I32 {}
+secp256k1_schnorrsig_sign_custom := ext_proc(ctx : secp256k1_context, mut sig64 : Dynamic, msg : Dynamic, shallow msglen : USize, keypair : secp256k1_keypair, mut extraparams : secp256k1_schnorrsig_extraparams) returns shallow I32 {}
 
 /** Verify a Schnorr signature.
  *
@@ -1063,5 +1063,5 @@ secp256k1_schnorrsig_sign_custom := ext_proc(ctx : secp256k1_context, mut sig64 
  *        msglen: length of the message
  *        pubkey: pointer to an x-only public key to verify with
  */
-secp256k1_schnorrsig_verify := ext_proc(ctx : secp256k1_context, sig64 : U8, msg : U8, shallow msglen : USize, pubkey : secp256k1_xonly_pubkey) returns shallow I32 {}
+secp256k1_schnorrsig_verify := ext_proc(ctx : secp256k1_context, sig64 : Dynamic, msg : Dynamic, shallow msglen : USize, pubkey : secp256k1_xonly_pubkey) returns shallow I32 {}
 

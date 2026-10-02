@@ -19,11 +19,20 @@
     carries; the interpreter learned to lay out a field-less ext_struct
     as the one-byte struct the C backend already emits, so a ref binding
     to the opaque context works interpreted.
-  - [X] ~test/secp256k1.til~: BIP-340 vectors 0-14 (sign, derive the x-only
-    key, verify; the invalid signatures and the unparseable keys), both
-    backends, and invalid secret keys.
-  - [ ] ~mode crypto~ with the owned wrapper types, the warning, and the
-    CURVES enum described below.
+  - [X] ~U256~ in core (four U64 words, the 32 bytes being the wire
+    serialization; hex in/out, byte-wise cmp/eq), the type for keys,
+    messages and digests.
+  - [X] ~src/std/crypto.til~ instead of ~mode crypto~: a til SHA-256
+    (~sha256~ / ~sha256_str~ returning U256 -- libsecp256k1 only exports
+    its tagged hash, and a nostr event id is plain SHA-256) and
+    ~schnorr_pubkey~ / ~schnorr_sign~ / ~schnorr_verify~ over U256 and a
+    64-byte ~Signature~ struct, throwing ~CryptoError~ on invalid keys.
+    Signatures are verified before being returned; the keypair
+    temporary is zeroed. Decided NOT to fold this into HashMap's
+    ~HashFn~ / per-type ~hash~ interface: that one hashes in-memory
+    bytes to a bucket index, this one hashes a caller-serialized byte
+    string to a digest. ~test/crypto.til~: FIPS 180-4 SHA-256 vectors
+    and BIP-340 vectors 0-14 through the wrapper, both backends.
   - [ ] Cross targets: only the native archive is built; a windows twin of
     ~build_nng_win~ is needed before a ~--target=windows-*~ program can
     link it.

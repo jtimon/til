@@ -477,12 +477,19 @@ mutates a run-time context, so none is foldable):
    / ~_DECLASSIFY~ and ~SECP256K1_EC_COMPRESSED~ / ~_UNCOMPRESSED~
    are ~#define~d as expressions over ~SECP256K1_FLAGS_*~, which the
    binder does not fold; their values are added by hand.
+4. *Byte buffers are Dynamic.*  Every ~unsigned char *~ parameter
+   (keys, messages, signatures, tweaks, hashes) is generated as ~U8~
+   and retyped to ~Dynamic~, keeping ~mut~ where the C side writes.
+   A ~U8~ parameter is a scalar passed by address, so only a raw
+   ~malloc~ binding can reach it; ~Dynamic~ is what ~memcpy~ takes,
+   and lets a ~U256~ or ~Signature~ value (src/std/crypto.til) go in
+   directly, its bytes being the wire serialization.
 
 The context is bound as ~ref mut ctx : secp256k1_context =
 secp256k1_context_create(...)~ and released with
 ~secp256k1_context_destroy(ctx)~; a plain ~returns~ (owned) would
 make the interpreter marshal the struct BY VALUE, which is what
-~returns ref~ is for.  ~test/secp256k1.til~ is the worked example.
+~returns ref~ is for.  ~src/std/crypto.til~ is the worked example.
 
 tinyfd has one hand-edit beyond the ext_proc flips: the file
 dialogs pass NULL both ways (filter args in, "user cancelled"
