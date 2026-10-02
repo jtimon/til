@@ -425,6 +425,18 @@
   guest. Interpreter and compiled C output match; TempleOS 5.03 under
   QEMU TCG produced the same 13 lines and ~TILTEST:PASS~.
 
+  The twenty-second slice adds ~File.readfile~ using TempleOS's native
+  whole-file ~FileRead~: there is no persistent handle to close, and its
+  allocated, NUL-terminated bytes become an owned, counted Str freed by
+  ordinary Str teardown. The path is copied from counted Str storage so
+  substring views work, and unrepresentably large files and failed reads
+  throw rather than returning partial or empty content. The shared
+  ~test/script_str_runtime.til~ reads the same ~ext.HC~ bytes on host and
+  guest, checking the prefix and byte count. Interpreter and compiled C
+  output match; TempleOS 5.03 produced the same 15 lines and
+  ~TILTEST:PASS~. A missing-file guest probe emitted
+  ~cfile_open: could not open 'missing.HC'~ and ~TILTEST:FAIL~.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI

@@ -314,6 +314,31 @@ public Bool TilFileExists(TilStr *path)
   return exists;
 }
 
+public U0 TilFileRead(TilStr *out,TilStr *path)
+{
+  U64 count=path->count;
+  U8 *name=TilMAlloc(count+1);
+  I64 size=0;
+  U8 *data;
+  TilMemCpy(name,path->c_str,count);
+  name[count]=0;
+  data=FileRead(name,&size);
+  if (!data) {
+    TilRawWrite("cfile_open: could not open '",28);
+    TilRawWrite(name,count);
+    TilFree(name);
+    TilPanicZ("'\n");
+  }
+  TilFree(name);
+  if (size>=TIL_STR_CAP_VIEW) {
+    TilFree(data);
+    TilPanicZ("File.readfile: file too large\n");
+  }
+  out->c_str=data;
+  out->count=size;
+  out->cap=size;
+}
+
 public I64 TilStrDigit(U8 ch)
 {
   if (ch>=48 && ch<=57)

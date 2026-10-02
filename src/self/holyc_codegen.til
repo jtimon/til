@@ -527,6 +527,11 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
         }
         method := holyc_field_call_name(e, ctx)
         owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols))
+        if owner.eq("File").and(method.eq("readfile")) {
+            if e.children.len() != 2 { error = "invalid File.readfile call"; return "" }
+            path := holyc_str_ref(e.children[1], ctx, locals, error)
+            return format("TilFileRead(&", dest, ", ", path, ")")
+        }
         if state.vec_names.has(owner).and(state.collection_elements[owner].eq("Str"))
             .and(method.eq("pop")) {
             if e.children.len() != 2 { error = "invalid Vec(Str).pop call"; return "" }

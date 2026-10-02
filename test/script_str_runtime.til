@@ -59,11 +59,19 @@ if File.exists("src/holyc/ext.HC") {
     if File.exists("src/holyc") { println("directory exists") }
     host_fs_view := "src/holyc/ext.HC.trailing".substr(0, 16)
     if File.exists(host_fs_view) { println("view exists") }
+    host_read := File.readfile(host_fs_view)
+    println(host_read.substr(0, 4))
+    println(host_read.len().to_i64().to_str())
+    own host_read.delete()
 } else {
     if File.exists("Ext.HC") { println("file exists") }
     if File.exists("C:/Home") { println("directory exists") }
     guest_fs_view := "Ext.HC.trailing".substr(0, 6)
     if File.exists(guest_fs_view) { println("view exists") }
+    guest_read := File.readfile(guest_fs_view)
+    println(guest_read.substr(0, 4))
+    println(guest_read.len().to_i64().to_str())
+    own guest_read.delete()
 }
 if File.exists("missing.HC").not() { println("file missing") }
 if cfile_exists("missing.HC").not() { println("primitive missing") }
