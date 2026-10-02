@@ -23,12 +23,109 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
-   Out of scope, deferred to a future issue: dynamic dispatch / vtables and
-   the *runtime* inheritance of concrete default methods -- i.e. an
-   interface-typed value that erases the concrete type and dispatches to the
-   right implementation. Conformance here is a compile-time check only.
+*** Current state (2026-10-02, master 18b0b26bd)
 
-   --- Original issue below ---
+    #251 remains FIXED for the keyword and struct/enum conformance work.
+    The original closure summary above describes that initial scope, not
+    the full interface implementation now on master. Default copying and
+    runtime dispatch have since landed; they are no longer future work.
+
+**** Implemented after the original closure
+
+    - [[./268.org][#268]] (~1b4509b10~): concrete defaults are copied into
+      each implementer's namespace by ~gen_implements_defaults_for_stmt~
+      in ~src/self/initer.til~. Existing methods override the copies.
+      ~gen_substitute_self_type~ substitutes the interface name in direct
+      parameter/return types; a default calling ~self.draw()~ therefore
+      resolves to the concrete implementation. There is no inheritance
+      chain or shared method table.
+    - [[./269.org][#269]] (~cc8a1da72~): interface-typed arguments accept
+      conforming structs/enums. Abstract calls through the interface lower
+      to ~dyn_call~/~dyn_call_ret~ using the concrete type's name and value
+      pointer. This is runtime string-name dispatch, not a vtable.
+    - ~e7c786a4d~: interface-typed local declarations box a conforming
+      concrete value by borrowing it, like argument coercion.
+    - ~1e316e3b7~: boxes gained ~iface_owned~ and ownership-aware generated
+      clone/delete methods. The runtime representation now has THREE
+      synthetic fields: ~iface_type_name: Str~, ~ref iface_val: Dynamic~,
+      and ~iface_owned: Bool~. "Fieldless" describes user declarations and
+      the parser's initial AST, not the final layout.
+    - ~e6779b494~ and ~642442380~: concrete values returned as an interface
+      or supplied to an interface-typed struct field at construction are
+      boxed as owned heap clones (~make_owned_iface_box~ in the typer).
+      Owned-box clone/delete dynamically clone/free that concrete payload;
+      borrowed-box clone retains the borrow rather than upgrading ownership.
+
+    Interface box/lifecycle/default synthesis is currently invoked from
+    ~type_methods_from~ in ~src/self/typer.til~; the generation
+    helpers themselves remain in ~src/self/initer.til~.
+
+**** Current limits and gaps
+
+    - Defaults called through an INTERFACE-typed receiver are still static
+      calls to the interface's default, even when the concrete type has an
+      override. Only abstract calls dispatch dynamically. Thus the concrete
+      ~Labeled.label()~ override and ~Drawable.label()~ through a boxed
+      Labeled do not have the same dispatch semantics. A default's inner
+      abstract call (~describe -> self.draw()~) does dispatch dynamically.
+    - Abstract dispatch supports at most ONE argument besides self.
+      ~infer_field_access_fcall~ diagnoses larger calls explicitly. Ordinary
+      calls on the concrete type do not go through this interface limit.
+    - ~interface_method_conforms~ compares parameter count, declared type
+      names and return type, with exact-name Self substitution. It does not
+      compare parameter ownership/mutability, func/proc effects or throws.
+      It checks abstract methods only, not overrides of concrete defaults.
+      This is narrower than full function-signature compatibility.
+    - Self substitution does not recursively rewrite nested generic types
+      or explicit interface-name references inside a copied default body.
+    - The parser records one ~implements_name~ on a struct/enum. Multiple
+      implemented interfaces, interface inheritance and interface bounds on
+      generic parameters are not provided by this syntax.
+    - Boxing is implemented at argument, local-declaration, return and
+      constructor-field sites, not as a general assignment conversion.
+      Interface field/local reassignment and heterogeneous collection
+      storage need separate verification and lifetime handling. In
+      particular, a container method's interface-typed argument follows the
+      borrowed argument path; that is not evidence of owned element boxing.
+    - Borrowed boxes require their concrete payload to outlive them.
+      Returning or storing an ALREADY boxed borrowed interface does not
+      trigger the concrete-to-interface owned conversion: ~box_return_value~
+      and constructor boxing only convert conforming concrete types, and
+      borrowed-box clone preserves the pointer. The existing positive tests
+      do not establish safety for these escaping-borrow cases or temporaries
+      bound to interface locals.
+    - Empty ~Iface()~ construction remains legal and is tested for passing
+      through functions and calling a default that ignores self. It supplies
+      no concrete target for an abstract call. User-declared ~clone~/~delete~
+      still suppress the generated box lifecycle methods; the original
+      auto-generation collision caveat is not a resolved feature.
+    - Vtable/monomorphization performance work remains separate from the
+      already implemented dynamic dispatch. The original "no dynamic
+      dispatch" non-goal below is historical, not current behavior.
+
+**** Existing regression coverage
+
+    ~test/interfaces.til~ covers concrete struct/enum conformance, copied
+    defaults, a concrete override, a default calling an abstract method,
+    dynamic argument dispatch, borrowed local bindings, owned returns and
+    constructor fields. Key tests are ~test_default_override~,
+    ~test_default_through_iface_dispatches~, ~test_local_binding_dispatch~,
+    ~test_return_dispatch~, ~test_return_default_dispatch~ and
+    ~test_field_dispatch~. There is no collection or escaping-borrow test
+    in that file. ~test/typer_errors.til~ retains the field/namespace/kind
+    and struct/enum missing-method/signature/non-interface rejection cases.
+
+    Verification for this status update: ~make help summary~ completed;
+    ~bin/til interpret test/interfaces.til~ and
+    ~bin/til run test/interfaces.til~ each passed 17/17 tests using the
+    compiler built in this worktree. The full suite, ASAN and additional
+    backends were not rerun. The limits above are source-review findings;
+    the existing positive tests do not exercise all of them.
+
+*** Original issue (historical design and implementation plan)
+
+    The "next step" and "non-goals" wording below predates #268/#269 and
+    the later boxing changes summarized above.
 
    A top-level type keyword, ~interface~, modelled on Java interfaces and
    C++ abstract classes. An interface is a NAMED, fieldless contract of
