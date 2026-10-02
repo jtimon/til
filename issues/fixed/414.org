@@ -1,0 +1,38 @@
+# priority: medium
+# category: bugs
+** FIXED #414 Infer omitted enum namespaces in if comparisons
+
+*** Post-mortem
+
+    Root cause: switch/match cases and ordinary function arguments already
+    qualified leading-dot enum variants, but namespace/UFCS method calls
+    inferred their arguments without that step. Consequently,
+    ~if value.is(.Variant)~ and ~if value == .Variant~ rejected the elided
+    namespace even though the method parameter supplied its enum type.
+    Comparison operators take the same method-call path.
+
+    Fix: ~infer_field_access_fcall~ now calls the existing
+    ~qualify_dotted_expr~ helper before inferring each argument whose
+    parameter type is known. This reuses the dotted-pattern receiver
+    handling from switch rather than adding special handling to ~if~.
+    Qualification runs after argument normalization, so namespace calls,
+    UFCS calls, and named arguments all use the corresponding parameter.
+
+    Moved the existing ~is()~ payload-constructor check after qualification
+    and inference. Thus ~value.is(.Variant(payload))~ retains the same
+    diagnostic as the fully qualified spelling: ~is()~ compares tags only.
+
+    Regression tests in ~test/enums.til~:
+    - ~test_dot_if_enum_comparisons~: if/else-if, aliases, equality,
+      inequality, and explicit namespace calls.
+    - ~test_dot_if_payload_tags~: payload tags, struct-field and function-call
+      receivers, payload equality, Boolean composition, and named arguments.
+    - ~test_dot_if_template_enum~: inferred variants of ~Option(I64)~.
+
+    ~test/typer_errors.til~ adds ~terr_is_dotted_payload~; both interpreter
+    and build checks in ~src/tests.til~ assert the tag-only diagnostic for
+    qualified and elided payload constructors.
+
+    Verified the positive regressions fail with the original compiler.
+    After the fix, ~make clean && make test~ passed all 493/493 tests,
+    including the ASAN suite and interpreted/compiled enum tests.

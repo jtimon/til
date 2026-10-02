@@ -2463,23 +2463,6 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     if obj3_sname.len().gt(0).and(is_struct_type(obj3.til_type()).not()) {
         obj3.set_til_type(Type.StructSym(ctx.symbols.intern(obj3_sname)))
     }
-    // is() compares only the outer enum tag (see ast.til), so a payload-carrying
-    // variant like NodeType.Literal(Literal.SetLit) silently matches *any*
-    // Literal -- the payload is dead. Reject it: use a bare variant
-    // (NodeType.Literal) or a switch to discriminate the inner variant.
-    if method == "is" {
-        // is(self, other): the `other` argument is the last child (UFCS may
-        // have inserted `self` ahead of it).
-        if e.children.len() > 1 {
-            ref is_other : Expr = e.children[e.children.len() - 1]
-            if is_enum_variant_ctor_with_payload(is_other, scope, ctx.symbols) {
-                is_other.type_error(format(
-                    "is() compares only the enum tag, so the payload here is ignored; ",
-                    "use a bare variant (e.g. 'NodeType.Literal') or a switch to ",
-                    "discriminate the inner variant"), ctx)
-            }
-        }
-    }
     switch ns_func2.node_type {
     case .FuncDef(ns_fdef):
         mark_fcall_direct(e)
@@ -2510,11 +2493,32 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 saved_ns_expected_type := ctx.generic_expected_type.clone()
                 ref saved_ns_expected_for : Dynamic = ctx.generic_expected_for
                 if i - 1 < ns_qtypes.len() {
+                    // Match plain-call inference: enum parameters supply the
+                    // missing namespace in `value.is(.Variant)` and `== .Variant`.
+                    qualify_dotted_expr(e.children[i], type_from_name(ns_qtypes[i - 1], scope, ctx), ctx.symbols)
                     generic_expected_arm(ctx, scope, ns_qtypes[i - 1], e.children[i])
                 }
                 infer_expr(scope, e.children[i], in_func, ctx)
                 ctx.generic_expected_type = saved_ns_expected_type.clone()
                 ctx.generic_expected_for = saved_ns_expected_for
+            }
+        }
+        // is() compares only the outer enum tag (see ast.til), so a payload-carrying
+        // variant like NodeType.Literal(Literal.SetLit) silently matches *any*
+        // Literal -- the payload is dead. Reject it: use a bare variant
+        // (NodeType.Literal) or a switch to discriminate the inner variant.
+        // Check after qualification so `.Literal(...)` is rejected too.
+        if method == "is" {
+            // is(self, other): the `other` argument is the last child (UFCS may
+            // have inserted `self` ahead of it).
+            if e.children.len() > 1 {
+                ref is_other : Expr = e.children[e.children.len() - 1]
+                if is_enum_variant_ctor_with_payload(is_other, scope, ctx.symbols) {
+                    is_other.type_error(format(
+                        "is() compares only the enum tag, so the payload here is ignored; ",
+                        "use a bare variant (e.g. 'NodeType.Literal') or a switch to ",
+                        "discriminate the inner variant"), ctx)
+                }
             }
         }
         infer_and_validate_fcall_args_for_fdef(scope, e, ns_fdef, in_func, ctx)

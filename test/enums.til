@@ -1409,6 +1409,47 @@ test_dot_field_default_and_ctor_arg := test() {
     assert_eq(Str, h.to_str(), "DotWideHolder(kind=Circle(9), n=1)")
 }
 
+test_dot_if_enum_comparisons := test() {
+    c := Color2.Green
+    mut got := ""
+    if c.is(.Red) { got = "red" }
+    else if c.is(.Green) { got = "green" }
+    else { got = "blue" }
+    assert_eq(Str, got, "green")
+    if c == .Green { got = "equal" }
+    else { got = "wrong" }
+    assert_eq(Str, got, "equal")
+    if c != .Blue { got = "different" }
+    else { got = "wrong" }
+    assert_eq(Str, got, "different")
+    assert(c.eq(.Green))
+    assert(Color.is(c, .Green))
+    assert(Color.eq(.Green, c))
+}
+
+test_dot_if_payload_tags := test() {
+    h := DotHolder(kind = .Square(9))
+    mut got := ""
+    if h.kind.is(.Circle) { got = "circle" }
+    else if h.kind.is(.Square) { got = "square" }
+    else { got = "nothing" }
+    assert_eq(Str, got, "square")
+    assert(h.kind.eq(.Square(9)))
+    assert(h.kind.eq(.Square(8)).not())
+    assert(dot_wide_make().is(.Circle))
+    assert(h.kind.is(.Square).and(h.kind.is(.Nothing).not()))
+    assert(DotShape.is(h.kind, other = .Square))
+}
+
+test_dot_if_template_enum := test() {
+    o := Option(I64).Some(42)
+    mut got := false
+    if o.is(.Some) { got = true }
+    assert(got)
+    assert(o.is(.None).not())
+    assert(o.eq(.Some(42)))
+}
+
 // --- #341 follow-up: a dotted pattern's payload binding, pre-inference ---
 //
 // The throw/catch lowering runs BEFORE inference and resolves a case

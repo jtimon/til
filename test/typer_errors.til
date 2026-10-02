@@ -1744,3 +1744,9 @@ terr_refnull_after := func() returns I64 {
     catch (err: OutOfBounds) { }
     return b.clone()
 }
+
+// Eliding the namespace must not bypass is()'s tag-only payload diagnostic.
+terr_is_dotted_payload := func(c: TErrIsColor) returns Bool {
+    return c.is(.Tagged(5))
+}
+terr_is_dotted_payload(TErrIsColor.Red)
