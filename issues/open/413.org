@@ -1,0 +1,56 @@
+# priority: medium
+# category: features
+** OPEN #413 Provide natural core/std imports independent of source layout
+
+External applications should be able to import Til's core and standard-library
+modules using logical names, without knowing the compiler's source/install
+directory structure.
+
+*** Motivation: Tiled
+
+Tiled currently imports system utilities with:
+
+#+begin_src til
+import("../src/std/sys")
+#+end_src
+
+This looks like a dependency on a neighboring development checkout. With
+installed Til =0.0.1-2827886a4=, a traced Tiled build actually loads
+=/usr/local/lib/til/src/std/sys.til=: the resolver first tries the importing
+file's directory, then appends the same path to the compiler's =lib/=
+search directory. The =../src/= traversal reaches the installed support tree.
+Core is already loaded automatically from that same compiler support tree.
+
+The build works, but applications have to expose an implementation detail
+that is surprising, easy to mistake for a broken relative import, and
+potentially shadowed by a matching local filesystem path.
+
+*** Proposed direction
+
+- Support natural spellings such as =import("std/sys")= and
+  =import("core/str")=, resolved against the support tree belonging to the
+  selected compiler. Final syntax and namespace rules should be documented.
+- Keep ordinary project-relative imports available. Define whether =core/=
+  and =std/= are reserved namespaces and how collisions with local modules
+  are handled, rather than relying on incidental filesystem search order.
+- Clarify which core facilities are automatic and when an explicit core
+  import is useful. Explicit and automatic imports of the same module must
+  share its identity, without duplicate definitions or initialization.
+- Reuse the existing installed support tree; natural imports should not
+  require an absolute prefix, a development checkout, a copied standard
+  library, or another installation layout.
+- Document compatibility/migration for existing =../src/std/...= imports
+  and update external-application examples to use the supported spelling.
+
+*** Acceptance
+
+- From a project outside the Til checkout, import and use =std/sys= with
+  the installed compiler in interpreted and compiled execution.
+- Exercise the chosen explicit-core import behavior alongside automatic
+  core loading, and verify that modules are loaded only once.
+- Verify installation under a non-default prefix, nested project modules,
+  and execution from a different working directory.
+- Cover collisions with local =std/= or =core/= directories, missing module
+  diagnostics, and the documented behavior of legacy import spellings.
+- Confirm that core/std resolve to the selected compiler's matching support
+  tree rather than a neighboring checkout or another installed revision.
