@@ -8811,11 +8811,42 @@ priv ffi_marshal_struct := proc(type_name: Str, src: Dynamic, src_host: Bool,
     return dst
 }
 
+// Vec(Str) conversion allocates the element array separately from the
+// header. An element reference therefore needs its own range/stride mapping.
+priv ffi_vec_str_reference_offset := func(header: Dynamic, borrowed: Dynamic,
+        host_layout: Bool, ctx: Context) returns Option(U64) {
+    ref buffer : Dynamic = deref(ffi_vec_str_field_slot(header, "data", host_layout, ctx))
+    if buffer.is_null() { return Option(U64).None } // A lazy-empty vector has no elements.
+    count := ffi_vec_str_usize_field(header, "count", host_layout, ctx)
+    ref layout : FFITypePtrBox = ffi_cached_layout("Str", ctx, host_layout)
+    start := word_bits(buffer)
+    address := word_bits(borrowed)
+    end := start + count.to_u64().mul(layout.ptr.size.to_u64())
+    if address.lt(start).or(address.gte(end)) { return Option(U64).None }
+    return Option(U64).Some(address - start)
+}
+
 // A reference returned into a converted argument must point back into the
 // caller's original object, not into the temporary freed after ffi_call.
 priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: Dynamic,
                                   borrowed: Dynamic, converted_host: Bool, original_host: Bool,
                                   ctx: Context) returns Dynamic {
+    if type_name == "Vec__Str" {
+        offset_o := ffi_vec_str_reference_offset(converted, borrowed, converted_host, ctx)
+        if offset_o.is_some() {
+            ref from_str : FFITypePtrBox = ffi_cached_layout("Str", ctx, converted_host)
+            ref into_str : FFITypePtrBox = ffi_cached_layout("Str", ctx, original_host)
+            index := offset_o.unwrap().div(from_str.ptr.size.to_u64())
+            count := ffi_vec_str_usize_field(original, "count", original_host, ctx)
+            if index >= count.to_u64() { panic("FFI returned a reference past the original Vec(Str) elements") }
+            ref from_buffer : Dynamic = deref(ffi_vec_str_field_slot(converted, "data", converted_host, ctx))
+            ref into_buffer : Dynamic = deref(ffi_vec_str_field_slot(original, "data", original_host, ctx))
+            return ffi_rebase_reference("Str",
+                ptr_add(from_buffer, index.mul(from_str.ptr.size.to_u64()).to_uptr()),
+                ptr_add(into_buffer, index.mul(into_str.ptr.size.to_u64()).to_uptr()),
+                borrowed, converted_host, original_host, ctx)
+        }
+    }
     if borrowed.ptr_eq(converted) { result : Dynamic = original; return result }
     ref from : FFITypePtrBox = ffi_cached_layout(type_name, ctx, converted_host)
     ref into : FFITypePtrBox = ffi_cached_layout(type_name, ctx, original_host)
@@ -9136,23 +9167,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         ref rtype : Str = fe.return_type.unwrap()
         ref raw_ptr : Dynamic = deref(raw)
         if fe.return_is_ref {
-            mut borrowed : Dynamic = raw_ptr
-            mut borrowed_host := fe.host_layout
-            for i in 0..nargs {
-                ref converted : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
-                if converted.is_null() { continue }
-                ref layout : FFITypePtrBox = ffi_cached_layout(fe.param_types[i], ctx, fe.host_layout)
-                address := word_bits(raw_ptr)
-                start := word_bits(converted)
-                if address.lt(start).or(address.gte(start + layout.ptr.size)) { continue }
-                ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
-                borrowed_host = ffi_place_is_foreign(source, ctx).not()
-                borrowed = ffi_rebase_reference(fe.param_types[i], converted, source, raw_ptr,
-                    fe.host_layout, borrowed_host, ctx)
-                break
-            }
-            if borrowed_host.not() { ffi_borrow_place(rtype, borrowed, ctx) }
-            write_ptr(result, borrowed)
+            // Decode below after mutable arguments have been copied back:
+            // a Vec(Str) copyback can replace its original element buffer.
         } else if rtype.eq("Str").and(fe.host_layout.not()).and(size_intrinsics_use_sizeof(ctx)) {
             ffi_marshal_struct_into(rtype, raw_ptr, false, result, true, ctx)
             mut owned_raw_ptr : Dynamic = raw_ptr
@@ -9208,6 +9224,31 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             }
             ffi_marshal_struct_into(fe.param_types[i], marshaled, fe.host_layout, source, ffi_place_is_foreign(source, ctx).not(), ctx)
         }
+    }
+    if fe.return_is_ref {
+        ref rtype : Str = fe.return_type.unwrap()
+        ref raw_ptr : Dynamic = deref(raw)
+        mut borrowed : Dynamic = raw_ptr
+        mut borrowed_host := fe.host_layout
+        for i in 0..nargs {
+            ref converted : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
+            if converted.is_null() { continue }
+            ref layout : FFITypePtrBox = ffi_cached_layout(fe.param_types[i], ctx, fe.host_layout)
+            address := word_bits(raw_ptr)
+            start := word_bits(converted)
+            mut in_argument := address.gte(start).and(address.lt(start + layout.ptr.size))
+            if fe.param_types[i] == "Vec__Str" {
+                in_argument = in_argument.or(ffi_vec_str_reference_offset(converted, raw_ptr, fe.host_layout, ctx).is_some())
+            }
+            if in_argument.not() { continue } // References to other foreign storage stay foreign.
+            ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
+            borrowed_host = ffi_place_is_foreign(source, ctx).not()
+            borrowed = ffi_rebase_reference(fe.param_types[i], converted, source, raw_ptr,
+                fe.host_layout, borrowed_host, ctx)
+            break
+        }
+        if borrowed_host.not() { ffi_borrow_place(rtype, borrowed, ctx) }
+        write_ptr(result, borrowed)
     }
     // Copy every mutable view back before releasing any shared conversion.
     for i in 0..nargs {

@@ -53,6 +53,10 @@ mut library_namespace_a_state : I64 = 23
 library_namespace_a_origin : BindingPoint = BindingPoint(scalar=19, size=29, ptr=39)
 mut library_namespace_a_point_state : BindingPoint = BindingPoint(scalar=20, size=30, ptr=40)
 priv library_namespace_a_private_state : I64 = 101
+// Unrelated exported globals deliberately match a core local and parameter.
+// They must not change the shared-core dependency set.
+min_len : USize = 19
+needle : USize = 23
 // A borrowed global is a C POINTER object (BindingPoint *): the generated
 // til binding must spell it `ref ... = ext_global(...)` and the Python one
 // a POINTER view, both reading through the pointer.

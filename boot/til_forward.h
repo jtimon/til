@@ -404,6 +404,11 @@ typedef struct Option__ref_Dynamic Option__ref_Dynamic;
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
+enum {
+    Option__U64_TAG_None,
+    Option__U64_TAG_Some
+};
+typedef struct Option__U64 Option__U64;
 typedef struct Array__U64 Array__U64;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
@@ -1457,6 +1462,14 @@ typedef struct Vec__priv___src_self_interpreter_til__InterpAlias {
 
 struct Option__ref_ffi_type {
     ffi_type *data;
+};
+
+struct Option__U64 {
+    U8 tag;
+    union {
+        U64 Some;
+        void *_til_payload_align;
+    } data;
 };
 
 typedef struct Array__U64 {

@@ -387,3 +387,32 @@ machine was also a DIFFERENT revision from the worktree's ~bin/til~;
 ~test/install.til~ uses a THIRD, temporary installation built from the
 worktree version. Compare the actual commands with ~-v~ before drawing
 conclusions from their generated code.
+
+*** Follow-up: lexical dependencies and borrowed vector elements (2026-10-02)
+
+Shared-core selection reused the reachability walk's name references without
+distinguishing function parameters and block locals from unrelated user
+globals. An exported min_len declaration therefore rejected Str.cmp because
+its body reads a LOCAL min_len; two libraries then published different export
+sets under the same core ABI name. Loading the library that expected the
+missing shared Str_cmp failed. The shared-core walk now tracks lexical scopes,
+registers parameters and declarations, and filters local reads/writes while
+retaining the existing type, call, and generated-lifecycle dependency rules.
+Ordinary scavenger reachability keeps its existing behavior.
+
+The interpreter FFI also rebased references into a converted Vec(Str)'s header
+but missed references into its separately allocated element buffer. Returning
+ref Str from such a vector handed the caller a pointer into temporary storage
+freed at the end of the FFI call; ASAN reproduced a heap-use-after-free. The
+mapping now recognizes live vector elements and translates each element's
+index and field offset using its source and destination Str ABI strides.
+Returned references are resolved after mutable argument copyback, which can
+grow or replace the original element buffer, and before conversion cleanup.
+
+The library_namespace fixture exports min_len and needle globals only in
+library A and checks that both libraries still select the same shared core.
+Its compiled/interpreted consumer tests references to first/last Str elements
+and a reference returned from a mutable append that grows the vector. Value
+and pointer-identity checks prove the result borrows the original element,
+rather than a copied value. Focused ASAN runs verify both USize32-interpreter
+to USize64-library and USize64-interpreter to USize32-library conversion.

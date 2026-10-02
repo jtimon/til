@@ -134,6 +134,47 @@ priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut workli
 }
 
 collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
+    locals := Set(Str).new()
+    collect_refs_walk(e, refs, symbols, locals, false)
+}
+
+// Reachability can ignore a local spelling that has no global declaration,
+// but shared ownership must distinguish it from an unrelated user global.
+// Use the same reference/lowering rules with lexical binding tracking.
+priv shared_core_collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
+    locals := Set(Str).new()
+    collect_refs_walk(e, refs, symbols, locals, true)
+}
+
+priv collect_refs_walk := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
+        locals: Set(Str), scoped: Bool) {
+    if scoped {
+        switch e.node_type {
+        case .FuncDef(fd):
+            mut function_locals := locals.clone()
+            for p : Declaration in fd.sig.params { function_locals.add(own p.name.clone()) }
+            collect_refs_node(e, refs, symbols, function_locals, true)
+            return
+        case .Body:
+            mut block_locals := locals.clone()
+            for child : Expr in e.children {
+                // An initializer reads the enclosing bindings, before its
+                // declaration introduces the new name in this block.
+                collect_refs_walk(child, refs, symbols, block_locals, true)
+                switch child.node_type {
+                case .Decl(d): block_locals.add(own d.name.clone())
+                case:
+                }
+            }
+            return
+        case:
+        }
+    }
+    collect_refs_node(e, refs, symbols, locals, scoped)
+}
+
+priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
+        locals: Set(Str), scoped: Bool) {
 
     // #210/#326: a swap_replace call on a Str target never emits its
     // callee -- the builder writes the explicit delete-copy-free sequence
@@ -151,7 +192,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
                 ref swap_tname : Str = swap_tname_o.unwrap()
                 if swap_tname.eq("Str") {
                     for cr_swi in 1..e.children.len() {
-                        collect_refs(e.children[cr_swi], refs, symbols)
+                        collect_refs_walk(e.children[cr_swi], refs, symbols, locals, scoped)
                     }
                     return
                 }
@@ -191,7 +232,9 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
 
     switch e.node_type {
     case .Ident(ident):
-        vec_push_str(refs, ident.ident_name(symbols.names))
+        if scoped.and(locals.has(ident.ident_name(symbols.names))).not() {
+            vec_push_str(refs, ident.ident_name(symbols.names))
+        }
         // A runtime callable value carries its FuncSig in the type payload.
         // The signature declaration must survive even when only the value's
         // name appears in executable code.
@@ -248,7 +291,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         // without this case a global written by a reached function (e.g.
         // std/doc's __doc_init__ storing the registry blobs) is invisible
         // to the walk and gets swept out from under it (#326).
-        vec_push_str(refs, adata.name)
+        if scoped.and(locals.has(adata.name)).not() { vec_push_str(refs, adata.name) }
     case .FCall:
         // Check for namespace method call: Type.method(args...)
         if fcall_is_direct(e).and(e.children.len() > 0) {
@@ -278,7 +321,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
                     }
                     // Recurse into args (skip callee -- already handled)
                     for i in 1..e.children.len() {
-                        collect_refs(e.children[i], refs, symbols)
+                        collect_refs_walk(e.children[i], refs, symbols, locals, scoped)
                     }
                     return
                 }
@@ -455,7 +498,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         ref cr_ns : Vec(Declaration) = def_ns_decls(e)
         for cr_d : Declaration in cr_ns {
             if cr_d.default_value.is_some() {
-                collect_refs(cr_d.default_expr(), refs, symbols)
+                collect_refs_walk(cr_d.default_expr(), refs, symbols, locals, scoped)
             }
         }
     }
@@ -496,10 +539,10 @@ collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
         cur_cr_ci := cr_ci
         cr_ci = cr_ci + 1
         if cr_has_subst.and(cur_cr_ci == 1) {
-            collect_refs(c.children[1], refs, symbols)
+            collect_refs_walk(c.children[1], refs, symbols, locals, scoped)
             continue
         }
-        collect_refs(c, refs, symbols)
+        collect_refs_walk(c, refs, symbols, locals, scoped)
     }
 }
 
@@ -1840,7 +1883,7 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
                             .and(shared_core_has_artifact_nodes(value).not()) {
                             candidates.set(source_name, own c_name)
                             mut refs := Vec(Str).new()
-                            collect_refs(value, refs, lp.ctx.symbols)
+                            shared_core_collect_refs(value, refs, lp.ctx.symbols)
                             if fd.sig.variadic_index >= 0 {
                                 ref variadic : Declaration = fd.sig.params[fd.sig.variadic_index.to_usize()]
                                 vec_push_str(refs, format("Array__", decl_type_name(variadic, lp.ctx.symbols)))
@@ -1872,7 +1915,7 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
                         }
                         candidates.set(d.name, own c_name)
                         mut refs := Vec(Str).new()
-                        collect_refs(rhs, refs, lp.ctx.symbols)
+                        shared_core_collect_refs(rhs, refs, lp.ctx.symbols)
                         if fd.sig.variadic_index >= 0 {
                             ref variadic : Declaration = fd.sig.params[fd.sig.variadic_index.to_usize()]
                             vec_push_str(refs, format("Array__", decl_type_name(variadic, lp.ctx.symbols)))

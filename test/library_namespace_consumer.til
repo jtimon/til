@@ -48,10 +48,28 @@ main := proc() returns I64 {
     joined := library_namespace_b_join_parts(parts, ":")
     if joined != "alpha:beta:gamma" { return 70 }
     if parts[2] != "gamma" { return 71 }
+    {
+        // Rebase into the original Vec's elements, not the FFI conversion
+        // buffer. Address identity catches a copy that would hide the bug.
+        ref first : Str = library_namespace_b_borrow_part(parts, 0)
+        if first != "alpha" { return 75 }
+        if ptr_eq(first, parts.unsafe_get(0)).not() { return 76 }
+        ref last : Str = library_namespace_b_borrow_part(parts, 2)
+        if last != "gamma" { return 77 }
+        if ptr_eq(last, parts.unsafe_get(2)).not() { return 78 }
+    }
     library_namespace_b_append_part(parts, "delta")
     if parts.len() != 4 { return 72 }
     if parts[3] != "delta" { return 73 }
     if library_namespace_b_consume_parts(own parts.clone()) != 4 { return 74 }
+    {
+        // A mutable call grows the buffer and copies it back. Resolve the
+        // returned reference only AFTER that replacement has completed.
+        ref appended : Str = library_namespace_b_append_borrow(parts, "epsilon")
+        if parts.len() != 5 { return 79 }
+        if appended != "epsilon" { return 80 }
+        if ptr_eq(appended, parts.unsafe_get(4)).not() { return 81 }
+    }
     ref mut widths : BindingWidths = library_widths_ref()
     ref alias : BindingWidths = library_widths_identity(widths)
     if widths.first != 41 { return 28 }

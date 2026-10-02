@@ -43,6 +43,15 @@ library_namespace_b_append_part := func(mut parts: Vec(Str), value: Str) {
     parts.push(own value.clone())
 }
 
+library_namespace_b_borrow_part := func(parts: Vec(Str), index: USize) returns ref Str {
+    return parts.unsafe_get(index)
+}
+
+library_namespace_b_append_borrow := func(mut parts: Vec(Str), value: Str) returns ref Str {
+    parts.push(own value.clone())
+    return parts.unsafe_get(parts.len() - 1)
+}
+
 library_namespace_b_consume_parts := func(own parts: Vec(Str)) returns USize {
     return parts.len()
 }
