@@ -619,8 +619,21 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
     name := basename.substr(0, name_len)
     paths.name = name.clone()
 
+    // Keep the source hierarchy in executable/backend output paths. Resolve
+    // dot components before prefixing so ../ cannot escape the output tree.
+    // Sources outside cwd retain their absolute hierarchy below that tree;
+    // remove the root separator (and Windows drive colon), not directories.
+    source_abs := realpath_str(lp.path)
+    if source_abs.len() == 0 { panic("cannot resolve build source: ", lp.path) }
+    source_display := display_path(source_abs, lp.ctx.import_cwd)
+    source_relative := source_display.strip_prefix("./")
+    source_unrooted := source_relative.strip_prefix("/")
+    source_stem := source_unrooted.strip_suffix(".til")
+    mut stem := source_stem.clone()
+    if host_os() == "windows" { stem = source_stem.replace(":", "") }
+
     if lp.mode_str == "theme" {
-        paths.theme_path = format("gen/til/", name, ".el")
+        paths.theme_path = format("gen/til/", stem, ".el")
         if custom_bin.len() > 0 { paths.theme_path = custom_bin.clone() }
         paths.do_lib = true
         return paths
@@ -628,7 +641,7 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
 
     if target.is(Target.Jvm) {
         segment := jvm_package_segment(name)
-        paths.jvm_root = format("gen/jvm/", name)
+        paths.jvm_root = format("gen/jvm/", stem)
         paths.jvm_source_dir = format(paths.jvm_root, "/src")
         paths.jvm_package = format("til.generated.", segment)
         paths.jvm_package_dir = format(paths.jvm_source_dir,
@@ -637,7 +650,7 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
         paths.jvm_classes_dir = format(paths.jvm_root, "/classes")
         paths.jvm_args_path = format(paths.jvm_root, "/sources.args")
         paths.jvm_entry_class = format(paths.jvm_package, ".Main")
-        paths.bin_path = format("bin/", name, ".jar")
+        paths.bin_path = format("bin/", stem, ".jar")
         if custom_bin.len() > 0 { paths.bin_path = custom_bin.clone() }
         paths.do_lib = lp.cur_mode.is_library
         return paths
@@ -645,11 +658,11 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
 
     mut source_ext := ".c"
     if target_lang(target).is(Lang.HolyC) { source_ext = ".HC" }
-    mut c_path := format("gen/til/", name, source_ext)
+    mut c_path := format("gen/til/", stem, source_ext)
     if custom_c.len() > 0 { c_path = custom_c.clone() }
     mut ext := executable_extension(target)
     if target.is(Target.Wasm32).and(loads_gui_module(lp)) { ext = ".html" }
-    mut bin_path := format("bin/", name, ext)
+    mut bin_path := format("bin/", stem, ext)
     if custom_bin.len() > 0 { bin_path = custom_bin.clone() }
 
     paths.c_path = c_path
@@ -803,162 +816,6 @@ cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, 
     return result
 }
 
-// #170: is the built artifact already newer than every source it was built
-// from?
-//
-// The dependency set is the LOADER'S OWN resolved unit list --
-// lp.unit_paths() (core + user units, in the openable display form
-// display_path produces) plus lp.mode_files -- rather than a second import
-// scanner. That matters more than the saved code: a separate resolver would
-// have to track load_program's import/mode resolution forever, and the one
-// failure mode of a build cache is serving a stale binary silently. Reusing
-// the resolved set makes divergence impossible by construction.
-//
-// Conservative in every uncertain case, because a wrong "yes" is invisible
-// and a wrong "no" only costs a rebuild:
-//   - artifact missing or unstat-able (file_mtime -1) -> rebuild;
-//   - any dependency unstat-able -> rebuild;
-//   - a dependency at or newer than the artifact -> rebuild. `>=`, not `>`:
-//     mtime has one-second granularity on some filesystems, so an edit
-//     landing in the same second as the previous build must not look old.
-//
-// Multi-file outputs -- library, theme, JVM, wasm, TempleOS -- answer false
-// everywhere below: "the artifact" is not a fixed little set of paths to
-// stat, and they stay uncached until someone does that properly. A
-// cross-compiled NATIVE target is still one binary, so it remains cacheable.
-priv target_is_cacheable := func(target: Target) returns Bool {
-    if target.is(Target.Jvm) { return false }
-    if target.is(Target.Wasm32) { return false }
-    if target.is(Target.TempleosX86) { return false }
-    return true
-}
-
-// A VALUE macro puts the artifact's content outside what mtimes can prove.
-// Its body is full til run by the constfolder interpreter at translate time,
-// procs included -- the compiler's own get_version shells out to `git
-// rev-parse --short HEAD` -- so the emitted bytes depend on state no
-// dependency file carries. The concrete failure: a merge moves HEAD without
-// touching any compiler source, the cached tmp/self_det.c keeps the OLD
-// commit's VERSION line, boot/til.c is regenerated with the new one, and
-// self_translate's cmp fails on that one line.
-//
-// TYPE-GEN macros (returns StructDef / EnumDef / FuncDef) stay cacheable:
-// they are expanded by substitution, not interpreted -- `struct<T>` and
-// `func<T>` literally parse INTO this shape (wrap_struct_def_in_macro) --
-// so their output is a function of sources alone. Excluding them is not an
-// optimization but survival: core's Option is one, so every program
-// declares it. Purity analysis could narrow the value side further
-// (nathex_step_ratio is pure math), but the cache's contract is "a wrong
-// yes is invisible, a wrong no costs a rebuild" -- any value macro answers
-// uncacheable, called or not.
-priv macro_is_type_gen := func(fd: FunctionDef) returns Bool {
-    rt := fd.sig.return_type
-    return rt.eq("StructDef").or(rt.eq("EnumDef")).or(rt.eq("FuncDef"))
-}
-
-priv program_declares_value_macro := func(lp: LoadedProgram) returns Bool {
-    for path : Str in lp.unit_paths() {
-        ref iu : ImportUnit = lp.ctx.imported[path]
-        for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { continue }
-            switch stmt.children[0].node_type {
-            case .FuncDef(fd):
-                if fd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(fd).not()) { return true }
-            case .StructDef(sdd_data):
-                for fdd : Declaration in sdd_data.ns_decls {
-                    if fdd.default_value.is_none() { continue }
-                    switch fdd.default_expr().node_type {
-                    case .FuncDef(ffd):
-                        if ffd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(ffd).not()) { return true }
-                    case:
-                    }
-                }
-            case .EnumDef(edd_data):
-                for nsd : Declaration in edd_data.ns_decls {
-                    if nsd.default_value.is_none() { continue }
-                    switch nsd.default_expr().node_type {
-                    case .FuncDef(ffd):
-                        if ffd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(ffd).not()) { return true }
-                    case:
-                    }
-                }
-            case:
-            }
-        }
-    }
-    return false
-}
-
-// Are ALL of `outs` strictly newer than every source the program was loaded
-// from? Shared by the build and translate checks, which differ only in which
-// files they call the artifact.
-priv artifacts_outrank_deps := proc(lp: LoadedProgram, outs: Vec(Str)) returns Bool {
-    if outs.len() == 0 { return false }
-    mut oldest_out : I64 = 0
-    mut first := true
-    for o : Str in outs {
-        om := file_mtime(o)
-        if om < 0 { return false }
-        if first.or(om < oldest_out) { oldest_out = om }
-        first = false
-    }
-    for d : Str in lp.unit_paths() {
-        dm := file_mtime(d)
-        if dm < 0 { return false }
-        if dm >= oldest_out { return false }
-    }
-    for mf : Str in lp.mode_files {
-        mm := file_mtime(mf)
-        if mm < 0 { return false }
-        if mm >= oldest_out { return false }
-    }
-    return true
-}
-
-build_artifact_is_current := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns Bool {
-    if target_is_cacheable(target).not() { return false }
-    if program_declares_value_macro(lp) { return false }
-    paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    if paths.do_lib { return false }
-    if paths.bin_path.len() == 0 { return false }
-    mut outs := Vec(Str).new()
-    outs.push(own paths.bin_path.clone())
-    return artifacts_outrank_deps(lp, outs)
-}
-
-// #170: the translate half. Its artifact is the emitted C plus its forward
-// header, so BOTH are stat'd -- the oldest of them is what the dependencies
-// have to be older than, or a half-written pair would look current.
-//
-// Prints the same "Generated:" lines the full path prints on success, so a
-// cache hit is observationally identical to a re-translate apart from speed.
-// Harnesses read those lines.
-translate_output_is_current := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns Bool {
-    if target_is_cacheable(target).not() { return false }
-    if program_declares_value_macro(lp) { return false }
-    // mode theme emits Elisp through a different path; left uncached.
-    if lp.mode_str == "theme" { return false }
-    // Non-theme translate ignores -o (cmd_translate only feeds it to the
-    // theme path), so the bin override is empty here for the same reason.
-    no_bin_override := ""
-    paths := derive_build_paths(lp, no_bin_override, custom_c, target)
-    if paths.do_lib { return false }
-    if paths.c_path.len() == 0 { return false }
-    mut outs := Vec(Str).new()
-    outs.push(own paths.c_path.clone())
-    if paths.fwd_path.len() > 0 { outs.push(own paths.fwd_path.clone()) }
-    if artifacts_outrank_deps(lp, outs).not() { return false }
-    print_translate_success(paths, target)
-    return true
-}
-
-// #170: run an artifact the cache proved current, without translating or
-// compiling it first. Same run_artifact the full path ends in.
-run_current_artifact := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, asan: Bool) returns I32 {
-    paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    return run_artifact(paths, user_argv, target, asan)
-}
-
 cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths, target)
@@ -1074,7 +931,13 @@ priv run_artifact := proc(paths: BuildPaths, user_argv: Vec(Str),
         if target.is(Target.Jvm) {
             cmd = format("java -Xverify:all -jar '", paths.bin_path, "'")
         } else {
-            cmd = format(asan_child_prefix(asan), paths.bin_path)
+            // -o names a filesystem path, including a bare filename. Execute
+            // that freshly built file rather than searching PATH for its name.
+            mut executable := paths.bin_path.clone()
+            if File.is_absolute(executable).not() {
+                executable = format("./", paths.bin_path)
+            }
+            cmd = format(asan_child_prefix(asan), executable)
         }
         for uarg : Str in user_argv {
             cmd = cmd.format(" '", uarg, "'")

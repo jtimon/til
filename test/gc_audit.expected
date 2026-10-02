@@ -4520,5 +4520,5 @@ GC-CFG body test/gc_audit.til:0:0 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=0:0 span=0..25 succs=0
 GC-AUDIT body test/gc_audit.til:0:0 locals=0
-Generated: gen/til/gc_audit.c
-Generated: gen/til/gc_audit_forward.h
+Generated: gen/til/test/gc_audit.c
+Generated: gen/til/test/gc_audit_forward.h

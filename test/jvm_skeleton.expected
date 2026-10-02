@@ -1,5 +1,5 @@
-Generated: gen/jvm/hello_script/src/til/generated/p_hello_x5fscript/Main.java
-Generated: gen/jvm/hello_script/sources.args
+Generated: gen/jvm/examples/hello_script/src/til/generated/p_hello_x5fscript/Main.java
+Generated: gen/jvm/examples/hello_script/sources.args
 package til.generated.p_hello_x5fscript;
 
 import til.runtime.TilRuntime;

@@ -48,6 +48,29 @@
   - ~boot/~: generated C, committed for til_boot. Regenerated every
     build so the next commit's til_boot has current code.
 
+** Command output paths and freshness
+
+  ~translate~, ~build~ and ~run~ always regenerate their outputs. Existing
+  timestamps cannot establish which program, compiler or options produced
+  a file (#406). ~--force-rebuild~ remains accepted for compatibility.
+  The build program's explicit dependency graph is separate from this CLI
+  behavior and still decides which build steps need to run.
+
+  Default executable and backend-source paths preserve source directories:
+  ~foo/main.til~ produces ~bin/foo/main~ and ~gen/til/foo/main.c~ (plus its
+  forward header). JVM uses ~bin/foo/main.jar~ and ~gen/jvm/foo/main/~;
+  theme output uses ~gen/til/foo/main.el~. ~-o~ and ~-c~ override their
+  respective paths. Library names, bindings and ~gen/lib/~ keep their
+  existing naming contract.
+
+  Source paths are canonicalized first. Absolute paths inside cwd use
+  the same relative hierarchy; outside sources retain the absolute
+  hierarchy below the output root, with the leading slash and Windows
+  drive colon removed. Thus ~..~ never escapes ~bin/~ or ~gen/~.
+
+  Bootstrap steps explicitly select ~bin/til~ and ~gen/til/til.c~ so the
+  established boot regeneration paths work with old and new compilers.
+
 ** Single-pass build
 
   The Makefile builds til in one pass:

@@ -1,0 +1,97 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+WORK := "tmp/build_outputs"
+
+check_command := proc(command: Cmd, expected: Str) {
+    command.cwd(WORK)
+    command.capture()
+    status := command.run()
+    if status != 0 { panic(command.render(), ": ", command.out(), command.err()) }
+    if command.out() != expected {
+        panic(command.render(), " expected '", expected, "', got '", command.out(), "'")
+    }
+}
+
+main := proc(args: ..Str) {
+    compiler := realpath_str(args[0])
+    File.remove_tree(WORK)
+    mkdir_p(format(WORK, "/foo"))
+    mkdir_p(format(WORK, "/bar"))
+    File.writefile(format(WORK, "/foo/main.til"), "mode script\nprintln(\"first406\")\n")
+    File.writefile(format(WORK, "/bar/main.til"), "mode script\nprintln(\"second406\")\n")
+    File.writefile(format(WORK, "/width.til"), "mode script\nprintln(USize.size().to_str())\n")
+    File.writefile(format(WORK, "/linked.til"),
+        "mode script\nlink_c(\"value.c\")\nvalue := ext_proc() returns shallow I64 {}\nprintln(value().to_str())\n")
+    File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 17; }\n")
+    // Make every later output strictly newer than its .til dependencies, so
+    // the old timestamp shortcut really would take the wrong fast path.
+    sleep_ms(1100)
+
+    check_command(Cmd.new(compiler, "run", "foo/main.til"), "first406\n")
+    check_command(Cmd.new(compiler, "run", "bar/main.til"), "second406\n")
+    mut ext := ""
+    if host_os() == "windows" { ext = ".exe" }
+    for stem : Str in array(Str, "foo/main", "bar/main") {
+        if File.is_file(format(WORK, "/bin/", stem, ext)).not() {
+            panic("missing directory-preserving executable: ", stem)
+        }
+        if File.is_file(format(WORK, "/gen/til/", stem, ".c")).not() {
+            panic("missing directory-preserving C: ", stem)
+        }
+    }
+    // Dot components and absolute spellings of the same source share the
+    // source-relative location. The outside-cwd case stays below bin/gen.
+    check_command(Cmd.new(compiler, "run", "./foo/../bar/main.til"), "second406\n")
+    check_command(Cmd.new(compiler, "run", realpath_str(format(WORK, "/foo/main.til"))), "first406\n")
+    outside := Cmd.new(compiler, "build", "../foo/main.til")
+    outside.cwd(format(WORK, "/bar"))
+    outside.capture()
+    if outside.run() != 0 { panic(outside.out(), outside.err()) }
+    outside_abs := realpath_str(format(WORK, "/foo/main.til"))
+    outside_unrooted := outside_abs.strip_prefix("/")
+    outside_extensionless := outside_unrooted.strip_suffix(".til")
+    outside_stem := outside_extensionless.replace(":", "")
+    if File.is_file(format(WORK, "/bar/bin/", outside_stem, ext)).not() {
+        panic("outside source escaped the output tree")
+    }
+
+    shared := format("shared", ext)
+    check_command(Cmd.new(compiler, "build", "-o", shared, "foo/main.til"), "")
+    check_command(Cmd.new(compiler, "build", "-o", shared, "bar/main.til"), "")
+    check_command(Cmd.new(format("./", shared)), "second406\n")
+    check_command(Cmd.new(compiler, "run", "-o", shared, "foo/main.til"), "first406\n")
+
+    for source : Str in array(Str, "foo/main.til", "bar/main.til") {
+        check_command(Cmd.new(compiler, "translate", "-c", "shared.c", source),
+            "Generated: shared.c\nGenerated: shared_forward.h\n")
+    }
+    c := File.readfile(format(WORK, "/shared.c"))
+    if c.contains("second406").not().or(c.contains("first406")) {
+        panic("translate reused another program's C")
+    }
+    // An existing file is not evidence of what compiler/options emitted it.
+    File.writefile(format(WORK, "/shared.c"), "invalid stale compiler output\n")
+    check_command(Cmd.new(compiler, "translate", "-c", "shared.c", "bar/main.til"),
+        "Generated: shared.c\nGenerated: shared_forward.h\n")
+    if File.readfile(format(WORK, "/shared.c")).contains("second406").not() {
+        panic("translate trusted an existing output")
+    }
+
+    check_command(Cmd.new(compiler, "run", "--usize=32", "width.til"), "4\n")
+    check_command(Cmd.new(compiler, "run", "--usize=64", "width.til"), "8\n")
+    check_command(Cmd.new(compiler, "run", "--force-rebuild", "--usize=32", "width.til"), "4\n")
+    rejected := Cmd.new(compiler, "build", "--cc=no-such-compiler-406", "foo/main.til")
+    rejected.cwd(WORK)
+    rejected.capture()
+    if rejected.run() == 0 { panic("build ignored a changed C compiler") }
+
+    check_command(Cmd.new(compiler, "run", "./linked.til"), "17\n")
+    File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 29; }\n")
+    check_command(Cmd.new(compiler, "run", "./linked.til"), "29\n")
+    println("build outputs passed")
+}

@@ -562,7 +562,7 @@ build_til := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own BOOT.clone())
     if needs_rebuild(TIL, inputs).not() { return }
-    run(BOOT, "build", "--usize=32", "-o", TIL, "src/til.til")
+    run(BOOT, "build", "--usize=32", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
 }
 
@@ -577,12 +577,9 @@ build_til := proc(mut b: Build) {
 build_two_pass := proc(mut b: Build) {
     if b.begin("two_pass").not() { return }
     build_til(b)
-    // --force-rebuild: #170's build cache skips a build whose binary is
-    // already newer than every source it was built from, and pass 1 just
-    // wrote exactly that binary -- so without the flag pass 2 does nothing
-    // and regenerate_boot commits pass 1's output, which is the OLD emitter
-    // applied to the new source. Silent, and the whole point of the target.
-    run(TIL, "build", "--usize=32", "--force-rebuild", "-o", TIL, "src/til.til")
+    // Keep --force-rebuild for older compilers that still implement #170's
+    // timestamp shortcut. The bootstrap C path is explicit in both passes.
+    run(TIL, "build", "--usize=32", "--force-rebuild", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
 }
 
@@ -648,7 +645,7 @@ build_debug := proc(mut b: Build) {
     run_argv(argv)
 }
 
-/// A til program built from one source with the default output path,
+/// A til program built from one source with an explicit output path,
 /// depending on bin/til and the standard library it was compiled from.
 build_program := proc(mut b: Build, step: Str, source: Str, output: Str) {
     if b.begin(step).not() { return }
@@ -657,7 +654,7 @@ build_program := proc(mut b: Build, step: Str, source: Str, output: Str) {
     inputs.push(own TIL.clone())
     inputs.push(own source.clone())
     if needs_rebuild(output, inputs).not() { return }
-    run(TIL, "build", source)
+    run(TIL, "build", "-o", output, source)
 }
 
 build_test_runner := proc(mut b: Build) {
@@ -734,7 +731,7 @@ suite_cmd := proc(b: Build, extra: ..Str) returns Cmd {
 /// run: the constfolder's own emitted C, kept under review as a file
 /// rather than as a golden string inside a test.
 refresh_constfold := proc() {
-    copy("gen/til/constfold.c", "test/constfold.c")
+    copy("gen/til/test/constfold.c", "test/constfold.c")
 }
 
 /// The full suite under ASAN. The default before committing.

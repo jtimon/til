@@ -2,6 +2,14 @@
 # category: cleanups
 ** FIXED #170 All-or-nothing caching for translate/build/run
 
+*** Superseded by #406
+
+    The timestamp shortcut below was removed: it did not establish source
+    or compiler identity and omitted options and linked C. Commands now
+    regenerate their outputs on every invocation. ~--force-rebuild~ remains
+    accepted for compatibility. The original measurements/design follow
+    as historical context.
+
 *** Post-mortem
 
     ~build~, ~run~ and ~translate~ now check whether their output is

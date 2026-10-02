@@ -54,9 +54,10 @@ callgrind counts instructions (deterministic, no sampling noise) but runs
 ~20-50x slower than native, so prefer a smaller target while iterating, e.g.
 examples/plot.til. Open tmp/callgrind.out in kcachegrind for a call-graph view.
 
-Two traps (#397): ~translate~ caches its output since #170, so pass
+Two traps (#397): older compilers with #170's timestamp shortcut require
 ~--force-rebuild~ or a warm cache measures a lex-and-exit (177M instead of
-~7,000M instructions, same "Generated:" lines). And callgrind_annotate's
+~7,000M instructions, same "Generated:" lines). #406 removed that shortcut;
+current compilers always regenerate. And callgrind_annotate's
 ~--tree=caller~ view is not trustworthy on this -O0 binary: it has shown
 ~Expr_delete~ calling ~SymbolPool_intern~. The raw out-file is exact:
 each ~fn=~ block lists its callees as ~cfn=~ + ~calls=N~ lines, and summing

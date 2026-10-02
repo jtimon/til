@@ -70,7 +70,7 @@ check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
     }
     mut ext := ".wasm"
     if has_gui { ext = ".html" }
-    if output.contains(format("bin/", source.strip_suffix(".til"), ext)).not() {
+    if output.contains(format("bin/test/", source.strip_suffix(".til"), ext)).not() {
         panic("GUI output extension for ", source, ": ", output)
     }
 }

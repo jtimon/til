@@ -541,7 +541,7 @@ print_test_result := proc(t: Test) {
 // --- Generated-C collision check ---
 //
 // A compiling command writes a .c file, and `-c` decides where: without it
-// the path is gen/til/<basename>.c, derived from the .til. Two rows built
+// the path is gen/til/<source-path>.c, derived from the .til. Two rows built
 // from ONE .til therefore share that path, and rows run in parallel -- so
 // one process rewrites the generated C while the other compiles it.
 //
@@ -693,7 +693,7 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
             if seen >= 0 {
                 println("FAIL: tests '", owners[seen.to_usize()], "' and '", t.label,
                     "' both compile ", src, " without naming an output, so both write gen/til/",
-                    test_basename(src), ".<ext>")
+                    src.strip_prefix("./").strip_suffix(".til"), ".<ext>")
                 println("  note: give each compiling row its own '-c <path>', or check several",
                     " needles against ONE command with add_counts; a row the compiler",
                     " refuses before codegen says 'refused_before_codegen = true' instead")
@@ -1210,7 +1210,7 @@ main := proc(args: ..Str) {
     add_single(tests, "win_quoting", "build", 0, "",
         format(til_bin, " build", asan_flag, " test/echo_argv.til '&&' ",
             til_bin, " build", asan_flag, " -o bin/win_quoting test/win_quoting.til '&&' ",
-            "TIL_QUOTE_CASE=parent bin/win_quoting bin/echo_argv"))
+            "TIL_QUOTE_CASE=parent bin/win_quoting bin/test/echo_argv"))
 
     // Issue #302 stage 0: the garbager decision-audit golden. Translating
     // the frozen fixture with TIL_GC_AUDIT set dumps the asap pass's
@@ -1220,19 +1220,23 @@ main := proc(args: ..Str) {
     add_single(tests, "gc_audit", "build", 0, "test/gc_audit.expected",
         format("TIL_GC_AUDIT=test/gc_audit.til ", til_bin, " translate test/gc_audit.til"))
 
+    add_count(tests, "build_outputs", "build", "build outputs passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/build_outputs -c gen/c/build_outputs.c test/build_outputs.til ", til_bin))
+
     // #151: Linux performs the frontend and emits HolyC; TempleOS is the
     // compiler/runtime. The first accepted subset is the fully lowered shape
     // of examples/hello_script.til, and build must stop before looking for a
     // host `holyc` executable. Other modes fail explicitly rather than
     // falling through to C emission.
     add_single(tests, "holyc_hello_translate", "build", 0, "test/hello_templeos.expected",
-        format(til_bin, " translate --target=templeos examples/hello_script.til '&&' cat gen/til/hello_script.HC"))
+        format(til_bin, " translate --target=templeos examples/hello_script.til '&&' cat gen/til/examples/hello_script.HC"))
     add_single(tests, "holyc_fizzbuzz_translate", "build", 0, "test/fizzbuzz_templeos.expected",
-        format(til_bin, " translate --target=templeos examples/fizzbuzz.til '&&' cat gen/til/fizzbuzz.HC"))
+        format(til_bin, " translate --target=templeos examples/fizzbuzz.til '&&' cat gen/til/examples/fizzbuzz.HC"))
     add_single(tests, "holyc_imported_direct_calls_translate", "build", 0, "test/templeos_calls.expected",
-        format(til_bin, " translate --target=templeos examples/templeos_calls.til '&&' cat gen/til/templeos_calls.HC"))
+        format(til_bin, " translate --target=templeos examples/templeos_calls.til '&&' cat gen/til/examples/templeos_calls.HC"))
     add_single(tests, "holyc_scalar_semantics_translate", "build", 0, "test/templeos_scalars.expected",
-        format(til_bin, " translate --target=templeos examples/templeos_scalars.til '&&' cat gen/til/templeos_scalars.HC"))
+        format(til_bin, " translate --target=templeos examples/templeos_scalars.til '&&' cat gen/til/examples/templeos_scalars.HC"))
     add_single(tests, "holyc_shared_raw_alloc_translate", "build", 0, "test/templeos_raw_alloc.expected",
         format(til_bin, " translate --target=templeos -c gen/c/templeos_raw_alloc.HC test/script_raw_alloc.til '&&' cat gen/c/templeos_raw_alloc.HC"))
     add_single(tests, "holyc_shared_dynamic_free_translate", "build", 0, "test/templeos_dynamic_free.expected",
@@ -1275,7 +1279,7 @@ main := proc(args: ..Str) {
     // default suite remains JDK-free; the CLI pairs pin the same corpora on
     // interpreter/C.
     add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
-        format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
+        format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/examples/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
     // #326: the source list names the runtime and only the classes the
     // program reaches -- Array(Str), Point, Functions and Main, not an empty
     // Unit_ class per loaded core file nor a class per primitive layout. In
@@ -1283,28 +1287,28 @@ main := proc(args: ..Str) {
     // methods the runtime calls through its interface stay. One row, since
     // parallel rows translating one .til share gen/jvm/<name>.
     add_counts(tests, "jvm_sources_include_runtime", "build",
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/jvm_unsupported/sources.args gen/jvm/jvm_unsupported/src/til/generated/p_jvm_x5funsupported/S_p_Array_x5f_x5fStr.java ')'"),
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/test/jvm_unsupported/sources.args gen/jvm/test/jvm_unsupported/src/til/generated/p_jvm_x5funsupported/S_p_Array_x5f_x5fStr.java ')'"),
         CountCheck(needle = "src/jvm/TilRuntime.java", expected_count = 1),
         CountCheck(needle = ".java\"", expected_count = 5),
         CountCheck(needle = "Unit_p_", expected_count = 0),
         CountCheck(needle = "set_p_data", expected_count = 0),
         CountCheck(needle = "public int length()", expected_count = 1))
     add_count(tests, "jvm_direct_call_source", "build", "f_p_show", 2,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_scalar_smoke.til '&&' cat gen/jvm/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Unit_p_test_x2fjvm_x5fscalar_x5fsmoke_x2etil.java '&&' cat gen/jvm/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Main.java ')'"))
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_scalar_smoke.til '&&' cat gen/jvm/test/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Unit_p_test_x2fjvm_x5fscalar_x5fsmoke_x2etil.java '&&' cat gen/jvm/test/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Main.java ')'"))
     add_count(tests, "jvm_stage_d_cells", "build", "TilRuntime.I64Cell", 6,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_d.til '&&' cat gen/jvm/jvm_stage_d/src/til/generated/p_jvm_x5fstage_x5fd/*.java ')'"))
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_d.til '&&' cat gen/jvm/test/jvm_stage_d/src/til/generated/p_jvm_x5fstage_x5fd/*.java ')'"))
     add_cli_pair(tests, "jvm_stage_d", "test/jvm_stage_d.til", "", 0,
         "test/jvm_stage_d.expected", til_bin, asan_flag)
     add_cli_pair(tests, "jvm_stage_e", "test/jvm_stage_e.til", "", 0,
         "test/jvm_stage_e.expected", til_bin, asan_flag)
     add_count(tests, "jvm_stage_e_aggregate_source", "build", "final class S_p_JvmPoint", 1,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/S_p_JvmPoint.java ')'"))
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/test/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/S_p_JvmPoint.java ')'"))
     add_count(tests, "jvm_stage_e_heap_source", "build", "TilRuntime.ptrAdd", 3,
-        format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
+        format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/test/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
     add_cli_pair(tests, "jvm_stage_f", "test/jvm_stage_f.til", "", 0,
         "test/jvm_stage_f.expected", til_bin, asan_flag)
     add_count(tests, "jvm_stage_f_funcsig_source", "build", "@FunctionalInterface", 3,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_f.til '&&' cat gen/jvm/jvm_stage_f/src/til/generated/p_jvm_x5fstage_x5ff/F_*.java ')'"))
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_f.til '&&' cat gen/jvm/test/jvm_stage_f/src/til/generated/p_jvm_x5fstage_x5ff/F_*.java ')'"))
     add_count(tests, "jvm_rejects_c_path", "build", "error: -c is not supported with --target=jvm", 1,
         format(til_bin, " translate --target=jvm -c gen/jvm/nope.java examples/hello_script.til"))
     add_count(tests, "jvm_rejects_cc", "build", "error: --cc is not supported with --target=jvm", 1,
@@ -1322,7 +1326,7 @@ main := proc(args: ..Str) {
     add_single(tests, "theme_elisp_exact", "build", 0, "",
         format(til_bin, " translate -o gen/til/theme-exact.el editor/themes/til-dark-theme.til '&&' cmp gen/til/theme-exact.el editor/themes/til-dark-theme.el"))
     add_single(tests, "theme_default_path", "build", 0, "",
-        format(til_bin, " translate editor/themes/til-dark-theme.til '&&' cmp gen/til/til-dark-theme.el editor/themes/til-dark-theme.el"))
+        format(til_bin, " translate editor/themes/til-dark-theme.til '&&' cmp gen/til/editor/themes/til-dark-theme.el editor/themes/til-dark-theme.el"))
     add_count(tests, "theme_invalid_color", "build",
         "theme color 'background' must be #RGB or #RRGGBB", 1,
         format(til_bin, " translate -o gen/til/theme-invalid.el test/theme_invalid.til"))
@@ -1690,13 +1694,9 @@ main := proc(args: ..Str) {
     // `#ifdef __linux__` half of til_prof_bind_symbols, and elsewhere the
     // slots keep the names dladdr gave them, so adopt__Str never appears.
     if host_os() == "linux" {
-        // --force-rebuild: the row asserts on what the CURRENT compiler's
-        // --prof instrumentation emits, and tmp/prof_static survives
-        // `make clean` (only tmp/boot goes) -- without it the #170 cache
-        // serves the previous build's binary whenever no source mtime moved,
-        // and the row re-tests old instrumentation. Same leftover-artifact
-        // shape self_translate had; the flag is the build-path spelling of
-        // that row's rm -f.
+        // Keep --force-rebuild for runs against older compilers: #170's
+        // shortcut could reuse tmp/prof_static across instrumentation changes.
+        // Current compilers rebuild it unconditionally (#406).
         add_count(tests, "prof_resolves_static_symbols", "build", "adopt__Str", 2,
             format(til_bin, " build --prof --force-rebuild -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
     }
@@ -2108,7 +2108,7 @@ main := proc(args: ..Str) {
             mut run_args := ""
             if bn == "popcorn" { run_args = " --mute" }
             add_single(tests, format("build_", bn), "build", 124, "",
-                format(til_bin, " build", asan_flag, " ", gf, " '&&' ", timeout_cmd, " ", GUI_TIMEOUT, " bin/", bn, run_args))
+                format(til_bin, " build", asan_flag, " ", gf, " '&&' ", timeout_cmd, " ", GUI_TIMEOUT, " bin/", gf.strip_suffix(".til"), run_args))
         }
     }
 
@@ -2290,7 +2290,7 @@ main := proc(args: ..Str) {
         if en_run == 1 {
             // Explicit artifact paths, like add_cli_pair: these rows run in
             // PARALLEL now, and the defaults are keyed by source basename
-            // (gen/til/<name>.c, bin/<name>), which is shared ground.
+            // (gen/til/<source-path>.c, bin/<source-path>), which is shared ground.
             add_single(tests, format(tutorial_label, "_r"), "docs", 0, "",
                 format(til_bin, " run", asan_flag, " -o bin/c/", tutorial_label,
                     " -c gen/c/", tutorial_label, ".c '", tutorial_file, "'"))
@@ -2434,7 +2434,7 @@ main := proc(args: ..Str) {
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.
     // Own -c: the same file is an add_both row above, and that row compiles
-    // it to the derived gen/til/test_in_namespace.c too. The two have been
+    // it to the derived gen/til/test/test_in_namespace.c too. The two have been
     // racing for that file whenever the runner scheduled them together --
     // found by the collision check, which is the whole point of it.
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,
@@ -2647,7 +2647,7 @@ main := proc(args: ..Str) {
     // argument would have been answered by the constfolder instead.
     //
     // Every compiled row spells its own -c. `-c` defaults to
-    // gen/til/<basename>.c, so two rows built from ONE .til file share that
+    // gen/til/<source-path>.c, so two rows built from ONE .til file share that
     // path -- and the runner runs rows in parallel, which had the two rows
     // below writing the same generated C while one of them compiled it. The
     // failure reads as a broken compiler, not a broken test: a function cut

@@ -79,8 +79,8 @@ main := proc() {
 
     py_a := File.readfile("gen/til/library_namespace_a.py")
     py_b := File.readfile("gen/til/library_namespace_b.py")
-    fwd_a := File.readfile("gen/til/library_namespace_a_forward.h")
-    fwd_b := File.readfile("gen/til/library_namespace_b_forward.h")
+    fwd_a := File.readfile("gen/til/test/library_namespace_a_forward.h")
+    fwd_b := File.readfile("gen/til/test/library_namespace_b_forward.h")
     runtime_alias_a := line_starting_with(fwd_a, "#define I64_clone ")
     runtime_alias_b := line_starting_with(fwd_b, "#define I64_clone ")
     if runtime_alias_a != runtime_alias_b { panic("libraries do not share one versioned runtime namespace") }
@@ -241,7 +241,7 @@ main := proc() {
     // third decl and picks between two whiles with an If -- the same dead
     // block, two decls longer, and the last shape in the corpus still
     // carrying one.
-    lib_a_c := File.readfile("gen/til/library_namespace_a.c")
+    lib_a_c := File.readfile("gen/til/test/library_namespace_a.c")
     require_contains(lib_a_c, "    }\n    self->count = (n);\n}")
 
     // Issue #326: the .c carries its own copy of the library name map --
@@ -256,7 +256,7 @@ main := proc() {
     require_absent(lib_a_c, "#define F64_to_str til_")
     // ...while the header keeps its full map, for the translation units
     // that define what this .c does not.
-    require_contains(File.readfile("gen/til/library_namespace_a_forward.h"),
+    require_contains(File.readfile("gen/til/test/library_namespace_a_forward.h"),
                      "#define F64_to_str til_")
     // An alias the .c does spell stays.
     require_contains(lib_a_c, "#define Array__I64_clone til_")

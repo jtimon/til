@@ -746,9 +746,8 @@ usage := proc() {
     println("  --target=<name>  Select a target, including the portable JVM target.")
     println("  --usize=32|64  Override the target-native USize container width;")
     println("              UPtr always follows pointer width.")
-    println("  --force-rebuild  For translate/build/run: regenerate even when the")
-    println("              existing output is already newer than every source it")
-    println("              was built from (that check otherwise skips the work).")
+    println("  --force-rebuild  Accepted for compatibility; translate/build/run")
+    println("              always regenerate their outputs.")
     println("")
     println("bindings audit -- the generated file is a starting point, not a finished")
     println("binding: C headers cannot express three til-side qualifier axes, so the")
@@ -789,8 +788,6 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
-    // #170: bypass the up-to-date check and always translate + compile.
-    force_rebuild := false
     // #309: --usize overrides the target-native USize alias. 0 follows the
     // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
@@ -927,7 +924,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.asan = true
             cli.path_idx++
         } else if flag == "--force-rebuild" {
-            cli.force_rebuild = true
+            // Compatibility with older callers; outputs are always rebuilt.
             cli.path_idx++
         } else if flag == "--prof" {
             cli.prof = true
@@ -1109,30 +1106,8 @@ main := proc(args: ..Str) {
         .or(cli.command.eq("ast"))
         .or(cli.command.eq("doc")).not()
 
-    // #170: all-or-nothing build cache. Placed between load_program and
-    // prepare_program deliberately -- loading is what resolves the imports,
-    // so this is the earliest point with a trustworthy dependency set, and
-    // it is still ahead of the expensive half (init, type, garbager,
-    // constfold, translate, cc). Measured on test/comparisons.til: translate
-    // 0.72s, build 1.57s, so skipping from here saves nearly all of it.
-    if cli.force_rebuild.not() {
-        if cli.command.eq("build").or(cli.command.eq("run")) {
-            if build_artifact_is_current(lp, cli.custom_bin, cli.custom_c, target) {
-                if cli.command == "run" {
-                    exit(run_current_artifact(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.asan).cast(I64))
-                }
-                exit(0)
-            }
-        } else if cli.command == "translate" {
-            // Same all-or-nothing test, against the emitted C and its forward
-            // header instead of the binary. The check prints the "Generated:"
-            // lines itself on a hit, so the output matches a re-translate.
-            if translate_output_is_current(lp, cli.custom_c, target) {
-                exit(0)
-            }
-        }
-    }
-
+    // An output's mtime cannot establish its source, compiler or options.
+    // Always prepare and emit the requested program, including explicit paths.
     prepare_program(lp, cli.command == "test")
 
     mut result : I32 = 0
