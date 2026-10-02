@@ -1911,12 +1911,41 @@ main := proc(args: ..Str) {
     // is not emitted. til.c: 2,181 such calls -> 363, 1,824 lines.
     add_count(tests, "structs_no_noop_pod_delete", "build", "Point_delete(&a, 0);", 0,
         format(til_bin, " translate -c gen/c/structs_nd2.c test/structs.til '&&' cat gen/c/structs_nd2.c"))
-    // ...unless the call is the binding's ONLY reader: dropping it would
-    // leave a declaration nothing reads, and retiring the declaration too
-    // is the ownership rewrite #302 owns. test_delete's `p := Point(x=3,
-    // y=7); Point.delete(own p)` is exactly that shape.
-    add_count(tests, "structs_keeps_sole_reader_delete", "build", "Point_delete(&p, 0);", 1,
-        format(til_bin, " translate -c gen/c/structs_sr.c test/structs.til '&&' cat gen/c/structs_sr.c"))
+    // ...and where that call is the binding's ONLY reader, the binding
+    // holds nothing to release either, so body DCE retires both together:
+    // test_delete's `p := Point(x=3, y=7); Point.delete(own p)` and its
+    // Line twin leave no declaration and no call behind.
+    add_counts(tests, "structs_no_sole_reader_delete", "build",
+        format(til_bin, " translate -c gen/c/structs_sr.c test/structs.til '&&' cat gen/c/structs_sr.c"),
+        CountCheck(needle = "Point_delete(&p, 0);", expected_count = 0),
+        CountCheck(needle = "Line_delete(&l, 0);", expected_count = 0))
+    // The same for a value a lowered switch no longer reads
+    // (test_rest_only's `case PointPat(..)` matches without looking)...
+    add_count(tests, "enums_no_sole_reader_delete", "build", "PointPat_delete(&p, 0);", 0,
+        format(til_bin, " translate -c gen/c/enums_sr.c test/enums.til '&&' cat gen/c/enums_sr.c"))
+    // ...and for an effectful call's result: the call stays, as a bare
+    // statement, with no holder whose only job was a delete that does
+    // nothing.
+    add_counts(tests, "errors_no_sole_reader_delete", "build",
+        format(til_bin, " translate -c gen/c/errors_sr.c test/errors.til '&&' cat gen/c/errors_sr.c"),
+        CountCheck(needle = "    make_fieldless_error(&calls);", expected_count = 1),
+        CountCheck(needle = "_disc", expected_count = 0))
+    // Issue #326: a `_` binding the C never reads is dead weight, not a
+    // place for an unused cast. A `_ := x.safe_add(y)` keeps only its call
+    // (and the throw check after it)...
+    add_counts(tests, "errors_no_dead_discard_binding", "build",
+        format(til_bin, " translate -c gen/c/errors_db.c test/errors.til '&&' cat gen/c/errors_db.c"),
+        CountCheck(needle = "(void)_;", expected_count = 0),
+        CountCheck(needle = "    U64_safe_add(max_u64, ", expected_count = 1))
+    // ...a `for _ in a..b` declares no per-step copy of its counter...
+    add_count(tests, "lazy_no_dead_loop_binder", "build", "(void)_;", 0,
+        format(til_bin, " translate -c gen/c/lazy_lb.c test/lazy.til '&&' cat gen/c/lazy_lb.c"))
+    // ...and an unread pattern binder (`case PointPat(x = _nx, y = _ny)`,
+    // `case Some(_n)`) declares no pointer into the payload.
+    add_counts(tests, "enums_no_dead_pattern_binder", "build",
+        format(til_bin, " translate -c gen/c/enums_pb.c test/enums.til '&&' cat gen/c/enums_pb.c"),
+        CountCheck(needle = "(void)_ny;", expected_count = 0),
+        CountCheck(needle = "(void)_n;", expected_count = 0))
     // A destructor with real field work keeps every call.
     add_count(tests, "errors_keeps_field_deletes", "build", "Str_delete(&self->msg, 0);", 6,
         format(til_bin, " translate -c gen/c/errors_fd.c test/errors.til '&&' cat gen/c/errors_fd.c"))
@@ -1934,9 +1963,14 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/strings_md.c test/strings.til '&&' cat gen/c/strings_md.c"))
     // A `ref` decl's deliberately-unused (void) guard was written twice --
     // once in the Ref arm and once by the shared tail that runs for both
-    // arms (840 duplicated statements across the corpus).
-    add_count(tests, "enums_unused_guard_emitted_once", "build", "(void)_n;", 9,
-        format(til_bin, " translate -c gen/c/enums_ug.c test/enums.til '&&' cat gen/c/enums_ug.c"))
+    // arms (840 duplicated statements across the corpus). Pinned on the
+    // `ref` bindings that still need one: test/errors.til's `_v`/`_x` keep
+    // a bounds-checked access body DCE cannot drop (enums' pattern binders,
+    // which this used to count, are dead and gone, #326).
+    add_counts(tests, "errors_unused_guard_emitted_once", "build",
+        format(til_bin, " translate -c gen/c/errors_ug.c test/errors.til '&&' cat gen/c/errors_ug.c"),
+        CountCheck(needle = "(void)_v;", expected_count = 1),
+        CountCheck(needle = "(void)_x;", expected_count = 1))
     // Issue #326: an enum's auto-generated `eq` and its variant
     // constructors are ordinary namespace members, so the member walk
     // forward-declares them; the enum-auto-helper block that follows is

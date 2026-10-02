@@ -2556,6 +2556,26 @@ delete_body_is_free_only := func(fdef: Expr, symbols: SymbolPool) returns Bool {
     }
 }
 
+// Is this FCall a struct construction -- `T(...)` whose callee is the
+// struct's own name? Shared by the desugarer (an owned ctor argument whose
+// C ABI borrows a stack outer) and the scavenger (constructing a struct
+// whose delete does nothing is a value and nothing else).
+fcall_is_struct_ctor := func(arg: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if arg.node_type.is(NodeType.FCall).not().or(arg.children.len() == 0) { return false }
+    type_name_o := expr_type_name_ref(arg, symbols)
+    if type_name_o.is_none() { return false }
+    ref type_name : Str = type_name_o.unwrap()
+    switch arg.children[0].node_type {
+    case .Ident(callee):
+        if callee.ident_name(symbols.names) != type_name { return false }
+    case:
+        return false
+    }
+    sdef_o := scope.get_struct(type_name, symbols)
+    if sdef_o.is_none() { return false }
+    return sdef_o.unwrap().node_type.is(NodeType.StructDef)
+}
+
 // #326: does deleting a value of this type do ANYTHING? A HAND-WRITTEN
 // delete may (test/structs.til's DeleteCustom counts its calls), so the
 // answer is read off the body wherever there is one -- the generated ones

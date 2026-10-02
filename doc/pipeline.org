@@ -155,7 +155,9 @@ Two modules sit underneath every phase below:
 
 8. Back end
 
-There are two main back ends.
+There are two main back ends -- the interpreter and C -- plus two
+alternative code back ends selected by ~--target=~ (HolyC for TempleOS,
+Java for the JVM) and ~mode theme~'s editor-theme writer.
 
 - Interpret:
   - `interpret(ast, ...)`
@@ -171,8 +173,8 @@ There are two main back ends.
   - [[file:../src/self/c_codegen.til][src/self/c_codegen.til]] owns the C ABI,
     C/header emission, C library bindings, and C-only emit reachability.
   - `c_codegen_translate_outputs(...)` is the boundary between them.
-  - runs its own emit-reachability pass first
-    (~builder_fill_emit_inventory~, #326). This is NOT a second
+  - its first step, ~builder_prepare_emit~, runs the C back end's own
+    emit-reachability pass (~builder_fill_emit_inventory~, #326). This is NOT a second
     scavenge: it answers a question only a C emitter can ask, because
     only the C emitter knows what it splices. `Color.Red` becomes a
     compound literal, `T.size()` was folded to a literal, a POD
@@ -182,15 +184,32 @@ There are two main back ends.
     the call-site inventory, iterates it to a fixpoint (a site inside a
     body that is itself omitted is not a call), and the emitters gate
     on the result.
-  - a future back end needing the same cleanup writes its own version:
-    the splicing rules are C's, not the language's. Only the
-    reachability half above is shared.
-  - the pass runs from `build`, after
+  - the pass runs from ~builder_prepare_emit~, right after
     `build_register_func_symbols_lp`, not from `scavenge_imported` --
     its lowering queries read the C-symbol aliases that registration
     installs, and answering them earlier gives a different (wrong)
     result.
+  - after `build` writes the .c, ~c_drop_dead_defines~ removes the
+    macro definitions and library name-map aliases the finished text
+    never spells -- uses decided only mid-emission, which no pre-pass
+    can predict without reimplementing the emitter.
   - then `compile_c(...)` / `compile_lib(...)` compiles the emitted C
+
+- HolyC and JVM:
+  - [[file:../src/self/holyc_codegen.til][src/self/holyc_codegen.til]] and
+    [[file:../src/self/jvm_codegen.til][src/self/jvm_codegen.til]], each with
+    its own runtime (~src/holyc/~, ~src/jvm/TilRuntime.java~).
+  - each answers the C pass's question for itself: the splicing rules
+    are C's, not the language's, and only the reachability half above
+    is shared. Both hold their whole output in memory before writing,
+    so the finished text decides what is kept -- HolyC writes a runtime
+    extern only when the rest of the file names it; the JVM back end
+    keeps the classes and members reached from ~Main~ and the runtime
+    (~jvm_mark_live~).
+
+- Theme: ~mode theme~ files go to
+  [[file:../src/self/theme_codegen.til][src/self/theme_codegen.til]], which
+  writes editor theme data instead of code.
   - target/platform selection (the `Target` and `Lang` enums) lives in
     [[file:../src/self/targets.til][src/self/targets.til]]
 

@@ -11,9 +11,16 @@ too (every core value initializer, five lifecycle methods per reached
 type, macro signatures, whole generated helper families), so dead code
 neither failed the C build nor left the output.
 
-What changed, by layer.  Builder: casts only on ~_~-prefixed names and
-only when the body liveness scan finds them unread (name-keyed, with the
-declared-twice safe side); no attribute anywhere; generated ABI slots
+The close made the invariant hold; four later arcs, each in its own
+section below, finished the sweep -- the first follow-up arc, the second
+follow-up arc, the other backends (HolyC, JVM), and the remainders that
+had no owner left.  The end state is at the end of the last one.
+
+What changed at the close, by layer.  Builder (now ~c_codegen.til~):
+casts only on ~_~-prefixed names and only when the body liveness scan
+finds them unread (per declaration where a name is declared more than
+once -- the second arc's refinement of the first, name-keyed version);
+no attribute anywhere; generated ABI slots
 renamed ~_til_env~/~_argv~; pooled Str literals emit no placeholder; and
 the generated families consume the reachability result through builder-
 side inventories -- reflection (~builder_reflect_inventory~), dyn
@@ -58,9 +65,19 @@ garbager drift); #302 owns the ownership authority a binding-dropping
 rewrite of unread EFFECTFUL top-level initializers would need (they stay
 roots by the script-mode policy: executable statements are the
 program).  Scope-aware liveness became moot for the invariant: the dead
-temps it was meant to find are gone at their source, ~-Werror~ guards
-new ones, and the remaining name-keyed conservatism only adds casts #86
-explicitly allows on ~_~ names.
+temps it was meant to find are gone at their source, and ~-Werror~
+guards new ones.  The name-keyed conservatism that remained at the close
+was retired by the second arc (per-declaration answers, 1,522 casts ->
+1).  That arc left two remainders; the sole-reader deletes were retired
+in the last section ("Finishing"), and the one cast left is explained
+there.
+
+*** The problem as filed
+
+The rest of this file down to the Progress section is the issue as
+filed: it describes the generated C BEFORE the fix, and names
+~src/self/builder.til~, which has since been split into ~builder.til~
+(paths, toolchain, commands) and ~c_codegen.til~ (the C emitter).
 
 The generated C still hides dead-code and liveness mistakes behind broad
 warning suppressors.  The visible example in ~test/constfold.c~ is:
@@ -87,7 +104,7 @@ that are deliberately unused).  Every unread non-underscore binding must
 remain a hard error that forces either the user or the compiler pass that
 created it to be fixed.
 
-*** Scale and concrete evidence
+*** Scale and concrete evidence (as filed)
 
 The current committed ~test/constfold.c~ is 9,390 lines and contains:
 
@@ -110,7 +127,7 @@ best backstop for post-typer liveness bugs, while the retained declarations
 increase compile time, binary size and the number of codegen paths every
 change must keep valid.
 
-*** Current root causes
+*** Root causes (as filed)
 
 1. ~emit_stmt_decl~ in ~src/self/builder.til~ emits a cast for every local
    whose name starts with either ~_~ OR ~hoisted__~ (both the Ref and
@@ -182,7 +199,7 @@ change must keep valid.
   conservatively rooted according to the names or wildcards that can reach
   it.
 
-*** Detailed implementation plan
+*** Detailed implementation plan (as filed)
 
 1. Add focused output checks before removing suppressors.
    - Keep the existing #86 typer cases proving non-underscore unused
@@ -600,22 +617,27 @@ is unconditional.  A first version conditioned that root on
 ~ctx.compile_mode~ and a later one moved C lowering predicates
 (~is_pod_struct~, ~fcall_is_shallow_return~, the splice mirror) into
 ~scavenger.til~ outright; both were wrong in the same direction, and
-both are undone.  More backends than C are coming, and none of them
-should inherit C's rules.
+both are undone.  None of the other backends should inherit C's rules,
+and the two that arrived since (HolyC, JVM) do not.
 
 The C BACKEND answers a question only it can ask: having spliced
 ~Color.Red~ into a compound literal and folded ~T.size()~ to a literal
 at every site, does any emitted C still CALL the function?  That is a
-fact about C lowering, so the emit inventory, the omission gates and
-the splice mirror live in ~builder.til~ (~builder_fill_emit_inventory~).
-A second backend writes its own; it does not reuse this one.
+fact about C lowering, so the emit inventory and the omission gates live
+in ~c_codegen.til~ (~builder_fill_emit_inventory~), with a post-pass over
+the finished .c (~c_drop_dead_defines~) for the macro definitions whose
+use is decided only mid-emission.  The splice mirror the first version
+needed is gone (see the loose end below).  The other backends each
+answer the same question their own way, from their own finished text
+(see "The other backends").
 
 One constraint worth recording, because it looks like a layering
-mistake and is not: the gate runs from ~build()~, not from
+mistake and is not: the gate runs from ~builder_prepare_emit~ -- the
+first step of ~c_codegen_translate_outputs~ -- not from
 ~scavenge_imported~, because its queries read the C-symbol aliases
-~build_register_func_symbols_lp~ installs.  Asking earlier returns a
-different answer -- ~EvalHeap_clone~ and ~CtorArg_clone~ became implicit
-declarations when it ran at sweep time.
+~build_register_func_symbols_lp~ installs just before it.  Asking
+earlier returns a different answer -- ~EvalHeap_clone~ and
+~CtorArg_clone~ became implicit declarations when it ran at sweep time.
 
 *** The loose end this work depends on -- and why it is not a small fix
     (attempted and measured 2026-08-04; RESOLVED 2026-08-15, see the end)
@@ -975,17 +997,78 @@ with no prediction and no re-read.
   named members of different classes keep each other (text cannot tell
   receivers apart). 206 classes / 5,778 lines -> 37 / 3,281, zero dead.
   javac's errors on the six fixtures are the same set before and after
-  (the backend's output does not yet compile on any of them, a
-  pre-existing gap the default suite does not see because it runs no
-  JDK); with that one call site patched by hand, the three that then
-  compile print identical output. jvm_sources_include_runtime pins
-  the source list, a dropped setter and a kept interface method.
+  (none of them compiled at the time -- a USize regression the default
+  suite cannot see because it runs no JDK, recorded in #375); with that
+  one call site patched by hand, the three that then compile print
+  identical output. jvm_sources_include_runtime pins the source list, a
+  dropped setter and a kept interface method.
+
+The theme backend (~mode theme~) writes editor theme data, not code, so
+it has no unreachable code to sweep.
+
+*** Finishing: the remainders that had no owner left (closed 2026-10-02)
+
+The second arc handed the sole-reader deletes to #302, and #302 closed
+without them. Re-auditing turned up three more dead shapes hiding behind
+an underscore -- the pattern the issue was filed against (~hoisted__~
+temps carrying a cast instead of being removed) wearing a different
+prefix. All of them went to body DCE, which is where a dead binding is
+supposed to die:
+
+- A by-value aggregate whose delete does nothing holds nothing to
+  release, so a binding read only by those deletes goes with them
+  (~dce_aggregate_holds_nothing~): ~p := Point(x = 3, y = 7);
+  Point.delete(own p)~ leaves no declaration and no call. Constructing
+  such a struct is pure (~fcall_is_struct_ctor~, moved from the
+  desugarer to context.til so both share it). An effectful right-hand
+  side stays as a bare call -- and the C emitter's discard path no
+  longer wraps that call in a holder whose only job was a delete that
+  does nothing, asking the same ~init_delete_is_noop~ question so the
+  two cannot disagree. 50 sole-reader deletes across the corpus -> 0.
+- ~mut~ bindings were excluded from DCE wholesale, so a variadic
+  array's ~_ek~ error slot -- declared for the throwing ~set~'s out-arg
+  -- survived with a cast whenever the array had no ~set~ left (empty,
+  or folded): 228 across the corpus, 12 lines of ~test/constfold.c~.
+  A ~mut~ binding with a literal initializer that the body never
+  mentions at all (an Assign target is a mention) goes now; at top
+  level the ~_va_~ temps count as compiler-internal.
+- The call branch only took ~hoisted__~ names, but below top level an
+  unread user binding is always a ~_~ one (#86 rejects the rest): a
+  ~for _ in a..b~'s per-step copy of its counter, a
+  ~_ := x.safe_add(y)~ kept for its throw. Any name qualifies now; a
+  copy of a primitive is pure. An unread borrow of a place -- a
+  ~case Some(_n):~ binder (~get_payload~) or ~case Point(y = _ny)~
+  (~p.y~) -- is an address computation and goes too. Locals declared
+  only to be cast: 837 across the corpus -> 14 (65 -> 0 in til.c).
+- Two read sets the cast decision consults were wrong for generated
+  entry wrappers: ~emit_runtime_inits~ consulted an EMPTY one (reset
+  scratch), and ~emit_script_main~ collected one per unit into sets
+  each call starts empty. Both now take the union of every unit's
+  top-level statements (~builder_collect_units_liveness~), so a
+  ~_va_Array~ that ~set~ reads on the next line takes no cast.
+
+End state: zero sole-reader deletes, zero compiler-made ~_~ bindings
+left dead, zero casts on a binding the function reads, except the one
+the delete-is-not-a-read rule over-approximates (til.c's
+~typer_resolve_enum_payload_types~, where an emitted ~Type_delete(&_, 0)~
+is the read). Making that rule exact means predicting every delete the
+emitter elides -- several classes keyed on emit-time state -- before
+the declaration is written, for one cast. What remains on ~_~ names is
+what #86 sanctions and C needs: the 14 user bindings whose initializer
+has an effect that cannot stand as a statement (a bounds-checked
+access), bindings that are written but never read (C's
+-Wunused-but-set-variable), and parameters.
+Regressions: ~structs_no_sole_reader_delete~,
+~enums_no_sole_reader_delete~, ~errors_no_sole_reader_delete~,
+~errors_no_dead_discard_binding~, ~lazy_no_dead_loop_binder~,
+~enums_no_dead_pattern_binder~, plus ~test/constfold.c~.
 
 *** Related issues
 
 - #86 defines the user-visible underscore escape hatch.
-- #209 owns the AST-vs-builder stack-delete mismatch whose ignored
-  ~call_free~ temp is currently cast away.
+- #209 owns the storage-decision architecture behind the stack-delete
+  override; the ignored ~call_free~ temp and its cast are gone (see the
+  post-mortem).
 - #158 covers pass organization; this issue is about the reachability and
   warning invariants, not reducing the irreducible mark/sweep walks.
 - #302 is the ownership authority needed when replacing an unread owning
