@@ -339,6 +339,29 @@ public U0 TilFileRead(TilStr *out,TilStr *path)
   out->cap=size;
 }
 
+public U0 TilFileWrite(TilStr *path,TilStr *content)
+{
+  U64 count=path->count;
+  U8 *name=TilMAlloc(count+1);
+  I64 written=0;
+  CDirContext *parent;
+  TilMemCpy(name,path->c_str,count);
+  name[count]=0;
+  // FileWrite creates missing parent directories; fopen("wb") does not.
+  parent=DirContextNew(name);
+  if (parent) {
+    DirContextDel(parent);
+    written=FileWrite(name,content->c_str,content->count);
+  }
+  if (!written) {
+    TilRawWrite("File.writefile: could not write '",33);
+    TilRawWrite(name,count);
+    TilFree(name);
+    TilPanicZ("'\n");
+  }
+  TilFree(name);
+}
+
 public I64 TilStrDigit(U8 ch)
 {
   if (ch>=48 && ch<=57)

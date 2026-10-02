@@ -437,6 +437,21 @@
   ~TILTEST:PASS~. A missing-file guest probe emitted
   ~cfile_open: could not open 'missing.HC'~ and ~TILTEST:FAIL~.
 
+  The twenty-third slice adds ~File.writefile~ through TempleOS's native
+  whole-file ~FileWrite~. Its counted Str path is NUL-terminated before the
+  call, while content is passed with its byte count, including embedded NULs.
+  A zero result reports a failed write and throws with the path; the native
+  whole-file operation needs no persistent handle. The shared
+  ~test/script_str_runtime.til~ writes a longer file, replaces it with
+  three binary bytes, then writes an empty file and reads both results back.
+  A parent-directory preflight preserves the host API's failure behavior:
+  TempleOS ~FileWrite~ would otherwise create missing parent directories.
+  Interpreter and compiled C output match; TempleOS 5.03 under QEMU TCG
+  produced the same 18 lines and ~TILTEST:PASS~. An invalid-name guest
+  probe emitted ~File.writefile: could not write 'bad?.HC'~ and
+  ~TILTEST:FAIL~. A missing-parent probe likewise failed without creating
+  ~BADDIR~ on the guest disk.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI

@@ -75,3 +75,18 @@ if File.exists("src/holyc/ext.HC") {
 }
 if File.exists("missing.HC").not() { println("file missing") }
 if cfile_exists("missing.HC").not() { println("primitive missing") }
+
+mut write_path := "TILWRITE.HC.trailing".substr(0, 11)
+if File.exists("src/holyc/ext.HC") {
+    write_path = "tmp/TILWRITE.HC.trailing".substr(0, 15)
+}
+File.writefile(write_path, "longer content")
+File.writefile(write_path, "A\x00Z")
+written := File.readfile(write_path)
+if written.eq("A\x00Z") { println("write roundtrip") }
+println(written.len().to_i64().to_str())
+own written.delete()
+File.writefile(write_path, "")
+empty_written := File.readfile(write_path)
+if empty_written.is_empty() { println("empty write") }
+own empty_written.delete()

@@ -1957,6 +1957,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported call 'Str.", method, "'")
                 return ""
             }
+            if owner.eq("File").and(method.eq("writefile")) {
+                if e.children.len() != 3 { error = "invalid File.writefile call"; return "" }
+                path := holyc_str_ref(e.children[1], ctx, locals, error)
+                content := holyc_str_ref(e.children[2], ctx, locals, error)
+                return format("TilFileWrite(", path, ", ", content, ")")
+            }
             if owner.eq("File").and(method.eq("exists")) {
                 if e.children.len() != 2 { error = "invalid File.exists call"; return "" }
                 path := holyc_str_ref(e.children[1], ctx, locals, error)

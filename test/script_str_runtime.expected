@@ -10,6 +10,9 @@ file exists
 directory exists
 view exists
 // T
-9756
+10339
 file missing
 primitive missing
+write roundtrip
+3
+empty write
