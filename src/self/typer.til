@@ -8603,7 +8603,7 @@ priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         if dep.len() > 0 { total = total + type_methods_file(dep, ctx) }
     }
 
@@ -8719,7 +8719,7 @@ priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         if dep.len() > 0 { total = total + type_fields_file(dep, ctx) }
     }
 
@@ -8762,7 +8762,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         if dep.len() > 0 { total = total + type_decls_file(dep, ctx) }
     }
 
@@ -8840,7 +8840,7 @@ priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         if dep.len() > 0 { total = total + type_bodies_file(dep, ctx) }
     }
 

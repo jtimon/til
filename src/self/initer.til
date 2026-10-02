@@ -5791,7 +5791,7 @@ priv init_seed_tree := proc(path: Str, mut ctx: Context) {
     if iu.mode_import.len() > 0 { init_seed_tree(iu.mode_import, ctx) }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         if dep.len() > 0 { init_seed_tree(dep, ctx) }
     }
 }
@@ -5815,7 +5815,7 @@ init_file := proc(path: Str, mut ctx: Context) returns I32 {
     if iu.mode_import.len() > 0 { init_file(iu.mode_import, ctx) }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         if dep.len() > 0 { init_file(dep, ctx) }
     }
 

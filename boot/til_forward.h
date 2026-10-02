@@ -1992,6 +1992,7 @@ typedef struct Context {
     EvalState eval;
     Map__Str_ImportUnit imported;
     Str import_cwd;
+    Str import_support_dir;
     Bool check_unused_imports;
     Set__Str import_use_edges;
     Set__Str imports_init_seed_done;

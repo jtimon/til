@@ -86,7 +86,7 @@ main := proc() returns I64 {
     installed_til := "../install_test/bin/til"
     File.writefile(format(WORK, "/installed_probe.til"), format(
         "mode cli\n\n",
-        "import(\"../install_test/lib/til/src/std/file\")\n\n",
+        "import(\"std/file\")\n\n",
         "main := proc() returns I64 {\n",
         "    File.writefile(\"probe.txt\", \"installed til works\")\n",
         "    print(File.readfile(\"probe.txt\"))\n",
@@ -108,6 +108,78 @@ main := proc() returns I64 {
         panic("the program built by the installed til printed '", run.out(), "'")
     }
 
+    // #413: an isolated external project, a non-default install prefix,
+    // nested imports and a cwd different from the entrypoint's directory.
+    // Local std/core and a neighboring src tree must not shadow the selected
+    // compiler, but ./std and ./core must still reach project modules.
+    mkdir_p(format(WORK, "/project/nested/std"))
+    mkdir_p(format(WORK, "/project/nested/core"))
+    mkdir_p(format(WORK, "/project/std"))
+    mkdir_p(format(WORK, "/project/core"))
+    mkdir_p(format(WORK, "/project/src/std"))
+    File.writefile(format(WORK, "/project/std/sys.til"), "mode lib\nlocal_std := 17\n")
+    File.writefile(format(WORK, "/project/core/str.til"), "mode lib\nlocal_core := 25\n")
+    File.writefile(format(WORK, "/project/nested/std/sys.til"), "not a valid module\n")
+    File.writefile(format(WORK, "/project/nested/core/str.til"), "not a valid module\n")
+    File.writefile(format(WORK, "/project/src/std/sys.til"), "mode lib\nlegacy_local := 9\n")
+    File.writefile(format(WORK, "/project/nested/helper.til"), format(
+        "mode lib\n",
+        "import(\"std/sys\", process_id)\n",
+        "strings := import(\"core/str\")\n",
+        "import(\"../src/std/sys\", legacy_local)\n",
+        "nested_probe := proc() returns Str {\n",
+        "    if process_id() <= 0 { panic(\"std/sys was not loaded\") }\n",
+        "    if legacy_local != 9 { panic(\"legacy local resolution changed\") }\n",
+        "    return strings.Str.clone(\"x\")\n",
+        "}\n"))
+    File.writefile(format(WORK, "/project/natural.til"), format(
+        "mode cli\n",
+        "import(\"std/sys\", process_id)\n",
+        "import(\"core/str\", Str)\n",
+        "import(\"core/core\", noop_proc)\n",
+        "import(\"./std/sys\", local_std)\n",
+        "import(\"./core/str\", local_core)\n",
+        "import(\"nested/helper\", nested_probe)\n",
+        "main := proc() {\n",
+        "    noop_proc()\n",
+        "    value : Str = nested_probe()\n",
+        "    if value != \"x\" { panic(\"core identity mismatch\") }\n",
+        "    if process_id() <= 0 { panic(\"std/sys was not loaded\") }\n",
+        "    if local_std + local_core != 42 { panic(\"explicit local imports failed\") }\n",
+        "    println(\"natural imports work\")\n",
+        "}\n"))
+    for action : Str in "interpret run".split(" ") {
+        natural := Cmd.new(installed_til, action, "project/natural.til")
+        natural.cwd(WORK)
+        natural.capture()
+        if natural.run() != 0 { panic("installed natural imports failed: ", natural.out(), natural.err()) }
+        if natural.out() != "natural imports work\n" { panic("natural imports output: ", natural.out()) }
+    }
+
+    // A missing reserved module never falls through to a local module with
+    // that name. Keep both namespace names in the diagnostic coverage.
+    for space : Str in "std core".split(" ") {
+        File.writefile(format(WORK, "/project/", space, "/missing_413.til"), "mode lib\nvalue := 42\n")
+        File.writefile(format(WORK, "/project/missing.til"), format(
+            "import(\"", space, "/missing_413\", value)\nprintln(value.to_str())\n"))
+        missing := Cmd.new(installed_til, "project/missing.til")
+        missing.cwd(WORK)
+        missing.capture()
+        if missing.run() == 0 { panic("missing reserved import resolved locally") }
+        if missing.out().contains(format("could not find import '", space, "/missing_413.til'")).not() {
+            panic("missing reserved import diagnostic: ", missing.out(), missing.err())
+        }
+    }
+
+    // A fresh compiler-only install has no lib/ search directory. On Unix
+    // the old lib/../src traversal fails there. Exercise it after installing
+    // a library below; natural imports above work without that directory.
+    File.writefile(format(WORK, "/project/legacy.til"), format(
+        "mode cli\n",
+        "import(\"../src/std/sys\", process_id)\n",
+        "natural := import(\"std/sys\")\n",
+        "main := proc() { if process_id() != natural.process_id() { panic(\"legacy mismatch\") } }\n"))
+
     // A generated shared library installs its exact-version runtime beside
     // it, and the installed Python binding finds both from outside the repo.
     File.writefile(format(WORK, "/installed_lib.til"), format(
@@ -120,6 +192,13 @@ main := proc() returns I64 {
     lib_install := Cmd.new(installed_til, "install", "--prefix=../install_test", "installed_lib.til")
     lib_install.cwd(WORK)
     lib_install.run_checked()
+    // Installing a library creates the existing lib/ search directory. Now
+    // the historical fallback works and shares the natural import's identity.
+    for action : Str in "interpret run".split(" ") {
+        legacy := Cmd.new(installed_til, action, "project/legacy.til")
+        legacy.cwd(WORK)
+        legacy.run_checked()
+    }
     mut shared_ext := ".so"
     if host_os() == "macos" { shared_ext = ".dylib" }
     else if host_os() == "windows" { shared_ext = ".dll" }

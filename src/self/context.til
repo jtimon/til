@@ -22,7 +22,13 @@ display_path := func(p: Str, cwd: Str) returns Str {
     return format("./", rel)
 }
 
-resolve_import_abs := proc(import_path: Str, base_dir: Str, lib_dir: Str) returns Str {
+resolve_import_abs := proc(import_path: Str, base_dir: Str, lib_dir: Str, support_dir: Str) returns Str {
+    // Reserved logical namespaces belong to the selected compiler. Resolve
+    // them before filesystem search, including misses: local files cannot
+    // shadow them. An explicit ./ keeps a same-named project directory local.
+    if import_path.starts_with("core/").or(import_path.starts_with("std/")) {
+        return realpath_str(support_dir.format("/src/", import_path))
+    }
     if File.is_absolute(import_path) { return realpath_str(import_path) }
     mut abs := realpath_str(base_dir.format("/", import_path))
     if abs.len().eq(0).and(lib_dir.len().gt(0)) {
@@ -1093,10 +1099,10 @@ import_path_for_stmt := func(stmt: Expr, source_path: Str, symbols: SymbolPool) 
 // loading is an internal graph invariant violation, not recoverable control
 // flow: discovery already reported user-facing missing-file errors.
 resolve_import_for_stmt := proc(stmt: Expr, source_path: Str, iu: ImportUnit,
-        cwd: Str, imported: Map(Str, ImportUnit), symbols: SymbolPool) returns Str {
+        cwd: Str, imported: Map(Str, ImportUnit), symbols: SymbolPool, support_dir: Str) returns Str {
     import_path := import_path_for_stmt(stmt, source_path, symbols)
     if import_path.len() == 0 { return "" }
-    abs := resolve_import_abs(import_path, iu.import_dir, iu.import_lib_dir)
+    abs := resolve_import_abs(import_path, iu.import_dir, iu.import_lib_dir, support_dir)
     if abs.len() == 0 {
         panic(source_path, ": loaded import no longer resolves: ", import_path)
     }
@@ -1389,6 +1395,7 @@ Context := struct {
     // ImportUnit carries only the roots needed to resolve them again.
     imported := Map(Str, ImportUnit).new()
     import_cwd := ""
+    import_support_dir := ""
     // #154: unused-import check. The CLI enables it by default
     // (--check-unused-imports=false disables per invocation); the
     // Context default stays false so the REPL -- where an import is

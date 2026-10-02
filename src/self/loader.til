@@ -82,7 +82,7 @@ priv resolve_imports := proc(body: Expr, source_path: Str, base_dir: Str,
     for stmt : Expr in body.children {
         import_path := import_path_for_stmt(stmt, source_path, ctx.symbols)
         if import_path.len() == 0 { continue }
-        abs := resolve_import_abs(import_path, base_dir, lib_dir)
+        abs := resolve_import_abs(import_path, base_dir, lib_dir, ctx.import_support_dir)
         if abs == "" {
             println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
             return 1
@@ -847,7 +847,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str,
     for stmt : Expr in ast.children {
         import_path := import_path_for_stmt(stmt, disp, lp.ctx.symbols)
         if import_path.len() == 0 { continue }
-        dep := resolve_import_abs(import_path, dir_of(abs_path), "")
+        dep := resolve_import_abs(import_path, dir_of(abs_path), "", bin_dir)
         if dep.len() == 0 {
             panic(": could not find mode import '", import_path, "'", loc = disp)
         }
@@ -881,6 +881,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     bootstrap_mode.auto_import = resolve_mode_support(
         "src/std/mode_type", format(bin_dir, "/src/core/modes.til"), bin_dir, cwd)
     lp.ctx.import_cwd = cwd.clone()
+    lp.ctx.import_support_dir = bin_dir.clone()
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
     lp.target = detect_current_target()
@@ -1856,7 +1857,7 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: C
         mut handled := false
         if is_imp {
             resolved := resolve_import_for_stmt(stmt, path, iu,
-                ctx.import_cwd, ctx.imported, ctx.symbols)
+                ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
             if resolved.len() > 0 {
                 if is_decl_rhs.and(decl_name.starts_with("_")) {
                     // #154: `_name := import(...)` is the unused-import
@@ -4030,7 +4031,7 @@ priv collect_import_check_entries := proc(unit_path: Str, iu: ImportUnit,
         }
         label := import_path.strip_suffix(".til")
         dep := resolve_import_for_stmt(stmt, unit_path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols)
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
         entries.push(own ImportCheckEntry(path = unit_path.clone(),
             line = stmt.line, col = stmt.col, label = label.clone(),
             dep = dep.clone(), decl_name = decl_name.clone()))

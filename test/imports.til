@@ -51,3 +51,19 @@ test_namespace_alias_shadowing := test() {
     expect(helper.x.eq(5), "shadowed helper.x")
     expect(helper.y.eq(6), "shadowed helper.y")
 }
+
+// Explicit core edges must refer to the already-loaded automatic core,
+// including namespace and selective imports, rather than defining new types.
+strings := import("core/str")
+import("core/vec", Vec)
+import("core/core", noop_proc)
+import("std/sys", process_id)
+
+test_natural_imports := test() {
+    noop_proc()
+    text := strings.Str.clone("x")
+    mut values := Vec(Str).new()
+    values.push(own text)
+    expect(values[0].eq("x"), "explicit and automatic core share Str identity")
+    expect(process_id().gt(0), "natural std/sys import")
+}

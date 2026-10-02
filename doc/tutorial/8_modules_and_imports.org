@@ -35,7 +35,48 @@ import("math")
 assert_eq(I64, sum_of_squares(3, 4), 25)
 #+end_src
 
-Import paths are relative to the importing file and omit the ~.til~ extension.
+Import paths omit the ~.til~ extension. Ordinary paths are relative to the
+importing file, not the current working directory.
+
+** Core and standard library
+
+The prefixes ~core/~ and ~std/~ are reserved for the support tree belonging to
+the compiler being run. For example, an application anywhere on disk can use:
+
+#+begin_src til
+mode cli
+import("std/sys", process_id)
+
+main := proc() {
+    println(process_id().to_str())
+}
+#+end_src
+
+This works with a checkout compiler and an installed compiler, including a
+non-default installation prefix. It needs no neighboring checkout or copied
+standard library. Nested project modules use the same spellings.
+
+Local ~std/~ and ~core/~ directories cannot shadow these reserved imports.
+Use ~import("./std/sys")~ or ~import("./core/str")~ to explicitly select a
+project-local module. A missing reserved module is an import error; resolution
+does not retry in the project or another compiler's support tree.
+
+Core is loaded automatically: strings, numeric types, arrays, vectors, maps,
+sets, options, ranges, tuples, memory helpers and basic I/O are available without
+an import. Explicit core imports are useful for naming a dependency or a
+namespace, for example ~strings := import("core/str")~ followed by
+~strings.Str.clone("x")~. Explicit imports and automatic loading use the
+same canonical file identity, so they do not duplicate types, definitions or
+initialization. The usual unused-import checks still apply.
+
+For existing applications, change ~import("../src/std/sys")~ to
+~import("std/sys")~ (likewise for ~core/~). Legacy relative paths remain
+supported: they first search relative to the importing file, then relative to
+the compiler's ~lib/~ directory. Unlike reserved imports, that historical
+spelling can still select a matching project-local file. On Unix, its
+~lib/../src/~ fallback also requires the ~lib/~ directory to exist (for example,
+after installing a library); a fresh compiler-only installation does not create it.
+Natural imports work in either case.
 
 ** Namespace imports
 

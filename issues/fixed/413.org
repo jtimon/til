@@ -1,6 +1,31 @@
 # priority: medium
 # category: features
-** OPEN #413 Provide natural core/std imports independent of source layout
+** FIXED #413 Provide natural core/std imports independent of source layout
+
+*** Post-mortem
+
+The resolver only searched the importing file's directory and the compiler's
+=lib/= directory. Applications therefore used =../src/= traversal to reach
+compiler support sources, exposing the layout and allowing local shadowing.
+
+=core/= and =std/= are now reserved import prefixes resolved directly against
+the selected compiler's existing support tree. The shared resolver handles
+both discovery and subsequent initialization/type-checking walks; canonical
+paths preserve the existing single module identity for automatic and explicit
+core imports. =./core/= and =./std/= select local directories. Missing reserved
+imports report an error without falling through to filesystem search.
+
+Legacy paths retain their original search behavior. Testing also exposed an
+existing Unix limitation: =lib/../src/= needs =lib/= to exist, which a fresh
+compiler-only installation does not guarantee. The tutorial documents this
+alongside the migration to natural imports and the automatic core facilities.
+
+Regression coverage: =test_natural_imports= in =test/imports.til= exercises
+namespace/selective imports and shared core type identity in interpreted and
+compiled execution. =test/install.til= exercises an isolated project against
+a non-default installation, nested modules, a different cwd, local namespace
+collisions, missing-module diagnostics, and both local and installed legacy
+resolution. Its external application example now imports =std/file=.
 
 External applications should be able to import Til's core and standard-library
 modules using logical names, without knowing the compiler's source/install
