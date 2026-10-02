@@ -746,23 +746,38 @@ priv check_result_file_collisions := proc(tests: Vec(Test)) returns I64 {
 
 // #395 left the runner able to REPORT a command it never ran; this refuses
 // to register one. run_all_parallel splices what these helpers build into
-// `<cmd> > <outfile> 2>&1` and hands it to a shell, so a bare `&&` belongs
-// to that OUTER shell: it splits the row before test_runner starts, keeps
-// the redirect on the last command, and leaves the runner wrapping only the
-// first. The missing-RESULT failure catches that afterwards, from the
-// symptom; this catches it at the call site, by name, before anything runs.
+// `<cmd> > <outfile> 2>&1` and hands it to a shell, so a bare shell operator
+// belongs to that OUTER shell. `&&`, `||`, `;`, `|` and `&` split the row
+// before test_runner starts, leaving the runner wrapping only the first
+// command while the redirect lands on the last; a bare redirect (`>`, `<`,
+// `2>&1`, ...) rebinds test_runner's own stdout or stderr, so the RESULT
+// line goes to the wrong file. The missing-RESULT failure catches both
+// afterwards, from the symptom; this catches them at the call site, by name,
+// before anything runs.
 //
 // Quoting is the way to chain, and it is what the rest of the suite does:
 // `'&&'` survives the outer shell as an ordinary argument, so test_runner
 // joins it back into its own command string and the whole chain runs inside
-// the measured phase (self_translate and the gui build rows both rely on
-// this). Hence the needle is the bare operator with spaces around it --
-// `'&&'` does not match, and must not.
+// the measured phase (self_translate, the gui build rows and
+// macro_no_stale_cache's `'>'` all rely on this). Hence the check is on
+// whole space-separated tokens: `'&&'` is a different token from `&&` and
+// must stay legal. The suite spells every operator as its own word, which
+// is what makes a token comparison sufficient.
+priv is_bare_shell_operator := func(tok: Str) returns Bool {
+    return tok.eq("&&").or(tok.eq("||")).or(tok.eq(";")).or(tok.eq("|")).or(tok.eq("&"))
+        .or(tok.eq(">")).or(tok.eq(">>")).or(tok.eq("<"))
+        .or(tok.eq("2>")).or(tok.eq("2>&1")).or(tok.eq("&>"))
+}
+
 priv one_command_only := func(label: Str, cmd_suffix: Str) {
-    if cmd_suffix.find(" && ") >= 0 {
-        panic("test '", label, "' chains commands with a bare '&&': ", cmd_suffix,
-            " -- quote it as '&&' so test_runner runs the chain,",
-            " or register one row per command")
+    toks := cmd_suffix.split(" ")
+    for ti in 0..toks.len() {
+        ref tok : Str = toks[ti]
+        if is_bare_shell_operator(tok) {
+            panic("test '", label, "' hands the outer shell a bare '", tok, "': ", cmd_suffix,
+                " -- quote it as '", tok, "' so test_runner runs it,",
+                " or register one row per command")
+        }
     }
 }
 
