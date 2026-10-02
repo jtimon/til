@@ -49,7 +49,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         user_c_path: Str, link_flags: Str, include_flags: Str, target: Target,
         cc_override: Str, asan: Bool, usize64: Bool, shared_runtime: Bool,
         runtime_stem: Str, runtime_basename: Str, core_stem: Str,
-        core_basename: Str) returns I32 {
+        core_basename: Str, build_flags: Str) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -59,7 +59,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 
     mut compiler := cc_override
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
-    extra := toolchain_extra_args(target)
+    extra := toolchain_extra_args(target).format(build_flags)
 
     // ASAN builds run under the same full -Werror as non-ASAN. Historically
     // -fsanitize=address inserted __asan_* hooks that mutated the CFG enough
@@ -290,7 +290,7 @@ priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
     return out
 }
 
-priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, has_gui: Bool, asan: Bool, prof: Bool, usize64: Bool) returns I32 {
+priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, has_gui: Bool, asan: Bool, prof: Bool, usize64: Bool, build_flags: Str) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -310,6 +310,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         // top of the warning flags; no -Wno-* suppressions here either.
         extra = " -Wall -Wextra -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
     }
+    extra = extra.format(build_flags)
 
     // ASAN builds run under the same full -Werror as non-ASAN (single cc
     // invocation, so the flags cover compile and link in one go).
@@ -793,14 +794,18 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // Keep ext.h's USize typedef in lockstep with the loader-stamped target
     // alias used by typecheck, layout, constfold, and interpretation.
     usize64 := lp.ctx.target_usize_pname == "U64"
+    // Appended after --cc's embedded options, on every compile/link command,
+    // including link_c, shared runtime/core and Emscripten. Keep FP contraction
+    // off: selecting an optimizing ISA must not silently introduce FMA.
+    build_flags := format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off")
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
             lp.link_c_paths, lp.link_flags, lp.include_flags, target,
             cc_override, asan, usize64, lp.uses_shared_runtime(),
             lp.runtime_stem(), lp.runtime_shared_basename(),
-            lp.core_stem(), lp.core_shared_basename())
+            lp.core_stem(), lp.core_shared_basename(), build_flags)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, build_flags)
 }
 
 cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32 {

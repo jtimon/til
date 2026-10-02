@@ -40,6 +40,47 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** CPU/optimization controls implemented
+
+The approved ~--cpu=baseline|x86-64-v3|x86-64-v4~ and ~--opt=0|2|3~
+controls are implemented, with baseline/O0 defaults. ~TargetCpu~ resolves
+target ISA flags and SIMD width together before frontend type expansion;
+the builder uses that result for native programs, user C, libraries and
+shared runtime/core. Explicit ~-ffp-contract=off~ keeps optimization/ISA
+selection from introducing implicit FMA. File-command/backend diagnostics
+and precedence over ~--cc~'s ~-march~ / ~-O~ options are documented in
+~doc/self.org~.
+
+Approved non-baseline CPU qualifiers on existing runtime/core artifacts and
+symbol namespaces keep baseline, AVX2 and AVX-512 dependencies separate.
+Normal build/install and generated bindings carry the selected identity;
+no metadata file or alternate source tree was added. Optimization levels
+do not split the identity.
+
+Regression driver: ~test/cpu_options.til~. It checks interpreter/type widths
+for Linux/Windows/macOS x86 targets and ARM baseline, compiler-option
+plumbing/precedence, diagnostics, native O0/O2/O3 results, actual x86 C
+feature/optimization macros in ~link_c~, library installation/bindings,
+baseline runtime preservation and returning to default options after a
+wide build. Non-baseline binaries are compiled but not executed by the
+portable suite, whose host may lack the selected ISA.
+
+On the local Ryzen 9950X3D (AVX2 and the required AVX-512 features confirmed),
+~test/simd.til~ passed 21/21 interpreted and 21/21 compiled with ASAN for
+each of baseline/v3/v4 at O2 and O3. A runtime-argument F32 probe of
+~4097 * 4097 - 16785408~ returned the unfused zero at v3/v4 O2/O3; a fused
+operation would return one. An installed v4 Python binding resolved its
+qualified shared core and successfully called both its width export and
+shared-core integer parser. Native Windows/macOS and AArch64 execution
+were not exercised locally.
+
+The final clean Linux ASAN suite passed 495/495 checks, including
+~cpu_options~; its shared-library cases cover baseline/O0, v3/O2 and v4/O3.
+
+#406 resolved the freshness gate by removing timestamp-only reuse. Native
+AArch64 performance measurements and the documented wide-wrapper costs
+remain outstanding; this issue is still WIP.
+
 *** U32 vector-accumulator experiment (master 2ccf1d159)
 
 Completed the requested algorithm comparison using existing til operations.
@@ -159,9 +200,9 @@ GCC baseline width-8 measured 0.1650/block, 0.1606/one and 0.4453/four.
   AVX2-width cases, not a universal default. Keep scalar comparisons enabled,
   since Clang already produces excellent vector reductions from scalar loops.
 
-This completes the requested experiment. Further implementation work remains
-the already-proposed CPU/optimization controls (approval pending), option-aware
-freshness (#406), and real ARM measurements. The remaining wide-wrapper
+This completes the requested experiment. CPU/optimization controls and
+freshness (#406) have since been implemented; real ARM measurements remain.
+The remaining wide-wrapper
 inlining/register-representation costs are documented rather than hidden by
 blanket always_inline or changes to floating-point semantics.
 
@@ -655,7 +696,7 @@ was 0.7093 versus 0.7115. Alignment matters once other overhead is removed.
   it is not evidence that all SIMD reduction algorithms are slower. Do not
   apply that reassociation to floating sums with the fixed-tree contract.
 
-*** Proposed controls (approval required before implementation)
+*** Approved controls
 
 One explicit CPU profile, separate from Target's OS/architecture:
 
@@ -673,12 +714,12 @@ One explicit CPU profile, separate from Target's OS/architecture:
   compile-time width/type decisions without executing host CPUID. GPU execution
   is unrelated; unsupported non-C backend/profile combinations get diagnostics.
 
-Also propose ~--opt=0|2|3~ for C compilation, default 0 to retain current build
+Also ~--opt=0|2|3~ for C compilation, default 0 to retain current build
 behavior. It controls optimization only, never fast-math or implicit FMA.
 Interpretation does not optimize native user code; translation alone has no C
-compilation step. Specify command applicability/diagnostics when implementing.
-CPU-profile and optimization flags should take precedence over contradictory
-options embedded in the existing compiler override; document that precedence.
+compilation step. Command applicability/diagnostics are in ~doc/self.org~.
+CPU-profile and optimization selections take precedence over the corresponding
+options embedded in the existing compiler override, including when defaulted.
 
 Why the current ~--cc~ override is insufficient: this was actually run:
 
@@ -699,18 +740,14 @@ width queries, diagnostics and cross-compilation together.
 
 *** Freshness gate and remaining acceptance
 
-[[./406.org][#406]]'s existing mtime-only cache does not identify the program,
-compiler or options that produced an artifact. Selectable profiles MUST NOT
-land with stale reuse when switching v4 -> baseline, optimization levels or
-custom output paths. Bypassing only non-default invocations is insufficient:
-the following default invocation could reuse their output. Resolve artifact
-identity under #406, or obtain approval for a conservative cache-bypass policy,
-before enabling these controls. Any new persistent stamp/sidecar design still
-requires its own explicit approval; none was added for this investigation.
+[[../fixed/406.org][#406]] removed the mtime-only cache. All output-producing
+CLI commands now regenerate, including when returning from v4 to baseline,
+changing optimization levels or reusing custom output paths. No persistent
+stamp/sidecar was needed. The CPU controls above can therefore rely on fresh
+emission and compilation; native AArch64 performance remains to be measured.
 
-Remaining: approve the controls above, address measured memory-path costs,
-integrate option-aware freshness, run profile/width/rebuild regressions, and
-obtain real AArch64 performance measurements. The scratch benchmark below is
+Remaining: investigate the documented wide-wrapper inlining/register costs
+and obtain real AArch64 performance measurements. The scratch benchmark below is
 preserved here so ~make clean~ does not erase the reproduction. It is not a
 new installed command or a new benchmark artifact format.
 

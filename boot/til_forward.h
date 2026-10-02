@@ -327,6 +327,7 @@ enum {
     Target_TAG_Jvm
 };
 typedef struct Target Target;
+typedef struct TargetCpu TargetCpu;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
@@ -989,6 +990,13 @@ struct Target {
     U8 tag;
 };
 
+typedef struct TargetCpu {
+    Str name;
+    USize simd_bits;
+    Str c_flags;
+} TargetCpu;
+
+
 struct priv___src_self_typer_til__CtorArg {
     Expr *data;
 };
@@ -1543,6 +1551,10 @@ typedef struct CliArgs {
     Str target_str;
     Str cc;
     Bool cc_set;
+    Str cpu_profile;
+    Bool cpu_set;
+    USize opt_level;
+    Bool opt_set;
     Str install_prefix;
     USize path_idx;
     Bool early_return;
@@ -2097,6 +2109,8 @@ typedef struct LoadedProgram {
     Vec__ProgramUnit *units;
     Vec__Str mode_files;
     Target target;
+    TargetCpu cpu;
+    USize opt_level;
     Mode cur_mode;
     Context ctx;
     Bool skip_core;

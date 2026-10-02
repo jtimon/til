@@ -744,6 +744,10 @@ usage := proc() {
     println("")
     println("Options:")
     println("  --target=<name>  Select a target, including the portable JVM target.")
+    println("  --cpu=baseline|x86-64-v3|x86-64-v4  Target CPU profile (default baseline).")
+    println("              Controls SIMD width queries and C ISA flags; no host probing.")
+    println("  --opt=0|2|3  C optimization level for build/run/test/install (default 0).")
+    println("              CPU/optimization selections override --cc's -march/-O options.")
     println("  --usize=32|64  Override the target-native USize container width;")
     println("              UPtr always follows pointer width.")
     println("  --force-rebuild  Accepted for compatibility; translate/build/run")
@@ -783,6 +787,10 @@ CliArgs := struct {
     target_str := ""
     cc := ""
     cc_set := false
+    cpu_profile := "baseline"
+    cpu_set := false
+    opt_level : USize = 0
+    opt_set := false
     install_prefix := ""
     path_idx : USize = 1
     early_return := false
@@ -836,9 +844,11 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.early_return = true
             return cli
         case:
-            cli.path = cli.command
-            cli.command = "interpret"
-            return cli
+            if cli.command.starts_with("--cpu").or(cli.command.starts_with("--opt")).not() {
+                cli.path = cli.command
+                cli.command = "interpret"
+                return cli
+            }
         }
     }
 
@@ -848,6 +858,9 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             ref flag : Str = args[cli.path_idx]
             if flag.starts_with("--extra-modes=") {
                 cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
+            } else if flag.starts_with("--cpu").or(flag.starts_with("--opt")) {
+                println("error: --cpu and --opt require a file command, not repl")
+                exit(1)
             } else if flag.starts_with("-").not() {
                 mode_arg = flag.clone()
             }
@@ -901,6 +914,24 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.cc = flag.strip_prefix("--cc=").clone()
             cli.cc_set = true
             cli.path_idx++
+        } else if flag.starts_with("--cpu=") {
+            cli.cpu_profile = flag.strip_prefix("--cpu=").clone()
+            cli.cpu_set = true
+            cli.path_idx++
+        } else if flag.starts_with("--opt=") {
+            level := flag.strip_prefix("--opt=")
+            if level == "0" { cli.opt_level = 0 }
+            else if level == "2" { cli.opt_level = 2 }
+            else if level == "3" { cli.opt_level = 3 }
+            else {
+                println(format("error: --opt expects 0, 2 or 3, got '", level, "'"))
+                exit(1)
+            }
+            cli.opt_set = true
+            cli.path_idx++
+        } else if flag.eq("--cpu").or(flag.eq("--opt")) {
+            println(format("error: ", flag, " requires an '=value'"))
+            exit(1)
         } else if flag.starts_with("--usize=") {
             // #309: force the USize width independently of UPtr.
             uval := flag.strip_prefix("--usize=")
@@ -961,6 +992,12 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
 }
 
 priv validate_target_flags := proc(cli: CliArgs, target: Target) {
+    if target_lang(target).is(Lang.C).not() {
+        if cli.cpu_set.or(cli.opt_set) {
+            println("error: --cpu and --opt are supported only with C targets")
+            exit(1)
+        }
+    }
     if target.is(Target.Jvm).not() { return }
     if cli.custom_c_set {
         println("error: -c is not supported with --target=jvm")
@@ -982,6 +1019,10 @@ priv validate_target_flags := proc(cli: CliArgs, target: Target) {
 
 priv validate_theme_cli := proc(cli: CliArgs, lp: LoadedProgram) {
     if lp.mode_str != "theme" { return }
+    if cli.cpu_set.or(cli.opt_set) {
+        println("error: --cpu and --opt are not supported with mode theme")
+        exit(1)
+    }
     if cli.custom_c_set {
         println("error: -c is not supported with mode theme; use -o for the Elisp output")
         exit(1)
@@ -1047,6 +1088,23 @@ main := proc(args: ..Str) {
         return
     }
 
+    if cli.cpu_set {
+        if cli.command.eq("interpret").or(cli.command.eq("translate"))
+            .or(cli.command.eq("build")).or(cli.command.eq("install"))
+            .or(cli.command.eq("run")).or(cli.command.eq("test"))
+            .or(cli.command.eq("doc")).not() {
+            println(format("error: --cpu is not supported with '", cli.command, "'"))
+            exit(1)
+        }
+    }
+    if cli.opt_set {
+        if cli.command.eq("build").or(cli.command.eq("install"))
+            .or(cli.command.eq("run")).or(cli.command.eq("test")).not() {
+            println("error: --opt requires build, run, test or install")
+            exit(1)
+        }
+    }
+
     // `bindings` runs the C-header -> til translator (src/self/binder.til).
     // Skip the load_program pipeline -- the input is a .h, not a .til, and
     // -o carries the output path.
@@ -1067,6 +1125,7 @@ main := proc(args: ..Str) {
     mut target := detect_current_target()
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
     validate_target_flags(cli, target)
+    cpu := resolve_target_cpu(target, cli.cpu_profile)
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
     lp.compiler_revision = COMPILER_REVISION.clone()
@@ -1077,6 +1136,8 @@ main := proc(args: ..Str) {
     if lp.load_errors > 0 { exit(1) }
     validate_theme_cli(cli, lp)
     lp.target = target
+    lp.cpu = cpu
+    lp.opt_level = cli.opt_level
     // #309: --usize override must be set before prepare_program stamps the
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
     lp.usize_override_bits = cli.usize_bits

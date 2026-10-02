@@ -122,6 +122,33 @@ target_simd_bits := func(target: Target) returns USize {
     }
 }
 
+// One resolved selection drives both frontend width queries and C flags.
+// It describes the target, never the CPU running the compiler.
+TargetCpu := struct {
+    name := "baseline"
+    simd_bits : USize = 0
+    c_flags := ""
+}
+
+resolve_target_cpu := func(target: Target, name: Str) returns TargetCpu {
+    mut selected := TargetCpu(name = name.clone(), simd_bits = target_simd_bits(target))
+    x64 := target.is(Target.LinuxX64).or(target.is(Target.WindowsX64)).or(target.is(Target.MacosX64))
+    if name == "baseline" {
+        if x64 { selected.c_flags = " -march=x86-64 -mtune=generic" }
+        else if target.is(Target.LinuxArm64).or(target.is(Target.MacosArm64)) {
+            selected.c_flags = " -march=armv8-a -mtune=generic"
+        }
+    } else if name.eq("x86-64-v3").or(name.eq("x86-64-v4")) {
+        if x64.not() { panic("CPU profile '", name, "' requires an x86-64 C target") }
+        selected.simd_bits = 256
+        if name == "x86-64-v4" { selected.simd_bits = 512 }
+        selected.c_flags = format(" -march=", name, " -mtune=generic")
+    } else {
+        panic("unknown CPU profile '", name, "'; expected baseline, x86-64-v3 or x86-64-v4")
+    }
+    return selected
+}
+
 target_lang := func(target: Target) returns Lang {
     switch target {
     case .TempleosX86: return Lang.HolyC

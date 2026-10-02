@@ -148,6 +148,8 @@ LoadedProgram := struct {
     mode_files := Vec(Str).new()
 
     target := Target.LinuxX64
+    cpu := TargetCpu()
+    opt_level : USize = 0
     cur_mode := Mode()
     ctx := Context()
     skip_core := false
@@ -193,6 +195,9 @@ namespace:
         case .Jvm: target_name = "jvm"
         }
         mut out := format(self.compiler_revision, "-", target_name, "-", self.ctx.target_usize_pname)
+        // ISA variants must not replace a baseline runtime/core used by
+        // already-built libraries. Optimization alone does not change the ABI.
+        if self.cpu.name != "baseline" { out = format(out, "-", self.cpu.name) }
         if self.asan_build { out = format(out, "-asan") }
         return out
     }
@@ -232,6 +237,7 @@ namespace:
         if to_ptr(self.units).is_null().not() { own self.units.delete(true) }
         own self.mode_files.delete(false)
         Target.delete(own self.target, false)
+        TargetCpu.delete(own self.cpu, false)
         Mode.delete(own self.cur_mode, false)
         Context.delete(own self.ctx, false)
         Str.delete(own self.mode_str, false)
@@ -4060,7 +4066,8 @@ priv check_unused_imports_collected := proc(entries: Vec(ImportCheckEntry), mut 
 
 type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
-    lp.ctx.target_simd_bits = target_simd_bits(lp.target)
+    lp.cpu = resolve_target_cpu(lp.target, lp.cpu.name)
+    lp.ctx.target_simd_bits = lp.cpu.simd_bits
 
     // #192: register target-dependent USize/UPtr widths before any
     // init/typer resolution, so every position resolves them uniformly
@@ -4312,7 +4319,8 @@ repl_init_cached_program := proc(mut lp: LoadedProgram) returns I32 {
 
 repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns I32 {
     lp.run_tests = lp.cur_mode.run_tests
-    lp.ctx.target_simd_bits = target_simd_bits(lp.target)
+    lp.cpu = resolve_target_cpu(lp.target, lp.cpu.name)
+    lp.ctx.target_simd_bits = lp.cpu.simd_bits
     context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref iu : ImportUnit = lp.ctx.imported[root.path]

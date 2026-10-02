@@ -1224,6 +1224,10 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/build_outputs -c gen/c/build_outputs.c test/build_outputs.til ", til_bin))
 
+    add_count(tests, "cpu_options", "build", "cpu options passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ", til_bin))
+
     // #151: Linux performs the frontend and emits HolyC; TempleOS is the
     // compiler/runtime. The first accepted subset is the fully lowered shape
     // of examples/hello_script.til, and build must stop before looking for a

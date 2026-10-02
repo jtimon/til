@@ -71,6 +71,46 @@
   Bootstrap steps explicitly select ~bin/til~ and ~gen/til/til.c~ so the
   established boot regeneration paths work with old and new compilers.
 
+** CPU profiles and C optimization
+
+  ~--cpu=baseline|x86-64-v3|x86-64-v4~ selects a target CPU profile,
+  independently of ~--target~'s OS/architecture. The default is baseline.
+  These are x86-64 instruction-set levels, not compiler versions: v3
+  includes AVX2; v4 includes AVX-512F/BW/CD/DQ/VL. The executable requires
+  the selected feature set. No host CPUID, native tuning or runtime dispatch
+  participates in selection.
+
+  One resolved ~TargetCpu~ supplies both C compiler flags and the frontend's
+  SIMD width fact. Baseline x86-64/AArch64 recommends 128 bits; x86-64 v3
+  recommends 256 and v4 recommends 512. Thus ~simd_width(F32)~ is 4/8/16
+  on those x86-64 profiles, in interpretation and translation alike. Explicit
+  ~Simd(T, N)~ widths remain legal independently of that recommendation.
+  Other targets retain their existing baseline width; v3/v4 require an
+  x86-64 C target. Wider recommendations are not universal speed guarantees.
+
+  ~--cpu~ applies to file-based interpret/translate/build/run/test/install/doc.
+  ~--opt=0|2|3~ applies to C build/run/test/install only, with default 0.
+  AST printing, bindings generation and the REPL reject these controls;
+  non-C backends and theme mode reject explicit CPU/optimization options.
+  Interpretation emulates the selected SIMD shape; its native FFI bridge
+  remains host code rather than a cross-compiled target program.
+
+  Every builder-owned C compilation, including ~link_c~, runtime/core and
+  library objects, receives the selected flags. They follow options embedded
+  in ~--cc~, so til's ~-march~ and ~-O~ selections (including defaults) win
+  over those options. Use ~--opt=2~, rather than ~--cc='gcc -O2'~, to request
+  optimization. Floating-point contraction is explicitly disabled; these
+  controls enable neither fast-math nor implicit FMA/reassociation. Vendor
+  archives and already-built external libraries are not rebuilt by the flags.
+
+  Non-baseline shared runtime/core names and their C symbol namespaces add
+  the CPU profile to the existing revision/target/USize identity, before the
+  optional ASAN suffix. This prevents an AVX2/AVX-512 build from overwriting
+  a baseline dependency. The normal build/install paths generate and copy
+  those variants, and generated bindings/linker references name the matching
+  dependencies. Optimization levels share an identity; baseline names retain
+  their previous spelling. There is no additional manifest or cache.
+
 ** Single-pass build
 
   The Makefile builds til in one pass:

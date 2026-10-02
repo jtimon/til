@@ -1,0 +1,182 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/targets")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+WORK := "tmp/cpu_options"
+
+execute := proc(cmd: Cmd) returns Str {
+    cmd.cwd(WORK)
+    cmd.capture()
+    if cmd.run() != 0 { panic(cmd.render(), ": ", cmd.out(), cmd.err()) }
+    return cmd.out()
+}
+
+reject := proc(cmd: Cmd, diagnostic: Str) {
+    cmd.cwd(WORK)
+    cmd.capture()
+    status := cmd.run()
+    output := format(cmd.out(), cmd.err())
+    if status == 0 || output.contains(diagnostic).not() {
+        panic("missing diagnostic '", diagnostic, "' for ", cmd.render(), ": ", output)
+    }
+}
+
+expect_output := proc(cmd: Cmd, expected: Str) {
+    actual := execute(cmd)
+    if actual != expected { panic(cmd.render(), ": expected '", expected, "', got '", actual, "'") }
+}
+
+// A real C compile, not just its command spelling, must see the selected ISA
+// and optimization level. The same link_c probe is used by programs/libraries.
+write_c_probe := proc(width: USize, optimized: Bool) {
+    mut checks := ""
+    if width == 4 {
+        checks = "#if !defined(__SSE2__) || defined(__AVX__)\n#error not baseline\n#endif\n"
+    } else if width == 8 {
+        checks = "#if !defined(__AVX2__) || defined(__AVX512F__)\n#error not v3\n#endif\n"
+    } else {
+        checks = "#if !defined(__AVX512F__) || !defined(__AVX512BW__) || !defined(__AVX512CD__) || !defined(__AVX512DQ__) || !defined(__AVX512VL__)\n#error not v4\n#endif\n"
+    }
+    if optimized { checks = format(checks, "#ifndef __OPTIMIZE__\n#error optimization missing\n#endif\n") }
+    else { checks = format(checks, "#ifdef __OPTIMIZE__\n#error optimization not disabled\n#endif\n") }
+    File.writefile(format(WORK, "/options.c"), format(checks,
+        "#ifdef __FAST_MATH__\n#error implicit fast math\n#endif\n",
+        "#include <stdint.h>\nint64_t compiler_width(void) { return ", width.to_str(), "; }\n"))
+}
+
+main := proc(args: ..Str) {
+    compiler := realpath_str(args[0])
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+    File.writefile(format(WORK, "/width.til"),
+        "mode script\nV := Simd(U32, simd_width(U32))\nv := V.splat(3)\nprintln(v.len().to_str())\nprintln((v + v).reduce_add().to_str())\n")
+    File.writefile(format(WORK, "/probe.til"),
+        "mode script\nlink_c(\"options.c\")\ncompiler_width := ext_proc() returns shallow I64 {}\nprintln(simd_width(U32).to_str())\nprintln(compiler_width().to_str())\n")
+    File.writefile(format(WORK, "/library.til"),
+        "mode lib\nlink_c(\"options.c\")\ncompiler_width := ext_proc() returns shallow I64 {}\nlibrary_width := func() returns USize { return simd_width(U32) }\nlibrary_parse := func(value: Dynamic) returns U64 { return Str.from_c_str(value).to_u64() }\n")
+    // Runtime arguments prevent either compiler from folding this probe:
+    // 4097*4097 rounds to 16785408 in F32; an implicit FMA would answer 1.
+    File.writefile(format(WORK, "/unfused.til"),
+        "mode cli\nmain := proc(a: F32, b: F32, c: F32) { if a * b + c != 0.0 { panic(\"implicit FMA\") }; println(\"unfused\") }\n")
+    write_c_probe(4, false)
+
+    profiles := array(Str, "baseline", "x86-64-v3", "x86-64-v4")
+    widths := array(USize, 4, 8, 16)
+    for i in 0..profiles.len() {
+        ref profile : Str = profiles[i]
+        ref width : USize = widths[i]
+        expected := format(width.to_str(), "\n", (width * 6).to_str(), "\n")
+        // Target queries/type expansion must work on every host, without
+        // executing any instructions from the selected x86 profile.
+        for target : Str in array(Str, "linux-x64", "windows-x64", "macos-x64") {
+            expect_output(Cmd.new(compiler, "interpret", format("--target=", target),
+                format("--cpu=", profile), "width.til"), expected)
+        }
+        for level : Str in array(Str, "0", "2", "3") {
+            flags := execute(Cmd.new(compiler, "build", "--target=linux-x64",
+                "--cc=echo -O3 -march=x86-64-v4", format("--cpu=", profile),
+                format("--opt=", level), "./probe.til"))
+            mut commands : USize = 0
+            mut march := profile.clone()
+            if profile == "baseline" { march = "x86-64" }
+            for line : Str in flags.split("\n") {
+                if line.len() == 0 { continue }
+                commands++
+                if line.contains(format("-march=", march, " -mtune=generic -O", level, " -ffp-contract=off")).not() {
+                    panic("inconsistent program/link_c flags: ", line)
+                }
+            }
+            if commands != 2 { panic("expected link_c and main compile commands: ", flags) }
+        }
+    }
+    for target : Str in array(Str, "linux-arm64", "macos-arm64") {
+        expect_output(Cmd.new(compiler, "interpret", format("--target=", target),
+            "--cpu=baseline", "width.til"), "4\n24\n")
+    }
+    for target : Str in array(Str, "linux-x86", "linux-arm32", "linux-riscv64", "wasm32", "linux-arm64") {
+        reject(Cmd.new(compiler, "translate", format("--target=", target),
+            "--cpu=x86-64-v3", "width.til"), "requires an x86-64 C target")
+    }
+    reject(Cmd.new(compiler, "translate", "--target=jvm", "--cpu=baseline", "width.til"), "only with C targets")
+    reject(Cmd.new(compiler, "build", "--target=templeos", "--opt=2", "width.til"), "only with C targets")
+    reject(Cmd.new(compiler, "interpret", "--opt=2", "width.til"), "--opt requires build, run, test or install")
+    reject(Cmd.new(compiler, "translate", "--opt=2", "width.til"), "--opt requires build, run, test or install")
+    reject(Cmd.new(compiler, "repl", "--cpu=x86-64-v3"), "require a file command")
+    reject(Cmd.new(compiler, "ast", "--cpu=baseline", "width.til"), "--cpu is not supported")
+    reject(Cmd.new(compiler, "build", "--cpu=native", "width.til"), "unknown CPU profile")
+    reject(Cmd.new(compiler, "build", "--opt=1", "width.til"), "--opt expects 0, 2 or 3")
+    reject(Cmd.new(compiler, "build", "--opt=", "width.til"), "--opt expects 0, 2 or 3")
+    reject(Cmd.new(compiler, "build", "--cpu", "width.til"), "requires an '=value'")
+    reject(Cmd.new(compiler, "translate", "--cpu=baseline",
+        realpath_str("editor/themes/til-dark-theme.til")), "not supported with mode theme")
+
+    native := detect_current_target()
+    native_width := target_simd_bits(native) / 32
+    mut lanes := native_width
+    if lanes == 0 { lanes = 1 }
+    for level : Str in array(Str, "0", "2", "3") {
+        expect_output(Cmd.new(compiler, "run", format("--opt=", level), "width.til"),
+            format(lanes.to_str(), "\n", (lanes * 6).to_str(), "\n"))
+        expect_output(Cmd.new(compiler, "run", format("--opt=", level), "unfused.til",
+            "4097", "4097", "-16785408"), "unfused\n")
+    }
+    if native.is(Target.LinuxX64).or(native.is(Target.WindowsX64)).or(native.is(Target.MacosX64)) {
+        mut shared_ext := ".so"
+        if host_os() == "macos" { shared_ext = ".dylib" }
+        else if host_os() == "windows" { shared_ext = ".dll" }
+        mut baseline_runtime := ""
+        mut baseline_core := ""
+        mut runtime_bytes := ""
+        mut core_bytes := ""
+        for i in 0..profiles.len() {
+            ref profile : Str = profiles[i]
+            write_c_probe(widths[i], i != 0)
+            mut level := "2"
+            if i == 0 { level = "0" }
+            else if i == 2 { level = "3" }
+            // Deliberately contradictory --cc options must lose to til's
+            // explicit/default selections, including baseline and -O0.
+            cc := "--cc=cc -O3 -march=x86-64-v4"
+            _built := execute(Cmd.new(compiler, "build", cc, format("--cpu=", profile),
+                format("--opt=", level), "./probe.til"))
+            _installed := execute(Cmd.new(compiler, "install", cc, format("--cpu=", profile),
+                format("--opt=", level), "--prefix=installed", "./library.til"))
+            // Do not execute AVX2/AVX-512 binaries on an unknown test host.
+            // Building them checks real backend support and link_c macros.
+            if i == 0 {
+                mut executable := "./bin/probe"
+                if host_os() == "windows" { executable = "./bin/probe.exe" }
+                expect_output(Cmd.new(executable), "4\n4\n")
+                for name : Str in Dir.list(format(WORK, "/gen/lib")) {
+                    if name.starts_with("libtilrt-").and(name.ends_with(shared_ext)) { baseline_runtime = name.clone() }
+                    if name.starts_with("libtilcore-").and(name.ends_with(shared_ext)) { baseline_core = name.clone() }
+                }
+                if baseline_runtime.len().eq(0).or(baseline_core.len().eq(0)) { panic("missing baseline libraries") }
+                runtime_bytes = File.readfile(format(WORK, "/gen/lib/", baseline_runtime))
+                core_bytes = File.readfile(format(WORK, "/gen/lib/", baseline_core))
+                expect_output(Cmd.new("python3", "-c",
+                    "import sys, ctypes; sys.path.insert(0, 'installed/lib/til/lib'); import library; assert library.library_width() == 4; assert library.library_parse(ctypes.c_char_p(b'409')) == 409"), "")
+            } else {
+                if File.readfile(format(WORK, "/gen/lib/", baseline_runtime)) != runtime_bytes { panic("baseline runtime overwritten") }
+                if File.readfile(format(WORK, "/gen/lib/", baseline_core)) != core_bytes { panic("baseline core overwritten") }
+                mut found : USize = 0
+                for name : Str in Dir.list(format(WORK, "/installed/lib")) {
+                    if name.starts_with("libtilrt-").or(name.starts_with("libtilcore-"))
+                        .and(name.ends_with(format("-", profile, shared_ext))) { found++ }
+                }
+                if found != 2 { panic("missing installed CPU-qualified runtime/core: ", profile) }
+                binding := File.readfile(format(WORK, "/gen/til/library.py"))
+                if binding.contains(format("-", profile, shared_ext)).not() { panic("binding lost CPU-qualified dependency") }
+            }
+        }
+        // Return to the DEFAULT selection after building a wide executable.
+        // This exercises #406's freshness fix together with the new controls.
+        write_c_probe(4, false)
+        expect_output(Cmd.new(compiler, "run", "./probe.til"), "4\n4\n")
+    }
+    println("cpu options passed")
+}
