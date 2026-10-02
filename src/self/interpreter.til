@@ -682,6 +682,18 @@ raw_type_is_prim := func(shallow t: Type, ctx: Context) returns Bool {
     return false
 }
 
+priv raw_type_is_simd := func(shallow t: Type, ctx: Context) returns Bool {
+    switch t {
+    case .Struct(name):
+        return structdef_of(lookup_interp_type_def(name, ctx).unwrap()).simd_width > 0
+    case .StructSym(sym):
+        return structdef_of(lookup_interp_type_def(ctx.symbols.resolve(sym), ctx).unwrap()).simd_width > 0
+    case .Custom(name): return raw_type_is_simd(type_from_name_init_name(name, ctx.scope, ctx.symbols), ctx)
+    case .CustomSym(sym): return raw_type_is_simd(type_from_sym_init(sym, ctx.scope, ctx.symbols), ctx)
+    case: return false
+    }
+}
+
 // Canonicalize integer bits into a value word for primitive type `t`:
 // mask to the type's width (Bool to 0/1) so compares and unsigned reads
 // can trust the high bits.
@@ -3045,7 +3057,11 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                 if hb_type(source_hb).is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
                     mut pointed : Dynamic = source_raw
                     if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
-                    scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
+                    if param.own_type.is(OwnType.Shallow).and(raw_type_is_simd(bind_type, ctx)) {
+                        scope_set_raw_owned(call_scope, param.name, heap_clone_by_type(bind_type, pointed, source_hb.ctx), bind_type_w, param.own_type, ctx)
+                    } else {
+                        scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
+                    }
                 } else if heap_type_is_callable(hb_type(source_hb)).and(heap_type_is_callable(bind_type)) {
                     ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name(ctx.symbols.names))
                     scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(ctx.symbols.names), arg_source_scope)
@@ -3081,6 +3097,12 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
                         scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, src_w, ctx), bind_type_w, param.own_type, ctx)
                     }
+                } else if param.own_type.is(OwnType.Shallow).and(raw_type_is_simd(bind_type, ctx)) {
+                    // SIMD arguments are values even when the expression is a
+                    // borrowed view into an Array. Snapshot at the call boundary
+                    // like C; another argument can mutate the original storage.
+                    // SIMD contains only scalar lanes, so this is a byte copy.
+                    scope_set_raw_owned(call_scope, param.name, heap_clone_by_type(bind_type, source_raw, source_hb.ctx), bind_type_w, param.own_type, ctx)
                 } else {
                     ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name(ctx.symbols.names))
                     scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(ctx.symbols.names), arg_source_scope)
@@ -3137,6 +3159,8 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     } else if param.own_type.is(OwnType.Shallow).and(raw_type_is_prim(arg_source_type, ctx)).and(raw_type_is_prim(bind_type, ctx)) {
                         src_w : Dynamic = scalar_word_load(arg_source_type, arg_raw, ctx)
                         arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.til_type, ctx), ctx)
+                    } else if param.own_type.is(OwnType.Shallow).and(raw_type_is_simd(bind_type, ctx)) {
+                        arg_raw = heap_clone_by_type(bind_type, arg_raw, ctx)
                     } else {
                         borrowed = true
                     }

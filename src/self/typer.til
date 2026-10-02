@@ -2852,11 +2852,11 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
 // are validated, so the node cannot say what it started as (the same
 // reasoning arg_is_scalar_value_binding documents for #357).
 //
-// "Managed" is the tree's existing notion, borrowed from
-// check_free_managed_local: the type has a `delete`. A type with a
-// destructor is precisely one whose bytes cannot be duplicated without
-// duplicating whatever that destructor would release. Raw buffers (U8,
-// Dynamic) have no `delete`, so byte-blitting them stays legal.
+// "Managed" defaults to the tree's existing notion, borrowed from
+// check_free_managed_local: the type has a `delete`. A user destructor may
+// release resources even when its fields look like plain values. Compiler-
+// verified SIMD scalar storage is exempt below; it has no owned interior.
+// Raw buffers (U8, Dynamic) likewise remain legal byte-copy sources.
 //
 // `ref` and parameter sources are NOT exempt: borrowing a managed value
 // does not make copying its owned pointers out of it any safer. The way
@@ -2910,6 +2910,13 @@ priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
             ref sdef : Expr = sdef_o.unwrap()
+            // SIMD is a compiler-verified scalar-lane value: copying its bytes
+            // cannot duplicate ownership. Its generated outer-shell delete is
+            // not evidence of owned interior storage, unlike a managed record.
+            switch sdef.node_type {
+            case .StructDef(sd): if sd.simd_width > 0 { return }
+            case:
+            }
             if find_namespace_func(sdef, "delete", scope, ctx.symbols).is_none() { return }
             src.type_error(format(
                 "memcpy duplicates the owned pointers inside managed type '", tn,

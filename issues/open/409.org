@@ -40,6 +40,113 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Load/store lowering follow-up (implemented on master 183169265)
+
+Completed the measured memory-path optimization. The method signatures,
+scalar-aligned layout, checked-access contract and CPU/optimization defaults
+are unchanged. CPU profile controls, option-aware freshness and native ARM
+timing remain outstanding; this issue stays WIP.
+
+**** Changes and correctness
+
+- Generated load/store bodies copy exactly N scalar lanes with one constant-
+  size memcpy. This replaces N scalar get/dereference operations and the
+  private per-lane store helper. Both backends execute the same generated
+  checks; no C-only substitute implementation or always_inline attribute.
+- Check ~start <= count && count - start >= N~, with short-circuit evaluation,
+  before computing byte addresses or copying. Return on success and throw
+  OutOfBounds LAST, following Array.get's existing structure. The old two
+  early throws made the throws pass insert repeated error-slot tests around
+  the remaining operations, inflating the inlining cost.
+- The typer recognizes compiler-verified SIMD storage as byte-copyable even
+  though the type has a generated outer-shell delete. This exemption is based
+  on SIMD metadata, not its name; copying managed records is still rejected.
+- An overlapping-source regression exposed a pre-existing interpreter
+  discrepancy: shallow SIMD parameters borrowed the caller's storage instead
+  of taking C's by-value snapshot. Fixed parameter marshalling for named,
+  reference-result and unboxed Dynamic SIMD arguments. This fixes mutations
+  through another argument as well as overlapping stores; merely replacing
+  memcpy with memmove would not fix that value-semantics bug.
+- Testing two-byte lanes exposed another existing generator defect: I16/U16
+  have no scalar bnot method, so their SIMD definitions failed to type-check.
+  Vector complement now uses the existing vector xor primitive and an
+  all-ones splat. No new scalar methods were introduced.
+
+Regression coverage in ~test/simd.til~:
+
+- ~test_simd_memory_lane_sizes~: all eleven scalar lane types, widths from
+  1 to 32, scalar-aligned offsets, guards and independent copies; also checks
+  I16/U16 complement values.
+- ~test_simd_memory_bounds_matrix~: empty/short/exact-size arrays, starts at
+  zero, one, the end and USize.MAX; failed stores leave every element intact.
+- ~test_simd_memory_float_bits~: preserves negative-zero, NaN payload,
+  negative-infinity and ordinary F32 bits through load/store.
+- ~test_simd_memory_argument_evaluation~: arguments evaluate once on success
+  and failure, including temporary source arrays and vector receivers.
+- ~test_simd_memory_overlapping_source~ and
+  ~test_simd_memory_parameter_snapshot~: borrowed vector sources remain value
+  snapshots when the destination overlaps or the function mutates the source.
+
+Verification: ~make clean && make test~ passed 493/493, including ASAN,
+self-translation and the existing managed-memcpy rejection checks. The SIMD
+suite passed 21/21 interpreted and compiled under ASAN, 21/21 with Clang -O2,
+and 21/21 in an AArch64 GCC -O2 build run through QEMU. The scratch benchmark's
+correctness matrix also passed all native configurations below and AArch64
+emulation. Native ARM performance is still unmeasured.
+
+**** Before/after performance
+
+Rebuilt the before compiler from 183169265, then translated the SAME scratch
+kernels below with the before and changed compilers. Same Ryzen 9950X3D,
+CPU-0 affinity, GCC 13.3/Clang 18.1.3 and timing/validation method as the
+measurement phase. Tested baseline and x86-64-v4 at O2 with both compilers,
+plus GCC O0 small cases. No fast-math or new til options.
+
+Four-lane vectors, N=4096, start=1. Times are median ns/element; ratio is
+BEFORE divided by AFTER for the SAME SIMD kernel, not a scalar/SIMD ratio.
+
+| Compiler / ISA / operation | Before | After  | Ratio |
+|----------------------------+--------+--------+-------|
+| GCC O0 baseline, add        | 7.9559 | 4.8808 | 1.63x |
+| GCC O2 baseline, add        | 1.4260 | 0.1781 | 8.01x |
+| GCC O2 baseline, select     | 1.8079 | 0.4675 | 3.87x |
+| GCC O2 baseline, reduction  | 0.1917 | 0.1144 | 1.68x |
+| GCC O2 v4, add              | 1.4090 | 0.1771 | 7.96x |
+| Clang O2 baseline, add      | 0.5828 | 0.1899 | 3.07x |
+| Clang O2 baseline, select   | 0.5976 | 0.2841 | 2.10x |
+| Clang O2 v4, add            | 0.7172 | 0.1721 | 4.17x |
+
+For the large N=33554432 case, GCC O2 baseline four-lane addition improved
+from 1.8934 to 0.4270 ns/element (4.43x); selection from 2.3320 to 0.6875.
+The changed four-lane addition was 2.81x faster than checked scalar at N=4096
+and 1.71x at the large size in these runs. These are workload-specific
+measurements, not a promise that every SIMD width beats scalar code: GCC's
+large width-16 add/select cases still trailed checked scalar, and Clang's
+auto-vectorized scalar reduction still beat the explicit width-4 loop.
+
+The GCC O2 four-lane hot loop now has contiguous ~movdqu~/~addps~/~movups~
+operations, with no calls to the load/store wrappers or per-lane null tests.
+Range checks and cold error paths remain. AArch64 likewise emits contiguous
+~ldr q~ loads, ~fadd v*.4s~ and vector stores; its four-lane wrapper calls
+are gone. No performance claim is based on QEMU timing.
+
+Reproduction: use the kernel/harness source below. Save generated C from the
+base compiler as ~tmp/simd409-before.c~ and from the changed compiler as
+~tmp/simd409-after.c~, always with ~translate --force-rebuild~. For each file:
+
+#+begin_src sh
+gcc -std=gnu11 -Wall -Wextra -Werror -O2 -march=x86-64 -mtune=generic \
+  -DTIL_USIZE64 -DSIMD409_SOURCE='"simd409-after.c"' -Isrc/c \
+  tmp/simd409_harness.c src/c/ext.c -lm -ldl -lpthread \
+  -o tmp/simd409-after-gcc-x86-64
+taskset -c 0 tmp/simd409-after-gcc-x86-64 > tmp/simd409-after-gcc-x86-64.log 2>&1
+objdump -d tmp/simd409-after-gcc-x86-64 > tmp/simd409-after-gcc.asm.log
+#+end_src
+
+Substitute before/after, compiler and ISA for the paired configurations;
+use ~-O0~ and the harness's ~small~ argument for the unoptimized comparison.
+The reduction algorithm and benchmark source were not changed in this step.
+
 *** Measurement phase (2026-09-29, master ca6398086)
 
 Status: native x86 measurements and AArch64 cross-codegen/emulated correctness

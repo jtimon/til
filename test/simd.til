@@ -70,6 +70,155 @@ test_simd_memory := test() {
     assert_eq(I32, values[5], 50)
 }
 
+// Runtime calls keep the byte-copy path under test instead of folding the
+// entire round trip. Test scalar alignment, guard elements and copy isolation.
+simd_memory_roundtrip := proc(T: Type, V: Type, value: T, sentinel: T, shape: V) {
+    noop_proc()
+    width := shape.len()
+    mut source := Array(T).new(width + 2)
+    mut output := Array(T).new(width + 2)
+    for i in 0..(width + 2) {
+        source.set(i, own sentinel.clone())!
+        output.set(i, own sentinel.clone())!
+    }
+    for i in 1..(width + 1) { source.set(i, own value.clone())! }
+    loaded := V.load(source, 1)!
+    source.set(1, own sentinel.clone())!
+    assert(loaded.eq(V.splat(value)).all())
+    loaded.store(output, 1)!
+    assert_eq(T, output[0], sentinel)
+    assert_eq(T, output[width + 1], sentinel)
+    for i in 1..(width + 1) { assert_eq(T, output[i], value) }
+    output.set(1, own sentinel.clone())!
+    assert_eq(T, loaded[0], value)
+}
+
+test_simd_memory_lane_sizes := test() {
+    simd_memory_roundtrip(I8, Simd(I8, 16), -7, 3, Simd(I8, 16).zero())
+    simd_memory_roundtrip(U8, Simd(U8, 32), 251, 3, Simd(U8, 32).zero())
+    simd_memory_roundtrip(I16, Simd(I16, 4), -1234, 3, Simd(I16, 4).zero())
+    simd_memory_roundtrip(U16, Simd(U16, 8), 60000, 3, Simd(U16, 8).zero())
+    simd_memory_roundtrip(I32, I4, -123456, 3, I4.zero())
+    simd_memory_roundtrip(U32, Simd(U32, 8), 4000000000, 3, Simd(U32, 8).zero())
+    simd_memory_roundtrip(I64, I1, I64.MIN, 3, I1.zero())
+    simd_memory_roundtrip(U64, Simd(U64, 4), U64.MAX, 3, Simd(U64, 4).zero())
+    simd_memory_roundtrip(F32, F8, -1.25, 3.0, F8.zero())
+    simd_memory_roundtrip(F64, Simd(F64, 2), -1.25, 3.0, Simd(F64, 2).zero())
+    simd_memory_roundtrip(Bool, Simd(Bool, 16), true, false, Simd(Bool, 16).zero())
+    assert_eq(I16, Simd(I16, 4).splat(-1234).bnot()[0], 1233)
+    assert_eq(U16, Simd(U16, 8).splat(60000).bnot()[0], 5535)
+}
+
+test_simd_memory_bounds_matrix := test() {
+    for count in array(USize, 0, 1, 3, 4, 5, 17) {
+        mut values := Array(I32).new(count)
+        for start in array(USize, 0, 1, count, USize.MAX) {
+            for i in 0..count { values.set(i, own 7)! }
+            mut valid := start <= count
+            if valid { valid = count - start >= 4 }
+            mut load_failed := false
+            _loaded := I4.load(values, start)?
+            catch (err: OutOfBounds) { load_failed = true }
+            assert_eq(Bool, load_failed, valid.not())
+            mut store_failed := false
+            I4.splat(9).store(values, start)?
+            catch (err: OutOfBounds) { store_failed = true }
+            assert_eq(Bool, store_failed, valid.not())
+            for i in 0..count {
+                mut expected : I32 = 7
+                if valid.and(i >= start).and(i - start < 4) { expected = 9 }
+                assert_eq(I32, values[i], expected)
+            }
+        }
+    }
+    values := array(I32, 1, 2, 3, 4, 5, 6)
+    end := I4.load(values, 2)!
+    assert(end.eq(I4.new(3, 4, 5, 6)).all())
+}
+
+simd_memory_word := proc(value: U32) returns U32 {
+    noop_proc()
+    return value
+}
+
+test_simd_memory_float_bits := test() {
+    bits := array(U32, simd_memory_word(0x80000000), simd_memory_word(0x7fc12345),
+        simd_memory_word(0xff800000), simd_memory_word(0x3f800000))
+    mut values := array(F32, 13.0, 0.0, 0.0, 0.0, 0.0, 13.0)
+    mut output := array(F32, 13.0, 0.0, 0.0, 0.0, 0.0, 13.0)
+    memcpy(ptr_add(values.data, 4), bits.data, 16)
+    loaded := F4.load(values, 1)!
+    loaded.store(output, 1)!
+    assert_eq(I32, memcmp(ptr_add(output.data, 4), bits.data, 16), 0)
+    assert_eq(F32, output[0], 13.0)
+    assert_eq(F32, output[5], 13.0)
+}
+
+simd_memory_source := proc(mut calls: I64) returns Array(I32) {
+    noop_proc()
+    calls++
+    return array(I32, 10, 20, 30, 40, 50, 60)
+}
+
+simd_memory_start := proc(mut calls: I64, start: USize) returns USize {
+    noop_proc()
+    calls++
+    return start
+}
+
+test_simd_memory_argument_evaluation := test() {
+    mut calls := 0
+    loaded := I4.load(simd_memory_source(calls), simd_memory_start(calls, 1))!
+    assert_eq(I64, calls, 2)
+    assert(loaded.eq(I4.new(20, 30, 40, 50)).all())
+    mut output := array(I32, 7, 7, 7, 7, 7, 7)
+    simd_counted(calls, 9).store(output, simd_memory_start(calls, 1))!
+    assert_eq(I64, calls, 4)
+    mut caught := false
+    simd_counted(calls, 13).store(output, simd_memory_start(calls, USize.MAX))?
+    catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+    assert_eq(I64, calls, 6)
+    assert(I4.load(output, 1)!.eq(I4.splat(9)).all())
+    assert_eq(I32, output[0], 7)
+    assert_eq(I32, output[5], 7)
+}
+
+// A borrowed vector view still passes its VALUE to store. Overlapping scalar
+// storage must therefore observe the complete source snapshot in both modes.
+test_simd_memory_overlapping_source := test() {
+    mut values := array(I32, 1, 2, 3, 4, 5, 6)
+    ref prefix : I4 = ptr_add(values.data, 0)
+    prefix.store(values, 1)!
+    assert(I4.load(values, 1)!.eq(I4.new(1, 2, 3, 4)).all())
+    assert_eq(I32, values[0], 1)
+    assert_eq(I32, values[5], 6)
+    ref middle : I4 = ptr_add(values.data, 4)
+    middle.store(values, 0)!
+    assert(I4.load(values, 0)!.eq(I4.new(1, 2, 3, 4)).all())
+    assert_eq(I32, values[4], 4)
+    assert_eq(I32, values[5], 6)
+}
+
+simd_memory_snapshot := func(value: I4, mut storage: Array(I32)) returns I32 {
+    storage.set(0, own 99)!
+    return value[0]
+}
+
+simd_memory_view := func(storage: Array(I32)) returns ref I4 {
+    return ptr_add(storage.data, 0)
+}
+
+test_simd_memory_parameter_snapshot := test() {
+    mut values := array(I32, 1, 2, 3, 4)
+    ref view : I4 = ptr_add(values.data, 0)
+    assert_eq(I32, simd_memory_snapshot(view, values), 1)
+    assert_eq(I32, values[0], 99)
+    values.set(0, own 7)!
+    assert_eq(I32, simd_memory_snapshot(simd_memory_view(values), values), 7)
+    assert_eq(I32, values[0], 99)
+}
+
 test_simd_matrix := test() {
     a0 := F2.new(1.0, 2.0)
     a1 := F2.new(3.0, 4.0)

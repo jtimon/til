@@ -4936,33 +4936,36 @@ priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context
         if elem.starts_with("I") { source = format(source, ".cast(", elem, ")") }
         source = format(source, "\n}\n")
         if elem.starts_with("F").not() {
-            source = format(source, "bnot := func(self: ", name, ") returns ", name, " { return ", name, "(")
-            for i in 0..width {
-                if i > 0 { source = format(source, ", ") }
-                source = format(source, "lane", i.to_str(), " = self.lane", i.to_str(), ".bnot()")
-            }
-            source = format(source, ") }\n")
+            // I16/U16 have xor but no scalar bnot method. Define complement
+            // through the existing vector primitive for every integer lane.
+            mut all_bits := "-1"
+            if elem.starts_with("U") { all_bits = format(elem, ".MAX") }
+            source = format(source, "bnot := func(self: ", name, ") returns ", name,
+                " { return self.bxor(", name, ".splat(", all_bits, ")) }\n")
         }
         for reduction : Str in array(Str, "reduce_min", "reduce_max") {
             source = format(source, reduction, " := core_func(shallow self: ", name, ") returns shallow ", elem, " {}\n")
         }
     }
     source = format(source, "select := core_func(shallow mask: ", mask, ", shallow a: ", name, ", shallow b: ", name, ") returns shallow ", name, " {}\n")
-    source = format(source, "priv store_lane := func(mut dest: ", elem, ", value: ", elem, ") { dest = value }\n")
+    // SIMD storage is exactly N consecutive scalar lanes, with scalar alignment.
+    // Copy that representation once after validating the whole range. Keeping
+    // this in the generated body gives C and the interpreter the same checks;
+    // C can lower the constant-size memcpy without per-lane get/store calls or
+    // imposing native vector alignment on Array's storage.
+    // Short-circuit before subtracting start, so even USize.MAX is rejected.
+    // Return on success and throw last, like Array.get: throwing first makes
+    // the throws pass wrap every remaining statement in error-slot checks.
     source = format(source, "load := func(values: Array(", elem, "), start: USize) returns ", name, " throws OutOfBounds {\n",
-        "if start > values.len() { throw OutOfBounds() }\n",
-        "if values.len() - start < ", width.to_str(), " { throw OutOfBounds() }\nreturn ", name, "(")
-    for i in 0..width {
-        if i > 0 { source = format(source, ", ") }
-        source = format(source, "lane", i.to_str(), " = values.unsafe_get(start + ", i.to_str(), ")")
-    }
-    source = format(source, ")\n}\nstore := func(self: ", name, ", mut values: Array(", elem, "), start: USize) throws OutOfBounds {\n",
-        "if start > values.len() { throw OutOfBounds() }\n",
-        "if values.len() - start < ", width.to_str(), " { throw OutOfBounds() }\n")
-    for i in 0..width {
-        source = format(source, name, ".store_lane(values.unsafe_get(start + ", i.to_str(), "), self.lane", i.to_str(), ")\n")
-    }
-    source = format(source, "}\n")
+        "count := values.len()\n",
+        "if start <= count && count - start >= ", width.to_str(), " {\n",
+        "mut result := ", name, "()\n",
+        "memcpy(result, ptr_add(values.data, start.to_uptr().mul(", elem, ".size().to_uptr())), ", elem, ".size().to_uptr().mul(", width.to_str(), "))\n",
+        "return result\n}\nthrow OutOfBounds()\n}\nstore := func(self: ", name, ", mut values: Array(", elem, "), start: USize) throws OutOfBounds {\n",
+        "count := values.len()\n",
+        "if start <= count && count - start >= ", width.to_str(), " {\n",
+        "memcpy(ptr_add(values.data, start.to_uptr().mul(", elem, ".size().to_uptr())), self, ", elem, ".size().to_uptr().mul(", width.to_str(), "))\n",
+        "return\n}\nthrow OutOfBounds()\n}\n")
     source = format(source, "}\n")
     tokens := tokenize(source, ctx.path)
     mut mode := ""
