@@ -292,6 +292,54 @@ Stage B: this includes
 ~bin/<name>.jar~, the JDK 17 PATH tools, the unnamed-module/package decision,
 fixed little-endian raw memory, and the eventual opt-in ~make test_jvm~.
 
+**** Regression found 2026-10-01: no JVM fixture compiles
+
+Found while auditing the JVM output for #326. At master ~a0a3c3b~,
+~til run --target=jvm~ fails in javac for all six JVM fixtures --
+~examples/hello_script.til~, ~test/jvm_scalar_smoke.til~,
+~test/jvm_stage_d.til~, ~test/jvm_stage_e.til~, ~test/jvm_stage_f.til~ and
+~test/script_raw_alloc.til~ -- although Stages C-F below recorded verified
+JVM runs of them. The default suite cannot see it: its JVM rows translate
+and grep the generated Java but never invoke a JDK, which is the gap
+Stage G's ~make test_jvm~ is meant to close. Checked with javac 21.0.10 and
+the builder's ~--release 17 -Xlint:all -Werror~.
+
+Every failing site is a ~USize~ value. The emitter's scalar tables
+(~jvm_cell_type~, ~jvm_cell_impl_type~, ~jvm_scalar_name~) match only
+~Type.Primitive~ cases and fall through to ~""~ for anything else, so a
+USize that does not arrive as a plain primitive becomes broken Java instead
+of a translation error -- the silent fallback the Acceptance section rules
+out:
+
+- A USize cell gets an empty class name: ~new ((v_p_lo + ...))~ for
+  Map/Set's binary-search ~mid~, ~new (Long.parseUnsignedLong("0"))~ for
+  ~str.til~'s ~_fi_USize~ temps. javac: ~<identifier> expected~. Breaks
+  jvm_stage_e and jvm_stage_f.
+- ~Array(T).unsafe_get(self, i: USize)~ takes ~i~ as a ~U64Slot~ cell, but
+  ~Array(T).unsafe_set~ passes it its plain ~long~: ~incompatible types:
+  long cannot be converted to U64Slot~. Breaks every program that prints,
+  since println's parts travel as an Array(Str).
+- ~n : USize = 4~ is declared ~int~ while its literal goes through the U64
+  path: ~int v_p_n = Long.parseUnsignedLong("4")~, a lossy conversion
+  (script_raw_alloc).
+- With those fixed, ~-Werror~ still fails four fixtures (hello_script,
+  jvm_scalar_smoke, jvm_stage_d, script_raw_alloc) on six ~[cast]~
+  warnings each, from the same width disagreement: ~long v = (int) 16;~
+  for ~Str.size()~, and ~(long)~ around arguments that are already ~long~.
+
+The likely origin is "Two-pass: Finish target-width USize" (~335c3f0~,
+2026-08-27), which reworked USize across the core containers and touched
+this emitter; not bisected.
+
+Patching only the ~unsafe_get~ call site by hand in the generated Java
+(boxing ~i~ in a ~U64Cell~) and compiling without ~-Werror~ lets
+hello_script, jvm_stage_d and jvm_scalar_smoke compile and print the
+interpreter's output (jvm_stage_d matches ~test/jvm_stage_d.expected~), so
+the rest of those paths still work. #326's
+JVM pruning (~a0a3c3b~, which drops dead classes and members) was checked
+against the compiler before it: identical javac error sets on all six
+fixtures, and identical output for the three that run once patched.
+
 *** Staged implementation plan
 
 Use lettered stages because some emitter changes may need to land before a
