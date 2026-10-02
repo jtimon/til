@@ -2,6 +2,99 @@
 # category: cleanups
 ** WIP #272 Garbager system: single ownership authority, no manual memory outside core
 
+*** Current assessment (master 5bc2070c4)
+
+The leak-era inventory and experiments below are historical. They must not
+be reapplied as pending fixes. This issue remains WIP for the concrete
+ownership-boundary audit below; it does not identify a new ASAN failure.
+
+Use the placement rule already recorded in
+[[../fixed/302.org][#302]]: manual memory belongs in destructors,
+allocators, the machinery implementing the ownership model, and documented
+FFI islands. The garbager decides the lifetimes of ordinary til-owned
+values. The interpreter executes that contract and reclaims storage it
+creates to represent the program. Its malloc/free calls are not wrong
+solely because they live outside core. The old absolute ban below predates
+that correction; a runtime/FFI exemption still needs a concrete ownership
+contract, not just a Dynamic-typed pointer.
+
+*** Completed parts of the original inventory
+
+  - In-place AST rewrites: ~Expr.replace_with~ is gone; rewrites use owning
+    slots. The old leak-era rewrite repair is not pending.
+  - Raw allocation into a ref: the typer rejects it, with
+    ~bad_raw_alloc_ref~ in ~test/typer_errors.til~ pinning the diagnostic
+    ([[../fixed/319.org][#319]]).
+  - Boxed interpreter values: [[../fixed/286.org][#286]] replaced
+    ~Value~ / ~StructInstance~ / ~EnumInstance~ with typed EvalHeap blocks
+    and HeapBinding metadata. ~shallow_copy_value~, ~free_temp_arg_value~,
+    ~free_owned_value~, and the old delete-interception layer are gone.
+  - Double-ownership and scope teardown:
+    [[../fixed/275.org][#275]] covers the raw runtime's ownership fixes.
+    ~scope_free~ releases interpreter slots and metadata, not nested
+    program payloads; raw allocations remain the interpreted program's
+    responsibility. The old proposal to make every scope teardown deep
+    would violate that current contract.
+  - Garbager dataflow and backend decisions: #302 delivered CFG ownership
+    analysis, recorded storage/move decisions, return normalization, and
+    its compensation audit. ~sink_conditional_transfer_deletes~ still
+    exists, but uses ~gc_flow_exit_is_mixed~ to decide whether to graft
+    cleanup; ~extend_hoist_view_lifetimes~ propagates borrow/taint reach.
+    Their names and positional insertion indexes alone do not establish
+    the old statement-index-only bug.
+  - Program-scope Dynamic free: #302 fixed the invalid-C seam, covered by
+    ~test/globals.til~. [[../fixed/209.org][#209]] subsequently moved the
+    destructor's call_free decision into the AST.
+
+*** Remaining audit: concrete ownership boundaries
+
+Start with these current call sites. For each, record the allocation's
+owner, every move/borrow, and its release path before proposing removal.
+The question is whether the operation implements that contract or releases
+a value the garbager already owns. No defect is established by this list.
+
+  - Constfolder known arguments (~src/self/constfolder.til~, ~is_known~
+    and ~try_eval_call~): ~is_known~ returns an owned block even for a
+    primitive; primitive evaluation results normally travel as words.
+    The caller loads the word, converts it to an Expr, then explicitly
+    ~EvalHeap.heap_free(own arg_raw)~. Non-primitive known arguments move
+    into the evaluation scope. Audit those success/miss/abort paths and
+    the matching ~scope_drop_owned_bindings~ calls together. Keep the
+    block-vs-word distinction explicit; ~raw_result_drop~ cannot free a
+    primitive word as if it were an allocated block. Coverage:
+    ~test/constfold.til~ and self-translation.
+  - Runtime slots and persistent evaluation scopes
+    (~src/self/interpreter.til~): distinguish ~scope_free~'s outer-slot
+    release from ~scope_drop_owned_bindings~'s deep cleanup of runtime-owned
+    evaluation/closure/namespace state. Both skip borrowed, moved, and raw
+    allocation bindings. Follow the callers before deleting either path.
+    Coverage: ~test/eval_heap.til~, ~test/closures.til~,
+    ~test/own_fields.til~, and ~test/constfold.til~.
+  - FFI marshalling (~ext_dispatch_ffi~ and ~FFIEntry~): scalar argument
+    boxes marked by ~boxed_flags~ are call-owned; aggregate argument
+    storage stays live through ffi_call; layout-conversion buffers may
+    be shared by multiple borrowed arguments; own parameters transfer
+    storage to C. Audit mutable copy-back, borrowed return rebasing,
+    transferred wrappers, and once-only release of shared conversions.
+    These are documented runtime/FFI operations, not evidence of the
+    retired Value model. A typed buffer abstraction was an old suggestion,
+    not a prerequisite or an approved new API. Coverage:
+    ~examples/ffi/ext_module.til~ and ~test/ext_global_ref.til~.
+
+Finish the audit by classifying any remaining hand-written free/delete in
+ordinary pass code. Fix a demonstrated placement or ownership defect at
+its source and add a regression for its actual failure; do not remove
+destructor/allocator/runtime code to reduce the number of calls. If the
+audit finds only legitimate machinery, record that evidence for a closure
+decision rather than inventing another rewrite.
+
+Verification for implementation work: ~make clean && make test~ (the full
+ASAN suite); emit/self-applied changes follow ~doc/self.org~'s two-pass
+workflow. The current update is a source audit and issue-plan correction,
+not a fresh full-suite result.
+
+*** Historical investigation (2026-06)
+
 Architectural cleanup driven by the 2026-06 leak-hunting sessions. The
 leaks were fixed point-by-point, but several fixes (and pre-existing
 code) violate the intended layering. The principles, as stated by Jorge:
