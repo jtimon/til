@@ -6,3 +6,8 @@ cde
 multi:cde:3
 xy!
 3
+file exists
+directory exists
+view exists
+file missing
+primitive missing

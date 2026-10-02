@@ -1318,6 +1318,7 @@ priv holyc_prepare_state := func(program: Expr, ctx: Context,
                 switch stmt.children[0].node_type {
                 case .FuncDef(fdef):
                     if decl.name.starts_with("adopt__") { continue }
+                    if fdef.sig.func_type.is_ext() { continue }
                     state.user_functions.add(own decl.name.clone())
                     state.user_return_types.set(decl.name, own fdef.sig.return_type.clone())
                     if fdef.sig.return_own_type.is(OwnType.Ref) {
@@ -1951,6 +1952,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported call 'Str.", method, "'")
                 return ""
             }
+            if owner.eq("File").and(method.eq("exists")) {
+                if e.children.len() != 2 { error = "invalid File.exists call"; return "" }
+                path := holyc_str_ref(e.children[1], ctx, locals, error)
+                return format("TilFileExists(", path, ")")
+            }
             if state.struct_names.has(owner) {
                 if method == "size" {
                     if e.children.len() != 1 { error = format("invalid ", owner, ".size call"); return "" }
@@ -2096,6 +2102,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             return value
         case .Ident(id):
             ref name : Str = id.ident_name(ctx.symbols.names)
+            if name == "cfile_exists" {
+                if e.children.len() != 2 { error = "invalid cfile_exists call"; return "" }
+                path := holyc_str_ref(e.children[1], ctx, locals, error)
+                return format("TilFileExists(", path, ")")
+            }
             if name == "panic" {
                 if e.children.len() != 3 { error = "invalid panic call"; return "" }
                 parts := holyc_str_array_ref(e.children[1], ctx, locals, error)
@@ -3621,6 +3632,10 @@ priv holyc_append_function_outputs := func(program: Expr, ctx: Context,
         case .Decl(decl):
             if stmt.children.len().neq(1).or(stmt.children[0].node_type.is(NodeType.FuncDef).not()) { continue }
             if decl.name.starts_with("adopt__") { continue }
+            switch stmt.children[0].node_type {
+            case .FuncDef(fd): if fd.sig.func_type.is_ext() { continue }
+            case:
+            }
             holyc_emit_function(decl.name, stmt.children[0], ctx, state, prototypes, definitions, error)
             if error.len() > 0 { return }
         case:

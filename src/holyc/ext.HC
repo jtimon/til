@@ -302,6 +302,18 @@ public U0 TilStrDelete(TilStr *s,Bool call_free)
     TilFree(s);
 }
 
+public Bool TilFileExists(TilStr *path)
+{
+  U64 count=path->count;
+  U8 *name=TilMAlloc(count+1);
+  Bool exists;
+  TilMemCpy(name,path->c_str,count);
+  name[count]=0;
+  exists=FileFind(name);
+  TilFree(name);
+  return exists;
+}
+
 public I64 TilStrDigit(U8 ch)
 {
   if (ch>=48 && ch<=57)

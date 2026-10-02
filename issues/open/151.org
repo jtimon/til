@@ -413,6 +413,18 @@
   deep cloning, replacement, removal, and enum order. TempleOS 5.03 under
   QEMU TCG produced the same 118 output lines and ~TILTEST:PASS~.
 
+  The twenty-first slice begins native filesystem support with
+  ~File.exists~ / ~cfile_exists~. HolyC calls a TempleOS ~FileFind~ wrapper
+  that copies the counted Str path to a NUL-terminated temporary, so a
+  substring view cannot expose trailing bytes as part of the filename.
+  Imported external declarations are not emitted as HolyC functions;
+  unsupported external calls still fail explicitly. The shared
+  ~test/script_str_runtime.til~ now checks existing files and directories,
+  absent files, and non-NUL-terminated views. It uses the existing
+  ~src/holyc/ext.HC~ on the host and the injected ~/Home/Ext.HC~ in the
+  guest. Interpreter and compiled C output match; TempleOS 5.03 under
+  QEMU TCG produced the same 13 lines and ~TILTEST:PASS~.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI

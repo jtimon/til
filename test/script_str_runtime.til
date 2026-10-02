@@ -1,5 +1,7 @@
 mode script
 
+import("../src/std/file")
+
 str_runtime_middle := func(s: Str) returns Str {
     return s.substr(1, 3).clone()
 }
@@ -51,3 +53,17 @@ own copy.delete()
 own reassigned.delete()
 own returned.delete()
 own mutable.delete()
+
+if File.exists("src/holyc/ext.HC") {
+    println("file exists")
+    if File.exists("src/holyc") { println("directory exists") }
+    host_fs_view := "src/holyc/ext.HC.trailing".substr(0, 16)
+    if File.exists(host_fs_view) { println("view exists") }
+} else {
+    if File.exists("Ext.HC") { println("file exists") }
+    if File.exists("C:/Home") { println("directory exists") }
+    guest_fs_view := "Ext.HC.trailing".substr(0, 6)
+    if File.exists(guest_fs_view) { println("view exists") }
+}
+if File.exists("missing.HC").not() { println("file missing") }
+if cfile_exists("missing.HC").not() { println("primitive missing") }
