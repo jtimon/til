@@ -23,7 +23,57 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
-*** Current state (2026-10-02, master 18b0b26bd)
+*** Lifetime follow-up (2026-10-02, based on master 5bc2070c4)
+
+    Reproduced two stack-use-after-return failures with compiled ASAN probes:
+
+    - ~source := Concrete(...); view: Iface = source;
+      return Holder(value = view)~. Direct ~return view~ was ALREADY rejected
+      by the borrow checker, but wrapping it in a struct constructor bypassed
+      the check: ~return_escape_roots~ handled function summaries and enum
+      ref constructors, not struct constructors.
+    - ~view: Iface = make_concrete(); return view~. Local boxing borrowed the
+      factory result's later-hoisted stack slot. The factory returns an owned
+      concrete value, so its borrow summary supplied no source binding for
+      the return checker to follow. A direct concrete constructor at the same
+      local site also failed typing because boxing re-inferred its already
+      lowered positional arguments as if they were source named arguments.
+
+    Fixed in ~src/self/typer.til~:
+
+    - Return-borrow analysis follows struct constructor fields: ref fields
+      contribute direct borrows; value fields carrying borrows are followed
+      recursively. This rejects a dying local hidden in an interface holder
+      or nested holder, using the existing lifetime diagnostic.
+    - Interface local coercion now snapshots the source expression BEFORE
+      inference. It retains borrowed boxes for existing storage/ref-returning
+      calls, but boxes fresh concrete temporaries with the existing owned
+      heap-clone mechanism. Their box can then survive a return or storage
+      in a holder. This does not promote an existing borrowed box to owned.
+
+    Regression coverage:
+
+    - ~test/interfaces.til~: ~test_interface_temporary_lifetimes~ exercises
+      managed string payloads, factory/constructor locals, escaping returns,
+      holder storage and exactly-once runtime evaluation;
+      ~test_interface_named_local_borrow~ verifies that mutation remains
+      visible through a named local's borrowed box and a parameter-derived
+      holder; ~test_interface_enum_temporary_lifetime~ covers an enum value.
+    - ~test/typer_errors.til~: ~terr_iface_return_borrow~,
+      ~terr_iface_return_holder~, ~terr_iface_return_nested_holder~ and
+      ~terr_iface_return_helper~ cover direct, constructor, nested and
+      helper-mediated escape rejection on both interpreter/build paths.
+
+    Verification: ~make clean && make test~ passed 494/494, including ASAN
+    and self-translation. The interface file now passes 20/20 tests on both
+    interpreter and compiled paths; the negative corpus reports 277 expected
+    errors, including all four new lifetime rejection cases.
+
+    These close the reproduced local/holder cases, not every possible borrow
+    escape. Assignment, collection storage and general interface-argument
+    coercion remain outside this local-boxing change.
+
+*** Review snapshot (2026-10-02, master 18b0b26bd, before the lifetime follow-up)
 
     #251 remains FIXED for the keyword and struct/enum conformance work.
     The original closure summary above describes that initial scope, not

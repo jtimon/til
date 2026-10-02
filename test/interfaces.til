@@ -213,3 +213,70 @@ test_field_dispatch := test() {
     hp := DrawHolder(shape = Polygon.Tri)
     assert_eq(Str, hp.shape.draw(), "polygon")
 }
+
+// A resource-owning implementer makes lifetime failures observable: drawing
+// reads heap data as well as the concrete struct's storage.
+CaptionShape := struct implements Drawable {
+    text: Str
+namespace:
+    draw := func(self: CaptionShape) returns Str { return self.text.clone() }
+}
+
+make_text_drawable := func(mut calls: I64) returns CaptionShape {
+    calls++
+    return CaptionShape(text = format("temporary ", "factory"))
+}
+
+return_interface_temporary := func(mut calls: I64) returns Drawable {
+    d: Drawable = make_text_drawable(calls)
+    return d
+}
+
+return_interface_constructor := func() returns Drawable {
+    d: Drawable = CaptionShape(text = format("temporary ", "constructor"))
+    return d
+}
+
+return_interface_temporary_holder := func(mut calls: I64) returns DrawHolder {
+    d: Drawable = make_text_drawable(calls)
+    return DrawHolder(shape = d)
+}
+
+test_interface_temporary_lifetimes := test() {
+    mut calls := 0
+    local: Drawable = make_text_drawable(calls)
+    assert_eq(Str, local.draw(), "temporary factory")
+    escaped := return_interface_temporary(calls)
+    assert_eq(Str, escaped.draw(), "temporary factory")
+    ctor := return_interface_constructor()
+    assert_eq(Str, ctor.draw(), "temporary constructor")
+    holder := return_interface_temporary_holder(calls)
+    assert_eq(Str, holder.shape.draw(), "temporary factory")
+    assert_eq(I64, calls, 3)
+}
+
+// Existing storage still supplies a borrow, rather than an implicit snapshot.
+// Returning a holder of a PARAMETER's borrow is valid while the caller keeps
+// that parameter's concrete value alive.
+borrow_interface_holder := func(d: Drawable) returns DrawHolder {
+    return DrawHolder(shape = d)
+}
+
+test_interface_named_local_borrow := test() {
+    mut value := CaptionShape(text = format("before ", "change"))
+    d: Drawable = value
+    holder := borrow_interface_holder(d)
+    value.text = format("after ", "change")
+    assert_eq(Str, d.draw(), "after change")
+    assert_eq(Str, holder.shape.draw(), "after change")
+}
+
+return_interface_enum_temporary := func() returns Drawable {
+    d: Drawable = Polygon.Quad
+    return d
+}
+
+test_interface_enum_temporary_lifetime := test() {
+    d := return_interface_enum_temporary()
+    assert_eq(Str, d.draw(), "polygon")
+}

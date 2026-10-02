@@ -731,6 +731,44 @@ TErrConfEnumImplNonIface := enum implements TErrConfNotIface {
     A,
 }
 
+// #251 lifetime follow-up: a borrowed interface cannot hide a dying concrete
+// local behind a value field, another constructor, or a helper's return.
+TErrIfaceConcrete := struct implements TErrConfIface {
+    x := 1
+namespace:
+    must := func(self: TErrIfaceConcrete) returns I64 { return self.x }
+}
+TErrIfaceHolder := struct { value: TErrConfIface }
+TErrIfaceOuter := struct { inner: TErrIfaceHolder }
+
+terr_iface_return_borrow := func() returns TErrConfIface {
+    source := TErrIfaceConcrete()
+    view: TErrConfIface = source
+    return view
+}
+
+terr_iface_return_holder := func() returns TErrIfaceHolder {
+    source := TErrIfaceConcrete()
+    view: TErrConfIface = source
+    return TErrIfaceHolder(value = view)
+}
+
+terr_iface_return_nested_holder := func() returns TErrIfaceOuter {
+    source := TErrIfaceConcrete()
+    view: TErrConfIface = source
+    return TErrIfaceOuter(inner = TErrIfaceHolder(value = view))
+}
+
+terr_iface_wrap := func(view: TErrConfIface) returns TErrIfaceHolder {
+    return TErrIfaceHolder(value = view)
+}
+
+terr_iface_return_helper := func() returns TErrIfaceHolder {
+    source := TErrIfaceConcrete()
+    view: TErrConfIface = source
+    return terr_iface_wrap(view)
+}
+
 // #287: the key binding of a two-variable for-in cannot be `mut` -- mutating
 // a key in place would corrupt the map's key ordering / bucket placement.
 // Values may be mutated (`for k, mut v`); keys may not.

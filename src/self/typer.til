@@ -7151,7 +7151,39 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     }
 }
 
-priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, mut ctx: Context) {
+// Interface locals borrow existing storage, but a fresh concrete temporary
+// must live in an owned box: a pointer to its later hoisted stack slot cannot
+// survive returning/storing the interface. Snapshot before inference, since
+// constructors lose their named arguments when typed and cannot be retyped.
+priv infer_interface_local_value := proc(mut scope: TypeScope, mut value: Expr, iface_name: Str, in_func: I32, mut ctx: Context) {
+    mut raw_value := value.clone()
+    infer_expr(scope, value, in_func, ctx)
+    concrete_o := expr_type_name_ref(value, ctx.symbols)
+    if concrete_o.is_none() { return }
+    concrete_name := concrete_o.unwrap().clone()
+    if concrete_name.eq(iface_name).or(type_implements_iface(concrete_name, iface_name, scope, ctx.symbols).not()) { return }
+    line := value.line
+    col := value.col
+    if expr_is_borrow_source(value, scope, ctx.symbols).not() {
+        value = make_owned_iface_box(iface_name, concrete_name, own raw_value, line, col, ctx.symbols)
+    } else {
+        mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
+        box.add_child(own Expr.new(ident_node(ctx.symbols.intern(iface_name)), line, col))
+        mut tag := Expr.new(NodeType.NamedArg("iface_type_name"), line, col)
+        tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
+        box.add_child(own tag)
+        mut payload := Expr.new(NodeType.NamedArg("iface_val"), line, col)
+        mut address := Expr.new(NodeType.FCall(FCallData()), line, col)
+        address.add_child(own Expr.new(ident_node(ctx.symbols.intern("to_ptr")), line, col))
+        address.add_child(own raw_value)
+        payload.add_child(own address)
+        box.add_child(own payload)
+        value = box
+    }
+    infer_expr(scope, value, in_func, ctx)
+}
+
+priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: Context) {
     switch stmt.node_type {
     case .Decl(sdecl):
         mut declared := declared_type_for_decl(scope, stmt, ctx)
@@ -7160,41 +7192,6 @@ priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, in_fun
         // (e.g. ~ref x : Foo = ...~) is a use of Foo's name from
         // declaration position. Check priv across files.
         check_priv_type_name(stmt, declared_name, scope, scope, ctx)
-        // #251 follow-up: a conforming concrete bound to an interface-typed
-        // LOCAL coerces by BOXING, exactly like an interface-typed argument
-        // (infer_and_validate_fcall_args). Done here -- before `val` is bound
-        // below -- so the box (whose type is the interface, == declared) flows
-        // through the rest of the checks without a type-mismatch error. The
-        // box borrows the value via to_ptr, like the argument case: sound
-        // while the source outlives the binding (same scope, reverse-order
-        // teardown). Escaping sites (returns, fields, Vec elements) need an
-        // OWNED box and remain a follow-up.
-        if name_is_interface(declared_name, scope, ctx.symbols) {
-            box_cname_o := expr_type_name_ref(stmt.children[0], ctx.symbols)
-            if box_cname_o.is_some() {
-                ref box_cname : Str = box_cname_o.unwrap()
-                if box_cname.eq(declared_name).not().and(type_implements_iface(box_cname, declared_name, scope, ctx.symbols)) {
-                // Owned before the interns below: box_cname may point into
-                // the pool's names vector (#397).
-                box_tag := Str.clone(box_cname)
-                box_line := stmt.children[0].line
-                box_col := stmt.children[0].col
-                mut iface_box := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
-                iface_box.add_child(own Expr.new(ident_node(ctx.symbols.intern(declared_name)), box_line, box_col))
-                mut na_tag := Expr.new(NodeType.NamedArg("iface_type_name"), box_line, box_col)
-                na_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(box_tag)), box_line, box_col))
-                iface_box.add_child(own na_tag)
-                mut na_val := Expr.new(NodeType.NamedArg("iface_val"), box_line, box_col)
-                mut val_ptr := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
-                val_ptr.add_child(own Expr.new(ident_node(ctx.symbols.intern("to_ptr")), box_line, box_col))
-                val_ptr.add_child(own stmt.children[0].clone())
-                na_val.add_child(own val_ptr)
-                iface_box.add_child(own na_val)
-                stmt.children[0] = iface_box
-                infer_expr(scope, stmt.children[0], in_func, ctx)
-                }
-            }
-        }
         ref mut val : Expr = stmt.children[0]
         switch val.til_type() {
         case .Custom(alias_name):
@@ -7736,7 +7733,9 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         case:
         }
         if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
-        else { infer_expr(scope, stmt.children[0], in_func, ctx) }
+        else if name_is_interface(declared_name_at_entry, scope, ctx.symbols) {
+            infer_interface_local_value(scope, stmt.children[0], declared_name_at_entry, in_func, ctx)
+        } else { infer_expr(scope, stmt.children[0], in_func, ctx) }
         ctx.generic_expected_type = saved_expected_type.clone()
         ctx.generic_expected_for = saved_expected_for
         if tracked_func {
@@ -7758,7 +7757,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         sdecl.infer_call_ownership = false
     }
     if sdecl.til_type.is(Type.Unknown).not() {
-        infer_decl_typed_value(scope, stmt, in_func, ctx)
+        infer_decl_typed_value(scope, stmt, ctx)
     } else {
         infer_decl_untyped_value(stmt, ctx)
     }
@@ -10209,6 +10208,29 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
             collect_direct_return_borrow_source(scope, enum_arg_o.unwrap(), symbols, out)
             return out
         }
+        // A returned struct literal has no FuncDef summary. Its ref fields
+        // borrow their arguments directly; value fields can carry an
+        // existing borrow (including an interface box) through the literal.
+        // Follow those fields before the ordinary-call lookup, otherwise
+        // `return Holder(value = borrowed_interface)` hides a dead local.
+        ctor_o := fcall_struct_ctor_def(e, scope, symbols)
+        if ctor_o.is_some() {
+            for ai in 1..e.children.len() {
+                ref arg : Expr = e.children[ai]
+                fld_o := ctor_arg_field_decl(ctor_o.unwrap(), arg, ai - 1)
+                if fld_o.is_none() { continue }
+                ref fld : Declaration = fld_o.unwrap()
+                ref source : Expr = ctor_arg_value(arg)
+                if fld.own_type.is(OwnType.Ref) {
+                    collect_direct_return_borrow_source(scope, source, symbols, out)
+                } else if type_carries_borrow_t(scope, fld.til_type, symbols) {
+                    nested := return_escape_roots(scope, source, symbols)
+                    for r : BorrowRoot in nested.direct { push_root_unique(out.direct, r) }
+                    for r : BorrowRoot in nested.indirect { push_root_unique(out.indirect, r) }
+                }
+            }
+            return out
+        }
         fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_none() { return out }
         switch fd_o.unwrap().node_type {
@@ -11191,6 +11213,11 @@ priv ctor_arg_field_decl := func(sdd_e: Expr, arg: Expr, pos: USize) returns Opt
     case:
     }
     return Option(ref Declaration).None
+}
+
+priv ctor_arg_value := func(arg: Expr) returns ref Expr {
+    if arg.node_type.is(NodeType.NamedArg) { return arg.children[0] }
+    return arg
 }
 
 priv binding_is_storage := func(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns Bool {
