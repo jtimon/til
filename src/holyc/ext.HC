@@ -302,16 +302,31 @@ public U0 TilStrDelete(TilStr *s,Bool call_free)
     TilFree(s);
 }
 
-public Bool TilFileExists(TilStr *path)
+Bool TilFileFind(TilStr *path,I64 flags)
 {
   U64 count=path->count;
   U8 *name=TilMAlloc(count+1);
-  Bool exists;
+  Bool found;
   TilMemCpy(name,path->c_str,count);
   name[count]=0;
-  exists=FileFind(name);
+  found=FileFind(name,NULL,flags);
   TilFree(name);
-  return exists;
+  return found;
+}
+
+public Bool TilFileExists(TilStr *path)
+{
+  return TilFileFind(path,0);
+}
+
+public Bool TilFileIsFile(TilStr *path)
+{
+  return TilFileFind(path,FUF_JUST_FILES);
+}
+
+public Bool TilFileIsDir(TilStr *path)
+{
+  return TilFileFind(path,FUF_JUST_DIRS);
 }
 
 public U0 TilFileRead(TilStr *out,TilStr *path)

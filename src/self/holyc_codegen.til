@@ -1968,6 +1968,13 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 path := holyc_str_ref(e.children[1], ctx, locals, error)
                 return format("TilFileExists(", path, ")")
             }
+            if owner.eq("File").and(method.eq("is_file").or(method.eq("is_dir"))) {
+                if e.children.len() != 2 { error = format("invalid File.", method, " call"); return "" }
+                path := holyc_str_ref(e.children[1], ctx, locals, error)
+                mut helper := "TilFileIsFile"
+                if method == "is_dir" { helper = "TilFileIsDir" }
+                return format(helper, "(", path, ")")
+            }
             if state.struct_names.has(owner) {
                 if method == "size" {
                     if e.children.len() != 1 { error = format("invalid ", owner, ".size call"); return "" }
@@ -2117,6 +2124,13 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if e.children.len() != 2 { error = "invalid cfile_exists call"; return "" }
                 path := holyc_str_ref(e.children[1], ctx, locals, error)
                 return format("TilFileExists(", path, ")")
+            }
+            if name.eq("cpath_is_file").or(name.eq("cpath_is_dir")) {
+                if e.children.len() != 2 { error = format("invalid ", name, " call"); return "" }
+                path := holyc_str_ref(e.children[1], ctx, locals, error)
+                mut helper := "TilFileIsFile"
+                if name == "cpath_is_dir" { helper = "TilFileIsDir" }
+                return format(helper, "(", path, ")")
             }
             if name == "panic" {
                 if e.children.len() != 3 { error = "invalid panic call"; return "" }

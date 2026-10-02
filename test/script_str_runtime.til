@@ -59,6 +59,14 @@ if File.exists("src/holyc/ext.HC") {
     if File.exists("src/holyc") { println("directory exists") }
     host_fs_view := "src/holyc/ext.HC.trailing".substr(0, 16)
     if File.exists(host_fs_view) { println("view exists") }
+    if File.is_file(host_fs_view) { println("regular file") }
+    if File.is_dir("src/holyc") { println("directory kind") }
+    if File.is_dir(host_fs_view).not().and(File.is_file("src/holyc").not()) {
+        println("kinds distinct")
+    }
+    if cpath_is_file(host_fs_view).and(cpath_is_dir("src/holyc")) {
+        println("primitive kinds")
+    }
     host_read := File.readfile(host_fs_view)
     println(host_read.substr(0, 4))
     println(host_read.len().to_i64().to_str())
@@ -68,6 +76,14 @@ if File.exists("src/holyc/ext.HC") {
     if File.exists("C:/Home") { println("directory exists") }
     guest_fs_view := "Ext.HC.trailing".substr(0, 6)
     if File.exists(guest_fs_view) { println("view exists") }
+    if File.is_file(guest_fs_view) { println("regular file") }
+    if File.is_dir("C:/Home") { println("directory kind") }
+    if File.is_dir(guest_fs_view).not().and(File.is_file("C:/Home").not()) {
+        println("kinds distinct")
+    }
+    if cpath_is_file(guest_fs_view).and(cpath_is_dir("C:/Home")) {
+        println("primitive kinds")
+    }
     guest_read := File.readfile(guest_fs_view)
     println(guest_read.substr(0, 4))
     println(guest_read.len().to_i64().to_str())
@@ -75,6 +91,12 @@ if File.exists("src/holyc/ext.HC") {
 }
 if File.exists("missing.HC").not() { println("file missing") }
 if cfile_exists("missing.HC").not() { println("primitive missing") }
+if File.is_dir("missing.HC").not().and(File.is_file("missing.HC").not()) {
+    println("missing kind")
+}
+if cpath_is_dir("missing.HC").not().and(cpath_is_file("missing.HC").not()) {
+    println("primitive kinds missing")
+}
 
 mut write_path := "TILWRITE.HC.trailing".substr(0, 11)
 if File.exists("src/holyc/ext.HC") {

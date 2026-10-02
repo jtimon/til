@@ -9,10 +9,16 @@ xy!
 file exists
 directory exists
 view exists
+regular file
+directory kind
+kinds distinct
+primitive kinds
 // T
-10339
+10597
 file missing
 primitive missing
+missing kind
+primitive kinds missing
 write roundtrip
 3
 empty write

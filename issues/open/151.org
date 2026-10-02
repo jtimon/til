@@ -452,6 +452,16 @@
   ~TILTEST:FAIL~. A missing-parent probe likewise failed without creating
   ~BADDIR~ on the guest disk.
 
+  The twenty-fourth slice adds ~File.is_file~ and ~File.is_dir~, with their
+  existing ~cpath_is_file~ / ~cpath_is_dir~ primitives. The TempleOS
+  ~FileFind~ wrapper now shares counted-path conversion among all three
+  lookup operations and applies ~FUF_JUST_FILES~ or ~FUF_JUST_DIRS~ for
+  kind-specific queries. The shared ~test/script_str_runtime.til~ checks
+  file, directory, wrong-kind, missing, and substring-view paths through
+  both public and primitive calls. Interpreter and compiled C output match;
+  TempleOS 5.03 under QEMU TCG produced the same 24 lines and
+  ~TILTEST:PASS~.
+
 *** QEMU validation
 
   Use a pinned, FAT32-installed TempleOS disk image. For each local or CI
