@@ -1,6 +1,6 @@
 # priority: low
 # category: examples
-** OPEN #408 tilminal: terminal emulator for standalone use and tiled
+** WIP #408 tilminal: terminal emulator for standalone use and tiled
 
 Develop [[file:../../examples/tilminal.til][examples/tilminal.til]] into a terminal emulator that can
 run standalone and serve as the terminal component of
@@ -10,12 +10,75 @@ second terminal emulator.
 
 *** Current state
 
-Tilminal is a raylib GUI with an ASCII input line and a list of output
-lines. It runs each command synchronously through ~sh -lc~, captures
-the output, and displays it with ~DrawText~. It does not maintain a
-persistent shell or provide a PTY, terminal screen model, or escape
-sequence handling. Interactive programs such as ~til repl~ need a
-real terminal session rather than this command-and-capture model.
+The first terminal milestone is implemented in the approved example
+modules: ~terminal_text~, ~terminal_model~, ~terminal_session~ (til/C),
+and ~terminal_view~ under ~examples/lib/~. The GUI now hosts a
+persistent shell through a PTY/ConPTY session rather than running and
+capturing a new ~sh -lc~ command for each line. An optional command
+runs once; the final screen and exit status remain visible. Escape
+belongs to the child, while window close tears down the session.
+
+The model handles incremental UTF-8, Unicode 17 scalar widths,
+combining/wide cells, cursor/wrap state, scrolling regions, ANSI/VT
+editing and rendition, DEC graphics, keypad modes, and terminal-query
+replies. The view renders a supplied pane; it owns no window/event
+loop. The session owns native resources and bounded output pumping.
+~send~ reports false when child exit races input, separately from an
+OS error. Windows uses independent read, write, and exit/teardown
+workers so final ConPTY frames can be drained while close is pending.
+
+*** First-milestone verification and remaining work
+
+- ~test/terminal_model.til~: widths, UTF-8/escape parsing at every
+  chunk boundary, independent screen clones, wide-cell erase/resize,
+  scroll regions, pending wrap, query replies, and key encoding.
+- ~test/terminal_session.til~ with ~test/terminal_session_child.til~:
+  real terminal detection, argv quoting, independent sessions, resize,
+  explicit start failure, final-output draining, large input/output,
+  persistent shell cwd/env and foreground Ctrl-C on POSIX, and the
+  unmodified til REPL. The REPL's history is isolated under ~tmp/~.
+- Linux focused model/session runs passed with ASAN. An Xvfb GUI
+  exercise passed shell -> til REPL -> evaluate -> Escape/Ctrl-L ->
+  resize -> Ctrl-D -> shell exit -> window close. It also exercised
+  one-shot exit status, Unicode glyph loading, and closing an active
+  child. The GUI smoke test now renders a missing wide glyph and a
+  combining mark; every glyph atlas includes the font's replacement
+  character, so an absent glyph cannot create an empty raylib atlas.
+- ~make clean && make test~ passed 496/496, including interpreted and
+  compiled model tests, the ASAN session driver, and GUI smoke tests.
+  The interactive Xvfb checks used a normal binary. A separate ASAN
+  GUI shutdown reported 368 bytes in Mesa/LLVM allocations; it was not
+  a leak-free GUI run, despite the clean headless ASAN checks.
+- All 343 zero-width and 125 wide ranges were checked against the
+  pinned wcwidth 0.2.14 Unicode 17 tables.
+- The native bridge cross-compiles for Windows with warnings as
+  errors. Native ConPTY and macOS execution have not been verified
+  in this Linux session; cross-compilation is not runtime coverage.
+
+#408 stays WIP: native-platform validation, tiled integration,
+scrollback/selection, alternate screens and broader compatibility,
+and application-supplied graphics remain. The first profile implements
+vt100 text behavior, not a printer device or a graphics protocol.
+The review/proposal below records the pre-implementation reasoning.
+
+*** Startup and build corrections
+
+- Launching from ~bin/~ reproduced an immediate exit after window
+  creation: ~terminal font not found: img/DejaVuSans.ttf~. Tilminal now
+  locates the existing font through the runtime's executable-root
+  resolver, without changing the shell's working directory. The GUI
+  smoke test launches from ~bin/~, and the interactive Xvfb checks
+  passed from that directory as well.
+- Parallel builds could overwrite the shared ~gen/c/user_0.o~ before
+  another program linked it. ~compile_c~ now names each bridge object
+  after its generated C basename, matching its program-specific forward
+  header. ~test/terminal_session.til~ forces the interleaving by building
+  B after compiling A's bridge but before linking A. The old compiler
+  deterministically failed with ~linked another program's bridge~;
+  the repaired compiler passes. No timing-dependent race is needed to
+  exercise the regression.
+- The full ~make clean && make test~ run with both corrections passed
+  496/496, including the normal parallel build tests.
 
 *** Terminal foundation
 
@@ -241,7 +304,7 @@ before creation. No such surface is introduced by this review.
 - [[https://iterm2.com/documentation-images.html][iTerm2 inline image protocol and detection]]
 - [[https://vt100.net/docs/vt510-rm/DECDLD.html][DEC dynamically redefinable character sets]]
 
-*** Implementation proposal against master 24b032796 (pending approval)
+*** Implementation proposal against master 24b032796 (approved)
 
 Deliver a standalone terminal that runs a persistent shell and
 unmodified ~til repl~, with the same terminal instances usable later

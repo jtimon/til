@@ -1,0 +1,49 @@
+mode cli
+import("../src/std/sys")
+
+// Use the same console detection and sizing as unmodified til repl.
+repl_term_is_interactive := ext_proc() returns shallow Bool {}
+repl_term_columns := ext_proc() returns shallow I64 {}
+repl_term_flush := ext_proc() {}
+repl_term_begin := ext_proc() returns shallow Bool {}
+repl_term_end := ext_proc() {}
+repl_term_read_event := ext_proc(shallow timeout: I64) returns shallow I64 {}
+
+main := proc(arg: Str) {
+    if repl_term_is_interactive().not() { panic("child did not receive a terminal") }
+    if arg.starts_with("repl:") {
+        cmd := Cmd.new(arg.substr(5, arg.len() - 5).clone(), "repl")
+        state := format("tmp/terminal_history_", process_id().to_str())
+        cmd.env("XDG_STATE_HOME", state)
+        cmd.env("LOCALAPPDATA", state)
+        if cmd.run() != 0 { panic("REPL child failed") }
+        return
+    }
+    if arg == "flood" {
+        for i in 0..10000 { println("terminal-output-", i) }
+        println("FLOOD_FINAL")
+        repl_term_flush()
+        return
+    }
+    if arg == "input" {
+        if repl_term_begin().not() { panic("cannot enter raw mode") }
+        println("RAW_READY")
+        repl_term_flush()
+        for _ in 0..100000 {
+            if repl_term_read_event(30000) != 120 { panic("raw byte stream was lost or reordered") }
+        }
+        repl_term_end()
+        println("INPUT_FINAL")
+        repl_term_flush()
+        return
+    }
+    println("READY:", arg)
+    repl_term_flush()
+    mut line := ""
+    while in_read_line(line) {
+        if line == "size" { println("COLUMNS:", repl_term_columns()) }
+        else if line == "exit" { println("FINAL"); repl_term_flush(); return }
+        else { println("INPUT:", line) }
+        repl_term_flush()
+    }
+}

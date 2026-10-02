@@ -1,0 +1,99 @@
+mode cli
+import("../examples/lib/terminal_model")
+
+check := func(ok: Bool, why: Str) { if ok.not() { panic("terminal model: ", why) } }
+row_text := func(s: TerminalScreen, y: I64) returns Str {
+    mut out := ""
+    for x in 0..s.columns { out = format(out, s.cells[s.index(x, y)].text) }
+    return out
+}
+same_screen := func(a: TerminalScreen, b: TerminalScreen) returns Bool {
+    if a.x != b.x || a.y != b.y || a.pending_wrap != b.pending_wrap || a.replies != b.replies { return false }
+    for i in 0..a.cells.len() {
+        if a.cells[i].text != b.cells[i].text || a.cells[i].span != b.cells[i].span || a.cells[i].style.fg != b.cells[i].style.fg { return false }
+    }
+    return true
+}
+
+main := proc() {
+    check(terminal_width(0x36f) == 0 && terminal_width(0x370) == 1, "range endpoints")
+    check(terminal_width(0x1e6f5) == 0 && terminal_width(0x1faea) == 2, "Unicode 17 additions")
+    check(terminal_width(0xa1) == 1 && terminal_width(0x4e00) == 2, "ambiguous and wide")
+    for c in 0..128 {
+        text := terminal_utf8(c)
+        mut p : USize = 0
+        check(terminal_decode(text, p) == c && p == 1, "ASCII roundtrip")
+    }
+    mut wide := TerminalScreen.new(5, 3)
+    wide.feed(format("a", terminal_utf8(0x301), terminal_utf8(0x4e00), "bc"))
+    check(wide.cells[0].text == format("a", terminal_utf8(0x301)), "combining attaches")
+    check(wide.cells[1].span == 2 && wide.cells[2].span == 0, "wide cell")
+    check(wide.pending_wrap && wide.y == 0, "delayed wrap")
+    wide.feed("d")
+    check(wide.y == 1 && wide.x == 1, "wrap on next printable")
+    wide.feed(terminal_escape("[1;3H"))
+    wide.feed("x")
+    check(wide.cells[1].text == " " && wide.cells[2].text == "x", "overwrite continuation")
+    wide.feed(terminal_escape("[2;3r"))
+    wide.feed(terminal_escape("[3;1Hz\nq"))
+    check(wide.cells[0].text == format("a", terminal_utf8(0x301)), "scroll region preserves outside")
+
+    stream := format("hello", terminal_byte(13), terminal_escape("[K"),
+        terminal_escape("[31m"), "a", terminal_utf8(0x4e00), terminal_utf8(0x301),
+        terminal_escape("[2;2H"), "tail", terminal_escape("]0;title"), terminal_byte(7),
+        terminal_escape("_Ggarbage"), terminal_escape("\\"), terminal_escape("[6n"))
+    mut whole := TerminalScreen.new(12, 4)
+    whole.feed(stream)
+    for split in 0..(stream.len() + 1) {
+        mut s := TerminalScreen.new(12, 4)
+        s.feed(stream.substr(0, split))
+        s.feed(stream.substr(split, stream.len() - split))
+        check(same_screen(s, whole), "every chunk split")
+    }
+    mut bytewise := TerminalScreen.new(12, 4)
+    for b in stream { bytewise.feed(Str.from_byte(b.cast(U8))) }
+    check(same_screen(bytewise, whole), "one byte chunks")
+    mut copied := whole.clone()
+    copied.feed("X")
+    check(same_screen(copied, whole).not(), "screen clone owns independent cells")
+    check(whole.take_replies() == terminal_escape("[2;6R"), "cursor reply")
+
+    mut s := TerminalScreen.new(8, 3)
+    s.feed("12345678")
+    s.feed(terminal_byte(13))
+    s.feed("X")
+    check(s.y == 0 && s.x == 1, "CR cancels pending wrap")
+    s.feed(terminal_escape("[2J"))
+    check(row_text(s, 0) == "        " && s.x == 1, "ED does not move cursor")
+    s.feed(terminal_escape("[Habcdef"))
+    s.feed(terminal_escape("[3G"))
+    s.feed(terminal_escape("[2P"))
+    check(row_text(s, 0) == "abef    ", "delete characters")
+    s.feed(terminal_escape("[2@"))
+    check(row_text(s, 0) == "ab  ef  ", "insert characters")
+    s.feed(terminal_escape("[?1h"))
+    check(terminal_key(s, 265, false, false, false) == terminal_escape("OA"), "application arrow")
+    check(terminal_key(s, 67, false, true, false) == terminal_byte(3), "Ctrl-C")
+    check(terminal_key(s, 256, false, false, false) == terminal_byte(27), "Escape is input")
+    check(terminal_key(s, 259, false, false, false) == terminal_byte(8), "vt100 backspace")
+    s.feed(terminal_escape("="))
+    check(terminal_key(s, 321, false, false, false) == terminal_escape("Oq"), "application keypad")
+    s.feed(terminal_escape(">"))
+    s.feed(terminal_escape("[H"))
+    s.feed(format("a", terminal_utf8(0x4e00)))
+    s.resize(2, 2)
+    check(row_text(s, 0) == "a ", "resize clips whole wide character")
+    s.resize(10, 4)
+    check(s.columns == 10 && s.rows == 4, "resize grows")
+    mut narrow := TerminalScreen.new(1, 1)
+    narrow.feed(terminal_utf8(0x4e00))
+    check(narrow.cells[0].span == 1, "one-column pane")
+    mut p : USize = 0
+    invalid := format(terminal_byte(0xe0), terminal_byte(0x80), "a")
+    check(terminal_decode(invalid, p) == 0xfffd && p == 1, "reject overlong prefix")
+    mut final := TerminalScreen.new(8, 1)
+    final.feed(terminal_byte(0xe4))
+    final.feed("", true)
+    check(final.cells[0].text == terminal_utf8(0xfffd), "EOF flushes truncated UTF-8")
+    println("terminal model OK")
+}

@@ -1,0 +1,151 @@
+mode cli
+import("../examples/lib/terminal_session")
+import("../examples/lib/terminal_text")
+import("../src/std/sys")
+import("../src/std/file")
+
+require := func(ok: Bool, why: Str) { if ok.not() { panic("terminal session: ", why) } }
+wait_text := proc(s: TerminalSession, mut output: Str, text: Str) {
+    deadline := clock_ms() + 30000
+    while output.find(text) < 0 {
+        output = format(output, s.pump())
+        if clock_ms() > deadline { panic("waiting for ", text, ": ", output) }
+        if s.state() == 3 && output.find(text) < 0 { panic("early child exit: ", output) }
+        sleep_ms(5)
+    }
+}
+finish := proc(s: TerminalSession, mut output: Str) {
+    deadline := clock_ms() + 30000
+    while s.state() != 3 {
+        output = format(output, s.pump())
+        if clock_ms() > deadline { panic("child did not exit: ", output) }
+        sleep_ms(5)
+    }
+}
+
+// Force the problematic interleaving without timing or background jobs:
+// after A's bridge is compiled, its cc wrapper builds B before linking A.
+// Both bridges export the same symbol but return different values. With
+// directory-wide user_0.o, A silently links B's implementation and fails.
+check_link_objects := proc(compiler: Str) {
+    dir := "tmp/terminal_link_objects"
+    if mkdir_p(dir) != 0 { panic("cannot create link regression directory") }
+    for item in array(Str, "first", "second") {
+        mut value := "11"
+        if item == "second" { value = "22" }
+        File.writefile(format(dir, "/", item, "_bridge.c"), format(
+            "#include \"ext.h\"\nI64 terminal_link_value(void) { return ", value, "; }\n"))
+        File.writefile(format(dir, "/", item, ".til"), format(
+            "mode cli\nlink_c(\"", dir, "/", item, "_bridge.c\")\n",
+            "terminal_link_value := ext_proc() returns shallow I64 {}\n",
+            "main := proc() { if terminal_link_value() != ", value,
+            " { panic(\"linked another program's bridge\") } }\n"))
+    }
+    first_bin := format(dir, "/first")
+    second_bin := format(dir, "/second")
+    other := Cmd.new(compiler, "build", "--force-rebuild", "-o", second_bin,
+        "-c", format(dir, "/second.c"), format(dir, "/second.til"))
+    wrapper := format(dir, "/cc.sh")
+    File.writefile(wrapper, format("#!/bin/sh\ncase \" $* \" in\n  *\" -o ", first_bin,
+        " \"*)\n    ", other.render(), " || exit $?\n    ;;\nesac\nexec cc \"$@\"\n"))
+    Cmd.new("chmod", "+x", wrapper).run_checked()
+    Cmd.new(compiler, "build", "--force-rebuild", format("--cc=", wrapper),
+        "-o", first_bin, "-c", format(dir, "/first.c"), format(dir, "/first.til")).run_checked()
+    Cmd.new(first_bin).run_checked()
+    Cmd.new(second_bin).run_checked()
+}
+
+main := proc(compiler: Str) {
+    // The deterministic compiler wrapper uses the POSIX shell; ConPTY
+    // transport coverage below still runs on native Windows.
+    if host_os() != "windows" { check_link_objects(compiler) }
+    mut child_path := "tmp/terminal_session_child"
+    if host_os() == "windows" { child_path = format(child_path, ".exe") }
+    build := Cmd.new(compiler, "build", "-o", child_path, "-c", "tmp/terminal_session_child.c", "test/terminal_session_child.til")
+    build.run_checked()
+    first := TerminalSession.new(child_path, "space dollar $ quote \" end")
+    second := TerminalSession.new(child_path, "second")
+    first.start(80, 24)
+    second.start(32, 8)
+    mut a := ""
+    mut b := ""
+    wait_text(first, a, "READY:space dollar $ quote \" end")
+    wait_text(second, b, "READY:second")
+    first.send(format("size", terminal_byte(13)))
+    second.send(format("size", terminal_byte(13)))
+    wait_text(first, a, "COLUMNS:80")
+    wait_text(second, b, "COLUMNS:32")
+    first.resize(53, 10)
+    first.send(format("size", terminal_byte(13), "hello", terminal_byte(13), "exit", terminal_byte(13)))
+    wait_text(first, a, "COLUMNS:53")
+    finish(first, a)
+    require(a.find("INPUT:hello") >= 0 && a.find("FINAL") >= 0, "final output drained")
+    require(first.status() == 0, "child status")
+    require(second.state() == 1, "instance isolation")
+    first.close()
+    second.close()
+    require(second.state() == 4, "close active child")
+
+    bad := TerminalSession.new("tmp/no-such-terminal-executable-408")
+    terminal_session_start(bad.handle, 80, 24)
+    require(terminal_session_error(bad.handle).len() > 0, "start failure is explicit")
+    terminal_session_close(bad.handle)
+
+    flood := TerminalSession.new(child_path, "flood")
+    flood.start(80, 24)
+    mut bulk := ""
+    finish(flood, bulk)
+    require(bulk.find("FLOOD_FINAL") >= 0 && flood.status() == 0, "bounded pumping drains final frame")
+    if host_os() != "windows" { require(bulk.len() > 100000, "large PTY output retained") }
+    flood.close()
+
+    input_child := TerminalSession.new(child_path, "input")
+    input_child.start(80, 24)
+    mut input_output := ""
+    wait_text(input_child, input_output, "RAW_READY")
+    mut payload := Str.with_capacity(100000)
+    for _ in 0..100000 { payload.push_str("x") }
+    input_child.send(payload)
+    finish(input_child, input_output)
+    require(input_output.find("INPUT_FINAL") >= 0 && input_child.status() == 0, "partial input writes retained")
+    input_child.close()
+
+    if host_os() != "windows" {
+        shell := TerminalSession.new("/bin/sh", "-i")
+        shell.start(80, 24)
+        shell.send("TERM408=kept\ncd tmp\nsh -c 'printf \"\\nJOB_READY\\n\"; exec sleep 30'\n")
+        mut output := ""
+        wait_text(shell, output, format("\nJOB_READY", terminal_byte(13), "\n"))
+        shell.send(terminal_byte(3))
+        shell.send("printf '\\n%s\\n' \"$TERM408\"\npwd\nexit\n")
+        finish(shell, output)
+        normalized := output.replace(terminal_byte(13), "")
+        require(normalized.find("\nkept\n") >= 0 && normalized.find("/tmp\n") >= 0, "persistent shell cwd/env after foreground Ctrl-C")
+        require(shell.status() == 0, "shell survives foreground interrupt")
+        shell.close()
+    }
+
+    // Drive the real editor with a terminal and terminal-query replies.
+    repl := TerminalSession.new(child_path, format("repl:", compiler))
+    repl.start(80, 24)
+    mut text := ""
+    wait_text(repl, text, "til[script]>")
+    text = ""
+    repl.send("1 + 2")
+    repl.send(terminal_byte(13))
+    deadline := clock_ms() + 30000
+    while text.find("\n3") < 0 || text.ends_with("til[script]> ").not() {
+        text = format(text, repl.pump())
+        if clock_ms() > deadline { panic("REPL did not evaluate and return to its prompt: ", text) }
+        sleep_ms(5)
+    }
+    repl.resize(40, 12)
+    repl.send(terminal_byte(12)) // Ctrl-L: redraw, not exit.
+    mut redrawn := ""
+    wait_text(repl, redrawn, "til[script]>")
+    repl.send(terminal_byte(4))
+    finish(repl, redrawn)
+    require(repl.status() == 0, "unmodified repl exits")
+    repl.close()
+    println("terminal session OK")
+}

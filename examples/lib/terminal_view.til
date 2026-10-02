@@ -1,0 +1,172 @@
+mode lib
+import("terminal_model")
+import("terminal_text")
+import("terminal_session")
+import("../../vendor/bindings/raylib")
+
+TerminalGlyph := struct { code : I64; font : Font }
+
+terminal_color := func(index: I64, bright: Bool, faint: Bool) returns Color {
+    mut rgb : I64 = 0
+    if index >= 0x1000000 { rgb = index - 0x1000000 }
+    else if index >= 232 {
+        level := 8 + (index - 232) * 10
+        rgb = level * 65793
+    } else if index >= 16 {
+        n := index - 16
+        mut r := n / 36
+        mut g := (n / 6).mod(6)
+        mut b := n.mod(6)
+        if r > 0 { r = 55 + r * 40 }
+        if g > 0 { g = 55 + g * 40 }
+        if b > 0 { b = 55 + b * 40 }
+        rgb = r * 65536 + g * 256 + b
+    } else {
+        mut n := index
+        if bright && n < 8 { n = n + 8 }
+        rgb = match n {
+        case 0: 0x101218 case 1: 0xb84040 case 2: 0x50b850 case 3: 0xc0b050
+        case 4: 0x5078c0 case 5: 0xb060b0 case 6: 0x50b8b8 case 7: 0xd8d8d8
+        case 8: 0x707070 case 9: 0xff7070 case 10: 0x80ff80 case 11: 0xffff80
+        case 12: 0x80a0ff case 13: 0xff80ff case 14: 0x80ffff case: 0xffffff
+        }
+    }
+    mut r := (rgb / 65536).mod(256)
+    mut g := (rgb / 256).mod(256)
+    mut b := rgb.mod(256)
+    if faint { r = r / 2; g = g / 2; b = b / 2 }
+    return Color(r = r.to_u8(), g = g.to_u8(), b = b.to_u8(), a = 255)
+}
+
+// GPU resources belong to the view; the host calls close before destroying
+// its graphics context. The session is separately owned by the host/pane.
+TerminalView := struct {
+    screen := TerminalScreen.new(80, 24)
+    font : Font
+    path := ""
+    own glyphs := Vec(TerminalGlyph).new()
+    cell_width : I64 = 12
+    cell_height : I64 = 24
+    ended := false
+    bells : I64 = 0
+    bell_until : F64 = 0.0
+
+namespace:
+    new := proc(path: Str) returns TerminalView {
+        if FileExists(path.c_str).not() { panic("terminal font not found: ", path) }
+        font := LoadFontEx(path.c_str, 20, Option(ref I32).None, 0)
+        if IsFontValid(font).not() || font.baseSize != 20 { panic("cannot load terminal font: ", path) }
+        if GetGlyphInfo(font, 63).value != 63 { panic("terminal font must contain a replacement '?' glyph") }
+        width := MeasureTextEx(font, "M".c_str, 20, 0).x.to_i64() + 1
+        return TerminalView(font = font, path = path.clone(), cell_width = width)
+    }
+    glyph_font := proc(mut v: TerminalView, c: I64) returns Font {
+        if c >= 32 && c <= 126 { return v.font }
+        for g in v.glyphs { if g.code == c { return g.font } }
+        mut codes := Vec(I32).new()
+        // Every atlas includes its replacement glyph. A missing character
+        // is expected with a finite font; raylib must never receive an
+        // empty glyph set (its atlas builder treats zero as default count).
+        codes.push(own I64.to_i32(63))
+        codes.push(own c.to_i32())
+        font := LoadFontEx(v.path.c_str, 20, Option(ref I32).Some(codes[0]), 2)
+        if IsFontValid(font).not() { panic("cannot load terminal glyph: ", c) }
+        v.glyphs.push(own TerminalGlyph(code = c, font = font.clone()))
+        return font
+    }
+    update := proc(mut v: TerminalView, session: TerminalSession, width: I64, height: I64, focused: Bool) {
+        columns := terminal_bound(width / v.cell_width, 1, 32767)
+        rows := terminal_bound(height / v.cell_height, 1, 32767)
+        if columns != v.screen.columns || rows != v.screen.rows {
+            v.screen.resize(columns, rows)
+            if session.state() == 1 { session.resize(columns, rows) }
+        }
+        if session.state() < 3 {
+            v.screen.feed(session.pump())
+            replies := v.screen.take_replies()
+            if replies.len() > 0 && session.state() == 1 { session.send(replies) }
+        }
+        if session.state() == 3 && v.ended.not() { v.screen.feed("", true); v.ended = true }
+        if v.screen.bells != v.bells { v.bells = v.screen.bells; v.bell_until = GetTime() + 0.15 }
+        if focused.not() { return }
+        shift := IsKeyDown(340).or(IsKeyDown(344))
+        control := IsKeyDown(341).or(IsKeyDown(345))
+        alt := IsKeyDown(342).or(IsKeyDown(346))
+        mut input := ""
+        mut keypad_text := Vec(I64).new()
+        // Press/release can both arrive between frames. The event queue
+        // retains that press; polling only IsKeyPressed would lose it.
+        mut pressed := GetKeyPressed()
+        while pressed > 0 {
+            k := pressed.cast(I64)
+            input = format(input, terminal_key(v.screen, k, shift, control, alt))
+            if v.screen.application_keypad && k >= 320 && k <= 336 { keypad_text.push(own terminal_keypad_scalar(k)) }
+            pressed = GetKeyPressed()
+        }
+        for k in 32..337 {
+            key := k.to_i32()
+            if IsKeyPressedRepeat(key) {
+                input = format(input, terminal_key(v.screen, k, shift, control, alt))
+                if v.screen.application_keypad && k >= 320 && k <= 336 { keypad_text.push(own terminal_keypad_scalar(k)) }
+            }
+        }
+        mut text := ""
+        mut c := GetCharPressed()
+        while c > 0 {
+            mut keypad := false
+            for i in 0..keypad_text.len() {
+                if keypad.not() && keypad_text[i] == c.cast(I64) { keypad = true; keypad_text[i] = -1 }
+            }
+            if control.or(keypad).not() {
+                if alt { text = format(text, terminal_byte(27)) }
+                text = format(text, terminal_utf8(c.cast(I64)))
+            }
+            c = GetCharPressed()
+        }
+        // Raylib queues text separately from functional keys. Flush text
+        // before Return, so a character and Enter in one frame stay ordered.
+        input = format(text, input)
+        if input.len() > 0 && session.state() == 1 { session.send(input) }
+    }
+    draw := proc(mut v: TerminalView, left: I64, top: I64, focused: Bool) {
+        blink_off := GetTime().to_i64().mod(2) == 1
+        for y in 0..v.screen.rows {
+            for x in 0..v.screen.columns {
+                ref cell : TerminalCell = v.screen.cells[v.screen.index(x, y)]
+                if cell.span == 0 { continue }
+                px := left + x * v.cell_width
+                py := top + y * v.cell_height
+                fg := terminal_color(cell.style.fg, cell.style.bold, cell.style.faint)
+                bg := terminal_color(cell.style.bg, false, false)
+                mut ink := fg
+                mut paper := bg
+                if cell.style.inverse != v.screen.reverse_screen { ink = bg; paper = fg }
+                DrawRectangle(px.to_i32(), py.to_i32(), (v.cell_width * cell.span).to_i32(), v.cell_height.to_i32(), paper)
+                if cell.style.hidden.or(cell.style.blink.and(blink_off)) { continue }
+                BeginScissorMode(px.to_i32(), py.to_i32(), (v.cell_width * cell.span).to_i32(), v.cell_height.to_i32())
+                mut pos : USize = 0
+                mut pen : F32 = 0
+                while pos < cell.text.len() {
+                    code := terminal_decode(cell.text, pos, true)
+                    font := v.glyph_font(code)
+                    DrawTextCodepoint(font, code.to_i32(), Vector2(x = px.to_f32() + pen, y = py.to_f32()), 20, ink)
+                    if terminal_width(code) > 0 { pen = GetGlyphInfo(font, code.to_i32()).advanceX.to_f32() }
+                }
+                if cell.style.underline { DrawRectangle(px.to_i32(), (py + v.cell_height - 3).to_i32(), (v.cell_width * cell.span).to_i32(), 1, ink) }
+                EndScissorMode()
+            }
+        }
+        if focused && v.screen.cursor_visible && v.ended.not() && blink_off.not() {
+            x := left + v.screen.x * v.cell_width
+            y := top + v.screen.y * v.cell_height
+            DrawRectangleLines(x.to_i32(), y.to_i32(), v.cell_width.to_i32(), v.cell_height.to_i32(), Color(r = 255, g = 255, b = 255, a = 255))
+        }
+        if GetTime() < v.bell_until {
+            DrawRectangleLines(left.to_i32(), top.to_i32(), (v.screen.columns * v.cell_width).to_i32(), (v.screen.rows * v.cell_height).to_i32(), Color(r = 255, g = 255, b = 255, a = 255))
+        }
+    }
+    close := proc(v: TerminalView) {
+        for g in v.glyphs { UnloadFont(g.font) }
+        UnloadFont(v.font)
+    }
+}

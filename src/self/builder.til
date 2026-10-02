@@ -369,8 +369,6 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut user_part := ""
     if uc.len() > 0 {
         c_slash := c_path.rfind("/")
-        mut c_dir := "."
-        if c_slash >= 0 { c_dir = c_path.substr(0, c_slash.to_usize()).clone() }
         c_dot := c_path.rfind(".")
         mut c_base := c_path
         if c_dot > c_slash { c_base = c_path.substr(0, c_dot.to_usize()) }
@@ -382,7 +380,10 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         for fi in 0..files.len() {
             ref file : Str = files[fi]
             if file.len() == 0 { continue }
-            user_obj := c_dir.format("/user_", fi.to_str(), ".o")
+            // The forward header and object belong to this program. A
+            // directory-wide user_0.o lets concurrent builds overwrite
+            // each other's bridges before the final linker reads them.
+            user_obj := c_base.format("_user_", fi.to_str(), ".o")
 
             // Skip -include forward.h for src/c/ files
             mut fwd_flag := format(" -include ", fwd_path)
