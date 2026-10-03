@@ -3950,8 +3950,8 @@ priv fdef_kwargs_index := func(fcall: Expr, fdef: Expr) returns I32 {
     }
 }
 
-// True when this FCall is an `array(...)` / `vec(...)` builtin -- the
-// variadic search deliberately stops at one instead of reporting it.
+// Array/vec builtins have their own lowering, rather than the ordinary
+// variadic collector. Calls inside their elements still need scanning.
 priv fcall_is_array_vec_builtin := func(e: Expr, symbols: SymbolPool) returns Bool {
     if e.children.len() == 0 { return false }
     switch e.children[0].node_type {
@@ -3963,11 +3963,11 @@ priv fcall_is_array_vec_builtin := func(e: Expr, symbols: SymbolPool) returns Bo
 // What a statement needs desugared, answered in ONE walk instead of the
 // three subtree searches (array/vec, variadic, kwargs) the body pass ran
 // back to back -- two of which resolved every FCall's callee through
-// scope. Each question keeps its own "still looking" flag because their
-// stop rules differ: the variadic search abandons a subtree when it hits
-// an array/vec builtin that is itself variadic (children unsearched),
-// while the other two keep descending. All three share the FuncDef /
-// StructDef / EnumDef / Body cuts.
+// scope. Each question keeps its own "still looking" flag. All three
+// descend through array/vec elements and share the FuncDef / StructDef /
+// EnumDef / Body cuts, matching process_call_desugars. Skipping elements
+// here can leave an inner variadic call unpacked when that post-order
+// lowering runs, so the interpreter receives one element as its Array.
 priv StmtDesugarNeeds := struct {
     array_vec := false
     variadic := false
@@ -3981,7 +3981,6 @@ priv scan_stmt_desugar_needs := func(e: Expr, scope: TypeScope, mut n: StmtDesug
     if e.node_type.is(NodeType.StructDef) { return }
     if e.node_type.is(NodeType.EnumDef) { return }
     if e.node_type.is(NodeType.Body) { return }
-    mut sub_va_on := va_on
     switch e.node_type {
     case .FCall:
         is_av_builtin := fcall_is_array_vec_builtin(e, symbols)
@@ -3990,11 +3989,8 @@ priv scan_stmt_desugar_needs := func(e: Expr, scope: TypeScope, mut n: StmtDesug
             fdef_o := fcall_callee_fdef(e, scope, symbols)
             if fdef_o.is_some() {
                 ref fdef : Expr = fdef_o.unwrap()
-                if va_on.and(fdef_is_variadic(fdef)) {
-                    // find_variadic_fcall returned None here, which stops
-                    // the search for this subtree without descending.
-                    if is_av_builtin { sub_va_on = false }
-                    else { n.variadic = true }
+                if va_on.and(is_av_builtin.not()).and(fdef_is_variadic(fdef)) {
+                    n.variadic = true
                 }
                 if kw_on.and(fdef_kwargs_index(e, fdef) >= 0) { n.kwargs = true }
             }
@@ -4003,7 +3999,7 @@ priv scan_stmt_desugar_needs := func(e: Expr, scope: TypeScope, mut n: StmtDesug
     }
     for e_i : Expr in e.children {
         scan_stmt_desugar_needs(e_i, scope, n,
-            av_on.and(n.array_vec.not()), sub_va_on.and(n.variadic.not()), kw_on.and(n.kwargs.not()), symbols)
+            av_on.and(n.array_vec.not()), va_on.and(n.variadic.not()), kw_on.and(n.kwargs.not()), symbols)
     }
 }
 

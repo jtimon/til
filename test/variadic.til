@@ -119,6 +119,37 @@ bug189_sibling_variadic := test() {
     assert_eq(I64, add2_i64(variadic_sum(1, 2, 3), 100), 106)
 }
 
+// These bodies deliberately have no variadic calls outside array/vec
+// elements. The lowering pre-scan must descend into those elements rather
+// than relying on another statement to enable variadic argument packing.
+test_variadic_in_array_iterator := test() {
+    mut count : USize = 0
+    for text : Str in array(Str, format("alpha", "beta")) {
+        assert_eq(Str, text, "alphabeta")
+        count++
+    }
+    assert_eq(USize, count, 1)
+}
+
+test_variadic_in_vec_iterator := test() {
+    mut total := 0
+    for n : I64 in vec(I64, variadic_sum(1, 2), variadic_sum(3, 4)) {
+        total = total + n
+    }
+    assert_eq(I64, total, 10)
+}
+
+test_variadic_in_nested_array_iterator := test() {
+    mut count : USize = 0
+    for prefix : Str in array(Str, "alpha", "gamma") {
+        for text : Str in array(Str, variadic_concat(prefix, "beta")) {
+            assert_eq(Str, text, prefix.concat3("", "beta"))
+            count++
+        }
+    }
+    assert_eq(USize, count, 2)
+}
+
 // --- merged from test/splat.til ---
 
 sum := func(nums: ..I64) returns I64 {

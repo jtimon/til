@@ -95,10 +95,9 @@ main := proc(args: ..Str) {
     // A bare source name must resolve link_c beside that source, just like
     // ./ and absolute spellings. A subdirectory's own C file must win over
     // the identically named file in cwd, in both execution paths.
-    linked_absolute := realpath_str(format(WORK, "/linked.til"))
     for command : Str in array(Str, "interpret", "run") {
         for source : Str in array(Str, "linked.til", "./linked.til",
-            "foo/../linked.til", linked_absolute) {
+            "foo/../linked.til", realpath_str(format(WORK, "/linked.til"))) {
             check_command(Cmd.new(compiler, command, source), "17\n")
         }
         check_command(Cmd.new(compiler, command, "foo/linked.til"), "41\n")
