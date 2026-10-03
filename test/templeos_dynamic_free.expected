@@ -3,6 +3,9 @@ extern U0 TilFree(U8 *ptr);
 extern U8 *TilDeref(U8 **slot);
 extern U0 TilWritePtr(U8 *slot,U8 *value);
 
+#define TIL_USIZE U64
+#define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
+#define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
 I64 TilMain()

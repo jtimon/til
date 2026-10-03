@@ -1,0 +1,196 @@
+mode cli
+
+import("../src/std/file")
+import("../src/std/sys")
+
+get_cwd_str := ext_proc() returns Str {}
+
+WORK := "tmp/templeos"
+IMAGE := "til-templeos-test"
+ISO_URL := "https://templeos.org/Downloads/TempleOS.ISO"
+ISO_SHA := "5d0fc944e5d89c155c0fc17c148646715bc1db6fa5750c0b913772cfec19ba26"
+
+captured := proc(command: Cmd) returns Str {
+    command.capture()
+    status := command.run()
+    if status != 0 { panic(command.render(), ": ", command.out(), command.err()) }
+    return command.out()
+}
+
+container := proc(uid: Str, args: ..Str) returns Cmd {
+    cwd := get_cwd_str()
+    command := Cmd.new("docker", "run", "--rm", "--user", uid,
+        "-v", format(cwd, "/", WORK, ":/work"), "-w", "/work", IMAGE)
+    for arg : Str in args { command.arg(arg) }
+    return command
+}
+
+// Keyboard setup belongs to this test, not to an untracked host fixture.
+// Expect owns and reaps QEMU synchronously, including its timeout path.
+guest_driver := func() returns Str {
+    return format(
+        "set timeout 120\nlog_user 0\n",
+        "spawn qemu-system-x86_64 -accel tcg -m 512 -smp 1 -drive file=guest.raw,format=raw,if=ide -cdrom TempleOS.ISO -boot d -display none -monitor stdio -debugcon file:debug.log -global isa-debugcon.iobase=0xe9 -device isa-debug-exit,iobase=0xf4,iosize=0x04\n",
+        "proc abort_guest {} {\n global deadline\n after cancel $deadline\n expect_before\n set timeout 5\n catch {send \"screendump /work/screen.ppm\\r\"}\n catch {send \"quit\\r\"}\n",
+        " expect {eof {} timeout {exec kill -KILL [exp_pid]; expect eof}}\n wait\n exit 124\n}\n",
+        "set deadline [after 180000 abort_guest]\nexpect_before timeout abort_guest\n",
+        "expect \"(qemu)\"\nafter 20000\nsend \"sendkey n\\r\"\nexpect \"(qemu)\"\n",
+        "after 5000\nsend \"sendkey n\\r\"\nexpect \"(qemu)\"\nafter 5000\n",
+        "proc type_text {text} {\n foreach ch [split $text \"\"] {\n switch -- $ch {\n",
+        " \"(\" {set key shift-9}\n \")\" {set key shift-0}\n \"\\\"\" {set key shift-apostrophe}\n",
+        " \":\" {set key shift-semicolon}\n \";\" {set key semicolon}\n \"/\" {set key slash}\n",
+        " \".\" {set key dot}\n \" \" {set key spc}\n \"*\" {set key shift-8}\n \"=\" {set key equal}\n",
+        " \"'\" {set key apostrophe}\n \",\" {set key comma}\n \"_\" {set key shift-minus}\n",
+        " \"-\" {set key minus}\n \">\" {set key shift-dot}\n",
+        " default {if {[string is upper $ch]} {set key shift-[string tolower $ch]} else {set key $ch}}\n",
+        " }\n send \"sendkey $key 30\\r\"\n expect \"(qemu)\"\n after 50\n }\n",
+        " send \"sendkey ret\\r\"\n expect \"(qemu)\"\n}\n",
+        "type_text {CBlkDev *bd=BlkDevNextFreeSlot('C',BDT_ATA);bd->base0=0x1F0;bd->base1=0x3F6;bd->unit=0;BlkDevAdd(bd,I64_MIN,FALSE,TRUE);}\nafter 2000\n",
+        "type_text {ExeFile(\"C:/Home/Once.HC\");}\n",
+        "expect eof\nafter cancel $deadline\nexit [lindex [wait] 3]\n")
+}
+
+run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str) {
+    // Every case gets a fresh writable disk, including failure cases.
+    setup := container(uid, "sh", "-ec",
+        "truncate -s 0 guest.raw; truncate -s 64M guest.raw; printf 'label: dos\nstart=2048,type=c\n' | sfdisk --quiet guest.raw; mformat -F -i guest.raw@@1048576 ::; mmd -i guest.raw@@1048576 ::/Home; mcopy -o -i guest.raw@@1048576 Once.HC ::/Home/Once.HC; mcopy -o -i guest.raw@@1048576 Ext.HC ::/Home/Ext.HC; mcopy -o -i guest.raw@@1048576 TILTEST.HC ::/Home/TILTEST.HC")
+    setup.stdout_to(format(WORK, "/setup.log"))
+    setup.stderr_to_stdout()
+    if setup.run() != 0 { panic("guest disk setup failed; see ", WORK, "/setup.log") }
+    command := container(uid, "expect", "run.exp")
+    command.stdout_to(format(WORK, "/run.log"))
+    command.stderr_to_stdout()
+    status := command.run()
+    mut expected_status : I64 = 33
+    mut end := "TILTEST:PASS\n"
+    switch outcome {
+    case "pass":
+    case "panic": expected_status = 35; end = "TILTEST:PANIC\n"
+    case "error": expected_status = 37; end = "TILTEST:ERROR\n"
+    case "timeout": expected_status = 124; end = ""
+    case: panic("unknown guest outcome '", outcome, "'")
+    }
+    if status != expected_status {
+        panic(name, ": QEMU status ", status.to_str(), "; see ", WORK, "/run.log and debug.log")
+    }
+    actual := File.readfile(format(WORK, "/debug.log"))
+    framed := format("TILTEST:BEGIN\n", expected, end)
+    File.writefile(format(WORK, "/", name, ".log"), actual)
+    if actual != framed {
+        panic(name, ": guest output mismatch; expected '", framed, "', got '", actual, "'")
+    }
+    println("TempleOS: ", name, " passed")
+}
+
+width_checks := func(bits: Str) returns Str {
+    mut bytes := "8"
+    mut str_bytes := "24"
+    mut array_bytes := "16"
+    if bits == "32" { bytes = "4"; str_bytes = "16"; array_bytes = "12" }
+    return format("\nif (sizeof(TIL_USIZE)!=", bytes,
+        " || sizeof(TilStr)!=", str_bytes, " || sizeof(TilStrArray)!=", array_bytes,
+        ") TilPanicZ(\"width ABI mismatch\\n\");\n",
+        "TilStr width_probe; TilStrInitLit(&width_probe,\"\",0);\n",
+        "if (width_probe.cap!=TIL_STR_CAP_LIT) TilPanicZ(\"literal sentinel mismatch\\n\");\n",
+        "TilStrBorrowedView(&width_probe,&width_probe);\n",
+        "if (width_probe.cap!=TIL_STR_CAP_VIEW) TilPanicZ(\"view sentinel mismatch\\n\");\n",
+        "TilStrArray width_array; width_array.data=NULL;\n",
+        "width_probe.count=TIL_STR_CAP_LIT; width_array.cap=TIL_STR_CAP_LIT;\n",
+        "if (sizeof(TIL_USIZE)==8 && (width_probe.count!=0xFFFFFFFFFFFFFFFF || width_array.cap!=0xFFFFFFFFFFFFFFFF)) TilPanicZ(\"U64 count truncated\\n\");\n")
+}
+
+file_boundary_checks := func() returns Str {
+    return format(
+        "\nTilStr raw_path,raw_content,raw_read;\n",
+        "TilStrInitLit(&raw_path,\"RAW.Z\",5); TilStrInitLit(&raw_content,\"A\\x00Ztrailing\",3);\n",
+        "TilFileWrite(&raw_path,&raw_content); TilFileRead(&raw_read,&raw_path);\n",
+        "if (!TilStrEq(&raw_read,&raw_content)) TilPanicZ(\"raw .Z roundtrip failed\\n\");\n",
+        "TilStrDelete(&raw_read,FALSE);\n",
+        "CFile *raw_file=FOpen(\"RAW.Z\",\"r\");\n",
+        "if (!raw_file || FSize(raw_file)!=3) TilPanicZ(\"write changed logical length\\n\");\n",
+        "U8 *sector=TilCAlloc(1,BLK_SIZE);\n",
+        "if (!FBlkRead(raw_file,sector,0,1)) TilPanicZ(\"sector read failed\\n\");\n",
+        "I64 byte=3; while (byte<BLK_SIZE) { if (sector[byte]) TilPanicZ(\"write leaked bytes beyond count\\n\"); byte++; }\n",
+        "FClose(raw_file); TilFree(sector);\n",
+        "TilStrInitLit(&raw_content,\"\",0); TilFileWrite(&raw_path,&raw_content);\n",
+        "TilFileRead(&raw_read,&raw_path); if (raw_read.count) TilPanicZ(\"empty file not truncated\\n\");\n",
+        "TilStrDelete(&raw_read,FALSE);\n")
+}
+
+failure_case := proc(uid: Str, bits: Str, name: Str, source: Str, expected: Str,
+    setup: Str, needs_file: Bool = true) {
+    path := format(WORK, "/", name, ".til")
+    mut imports := ""
+    if needs_file { imports = "import(\"std/file\")\n" }
+    File.writefile(path, format("mode script\n", imports, source))
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), path).run_checked()
+    program := File.readfile(format(WORK, "/TILTEST.HC"))
+    File.writefile(format(WORK, "/TILTEST.HC"), program.replace("\nTilMain;\n",
+        format("\n", setup, "\nTilMain;\n")))
+    run_guest(uid, format(name, "_", bits), expected, "panic")
+}
+
+main := proc() {
+    if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
+    uid := captured(Cmd.new("id", "-u")).replace("\n", "")
+    gid := captured(Cmd.new("id", "-g")).replace("\n", "")
+    identity := format(uid, ":", gid)
+    Cmd.new("docker", "build", "-f", "test/templeos.Dockerfile", "-t", IMAGE, "test").run_checked()
+    container(identity, "curl", "--fail", "--location", "--connect-timeout", "30", "--max-time", "180", "--retry", "3",
+        "-o", "TempleOS.ISO", ISO_URL).run_checked()
+    digest := captured(container(identity, "sha256sum", "TempleOS.ISO"))
+    if digest.starts_with(ISO_SHA).not() { panic("TempleOS ISO checksum mismatch: ", digest) }
+    File.writefile(format(WORK, "/Once.HC"), File.readfile("test/templeos.HC"))
+    File.writefile(format(WORK, "/Ext.HC"), File.readfile("src/holyc/ext.HC"))
+    File.writefile(format(WORK, "/run.exp"), guest_driver())
+
+    sources := array(Str, "examples/hello_script.til", "examples/fizzbuzz.til",
+        "examples/templeos_calls.til", "examples/templeos_scalars.til",
+        "test/script_raw_alloc.til", "test/script_dynamic_free.til",
+        "test/script_str_runtime.til", "test/script_struct_runtime.til")
+    goldens := array(Str, "", "test/fizzbuzz.expected", "", "",
+        "test/script_raw_alloc.expected", "test/script_dynamic_free.expected",
+        "test/script_str_runtime.expected", "test/script_struct_runtime.expected")
+    for bits : Str in array(Str, "32", "64") {
+        for i, source in sources {
+            host := Cmd.new("timeout", "120", "bin/til", "interpret", format("--usize=", bits), source)
+            mut expected := captured(host)
+            if goldens[i].len() > 0 {
+                golden := File.readfile(goldens[i])
+                if expected != golden { panic(source, ": interpreter output differs from golden") }
+                expected = golden.clone()
+            }
+            Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+                "-c", format(WORK, "/TILTEST.HC"), source).run_checked()
+            File.appendfile(format(WORK, "/TILTEST.HC"), width_checks(bits))
+            run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
+        }
+        File.writefile(format(WORK, "/boundary.til"), "mode script\nprintln(\"boundary checks\")\n")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), format(WORK, "/boundary.til")).run_checked()
+        File.appendfile(format(WORK, "/TILTEST.HC"), format(width_checks(bits), file_boundary_checks()))
+        run_guest(identity, format("boundaries_", bits), "boundary checks\n", "pass")
+        failure_case(identity, bits, "missing", "content := File.readfile(\"MISSING.HC\")\nprintln(content)\n",
+            "cfile_open: could not open 'MISSING.HC'\n", "")
+        failure_case(identity, bits, "parent_read", "content := File.readfile(\"CHILD/PARENT.HC\")\nprintln(content)\n",
+            "cfile_open: could not open 'CHILD/PARENT.HC'\n",
+            "DirMk(\"CHILD\"); TilStr parent_path,parent_content; TilStrInitLit(&parent_path,\"PARENT.HC\",9); TilStrInitLit(&parent_content,\"parent\",6); TilFileWrite(&parent_path,&parent_content);")
+        failure_case(identity, bits, "alternate_read", "content := File.readfile(\"ALT.HC\")\nprintln(content)\n",
+            "cfile_open: could not open 'ALT.HC'\n",
+            "TilStr alt_path,alt_content; TilStrInitLit(&alt_path,\"ALT.HC.Z\",8); TilStrInitLit(&alt_content,\"raw\",3); TilFileWrite(&alt_path,&alt_content);")
+        failure_case(identity, bits, "missing_parent", "File.writefile(\"BADDIR/NEW.HC\",\"bad\")\n",
+            "File.writefile: could not write 'BADDIR/NEW.HC'\n", "")
+        failure_case(identity, bits, "directory_write", "File.writefile(\"C:/Home\",\"bad\")\n",
+            "File.writefile: could not write 'C:/Home'\n", "")
+        failure_case(identity, bits, "invalid_name", "File.writefile(\"BAD?.HC\",\"bad\")\n",
+            "File.writefile: could not write 'BAD?.HC'\n", "")
+        failure_case(identity, bits, "capacity_overflow", "mut cap : USize = 0\ncap.dec()\ntext := Str.with_capacity(cap)\nprintln(text)\n",
+            "Str.with_capacity: capacity overflow\n", "", false)
+        File.writefile(format(WORK, "/TILTEST.HC"), "This_Is_Not_A_TempleOS_Symbol;\n")
+        run_guest(identity, format("compiler_error_", bits), "", "error")
+    }
+    File.writefile(format(WORK, "/TILTEST.HC"), "while (TRUE) {}\n")
+    run_guest(identity, "timeout", "", "timeout")
+    println("TempleOS guest corpus passed")
+}

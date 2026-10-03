@@ -69,7 +69,7 @@ if File.exists("src/holyc/ext.HC") {
     }
     host_read := File.readfile(host_fs_view)
     println(host_read.substr(0, 4))
-    println(host_read.len().to_i64().to_str())
+    if host_read.len() > 4 { println("counted file read") }
     own host_read.delete()
 } else {
     if File.exists("Ext.HC") { println("file exists") }
@@ -86,7 +86,7 @@ if File.exists("src/holyc/ext.HC") {
     }
     guest_read := File.readfile(guest_fs_view)
     println(guest_read.substr(0, 4))
-    println(guest_read.len().to_i64().to_str())
+    if guest_read.len() > 4 { println("counted file read") }
     own guest_read.delete()
 }
 if File.exists("missing.HC").not() { println("file missing") }

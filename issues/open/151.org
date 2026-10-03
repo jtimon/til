@@ -62,7 +62,8 @@
 
   TempleOS is x86-64-only with 64-bit pointers. The current
   ~TempleosX86~ target is excluded from ~target_is_32bit~, so UPtr is U64.
-  The project-wide USize default can remain U32 independently of UPtr.
+  USize follows the source alias (currently U64) or the existing
+  ~--usize=32/64~ override, independently of UPtr.
 
 *** HolyC ABI and runtime contract
 
@@ -72,7 +73,7 @@
 
   - I8/U8, I16/U16, I32/U32, I64/U64 and Bool have their HolyC widths and are
     passed and returned by value. UPtr and all raw addresses are 64-bit. The
-    source-level USize alias remains U32 by default.
+    source-level USize width is resolved by the frontend.
   - Raw pointers cross the boundary as ~U8 *~ values. Ownership changes do not
     add pointer indirection: ~TilFree~ consumes a pointer value. A slot load is
     the explicit exception and uses ~U8 **~ through ~TilDeref~.
@@ -90,10 +91,12 @@
     catchable TempleOS exception ~'TILPANIC'~. Null dereferences emit exactly
     ~panic: null deref\n~ and throw that same exception.
   - Dynamic and typed raw pointers use one native pointer word. Typed scalar
-    pointer reads check for null before loading; pointer-bearing aggregates and
-    pointer function interfaces remain unsupported until aggregate ABI work.
+    pointer reads check for null before loading. Borrowed/owned aggregate
+    fields and ref-returning functions use the aggregate pointer ABI;
+    function-pointer interfaces remain pending.
   - ~TilStr~ matches til's three-field value (~c_str~, ~count~, ~cap~), with
-    U32 counts/capacities and the same literal/view sentinels. TempleOS rejects
+    counts/capacities and literal/view sentinels matching the resolved USize.
+    Generated HolyC defines that width before including ~Ext.HC~. TempleOS rejects
     class-valued function returns, so Str constructors, clones, views, and
     integer formatting initialize caller-owned stack values through explicit
     out parameters rather than heap-boxing the struct.
@@ -149,9 +152,11 @@
   - [ ] Add function addresses, indirect calls, closures, ~dyn_fn~,
     reflection, and callable cleanup only after the scalar and aggregate ABI
     is stable; these need a HolyC-specific callable representation.
-  - [ ] Integrate the pinned QEMU copy/inject/~Once.HC~/~ExeFile2~ loop with
-    ~build~, ~run~, and CI. Require both host golden output and TempleOS
-    compile/run success for every accepted feature.
+  - [X] Make guest acceptance reproducible in the repository and CI:
+    ~make test_templeos~, pinned ISO, isolated disks, exact output, failure
+    classification, exit status, and timeout enforcement at both USize widths.
+  - [ ] Integrate guest compilation/execution with ~build~ and ~run~ after
+    defining their TempleOS output and provisioning contract.
   - [ ] Add mode gui last, using TempleOS graphics rather than raylib.
 
   The first HolyC slice emits the lowered literal-only form of
@@ -462,16 +467,53 @@
   TempleOS 5.03 under QEMU TCG produced the same 24 lines and
   ~TILTEST:PASS~.
 
+*** Milestone 1: reproducible guest validation and runtime ABI
+
+  ~make test_templeos~ builds and runs ~test/templeos.til~. Docker supplies
+  QEMU TCG, mtools, fdisk, curl, and Expect via ~test/templeos.Dockerfile~;
+  its Debian base is digest-pinned. The driver downloads TempleOS 5.03 and
+  verifies SHA-256
+  ~5d0fc944e5d89c155c0fc17c148646715bc1db6fa5750c0b913772cfec19ba26~.
+  All generated programs, images, downloaded ISO, and diagnostics live under
+  ~tmp/templeos/~, owned by the caller's UID/GID. Each case starts from a new
+  FAT32 disk with no retained guest files. There is no installed VM or
+  dependency on the old session-local fixture.
+
+  ~test/templeos.HC~ frames counted output and distinguishes successful
+  execution, Til panic, and compiler/native exceptions. The host requires
+  exact output and the corresponding QEMU exit status. Expect owns and
+  reaps QEMU synchronously; a hard deadline captures a screenshot and stops
+  the VM. The CI TempleOS job invokes the same make target and uploads
+  diagnostics on failure. Normal hosted tests remain a separate check.
+
+  The runner covers 35 native guest cases: eight existing corpus programs
+  at USize 32 and 64; width/layout/sentinel and raw-file boundary checks at
+  both widths; fourteen expected file/capacity failures; two compiler-error
+  cases; and an intentional infinite loop that must time out. Existing
+  stdout goldens are checked where available, with interpreter parity for
+  the example programs that have only translation goldens. The shared Str
+  test no longer hard-codes the byte length of ~Ext.HC~.
+
+  Runtime Str/Array(Str) storage, operation parameters, loops, and emitted
+  collection helpers now agree with the resolved USize width. Native file
+  operations use exact-name ~FOpen~ and counted, sector-padded block I/O:
+  reads cannot search parent directories, toggle .Z suffixes, or expand
+  compressed content; writes cannot read beyond a short view or literal.
+  Writes restore the logical byte length before closing and reject directory
+  replacements and missing parents. Native regression checks verify raw .Z
+  bytes, zeroed sector padding, empty truncation, and expected failure paths.
+
 *** QEMU validation
 
-  Use a pinned, FAT32-installed TempleOS disk image. For each local or CI
-  run, copy the image, inject the Linux-generated HolyC file and a fixed
-  ~C:/Home/Once.HC~ harness, then boot that copy under qemu-system-x86_64.
-  ~Once.HC~ runs automatically in the first user task; it should compile
-  and execute the generated file with ~ExeFile2~, catch exceptions, write
-  a PASS/FAIL result file, report the same token over COM1, and exit QEMU
-  through ~isa-debug-exit~. The host requires the guest exit status and
-  result token to agree and applies a hard timeout.
+  The repository driver formats an isolated FAT32 data disk per case and
+  boots the checksum-pinned live ISO. It injects the Linux-generated HolyC
+  file and ~test/templeos.HC~ as ~C:/Home/Once.HC~.
+  The runner mounts the data disk in the first user task and executes
+  ~Once.HC~, which compiles and executes the generated file with ~ExeFile2~,
+  catches exceptions, reports
+  framed output and the result token over ~isa-debugcon~, and exit QEMU
+  through ~isa-debug-exit~. The host requires the guest exit status, result
+  token, and expected output to agree and applies a hard timeout.
 
   This runs the generated program directly on TempleOS in both local and
   CI testing. QEMU uses TCG in CI, legacy PC/IDE hardware, one CPU, and at

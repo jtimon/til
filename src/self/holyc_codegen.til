@@ -3679,7 +3679,13 @@ priv holyc_runtime_decl := func(name: Str, decl: Str, rest: Str) returns Str {
     return decl
 }
 
-priv holyc_runtime_prelude := func(rest: Str) returns Str {
+priv holyc_runtime_prelude := func(rest: Str, state: HolyCEmitState) returns Str {
+    mut cap_lit := "0xFFFFFFFFFFFFFFFF"
+    mut cap_view := "0xFFFFFFFFFFFFFFFE"
+    if state.usize_ctype == "U32" {
+        cap_lit = "0xFFFFFFFF"
+        cap_view = "0xFFFFFFFE"
+    }
     return format(
         holyc_runtime_decl("TilMAlloc", "extern U8 *TilMAlloc(U64 count);\n", rest),
         holyc_runtime_decl("TilCAlloc", "extern U8 *TilCAlloc(U64 nmemb,U64 size);\n", rest),
@@ -3695,7 +3701,10 @@ priv holyc_runtime_prelude := func(rest: Str) returns Str {
         holyc_runtime_decl("TilCheckPtr", "extern U8 *TilCheckPtr(U8 *ptr);\n", rest),
         holyc_runtime_decl("TilDeref", "extern U8 *TilDeref(U8 **slot);\n", rest),
         holyc_runtime_decl("TilWritePtr", "extern U0 TilWritePtr(U8 *slot,U8 *value);\n", rest),
-        "\n#include \"/Home/Ext.HC\"\n\n")
+        "\n#define TIL_USIZE ", state.usize_ctype, "\n",
+        "#define TIL_STR_CAP_LIT ", cap_lit, "\n",
+        "#define TIL_STR_CAP_VIEW ", cap_view, "\n",
+        "#include \"/Home/Ext.HC\"\n\n")
 }
 
 holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32 {
@@ -3780,7 +3789,7 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     mut helpers := ""
     if state.needs_str_array_clone {
         helpers = format(helpers, "U0 TilStrArrayClone(TilStrArray *out, TilStrArray *src)\n{\n")
-        helpers = format(helpers, "  TilStrArrayNew(out, src->cap);\n  U32 i = 0;\n")
+        helpers = format(helpers, "  TilStrArrayNew(out, src->cap);\n  ", state.usize_ctype, " i = 0;\n")
         helpers = format(helpers, "  while (i < src->cap) {\n    TilStrClone(&out->data[i], &src->data[i]);\n    i++;\n  }\n}\n\n")
     }
     if state.needs_str_array_copy {
@@ -3788,21 +3797,23 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         helpers = format(helpers, "  out->data = src->data;\n  out->cap = src->cap;\n}\n\n")
     }
     if state.needs_str_array_get {
-        helpers = format(helpers, "TilStr *TilStrArrayGet(TilStrArray *array, U32 i, I64 *err_kind)\n{\n")
+        helpers = format(helpers, "TilStr *TilStrArrayGet(TilStrArray *array, ", state.usize_ctype, " i, I64 *err_kind)\n{\n")
         helpers = format(helpers, "  *err_kind = 0;\n  if (i >= array->cap) { *err_kind = 1; return NULL; }\n")
         helpers = format(helpers, "  return &array->data[i];\n}\n\n")
     }
     if state.needs_str_array_concat {
         helpers = format(helpers, "U0 TilStrArrayConcat(TilStrArray *out, TilStrArray *a, TilStrArray *b)\n{\n")
-        helpers = format(helpers, "  U64 total = a->cap + b->cap;\n")
-        helpers = format(helpers, "  if (total > 0xFFFFFFFF) TilPanicZ(\"Array(Str).concat: capacity overflow\n\");\n")
-        helpers = format(helpers, "  TilStrArrayNew(out, total);\n  U32 i = 0;\n")
+        mut max_cap := "I64_MAX"
+        if state.usize_ctype == "U32" { max_cap = "0xFFFFFFFF" }
+        helpers = format(helpers, "  if (b->cap > ", max_cap, " - a->cap) TilPanicZ(\"Array(Str).concat: capacity overflow\n\");\n")
+        helpers = format(helpers, "  ", state.usize_ctype, " total = a->cap + b->cap;\n")
+        helpers = format(helpers, "  TilStrArrayNew(out, total);\n  ", state.usize_ctype, " i = 0;\n")
         helpers = format(helpers, "  while (i < a->cap) { TilStrClone(&out->data[i], &a->data[i]); i++; }\n")
-        helpers = format(helpers, "  U32 j = 0;\n  while (j < b->cap) { TilStrClone(&out->data[a->cap+j], &b->data[j]); j++; }\n}\n\n")
+        helpers = format(helpers, "  ", state.usize_ctype, " j = 0;\n  while (j < b->cap) { TilStrClone(&out->data[a->cap+j], &b->data[j]); j++; }\n}\n\n")
     }
     if state.needs_str_array_to_vec {
         helpers = format(helpers, "U0 TilStrArrayToVec(Vec__Str *out, TilStrArray *src)\n{\n")
-        helpers = format(helpers, "  Vec__Str_WithCapacity(out, src->cap);\n  U32 i = 0;\n")
+        helpers = format(helpers, "  Vec__Str_WithCapacity(out, src->cap);\n  ", state.usize_ctype, " i = 0;\n")
         helpers = format(helpers, "  while (i < src->cap) { TilStrClone(&out->data[i], &src->data[i]); i++; }\n")
         helpers = format(helpers, "  out->count = src->cap;\n}\n\n")
     }
@@ -3820,7 +3831,7 @@ holyc_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
     rest := format(structs, helpers, prototypes, state.method_definitions, definitions, body)
 
     f := File.new(output_path, true)
-    f.write(holyc_runtime_prelude(rest))
+    f.write(holyc_runtime_prelude(rest, state))
     f.write(structs)
     f.write(helpers)
     f.write(prototypes)

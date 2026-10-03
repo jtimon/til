@@ -14,7 +14,7 @@ directory kind
 kinds distinct
 primitive kinds
 // T
-10597
+counted file read
 file missing
 primitive missing
 missing kind

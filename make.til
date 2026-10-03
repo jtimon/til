@@ -825,6 +825,14 @@ run_test_repl_help := proc(mut b: Build) {
     run(TIL, "run", "test/repl_help.til")
 }
 
+/// Native TempleOS acceptance under QEMU TCG, at both USize widths.
+run_test_templeos := proc(mut b: Build) {
+    if b.begin("test_templeos").not() { return }
+    build_til(b)
+    if mkdir_p("tmp/templeos") != 0 { panic("could not create TempleOS test directory") }
+    run(TIL, "run", "-o", "tmp/templeos/runner", "-c", "tmp/templeos/runner.c", "test/templeos.til")
+}
+
 /// doc/gen/ and the UML outputs. On demand: doc generation over
 /// src/til.til runs the full init+typer pipeline.
 run_doc := proc(mut b: Build) {
@@ -1613,6 +1621,8 @@ commands := func() returns Vec(Command) {
         about = "two_pass + the full suite (for 'Two-pass: ' commits)"))
     out.push(own Command(name = "test_repl_help", go = run_test_repl_help,
         about = "Run the REPL help() smoke test"))
+    out.push(own Command(name = "test_templeos", go = run_test_templeos,
+        about = "Run the TempleOS guest corpus at both USize widths (Docker)"))
     out.push(own Command(name = "check_usize64", go = check_usize64,
         about = "Run the explicit --usize=64 regression"))
     out.push(own Command(name = "check_clang", go = check_clang,

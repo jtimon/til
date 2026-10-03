@@ -1,4 +1,7 @@
 
+#define TIL_USIZE U64
+#define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
+#define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
 I64 TilI64Div(I64 a, I64 b)

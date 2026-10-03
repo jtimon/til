@@ -1,18 +1,16 @@
 // TempleOS runtime boundary for generated til HolyC.
-// UPtr and raw byte counts are U64; USize remains the source-level U32 alias.
-
-#define TIL_STR_CAP_LIT  0xFFFFFFFF
-#define TIL_STR_CAP_VIEW 0xFFFFFFFE
+// UPtr and raw byte counts are U64. The emitter supplies TIL_USIZE and
+// the matching Str sentinels for the resolved source-level USize width.
 
 public class TilStr {
   U8 *c_str;
-  U32 count;
-  U32 cap;
+  TIL_USIZE count;
+  TIL_USIZE cap;
 };
 
 public class TilStrArray {
   TilStr *data;
-  U32 cap;
+  TIL_USIZE cap;
 };
 
 public U0 TilRawWriteUnchecked(U8 *data,U64 count)
@@ -181,7 +179,7 @@ public U0 TilWritePtr(U8 *slot,U8 *value)
   *(slot(U8 **))=value;
 }
 
-public U0 TilStrInitLit(TilStr *out,U8 *data,U32 count)
+public U0 TilStrInitLit(TilStr *out,U8 *data,TIL_USIZE count)
 {
   out->c_str=data;
   out->count=count;
@@ -201,12 +199,14 @@ public U0 TilStrPrepareReturn(TilStr *out)
     out->cap=TIL_STR_CAP_VIEW;
 }
 
-public U0 TilStrWithCapacity(TilStr *out,U32 cap)
+public U0 TilStrWithCapacity(TilStr *out,TIL_USIZE cap)
 {
   if (!cap) {
     TilStrInitLit(out,"",0);
     return;
   }
+  if (cap>=TIL_STR_CAP_VIEW || cap>=I64_MAX)
+    TilPanicZ("Str.with_capacity: capacity overflow\n");
   out->c_str=TilMAlloc(cap+1);
   out->c_str[0]=0;
   out->count=0;
@@ -219,6 +219,8 @@ public U0 TilStrClone(TilStr *out,TilStr *src)
     TilStrInitLit(out,"",0);
     return;
   }
+  if (src->count>=TIL_STR_CAP_VIEW || src->count>=I64_MAX)
+    TilPanicZ("Str.clone: size overflow\n");
   out->c_str=TilMAlloc(src->count+1);
   TilMemCpy(out->c_str,src->c_str,src->count);
   out->c_str[src->count]=0;
@@ -226,7 +228,7 @@ public U0 TilStrClone(TilStr *out,TilStr *src)
   out->cap=src->count;
 }
 
-public U0 TilStrSubstr(TilStr *out,TilStr *src,U32 start,U32 count)
+public U0 TilStrSubstr(TilStr *out,TilStr *src,TIL_USIZE start,TIL_USIZE count)
 {
   if (start>src->count)
     start=src->count;
@@ -246,7 +248,7 @@ public U0 TilStrBorrowedView(TilStr *out,TilStr *src)
 
 public U0 TilStrTrimStart(TilStr *out,TilStr *src)
 {
-  U32 start=0;
+  TIL_USIZE start=0;
   U8 ch;
   while (start<src->count) {
     ch=src->c_str[start];
@@ -259,7 +261,7 @@ public U0 TilStrTrimStart(TilStr *out,TilStr *src)
 
 public U0 TilStrTrim(TilStr *out,TilStr *src)
 {
-  U32 start=0,end=src->count;
+  TIL_USIZE start=0,end=src->count;
   U8 ch;
   while (start<end) {
     ch=src->c_str[start];
@@ -278,7 +280,7 @@ public U0 TilStrTrim(TilStr *out,TilStr *src)
 
 public U0 TilStrPush(TilStr *dst,TilStr *src)
 {
-  U32 new_count;
+  TIL_USIZE new_count;
   if (!src->count)
     return;
   if (dst->cap>=TIL_STR_CAP_VIEW)
@@ -333,22 +335,35 @@ public U0 TilFileRead(TilStr *out,TilStr *path)
 {
   U64 count=path->count;
   U8 *name=TilMAlloc(count+1);
-  I64 size=0;
+  I64 size,blocks;
+  CFile *file;
   U8 *data;
   TilMemCpy(name,path->c_str,count);
   name[count]=0;
-  data=FileRead(name,&size);
-  if (!data) {
+  // FOpen uses the exact name: FileRead also searches parents and .Z names
+  // and expands compressed content, unlike til's binary file API.
+  file=FOpen(name,"r");
+  if (!file) {
     TilRawWrite("cfile_open: could not open '",28);
     TilRawWrite(name,count);
     TilFree(name);
     TilPanicZ("'\n");
   }
   TilFree(name);
-  if (size>=TIL_STR_CAP_VIEW) {
-    TilFree(data);
+  size=FSize(file);
+  if (size<0 || size(U64)>=TIL_STR_CAP_VIEW || size>I64_MAX-BLK_SIZE) {
+    FClose(file);
     TilPanicZ("File.readfile: file too large\n");
   }
+  blocks=(size+BLK_SIZE-1)/BLK_SIZE;
+  data=TilCAlloc(blocks*BLK_SIZE+1,1);
+  if (blocks && !FBlkRead(file,data,0,blocks)) {
+    TilFree(data);
+    FClose(file);
+    TilPanicZ("File.readfile: read failed\n");
+  }
+  FClose(file);
+  data[size]=0;
   out->c_str=data;
   out->count=size;
   out->cap=size;
@@ -358,23 +373,46 @@ public U0 TilFileWrite(TilStr *path,TilStr *content)
 {
   U64 count=path->count;
   U8 *name=TilMAlloc(count+1);
-  I64 written=0;
+  I64 blocks;
+  U8 *data;
+  CFile *file=NULL;
   CDirContext *parent;
+  Bool valid;
   TilMemCpy(name,path->c_str,count);
   name[count]=0;
-  // FileWrite creates missing parent directories; fopen("wb") does not.
+  // Validate the exact filename before FOpen's deletion of the old entry.
+  // A directory or wildcard must never be treated as a replacement file.
   parent=DirContextNew(name);
   if (parent) {
+    valid=FileNameChk(parent->mask);
     DirContextDel(parent);
-    written=FileWrite(name,content->c_str,content->count);
+    if (valid && !FileFind(name,NULL,FUF_JUST_DIRS))
+      file=FOpen(name,"w");
   }
-  if (!written) {
+  if (!file) {
     TilRawWrite("File.writefile: could not write '",33);
     TilRawWrite(name,count);
     TilFree(name);
     TilPanicZ("'\n");
   }
   TilFree(name);
+  if (content->count>I64_MAX-BLK_SIZE) {
+    FClose(file);
+    TilPanicZ("File.writefile: file too large\n");
+  }
+  blocks=(content->count+BLK_SIZE-1)/BLK_SIZE;
+  // Native block I/O reads full sectors; the original Str may be a short
+  // view or literal. Stage exactly its live bytes in a padded buffer.
+  data=TilCAlloc(blocks,BLK_SIZE);
+  TilMemCpy(data,content->c_str,content->count);
+  if (blocks && !FBlkWrite(file,data,0,blocks)) {
+    TilFree(data);
+    FClose(file);
+    TilPanicZ("File.writefile: write failed\n");
+  }
+  TilFree(data);
+  file->de.size=content->count;
+  FClose(file);
 }
 
 public I64 TilStrDigit(U8 ch)
@@ -390,7 +428,7 @@ public I64 TilStrDigit(U8 ch)
 
 public I64 TilStrToI64(TilStr *s)
 {
-  U32 i=0;
+  TIL_USIZE i=0;
   I64 base=10,digit,result=0;
   Bool negative=FALSE,any=FALSE;
   if (!s->count)
@@ -437,7 +475,7 @@ public I64 TilStrToI64(TilStr *s)
 public U0 TilStrFromI64(TilStr *out,I64 value)
 {
   U64 magnitude,rest;
-  U32 digits=1,count,index;
+  TIL_USIZE digits=1,count,index;
   Bool negative=value<0;
   U8 *data;
   if (negative)
@@ -476,7 +514,7 @@ public Bool TilStrEq(TilStr *a,TilStr *b)
 
 public I64 TilStrCmp(TilStr *a,TilStr *b)
 {
-  U32 count=a->count;
+  TIL_USIZE count=a->count;
   I32 result;
   if (b->count<count)
     count=b->count;
@@ -495,13 +533,13 @@ public U0 TilStrWrite(TilStr *s)
   TilRawWrite(s->c_str,s->count);
 }
 
-public U0 TilStrArrayNew(TilStrArray *out,U32 cap)
+public U0 TilStrArrayNew(TilStrArray *out,TIL_USIZE cap)
 {
   out->data=TilCAlloc(cap,sizeof(TilStr));
   out->cap=cap;
 }
 
-public U0 TilStrArraySet(TilStrArray *array,U32 index,TilStr *value)
+public U0 TilStrArraySet(TilStrArray *array,TIL_USIZE index,TilStr *value)
 {
   TilStr *slot;
   if (index>=array->cap)
@@ -516,7 +554,7 @@ public U0 TilStrArraySet(TilStrArray *array,U32 index,TilStr *value)
 
 public U0 TilStrArrayDelete(TilStrArray *array)
 {
-  U32 i=0;
+  TIL_USIZE i=0;
   while (i<array->cap) {
     TilStrDelete(&array->data[i],FALSE);
     i++;
@@ -528,7 +566,7 @@ public U0 TilStrArrayDelete(TilStrArray *array)
 
 public U0 TilPrint(TilStrArray *parts)
 {
-  U32 i=0;
+  TIL_USIZE i=0;
   while (i<parts->cap) {
     TilStrWrite(&parts->data[i]);
     i++;

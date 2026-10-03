@@ -1,5 +1,8 @@
 extern U0 TilFree(U8 *ptr);
 
+#define TIL_USIZE U64
+#define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
+#define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
 class File {
@@ -72,167 +75,167 @@ I64 TilMain()
     TilStrInitLit(&literal, "  1234  ", 8);
     TilStr copy;
     TilStrClone(&copy, &literal);
-    U64 hoisted__U64_g162 = 2;
-    U64 hoisted__U64_g163 = 4;
+    U64 hoisted__U64_g164 = 2;
+    U64 hoisted__U64_g165 = 4;
     TilStr view;
-    TilStrSubstr(&view, &copy, hoisted__U64_g162, hoisted__U64_g163);
+    TilStrSubstr(&view, &copy, hoisted__U64_g164, hoisted__U64_g165);
     TilStr borrowed;
     TilStrBorrowedView(&borrowed, &view);
-    U64 hoisted__U64_g164 = 8;
+    U64 hoisted__U64_g166 = 8;
     TilStr out;
-    TilStrWithCapacity(&out, hoisted__U64_g164);
-    TilStr hoisted__Str_g165;
-    TilStrInitLit(&hoisted__Str_g165, "ab", 2);
-    TilStrPush(&out, &hoisted__Str_g165);
-    TilStrDelete(&hoisted__Str_g165, FALSE);
+    TilStrWithCapacity(&out, hoisted__U64_g166);
+    TilStr hoisted__Str_g167;
+    TilStrInitLit(&hoisted__Str_g167, "ab", 2);
+    TilStrPush(&out, &hoisted__Str_g167);
+    TilStrDelete(&hoisted__Str_g167, FALSE);
     TilStrPush(&out, &borrowed);
-    U64 hoisted__U64_g166 = 1;
+    U64 hoisted__U64_g168 = 1;
     TilStrArray _va_Array_g24;
-    TilStrArrayNew(&_va_Array_g24, hoisted__U64_g166);
+    TilStrArrayNew(&_va_Array_g24, hoisted__U64_g168);
     I64 _va_Array_g24_ek = 0;
-    U64 hoisted__U64_g167 = 0;
-    TilStr hoisted__Str_g168;
-    TilStrClone(&hoisted__Str_g168, &out);
-    TilStrArraySet(&_va_Array_g24, hoisted__U64_g167, &hoisted__Str_g168);
+    U64 hoisted__U64_g169 = 0;
+    TilStr hoisted__Str_g170;
+    TilStrClone(&hoisted__Str_g170, &out);
+    TilStrArraySet(&_va_Array_g24, hoisted__U64_g169, &hoisted__Str_g170);
     TilPrintln(&_va_Array_g24);
-    TilStr hoisted__Str_g169;
-    TilStrInitLit(&hoisted__Str_g169, "1234", 4);
-    I64 number = TilStrToI64(&hoisted__Str_g169);
-    TilStrDelete(&hoisted__Str_g169, FALSE);
-    U64 hoisted__U64_g170 = 1;
+    TilStr hoisted__Str_g171;
+    TilStrInitLit(&hoisted__Str_g171, "1234", 4);
+    I64 number = TilStrToI64(&hoisted__Str_g171);
+    TilStrDelete(&hoisted__Str_g171, FALSE);
+    U64 hoisted__U64_g172 = 1;
     TilStrArray _va_Array_g25;
-    TilStrArrayNew(&_va_Array_g25, hoisted__U64_g170);
+    TilStrArrayNew(&_va_Array_g25, hoisted__U64_g172);
     I64 _va_Array_g25_ek = 0;
-    U64 hoisted__U64_g171 = 0;
-    TilStr hoisted__Str_g172;
-    TilStrFromI64(&hoisted__Str_g172, number);
-    TilStrArraySet(&_va_Array_g25, hoisted__U64_g171, &hoisted__Str_g172);
+    U64 hoisted__U64_g173 = 0;
+    TilStr hoisted__Str_g174;
+    TilStrFromI64(&hoisted__Str_g174, number);
+    TilStrArraySet(&_va_Array_g25, hoisted__U64_g173, &hoisted__Str_g174);
     TilPrintln(&_va_Array_g25);
-    U64 hoisted__U64_g173 = 1;
+    U64 hoisted__U64_g175 = 1;
     TilStrArray _va_Array_g26;
-    TilStrArrayNew(&_va_Array_g26, hoisted__U64_g173);
+    TilStrArrayNew(&_va_Array_g26, hoisted__U64_g175);
     I64 _va_Array_g26_ek = 0;
-    U64 hoisted__U64_g174 = (&out)->count;
-    I64 hoisted__I64_g175 = ((hoisted__U64_g174) + 0)(I64);
-    U64 hoisted__U64_g176 = 0;
-    TilStr hoisted__Str_g177;
-    TilStrFromI64(&hoisted__Str_g177, hoisted__I64_g175);
-    TilStrArraySet(&_va_Array_g26, hoisted__U64_g176, &hoisted__Str_g177);
-    TilPrintln(&_va_Array_g26);
-    U64 hoisted__U64_g178 = 8;
-    TilStr reassigned;
-    TilStrWithCapacity(&reassigned, hoisted__U64_g178);
+    U64 hoisted__U64_g176 = (&out)->count;
+    I64 hoisted__I64_g177 = ((hoisted__U64_g176) + 0)(I64);
+    U64 hoisted__U64_g178 = 0;
     TilStr hoisted__Str_g179;
-    TilStrInitLit(&hoisted__Str_g179, "abcdef", 6);
-    TilStrPush(&reassigned, &hoisted__Str_g179);
-    TilStrDelete(&hoisted__Str_g179, FALSE);
-    U64 hoisted__U64_g180 = 1;
-    U64 hoisted__U64_g181 = 4;
-    TilStr hoisted__Str_g182;
-    TilStrSubstr(&hoisted__Str_g182, &reassigned, hoisted__U64_g180, hoisted__U64_g181);
+    TilStrFromI64(&hoisted__Str_g179, hoisted__I64_g177);
+    TilStrArraySet(&_va_Array_g26, hoisted__U64_g178, &hoisted__Str_g179);
+    TilPrintln(&_va_Array_g26);
+    U64 hoisted__U64_g180 = 8;
+    TilStr reassigned;
+    TilStrWithCapacity(&reassigned, hoisted__U64_g180);
+    TilStr hoisted__Str_g181;
+    TilStrInitLit(&hoisted__Str_g181, "abcdef", 6);
+    TilStrPush(&reassigned, &hoisted__Str_g181);
+    TilStrDelete(&hoisted__Str_g181, FALSE);
+    U64 hoisted__U64_g182 = 1;
+    U64 hoisted__U64_g183 = 4;
+    TilStr hoisted__Str_g184;
+    TilStrSubstr(&hoisted__Str_g184, &reassigned, hoisted__U64_g182, hoisted__U64_g183);
     {
         TilStr replacement_1;
-        TilStrClone(&replacement_1, &hoisted__Str_g182);
+        TilStrClone(&replacement_1, &hoisted__Str_g184);
         TilStrDelete(&reassigned, FALSE);
         TilStrCopyValue(&reassigned, &replacement_1);
     }
-    TilStrDelete(&hoisted__Str_g182, FALSE);
+    TilStrDelete(&hoisted__Str_g184, FALSE);
     TilStr returned;
     str_runtime_middle(&returned, &reassigned);
-    U64 hoisted__U64_g183 = 1;
+    U64 hoisted__U64_g185 = 1;
     TilStrArray _va_Array_g27;
-    TilStrArrayNew(&_va_Array_g27, hoisted__U64_g183);
+    TilStrArrayNew(&_va_Array_g27, hoisted__U64_g185);
     I64 _va_Array_g27_ek = 0;
-    U64 hoisted__U64_g184 = 0;
-    TilStr hoisted__Str_g185;
-    TilStrClone(&hoisted__Str_g185, &returned);
-    TilStrArraySet(&_va_Array_g27, hoisted__U64_g184, &hoisted__Str_g185);
+    U64 hoisted__U64_g186 = 0;
+    TilStr hoisted__Str_g187;
+    TilStrClone(&hoisted__Str_g187, &returned);
+    TilStrArraySet(&_va_Array_g27, hoisted__U64_g186, &hoisted__Str_g187);
     TilPrintln(&_va_Array_g27);
-    U64 hoisted__U64_g186 = 1;
+    U64 hoisted__U64_g188 = 1;
     TilStrArray _va_Array_g28;
-    TilStrArrayNew(&_va_Array_g28, hoisted__U64_g186);
+    TilStrArrayNew(&_va_Array_g28, hoisted__U64_g188);
     I64 _va_Array_g28_ek = 0;
-    I64 hoisted__I64_g187 = str_runtime_len(&returned);
-    U64 hoisted__U64_g188 = 0;
-    TilStr hoisted__Str_g189;
-    TilStrFromI64(&hoisted__Str_g189, hoisted__I64_g187);
-    TilStrArraySet(&_va_Array_g28, hoisted__U64_g188, &hoisted__Str_g189);
+    I64 hoisted__I64_g189 = str_runtime_len(&returned);
+    U64 hoisted__U64_g190 = 0;
+    TilStr hoisted__Str_g191;
+    TilStrFromI64(&hoisted__Str_g191, hoisted__I64_g189);
+    TilStrArraySet(&_va_Array_g28, hoisted__U64_g190, &hoisted__Str_g191);
     TilPrintln(&_va_Array_g28);
-    U64 hoisted__U64_g190 = 4;
+    U64 hoisted__U64_g192 = 4;
     TilStrArray _va_Array_g29;
-    TilStrArrayNew(&_va_Array_g29, hoisted__U64_g190);
+    TilStrArrayNew(&_va_Array_g29, hoisted__U64_g192);
     I64 _va_Array_g29_ek = 0;
-    U64 hoisted__U64_g191 = 0;
-    TilStr hoisted__Str_g192;
-    TilStrInitLit(&hoisted__Str_g192, "multi:", 6);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g191, &hoisted__Str_g192);
-    U64 hoisted__U64_g193 = 1;
+    U64 hoisted__U64_g193 = 0;
     TilStr hoisted__Str_g194;
-    TilStrClone(&hoisted__Str_g194, &returned);
+    TilStrInitLit(&hoisted__Str_g194, "multi:", 6);
     TilStrArraySet(&_va_Array_g29, hoisted__U64_g193, &hoisted__Str_g194);
-    U64 hoisted__U64_g195 = 2;
+    U64 hoisted__U64_g195 = 1;
     TilStr hoisted__Str_g196;
-    TilStrInitLit(&hoisted__Str_g196, ":", 1);
+    TilStrClone(&hoisted__Str_g196, &returned);
     TilStrArraySet(&_va_Array_g29, hoisted__U64_g195, &hoisted__Str_g196);
-    I64 hoisted__I64_g197 = str_runtime_len(&returned);
-    U64 hoisted__U64_g198 = 3;
-    TilStr hoisted__Str_g199;
-    TilStrFromI64(&hoisted__Str_g199, hoisted__I64_g197);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g198, &hoisted__Str_g199);
-    TilPrintln(&_va_Array_g29);
-    U64 hoisted__U64_g200 = 4;
-    TilStr mutable;
-    TilStrWithCapacity(&mutable, hoisted__U64_g200);
+    U64 hoisted__U64_g197 = 2;
+    TilStr hoisted__Str_g198;
+    TilStrInitLit(&hoisted__Str_g198, ":", 1);
+    TilStrArraySet(&_va_Array_g29, hoisted__U64_g197, &hoisted__Str_g198);
+    I64 hoisted__I64_g199 = str_runtime_len(&returned);
+    U64 hoisted__U64_g200 = 3;
     TilStr hoisted__Str_g201;
-    TilStrInitLit(&hoisted__Str_g201, "xy", 2);
-    TilStrPush(&mutable, &hoisted__Str_g201);
-    TilStrDelete(&hoisted__Str_g201, FALSE);
+    TilStrFromI64(&hoisted__Str_g201, hoisted__I64_g199);
+    TilStrArraySet(&_va_Array_g29, hoisted__U64_g200, &hoisted__Str_g201);
+    TilPrintln(&_va_Array_g29);
+    U64 hoisted__U64_g202 = 4;
+    TilStr mutable;
+    TilStrWithCapacity(&mutable, hoisted__U64_g202);
+    TilStr hoisted__Str_g203;
+    TilStrInitLit(&hoisted__Str_g203, "xy", 2);
+    TilStrPush(&mutable, &hoisted__Str_g203);
+    TilStrDelete(&hoisted__Str_g203, FALSE);
     str_runtime_push(&mutable);
-    U64 hoisted__U64_g202 = 1;
+    U64 hoisted__U64_g204 = 1;
     TilStrArray _va_Array_g30;
-    TilStrArrayNew(&_va_Array_g30, hoisted__U64_g202);
+    TilStrArrayNew(&_va_Array_g30, hoisted__U64_g204);
     I64 _va_Array_g30_ek = 0;
-    U64 hoisted__U64_g203 = 0;
-    TilStr hoisted__Str_g204;
-    TilStrClone(&hoisted__Str_g204, &mutable);
-    TilStrArraySet(&_va_Array_g30, hoisted__U64_g203, &hoisted__Str_g204);
+    U64 hoisted__U64_g205 = 0;
+    TilStr hoisted__Str_g206;
+    TilStrClone(&hoisted__Str_g206, &mutable);
+    TilStrArraySet(&_va_Array_g30, hoisted__U64_g205, &hoisted__Str_g206);
     TilPrintln(&_va_Array_g30);
     TilStr owned;
     TilStrClone(&owned, &mutable);
-    U64 hoisted__U64_g205 = 1;
+    U64 hoisted__U64_g207 = 1;
     TilStrArray _va_Array_g31;
-    TilStrArrayNew(&_va_Array_g31, hoisted__U64_g205);
+    TilStrArrayNew(&_va_Array_g31, hoisted__U64_g207);
     I64 _va_Array_g31_ek = 0;
-    I64 hoisted__I64_g206 = str_runtime_consume(&owned);
-    U64 hoisted__U64_g207 = 0;
-    TilStr hoisted__Str_g208;
-    TilStrFromI64(&hoisted__Str_g208, hoisted__I64_g206);
-    TilStrArraySet(&_va_Array_g31, hoisted__U64_g207, &hoisted__Str_g208);
+    I64 hoisted__I64_g208 = str_runtime_consume(&owned);
+    U64 hoisted__U64_g209 = 0;
+    TilStr hoisted__Str_g210;
+    TilStrFromI64(&hoisted__Str_g210, hoisted__I64_g208);
+    TilStrArraySet(&_va_Array_g31, hoisted__U64_g209, &hoisted__Str_g210);
     TilPrintln(&_va_Array_g31);
     TilStrDelete(&out, FALSE);
     TilStrDelete(&copy, FALSE);
     TilStrDelete(&reassigned, FALSE);
     TilStrDelete(&returned, FALSE);
     TilStrDelete(&mutable, FALSE);
-    TilStr hoisted__Str_g209;
-    TilStrInitLit(&hoisted__Str_g209, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g210 = TilFileExists(&hoisted__Str_g209);
-    TilStrDelete(&hoisted__Str_g209, FALSE);
-    if (hoisted__Bool_g210) {
-        U64 hoisted__U64_g41 = 1;
-        TilStrArray _va_Array_g6;
-        TilStrArrayNew(&_va_Array_g6, hoisted__U64_g41);
-        I64 _va_Array_g6_ek = 0;
-        U64 hoisted__U64_g42 = 0;
-        TilStr hoisted__Str_g43;
-        TilStrInitLit(&hoisted__Str_g43, "file exists", 11);
-        TilStrArraySet(&_va_Array_g6, hoisted__U64_g42, &hoisted__Str_g43);
-        TilPrintln(&_va_Array_g6);
-        TilStr hoisted__Str_g44;
-        TilStrInitLit(&hoisted__Str_g44, "src/holyc", 9);
-        Bool hoisted__Bool_g45 = TilFileExists(&hoisted__Str_g44);
-        TilStrDelete(&hoisted__Str_g44, FALSE);
-        if (hoisted__Bool_g45) {
+    TilStr hoisted__Str_g211;
+    TilStrInitLit(&hoisted__Str_g211, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g212 = TilFileExists(&hoisted__Str_g211);
+    TilStrDelete(&hoisted__Str_g211, FALSE);
+    if (hoisted__Bool_g212) {
+        U64 hoisted__U64_g44 = 1;
+        TilStrArray _va_Array_g7;
+        TilStrArrayNew(&_va_Array_g7, hoisted__U64_g44);
+        I64 _va_Array_g7_ek = 0;
+        U64 hoisted__U64_g45 = 0;
+        TilStr hoisted__Str_g46;
+        TilStrInitLit(&hoisted__Str_g46, "file exists", 11);
+        TilStrArraySet(&_va_Array_g7, hoisted__U64_g45, &hoisted__Str_g46);
+        TilPrintln(&_va_Array_g7);
+        TilStr hoisted__Str_g47;
+        TilStrInitLit(&hoisted__Str_g47, "src/holyc", 9);
+        Bool hoisted__Bool_g48 = TilFileExists(&hoisted__Str_g47);
+        TilStrDelete(&hoisted__Str_g47, FALSE);
+        if (hoisted__Bool_g48) {
             U64 hoisted__U64_g7 = 1;
             TilStrArray _va_Array_g0;
             TilStrArrayNew(&_va_Array_g0, hoisted__U64_g7);
@@ -243,15 +246,15 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g0, hoisted__U64_g8, &hoisted__Str_g9);
             TilPrintln(&_va_Array_g0);
         }
-        TilStr hoisted__Str_g46;
-        TilStrInitLit(&hoisted__Str_g46, "src/holyc/ext.HC.trailing", 25);
-        U64 hoisted__U64_g47 = 0;
-        U64 hoisted__U64_g48 = 16;
+        TilStr hoisted__Str_g49;
+        TilStrInitLit(&hoisted__Str_g49, "src/holyc/ext.HC.trailing", 25);
+        U64 hoisted__U64_g50 = 0;
+        U64 hoisted__U64_g51 = 16;
         TilStr host_fs_view;
-        TilStrSubstr(&host_fs_view, &hoisted__Str_g46, hoisted__U64_g47, hoisted__U64_g48);
-        TilStrDelete(&hoisted__Str_g46, FALSE);
-        Bool hoisted__Bool_g49 = TilFileExists(&host_fs_view);
-        if (hoisted__Bool_g49) {
+        TilStrSubstr(&host_fs_view, &hoisted__Str_g49, hoisted__U64_g50, hoisted__U64_g51);
+        TilStrDelete(&hoisted__Str_g49, FALSE);
+        Bool hoisted__Bool_g52 = TilFileExists(&host_fs_view);
+        if (hoisted__Bool_g52) {
             U64 hoisted__U64_g10 = 1;
             TilStrArray _va_Array_g1;
             TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
@@ -262,8 +265,8 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
             TilPrintln(&_va_Array_g1);
         }
-        Bool hoisted__Bool_g50 = TilFileIsFile(&host_fs_view);
-        if (hoisted__Bool_g50) {
+        Bool hoisted__Bool_g53 = TilFileIsFile(&host_fs_view);
+        if (hoisted__Bool_g53) {
             U64 hoisted__U64_g13 = 1;
             TilStrArray _va_Array_g2;
             TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
@@ -274,11 +277,11 @@ I64 TilMain()
             TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
             TilPrintln(&_va_Array_g2);
         }
-        TilStr hoisted__Str_g51;
-        TilStrInitLit(&hoisted__Str_g51, "src/holyc", 9);
-        Bool hoisted__Bool_g52 = TilFileIsDir(&hoisted__Str_g51);
-        TilStrDelete(&hoisted__Str_g51, FALSE);
-        if (hoisted__Bool_g52) {
+        TilStr hoisted__Str_g54;
+        TilStrInitLit(&hoisted__Str_g54, "src/holyc", 9);
+        Bool hoisted__Bool_g55 = TilFileIsDir(&hoisted__Str_g54);
+        TilStrDelete(&hoisted__Str_g54, FALSE);
+        if (hoisted__Bool_g55) {
             U64 hoisted__U64_g16 = 1;
             TilStrArray _va_Array_g3;
             TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
@@ -347,363 +350,369 @@ I64 TilMain()
         }
         TilStr host_read;
         TilFileRead(&host_read, &host_fs_view);
-        U64 hoisted__U64_g53 = 1;
-        TilStrArray _va_Array_g7;
-        TilStrArrayNew(&_va_Array_g7, hoisted__U64_g53);
-        I64 _va_Array_g7_ek = 0;
-        U64 hoisted__U64_g54 = 0;
-        U64 hoisted__U64_g55 = 4;
-        U64 hoisted__U64_g56 = 0;
-        TilStr hoisted__Str_g57;
-        TilStrSubstr(&hoisted__Str_g57, &host_read, hoisted__U64_g54, hoisted__U64_g55);
-        TilStrArraySet(&_va_Array_g7, hoisted__U64_g56, &hoisted__Str_g57);
-        TilPrintln(&_va_Array_g7);
-        U64 hoisted__U64_g58 = 1;
+        U64 hoisted__U64_g56 = 1;
         TilStrArray _va_Array_g8;
-        TilStrArrayNew(&_va_Array_g8, hoisted__U64_g58);
+        TilStrArrayNew(&_va_Array_g8, hoisted__U64_g56);
         I64 _va_Array_g8_ek = 0;
-        U64 hoisted__U64_g59 = (&host_read)->count;
-        I64 hoisted__I64_g60 = ((hoisted__U64_g59) + 0)(I64);
-        U64 hoisted__U64_g61 = 0;
-        TilStr hoisted__Str_g62;
-        TilStrFromI64(&hoisted__Str_g62, hoisted__I64_g60);
-        TilStrArraySet(&_va_Array_g8, hoisted__U64_g61, &hoisted__Str_g62);
+        U64 hoisted__U64_g57 = 0;
+        U64 hoisted__U64_g58 = 4;
+        U64 hoisted__U64_g59 = 0;
+        TilStr hoisted__Str_g60;
+        TilStrSubstr(&hoisted__Str_g60, &host_read, hoisted__U64_g57, hoisted__U64_g58);
+        TilStrArraySet(&_va_Array_g8, hoisted__U64_g59, &hoisted__Str_g60);
         TilPrintln(&_va_Array_g8);
+        U64 hoisted__U64_g61 = (&host_read)->count;
+        U64 hoisted__U64_g62 = 4;
+        Bool hoisted__Bool_g63 = (hoisted__U64_g61 > hoisted__U64_g62);
+        if (hoisted__Bool_g63) {
+            U64 hoisted__U64_g41 = 1;
+            TilStrArray _va_Array_g6;
+            TilStrArrayNew(&_va_Array_g6, hoisted__U64_g41);
+            I64 _va_Array_g6_ek = 0;
+            U64 hoisted__U64_g42 = 0;
+            TilStr hoisted__Str_g43;
+            TilStrInitLit(&hoisted__Str_g43, "counted file read", 17);
+            TilStrArraySet(&_va_Array_g6, hoisted__U64_g42, &hoisted__Str_g43);
+            TilPrintln(&_va_Array_g6);
+        }
         TilStrDelete(&host_read, FALSE);
         TilStrDelete(&host_fs_view, FALSE);
     } else {
-        TilStr hoisted__Str_g100;
-        TilStrInitLit(&hoisted__Str_g100, "Ext.HC", 6);
-        Bool hoisted__Bool_g101 = TilFileExists(&hoisted__Str_g100);
-        TilStrDelete(&hoisted__Str_g100, FALSE);
-        if (hoisted__Bool_g101) {
-            U64 hoisted__U64_g63 = 1;
+        TilStr hoisted__Str_g104;
+        TilStrInitLit(&hoisted__Str_g104, "Ext.HC", 6);
+        Bool hoisted__Bool_g105 = TilFileExists(&hoisted__Str_g104);
+        TilStrDelete(&hoisted__Str_g104, FALSE);
+        if (hoisted__Bool_g105) {
+            U64 hoisted__U64_g64 = 1;
             TilStrArray _va_Array_g9;
-            TilStrArrayNew(&_va_Array_g9, hoisted__U64_g63);
+            TilStrArrayNew(&_va_Array_g9, hoisted__U64_g64);
             I64 _va_Array_g9_ek = 0;
-            U64 hoisted__U64_g64 = 0;
-            TilStr hoisted__Str_g65;
-            TilStrInitLit(&hoisted__Str_g65, "file exists", 11);
-            TilStrArraySet(&_va_Array_g9, hoisted__U64_g64, &hoisted__Str_g65);
+            U64 hoisted__U64_g65 = 0;
+            TilStr hoisted__Str_g66;
+            TilStrInitLit(&hoisted__Str_g66, "file exists", 11);
+            TilStrArraySet(&_va_Array_g9, hoisted__U64_g65, &hoisted__Str_g66);
             TilPrintln(&_va_Array_g9);
         }
-        TilStr hoisted__Str_g102;
-        TilStrInitLit(&hoisted__Str_g102, "C:/Home", 7);
-        Bool hoisted__Bool_g103 = TilFileExists(&hoisted__Str_g102);
-        TilStrDelete(&hoisted__Str_g102, FALSE);
-        if (hoisted__Bool_g103) {
-            U64 hoisted__U64_g66 = 1;
+        TilStr hoisted__Str_g106;
+        TilStrInitLit(&hoisted__Str_g106, "C:/Home", 7);
+        Bool hoisted__Bool_g107 = TilFileExists(&hoisted__Str_g106);
+        TilStrDelete(&hoisted__Str_g106, FALSE);
+        if (hoisted__Bool_g107) {
+            U64 hoisted__U64_g67 = 1;
             TilStrArray _va_Array_g10;
-            TilStrArrayNew(&_va_Array_g10, hoisted__U64_g66);
+            TilStrArrayNew(&_va_Array_g10, hoisted__U64_g67);
             I64 _va_Array_g10_ek = 0;
-            U64 hoisted__U64_g67 = 0;
-            TilStr hoisted__Str_g68;
-            TilStrInitLit(&hoisted__Str_g68, "directory exists", 16);
-            TilStrArraySet(&_va_Array_g10, hoisted__U64_g67, &hoisted__Str_g68);
+            U64 hoisted__U64_g68 = 0;
+            TilStr hoisted__Str_g69;
+            TilStrInitLit(&hoisted__Str_g69, "directory exists", 16);
+            TilStrArraySet(&_va_Array_g10, hoisted__U64_g68, &hoisted__Str_g69);
             TilPrintln(&_va_Array_g10);
         }
-        TilStr hoisted__Str_g104;
-        TilStrInitLit(&hoisted__Str_g104, "Ext.HC.trailing", 15);
-        U64 hoisted__U64_g105 = 0;
-        U64 hoisted__U64_g106 = 6;
+        TilStr hoisted__Str_g108;
+        TilStrInitLit(&hoisted__Str_g108, "Ext.HC.trailing", 15);
+        U64 hoisted__U64_g109 = 0;
+        U64 hoisted__U64_g110 = 6;
         TilStr guest_fs_view;
-        TilStrSubstr(&guest_fs_view, &hoisted__Str_g104, hoisted__U64_g105, hoisted__U64_g106);
-        TilStrDelete(&hoisted__Str_g104, FALSE);
-        Bool hoisted__Bool_g107 = TilFileExists(&guest_fs_view);
-        if (hoisted__Bool_g107) {
-            U64 hoisted__U64_g69 = 1;
+        TilStrSubstr(&guest_fs_view, &hoisted__Str_g108, hoisted__U64_g109, hoisted__U64_g110);
+        TilStrDelete(&hoisted__Str_g108, FALSE);
+        Bool hoisted__Bool_g111 = TilFileExists(&guest_fs_view);
+        if (hoisted__Bool_g111) {
+            U64 hoisted__U64_g70 = 1;
             TilStrArray _va_Array_g11;
-            TilStrArrayNew(&_va_Array_g11, hoisted__U64_g69);
+            TilStrArrayNew(&_va_Array_g11, hoisted__U64_g70);
             I64 _va_Array_g11_ek = 0;
-            U64 hoisted__U64_g70 = 0;
-            TilStr hoisted__Str_g71;
-            TilStrInitLit(&hoisted__Str_g71, "view exists", 11);
-            TilStrArraySet(&_va_Array_g11, hoisted__U64_g70, &hoisted__Str_g71);
+            U64 hoisted__U64_g71 = 0;
+            TilStr hoisted__Str_g72;
+            TilStrInitLit(&hoisted__Str_g72, "view exists", 11);
+            TilStrArraySet(&_va_Array_g11, hoisted__U64_g71, &hoisted__Str_g72);
             TilPrintln(&_va_Array_g11);
         }
-        Bool hoisted__Bool_g108 = TilFileIsFile(&guest_fs_view);
-        if (hoisted__Bool_g108) {
-            U64 hoisted__U64_g72 = 1;
+        Bool hoisted__Bool_g112 = TilFileIsFile(&guest_fs_view);
+        if (hoisted__Bool_g112) {
+            U64 hoisted__U64_g73 = 1;
             TilStrArray _va_Array_g12;
-            TilStrArrayNew(&_va_Array_g12, hoisted__U64_g72);
+            TilStrArrayNew(&_va_Array_g12, hoisted__U64_g73);
             I64 _va_Array_g12_ek = 0;
-            U64 hoisted__U64_g73 = 0;
-            TilStr hoisted__Str_g74;
-            TilStrInitLit(&hoisted__Str_g74, "regular file", 12);
-            TilStrArraySet(&_va_Array_g12, hoisted__U64_g73, &hoisted__Str_g74);
+            U64 hoisted__U64_g74 = 0;
+            TilStr hoisted__Str_g75;
+            TilStrInitLit(&hoisted__Str_g75, "regular file", 12);
+            TilStrArraySet(&_va_Array_g12, hoisted__U64_g74, &hoisted__Str_g75);
             TilPrintln(&_va_Array_g12);
         }
-        TilStr hoisted__Str_g109;
-        TilStrInitLit(&hoisted__Str_g109, "C:/Home", 7);
-        Bool hoisted__Bool_g110 = TilFileIsDir(&hoisted__Str_g109);
-        TilStrDelete(&hoisted__Str_g109, FALSE);
-        if (hoisted__Bool_g110) {
-            U64 hoisted__U64_g75 = 1;
+        TilStr hoisted__Str_g113;
+        TilStrInitLit(&hoisted__Str_g113, "C:/Home", 7);
+        Bool hoisted__Bool_g114 = TilFileIsDir(&hoisted__Str_g113);
+        TilStrDelete(&hoisted__Str_g113, FALSE);
+        if (hoisted__Bool_g114) {
+            U64 hoisted__U64_g76 = 1;
             TilStrArray _va_Array_g13;
-            TilStrArrayNew(&_va_Array_g13, hoisted__U64_g75);
+            TilStrArrayNew(&_va_Array_g13, hoisted__U64_g76);
             I64 _va_Array_g13_ek = 0;
-            U64 hoisted__U64_g76 = 0;
-            TilStr hoisted__Str_g77;
-            TilStrInitLit(&hoisted__Str_g77, "directory kind", 14);
-            TilStrArraySet(&_va_Array_g13, hoisted__U64_g76, &hoisted__Str_g77);
+            U64 hoisted__U64_g77 = 0;
+            TilStr hoisted__Str_g78;
+            TilStrInitLit(&hoisted__Str_g78, "directory kind", 14);
+            TilStrArraySet(&_va_Array_g13, hoisted__U64_g77, &hoisted__Str_g78);
             TilPrintln(&_va_Array_g13);
         }
-        Bool _m_Bool_g78 = FALSE;
+        Bool _m_Bool_g79 = FALSE;
         {
-            Bool hoisted__Bool_g84 = TilFileIsDir(&guest_fs_view);
-            Bool _sw_Bool_g79 = (!hoisted__Bool_g84);
-            Bool hoisted__Bool_g85 = TRUE;
-            Bool hoisted__Bool_g86 = (_sw_Bool_g79 == hoisted__Bool_g85);
-            if (hoisted__Bool_g86) {
-                TilStr hoisted__Str_g80;
-                TilStrInitLit(&hoisted__Str_g80, "C:/Home", 7);
-                Bool hoisted__Bool_g81 = TilFileIsFile(&hoisted__Str_g80);
-                TilStrDelete(&hoisted__Str_g80, FALSE);
-                Bool hoisted__Bool_g82 = (!hoisted__Bool_g81);
-                _m_Bool_g78 = hoisted__Bool_g82;
+            Bool hoisted__Bool_g85 = TilFileIsDir(&guest_fs_view);
+            Bool _sw_Bool_g80 = (!hoisted__Bool_g85);
+            Bool hoisted__Bool_g86 = TRUE;
+            Bool hoisted__Bool_g87 = (_sw_Bool_g80 == hoisted__Bool_g86);
+            if (hoisted__Bool_g87) {
+                TilStr hoisted__Str_g81;
+                TilStrInitLit(&hoisted__Str_g81, "C:/Home", 7);
+                Bool hoisted__Bool_g82 = TilFileIsFile(&hoisted__Str_g81);
+                TilStrDelete(&hoisted__Str_g81, FALSE);
+                Bool hoisted__Bool_g83 = (!hoisted__Bool_g82);
+                _m_Bool_g79 = hoisted__Bool_g83;
             } else {
-                Bool hoisted__Bool_g83 = FALSE;
-                _m_Bool_g78 = hoisted__Bool_g83;
+                Bool hoisted__Bool_g84 = FALSE;
+                _m_Bool_g79 = hoisted__Bool_g84;
             }
         }
-        if (_m_Bool_g78) {
-            U64 hoisted__U64_g87 = 1;
+        if (_m_Bool_g79) {
+            U64 hoisted__U64_g88 = 1;
             TilStrArray _va_Array_g14;
-            TilStrArrayNew(&_va_Array_g14, hoisted__U64_g87);
+            TilStrArrayNew(&_va_Array_g14, hoisted__U64_g88);
             I64 _va_Array_g14_ek = 0;
-            U64 hoisted__U64_g88 = 0;
-            TilStr hoisted__Str_g89;
-            TilStrInitLit(&hoisted__Str_g89, "kinds distinct", 14);
-            TilStrArraySet(&_va_Array_g14, hoisted__U64_g88, &hoisted__Str_g89);
+            U64 hoisted__U64_g89 = 0;
+            TilStr hoisted__Str_g90;
+            TilStrInitLit(&hoisted__Str_g90, "kinds distinct", 14);
+            TilStrArraySet(&_va_Array_g14, hoisted__U64_g89, &hoisted__Str_g90);
             TilPrintln(&_va_Array_g14);
         }
-        Bool _m_Bool_g90 = FALSE;
+        Bool _m_Bool_g91 = FALSE;
         {
-            Bool _sw_Bool_g91 = TilFileIsFile(&guest_fs_view);
-            Bool hoisted__Bool_g95 = TRUE;
-            Bool hoisted__Bool_g96 = (_sw_Bool_g91 == hoisted__Bool_g95);
-            if (hoisted__Bool_g96) {
-                TilStr hoisted__Str_g92;
-                TilStrInitLit(&hoisted__Str_g92, "C:/Home", 7);
-                Bool hoisted__Bool_g93 = TilFileIsDir(&hoisted__Str_g92);
-                TilStrDelete(&hoisted__Str_g92, FALSE);
-                _m_Bool_g90 = hoisted__Bool_g93;
+            Bool _sw_Bool_g92 = TilFileIsFile(&guest_fs_view);
+            Bool hoisted__Bool_g96 = TRUE;
+            Bool hoisted__Bool_g97 = (_sw_Bool_g92 == hoisted__Bool_g96);
+            if (hoisted__Bool_g97) {
+                TilStr hoisted__Str_g93;
+                TilStrInitLit(&hoisted__Str_g93, "C:/Home", 7);
+                Bool hoisted__Bool_g94 = TilFileIsDir(&hoisted__Str_g93);
+                TilStrDelete(&hoisted__Str_g93, FALSE);
+                _m_Bool_g91 = hoisted__Bool_g94;
             } else {
-                Bool hoisted__Bool_g94 = FALSE;
-                _m_Bool_g90 = hoisted__Bool_g94;
+                Bool hoisted__Bool_g95 = FALSE;
+                _m_Bool_g91 = hoisted__Bool_g95;
             }
         }
-        if (_m_Bool_g90) {
-            U64 hoisted__U64_g97 = 1;
+        if (_m_Bool_g91) {
+            U64 hoisted__U64_g98 = 1;
             TilStrArray _va_Array_g15;
-            TilStrArrayNew(&_va_Array_g15, hoisted__U64_g97);
+            TilStrArrayNew(&_va_Array_g15, hoisted__U64_g98);
             I64 _va_Array_g15_ek = 0;
-            U64 hoisted__U64_g98 = 0;
-            TilStr hoisted__Str_g99;
-            TilStrInitLit(&hoisted__Str_g99, "primitive kinds", 15);
-            TilStrArraySet(&_va_Array_g15, hoisted__U64_g98, &hoisted__Str_g99);
+            U64 hoisted__U64_g99 = 0;
+            TilStr hoisted__Str_g100;
+            TilStrInitLit(&hoisted__Str_g100, "primitive kinds", 15);
+            TilStrArraySet(&_va_Array_g15, hoisted__U64_g99, &hoisted__Str_g100);
             TilPrintln(&_va_Array_g15);
         }
         TilStr guest_read;
         TilFileRead(&guest_read, &guest_fs_view);
-        U64 hoisted__U64_g111 = 1;
-        TilStrArray _va_Array_g16;
-        TilStrArrayNew(&_va_Array_g16, hoisted__U64_g111);
-        I64 _va_Array_g16_ek = 0;
-        U64 hoisted__U64_g112 = 0;
-        U64 hoisted__U64_g113 = 4;
-        U64 hoisted__U64_g114 = 0;
-        TilStr hoisted__Str_g115;
-        TilStrSubstr(&hoisted__Str_g115, &guest_read, hoisted__U64_g112, hoisted__U64_g113);
-        TilStrArraySet(&_va_Array_g16, hoisted__U64_g114, &hoisted__Str_g115);
-        TilPrintln(&_va_Array_g16);
-        U64 hoisted__U64_g116 = 1;
+        U64 hoisted__U64_g115 = 1;
         TilStrArray _va_Array_g17;
-        TilStrArrayNew(&_va_Array_g17, hoisted__U64_g116);
+        TilStrArrayNew(&_va_Array_g17, hoisted__U64_g115);
         I64 _va_Array_g17_ek = 0;
-        U64 hoisted__U64_g117 = (&guest_read)->count;
-        I64 hoisted__I64_g118 = ((hoisted__U64_g117) + 0)(I64);
-        U64 hoisted__U64_g119 = 0;
-        TilStr hoisted__Str_g120;
-        TilStrFromI64(&hoisted__Str_g120, hoisted__I64_g118);
-        TilStrArraySet(&_va_Array_g17, hoisted__U64_g119, &hoisted__Str_g120);
+        U64 hoisted__U64_g116 = 0;
+        U64 hoisted__U64_g117 = 4;
+        U64 hoisted__U64_g118 = 0;
+        TilStr hoisted__Str_g119;
+        TilStrSubstr(&hoisted__Str_g119, &guest_read, hoisted__U64_g116, hoisted__U64_g117);
+        TilStrArraySet(&_va_Array_g17, hoisted__U64_g118, &hoisted__Str_g119);
         TilPrintln(&_va_Array_g17);
+        U64 hoisted__U64_g120 = (&guest_read)->count;
+        U64 hoisted__U64_g121 = 4;
+        Bool hoisted__Bool_g122 = (hoisted__U64_g120 > hoisted__U64_g121);
+        if (hoisted__Bool_g122) {
+            U64 hoisted__U64_g101 = 1;
+            TilStrArray _va_Array_g16;
+            TilStrArrayNew(&_va_Array_g16, hoisted__U64_g101);
+            I64 _va_Array_g16_ek = 0;
+            U64 hoisted__U64_g102 = 0;
+            TilStr hoisted__Str_g103;
+            TilStrInitLit(&hoisted__Str_g103, "counted file read", 17);
+            TilStrArraySet(&_va_Array_g16, hoisted__U64_g102, &hoisted__Str_g103);
+            TilPrintln(&_va_Array_g16);
+        }
         TilStrDelete(&guest_read, FALSE);
         TilStrDelete(&guest_fs_view, FALSE);
     }
-    TilStr hoisted__Str_g211;
-    TilStrInitLit(&hoisted__Str_g211, "missing.HC", 10);
-    Bool hoisted__Bool_g212 = TilFileExists(&hoisted__Str_g211);
-    TilStrDelete(&hoisted__Str_g211, FALSE);
-    Bool hoisted__Bool_g213 = (!hoisted__Bool_g212);
-    if (hoisted__Bool_g213) {
-        U64 hoisted__U64_g121 = 1;
+    TilStr hoisted__Str_g213;
+    TilStrInitLit(&hoisted__Str_g213, "missing.HC", 10);
+    Bool hoisted__Bool_g214 = TilFileExists(&hoisted__Str_g213);
+    TilStrDelete(&hoisted__Str_g213, FALSE);
+    Bool hoisted__Bool_g215 = (!hoisted__Bool_g214);
+    if (hoisted__Bool_g215) {
+        U64 hoisted__U64_g123 = 1;
         TilStrArray _va_Array_g18;
-        TilStrArrayNew(&_va_Array_g18, hoisted__U64_g121);
+        TilStrArrayNew(&_va_Array_g18, hoisted__U64_g123);
         I64 _va_Array_g18_ek = 0;
-        U64 hoisted__U64_g122 = 0;
-        TilStr hoisted__Str_g123;
-        TilStrInitLit(&hoisted__Str_g123, "file missing", 12);
-        TilStrArraySet(&_va_Array_g18, hoisted__U64_g122, &hoisted__Str_g123);
+        U64 hoisted__U64_g124 = 0;
+        TilStr hoisted__Str_g125;
+        TilStrInitLit(&hoisted__Str_g125, "file missing", 12);
+        TilStrArraySet(&_va_Array_g18, hoisted__U64_g124, &hoisted__Str_g125);
         TilPrintln(&_va_Array_g18);
     }
-    TilStr hoisted__Str_g214;
-    TilStrInitLit(&hoisted__Str_g214, "missing.HC", 10);
-    Bool hoisted__Bool_g215 = TilFileExists(&hoisted__Str_g214);
-    TilStrDelete(&hoisted__Str_g214, FALSE);
-    Bool hoisted__Bool_g216 = (!hoisted__Bool_g215);
-    if (hoisted__Bool_g216) {
-        U64 hoisted__U64_g124 = 1;
+    TilStr hoisted__Str_g216;
+    TilStrInitLit(&hoisted__Str_g216, "missing.HC", 10);
+    Bool hoisted__Bool_g217 = TilFileExists(&hoisted__Str_g216);
+    TilStrDelete(&hoisted__Str_g216, FALSE);
+    Bool hoisted__Bool_g218 = (!hoisted__Bool_g217);
+    if (hoisted__Bool_g218) {
+        U64 hoisted__U64_g126 = 1;
         TilStrArray _va_Array_g19;
-        TilStrArrayNew(&_va_Array_g19, hoisted__U64_g124);
+        TilStrArrayNew(&_va_Array_g19, hoisted__U64_g126);
         I64 _va_Array_g19_ek = 0;
-        U64 hoisted__U64_g125 = 0;
-        TilStr hoisted__Str_g126;
-        TilStrInitLit(&hoisted__Str_g126, "primitive missing", 17);
-        TilStrArraySet(&_va_Array_g19, hoisted__U64_g125, &hoisted__Str_g126);
+        U64 hoisted__U64_g127 = 0;
+        TilStr hoisted__Str_g128;
+        TilStrInitLit(&hoisted__Str_g128, "primitive missing", 17);
+        TilStrArraySet(&_va_Array_g19, hoisted__U64_g127, &hoisted__Str_g128);
         TilPrintln(&_va_Array_g19);
     }
-    Bool _m_Bool_g127 = FALSE;
+    Bool _m_Bool_g129 = FALSE;
     {
-        TilStr hoisted__Str_g133;
-        TilStrInitLit(&hoisted__Str_g133, "missing.HC", 10);
-        Bool hoisted__Bool_g134 = TilFileIsDir(&hoisted__Str_g133);
-        TilStrDelete(&hoisted__Str_g133, FALSE);
-        Bool _sw_Bool_g128 = (!hoisted__Bool_g134);
-        Bool hoisted__Bool_g135 = TRUE;
-        Bool hoisted__Bool_g136 = (_sw_Bool_g128 == hoisted__Bool_g135);
-        if (hoisted__Bool_g136) {
-            TilStr hoisted__Str_g129;
-            TilStrInitLit(&hoisted__Str_g129, "missing.HC", 10);
-            Bool hoisted__Bool_g130 = TilFileIsFile(&hoisted__Str_g129);
-            TilStrDelete(&hoisted__Str_g129, FALSE);
-            Bool hoisted__Bool_g131 = (!hoisted__Bool_g130);
-            _m_Bool_g127 = hoisted__Bool_g131;
+        TilStr hoisted__Str_g135;
+        TilStrInitLit(&hoisted__Str_g135, "missing.HC", 10);
+        Bool hoisted__Bool_g136 = TilFileIsDir(&hoisted__Str_g135);
+        TilStrDelete(&hoisted__Str_g135, FALSE);
+        Bool _sw_Bool_g130 = (!hoisted__Bool_g136);
+        Bool hoisted__Bool_g137 = TRUE;
+        Bool hoisted__Bool_g138 = (_sw_Bool_g130 == hoisted__Bool_g137);
+        if (hoisted__Bool_g138) {
+            TilStr hoisted__Str_g131;
+            TilStrInitLit(&hoisted__Str_g131, "missing.HC", 10);
+            Bool hoisted__Bool_g132 = TilFileIsFile(&hoisted__Str_g131);
+            TilStrDelete(&hoisted__Str_g131, FALSE);
+            Bool hoisted__Bool_g133 = (!hoisted__Bool_g132);
+            _m_Bool_g129 = hoisted__Bool_g133;
         } else {
-            Bool hoisted__Bool_g132 = FALSE;
-            _m_Bool_g127 = hoisted__Bool_g132;
+            Bool hoisted__Bool_g134 = FALSE;
+            _m_Bool_g129 = hoisted__Bool_g134;
         }
     }
-    if (_m_Bool_g127) {
-        U64 hoisted__U64_g137 = 1;
+    if (_m_Bool_g129) {
+        U64 hoisted__U64_g139 = 1;
         TilStrArray _va_Array_g20;
-        TilStrArrayNew(&_va_Array_g20, hoisted__U64_g137);
+        TilStrArrayNew(&_va_Array_g20, hoisted__U64_g139);
         I64 _va_Array_g20_ek = 0;
-        U64 hoisted__U64_g138 = 0;
-        TilStr hoisted__Str_g139;
-        TilStrInitLit(&hoisted__Str_g139, "missing kind", 12);
-        TilStrArraySet(&_va_Array_g20, hoisted__U64_g138, &hoisted__Str_g139);
+        U64 hoisted__U64_g140 = 0;
+        TilStr hoisted__Str_g141;
+        TilStrInitLit(&hoisted__Str_g141, "missing kind", 12);
+        TilStrArraySet(&_va_Array_g20, hoisted__U64_g140, &hoisted__Str_g141);
         TilPrintln(&_va_Array_g20);
     }
-    Bool _m_Bool_g140 = FALSE;
+    Bool _m_Bool_g142 = FALSE;
     {
-        TilStr hoisted__Str_g146;
-        TilStrInitLit(&hoisted__Str_g146, "missing.HC", 10);
-        Bool hoisted__Bool_g147 = TilFileIsDir(&hoisted__Str_g146);
-        TilStrDelete(&hoisted__Str_g146, FALSE);
-        Bool _sw_Bool_g141 = (!hoisted__Bool_g147);
-        Bool hoisted__Bool_g148 = TRUE;
-        Bool hoisted__Bool_g149 = (_sw_Bool_g141 == hoisted__Bool_g148);
-        if (hoisted__Bool_g149) {
-            TilStr hoisted__Str_g142;
-            TilStrInitLit(&hoisted__Str_g142, "missing.HC", 10);
-            Bool hoisted__Bool_g143 = TilFileIsFile(&hoisted__Str_g142);
-            TilStrDelete(&hoisted__Str_g142, FALSE);
-            Bool hoisted__Bool_g144 = (!hoisted__Bool_g143);
-            _m_Bool_g140 = hoisted__Bool_g144;
+        TilStr hoisted__Str_g148;
+        TilStrInitLit(&hoisted__Str_g148, "missing.HC", 10);
+        Bool hoisted__Bool_g149 = TilFileIsDir(&hoisted__Str_g148);
+        TilStrDelete(&hoisted__Str_g148, FALSE);
+        Bool _sw_Bool_g143 = (!hoisted__Bool_g149);
+        Bool hoisted__Bool_g150 = TRUE;
+        Bool hoisted__Bool_g151 = (_sw_Bool_g143 == hoisted__Bool_g150);
+        if (hoisted__Bool_g151) {
+            TilStr hoisted__Str_g144;
+            TilStrInitLit(&hoisted__Str_g144, "missing.HC", 10);
+            Bool hoisted__Bool_g145 = TilFileIsFile(&hoisted__Str_g144);
+            TilStrDelete(&hoisted__Str_g144, FALSE);
+            Bool hoisted__Bool_g146 = (!hoisted__Bool_g145);
+            _m_Bool_g142 = hoisted__Bool_g146;
         } else {
-            Bool hoisted__Bool_g145 = FALSE;
-            _m_Bool_g140 = hoisted__Bool_g145;
+            Bool hoisted__Bool_g147 = FALSE;
+            _m_Bool_g142 = hoisted__Bool_g147;
         }
     }
-    if (_m_Bool_g140) {
-        U64 hoisted__U64_g150 = 1;
+    if (_m_Bool_g142) {
+        U64 hoisted__U64_g152 = 1;
         TilStrArray _va_Array_g21;
-        TilStrArrayNew(&_va_Array_g21, hoisted__U64_g150);
+        TilStrArrayNew(&_va_Array_g21, hoisted__U64_g152);
         I64 _va_Array_g21_ek = 0;
-        U64 hoisted__U64_g151 = 0;
-        TilStr hoisted__Str_g152;
-        TilStrInitLit(&hoisted__Str_g152, "primitive kinds missing", 23);
-        TilStrArraySet(&_va_Array_g21, hoisted__U64_g151, &hoisted__Str_g152);
+        U64 hoisted__U64_g153 = 0;
+        TilStr hoisted__Str_g154;
+        TilStrInitLit(&hoisted__Str_g154, "primitive kinds missing", 23);
+        TilStrArraySet(&_va_Array_g21, hoisted__U64_g153, &hoisted__Str_g154);
         TilPrintln(&_va_Array_g21);
     }
-    TilStr hoisted__Str_g217;
-    TilStrInitLit(&hoisted__Str_g217, "TILWRITE.HC.trailing", 20);
-    U64 hoisted__U64_g218 = 0;
-    U64 hoisted__U64_g219 = 11;
+    TilStr hoisted__Str_g219;
+    TilStrInitLit(&hoisted__Str_g219, "TILWRITE.HC.trailing", 20);
+    U64 hoisted__U64_g220 = 0;
+    U64 hoisted__U64_g221 = 11;
     TilStr write_path;
-    TilStrSubstr(&write_path, &hoisted__Str_g217, hoisted__U64_g218, hoisted__U64_g219);
-    TilStrDelete(&hoisted__Str_g217, FALSE);
-    TilStr hoisted__Str_g220;
-    TilStrInitLit(&hoisted__Str_g220, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g221 = TilFileExists(&hoisted__Str_g220);
-    TilStrDelete(&hoisted__Str_g220, FALSE);
-    if (hoisted__Bool_g221) {
-        TilStr hoisted__Str_g153;
-        TilStrInitLit(&hoisted__Str_g153, "tmp/TILWRITE.HC.trailing", 24);
-        U64 hoisted__U64_g154 = 0;
-        U64 hoisted__U64_g155 = 15;
+    TilStrSubstr(&write_path, &hoisted__Str_g219, hoisted__U64_g220, hoisted__U64_g221);
+    TilStrDelete(&hoisted__Str_g219, FALSE);
+    TilStr hoisted__Str_g222;
+    TilStrInitLit(&hoisted__Str_g222, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g223 = TilFileExists(&hoisted__Str_g222);
+    TilStrDelete(&hoisted__Str_g222, FALSE);
+    if (hoisted__Bool_g223) {
+        TilStr hoisted__Str_g155;
+        TilStrInitLit(&hoisted__Str_g155, "tmp/TILWRITE.HC.trailing", 24);
+        U64 hoisted__U64_g156 = 0;
+        U64 hoisted__U64_g157 = 15;
         {
             TilStr replacement_2;
-            TilStrSubstr(&replacement_2, &hoisted__Str_g153, hoisted__U64_g154, hoisted__U64_g155);
+            TilStrSubstr(&replacement_2, &hoisted__Str_g155, hoisted__U64_g156, hoisted__U64_g157);
             TilStrDelete(&write_path, FALSE);
             TilStrCopyValue(&write_path, &replacement_2);
         }
-        TilStrDelete(&hoisted__Str_g153, FALSE);
+        TilStrDelete(&hoisted__Str_g155, FALSE);
     }
-    TilStr hoisted__Str_g222;
-    TilStrInitLit(&hoisted__Str_g222, "longer content", 14);
-    TilFileWrite(&write_path, &hoisted__Str_g222);
-    TilStrDelete(&hoisted__Str_g222, FALSE);
-    TilStr hoisted__Str_g223;
-    TilStrInitLit(&hoisted__Str_g223, "A\x00Z", 3);
-    TilFileWrite(&write_path, &hoisted__Str_g223);
-    TilStrDelete(&hoisted__Str_g223, FALSE);
+    TilStr hoisted__Str_g224;
+    TilStrInitLit(&hoisted__Str_g224, "longer content", 14);
+    TilFileWrite(&write_path, &hoisted__Str_g224);
+    TilStrDelete(&hoisted__Str_g224, FALSE);
+    TilStr hoisted__Str_g225;
+    TilStrInitLit(&hoisted__Str_g225, "A\x00Z", 3);
+    TilFileWrite(&write_path, &hoisted__Str_g225);
+    TilStrDelete(&hoisted__Str_g225, FALSE);
     TilStr written;
     TilFileRead(&written, &write_path);
-    TilStr hoisted__Str_g224;
-    TilStrInitLit(&hoisted__Str_g224, "A\x00Z", 3);
-    Bool hoisted__Bool_g225 = TilStrEq(&written, &hoisted__Str_g224);
-    TilStrDelete(&hoisted__Str_g224, FALSE);
-    if (hoisted__Bool_g225) {
-        U64 hoisted__U64_g156 = 1;
+    TilStr hoisted__Str_g226;
+    TilStrInitLit(&hoisted__Str_g226, "A\x00Z", 3);
+    Bool hoisted__Bool_g227 = TilStrEq(&written, &hoisted__Str_g226);
+    TilStrDelete(&hoisted__Str_g226, FALSE);
+    if (hoisted__Bool_g227) {
+        U64 hoisted__U64_g158 = 1;
         TilStrArray _va_Array_g22;
-        TilStrArrayNew(&_va_Array_g22, hoisted__U64_g156);
+        TilStrArrayNew(&_va_Array_g22, hoisted__U64_g158);
         I64 _va_Array_g22_ek = 0;
-        U64 hoisted__U64_g157 = 0;
-        TilStr hoisted__Str_g158;
-        TilStrInitLit(&hoisted__Str_g158, "write roundtrip", 15);
-        TilStrArraySet(&_va_Array_g22, hoisted__U64_g157, &hoisted__Str_g158);
+        U64 hoisted__U64_g159 = 0;
+        TilStr hoisted__Str_g160;
+        TilStrInitLit(&hoisted__Str_g160, "write roundtrip", 15);
+        TilStrArraySet(&_va_Array_g22, hoisted__U64_g159, &hoisted__Str_g160);
         TilPrintln(&_va_Array_g22);
     }
-    U64 hoisted__U64_g226 = 1;
+    U64 hoisted__U64_g228 = 1;
     TilStrArray _va_Array_g32;
-    TilStrArrayNew(&_va_Array_g32, hoisted__U64_g226);
+    TilStrArrayNew(&_va_Array_g32, hoisted__U64_g228);
     I64 _va_Array_g32_ek = 0;
-    U64 hoisted__U64_g227 = (&written)->count;
-    I64 hoisted__I64_g228 = ((hoisted__U64_g227) + 0)(I64);
-    U64 hoisted__U64_g229 = 0;
-    TilStr hoisted__Str_g230;
-    TilStrFromI64(&hoisted__Str_g230, hoisted__I64_g228);
-    TilStrArraySet(&_va_Array_g32, hoisted__U64_g229, &hoisted__Str_g230);
+    U64 hoisted__U64_g229 = (&written)->count;
+    I64 hoisted__I64_g230 = ((hoisted__U64_g229) + 0)(I64);
+    U64 hoisted__U64_g231 = 0;
+    TilStr hoisted__Str_g232;
+    TilStrFromI64(&hoisted__Str_g232, hoisted__I64_g230);
+    TilStrArraySet(&_va_Array_g32, hoisted__U64_g231, &hoisted__Str_g232);
     TilPrintln(&_va_Array_g32);
     TilStrDelete(&written, FALSE);
-    TilStr hoisted__Str_g231;
-    TilStrInitLit(&hoisted__Str_g231, "", 0);
-    TilFileWrite(&write_path, &hoisted__Str_g231);
-    TilStrDelete(&hoisted__Str_g231, FALSE);
+    TilStr hoisted__Str_g233;
+    TilStrInitLit(&hoisted__Str_g233, "", 0);
+    TilFileWrite(&write_path, &hoisted__Str_g233);
+    TilStrDelete(&hoisted__Str_g233, FALSE);
     TilStr empty_written;
     TilFileRead(&empty_written, &write_path);
-    Bool hoisted__Bool_g232 = ((&empty_written)->count == 0);
-    if (hoisted__Bool_g232) {
-        U64 hoisted__U64_g159 = 1;
+    Bool hoisted__Bool_g234 = ((&empty_written)->count == 0);
+    if (hoisted__Bool_g234) {
+        U64 hoisted__U64_g161 = 1;
         TilStrArray _va_Array_g23;
-        TilStrArrayNew(&_va_Array_g23, hoisted__U64_g159);
+        TilStrArrayNew(&_va_Array_g23, hoisted__U64_g161);
         I64 _va_Array_g23_ek = 0;
-        U64 hoisted__U64_g160 = 0;
-        TilStr hoisted__Str_g161;
-        TilStrInitLit(&hoisted__Str_g161, "empty write", 11);
-        TilStrArraySet(&_va_Array_g23, hoisted__U64_g160, &hoisted__Str_g161);
+        U64 hoisted__U64_g162 = 0;
+        TilStr hoisted__Str_g163;
+        TilStrInitLit(&hoisted__Str_g163, "empty write", 11);
+        TilStrArraySet(&_va_Array_g23, hoisted__U64_g162, &hoisted__Str_g163);
         TilPrintln(&_va_Array_g23);
     }
     TilStrDelete(&empty_written, FALSE);

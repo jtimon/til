@@ -11,6 +11,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  templeos:
+    name: TempleOS guest (QEMU TCG, USize 32/64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install compiler dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
+      - name: Run native guest acceptance
+        run: make test_templeos
+      - name: Upload guest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: templeos-diagnostics
+          path: |
+            tmp/templeos/*.log
+            tmp/templeos/*.HC
+            tmp/templeos/*.ppm
+
   linux-x64:
     name: linux-x64
     runs-on: ubuntu-latest

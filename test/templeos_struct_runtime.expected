@@ -10,6 +10,9 @@ extern U0 TilPanic(U8 *data,U64 count);
 extern U8 *TilCheckPtr(U8 *ptr);
 extern U8 *TilDeref(U8 **slot);
 
+#define TIL_USIZE U64
+#define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
+#define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
 class StructPoint {
@@ -4466,7 +4469,7 @@ Bool PayloadEnvelope_Eq(PayloadEnvelope *a, PayloadEnvelope *b)
 U0 TilStrArrayClone(TilStrArray *out, TilStrArray *src)
 {
   TilStrArrayNew(out, src->cap);
-  U32 i = 0;
+  U64 i = 0;
   while (i < src->cap) {
     TilStrClone(&out->data[i], &src->data[i]);
     i++;
@@ -4479,7 +4482,7 @@ U0 TilStrArrayCopyValue(TilStrArray *out, TilStrArray *src)
   out->cap = src->cap;
 }
 
-TilStr *TilStrArrayGet(TilStrArray *array, U32 i, I64 *err_kind)
+TilStr *TilStrArrayGet(TilStrArray *array, U64 i, I64 *err_kind)
 {
   *err_kind = 0;
   if (i >= array->cap) { *err_kind = 1; return NULL; }
@@ -4488,20 +4491,20 @@ TilStr *TilStrArrayGet(TilStrArray *array, U32 i, I64 *err_kind)
 
 U0 TilStrArrayConcat(TilStrArray *out, TilStrArray *a, TilStrArray *b)
 {
-  U64 total = a->cap + b->cap;
-  if (total > 0xFFFFFFFF) TilPanicZ("Array(Str).concat: capacity overflow
+  if (b->cap > I64_MAX - a->cap) TilPanicZ("Array(Str).concat: capacity overflow
 ");
+  U64 total = a->cap + b->cap;
   TilStrArrayNew(out, total);
-  U32 i = 0;
+  U64 i = 0;
   while (i < a->cap) { TilStrClone(&out->data[i], &a->data[i]); i++; }
-  U32 j = 0;
+  U64 j = 0;
   while (j < b->cap) { TilStrClone(&out->data[a->cap+j], &b->data[j]); j++; }
 }
 
 U0 TilStrArrayToVec(Vec__Str *out, TilStrArray *src)
 {
   Vec__Str_WithCapacity(out, src->cap);
-  U32 i = 0;
+  U64 i = 0;
   while (i < src->cap) { TilStrClone(&out->data[i], &src->data[i]); i++; }
   out->count = src->cap;
 }
