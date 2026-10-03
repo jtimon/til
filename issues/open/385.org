@@ -15,7 +15,7 @@ code call Emacs facilities, while #370 lets a til host load guest til directly.
 
 - It lets til libraries and editor experiments run in an existing Emacs
   process and use buffers, windows, commands, hooks, processes, and packages.
-- It provides a concrete interoperability path for [[./83.org][#83]] while the
+- It provides a concrete interoperability path for [[../cancelled/83.org][#83, transferred to Tiled #1]] while the
   all-til editor and embedded interpreter remain separate goals.
 - It exercises the backend boundary established by [[../fixed/288.org][#288]]:
   ~core_func~ operations are lowered by the backend and ~ext_func~ operations

@@ -56,9 +56,6 @@
 * Examples
 ** Low
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements
-*** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
-*** [[./open/159.org][#159]] Show the til logo as a single glyph in tilminal's prompt
-*** [[./open/408.org][#408]] tilminal: terminal emulator for standalone use and tiled
 * Deferred
 ** High
 *** [[./open/378.org][#378]] Vendor browser WASM toolchain source instead of cloning emsdk

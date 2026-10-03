@@ -16,7 +16,7 @@ It must not be mistaken for, or block, that all-til embedding API.
 - Lua is deliberately embeddable and is already the extension language for
   editors and applications, making it a useful host interoperation target.
 - It gives til source a migration path into Neovim plugins and other Lua APIs
-  while [[./83.org][#83]] and #370 pursue a host and guest both written in til.
+  while [[../cancelled/83.org][#83, transferred to Tiled #1]] and #370 pursue a host and guest both written in til.
 - It tests the target-neutral frontend and the [[../fixed/288.org][#288]]
   ~core_func~/~ext_func~ boundary against a small dynamic VM.
 

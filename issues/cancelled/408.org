@@ -1,0 +1,18 @@
+# priority: low
+# category: examples
+** CANCELLED #408 tilminal: terminal emulator for standalone use and tiled
+
+*** Transferred to Tiled
+
+Closed in Til because terminal development and issue tracking now live
+in [[https://github.com/jtimon/tiled/blob/master/issues/open/3.org][Tiled #3]]. The work remains WIP there; this closure records a
+transfer, not completion or abandonment of the remaining terminal work.
+
+The implementation and application tests moved to Tiled in its commit
+=48eb0d9=, with the Til cleanup merged as =c28ab7daf=. The complete issue
+history, protocol review, approved proposal and remaining work now accompany
+the receiving issue, which links the [[https://github.com/jtimon/til/blob/c28ab7daf/issues/open/408.org][original Til record]]. Compiler fixes
+and their independent regressions remain in Til.
+
+Related issues also moved: [[./83.org][Til #83]] to Tiled #1 and [[./159.org][Til #159]] to
+Tiled #2. Issue number 408 remains reserved in Til.

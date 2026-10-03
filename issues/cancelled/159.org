@@ -1,0 +1,14 @@
+# priority: low
+# category: examples
+** CANCELLED #159 Show the til logo as a single glyph in tilminal's prompt
+
+*** Transferred to Tiled
+
+Closed in Til because tilminal development and issue tracking now live
+in [[https://github.com/jtimon/tiled/blob/master/issues/open/2.org][Tiled #2]]. The work remains OPEN there; this closure records a
+transfer, not implementation or abandonment of the logo feature.
+
+The complete design discussion, including rejected font-selection approaches,
+was moved to the receiving issue. It links the [[https://github.com/jtimon/til/blob/c28ab7daf/issues/open/159.org][original Til record]] and
+the logo/font assets that remain in Til. Related terminal work is now
+[[https://github.com/jtimon/tiled/blob/master/issues/open/3.org][Tiled #3]] (formerly [[./408.org][Til #408]]). Issue number 159 remains reserved in Til.

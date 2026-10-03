@@ -8,7 +8,7 @@ artifacts from it:
 - .el (Emacs)
 - .vim / .lua (Vim/Neovim)
 - .json (VS Code)
-- tiled native ([[./83.org][#83]])
+- tiled native ([[../cancelled/83.org][#83, transferred to Tiled #1]])
 
 Theme designers edit til data, not Elisp, Lua, Vimscript, or JSON. The mode is
 the editor-independent source/artifact contract; each output format owns a

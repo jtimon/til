@@ -1,0 +1,14 @@
+# priority: low
+# category: examples
+** CANCELLED #83 tiled: editor, window manager, terminal and more
+
+*** Transferred to Tiled
+
+Closed in Til because application development and issue tracking now live
+in [[https://github.com/jtimon/tiled/blob/master/issues/open/1.org][Tiled #1]]. The work remains OPEN there; this closure records a
+transfer, not completion or abandonment of the integrated environment.
+
+The complete discussion was moved to the receiving issue, with current
+source links and a pointer to the [[https://github.com/jtimon/til/blob/c28ab7daf/issues/open/83.org][original Til record]]. The terminal and
+logo issues were transferred alongside it: [[./408.org][Til #408]] to Tiled #3 and
+[[./159.org][Til #159]] to Tiled #2. Issue number 83 remains reserved in Til.
