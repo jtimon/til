@@ -280,3 +280,118 @@ test_interface_enum_temporary_lifetime := test() {
     d := return_interface_enum_temporary()
     assert_eq(Str, d.draw(), "polygon")
 }
+
+// Argument boxing must own fresh concrete values even when the callee lends
+// its parameter: the returned box/holder can outlive the caller's temporary.
+relay_drawable := func(d: Drawable) returns Drawable { return d }
+
+make_argument_caption := func(mut calls: I64) returns CaptionShape {
+    calls++
+    return CaptionShape(text = format("argument ", calls.to_str()))
+}
+
+return_argument_factory := func(mut calls: I64) returns Drawable {
+    return relay_drawable(make_argument_caption(calls))
+}
+
+return_argument_holder := func(mut calls: I64) returns DrawHolder {
+    return borrow_interface_holder(make_argument_caption(calls))
+}
+
+return_argument_constructor := func(n: I64) returns Drawable {
+    return relay_drawable(CaptionShape(text = format("constructor ", n.to_str())))
+}
+
+return_argument_constructor_holder := func(n: I64) returns DrawHolder {
+    return borrow_interface_holder(CaptionShape(text = format("holder ", n.to_str())))
+}
+
+test_interface_argument_escapes := test() {
+    mut calls := 0
+    d := return_argument_factory(calls)
+    h := return_argument_holder(calls)
+    c := return_argument_constructor(3)
+    ch := return_argument_constructor_holder(4)
+    assert_eq(Str, d.draw(), "argument 1")
+    assert_eq(Str, h.shape.draw(), "argument 2")
+    assert_eq(Str, c.draw(), "constructor 3")
+    assert_eq(Str, ch.shape.draw(), "holder 4")
+    assert_eq(I64, calls, 2)
+}
+
+// A borrowed PARAMETER is a borrow of the box itself, not proof that its
+// payload is borrowed. Copying it into an owned field must call box.clone().
+return_existing_box_holder := func(mut calls: I64) returns DrawHolder {
+    d: Drawable = make_argument_caption(calls)
+    return borrow_interface_holder(d)
+}
+
+test_interface_argument_box_copy := test() {
+    mut calls := 0
+    h := return_existing_box_holder(calls)
+    assert_eq(Str, h.shape.draw(), "argument 1")
+    assert_eq(I64, calls, 1)
+}
+
+ArgumentRelay := struct {
+namespace:
+    wrap := func(d: Drawable) returns DrawHolder { return DrawHolder(shape = d) }
+}
+
+generic_argument_holder := func(T: Type, tag: T, d: Drawable) returns DrawHolder {
+    assert_eq(T, tag, tag)
+    return DrawHolder(shape = d)
+}
+
+return_namespace_argument := func(mut calls: I64) returns DrawHolder {
+    return ArgumentRelay.wrap(make_argument_caption(calls))
+}
+
+return_generic_argument := func(mut calls: I64) returns DrawHolder {
+    return generic_argument_holder(I64, 7, make_argument_caption(calls))
+}
+
+return_inferred_generic_argument := func(calls: I64) returns DrawHolder {
+    return generic_argument_holder(7, CaptionShape(text = format("generic ", calls.to_str())))
+}
+
+test_interface_argument_call_paths := test() {
+    mut calls := 0
+    ns := return_namespace_argument(calls)
+    explicit := return_generic_argument(calls)
+    inferred := return_inferred_generic_argument(calls)
+    assert_eq(Str, ns.shape.draw(), "argument 1")
+    assert_eq(Str, explicit.shape.draw(), "argument 2")
+    assert_eq(Str, inferred.shape.draw(), "generic 2")
+    assert_eq(I64, calls, 2)
+}
+
+borrow_caption := func(value: CaptionShape) returns ref CaptionShape { return value }
+
+test_interface_argument_named_borrow := test() {
+    mut value := CaptionShape(text = format("before ", "argument"))
+    direct := relay_drawable(value)
+    holder := borrow_interface_holder(borrow_caption(value))
+    value.text = format("after ", "argument")
+    assert_eq(Str, direct.draw(), "after argument")
+    assert_eq(Str, holder.shape.draw(), "after argument")
+}
+
+CaptionChoice := enum implements Drawable {
+    Text: Str,
+namespace:
+    draw := func(self: CaptionChoice) returns Str {
+        switch self {
+        case .Text(text): return text.clone()
+        }
+    }
+}
+
+return_enum_argument := func(n: I64) returns DrawHolder {
+    return borrow_interface_holder(CaptionChoice.Text(format("enum ", n.to_str())))
+}
+
+test_interface_argument_enum_payload := test() {
+    holder := return_enum_argument(5)
+    assert_eq(Str, holder.shape.draw(), "enum 5")
+}

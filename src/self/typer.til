@@ -1123,6 +1123,15 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
                                 mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col, ctx.symbols)
                                 infer_expr(scope, fld_box, in_func, ctx)
                                 field_vals[slot.to_usize()] = CtorArg.Filled(fld_box)
+                            } else if fld_cname.eq(fld_tn).and(ctor_fld.own_type.is(OwnType.Ref).not())
+                                .and(interface_box_storage_is_borrowed(arg.children[0], scope, ctx.symbols)) {
+                                // A parameter/ref lends the BOX, which may own
+                                // its concrete payload. Value-copying that box
+                                // into a field aliases its ownership; clone it
+                                // before the caller destroys the argument box.
+                                // The interface's clone preserves borrowed
+                                // payloads and deep-copies owned ones.
+                                field_vals[slot.to_usize()] = CtorArg.Filled(make_clone_call(fld_tn, arg.children[0].til_type(), arg.children[0], arg, ctx.symbols))
                             } else {
                                 field_vals[slot.to_usize()] = CtorArg.Filled(own take_expr(arg.children[0]))
                             }
@@ -1672,41 +1681,12 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 pi++
                 continue
             }
-            // #269: a conforming concrete value where an interface is
-            // expected coerces by BOXING: the arg is rewritten to
-            // `Iface(iface_type_name = "<Concrete>", iface_val = <arg>)`.
-            // The concrete type is statically known here, so the box carries
-            // the runtime tag that interface method dispatch (dyn_call on
-            // the box fields) needs. iface_val is a ref field: the box
-            // borrows the value, it does not consume it.
+            // The operand is already inferred on every call path. Box it
+            // without retyping its lowered constructors. Fresh temporaries
+            // need owned storage, since the callee can return their box or
+            // store it inside a returned holder.
             if type_is_interface(ptype, scope, ctx.symbols) {
-                box_cname_o := expr_type_name_ref(e.children[ci], ctx.symbols)
-                if box_cname_o.is_some() {
-                    ref box_cname : Str = box_cname_o.unwrap()
-                    if box_cname.eq(ptype_name).not().and(type_implements_iface(box_cname, ptype_name, scope, ctx.symbols)) {
-                    // Owned before the interns below: box_cname may point
-                    // into the pool's names vector (#397).
-                    box_tag := Str.clone(box_cname)
-                    box_line := e.children[ci].line
-                    box_col := e.children[ci].col
-                    mut iface_box := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
-                    iface_box.add_child(own Expr.new(ident_node(ctx.symbols.intern(ptype_name)), box_line, box_col))
-                    mut na_tag := Expr.new(NodeType.NamedArg("iface_type_name"), box_line, box_col)
-                    na_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(box_tag)), box_line, box_col))
-                    iface_box.add_child(own na_tag)
-                    mut na_val := Expr.new(NodeType.NamedArg("iface_val"), box_line, box_col)
-                    // Wrap the value in to_ptr so the C backend passes its
-                    // ADDRESS into the box's ref-Dynamic field (a struct
-                    // local would otherwise be assigned by value).
-                    mut val_ptr := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
-                    val_ptr.add_child(own Expr.new(ident_node(ctx.symbols.intern("to_ptr")), box_line, box_col))
-                    val_ptr.add_child(own e.children[ci].clone())
-                    na_val.add_child(own val_ptr)
-                    iface_box.add_child(own na_val)
-                    e.children[ci] = iface_box
-                    infer_expr(scope, e.children[ci], in_func, ctx)
-                    }
-                }
+                box_inferred_interface_value(scope, e.children[ci], ptype_name, in_func, ctx)
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, param2.own_type, ctx)
@@ -7151,23 +7131,65 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
     }
 }
 
-// Interface locals borrow existing storage, but a fresh concrete temporary
-// must live in an owned box: a pointer to its later hoisted stack slot cannot
-// survive returning/storing the interface. Snapshot before inference, since
-// constructors lose their named arguments when typed and cannot be retyped.
-priv infer_interface_local_value := proc(mut scope: TypeScope, mut value: Expr, iface_name: Str, in_func: I32, mut ctx: Context) {
-    mut raw_value := value.clone()
-    infer_expr(scope, value, in_func, ctx)
+// Whether this expression lends an existing interface box rather than
+// transferring an owned value. This is distinct from iface_owned, which
+// describes the PAYLOAD and is known only at runtime for a parameter.
+priv interface_box_storage_is_borrowed := func(value: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    switch value.node_type {
+    case .Ident(id):
+        switch scope.get_binding_sym(id.ident_sym()) {
+        case .Some(binding):
+            return binding.own_type.is(OwnType.Ref).or(binding.is_param.and(binding.own_type.is(OwnType.Own).not()))
+        case .None: return false
+        }
+    case .FieldAccess:
+        if fa_own_type(value, scope, symbols).is(OwnType.Ref) { return true }
+        return interface_box_storage_is_borrowed(value.children[0], scope, symbols)
+    case .FCall: return fcall_returns_ref(value, scope, symbols) != 0
+    case: return false
+    }
+}
+
+// Type only the compiler-created payload call (to_ptr or dyn_call_ret).
+// Its concrete operand was already checked by the enclosing expression's
+// inference. Re-entering infer_expr on that operand treats a lowered struct
+// constructor's positional fields as source arguments and rejects them.
+// Fill defaults and validate against the actual core signature, just like an
+// ordinary call, while inferring only the new, still-untyped arguments.
+priv infer_interface_payload_call := proc(mut scope: TypeScope, mut call: Expr, in_func: I32, mut ctx: Context) {
+    name := ident_of(call.children[0]).ident_name(ctx.symbols.names).clone()
+    fdef_o := scope.lookup_func_name(name, ctx.symbols)
+    ref fd : FunctionDef = funcdef_of(fdef_o.unwrap())
+    if desugar_fcall_args_for_fdef(call, name, fd, 0, ctx).not() {
+        panic(ctx.path, ": invalid generated interface payload call: ", name)
+    }
+    for i in 1..call.children.len() {
+        if call.children[i].til_type().is(Type.Unknown) {
+            infer_expr(scope, call.children[i], in_func, ctx)
+        }
+    }
+    mark_fcall_direct(call)
+    infer_and_validate_fcall_args_for_fdef(scope, call, fd, in_func, ctx)
+    mut binding_o := scope.get_binding_name(name, ctx.symbols)
+    ref mut binding : TypeBinding = binding_o.unwrap()
+    binding.used = true
+    resolve_fcall_return_type(scope, call, name, binding_o, fdef_o, in_func, ctx)
+}
+
+// Both locals and arguments borrow existing storage; fresh concrete values
+// use owned boxes so returning/storing the interface cannot retain a pointer
+// to a hoisted temporary. The input is already inferred on either path.
+priv box_inferred_interface_value := proc(mut scope: TypeScope, mut value: Expr, iface_name: Str, in_func: I32, mut ctx: Context) {
     concrete_o := expr_type_name_ref(value, ctx.symbols)
     if concrete_o.is_none() { return }
     concrete_name := concrete_o.unwrap().clone()
     if concrete_name.eq(iface_name).or(type_implements_iface(concrete_name, iface_name, scope, ctx.symbols).not()) { return }
     line := value.line
     col := value.col
+    mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
     if expr_is_borrow_source(value, scope, ctx.symbols).not() {
-        value = make_owned_iface_box(iface_name, concrete_name, own raw_value, line, col, ctx.symbols)
+        box = make_owned_iface_box(iface_name, concrete_name, own value.clone(), line, col, ctx.symbols)
     } else {
-        mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
         box.add_child(own Expr.new(ident_node(ctx.symbols.intern(iface_name)), line, col))
         mut tag := Expr.new(NodeType.NamedArg("iface_type_name"), line, col)
         tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
@@ -7175,12 +7197,14 @@ priv infer_interface_local_value := proc(mut scope: TypeScope, mut value: Expr, 
         mut payload := Expr.new(NodeType.NamedArg("iface_val"), line, col)
         mut address := Expr.new(NodeType.FCall(FCallData()), line, col)
         address.add_child(own Expr.new(ident_node(ctx.symbols.intern("to_ptr")), line, col))
-        address.add_child(own raw_value)
+        address.add_child(own value.clone())
         payload.add_child(own address)
         box.add_child(own payload)
-        value = box
     }
-    infer_expr(scope, value, in_func, ctx)
+    // Both box constructors put iface_val in the second named field.
+    infer_interface_payload_call(scope, box.children[2].children[0], in_func, ctx)
+    infer_expr(scope, box, in_func, ctx)
+    value = box
 }
 
 priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: Context) {
@@ -7734,7 +7758,8 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         }
         if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
         else if name_is_interface(declared_name_at_entry, scope, ctx.symbols) {
-            infer_interface_local_value(scope, stmt.children[0], declared_name_at_entry, in_func, ctx)
+            infer_expr(scope, stmt.children[0], in_func, ctx)
+            box_inferred_interface_value(scope, stmt.children[0], declared_name_at_entry, in_func, ctx)
         } else { infer_expr(scope, stmt.children[0], in_func, ctx) }
         ctx.generic_expected_type = saved_expected_type.clone()
         ctx.generic_expected_for = saved_expected_for
@@ -12061,11 +12086,14 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                     mut crosses := fld.own_type.is(OwnType.Ref)
                     if crosses.not() { crosses = type_carries_borrow_t(scope, fld.til_type, symbols) }
                     if crosses.not() { continue }
-                    switch arg.node_type {
-                    case .NamedArg:
-                        if arg.children.len() > 0 { cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(arg.children[0], roots, scope, self_type, params, symbols, ctx))) }
-                    case:
-                        cbits = cbits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type, params, symbols, ctx)))
+                    ab := summary_expr_bits(ctor_arg_value(arg), roots, scope, self_type, params, symbols, ctx)
+                    if fld.own_type.is(OwnType.Ref) {
+                        cbits = cbits.bor(summary_ctor_wrap(ab))
+                    } else {
+                        // A value field copies the carrier, not its address.
+                        // It can retain what that argument CARRIES, but does
+                        // not point into the argument box's own stack slot.
+                        cbits = cbits.bor(RootBits(into = ab.into, carried = ab.alias.bor(ab.carried)))
                     }
                 }
             }

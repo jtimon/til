@@ -23,7 +23,51 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
-*** Lifetime follow-up (2026-10-02, based on master 5bc2070c4)
+*** Argument lifetime follow-up (based on master b444d7223)
+
+    Reproduced compiled ASAN stack-use-after-return in
+    ~return relay(make_concrete())~, where ~relay(d: Iface) returns Iface~
+    returns its argument. Argument coercion borrowed the temporary concrete
+    value's hoisted stack slot. Passing a concrete constructor instead also
+    failed typing: the boxing rewrite re-inferred its lowered arguments.
+
+    Changes in ~src/self/typer.til~:
+
+    - ~box_inferred_interface_value~ is shared by argument and local
+      coercion. Fresh concrete values get owned boxes; existing storage and
+      ref-returned values keep borrowing. The operand is already typed:
+      ~infer_interface_payload_call~ fills defaults and validates only the
+      generated ~to_ptr~/~dyn_call_ret~ call, without retyping that operand.
+      This replaces the local path's earlier pre-inference snapshot.
+    - An interface parameter lends the BOX, regardless of whether that box
+      owns its PAYLOAD. Storing it in a non-ref interface field must clone the
+      box. A plain value copy reproduced heap-use-after-free when the caller
+      destroyed its owned argument box. The interface's clone deep-copies
+      owned payloads and preserves genuinely borrowed payloads; owned local
+      boxes can still transfer into fields.
+    - Constructor borrow summaries now distinguish a ref field's pointer
+      into argument storage from a value field's carried borrows. Treating
+      both as pointers into argument storage incorrectly rejected returning
+      a holder built from a local owned interface box passed to a helper.
+
+    Regression coverage in ~test/interfaces.til~:
+    ~test_interface_argument_escapes~, ~test_interface_argument_box_copy~,
+    ~test_interface_argument_call_paths~,
+    ~test_interface_argument_named_borrow~ and
+    ~test_interface_argument_enum_payload~. These exercise factory and
+    constructor temporaries, returned interfaces/holders, managed strings,
+    enum payloads, namespace and explicit/inferred generic calls, exactly-once
+    evaluation, and mutation visibility through genuine borrowed arguments.
+    ~test/typer_errors.til~ adds ~terr_iface_return_argument~,
+    ~terr_iface_return_holder_argument~ and ~terr_iface_return_ref_argument~
+    to retain escape rejection for dying named/ref-returned concrete locals.
+
+    Verification: ~make clean && make test~ passed 498/498, including ASAN
+    and self-translation. Interface tests pass 25/25 interpreted and compiled;
+    the negative corpus reports 280 expected errors, including the three new
+    argument-escape rejections.
+
+*** Local lifetime follow-up (2026-10-02, based on master 5bc2070c4)
 
     Reproduced two stack-use-after-return failures with compiled ASAN probes:
 

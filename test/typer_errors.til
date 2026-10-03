@@ -769,6 +769,26 @@ terr_iface_return_helper := func() returns TErrIfaceHolder {
     return terr_iface_wrap(view)
 }
 
+// Argument coercion must retain provenance for named/ref-returned concrete
+// values. Owning fresh temporaries must not make these dying locals escape.
+terr_iface_relay := func(view: TErrConfIface) returns TErrConfIface { return view }
+terr_iface_borrow := func(value: TErrIfaceConcrete) returns ref TErrIfaceConcrete { return value }
+
+terr_iface_return_argument := func() returns TErrConfIface {
+    source := TErrIfaceConcrete()
+    return terr_iface_relay(source)
+}
+
+terr_iface_return_holder_argument := func() returns TErrIfaceHolder {
+    source := TErrIfaceConcrete()
+    return terr_iface_wrap(source)
+}
+
+terr_iface_return_ref_argument := func() returns TErrConfIface {
+    source := TErrIfaceConcrete()
+    return terr_iface_relay(terr_iface_borrow(source))
+}
+
 // #287: the key binding of a two-variable for-in cannot be `mut` -- mutating
 // a key in place would corrupt the map's key ordering / bucket placement.
 // Values may be mutated (`for k, mut v`); keys may not.
