@@ -40,14 +40,12 @@ forward_header_path := func(path: Str) returns Str {
     return format(path, "_forward.h")
 }
 
-// Directory part of an absolute path (no trailing slash).
-priv dir_of := func(abs: Str) returns Str {
-    if abs.len() == 0 { return "." }
-    mut last_slash := abs.len() - 1
-    while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
-        last_slash--
-    }
-    return abs.substr(0, last_slash).clone()
+// Directory prefix for the '/' joins below. Bare filenames belong to cwd;
+// root-level absolute paths have an empty prefix, followed by the join's '/'.
+priv dir_of := func(path: Str) returns Str {
+    last_slash := path.rfind("/")
+    if last_slash < 0 { return "." }
+    return path.substr(0, last_slash.to_usize()).clone()
 }
 
 priv resolve_link_path := proc(base_dir: Str, root_dir: Str, path: Str) returns Str {

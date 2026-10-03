@@ -28,6 +28,8 @@ main := proc(args: ..Str) {
     File.writefile(format(WORK, "/linked.til"),
         "mode script\nlink_c(\"value.c\")\nvalue := ext_proc() returns shallow I64 {}\nprintln(value().to_str())\n")
     File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 17; }\n")
+    File.writefile(format(WORK, "/foo/linked.til"), File.readfile(format(WORK, "/linked.til")))
+    File.writefile(format(WORK, "/foo/value.c"), "#include <stdint.h>\nint64_t value(void) { return 41; }\n")
     // Make every later output strictly newer than its .til dependencies, so
     // the old timestamp shortcut really would take the wrong fast path.
     sleep_ms(1100)
@@ -90,8 +92,18 @@ main := proc(args: ..Str) {
     rejected.capture()
     if rejected.run() == 0 { panic("build ignored a changed C compiler") }
 
-    check_command(Cmd.new(compiler, "run", "./linked.til"), "17\n")
+    // A bare source name must resolve link_c beside that source, just like
+    // ./ and absolute spellings. A subdirectory's own C file must win over
+    // the identically named file in cwd, in both execution paths.
+    linked_absolute := realpath_str(format(WORK, "/linked.til"))
+    for command : Str in array(Str, "interpret", "run") {
+        for source : Str in array(Str, "linked.til", "./linked.til",
+            "foo/../linked.til", linked_absolute) {
+            check_command(Cmd.new(compiler, command, source), "17\n")
+        }
+        check_command(Cmd.new(compiler, command, "foo/linked.til"), "41\n")
+    }
     File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 29; }\n")
-    check_command(Cmd.new(compiler, "run", "./linked.til"), "29\n")
+    check_command(Cmd.new(compiler, "run", "linked.til"), "29\n")
     println("build outputs passed")
 }
