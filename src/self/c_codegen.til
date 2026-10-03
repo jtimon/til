@@ -11344,8 +11344,8 @@ priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Con
     // inventory decides. Stack-local payload-less enum deletes are the only
     // calls elided by storage shape; clone and comparison sites are ordinary
     // calls. Gating costs nothing but definitions nobody calls
-    // (ErrorWithMessage_clone in test/errors.til, Vec__Str_clone in
-    // examples/tilminal.til). The name has to resolve to a definition:
+    // (ErrorWithMessage_clone in test/errors.til; historically Vec__Str_clone
+    // in tilminal, now in jtimon/tiled). The name must resolve to a definition:
     // a primitive or an ext type has no generated body to omit.
     if_enum_o := find_struct_def(type_name, ctx)
     if if_enum_o.is_none() { return false }

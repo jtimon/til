@@ -512,8 +512,8 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
     // itself. Walking the ARGUMENT in the callee's place keeps the move's
     // own edges and drops the call nobody makes -- otherwise the clone is
     // reachable, survives the sweep, and gets a definition with no caller
-    // (Node_clone in test/bug256.til, Vec__Str_clone in
-    // examples/tilminal.til). Backend-agnostic on purpose: this is a fact
+    // (Node_clone in test/bug256.til; historically Vec__Str_clone in
+    // tilminal, now in jtimon/tiled). Backend-agnostic: this is a fact
     // about what the move MEANS, not about how C spells it.
     //
     // The Assign twin is deliberately NOT here. The builder substitutes

@@ -274,8 +274,8 @@ jobs:
           file bin/hello_gui.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/hello_gui-x86.exe examples/hello_gui.til
           file bin/hello_gui-x86.exe | grep -q "Intel 80386"
-          # #83: the smoke example proves the toolchain; editor.til proves a
-          # REAL mode-gui app (tiled's seed) keeps cross-building too.
+          # The retained editor example covers a larger GUI app than the smoke
+          # example. Full editor development now lives in jtimon/tiled.
           ./bin/til build --target=windows-x64 -o bin/editor.exe examples/editor.til
           file bin/editor.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/editor-x86.exe examples/editor.til

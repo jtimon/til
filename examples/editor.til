@@ -1,5 +1,8 @@
 mode gui
 
+// Small standalone GUI/compiler example, also used for cross-target builds.
+// Full editor and IDE development lives in https://github.com/jtimon/tiled.
+
 import("../src/std/file")
 
 main := proc(args: ..Str) {
