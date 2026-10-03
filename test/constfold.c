@@ -222,6 +222,13 @@ static Bool cf_abort_runtime_guard(void);
 static void test_constfold_abort_owned_args(void);
 static void test_constfold_abort_branch_locals(void);
 static void test_constfold_abort_after_release(void);
+static I64 cf_runtime_input(void);
+static I64 cf_shadow_parameter(I64 CF_SHADOW);
+static I64 cf_shadow_local(I64 value);
+static I64 cf_shadow_ref(I64 value);
+static void test_runtime_bindings_shadow_global_constants(void);
+static void test_block_constants_do_not_escape_their_scope(void);
+static void test_serialized_binding_keeps_assignment(void);
 static void Array__I64_delete(Array__I64 * self, Bool call_free);
 static Array__I64 Array__I64_clone(Array__I64 * self);
 static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind);
@@ -287,6 +294,11 @@ static struct {
 /* til source locations: line numbers shift with source edits; the code hunks are above */
 static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:129:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:133:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_11 = (Str){.c_str = (void *)"test/constfold.til:650:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_15 = (Str){.c_str = (void *)"test/constfold.til:655:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_19 = (Str){.c_str = (void *)"test/constfold.til:660:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_3 = (Str){.c_str = (void *)"test/constfold.til:653:9", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_7 = (Str){.c_str = (void *)"test/constfold.til:658:9", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_collection_return_fold_102 = (Str){.c_str = (void *)"test/constfold.til:444:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_collection_return_fold_105 = (Str){.c_str = (void *)"test/constfold.til:447:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_collection_return_fold_110 = (Str){.c_str = (void *)"test/constfold.til:448:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -364,6 +376,12 @@ static Str hoisted__Str_test_nested_arithmetic_7 = (Str){.c_str = (void *)"test/
 static Str hoisted__Str_test_nested_enum_payload_return_fold_1 = (Str){.c_str = (void *)"test/constfold.til:343:36", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_nested_enum_payload_return_fold_3 = (Str){.c_str = (void *)"test/constfold.til:344:15", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_nested_enum_payload_return_fold_5 = (Str){.c_str = (void *)"test/constfold.til:346:11", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_runtime_bindings_shadow_global_constants_12 = (Str){.c_str = (void *)"test/constfold.til:643:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_runtime_bindings_shadow_global_constants_16 = (Str){.c_str = (void *)"test/constfold.til:644:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_runtime_bindings_shadow_global_constants_2 = (Str){.c_str = (void *)"test/constfold.til:639:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_runtime_bindings_shadow_global_constants_20 = (Str){.c_str = (void *)"test/constfold.til:645:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_runtime_bindings_shadow_global_constants_5 = (Str){.c_str = (void *)"test/constfold.til:640:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_runtime_bindings_shadow_global_constants_8 = (Str){.c_str = (void *)"test/constfold.til:641:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_serialized_values_are_compositional_12 = (Str){.c_str = (void *)"test/constfold.til:475:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_serialized_values_are_compositional_14 = (Str){.c_str = (void *)"test/constfold.til:476:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_serialized_values_are_compositional_17 = (Str){.c_str = (void *)"test/constfold.til:478:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -1156,8 +1174,6 @@ static Color Color_clone(Color * self) {
     }
     U64 hoisted__U64_3 = 0ULL;
     Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_3);
-    I64 _va_Array_0_ek = 0;
-    (void)_va_Array_0_ek;
     static Str hoisted__Str_Color_clone_4 = (Str){.c_str = (void *)"Color.clone:245:1", .count = 17ULL, .cap = TIL_CAP_LIT};
     UNREACHABLE(&_va_Array_0, &hoisted__Str_Color_clone_4);
     __builtin_unreachable();
@@ -1301,8 +1317,6 @@ static void test_explicit_tag_enum_return_fold(void) {
     default: {
         U64 hoisted__U64_2 = 0ULL;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_2);
-        I64 _va_Array_0_ek = 0;
-        (void)_va_Array_0_ek;
         UNREACHABLE(&_va_Array_0, &hoisted__Str_test_explicit_tag_enum_return_fold_3);
     }
     }
@@ -1326,8 +1340,6 @@ static void test_nested_enum_payload_return_fold(void) {
         default: {
             U64 hoisted__U64_2 = 0ULL;
             Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_2);
-            I64 _va_Array_0_ek = 0;
-            (void)_va_Array_0_ek;
             UNREACHABLE(&_va_Array_0, &hoisted__Str_test_nested_enum_payload_return_fold_3);
         }
         }
@@ -1336,8 +1348,6 @@ static void test_nested_enum_payload_return_fold(void) {
     default: {
         U64 hoisted__U64_4 = 0ULL;
         Array__Str _va_Array_1 = Array__Str_new(hoisted__U64_4);
-        I64 _va_Array_1_ek = 0;
-        (void)_va_Array_1_ek;
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_nested_enum_payload_return_fold_5);
     }
     }
@@ -1660,8 +1670,6 @@ static void test_static_global_initializers(void) {
     default: {
         U64 hoisted__U64_2 = 0ULL;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_2);
-        I64 _va_Array_0_ek = 0;
-        (void)_va_Array_0_ek;
         UNREACHABLE(&_va_Array_0, &hoisted__Str_test_static_global_initializers_3);
     }
     }
@@ -1677,8 +1685,6 @@ static void test_static_global_initializers(void) {
     default: {
         U64 hoisted__U64_6 = 0ULL;
         Array__Str _va_Array_1 = Array__Str_new(hoisted__U64_6);
-        I64 _va_Array_1_ek = 0;
-        (void)_va_Array_1_ek;
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_static_global_initializers_7);
     }
     }
@@ -1911,6 +1917,85 @@ static void test_constfold_abort_after_release(void) {
     I64 hoisted__I64_7 = 0;
     I64 hoisted__I64_8 = 0;
     assert_eq__I64(hoisted__I64_7, hoisted__I64_8, &hoisted__Str_test_constfold_abort_after_release_9);
+}
+
+static I64 cf_runtime_input(void) {
+    noop_proc();
+    I64 hoisted__I64_0 = 5;
+    return hoisted__I64_0;
+}
+
+static I64 cf_shadow_parameter(I64 CF_SHADOW) {
+    I64 hoisted__I64_0 = 2;
+    I64 hoisted__I64_1 = ((I64)(CF_SHADOW * hoisted__I64_0));
+    return hoisted__I64_1;
+}
+
+static I64 cf_shadow_local(I64 value) {
+    I64 CF_SHADOW = (value);
+    I64 hoisted__I64_0 = 3;
+    I64 hoisted__I64_1 = ((I64)(CF_SHADOW * hoisted__I64_0));
+    return hoisted__I64_1;
+}
+
+static I64 cf_shadow_ref(I64 value) {
+    I64 *CF_REF_SHADOW = &value;
+    I64 hoisted__I64_0 = 4;
+    I64 hoisted__I64_1 = ((I64)(DEREF(CF_REF_SHADOW) * hoisted__I64_0));
+    return hoisted__I64_1;
+}
+
+static void test_runtime_bindings_shadow_global_constants(void) {
+    I64 value = cf_runtime_input();
+    I64 hoisted__I64_0 = cf_shadow_parameter(value);
+    I64 hoisted__I64_1 = 10;
+    assert_eq__I64(hoisted__I64_0, hoisted__I64_1, &hoisted__Str_test_runtime_bindings_shadow_global_constants_2);
+    I64 hoisted__I64_3 = cf_shadow_local(value);
+    I64 hoisted__I64_4 = 15;
+    assert_eq__I64(hoisted__I64_3, hoisted__I64_4, &hoisted__Str_test_runtime_bindings_shadow_global_constants_5);
+    I64 hoisted__I64_6 = cf_shadow_ref(value);
+    I64 hoisted__I64_7 = 20;
+    assert_eq__I64(hoisted__I64_6, hoisted__I64_7, &hoisted__Str_test_runtime_bindings_shadow_global_constants_8);
+    I64 hoisted__I64_10 = 14;
+    I64 hoisted__I64_11 = 14;
+    assert_eq__I64(hoisted__I64_10, hoisted__I64_11, &hoisted__Str_test_runtime_bindings_shadow_global_constants_12);
+    I64 hoisted__I64_14 = 34;
+    I64 hoisted__I64_15 = 34;
+    assert_eq__I64(hoisted__I64_14, hoisted__I64_15, &hoisted__Str_test_runtime_bindings_shadow_global_constants_16);
+    I64 hoisted__I64_18 = 194;
+    I64 hoisted__I64_19 = 194;
+    assert_eq__I64(hoisted__I64_18, hoisted__I64_19, &hoisted__Str_test_runtime_bindings_shadow_global_constants_20);
+}
+
+static void test_block_constants_do_not_escape_their_scope(void) {
+    I64 hoisted__I64_9 = 22;
+    I64 hoisted__I64_10 = 22;
+    assert_eq__I64(hoisted__I64_9, hoisted__I64_10, &hoisted__Str_test_block_constants_do_not_escape_their_scope_11);
+    {
+        I64 hoisted__I64_1 = 34;
+        I64 hoisted__I64_2 = 34;
+        assert_eq__I64(hoisted__I64_1, hoisted__I64_2, &hoisted__Str_test_block_constants_do_not_escape_their_scope_3);
+    }
+    I64 hoisted__I64_13 = 33;
+    I64 hoisted__I64_14 = 33;
+    assert_eq__I64(hoisted__I64_13, hoisted__I64_14, &hoisted__Str_test_block_constants_do_not_escape_their_scope_15);
+    {
+        I64 CF_SHADOW = cf_runtime_input();
+        I64 hoisted__I64_4 = 2;
+        I64 hoisted__I64_5 = ((I64)(CF_SHADOW * hoisted__I64_4));
+        I64 hoisted__I64_6 = 10;
+        assert_eq__I64(hoisted__I64_5, hoisted__I64_6, &hoisted__Str_test_block_constants_do_not_escape_their_scope_7);
+    }
+    I64 hoisted__I64_17 = 22;
+    I64 hoisted__I64_18 = 22;
+    assert_eq__I64(hoisted__I64_17, hoisted__I64_18, &hoisted__Str_test_block_constants_do_not_escape_their_scope_19);
+}
+
+static void test_serialized_binding_keeps_assignment(void) {
+    I64 _written_only = 1;
+    (void)_written_only;
+    I64 hoisted__I64_0 = cf_runtime_input();
+    _written_only = hoisted__I64_0;
 }
 
 static void Array__I64_delete(Array__I64 * self, Bool call_free) {
@@ -2270,6 +2355,12 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_constfold_abort_branch_locals");
     test_constfold_abort_after_release();
     fprintf(stderr, "  pass: %s\n", "test_constfold_abort_after_release");
-    fprintf(stderr, "30/30 tests passed\n");
+    test_runtime_bindings_shadow_global_constants();
+    fprintf(stderr, "  pass: %s\n", "test_runtime_bindings_shadow_global_constants");
+    test_block_constants_do_not_escape_their_scope();
+    fprintf(stderr, "  pass: %s\n", "test_block_constants_do_not_escape_their_scope");
+    test_serialized_binding_keeps_assignment();
+    fprintf(stderr, "  pass: %s\n", "test_serialized_binding_keeps_assignment");
+    fprintf(stderr, "33/33 tests passed\n");
     return 0;
 }

@@ -603,3 +603,66 @@ test_constfold_abort_after_release := test() {
     }
     assert_eq(I64, cf_abort_after_release(own "", own ""), 0)
 }
+
+CF_SHADOW : I64 = 97
+CF_REF_SHADOW : I64 = 83
+
+cf_runtime_input := proc() returns I64 {
+    noop_proc()
+    return 5
+}
+
+cf_shadow_parameter := func(CF_SHADOW: I64) returns I64 {
+    return CF_SHADOW.mul(2)
+}
+
+cf_shadow_local := func(value: I64) returns I64 {
+    CF_SHADOW := value
+    return CF_SHADOW.mul(3)
+}
+
+cf_shadow_ref := func(value: I64) returns I64 {
+    ref CF_REF_SHADOW : I64 = value
+    return CF_REF_SHADOW.mul(4)
+}
+
+cf_shadow_branch := func(flag: Bool) returns I64 {
+    if flag {
+        CF_SHADOW := 17
+        return CF_SHADOW.mul(2)
+    }
+    return CF_SHADOW.mul(2)
+}
+
+test_runtime_bindings_shadow_global_constants := test() {
+    value := cf_runtime_input()
+    assert_eq(I64, cf_shadow_parameter(value), 10)
+    assert_eq(I64, cf_shadow_local(value), 15)
+    assert_eq(I64, cf_shadow_ref(value), 20)
+    // Known arguments still permit interpreting the definition correctly.
+    assert_eq(I64, cf_shadow_parameter(7), 14)
+    assert_eq(I64, cf_shadow_branch(true), 34)
+    assert_eq(I64, cf_shadow_branch(false), 194)
+}
+
+test_block_constants_do_not_escape_their_scope := test() {
+    CF_SHADOW := 11
+    assert_eq(I64, CF_SHADOW.mul(2), 22)
+    {
+        CF_SHADOW := 17
+        assert_eq(I64, CF_SHADOW.mul(2), 34)
+    }
+    assert_eq(I64, CF_SHADOW.mul(3), 33)
+    {
+        CF_SHADOW := cf_runtime_input()
+        assert_eq(I64, CF_SHADOW.mul(2), 10)
+    }
+    assert_eq(I64, CF_SHADOW.mul(2), 22)
+}
+
+// Assign's target lives in its payload, not an Ident child. Removing an
+// unused literal declaration must not orphan a surviving assignment.
+test_serialized_binding_keeps_assignment := test() {
+    mut _written_only : I64 = 1
+    _written_only = cf_runtime_input()
+}

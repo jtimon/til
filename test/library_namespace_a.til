@@ -57,6 +57,9 @@ priv library_namespace_a_private_state : I64 = 101
 // They must not change the shared-core dependency set.
 min_len : USize = 19
 needle : USize = 23
+// Constant folding must not substitute this global for collection methods'
+// index parameters or loop-local indices, including in generated bindings.
+i : USize = 29
 // A borrowed global is a C POINTER object (BindingPoint *): the generated
 // til binding must spell it `ref ... = ext_global(...)` and the Python one
 // a POINTER view, both reading through the pointer.

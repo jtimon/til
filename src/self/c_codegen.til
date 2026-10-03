@@ -1752,9 +1752,19 @@ priv builder_register_str_lit_ident := func(mut ctx: Context, name: Str, s: Str)
     if ctx.builder_str_lit_ident_contents.has(name).not() { ctx.builder_str_lit_ident_contents.set(name, own s.clone()) }
 }
 
-priv builder_resolve_c_ident_name := func(name: Str, ctx: Context) returns Str {
+priv builder_resolve_c_ident_name := func(name: Str, mut ctx: Context) returns Str {
     if ctx.builder_str_lit_ident_symbols.has(name) { return ctx.builder_str_lit_ident_symbols[name].clone() }
-    if ctx.builder_external_globals.has(name) { return ctx.builder_external_globals[name].clone() }
+    if ctx.builder_external_globals.has(name) {
+        // Imported globals follow the same lexical shadowing rule as
+        // script globals: parameters and locals keep their own C names.
+        sym := ctx.symbols.intern(name)
+        if is_current_func_param(name, ctx)
+        .or(is_stack_local(name, ctx))
+        .or(ctx.builder_func.ref_locals.has(sym))
+        .or(ctx.builder_func.ptr_locals.has(sym)).not() {
+            return ctx.builder_external_globals[name].clone()
+        }
+    }
     return name.clone()
 }
 
@@ -4778,12 +4788,14 @@ priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, mut ctx: Context)
     saved_lsl := ctx.builder_func.stack_lit_str_locals.clone()
     saved_rl := ctx.builder_func.ref_locals.clone()
     saved_rdl := ctx.builder_func.ref_dyn_locals.clone()
+    saved_pl := ctx.builder_func.ptr_locals.clone()
     emit_body(f, body, depth, ctx)
     ctx.builder_func.stack_locals = saved_sl
     ctx.builder_func.heap_locals = saved_hl
     ctx.builder_func.stack_lit_str_locals = saved_lsl
     ctx.builder_func.ref_locals = saved_rl
     ctx.builder_func.ref_dyn_locals = saved_rdl
+    ctx.builder_func.ptr_locals = saved_pl
 }
 
 // Adapt the legacy bodyless owned-return ABI (T *) to the value ABI used by
@@ -5317,9 +5329,12 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // the pointer when `id`'s param was also named `w` (and compiled
         // fine when it was named anything else).
         saved_main_fdef := lp.ctx.builder_func.current_fdef
+        saved_main_in_func_def := lp.ctx.builder_func.in_func_def
         lp.ctx.builder_func.current_fdef = safe_ref(func_def)
+        lp.ctx.builder_func.in_func_def = true
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.builder_func.current_fdef = saved_main_fdef
+        lp.ctx.builder_func.in_func_def = saved_main_in_func_def
         lp.ctx.builder_func.in_main_func = false
         // #326: the exit-status fallthrough, unless main already returned
         // one. Asked the same narrow way a switch arm's `break` is (the
@@ -9486,7 +9501,25 @@ priv global_is_pointer_storage := func(stmt: Expr, dd: Declaration, symbols: Sym
     return rhs_is_allocator_call(stmt.children[0], symbols)
 }
 
-// Every Ident occurrence under e, with no exemptions -- unlike
+// Record only names introduced in this scope. Removing those on exit
+// preserves outer shadows without copying the accumulated local-name set.
+priv builder_collect_local_sym := func(sym: Sym, mut locals: Set(Sym), mut introduced: Vec(Sym)) {
+    if locals.has(sym) { return }
+    locals.add(own sym.clone())
+    introduced.push(own sym)
+}
+
+priv builder_restore_local_syms := func(mut locals: Set(Sym), introduced: Vec(Sym)) {
+    // New symbols usually append in pool order. Undo in reverse order so
+    // removing a whole scope does not repeatedly shift its remaining names.
+    mut restore_index := introduced.len()
+    while restore_index > 0 {
+        restore_index = restore_index - 1
+        locals.remove(introduced.unsafe_get(restore_index))
+    }
+}
+
+// Every GLOBAL Ident occurrence under e -- unlike
 // builder_collect_body_reads this counts a delete's argument too, because
 // the question its caller asks is "may this declaration disappear", and any
 // surviving mention in the C, cleanup included, would dangle. Expressions
@@ -9495,26 +9528,50 @@ priv global_is_pointer_storage := func(stmt: Expr, dd: Declaration, symbols: Sym
 // every ns member body, and a signature's param defaults all live in
 // default_value, and HASHMAP_INIT_BUCKETS' only readers are HashMap ns
 // methods -- children alone misses all of them.
-priv builder_collect_all_ident_syms := proc(e: Expr, mut syms: Set(Sym)) {
+priv builder_collect_all_ident_syms := proc(e: Expr, mut syms: Set(Sym), mut locals: Set(Sym), mut ctx: Context, program_scope: Bool) {
     switch e.node_type {
-    case .Ident(aid): syms.add(own aid.ident_sym())
+    case .Ident(aid):
+        if locals.has(aid.ident_sym()).not() { syms.add(own aid.ident_sym()) }
     case .FuncDef(ais_fd):
-        for ais_p : Declaration in ais_fd.sig.params {
-            if ais_p.default_value.is_some() { builder_collect_all_ident_syms(ais_p.default_expr(), syms) }
+        mut introduced := Vec(Sym).new()
+        for capture : Declaration in ais_fd.captures {
+            capture_sym := ctx.symbols.intern(capture.name)
+            if locals.has(capture_sym).not() { syms.add(own capture_sym.clone()) }
+            builder_collect_local_sym(capture_sym, locals, introduced)
         }
+        for ais_p : Declaration in ais_fd.sig.params {
+            if ais_p.default_value.is_some() { builder_collect_all_ident_syms(ais_p.default_expr(), syms, locals, ctx, false) }
+            builder_collect_local_sym(ctx.symbols.intern(ais_p.name), locals, introduced)
+        }
+        for ais_c : Expr in e.children { builder_collect_all_ident_syms(ais_c, syms, locals, ctx, false) }
+        builder_restore_local_syms(locals, introduced)
+        return
+    case .Body:
+        mut introduced := Vec(Sym).new()
+        for ais_c : Expr in e.children {
+            builder_collect_all_ident_syms(ais_c, syms, locals, ctx, false)
+            if program_scope.not() {
+                switch ais_c.node_type {
+                case .Decl(dd): builder_collect_local_sym(ctx.symbols.intern(dd.name), locals, introduced)
+                case:
+                }
+            }
+        }
+        builder_restore_local_syms(locals, introduced)
+        return
     case .StructDef(ais_sdd):
         for ais_f : Declaration in ais_sdd.fields {
-            if ais_f.default_value.is_some() { builder_collect_all_ident_syms(ais_f.default_expr(), syms) }
+            if ais_f.default_value.is_some() { builder_collect_all_ident_syms(ais_f.default_expr(), syms, locals, ctx, false) }
         }
     case:
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref ais_ns : Vec(Declaration) = def_ns_decls(e)
         for ais_nd : Declaration in ais_ns {
-            if ais_nd.default_value.is_some() { builder_collect_all_ident_syms(ais_nd.default_expr(), syms) }
+            if ais_nd.default_value.is_some() { builder_collect_all_ident_syms(ais_nd.default_expr(), syms, locals, ctx, false) }
         }
     }
-    for ais_c : Expr in e.children { builder_collect_all_ident_syms(ais_c, syms) }
+    for ais_c : Expr in e.children { builder_collect_all_ident_syms(ais_c, syms, locals, ctx, false) }
 }
 
 // A statically-initialized global the folded program no longer mentions is
@@ -9584,8 +9641,9 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
     // global's OWN Decl stores its name in Declaration.name, not as an
     // Ident child, so declaring never counts as mentioning.
     mut egd_mentioned := Set(Sym).new()
+    mut egd_locals := Set(Sym).new()
     for upath : Str in lp.unit_paths() {
-        builder_collect_all_ident_syms(lp.ctx.imported[upath].ast, egd_mentioned)
+        builder_collect_all_ident_syms(lp.ctx.imported[upath].ast, egd_mentioned, egd_locals, lp.ctx, true)
     }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

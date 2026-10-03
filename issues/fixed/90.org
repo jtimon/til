@@ -416,3 +416,71 @@ and a reference returned from a mutable append that grows the vector. Value
 and pointer-identity checks prove the result borrows the original element,
 rather than a copied value. Focused ASAN runs verify both USize32-interpreter
 to USize64-library and USize64-interpreter to USize32-library conversion.
+
+*** Follow-up: constant-folding and imported-global shadowing (2026-10-03)
+
+An exported ~i : USize = 29~ exposed two independent lexical-name mistakes.
+The constant folder treated an unknown parameter or local as an absent fact
+and found the unrelated global in its parent scope. Collection index arithmetic
+then folded to a constant offset. Parameters now install unknown facts that
+hide parent constants, every block gets a scoped fact view, and nonconstant,
+mutable and borrowed locals hide outer facts as well. Namespace methods enter
+through their whole FuncDef so their parameters participate in that scope.
+The interpreter-scope argument lookup also respects these unknown facts.
+Mutation targets are scanned once per function; nested blocks borrow that
+result rather than copying the assignment blocklist and rescanning their
+already-covered subtrees. Only their known-value facts require a child view.
+
+After folding was corrected, generated binding consumers still rewrote local
+~i~ references to library A's external C global. External-global C name
+resolution now honors the existing parameter/local storage classifications.
+The CLI main wrapper marks its body as a function, and nested body emission
+restores the local-shadow map on exit, just like its other storage maps.
+Folded-away global detection and local serialized-value DCE also distinguish
+shadowing bindings from real readers, so folded consumers do not leave unused
+scalar declarations behind or keep an unused global alive through local reads.
+Global-reader collection updates its lexical mask in place and removes only
+names introduced in the departing scope, in reverse order. Local value DCE
+collects symbol-keyed surviving references once per body instead of searching
+all siblings separately for each candidate, and stops once all candidates are
+used. Assignment payload targets are references too: dropping their declaration
+would leave an assignment to an unbound name.
+Explicit closure captures remain real environment-initializer reads, including
+when folding removes the captured name from the closure body.
+
+~test_runtime_bindings_shadow_global_constants~ and
+~test_block_constants_do_not_escape_their_scope~ in ~test/constfold.til~ cover
+runtime parameters, local values, references, nested known/unknown shadows,
+and restored outer facts. Known-argument calls remain foldable. The existing
+library_namespace fixture exports ~i~ only in library A and exercises generated
+collection methods plus a consumer loop whose index shadows that import; reads
+before and after the loop still observe the external global's value.
+~test_serialized_binding_keeps_assignment~ reproduces the old DCE's
+~assignment binding not found: _written_only~ panic and verifies that a
+write-only binding's declaration survives in interpreted and compiled code.
+
+The expanded scalar DCE changes self-applied compiler output, so this follow-up
+uses the two-pass verification/commit workflow. That target's runner/plot/tests
+builds also now specify their established ~bin/~ output paths explicitly;
+otherwise the directory-preserving CLI defaults put them under ~bin/src/~ or
+~bin/examples/~ and the target could not start its test runner.
+
+Verification: ~make clean && make test_two_pass~ passes 496/496, including
+ASAN, clang and self-translation checks. Library B cross-builds for Windows
+x64 and macOS arm64. ASAN consumers pass with a USize32-built interpreter
+targeting USize64 libraries and a USize64-built interpreter using ~--usize=32~
+for USize32 libraries, including the new shadowing loop and vector borrows.
+
+For the performance follow-up, both profiled compilers translated the same
+current ~src/til.til~ inputs with ~--usize=32~. Generated C and forward headers
+were byte-identical. Deterministic work counts changed as follows:
+
+| Work                                    | Before     | After     |
+|-----------------------------------------+------------+-----------|
+| Set(Str) clones                         | 58,500     | 6,087     |
+| Mutation-walker calls                   | 6,261,420  | 1,247,264 |
+| Value-reference walker calls (combined) | 13,809,585 | 3,027,414 |
+
+Set(Str) clone backing-storage requests fell from about 1.14 GiB to 93.4 MiB
+cumulatively (not peak memory). Other sessions were active during profiling
+and tests, so their elapsed times are not an isolated merge-time benchmark.
