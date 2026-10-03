@@ -4,46 +4,47 @@
 #define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
+
 extern I64 twice(I64 n);
 
 I64 twice(I64 n)
 {
-    U64 hoisted__U64_0 = 1;
-    TilStrArray _va_Array_0;
-    TilStrArrayNew(&_va_Array_0, hoisted__U64_0);
-    I64 _va_Array_0_ek = 0;
-    U64 hoisted__U64_1 = 0;
-    TilStr hoisted__Str_twice_2;
-    TilStrInitLit(&hoisted__Str_twice_2, "Inside twice", 12);
-    TilStrArraySet(&_va_Array_0, hoisted__U64_1, &hoisted__Str_twice_2);
-    TilPrintln(&_va_Array_0);
-    I64 hoisted__I64_3 = 2;
-    I64 hoisted__I64_4 = (n * hoisted__I64_3);
-    return hoisted__I64_4;
+    U64 hoisted__U64_0_0 = 1;
+    TilStrArray _va_Array_0_1;
+    TilStrArrayNew(&_va_Array_0_1, hoisted__U64_0_0);
+    I64 _va_Array_0_ek_2 = 0;
+    U64 hoisted__U64_1_3 = 0;
+    TilStr hoisted__Str_twice_2_4;
+    TilStrInitLit(&hoisted__Str_twice_2_4, "Inside twice", 12);
+    TilStrArraySet(&_va_Array_0_1, hoisted__U64_1_3, &hoisted__Str_twice_2_4);
+    TilPrintln(&_va_Array_0_1);
+    I64 hoisted__I64_3_5 = 2;
+    I64 hoisted__I64_4_6 = (n * hoisted__I64_3_5);
+    return hoisted__I64_4_6;
 }
 
 I64 TilMain()
 {
-    U64 hoisted__U64_g7 = 1;
-    TilStrArray _va_Array_g0;
-    TilStrArrayNew(&_va_Array_g0, hoisted__U64_g7);
-    I64 _va_Array_g0_ek = 0;
-    U64 hoisted__U64_g8 = 0;
-    TilStr hoisted__Str_g9;
-    TilStrInitLit(&hoisted__Str_g9, "Imported calls helper", 21);
-    TilStrArraySet(&_va_Array_g0, hoisted__U64_g8, &hoisted__Str_g9);
-    TilPrintln(&_va_Array_g0);
-    I64 hoisted__I64_g10 = 21;
-    I64 result = twice(hoisted__I64_g10);
-    U64 hoisted__U64_g11 = 1;
-    TilStrArray _va_Array_g1;
-    TilStrArrayNew(&_va_Array_g1, hoisted__U64_g11);
-    I64 _va_Array_g1_ek = 0;
-    U64 hoisted__U64_g12 = 0;
-    TilStr hoisted__Str_g13;
-    TilStrFromI64(&hoisted__Str_g13, result);
-    TilStrArraySet(&_va_Array_g1, hoisted__U64_g12, &hoisted__Str_g13);
-    TilPrintln(&_va_Array_g1);
+    U64 hoisted__U64_g7_7 = 1;
+    TilStrArray _va_Array_g0_8;
+    TilStrArrayNew(&_va_Array_g0_8, hoisted__U64_g7_7);
+    I64 _va_Array_g0_ek_9 = 0;
+    U64 hoisted__U64_g8_10 = 0;
+    TilStr hoisted__Str_g9_11;
+    TilStrInitLit(&hoisted__Str_g9_11, "Imported calls helper", 21);
+    TilStrArraySet(&_va_Array_g0_8, hoisted__U64_g8_10, &hoisted__Str_g9_11);
+    TilPrintln(&_va_Array_g0_8);
+    I64 hoisted__I64_g10_12 = 21;
+    I64 result_13 = twice(hoisted__I64_g10_12);
+    U64 hoisted__U64_g11_14 = 1;
+    TilStrArray _va_Array_g1_15;
+    TilStrArrayNew(&_va_Array_g1_15, hoisted__U64_g11_14);
+    I64 _va_Array_g1_ek_16 = 0;
+    U64 hoisted__U64_g12_17 = 0;
+    TilStr hoisted__Str_g13_18;
+    TilStrFromI64(&hoisted__Str_g13_18, result_13);
+    TilStrArraySet(&_va_Array_g1_15, hoisted__U64_g12_17, &hoisted__Str_g13_18);
+    TilPrintln(&_va_Array_g1_15);
     return 0;
 }
 

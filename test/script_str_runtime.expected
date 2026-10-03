@@ -22,3 +22,30 @@ primitive kinds missing
 write roundtrip
 3
 empty write
+opened file exists
+open truncates immediately
+11
+abcd
+ghi
+jk
+past eof
+abcdefghijk
+11
+abcXYZghijk
+zero-filled gap
+18
+renamed
+append kept content
+19
+directory found file
+1
+1
+removed, missing remove ok
+directory rename
+leaf
+tree cleanup
+xxABCDxx
+514
+1030
+multi-sector gap
+1801

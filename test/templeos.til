@@ -61,6 +61,10 @@ run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str) {
     command.stdout_to(format(WORK, "/run.log"))
     command.stderr_to_stdout()
     status := command.run()
+    if status == 37 {
+        container(uid, "mcopy", "-o", "-i", "guest.raw@@1048576", "::/Home/ERROR.LOG",
+            format(name, "_compiler.log")).run_checked()
+    }
     mut expected_status : I64 = 33
     mut end := "TILTEST:PASS\n"
     switch outcome {
@@ -166,6 +170,16 @@ main := proc() {
             File.appendfile(format(WORK, "/TILTEST.HC"), width_checks(bits))
             run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
         }
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
+        redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))
+        redsea_setup := format(
+            "TilStr ext_path,ext_bytes; TilStrInitLit(&ext_path,\"Ext.HC\",6); TilFileRead(&ext_bytes,&ext_path);\n",
+            "Fmt('C',TRUE,FALSE,FSt_REDSEA); Cd(\"C:/\"); DirMk(\"Home\"); Cd(\"C:/Home\");\n",
+            "if (Fs->cur_dv->fs_type!=FSt_REDSEA) TilPanicZ(\"RedSea format failed\\n\");\n",
+            "TilFileWrite(&ext_path,&ext_bytes); TilStrDelete(&ext_bytes,FALSE);\nTilMain;\n")
+        File.writefile(format(WORK, "/TILTEST.HC"), redsea_program.replace("\nTilMain;\n", format("\n", redsea_setup)))
+        run_guest(identity, format("redsea_filesystem_", bits), File.readfile("test/script_str_runtime.expected"), "pass")
         File.writefile(format(WORK, "/boundary.til"), "mode script\nprintln(\"boundary checks\")\n")
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), format(WORK, "/boundary.til")).run_checked()
@@ -187,6 +201,16 @@ main := proc() {
             "File.writefile: could not write 'BAD?.HC'\n", "")
         failure_case(identity, bits, "capacity_overflow", "mut cap : USize = 0\ncap.dec()\ntext := Str.with_capacity(cap)\nprintln(text)\n",
             "Str.with_capacity: capacity overflow\n", "", false)
+        failure_case(identity, bits, "missing_update", "file := File.update(\"MISSING.HC\")\nprintln(file.tell().to_str())\n",
+            "cfile_open_update: could not open 'MISSING.HC'\n", "")
+        failure_case(identity, bits, "bad_seek", "File.writefile(\"IO.HC\",\"io\")\nfile := File.new(\"IO.HC\",false)\nfile.seek(-1)\n",
+            "cfile_seek: invalid position\n", "")
+        failure_case(identity, bits, "write_offset_overflow", "File.writefile(\"IO.HC\",\"io\")\nfile := File.update(\"IO.HC\")\nfile.seek(9223372036854775807).write(\"X\")\n",
+            "cfile_write_str: size overflow\n", "")
+        failure_case(identity, bits, "missing_directory", "dir := Dir.open(\"MISSING\")\nprintln(dir.next())\n",
+            "cdir_open: could not open 'MISSING'\n", "")
+        failure_case(identity, bits, "remove_directory", "File.remove(\"C:/Home\")\n",
+            "cfile_remove: cannot remove a directory\n", "")
         File.writefile(format(WORK, "/TILTEST.HC"), "This_Is_Not_A_TempleOS_Symbol;\n")
         run_guest(identity, format("compiler_error_", bits), "", "error")
     }

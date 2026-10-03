@@ -2146,6 +2146,7 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str map_key_vecs;
     Map__Str_Str map_value_vecs;
     Map__Str_call_Map_Str_Bool needed_methods;
+    Str method_prototypes;
     Str method_definitions;
     Str usize_ctype;
     USize switch_id;

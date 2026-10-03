@@ -503,6 +503,43 @@
   replacements and missing parents. Native regression checks verify raw .Z
   bytes, zeroed sector padding, empty truncation, and expected failure paths.
 
+*** Milestone 2: basic filesystem workflows
+
+  File/Dir namespace methods now use the shared lowered method bodies,
+  including custom teardown and ref-returning chains. The HolyC backend
+  records their parameter/return ABI, emits class definitions before method
+  prototypes, and preserves source scopes with unique function-wide local
+  names. Generated nested lifecycle helpers remain available even when the
+  frontend scavenged their unused namespace definitions.
+
+  The native runtime implements read/write, append, and update handles with
+  byte cursors over TempleOS CFile block I/O. It supports partial and whole
+  reads, tell, absolute/current/end-relative seek, append-after-seek, sparse
+  zero filling, immediate creation/truncation, and close. FAT32 grows its
+  cluster chain; RedSea grows contiguous storage while preserving existing
+  bytes. Sector staging keeps counted writes within their source buffers.
+
+  Directory handles own native entry snapshots, return owned names, skip
+  dot entries, and release the snapshot on close. The standard Dir.list
+  body uses this iterator. Native mkdir_p, file removal, recursive tree
+  removal, and replacement rename cover complete workflows. Rename stays
+  on one drive and follows TempleOS copy-and-delete semantics, not POSIX
+  atomic replacement; it preserves raw .Z bytes and supports directory
+  moves onto absent or empty destinations.
+
+  The shared ~test/script_str_runtime.til~ exercises the entire workflow,
+  including explicit and automatic teardown, cross-sector updates, short
+  reads, multi-sector sparse gaps, directory moves, and cleanup. Its hosted
+  interpreter and compiled run occupy one serial suite row so they cannot
+  race on the test directory. The guest runner checks its 51 output lines
+  at USize 32/64 on both FAT32 and freshly formatted RedSea disks.
+
+  ~make test_templeos~ covers 47 native cases. Additional failures cover
+  update of a missing file, negative seek, write-offset overflow, missing
+  directory, and file removal of a directory at both widths. Compiler/native exceptions
+  now retain the guest console in an extracted diagnostic log, instead of
+  leaving only an error token.
+
 *** QEMU validation
 
   The repository driver formats an isolated FAT32 data disk per case and

@@ -9,44 +9,45 @@ extern U8 *TilCheckPtr(U8 *ptr);
 #define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
+
 I64 TilMain()
 {
-    U32 n = 4;
-    U8 *buf = TilMAlloc(n);
-    I32 hoisted__I32_g7 = 0;
-    TilMemSet(buf, hoisted__I32_g7, n);
-    I64 hoisted__I64_g8 = 65;
-    U64 hoisted__U64_g9 = 1;
-    TilMemCpy(buf, &hoisted__I64_g8, hoisted__U64_g9);
-    U64 off = 1;
-    U8 *ref_value_0 = (buf + off);
-    I64 hoisted__I64_g11 = 66;
-    U64 hoisted__U64_g12 = 1;
-    TilMemCpy(ref_value_0, &hoisted__I64_g11, hoisted__U64_g12);
-    U64 hoisted__U64_g13 = 0;
-    U8 *ref_value_1 = (buf + hoisted__U64_g13);
-    U8 *ref_value_2 = (buf + off);
-    U64 hoisted__U64_g14 = 1;
-    TilStrArray _va_Array_g0;
-    TilStrArrayNew(&_va_Array_g0, hoisted__U64_g14);
-    I64 _va_Array_g0_ek = 0;
-    I64 hoisted__I64_g15 = (((*((TilCheckPtr(ref_value_1))(U8 *)))) + 0)(I64);
-    U64 hoisted__U64_g16 = 0;
-    TilStr hoisted__Str_g17;
-    TilStrFromI64(&hoisted__Str_g17, hoisted__I64_g15);
-    TilStrArraySet(&_va_Array_g0, hoisted__U64_g16, &hoisted__Str_g17);
-    TilPrintln(&_va_Array_g0);
-    U64 hoisted__U64_g18 = 1;
-    TilStrArray _va_Array_g1;
-    TilStrArrayNew(&_va_Array_g1, hoisted__U64_g18);
-    I64 _va_Array_g1_ek = 0;
-    I64 hoisted__I64_g19 = (((*((TilCheckPtr(ref_value_2))(U8 *)))) + 0)(I64);
-    U64 hoisted__U64_g20 = 0;
-    TilStr hoisted__Str_g21;
-    TilStrFromI64(&hoisted__Str_g21, hoisted__I64_g19);
-    TilStrArraySet(&_va_Array_g1, hoisted__U64_g20, &hoisted__Str_g21);
-    TilPrintln(&_va_Array_g1);
-    TilFree(buf);
+    U32 n_0 = 4;
+    U8 *buf_1 = TilMAlloc(n_0);
+    I32 hoisted__I32_g7_2 = 0;
+    TilMemSet(buf_1, hoisted__I32_g7_2, n_0);
+    I64 hoisted__I64_g8_3 = 65;
+    U64 hoisted__U64_g9_4 = 1;
+    TilMemCpy(buf_1, &hoisted__I64_g8_3, hoisted__U64_g9_4);
+    U64 off_5 = 1;
+    U8 *ref_value_7 = (buf_1 + off_5);
+    I64 hoisted__I64_g11_8 = 66;
+    U64 hoisted__U64_g12_9 = 1;
+    TilMemCpy(ref_value_7, &hoisted__I64_g11_8, hoisted__U64_g12_9);
+    U64 hoisted__U64_g13_10 = 0;
+    U8 *ref_value_12 = (buf_1 + hoisted__U64_g13_10);
+    U8 *ref_value_14 = (buf_1 + off_5);
+    U64 hoisted__U64_g14_15 = 1;
+    TilStrArray _va_Array_g0_16;
+    TilStrArrayNew(&_va_Array_g0_16, hoisted__U64_g14_15);
+    I64 _va_Array_g0_ek_17 = 0;
+    I64 hoisted__I64_g15_18 = (((*((TilCheckPtr(ref_value_12))(U8 *)))) + 0)(I64);
+    U64 hoisted__U64_g16_19 = 0;
+    TilStr hoisted__Str_g17_20;
+    TilStrFromI64(&hoisted__Str_g17_20, hoisted__I64_g15_18);
+    TilStrArraySet(&_va_Array_g0_16, hoisted__U64_g16_19, &hoisted__Str_g17_20);
+    TilPrintln(&_va_Array_g0_16);
+    U64 hoisted__U64_g18_21 = 1;
+    TilStrArray _va_Array_g1_22;
+    TilStrArrayNew(&_va_Array_g1_22, hoisted__U64_g18_21);
+    I64 _va_Array_g1_ek_23 = 0;
+    I64 hoisted__I64_g19_24 = (((*((TilCheckPtr(ref_value_14))(U8 *)))) + 0)(I64);
+    U64 hoisted__U64_g20_25 = 0;
+    TilStr hoisted__Str_g21_26;
+    TilStrFromI64(&hoisted__Str_g21_26, hoisted__I64_g19_24);
+    TilStrArraySet(&_va_Array_g1_22, hoisted__U64_g20_25, &hoisted__Str_g21_26);
+    TilPrintln(&_va_Array_g1_22);
+    TilFree(buf_1);
     return 0;
 }
 

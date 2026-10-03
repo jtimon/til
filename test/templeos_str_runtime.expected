@@ -1,4 +1,13 @@
+extern U8 *TilMAlloc(U64 count);
+extern U8 *TilCAlloc(U64 nmemb,U64 size);
+extern U8 *TilReAlloc(U8 *ptr,U64 count);
 extern U0 TilFree(U8 *ptr);
+extern U8 *TilMemCpy(U8 *dst,U8 *src,U64 count);
+extern U8 *TilMemMove(U8 *dst,U8 *src,U64 count);
+extern U8 *TilMemSet(U8 *dst,I64 value,U64 count);
+extern U0 TilRawWrite(U8 *data,U64 count);
+extern U0 TilPanic(U8 *data,U64 count);
+extern U8 *TilCheckPtr(U8 *ptr);
 
 #define TIL_USIZE U64
 #define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
@@ -11,6 +20,38 @@ class File {
   Bool is_update;
 };
 
+class Dir {
+  U8 * handle;
+};
+
+class Vec__Str {
+  TilStr *data;
+  U64 count;
+  U64 cap;
+};
+
+extern U0 File_append(File *return_out, TilStr *path);
+extern U0 File_appendfile(TilStr *path, TilStr *content);
+extern U0 File_close(File *self);
+extern U0 File_Delete(File *self, Bool call_free);
+extern U0 File_new(File *return_out, TilStr *path, Bool *is_write);
+extern U0 File_read(TilStr *return_out, File *self, I64 count);
+extern U0 File_read_all(TilStr *return_out, File *self);
+extern U0 File_remove(TilStr *path);
+extern U0 File_remove_tree(TilStr *path);
+extern U0 File_rename(TilStr *src, TilStr *dst);
+extern File * File_seek(File *self, I64 *pos);
+extern File * File_seek_cur(File *self, I64 *delta);
+extern File * File_seek_end(File *self, I64 *delta);
+extern I64 File_tell(File *self);
+extern U0 File_update(File *return_out, TilStr *path);
+extern File * File_write(File *self, TilStr *s);
+extern U0 Dir_close(Dir *self);
+extern U0 Dir_Delete(Dir *self, Bool call_free);
+extern U0 Dir_list(Vec__Str *return_out, TilStr *path);
+extern U0 Dir_next(TilStr *return_out, Dir *self);
+extern U0 Dir_open(Dir *return_out, TilStr *path);
+
 U0 File_Clone(File *out, File *src)
 {
   out->handle = src->handle;
@@ -18,9 +59,255 @@ U0 File_Clone(File *out, File *src)
   out->is_update = src->is_update;
 }
 
-U0 File_Delete(File *self, Bool call_free)
+U0 Dir_Clone(Dir *out, Dir *src)
 {
+  out->handle = src->handle;
+}
+
+U0 Vec__Str_CopyValue(Vec__Str *out, Vec__Str *src)
+{
+  out->data = src->data;
+  out->count = src->count;
+  out->cap = src->cap;
+}
+
+U0 Vec__Str_New(Vec__Str *out)
+{
+  out->data = NULL;
+  out->count = 0;
+  out->cap = 0;
+}
+
+U0 Vec__Str_WithCapacity(Vec__Str *out, U64 cap)
+{
+  out->data = NULL;
+  if (cap && cap > I64_MAX / sizeof(TilStr)) TilPanicZ("til: allocation size overflow
+");
+  if (cap) out->data = (TilMAlloc(cap * sizeof(TilStr)))(TilStr *);
+  out->count = 0;
+  out->cap = cap;
+}
+
+U0 Vec__Str_Clone(Vec__Str *out, Vec__Str *src)
+{
+  out->data = (TilCAlloc(src->cap, sizeof(TilStr)))(TilStr *);
+  out->count = src->count;
+  out->cap = src->cap;
+  U64 i = 0;
+  while (i < src->count) {
+    TilStrClone(&out->data[i], &src->data[i]);
+    i++;
+  }
+}
+
+TilStr *Vec__Str_UnsafeGet(Vec__Str *self, U64 i)
+{
+  return &self->data[i];
+}
+
+U0 Vec__Str_UnsafeSet(Vec__Str *self, U64 i, TilStr *value)
+{
+  TilStrDelete(&self->data[i], FALSE);
+  TilMemCpy(&self->data[i], value, sizeof(TilStr));
+  TilMemSet(value, 0, sizeof(TilStr));
+}
+
+TilStr *Vec__Str_Get(Vec__Str *self, U64 i, I64 *err_kind)
+{
+  *err_kind = 0;
+  if (i >= self->count) {
+    *err_kind = 1;
+    return NULL;
+  }
+  return Vec__Str_UnsafeGet(self, i);
+}
+
+U0 Vec__Str_Set(Vec__Str *self, U64 i, TilStr *value, I64 *err_kind)
+{
+  *err_kind = 0;
+  if (i >= self->count) {
+    *err_kind = 1;
+    return;
+  }
+  Vec__Str_UnsafeSet(self, i, value);
+}
+
+U0 Vec__Str_Push(Vec__Str *self, TilStr *value)
+{
+  if (self->count == self->cap) {
+    if (self->cap > I64_MAX/2) TilPanicZ("Vec.push: capacity overflow
+");
+    U64 new_cap = self->cap * 2;
+    if (!new_cap) new_cap = 1;
+    if (new_cap > I64_MAX / sizeof(TilStr)) TilPanicZ("til: allocation size overflow
+");
+    self->data = (TilReAlloc(self->data, new_cap * sizeof(TilStr)))(TilStr *);
+    self->cap = new_cap;
+  }
+  TilMemCpy(&self->data[self->count], value, sizeof(TilStr));
+  TilMemSet(value, 0, sizeof(TilStr));
+  self->count++;
+}
+
+U0 Vec__Str_Pop(TilStr *out, Vec__Str *self)
+{
+  if (!self->count) TilPanicZ("Vec.pop: empty vec
+");
+  self->count--;
+  TilMemCpy(out, &self->data[self->count], sizeof(TilStr));
+  TilMemSet(&self->data[self->count], 0, sizeof(TilStr));
+}
+
+U0 Vec__Str_Clear(Vec__Str *self)
+{
+  U64 i = 0;
+  while (i < self->count) {
+    TilStrDelete(&self->data[i], FALSE);
+    i++;
+  }
+  self->count = 0;
+}
+
+U0 Vec__Str_Delete(Vec__Str *self, Bool call_free)
+{
+  Vec__Str_Clear(self);
+  TilFree(self->data);
+  self->data = NULL;
+  self->cap = 0;
+  self->count = 0;
   if (call_free) TilFree(self);
+}
+
+U0 Vec__Str_Take(Vec__Str *out, Vec__Str *self)
+{
+  Vec__Str_CopyValue(out, self);
+  self->data = NULL;
+  self->count = 0;
+  self->cap = 0;
+}
+
+U0 Vec__Str_Append(Vec__Str *self, Vec__Str *other)
+{
+  if (!other->count) {
+    Vec__Str_Delete(other, FALSE);
+    return;
+  }
+  if (other->count > I64_MAX - self->count) TilPanicZ("Vec.append: size overflow
+");
+  U64 needed = self->count + other->count;
+  if (needed > self->cap) {
+    U64 next_cap = self->cap;
+    if (!next_cap) next_cap = 1;
+    while (next_cap < needed) {
+      if (next_cap > I64_MAX / 2) TilPanicZ("Vec.append: capacity overflow
+");
+      next_cap = next_cap * 2;
+    }
+    if (next_cap > I64_MAX / sizeof(TilStr)) TilPanicZ("Vec.append: allocation overflow
+");
+    self->data = (TilReAlloc(self->data, next_cap * sizeof(TilStr)))(TilStr *);
+    self->cap = next_cap;
+  }
+  TilMemCpy(&self->data[self->count], other->data, other->count * sizeof(TilStr));
+  self->count = needed;
+  other->count = 0;
+  Vec__Str_Delete(other, FALSE);
+}
+
+U0 Vec__Str_MoveTo(Vec__Str *src, Vec__Str *dest)
+{
+  Vec__Str_Delete(dest, FALSE);
+  Vec__Str_Take(dest, src);
+}
+
+U0 Vec__Str_Truncate(Vec__Str *self, U64 n)
+{
+  if (n > self->count) TilPanicZ("Vec.truncate: out of bounds
+");
+  U64 i = n;
+  while (i < self->count) {
+    TilStrDelete(&self->data[i], FALSE);
+    i++;
+  }
+  self->count = n;
+}
+
+U0 Vec__Str_RemoveAt(Vec__Str *self, U64 i, I64 *err_kind)
+{
+  *err_kind = 0;
+  if (i >= self->count) { *err_kind = 1; return; }
+  TilStrDelete(&self->data[i], FALSE);
+  U64 last = self->count - 1;
+  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(TilStr));
+  self->count = last;
+  TilMemSet(&self->data[last], 0, sizeof(TilStr));
+}
+
+U0 Vec__Str_PushTake(Vec__Str *self, Vec__Str *src, U64 i)
+{
+  if (i >= src->count) TilPanicZ("Vec.push_take: out of bounds
+");
+  if (self->count == self->cap) {
+    if (self->cap > I64_MAX/2) TilPanicZ("Vec.push_take: capacity overflow
+");
+    U64 next_cap = self->cap * 2;
+    if (!next_cap) next_cap = 1;
+    if (next_cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Vec.push_take: allocation overflow
+");
+    self->data = (TilReAlloc(self->data, next_cap*sizeof(TilStr)))(TilStr *);
+    self->cap = next_cap;
+  }
+  TilMemCpy(&self->data[self->count], &src->data[i], sizeof(TilStr));
+  TilMemSet(&src->data[i], 0, sizeof(TilStr));
+  self->count++;
+}
+
+U0 Vec__Str_TakePrefix(Vec__Str *out, Vec__Str *self, U64 n)
+{
+  if (n > self->count) TilPanicZ("Vec.take_prefix: out of bounds
+");
+  U64 cap = n;
+  if (!cap) cap = 1;
+  if (cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Vec.take_prefix: allocation overflow
+");
+  out->data = (TilMAlloc(cap*sizeof(TilStr)))(TilStr *);
+  out->count = n;
+  out->cap = cap;
+  if (n) TilMemCpy(out->data, self->data, n*sizeof(TilStr));
+  U64 tail = self->count - n;
+  if (tail) TilMemMove(self->data, &self->data[n], tail*sizeof(TilStr));
+  if (n) TilMemSet(&self->data[tail], 0, n*sizeof(TilStr));
+  self->count = tail;
+}
+
+U0 Vec__Str_DeleteMarked(Vec__Str *self, U8 *marks)
+{
+  U64 i = 0;
+  while (i < self->count) {
+    if (marks[i]) {
+      TilStrDelete(&self->data[i], FALSE);
+      TilMemSet(&self->data[i], 0, sizeof(TilStr));
+    }
+    i++;
+  }
+  U64 w = 0;
+  U64 r = 0;
+  while (r < self->count) {
+    if (!marks[r]) {
+      if (w != r) TilMemCpy(&self->data[w], &self->data[r], sizeof(TilStr));
+      w++;
+    }
+    r++;
+  }
+  self->count = w;
+}
+
+U0 TilPanicParts(TilStrArray *parts, TilStr *loc)
+{
+  TilStrWrite(loc);
+  TilRawWrite(": ", 2);
+  TilPrintln(parts);
+  TilPanicZ("");
 }
 
 extern U0 str_runtime_middle(TilStr *return_out, TilStr *s);
@@ -28,19 +315,332 @@ extern I64 str_runtime_len(TilStr *s);
 extern U0 str_runtime_push(TilStr *s);
 extern I64 str_runtime_consume(TilStr *s);
 
+U0 File_append(File *return_out, TilStr *path)
+{
+    U8 *ref_value_1 = TilFileOpen(path, 3);
+    Bool hoisted__Bool_0_2 = TRUE;
+    Bool hoisted__Bool_1_3 = FALSE;
+    File hoisted__File_2_4;
+    hoisted__File_2_4.handle = ref_value_1;
+    hoisted__File_2_4.is_write = hoisted__Bool_0_2;
+    hoisted__File_2_4.is_update = hoisted__Bool_1_3;
+    {
+        File return_value_5;
+        return_value_5.handle = hoisted__File_2_4.handle;
+        return_value_5.is_write = hoisted__File_2_4.is_write;
+        return_value_5.is_update = hoisted__File_2_4.is_update;
+        return_out->handle = return_value_5.handle;
+        return_out->is_write = return_value_5.is_write;
+        return_out->is_update = return_value_5.is_update;
+        return;
+    }
+}
+
+U0 File_appendfile(TilStr *path, TilStr *content)
+{
+    File f_6;
+    File_append(&f_6, path);
+    File_write(&f_6, content);
+    File_Delete(&f_6, FALSE);
+}
+
+U0 File_close(File *self)
+{
+    TilFileClose(self->handle);
+}
+
+U0 File_Delete(File *self, Bool call_free)
+{
+    File_close(self);
+    if (call_free) {
+        TilFree(self);
+    }
+}
+
+U0 File_new(File *return_out, TilStr *path, Bool *is_write)
+{
+    U8 *ref_value_8 = TilFileOpen(path, (*((TilCheckPtr(is_write))(Bool *))));
+    Bool hoisted__Bool_0_9 = FALSE;
+    File hoisted__File_1_10;
+    hoisted__File_1_10.handle = ref_value_8;
+    hoisted__File_1_10.is_write = (*((TilCheckPtr(is_write))(Bool *)));
+    hoisted__File_1_10.is_update = hoisted__Bool_0_9;
+    {
+        File return_value_11;
+        return_value_11.handle = hoisted__File_1_10.handle;
+        return_value_11.is_write = hoisted__File_1_10.is_write;
+        return_value_11.is_update = hoisted__File_1_10.is_update;
+        return_out->handle = return_value_11.handle;
+        return_out->is_write = return_value_11.is_write;
+        return_out->is_update = return_value_11.is_update;
+        return;
+    }
+}
+
+U0 File_read(TilStr *return_out, File *self, I64 count)
+{
+    if (self->is_write) {
+        U64 hoisted__U64_0_12 = 1;
+        TilStrArray _va_Array_0_13;
+        TilStrArrayNew(&_va_Array_0_13, hoisted__U64_0_12);
+        I64 _va_Array_0_ek_14 = 0;
+        U64 hoisted__U64_1_15 = 0;
+        TilStr hoisted__Str_File_read_2_16;
+        TilStrInitLit(&hoisted__Str_File_read_2_16, "File.read: file opened for writing", 34);
+        TilStrArraySet(&_va_Array_0_13, hoisted__U64_1_15, &hoisted__Str_File_read_2_16);
+        TilStr hoisted__Str_File_read_3_17;
+        TilStrInitLit(&hoisted__Str_File_read_3_17, "./src/std/file.til:209:13", 25);
+        TilPanicParts(&_va_Array_0_13, &hoisted__Str_File_read_3_17);
+    }
+    TilStr hoisted__Str_File_read_4_18;
+    TilFileReadN(&hoisted__Str_File_read_4_18, self->handle, count);
+    {
+        TilStr return_value_19;
+        TilStrCopyValue(&return_value_19, &hoisted__Str_File_read_4_18);
+        TilStrCopyValue(return_out, &return_value_19);
+        TilStrPrepareReturn(return_out);
+        return;
+    }
+}
+
+U0 File_read_all(TilStr *return_out, File *self)
+{
+    if (self->is_write) {
+        U64 hoisted__U64_0_20 = 1;
+        TilStrArray _va_Array_0_21;
+        TilStrArrayNew(&_va_Array_0_21, hoisted__U64_0_20);
+        I64 _va_Array_0_ek_22 = 0;
+        U64 hoisted__U64_1_23 = 0;
+        TilStr hoisted__Str_File_read_all_2_24;
+        TilStrInitLit(&hoisted__Str_File_read_all_2_24, "File.read_all: file opened for writing", 38);
+        TilStrArraySet(&_va_Array_0_21, hoisted__U64_1_23, &hoisted__Str_File_read_all_2_24);
+        TilStr hoisted__Str_File_read_all_3_25;
+        TilStrInitLit(&hoisted__Str_File_read_all_3_25, "./src/std/file.til:199:13", 25);
+        TilPanicParts(&_va_Array_0_21, &hoisted__Str_File_read_all_3_25);
+    }
+    TilStr hoisted__Str_File_read_all_4_26;
+    TilFileReadAll(&hoisted__Str_File_read_all_4_26, self->handle);
+    {
+        TilStr return_value_27;
+        TilStrCopyValue(&return_value_27, &hoisted__Str_File_read_all_4_26);
+        TilStrCopyValue(return_out, &return_value_27);
+        TilStrPrepareReturn(return_out);
+        return;
+    }
+}
+
+U0 File_remove(TilStr *path)
+{
+    TilFileRemove(path);
+}
+
+U0 File_remove_tree(TilStr *path)
+{
+    I32 hoisted__I32_8_28 = TilRemoveTree(path);
+    I32 hoisted__I32_9_29 = 0;
+    Bool hoisted__Bool_10_30 = (hoisted__I32_8_28 != hoisted__I32_9_29);
+    if (hoisted__Bool_10_30) {
+        U64 hoisted__U64_0_31 = 3;
+        TilStrArray _va_Array_0_32;
+        TilStrArrayNew(&_va_Array_0_32, hoisted__U64_0_31);
+        I64 _va_Array_0_ek_33 = 0;
+        U64 hoisted__U64_1_34 = 0;
+        TilStr hoisted__Str_File_remove_tree_2_35;
+        TilStrInitLit(&hoisted__Str_File_remove_tree_2_35, "File.remove_tree: could not remove '", 36);
+        TilStrArraySet(&_va_Array_0_32, hoisted__U64_1_34, &hoisted__Str_File_remove_tree_2_35);
+        U64 hoisted__U64_3_36 = 1;
+        TilStr hoisted__Str_File_remove_tree_4_37;
+        TilStrClone(&hoisted__Str_File_remove_tree_4_37, path);
+        TilStrArraySet(&_va_Array_0_32, hoisted__U64_3_36, &hoisted__Str_File_remove_tree_4_37);
+        U64 hoisted__U64_5_38 = 2;
+        TilStr hoisted__Str_File_remove_tree_6_39;
+        TilStrInitLit(&hoisted__Str_File_remove_tree_6_39, "'", 1);
+        TilStrArraySet(&_va_Array_0_32, hoisted__U64_5_38, &hoisted__Str_File_remove_tree_6_39);
+        TilStr hoisted__Str_File_remove_tree_7_40;
+        TilStrInitLit(&hoisted__Str_File_remove_tree_7_40, "./src/std/file.til:144:13", 25);
+        TilPanicParts(&_va_Array_0_32, &hoisted__Str_File_remove_tree_7_40);
+    }
+}
+
+U0 File_rename(TilStr *src, TilStr *dst)
+{
+    I32 hoisted__I32_12_41 = TilFileRename(src, dst);
+    I32 hoisted__I32_13_42 = 0;
+    Bool hoisted__Bool_14_43 = (hoisted__I32_12_41 != hoisted__I32_13_42);
+    if (hoisted__Bool_14_43) {
+        U64 hoisted__U64_0_44 = 5;
+        TilStrArray _va_Array_0_45;
+        TilStrArrayNew(&_va_Array_0_45, hoisted__U64_0_44);
+        I64 _va_Array_0_ek_46 = 0;
+        U64 hoisted__U64_1_47 = 0;
+        TilStr hoisted__Str_File_rename_2_48;
+        TilStrInitLit(&hoisted__Str_File_rename_2_48, "File.rename: could not move '", 29);
+        TilStrArraySet(&_va_Array_0_45, hoisted__U64_1_47, &hoisted__Str_File_rename_2_48);
+        U64 hoisted__U64_3_49 = 1;
+        TilStr hoisted__Str_File_rename_4_50;
+        TilStrClone(&hoisted__Str_File_rename_4_50, src);
+        TilStrArraySet(&_va_Array_0_45, hoisted__U64_3_49, &hoisted__Str_File_rename_4_50);
+        U64 hoisted__U64_5_51 = 2;
+        TilStr hoisted__Str_File_rename_6_52;
+        TilStrInitLit(&hoisted__Str_File_rename_6_52, "' to '", 6);
+        TilStrArraySet(&_va_Array_0_45, hoisted__U64_5_51, &hoisted__Str_File_rename_6_52);
+        U64 hoisted__U64_7_53 = 3;
+        TilStr hoisted__Str_File_rename_8_54;
+        TilStrClone(&hoisted__Str_File_rename_8_54, dst);
+        TilStrArraySet(&_va_Array_0_45, hoisted__U64_7_53, &hoisted__Str_File_rename_8_54);
+        U64 hoisted__U64_9_55 = 4;
+        TilStr hoisted__Str_File_rename_10_56;
+        TilStrInitLit(&hoisted__Str_File_rename_10_56, "'", 1);
+        TilStrArraySet(&_va_Array_0_45, hoisted__U64_9_55, &hoisted__Str_File_rename_10_56);
+        TilStr hoisted__Str_File_rename_11_57;
+        TilStrInitLit(&hoisted__Str_File_rename_11_57, "./src/std/file.til:155:13", 25);
+        TilPanicParts(&_va_Array_0_45, &hoisted__Str_File_rename_11_57);
+    }
+}
+
+File * File_seek(File *self, I64 *pos)
+{
+    TilFileSeek(self->handle, (*((TilCheckPtr(pos))(I64 *))), 0);
+    return self;
+}
+
+File * File_seek_cur(File *self, I64 *delta)
+{
+    TilFileSeek(self->handle, (*((TilCheckPtr(delta))(I64 *))), 1);
+    return self;
+}
+
+File * File_seek_end(File *self, I64 *delta)
+{
+    TilFileSeek(self->handle, (*((TilCheckPtr(delta))(I64 *))), 2);
+    return self;
+}
+
+I64 File_tell(File *self)
+{
+    I64 hoisted__I64_0_58 = TilFileTell(self->handle);
+    return hoisted__I64_0_58;
+}
+
+U0 File_update(File *return_out, TilStr *path)
+{
+    U8 *ref_value_60 = TilFileOpen(path, 2);
+    Bool hoisted__Bool_0_61 = FALSE;
+    Bool hoisted__Bool_1_62 = TRUE;
+    File hoisted__File_2_63;
+    hoisted__File_2_63.handle = ref_value_60;
+    hoisted__File_2_63.is_write = hoisted__Bool_0_61;
+    hoisted__File_2_63.is_update = hoisted__Bool_1_62;
+    {
+        File return_value_64;
+        return_value_64.handle = hoisted__File_2_63.handle;
+        return_value_64.is_write = hoisted__File_2_63.is_write;
+        return_value_64.is_update = hoisted__File_2_63.is_update;
+        return_out->handle = return_value_64.handle;
+        return_out->is_write = return_value_64.is_write;
+        return_out->is_update = return_value_64.is_update;
+        return;
+    }
+}
+
+File * File_write(File *self, TilStr *s)
+{
+    Bool hoisted__Bool_4_65 = (self->is_write || self->is_update);
+    Bool hoisted__Bool_5_66 = (!hoisted__Bool_4_65);
+    if (hoisted__Bool_5_66) {
+        U64 hoisted__U64_0_67 = 1;
+        TilStrArray _va_Array_0_68;
+        TilStrArrayNew(&_va_Array_0_68, hoisted__U64_0_67);
+        I64 _va_Array_0_ek_69 = 0;
+        U64 hoisted__U64_1_70 = 0;
+        TilStr hoisted__Str_File_write_2_71;
+        TilStrInitLit(&hoisted__Str_File_write_2_71, "File.write: file not opened for writing", 39);
+        TilStrArraySet(&_va_Array_0_68, hoisted__U64_1_70, &hoisted__Str_File_write_2_71);
+        TilStr hoisted__Str_File_write_3_72;
+        TilStrInitLit(&hoisted__Str_File_write_3_72, "./src/std/file.til:189:13", 25);
+        TilPanicParts(&_va_Array_0_68, &hoisted__Str_File_write_3_72);
+    }
+    TilFileWriteStr(self->handle, s);
+    return self;
+}
+
+U0 Dir_close(Dir *self)
+{
+    TilDirClose(self->handle);
+}
+
+U0 Dir_Delete(Dir *self, Bool call_free)
+{
+    Dir_close(self);
+    if (call_free) {
+        TilFree(self);
+    }
+}
+
+U0 Dir_list(Vec__Str *return_out, TilStr *path)
+{
+    Vec__Str names_73;
+    Vec__Str_WithCapacity(&names_73, 0);
+    Dir d_74;
+    Dir_open(&d_74, path);
+    while (TRUE) {
+        TilStr name_75;
+        Dir_next(&name_75, &d_74);
+        Bool hoisted__Bool_0_76 = ((&name_75)->count == 0);
+        if (hoisted__Bool_0_76) {
+            TilStrDelete(&name_75, FALSE);
+            break;
+        }
+        Vec__Str_Push(&names_73, &name_75);
+    }
+    Dir_Delete(&d_74, FALSE);
+    {
+        Vec__Str return_value_77;
+        Vec__Str_CopyValue(&return_value_77, &names_73);
+        Vec__Str_CopyValue(return_out, &return_value_77);
+        return;
+    }
+}
+
+U0 Dir_next(TilStr *return_out, Dir *self)
+{
+    TilStr hoisted__Str_Dir_next_0_78;
+    TilDirNext(&hoisted__Str_Dir_next_0_78, self->handle);
+    {
+        TilStr return_value_79;
+        TilStrCopyValue(&return_value_79, &hoisted__Str_Dir_next_0_78);
+        TilStrCopyValue(return_out, &return_value_79);
+        TilStrPrepareReturn(return_out);
+        return;
+    }
+}
+
+U0 Dir_open(Dir *return_out, TilStr *path)
+{
+    U8 *ref_value_81 = TilDirOpen(path);
+    Dir hoisted__Dir_0_82;
+    hoisted__Dir_0_82.handle = ref_value_81;
+    {
+        Dir return_value_83;
+        return_value_83.handle = hoisted__Dir_0_82.handle;
+        return_out->handle = return_value_83.handle;
+        return;
+    }
+}
+
 U0 str_runtime_middle(TilStr *return_out, TilStr *s)
 {
-    U64 hoisted__U64_0 = 1;
-    U64 hoisted__U64_1 = 3;
-    TilStr hoisted__Str_str_runtime_middle_2;
-    TilStrSubstr(&hoisted__Str_str_runtime_middle_2, s, hoisted__U64_0, hoisted__U64_1);
-    TilStr hoisted__Str_str_runtime_middle_3;
-    TilStrClone(&hoisted__Str_str_runtime_middle_3, &hoisted__Str_str_runtime_middle_2);
-    TilStrDelete(&hoisted__Str_str_runtime_middle_2, FALSE);
+    U64 hoisted__U64_0_84 = 1;
+    U64 hoisted__U64_1_85 = 3;
+    TilStr hoisted__Str_str_runtime_middle_2_86;
+    TilStrSubstr(&hoisted__Str_str_runtime_middle_2_86, s, hoisted__U64_0_84, hoisted__U64_1_85);
+    TilStr hoisted__Str_str_runtime_middle_3_87;
+    TilStrClone(&hoisted__Str_str_runtime_middle_3_87, &hoisted__Str_str_runtime_middle_2_86);
+    TilStrDelete(&hoisted__Str_str_runtime_middle_2_86, FALSE);
     {
-        TilStr return_value_0;
-        TilStrCopyValue(&return_value_0, &hoisted__Str_str_runtime_middle_3);
-        TilStrCopyValue(return_out, &return_value_0);
+        TilStr return_value_88;
+        TilStrCopyValue(&return_value_88, &hoisted__Str_str_runtime_middle_3_87);
+        TilStrCopyValue(return_out, &return_value_88);
         TilStrPrepareReturn(return_out);
         return;
     }
@@ -48,674 +648,1328 @@ U0 str_runtime_middle(TilStr *return_out, TilStr *s)
 
 I64 str_runtime_len(TilStr *s)
 {
-    U64 hoisted__U64_0 = (s)->count;
-    I64 hoisted__I64_1 = ((hoisted__U64_0) + 0)(I64);
-    return hoisted__I64_1;
+    U64 hoisted__U64_0_89 = (s)->count;
+    I64 hoisted__I64_1_90 = ((hoisted__U64_0_89) + 0)(I64);
+    return hoisted__I64_1_90;
 }
 
 U0 str_runtime_push(TilStr *s)
 {
-    TilStr hoisted__Str_str_runtime_push_0;
-    TilStrInitLit(&hoisted__Str_str_runtime_push_0, "!", 1);
-    TilStrPush(s, &hoisted__Str_str_runtime_push_0);
-    TilStrDelete(&hoisted__Str_str_runtime_push_0, FALSE);
+    TilStr hoisted__Str_str_runtime_push_0_91;
+    TilStrInitLit(&hoisted__Str_str_runtime_push_0_91, "!", 1);
+    TilStrPush(s, &hoisted__Str_str_runtime_push_0_91);
+    TilStrDelete(&hoisted__Str_str_runtime_push_0_91, FALSE);
 }
 
 I64 str_runtime_consume(TilStr *s)
 {
-    U64 hoisted__U64_0 = (s)->count;
-    I64 n = ((hoisted__U64_0) + 0)(I64);
+    U64 hoisted__U64_0_92 = (s)->count;
+    I64 n_93 = ((hoisted__U64_0_92) + 0)(I64);
     TilStrDelete(s, FALSE);
-    return n;
+    return n_93;
 }
 
 I64 TilMain()
 {
-    TilStr literal;
-    TilStrInitLit(&literal, "  1234  ", 8);
-    TilStr copy;
-    TilStrClone(&copy, &literal);
-    U64 hoisted__U64_g164 = 2;
-    U64 hoisted__U64_g165 = 4;
-    TilStr view;
-    TilStrSubstr(&view, &copy, hoisted__U64_g164, hoisted__U64_g165);
-    TilStr borrowed;
-    TilStrBorrowedView(&borrowed, &view);
-    U64 hoisted__U64_g166 = 8;
-    TilStr out;
-    TilStrWithCapacity(&out, hoisted__U64_g166);
-    TilStr hoisted__Str_g167;
-    TilStrInitLit(&hoisted__Str_g167, "ab", 2);
-    TilStrPush(&out, &hoisted__Str_g167);
-    TilStrDelete(&hoisted__Str_g167, FALSE);
-    TilStrPush(&out, &borrowed);
-    U64 hoisted__U64_g168 = 1;
-    TilStrArray _va_Array_g24;
-    TilStrArrayNew(&_va_Array_g24, hoisted__U64_g168);
-    I64 _va_Array_g24_ek = 0;
-    U64 hoisted__U64_g169 = 0;
-    TilStr hoisted__Str_g170;
-    TilStrClone(&hoisted__Str_g170, &out);
-    TilStrArraySet(&_va_Array_g24, hoisted__U64_g169, &hoisted__Str_g170);
-    TilPrintln(&_va_Array_g24);
-    TilStr hoisted__Str_g171;
-    TilStrInitLit(&hoisted__Str_g171, "1234", 4);
-    I64 number = TilStrToI64(&hoisted__Str_g171);
-    TilStrDelete(&hoisted__Str_g171, FALSE);
-    U64 hoisted__U64_g172 = 1;
-    TilStrArray _va_Array_g25;
-    TilStrArrayNew(&_va_Array_g25, hoisted__U64_g172);
-    I64 _va_Array_g25_ek = 0;
-    U64 hoisted__U64_g173 = 0;
-    TilStr hoisted__Str_g174;
-    TilStrFromI64(&hoisted__Str_g174, number);
-    TilStrArraySet(&_va_Array_g25, hoisted__U64_g173, &hoisted__Str_g174);
-    TilPrintln(&_va_Array_g25);
-    U64 hoisted__U64_g175 = 1;
-    TilStrArray _va_Array_g26;
-    TilStrArrayNew(&_va_Array_g26, hoisted__U64_g175);
-    I64 _va_Array_g26_ek = 0;
-    U64 hoisted__U64_g176 = (&out)->count;
-    I64 hoisted__I64_g177 = ((hoisted__U64_g176) + 0)(I64);
-    U64 hoisted__U64_g178 = 0;
-    TilStr hoisted__Str_g179;
-    TilStrFromI64(&hoisted__Str_g179, hoisted__I64_g177);
-    TilStrArraySet(&_va_Array_g26, hoisted__U64_g178, &hoisted__Str_g179);
-    TilPrintln(&_va_Array_g26);
-    U64 hoisted__U64_g180 = 8;
-    TilStr reassigned;
-    TilStrWithCapacity(&reassigned, hoisted__U64_g180);
-    TilStr hoisted__Str_g181;
-    TilStrInitLit(&hoisted__Str_g181, "abcdef", 6);
-    TilStrPush(&reassigned, &hoisted__Str_g181);
-    TilStrDelete(&hoisted__Str_g181, FALSE);
-    U64 hoisted__U64_g182 = 1;
-    U64 hoisted__U64_g183 = 4;
-    TilStr hoisted__Str_g184;
-    TilStrSubstr(&hoisted__Str_g184, &reassigned, hoisted__U64_g182, hoisted__U64_g183);
+    TilStr literal_94;
+    TilStrInitLit(&literal_94, "  1234  ", 8);
+    TilStr copy_95;
+    TilStrClone(&copy_95, &literal_94);
+    U64 hoisted__U64_g310_96 = 2;
+    U64 hoisted__U64_g311_97 = 4;
+    TilStr view_98;
+    TilStrSubstr(&view_98, &copy_95, hoisted__U64_g310_96, hoisted__U64_g311_97);
+    TilStr borrowed_99;
+    TilStrBorrowedView(&borrowed_99, &view_98);
+    U64 hoisted__U64_g312_100 = 8;
+    TilStr out_101;
+    TilStrWithCapacity(&out_101, hoisted__U64_g312_100);
+    TilStr hoisted__Str_g313_102;
+    TilStrInitLit(&hoisted__Str_g313_102, "ab", 2);
+    TilStrPush(&out_101, &hoisted__Str_g313_102);
+    TilStrDelete(&hoisted__Str_g313_102, FALSE);
+    TilStrPush(&out_101, &borrowed_99);
+    U64 hoisted__U64_g314_103 = 1;
+    TilStrArray _va_Array_g49_104;
+    TilStrArrayNew(&_va_Array_g49_104, hoisted__U64_g314_103);
+    I64 _va_Array_g49_ek_105 = 0;
+    U64 hoisted__U64_g315_106 = 0;
+    TilStr hoisted__Str_g316_107;
+    TilStrClone(&hoisted__Str_g316_107, &out_101);
+    TilStrArraySet(&_va_Array_g49_104, hoisted__U64_g315_106, &hoisted__Str_g316_107);
+    TilPrintln(&_va_Array_g49_104);
+    TilStr hoisted__Str_g317_108;
+    TilStrInitLit(&hoisted__Str_g317_108, "1234", 4);
+    I64 number_109 = TilStrToI64(&hoisted__Str_g317_108);
+    TilStrDelete(&hoisted__Str_g317_108, FALSE);
+    U64 hoisted__U64_g318_110 = 1;
+    TilStrArray _va_Array_g50_111;
+    TilStrArrayNew(&_va_Array_g50_111, hoisted__U64_g318_110);
+    I64 _va_Array_g50_ek_112 = 0;
+    U64 hoisted__U64_g319_113 = 0;
+    TilStr hoisted__Str_g320_114;
+    TilStrFromI64(&hoisted__Str_g320_114, number_109);
+    TilStrArraySet(&_va_Array_g50_111, hoisted__U64_g319_113, &hoisted__Str_g320_114);
+    TilPrintln(&_va_Array_g50_111);
+    U64 hoisted__U64_g321_115 = 1;
+    TilStrArray _va_Array_g51_116;
+    TilStrArrayNew(&_va_Array_g51_116, hoisted__U64_g321_115);
+    I64 _va_Array_g51_ek_117 = 0;
+    U64 hoisted__U64_g322_118 = (&out_101)->count;
+    I64 hoisted__I64_g323_119 = ((hoisted__U64_g322_118) + 0)(I64);
+    U64 hoisted__U64_g324_120 = 0;
+    TilStr hoisted__Str_g325_121;
+    TilStrFromI64(&hoisted__Str_g325_121, hoisted__I64_g323_119);
+    TilStrArraySet(&_va_Array_g51_116, hoisted__U64_g324_120, &hoisted__Str_g325_121);
+    TilPrintln(&_va_Array_g51_116);
+    U64 hoisted__U64_g326_122 = 8;
+    TilStr reassigned_123;
+    TilStrWithCapacity(&reassigned_123, hoisted__U64_g326_122);
+    TilStr hoisted__Str_g327_124;
+    TilStrInitLit(&hoisted__Str_g327_124, "abcdef", 6);
+    TilStrPush(&reassigned_123, &hoisted__Str_g327_124);
+    TilStrDelete(&hoisted__Str_g327_124, FALSE);
+    U64 hoisted__U64_g328_125 = 1;
+    U64 hoisted__U64_g329_126 = 4;
+    TilStr hoisted__Str_g330_127;
+    TilStrSubstr(&hoisted__Str_g330_127, &reassigned_123, hoisted__U64_g328_125, hoisted__U64_g329_126);
     {
-        TilStr replacement_1;
-        TilStrClone(&replacement_1, &hoisted__Str_g184);
-        TilStrDelete(&reassigned, FALSE);
-        TilStrCopyValue(&reassigned, &replacement_1);
+        TilStr replacement_128;
+        TilStrClone(&replacement_128, &hoisted__Str_g330_127);
+        TilStrDelete(&reassigned_123, FALSE);
+        TilStrCopyValue(&reassigned_123, &replacement_128);
     }
-    TilStrDelete(&hoisted__Str_g184, FALSE);
-    TilStr returned;
-    str_runtime_middle(&returned, &reassigned);
-    U64 hoisted__U64_g185 = 1;
-    TilStrArray _va_Array_g27;
-    TilStrArrayNew(&_va_Array_g27, hoisted__U64_g185);
-    I64 _va_Array_g27_ek = 0;
-    U64 hoisted__U64_g186 = 0;
-    TilStr hoisted__Str_g187;
-    TilStrClone(&hoisted__Str_g187, &returned);
-    TilStrArraySet(&_va_Array_g27, hoisted__U64_g186, &hoisted__Str_g187);
-    TilPrintln(&_va_Array_g27);
-    U64 hoisted__U64_g188 = 1;
-    TilStrArray _va_Array_g28;
-    TilStrArrayNew(&_va_Array_g28, hoisted__U64_g188);
-    I64 _va_Array_g28_ek = 0;
-    I64 hoisted__I64_g189 = str_runtime_len(&returned);
-    U64 hoisted__U64_g190 = 0;
-    TilStr hoisted__Str_g191;
-    TilStrFromI64(&hoisted__Str_g191, hoisted__I64_g189);
-    TilStrArraySet(&_va_Array_g28, hoisted__U64_g190, &hoisted__Str_g191);
-    TilPrintln(&_va_Array_g28);
-    U64 hoisted__U64_g192 = 4;
-    TilStrArray _va_Array_g29;
-    TilStrArrayNew(&_va_Array_g29, hoisted__U64_g192);
-    I64 _va_Array_g29_ek = 0;
-    U64 hoisted__U64_g193 = 0;
-    TilStr hoisted__Str_g194;
-    TilStrInitLit(&hoisted__Str_g194, "multi:", 6);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g193, &hoisted__Str_g194);
-    U64 hoisted__U64_g195 = 1;
-    TilStr hoisted__Str_g196;
-    TilStrClone(&hoisted__Str_g196, &returned);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g195, &hoisted__Str_g196);
-    U64 hoisted__U64_g197 = 2;
-    TilStr hoisted__Str_g198;
-    TilStrInitLit(&hoisted__Str_g198, ":", 1);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g197, &hoisted__Str_g198);
-    I64 hoisted__I64_g199 = str_runtime_len(&returned);
-    U64 hoisted__U64_g200 = 3;
-    TilStr hoisted__Str_g201;
-    TilStrFromI64(&hoisted__Str_g201, hoisted__I64_g199);
-    TilStrArraySet(&_va_Array_g29, hoisted__U64_g200, &hoisted__Str_g201);
-    TilPrintln(&_va_Array_g29);
-    U64 hoisted__U64_g202 = 4;
-    TilStr mutable;
-    TilStrWithCapacity(&mutable, hoisted__U64_g202);
-    TilStr hoisted__Str_g203;
-    TilStrInitLit(&hoisted__Str_g203, "xy", 2);
-    TilStrPush(&mutable, &hoisted__Str_g203);
-    TilStrDelete(&hoisted__Str_g203, FALSE);
-    str_runtime_push(&mutable);
-    U64 hoisted__U64_g204 = 1;
-    TilStrArray _va_Array_g30;
-    TilStrArrayNew(&_va_Array_g30, hoisted__U64_g204);
-    I64 _va_Array_g30_ek = 0;
-    U64 hoisted__U64_g205 = 0;
-    TilStr hoisted__Str_g206;
-    TilStrClone(&hoisted__Str_g206, &mutable);
-    TilStrArraySet(&_va_Array_g30, hoisted__U64_g205, &hoisted__Str_g206);
-    TilPrintln(&_va_Array_g30);
-    TilStr owned;
-    TilStrClone(&owned, &mutable);
-    U64 hoisted__U64_g207 = 1;
-    TilStrArray _va_Array_g31;
-    TilStrArrayNew(&_va_Array_g31, hoisted__U64_g207);
-    I64 _va_Array_g31_ek = 0;
-    I64 hoisted__I64_g208 = str_runtime_consume(&owned);
-    U64 hoisted__U64_g209 = 0;
-    TilStr hoisted__Str_g210;
-    TilStrFromI64(&hoisted__Str_g210, hoisted__I64_g208);
-    TilStrArraySet(&_va_Array_g31, hoisted__U64_g209, &hoisted__Str_g210);
-    TilPrintln(&_va_Array_g31);
-    TilStrDelete(&out, FALSE);
-    TilStrDelete(&copy, FALSE);
-    TilStrDelete(&reassigned, FALSE);
-    TilStrDelete(&returned, FALSE);
-    TilStrDelete(&mutable, FALSE);
-    TilStr hoisted__Str_g211;
-    TilStrInitLit(&hoisted__Str_g211, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g212 = TilFileExists(&hoisted__Str_g211);
-    TilStrDelete(&hoisted__Str_g211, FALSE);
-    if (hoisted__Bool_g212) {
-        U64 hoisted__U64_g44 = 1;
-        TilStrArray _va_Array_g7;
-        TilStrArrayNew(&_va_Array_g7, hoisted__U64_g44);
-        I64 _va_Array_g7_ek = 0;
-        U64 hoisted__U64_g45 = 0;
-        TilStr hoisted__Str_g46;
-        TilStrInitLit(&hoisted__Str_g46, "file exists", 11);
-        TilStrArraySet(&_va_Array_g7, hoisted__U64_g45, &hoisted__Str_g46);
-        TilPrintln(&_va_Array_g7);
-        TilStr hoisted__Str_g47;
-        TilStrInitLit(&hoisted__Str_g47, "src/holyc", 9);
-        Bool hoisted__Bool_g48 = TilFileExists(&hoisted__Str_g47);
-        TilStrDelete(&hoisted__Str_g47, FALSE);
-        if (hoisted__Bool_g48) {
-            U64 hoisted__U64_g7 = 1;
-            TilStrArray _va_Array_g0;
-            TilStrArrayNew(&_va_Array_g0, hoisted__U64_g7);
-            I64 _va_Array_g0_ek = 0;
-            U64 hoisted__U64_g8 = 0;
-            TilStr hoisted__Str_g9;
-            TilStrInitLit(&hoisted__Str_g9, "directory exists", 16);
-            TilStrArraySet(&_va_Array_g0, hoisted__U64_g8, &hoisted__Str_g9);
-            TilPrintln(&_va_Array_g0);
+    TilStrDelete(&hoisted__Str_g330_127, FALSE);
+    TilStr returned_129;
+    str_runtime_middle(&returned_129, &reassigned_123);
+    U64 hoisted__U64_g331_130 = 1;
+    TilStrArray _va_Array_g52_131;
+    TilStrArrayNew(&_va_Array_g52_131, hoisted__U64_g331_130);
+    I64 _va_Array_g52_ek_132 = 0;
+    U64 hoisted__U64_g332_133 = 0;
+    TilStr hoisted__Str_g333_134;
+    TilStrClone(&hoisted__Str_g333_134, &returned_129);
+    TilStrArraySet(&_va_Array_g52_131, hoisted__U64_g332_133, &hoisted__Str_g333_134);
+    TilPrintln(&_va_Array_g52_131);
+    U64 hoisted__U64_g334_135 = 1;
+    TilStrArray _va_Array_g53_136;
+    TilStrArrayNew(&_va_Array_g53_136, hoisted__U64_g334_135);
+    I64 _va_Array_g53_ek_137 = 0;
+    I64 hoisted__I64_g335_138 = str_runtime_len(&returned_129);
+    U64 hoisted__U64_g336_139 = 0;
+    TilStr hoisted__Str_g337_140;
+    TilStrFromI64(&hoisted__Str_g337_140, hoisted__I64_g335_138);
+    TilStrArraySet(&_va_Array_g53_136, hoisted__U64_g336_139, &hoisted__Str_g337_140);
+    TilPrintln(&_va_Array_g53_136);
+    U64 hoisted__U64_g338_141 = 4;
+    TilStrArray _va_Array_g54_142;
+    TilStrArrayNew(&_va_Array_g54_142, hoisted__U64_g338_141);
+    I64 _va_Array_g54_ek_143 = 0;
+    U64 hoisted__U64_g339_144 = 0;
+    TilStr hoisted__Str_g340_145;
+    TilStrInitLit(&hoisted__Str_g340_145, "multi:", 6);
+    TilStrArraySet(&_va_Array_g54_142, hoisted__U64_g339_144, &hoisted__Str_g340_145);
+    U64 hoisted__U64_g341_146 = 1;
+    TilStr hoisted__Str_g342_147;
+    TilStrClone(&hoisted__Str_g342_147, &returned_129);
+    TilStrArraySet(&_va_Array_g54_142, hoisted__U64_g341_146, &hoisted__Str_g342_147);
+    U64 hoisted__U64_g343_148 = 2;
+    TilStr hoisted__Str_g344_149;
+    TilStrInitLit(&hoisted__Str_g344_149, ":", 1);
+    TilStrArraySet(&_va_Array_g54_142, hoisted__U64_g343_148, &hoisted__Str_g344_149);
+    I64 hoisted__I64_g345_150 = str_runtime_len(&returned_129);
+    U64 hoisted__U64_g346_151 = 3;
+    TilStr hoisted__Str_g347_152;
+    TilStrFromI64(&hoisted__Str_g347_152, hoisted__I64_g345_150);
+    TilStrArraySet(&_va_Array_g54_142, hoisted__U64_g346_151, &hoisted__Str_g347_152);
+    TilPrintln(&_va_Array_g54_142);
+    U64 hoisted__U64_g348_153 = 4;
+    TilStr mutable_154;
+    TilStrWithCapacity(&mutable_154, hoisted__U64_g348_153);
+    TilStr hoisted__Str_g349_155;
+    TilStrInitLit(&hoisted__Str_g349_155, "xy", 2);
+    TilStrPush(&mutable_154, &hoisted__Str_g349_155);
+    TilStrDelete(&hoisted__Str_g349_155, FALSE);
+    str_runtime_push(&mutable_154);
+    U64 hoisted__U64_g350_156 = 1;
+    TilStrArray _va_Array_g55_157;
+    TilStrArrayNew(&_va_Array_g55_157, hoisted__U64_g350_156);
+    I64 _va_Array_g55_ek_158 = 0;
+    U64 hoisted__U64_g351_159 = 0;
+    TilStr hoisted__Str_g352_160;
+    TilStrClone(&hoisted__Str_g352_160, &mutable_154);
+    TilStrArraySet(&_va_Array_g55_157, hoisted__U64_g351_159, &hoisted__Str_g352_160);
+    TilPrintln(&_va_Array_g55_157);
+    TilStr owned_161;
+    TilStrClone(&owned_161, &mutable_154);
+    U64 hoisted__U64_g353_162 = 1;
+    TilStrArray _va_Array_g56_163;
+    TilStrArrayNew(&_va_Array_g56_163, hoisted__U64_g353_162);
+    I64 _va_Array_g56_ek_164 = 0;
+    I64 hoisted__I64_g354_165 = str_runtime_consume(&owned_161);
+    U64 hoisted__U64_g355_166 = 0;
+    TilStr hoisted__Str_g356_167;
+    TilStrFromI64(&hoisted__Str_g356_167, hoisted__I64_g354_165);
+    TilStrArraySet(&_va_Array_g56_163, hoisted__U64_g355_166, &hoisted__Str_g356_167);
+    TilPrintln(&_va_Array_g56_163);
+    TilStrDelete(&out_101, FALSE);
+    TilStrDelete(&copy_95, FALSE);
+    TilStrDelete(&reassigned_123, FALSE);
+    TilStrDelete(&returned_129, FALSE);
+    TilStrDelete(&mutable_154, FALSE);
+    TilStr hoisted__Str_g357_168;
+    TilStrInitLit(&hoisted__Str_g357_168, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g358_169 = TilFileExists(&hoisted__Str_g357_168);
+    TilStrDelete(&hoisted__Str_g357_168, FALSE);
+    if (hoisted__Bool_g358_169) {
+        U64 hoisted__U64_g44_170 = 1;
+        TilStrArray _va_Array_g7_171;
+        TilStrArrayNew(&_va_Array_g7_171, hoisted__U64_g44_170);
+        I64 _va_Array_g7_ek_172 = 0;
+        U64 hoisted__U64_g45_173 = 0;
+        TilStr hoisted__Str_g46_174;
+        TilStrInitLit(&hoisted__Str_g46_174, "file exists", 11);
+        TilStrArraySet(&_va_Array_g7_171, hoisted__U64_g45_173, &hoisted__Str_g46_174);
+        TilPrintln(&_va_Array_g7_171);
+        TilStr hoisted__Str_g47_175;
+        TilStrInitLit(&hoisted__Str_g47_175, "src/holyc", 9);
+        Bool hoisted__Bool_g48_176 = TilFileExists(&hoisted__Str_g47_175);
+        TilStrDelete(&hoisted__Str_g47_175, FALSE);
+        if (hoisted__Bool_g48_176) {
+            U64 hoisted__U64_g7_177 = 1;
+            TilStrArray _va_Array_g0_178;
+            TilStrArrayNew(&_va_Array_g0_178, hoisted__U64_g7_177);
+            I64 _va_Array_g0_ek_179 = 0;
+            U64 hoisted__U64_g8_180 = 0;
+            TilStr hoisted__Str_g9_181;
+            TilStrInitLit(&hoisted__Str_g9_181, "directory exists", 16);
+            TilStrArraySet(&_va_Array_g0_178, hoisted__U64_g8_180, &hoisted__Str_g9_181);
+            TilPrintln(&_va_Array_g0_178);
         }
-        TilStr hoisted__Str_g49;
-        TilStrInitLit(&hoisted__Str_g49, "src/holyc/ext.HC.trailing", 25);
-        U64 hoisted__U64_g50 = 0;
-        U64 hoisted__U64_g51 = 16;
-        TilStr host_fs_view;
-        TilStrSubstr(&host_fs_view, &hoisted__Str_g49, hoisted__U64_g50, hoisted__U64_g51);
-        TilStrDelete(&hoisted__Str_g49, FALSE);
-        Bool hoisted__Bool_g52 = TilFileExists(&host_fs_view);
-        if (hoisted__Bool_g52) {
-            U64 hoisted__U64_g10 = 1;
-            TilStrArray _va_Array_g1;
-            TilStrArrayNew(&_va_Array_g1, hoisted__U64_g10);
-            I64 _va_Array_g1_ek = 0;
-            U64 hoisted__U64_g11 = 0;
-            TilStr hoisted__Str_g12;
-            TilStrInitLit(&hoisted__Str_g12, "view exists", 11);
-            TilStrArraySet(&_va_Array_g1, hoisted__U64_g11, &hoisted__Str_g12);
-            TilPrintln(&_va_Array_g1);
+        TilStr hoisted__Str_g49_182;
+        TilStrInitLit(&hoisted__Str_g49_182, "src/holyc/ext.HC.trailing", 25);
+        U64 hoisted__U64_g50_183 = 0;
+        U64 hoisted__U64_g51_184 = 16;
+        TilStr host_fs_view_185;
+        TilStrSubstr(&host_fs_view_185, &hoisted__Str_g49_182, hoisted__U64_g50_183, hoisted__U64_g51_184);
+        TilStrDelete(&hoisted__Str_g49_182, FALSE);
+        Bool hoisted__Bool_g52_186 = TilFileExists(&host_fs_view_185);
+        if (hoisted__Bool_g52_186) {
+            U64 hoisted__U64_g10_187 = 1;
+            TilStrArray _va_Array_g1_188;
+            TilStrArrayNew(&_va_Array_g1_188, hoisted__U64_g10_187);
+            I64 _va_Array_g1_ek_189 = 0;
+            U64 hoisted__U64_g11_190 = 0;
+            TilStr hoisted__Str_g12_191;
+            TilStrInitLit(&hoisted__Str_g12_191, "view exists", 11);
+            TilStrArraySet(&_va_Array_g1_188, hoisted__U64_g11_190, &hoisted__Str_g12_191);
+            TilPrintln(&_va_Array_g1_188);
         }
-        Bool hoisted__Bool_g53 = TilFileIsFile(&host_fs_view);
-        if (hoisted__Bool_g53) {
-            U64 hoisted__U64_g13 = 1;
-            TilStrArray _va_Array_g2;
-            TilStrArrayNew(&_va_Array_g2, hoisted__U64_g13);
-            I64 _va_Array_g2_ek = 0;
-            U64 hoisted__U64_g14 = 0;
-            TilStr hoisted__Str_g15;
-            TilStrInitLit(&hoisted__Str_g15, "regular file", 12);
-            TilStrArraySet(&_va_Array_g2, hoisted__U64_g14, &hoisted__Str_g15);
-            TilPrintln(&_va_Array_g2);
+        Bool hoisted__Bool_g53_192 = TilFileIsFile(&host_fs_view_185);
+        if (hoisted__Bool_g53_192) {
+            U64 hoisted__U64_g13_193 = 1;
+            TilStrArray _va_Array_g2_194;
+            TilStrArrayNew(&_va_Array_g2_194, hoisted__U64_g13_193);
+            I64 _va_Array_g2_ek_195 = 0;
+            U64 hoisted__U64_g14_196 = 0;
+            TilStr hoisted__Str_g15_197;
+            TilStrInitLit(&hoisted__Str_g15_197, "regular file", 12);
+            TilStrArraySet(&_va_Array_g2_194, hoisted__U64_g14_196, &hoisted__Str_g15_197);
+            TilPrintln(&_va_Array_g2_194);
         }
-        TilStr hoisted__Str_g54;
-        TilStrInitLit(&hoisted__Str_g54, "src/holyc", 9);
-        Bool hoisted__Bool_g55 = TilFileIsDir(&hoisted__Str_g54);
-        TilStrDelete(&hoisted__Str_g54, FALSE);
-        if (hoisted__Bool_g55) {
-            U64 hoisted__U64_g16 = 1;
-            TilStrArray _va_Array_g3;
-            TilStrArrayNew(&_va_Array_g3, hoisted__U64_g16);
-            I64 _va_Array_g3_ek = 0;
-            U64 hoisted__U64_g17 = 0;
-            TilStr hoisted__Str_g18;
-            TilStrInitLit(&hoisted__Str_g18, "directory kind", 14);
-            TilStrArraySet(&_va_Array_g3, hoisted__U64_g17, &hoisted__Str_g18);
-            TilPrintln(&_va_Array_g3);
+        TilStr hoisted__Str_g54_198;
+        TilStrInitLit(&hoisted__Str_g54_198, "src/holyc", 9);
+        Bool hoisted__Bool_g55_199 = TilFileIsDir(&hoisted__Str_g54_198);
+        TilStrDelete(&hoisted__Str_g54_198, FALSE);
+        if (hoisted__Bool_g55_199) {
+            U64 hoisted__U64_g16_200 = 1;
+            TilStrArray _va_Array_g3_201;
+            TilStrArrayNew(&_va_Array_g3_201, hoisted__U64_g16_200);
+            I64 _va_Array_g3_ek_202 = 0;
+            U64 hoisted__U64_g17_203 = 0;
+            TilStr hoisted__Str_g18_204;
+            TilStrInitLit(&hoisted__Str_g18_204, "directory kind", 14);
+            TilStrArraySet(&_va_Array_g3_201, hoisted__U64_g17_203, &hoisted__Str_g18_204);
+            TilPrintln(&_va_Array_g3_201);
         }
-        Bool _m_Bool_g19 = FALSE;
+        Bool _m_Bool_g19_205 = FALSE;
         {
-            Bool hoisted__Bool_g25 = TilFileIsDir(&host_fs_view);
-            Bool _sw_Bool_g20 = (!hoisted__Bool_g25);
-            Bool hoisted__Bool_g26 = TRUE;
-            Bool hoisted__Bool_g27 = (_sw_Bool_g20 == hoisted__Bool_g26);
-            if (hoisted__Bool_g27) {
-                TilStr hoisted__Str_g21;
-                TilStrInitLit(&hoisted__Str_g21, "src/holyc", 9);
-                Bool hoisted__Bool_g22 = TilFileIsFile(&hoisted__Str_g21);
-                TilStrDelete(&hoisted__Str_g21, FALSE);
-                Bool hoisted__Bool_g23 = (!hoisted__Bool_g22);
-                _m_Bool_g19 = hoisted__Bool_g23;
+            Bool hoisted__Bool_g25_206 = TilFileIsDir(&host_fs_view_185);
+            Bool _sw_Bool_g20_207 = (!hoisted__Bool_g25_206);
+            Bool hoisted__Bool_g26_208 = TRUE;
+            Bool hoisted__Bool_g27_209 = (_sw_Bool_g20_207 == hoisted__Bool_g26_208);
+            if (hoisted__Bool_g27_209) {
+                TilStr hoisted__Str_g21_210;
+                TilStrInitLit(&hoisted__Str_g21_210, "src/holyc", 9);
+                Bool hoisted__Bool_g22_211 = TilFileIsFile(&hoisted__Str_g21_210);
+                TilStrDelete(&hoisted__Str_g21_210, FALSE);
+                Bool hoisted__Bool_g23_212 = (!hoisted__Bool_g22_211);
+                _m_Bool_g19_205 = hoisted__Bool_g23_212;
             } else {
-                Bool hoisted__Bool_g24 = FALSE;
-                _m_Bool_g19 = hoisted__Bool_g24;
+                Bool hoisted__Bool_g24_213 = FALSE;
+                _m_Bool_g19_205 = hoisted__Bool_g24_213;
             }
         }
-        if (_m_Bool_g19) {
-            U64 hoisted__U64_g28 = 1;
-            TilStrArray _va_Array_g4;
-            TilStrArrayNew(&_va_Array_g4, hoisted__U64_g28);
-            I64 _va_Array_g4_ek = 0;
-            U64 hoisted__U64_g29 = 0;
-            TilStr hoisted__Str_g30;
-            TilStrInitLit(&hoisted__Str_g30, "kinds distinct", 14);
-            TilStrArraySet(&_va_Array_g4, hoisted__U64_g29, &hoisted__Str_g30);
-            TilPrintln(&_va_Array_g4);
+        if (_m_Bool_g19_205) {
+            U64 hoisted__U64_g28_214 = 1;
+            TilStrArray _va_Array_g4_215;
+            TilStrArrayNew(&_va_Array_g4_215, hoisted__U64_g28_214);
+            I64 _va_Array_g4_ek_216 = 0;
+            U64 hoisted__U64_g29_217 = 0;
+            TilStr hoisted__Str_g30_218;
+            TilStrInitLit(&hoisted__Str_g30_218, "kinds distinct", 14);
+            TilStrArraySet(&_va_Array_g4_215, hoisted__U64_g29_217, &hoisted__Str_g30_218);
+            TilPrintln(&_va_Array_g4_215);
         }
-        Bool _m_Bool_g31 = FALSE;
+        Bool _m_Bool_g31_219 = FALSE;
         {
-            Bool _sw_Bool_g32 = TilFileIsFile(&host_fs_view);
-            Bool hoisted__Bool_g36 = TRUE;
-            Bool hoisted__Bool_g37 = (_sw_Bool_g32 == hoisted__Bool_g36);
-            if (hoisted__Bool_g37) {
-                TilStr hoisted__Str_g33;
-                TilStrInitLit(&hoisted__Str_g33, "src/holyc", 9);
-                Bool hoisted__Bool_g34 = TilFileIsDir(&hoisted__Str_g33);
-                TilStrDelete(&hoisted__Str_g33, FALSE);
-                _m_Bool_g31 = hoisted__Bool_g34;
+            Bool _sw_Bool_g32_220 = TilFileIsFile(&host_fs_view_185);
+            Bool hoisted__Bool_g36_221 = TRUE;
+            Bool hoisted__Bool_g37_222 = (_sw_Bool_g32_220 == hoisted__Bool_g36_221);
+            if (hoisted__Bool_g37_222) {
+                TilStr hoisted__Str_g33_223;
+                TilStrInitLit(&hoisted__Str_g33_223, "src/holyc", 9);
+                Bool hoisted__Bool_g34_224 = TilFileIsDir(&hoisted__Str_g33_223);
+                TilStrDelete(&hoisted__Str_g33_223, FALSE);
+                _m_Bool_g31_219 = hoisted__Bool_g34_224;
             } else {
-                Bool hoisted__Bool_g35 = FALSE;
-                _m_Bool_g31 = hoisted__Bool_g35;
+                Bool hoisted__Bool_g35_225 = FALSE;
+                _m_Bool_g31_219 = hoisted__Bool_g35_225;
             }
         }
-        if (_m_Bool_g31) {
-            U64 hoisted__U64_g38 = 1;
-            TilStrArray _va_Array_g5;
-            TilStrArrayNew(&_va_Array_g5, hoisted__U64_g38);
-            I64 _va_Array_g5_ek = 0;
-            U64 hoisted__U64_g39 = 0;
-            TilStr hoisted__Str_g40;
-            TilStrInitLit(&hoisted__Str_g40, "primitive kinds", 15);
-            TilStrArraySet(&_va_Array_g5, hoisted__U64_g39, &hoisted__Str_g40);
-            TilPrintln(&_va_Array_g5);
+        if (_m_Bool_g31_219) {
+            U64 hoisted__U64_g38_226 = 1;
+            TilStrArray _va_Array_g5_227;
+            TilStrArrayNew(&_va_Array_g5_227, hoisted__U64_g38_226);
+            I64 _va_Array_g5_ek_228 = 0;
+            U64 hoisted__U64_g39_229 = 0;
+            TilStr hoisted__Str_g40_230;
+            TilStrInitLit(&hoisted__Str_g40_230, "primitive kinds", 15);
+            TilStrArraySet(&_va_Array_g5_227, hoisted__U64_g39_229, &hoisted__Str_g40_230);
+            TilPrintln(&_va_Array_g5_227);
         }
-        TilStr host_read;
-        TilFileRead(&host_read, &host_fs_view);
-        U64 hoisted__U64_g56 = 1;
-        TilStrArray _va_Array_g8;
-        TilStrArrayNew(&_va_Array_g8, hoisted__U64_g56);
-        I64 _va_Array_g8_ek = 0;
-        U64 hoisted__U64_g57 = 0;
-        U64 hoisted__U64_g58 = 4;
-        U64 hoisted__U64_g59 = 0;
-        TilStr hoisted__Str_g60;
-        TilStrSubstr(&hoisted__Str_g60, &host_read, hoisted__U64_g57, hoisted__U64_g58);
-        TilStrArraySet(&_va_Array_g8, hoisted__U64_g59, &hoisted__Str_g60);
-        TilPrintln(&_va_Array_g8);
-        U64 hoisted__U64_g61 = (&host_read)->count;
-        U64 hoisted__U64_g62 = 4;
-        Bool hoisted__Bool_g63 = (hoisted__U64_g61 > hoisted__U64_g62);
-        if (hoisted__Bool_g63) {
-            U64 hoisted__U64_g41 = 1;
-            TilStrArray _va_Array_g6;
-            TilStrArrayNew(&_va_Array_g6, hoisted__U64_g41);
-            I64 _va_Array_g6_ek = 0;
-            U64 hoisted__U64_g42 = 0;
-            TilStr hoisted__Str_g43;
-            TilStrInitLit(&hoisted__Str_g43, "counted file read", 17);
-            TilStrArraySet(&_va_Array_g6, hoisted__U64_g42, &hoisted__Str_g43);
-            TilPrintln(&_va_Array_g6);
+        TilStr host_read_231;
+        TilFileRead(&host_read_231, &host_fs_view_185);
+        U64 hoisted__U64_g56_232 = 1;
+        TilStrArray _va_Array_g8_233;
+        TilStrArrayNew(&_va_Array_g8_233, hoisted__U64_g56_232);
+        I64 _va_Array_g8_ek_234 = 0;
+        U64 hoisted__U64_g57_235 = 0;
+        U64 hoisted__U64_g58_236 = 4;
+        U64 hoisted__U64_g59_237 = 0;
+        TilStr hoisted__Str_g60_238;
+        TilStrSubstr(&hoisted__Str_g60_238, &host_read_231, hoisted__U64_g57_235, hoisted__U64_g58_236);
+        TilStrArraySet(&_va_Array_g8_233, hoisted__U64_g59_237, &hoisted__Str_g60_238);
+        TilPrintln(&_va_Array_g8_233);
+        U64 hoisted__U64_g61_239 = (&host_read_231)->count;
+        U64 hoisted__U64_g62_240 = 4;
+        Bool hoisted__Bool_g63_241 = (hoisted__U64_g61_239 > hoisted__U64_g62_240);
+        if (hoisted__Bool_g63_241) {
+            U64 hoisted__U64_g41_242 = 1;
+            TilStrArray _va_Array_g6_243;
+            TilStrArrayNew(&_va_Array_g6_243, hoisted__U64_g41_242);
+            I64 _va_Array_g6_ek_244 = 0;
+            U64 hoisted__U64_g42_245 = 0;
+            TilStr hoisted__Str_g43_246;
+            TilStrInitLit(&hoisted__Str_g43_246, "counted file read", 17);
+            TilStrArraySet(&_va_Array_g6_243, hoisted__U64_g42_245, &hoisted__Str_g43_246);
+            TilPrintln(&_va_Array_g6_243);
         }
-        TilStrDelete(&host_read, FALSE);
-        TilStrDelete(&host_fs_view, FALSE);
+        TilStrDelete(&host_read_231, FALSE);
+        TilStrDelete(&host_fs_view_185, FALSE);
     } else {
-        TilStr hoisted__Str_g104;
-        TilStrInitLit(&hoisted__Str_g104, "Ext.HC", 6);
-        Bool hoisted__Bool_g105 = TilFileExists(&hoisted__Str_g104);
-        TilStrDelete(&hoisted__Str_g104, FALSE);
-        if (hoisted__Bool_g105) {
-            U64 hoisted__U64_g64 = 1;
-            TilStrArray _va_Array_g9;
-            TilStrArrayNew(&_va_Array_g9, hoisted__U64_g64);
-            I64 _va_Array_g9_ek = 0;
-            U64 hoisted__U64_g65 = 0;
-            TilStr hoisted__Str_g66;
-            TilStrInitLit(&hoisted__Str_g66, "file exists", 11);
-            TilStrArraySet(&_va_Array_g9, hoisted__U64_g65, &hoisted__Str_g66);
-            TilPrintln(&_va_Array_g9);
+        TilStr hoisted__Str_g104_247;
+        TilStrInitLit(&hoisted__Str_g104_247, "Ext.HC", 6);
+        Bool hoisted__Bool_g105_248 = TilFileExists(&hoisted__Str_g104_247);
+        TilStrDelete(&hoisted__Str_g104_247, FALSE);
+        if (hoisted__Bool_g105_248) {
+            U64 hoisted__U64_g64_249 = 1;
+            TilStrArray _va_Array_g9_250;
+            TilStrArrayNew(&_va_Array_g9_250, hoisted__U64_g64_249);
+            I64 _va_Array_g9_ek_251 = 0;
+            U64 hoisted__U64_g65_252 = 0;
+            TilStr hoisted__Str_g66_253;
+            TilStrInitLit(&hoisted__Str_g66_253, "file exists", 11);
+            TilStrArraySet(&_va_Array_g9_250, hoisted__U64_g65_252, &hoisted__Str_g66_253);
+            TilPrintln(&_va_Array_g9_250);
         }
-        TilStr hoisted__Str_g106;
-        TilStrInitLit(&hoisted__Str_g106, "C:/Home", 7);
-        Bool hoisted__Bool_g107 = TilFileExists(&hoisted__Str_g106);
-        TilStrDelete(&hoisted__Str_g106, FALSE);
-        if (hoisted__Bool_g107) {
-            U64 hoisted__U64_g67 = 1;
-            TilStrArray _va_Array_g10;
-            TilStrArrayNew(&_va_Array_g10, hoisted__U64_g67);
-            I64 _va_Array_g10_ek = 0;
-            U64 hoisted__U64_g68 = 0;
-            TilStr hoisted__Str_g69;
-            TilStrInitLit(&hoisted__Str_g69, "directory exists", 16);
-            TilStrArraySet(&_va_Array_g10, hoisted__U64_g68, &hoisted__Str_g69);
-            TilPrintln(&_va_Array_g10);
+        TilStr hoisted__Str_g106_254;
+        TilStrInitLit(&hoisted__Str_g106_254, "C:/Home", 7);
+        Bool hoisted__Bool_g107_255 = TilFileExists(&hoisted__Str_g106_254);
+        TilStrDelete(&hoisted__Str_g106_254, FALSE);
+        if (hoisted__Bool_g107_255) {
+            U64 hoisted__U64_g67_256 = 1;
+            TilStrArray _va_Array_g10_257;
+            TilStrArrayNew(&_va_Array_g10_257, hoisted__U64_g67_256);
+            I64 _va_Array_g10_ek_258 = 0;
+            U64 hoisted__U64_g68_259 = 0;
+            TilStr hoisted__Str_g69_260;
+            TilStrInitLit(&hoisted__Str_g69_260, "directory exists", 16);
+            TilStrArraySet(&_va_Array_g10_257, hoisted__U64_g68_259, &hoisted__Str_g69_260);
+            TilPrintln(&_va_Array_g10_257);
         }
-        TilStr hoisted__Str_g108;
-        TilStrInitLit(&hoisted__Str_g108, "Ext.HC.trailing", 15);
-        U64 hoisted__U64_g109 = 0;
-        U64 hoisted__U64_g110 = 6;
-        TilStr guest_fs_view;
-        TilStrSubstr(&guest_fs_view, &hoisted__Str_g108, hoisted__U64_g109, hoisted__U64_g110);
-        TilStrDelete(&hoisted__Str_g108, FALSE);
-        Bool hoisted__Bool_g111 = TilFileExists(&guest_fs_view);
-        if (hoisted__Bool_g111) {
-            U64 hoisted__U64_g70 = 1;
-            TilStrArray _va_Array_g11;
-            TilStrArrayNew(&_va_Array_g11, hoisted__U64_g70);
-            I64 _va_Array_g11_ek = 0;
-            U64 hoisted__U64_g71 = 0;
-            TilStr hoisted__Str_g72;
-            TilStrInitLit(&hoisted__Str_g72, "view exists", 11);
-            TilStrArraySet(&_va_Array_g11, hoisted__U64_g71, &hoisted__Str_g72);
-            TilPrintln(&_va_Array_g11);
+        TilStr hoisted__Str_g108_261;
+        TilStrInitLit(&hoisted__Str_g108_261, "Ext.HC.trailing", 15);
+        U64 hoisted__U64_g109_262 = 0;
+        U64 hoisted__U64_g110_263 = 6;
+        TilStr guest_fs_view_264;
+        TilStrSubstr(&guest_fs_view_264, &hoisted__Str_g108_261, hoisted__U64_g109_262, hoisted__U64_g110_263);
+        TilStrDelete(&hoisted__Str_g108_261, FALSE);
+        Bool hoisted__Bool_g111_265 = TilFileExists(&guest_fs_view_264);
+        if (hoisted__Bool_g111_265) {
+            U64 hoisted__U64_g70_266 = 1;
+            TilStrArray _va_Array_g11_267;
+            TilStrArrayNew(&_va_Array_g11_267, hoisted__U64_g70_266);
+            I64 _va_Array_g11_ek_268 = 0;
+            U64 hoisted__U64_g71_269 = 0;
+            TilStr hoisted__Str_g72_270;
+            TilStrInitLit(&hoisted__Str_g72_270, "view exists", 11);
+            TilStrArraySet(&_va_Array_g11_267, hoisted__U64_g71_269, &hoisted__Str_g72_270);
+            TilPrintln(&_va_Array_g11_267);
         }
-        Bool hoisted__Bool_g112 = TilFileIsFile(&guest_fs_view);
-        if (hoisted__Bool_g112) {
-            U64 hoisted__U64_g73 = 1;
-            TilStrArray _va_Array_g12;
-            TilStrArrayNew(&_va_Array_g12, hoisted__U64_g73);
-            I64 _va_Array_g12_ek = 0;
-            U64 hoisted__U64_g74 = 0;
-            TilStr hoisted__Str_g75;
-            TilStrInitLit(&hoisted__Str_g75, "regular file", 12);
-            TilStrArraySet(&_va_Array_g12, hoisted__U64_g74, &hoisted__Str_g75);
-            TilPrintln(&_va_Array_g12);
+        Bool hoisted__Bool_g112_271 = TilFileIsFile(&guest_fs_view_264);
+        if (hoisted__Bool_g112_271) {
+            U64 hoisted__U64_g73_272 = 1;
+            TilStrArray _va_Array_g12_273;
+            TilStrArrayNew(&_va_Array_g12_273, hoisted__U64_g73_272);
+            I64 _va_Array_g12_ek_274 = 0;
+            U64 hoisted__U64_g74_275 = 0;
+            TilStr hoisted__Str_g75_276;
+            TilStrInitLit(&hoisted__Str_g75_276, "regular file", 12);
+            TilStrArraySet(&_va_Array_g12_273, hoisted__U64_g74_275, &hoisted__Str_g75_276);
+            TilPrintln(&_va_Array_g12_273);
         }
-        TilStr hoisted__Str_g113;
-        TilStrInitLit(&hoisted__Str_g113, "C:/Home", 7);
-        Bool hoisted__Bool_g114 = TilFileIsDir(&hoisted__Str_g113);
-        TilStrDelete(&hoisted__Str_g113, FALSE);
-        if (hoisted__Bool_g114) {
-            U64 hoisted__U64_g76 = 1;
-            TilStrArray _va_Array_g13;
-            TilStrArrayNew(&_va_Array_g13, hoisted__U64_g76);
-            I64 _va_Array_g13_ek = 0;
-            U64 hoisted__U64_g77 = 0;
-            TilStr hoisted__Str_g78;
-            TilStrInitLit(&hoisted__Str_g78, "directory kind", 14);
-            TilStrArraySet(&_va_Array_g13, hoisted__U64_g77, &hoisted__Str_g78);
-            TilPrintln(&_va_Array_g13);
+        TilStr hoisted__Str_g113_277;
+        TilStrInitLit(&hoisted__Str_g113_277, "C:/Home", 7);
+        Bool hoisted__Bool_g114_278 = TilFileIsDir(&hoisted__Str_g113_277);
+        TilStrDelete(&hoisted__Str_g113_277, FALSE);
+        if (hoisted__Bool_g114_278) {
+            U64 hoisted__U64_g76_279 = 1;
+            TilStrArray _va_Array_g13_280;
+            TilStrArrayNew(&_va_Array_g13_280, hoisted__U64_g76_279);
+            I64 _va_Array_g13_ek_281 = 0;
+            U64 hoisted__U64_g77_282 = 0;
+            TilStr hoisted__Str_g78_283;
+            TilStrInitLit(&hoisted__Str_g78_283, "directory kind", 14);
+            TilStrArraySet(&_va_Array_g13_280, hoisted__U64_g77_282, &hoisted__Str_g78_283);
+            TilPrintln(&_va_Array_g13_280);
         }
-        Bool _m_Bool_g79 = FALSE;
+        Bool _m_Bool_g79_284 = FALSE;
         {
-            Bool hoisted__Bool_g85 = TilFileIsDir(&guest_fs_view);
-            Bool _sw_Bool_g80 = (!hoisted__Bool_g85);
-            Bool hoisted__Bool_g86 = TRUE;
-            Bool hoisted__Bool_g87 = (_sw_Bool_g80 == hoisted__Bool_g86);
-            if (hoisted__Bool_g87) {
-                TilStr hoisted__Str_g81;
-                TilStrInitLit(&hoisted__Str_g81, "C:/Home", 7);
-                Bool hoisted__Bool_g82 = TilFileIsFile(&hoisted__Str_g81);
-                TilStrDelete(&hoisted__Str_g81, FALSE);
-                Bool hoisted__Bool_g83 = (!hoisted__Bool_g82);
-                _m_Bool_g79 = hoisted__Bool_g83;
+            Bool hoisted__Bool_g85_285 = TilFileIsDir(&guest_fs_view_264);
+            Bool _sw_Bool_g80_286 = (!hoisted__Bool_g85_285);
+            Bool hoisted__Bool_g86_287 = TRUE;
+            Bool hoisted__Bool_g87_288 = (_sw_Bool_g80_286 == hoisted__Bool_g86_287);
+            if (hoisted__Bool_g87_288) {
+                TilStr hoisted__Str_g81_289;
+                TilStrInitLit(&hoisted__Str_g81_289, "C:/Home", 7);
+                Bool hoisted__Bool_g82_290 = TilFileIsFile(&hoisted__Str_g81_289);
+                TilStrDelete(&hoisted__Str_g81_289, FALSE);
+                Bool hoisted__Bool_g83_291 = (!hoisted__Bool_g82_290);
+                _m_Bool_g79_284 = hoisted__Bool_g83_291;
             } else {
-                Bool hoisted__Bool_g84 = FALSE;
-                _m_Bool_g79 = hoisted__Bool_g84;
+                Bool hoisted__Bool_g84_292 = FALSE;
+                _m_Bool_g79_284 = hoisted__Bool_g84_292;
             }
         }
-        if (_m_Bool_g79) {
-            U64 hoisted__U64_g88 = 1;
-            TilStrArray _va_Array_g14;
-            TilStrArrayNew(&_va_Array_g14, hoisted__U64_g88);
-            I64 _va_Array_g14_ek = 0;
-            U64 hoisted__U64_g89 = 0;
-            TilStr hoisted__Str_g90;
-            TilStrInitLit(&hoisted__Str_g90, "kinds distinct", 14);
-            TilStrArraySet(&_va_Array_g14, hoisted__U64_g89, &hoisted__Str_g90);
-            TilPrintln(&_va_Array_g14);
+        if (_m_Bool_g79_284) {
+            U64 hoisted__U64_g88_293 = 1;
+            TilStrArray _va_Array_g14_294;
+            TilStrArrayNew(&_va_Array_g14_294, hoisted__U64_g88_293);
+            I64 _va_Array_g14_ek_295 = 0;
+            U64 hoisted__U64_g89_296 = 0;
+            TilStr hoisted__Str_g90_297;
+            TilStrInitLit(&hoisted__Str_g90_297, "kinds distinct", 14);
+            TilStrArraySet(&_va_Array_g14_294, hoisted__U64_g89_296, &hoisted__Str_g90_297);
+            TilPrintln(&_va_Array_g14_294);
         }
-        Bool _m_Bool_g91 = FALSE;
+        Bool _m_Bool_g91_298 = FALSE;
         {
-            Bool _sw_Bool_g92 = TilFileIsFile(&guest_fs_view);
-            Bool hoisted__Bool_g96 = TRUE;
-            Bool hoisted__Bool_g97 = (_sw_Bool_g92 == hoisted__Bool_g96);
-            if (hoisted__Bool_g97) {
-                TilStr hoisted__Str_g93;
-                TilStrInitLit(&hoisted__Str_g93, "C:/Home", 7);
-                Bool hoisted__Bool_g94 = TilFileIsDir(&hoisted__Str_g93);
-                TilStrDelete(&hoisted__Str_g93, FALSE);
-                _m_Bool_g91 = hoisted__Bool_g94;
+            Bool _sw_Bool_g92_299 = TilFileIsFile(&guest_fs_view_264);
+            Bool hoisted__Bool_g96_300 = TRUE;
+            Bool hoisted__Bool_g97_301 = (_sw_Bool_g92_299 == hoisted__Bool_g96_300);
+            if (hoisted__Bool_g97_301) {
+                TilStr hoisted__Str_g93_302;
+                TilStrInitLit(&hoisted__Str_g93_302, "C:/Home", 7);
+                Bool hoisted__Bool_g94_303 = TilFileIsDir(&hoisted__Str_g93_302);
+                TilStrDelete(&hoisted__Str_g93_302, FALSE);
+                _m_Bool_g91_298 = hoisted__Bool_g94_303;
             } else {
-                Bool hoisted__Bool_g95 = FALSE;
-                _m_Bool_g91 = hoisted__Bool_g95;
+                Bool hoisted__Bool_g95_304 = FALSE;
+                _m_Bool_g91_298 = hoisted__Bool_g95_304;
             }
         }
-        if (_m_Bool_g91) {
-            U64 hoisted__U64_g98 = 1;
-            TilStrArray _va_Array_g15;
-            TilStrArrayNew(&_va_Array_g15, hoisted__U64_g98);
-            I64 _va_Array_g15_ek = 0;
-            U64 hoisted__U64_g99 = 0;
-            TilStr hoisted__Str_g100;
-            TilStrInitLit(&hoisted__Str_g100, "primitive kinds", 15);
-            TilStrArraySet(&_va_Array_g15, hoisted__U64_g99, &hoisted__Str_g100);
-            TilPrintln(&_va_Array_g15);
+        if (_m_Bool_g91_298) {
+            U64 hoisted__U64_g98_305 = 1;
+            TilStrArray _va_Array_g15_306;
+            TilStrArrayNew(&_va_Array_g15_306, hoisted__U64_g98_305);
+            I64 _va_Array_g15_ek_307 = 0;
+            U64 hoisted__U64_g99_308 = 0;
+            TilStr hoisted__Str_g100_309;
+            TilStrInitLit(&hoisted__Str_g100_309, "primitive kinds", 15);
+            TilStrArraySet(&_va_Array_g15_306, hoisted__U64_g99_308, &hoisted__Str_g100_309);
+            TilPrintln(&_va_Array_g15_306);
         }
-        TilStr guest_read;
-        TilFileRead(&guest_read, &guest_fs_view);
-        U64 hoisted__U64_g115 = 1;
-        TilStrArray _va_Array_g17;
-        TilStrArrayNew(&_va_Array_g17, hoisted__U64_g115);
-        I64 _va_Array_g17_ek = 0;
-        U64 hoisted__U64_g116 = 0;
-        U64 hoisted__U64_g117 = 4;
-        U64 hoisted__U64_g118 = 0;
-        TilStr hoisted__Str_g119;
-        TilStrSubstr(&hoisted__Str_g119, &guest_read, hoisted__U64_g116, hoisted__U64_g117);
-        TilStrArraySet(&_va_Array_g17, hoisted__U64_g118, &hoisted__Str_g119);
-        TilPrintln(&_va_Array_g17);
-        U64 hoisted__U64_g120 = (&guest_read)->count;
-        U64 hoisted__U64_g121 = 4;
-        Bool hoisted__Bool_g122 = (hoisted__U64_g120 > hoisted__U64_g121);
-        if (hoisted__Bool_g122) {
-            U64 hoisted__U64_g101 = 1;
-            TilStrArray _va_Array_g16;
-            TilStrArrayNew(&_va_Array_g16, hoisted__U64_g101);
-            I64 _va_Array_g16_ek = 0;
-            U64 hoisted__U64_g102 = 0;
-            TilStr hoisted__Str_g103;
-            TilStrInitLit(&hoisted__Str_g103, "counted file read", 17);
-            TilStrArraySet(&_va_Array_g16, hoisted__U64_g102, &hoisted__Str_g103);
-            TilPrintln(&_va_Array_g16);
+        TilStr guest_read_310;
+        TilFileRead(&guest_read_310, &guest_fs_view_264);
+        U64 hoisted__U64_g115_311 = 1;
+        TilStrArray _va_Array_g17_312;
+        TilStrArrayNew(&_va_Array_g17_312, hoisted__U64_g115_311);
+        I64 _va_Array_g17_ek_313 = 0;
+        U64 hoisted__U64_g116_314 = 0;
+        U64 hoisted__U64_g117_315 = 4;
+        U64 hoisted__U64_g118_316 = 0;
+        TilStr hoisted__Str_g119_317;
+        TilStrSubstr(&hoisted__Str_g119_317, &guest_read_310, hoisted__U64_g116_314, hoisted__U64_g117_315);
+        TilStrArraySet(&_va_Array_g17_312, hoisted__U64_g118_316, &hoisted__Str_g119_317);
+        TilPrintln(&_va_Array_g17_312);
+        U64 hoisted__U64_g120_318 = (&guest_read_310)->count;
+        U64 hoisted__U64_g121_319 = 4;
+        Bool hoisted__Bool_g122_320 = (hoisted__U64_g120_318 > hoisted__U64_g121_319);
+        if (hoisted__Bool_g122_320) {
+            U64 hoisted__U64_g101_321 = 1;
+            TilStrArray _va_Array_g16_322;
+            TilStrArrayNew(&_va_Array_g16_322, hoisted__U64_g101_321);
+            I64 _va_Array_g16_ek_323 = 0;
+            U64 hoisted__U64_g102_324 = 0;
+            TilStr hoisted__Str_g103_325;
+            TilStrInitLit(&hoisted__Str_g103_325, "counted file read", 17);
+            TilStrArraySet(&_va_Array_g16_322, hoisted__U64_g102_324, &hoisted__Str_g103_325);
+            TilPrintln(&_va_Array_g16_322);
         }
-        TilStrDelete(&guest_read, FALSE);
-        TilStrDelete(&guest_fs_view, FALSE);
+        TilStrDelete(&guest_read_310, FALSE);
+        TilStrDelete(&guest_fs_view_264, FALSE);
     }
-    TilStr hoisted__Str_g213;
-    TilStrInitLit(&hoisted__Str_g213, "missing.HC", 10);
-    Bool hoisted__Bool_g214 = TilFileExists(&hoisted__Str_g213);
-    TilStrDelete(&hoisted__Str_g213, FALSE);
-    Bool hoisted__Bool_g215 = (!hoisted__Bool_g214);
-    if (hoisted__Bool_g215) {
-        U64 hoisted__U64_g123 = 1;
-        TilStrArray _va_Array_g18;
-        TilStrArrayNew(&_va_Array_g18, hoisted__U64_g123);
-        I64 _va_Array_g18_ek = 0;
-        U64 hoisted__U64_g124 = 0;
-        TilStr hoisted__Str_g125;
-        TilStrInitLit(&hoisted__Str_g125, "file missing", 12);
-        TilStrArraySet(&_va_Array_g18, hoisted__U64_g124, &hoisted__Str_g125);
-        TilPrintln(&_va_Array_g18);
+    TilStr hoisted__Str_g359_326;
+    TilStrInitLit(&hoisted__Str_g359_326, "missing.HC", 10);
+    Bool hoisted__Bool_g360_327 = TilFileExists(&hoisted__Str_g359_326);
+    TilStrDelete(&hoisted__Str_g359_326, FALSE);
+    Bool hoisted__Bool_g361_328 = (!hoisted__Bool_g360_327);
+    if (hoisted__Bool_g361_328) {
+        U64 hoisted__U64_g123_329 = 1;
+        TilStrArray _va_Array_g18_330;
+        TilStrArrayNew(&_va_Array_g18_330, hoisted__U64_g123_329);
+        I64 _va_Array_g18_ek_331 = 0;
+        U64 hoisted__U64_g124_332 = 0;
+        TilStr hoisted__Str_g125_333;
+        TilStrInitLit(&hoisted__Str_g125_333, "file missing", 12);
+        TilStrArraySet(&_va_Array_g18_330, hoisted__U64_g124_332, &hoisted__Str_g125_333);
+        TilPrintln(&_va_Array_g18_330);
     }
-    TilStr hoisted__Str_g216;
-    TilStrInitLit(&hoisted__Str_g216, "missing.HC", 10);
-    Bool hoisted__Bool_g217 = TilFileExists(&hoisted__Str_g216);
-    TilStrDelete(&hoisted__Str_g216, FALSE);
-    Bool hoisted__Bool_g218 = (!hoisted__Bool_g217);
-    if (hoisted__Bool_g218) {
-        U64 hoisted__U64_g126 = 1;
-        TilStrArray _va_Array_g19;
-        TilStrArrayNew(&_va_Array_g19, hoisted__U64_g126);
-        I64 _va_Array_g19_ek = 0;
-        U64 hoisted__U64_g127 = 0;
-        TilStr hoisted__Str_g128;
-        TilStrInitLit(&hoisted__Str_g128, "primitive missing", 17);
-        TilStrArraySet(&_va_Array_g19, hoisted__U64_g127, &hoisted__Str_g128);
-        TilPrintln(&_va_Array_g19);
+    TilStr hoisted__Str_g362_334;
+    TilStrInitLit(&hoisted__Str_g362_334, "missing.HC", 10);
+    Bool hoisted__Bool_g363_335 = TilFileExists(&hoisted__Str_g362_334);
+    TilStrDelete(&hoisted__Str_g362_334, FALSE);
+    Bool hoisted__Bool_g364_336 = (!hoisted__Bool_g363_335);
+    if (hoisted__Bool_g364_336) {
+        U64 hoisted__U64_g126_337 = 1;
+        TilStrArray _va_Array_g19_338;
+        TilStrArrayNew(&_va_Array_g19_338, hoisted__U64_g126_337);
+        I64 _va_Array_g19_ek_339 = 0;
+        U64 hoisted__U64_g127_340 = 0;
+        TilStr hoisted__Str_g128_341;
+        TilStrInitLit(&hoisted__Str_g128_341, "primitive missing", 17);
+        TilStrArraySet(&_va_Array_g19_338, hoisted__U64_g127_340, &hoisted__Str_g128_341);
+        TilPrintln(&_va_Array_g19_338);
     }
-    Bool _m_Bool_g129 = FALSE;
+    Bool _m_Bool_g129_342 = FALSE;
     {
-        TilStr hoisted__Str_g135;
-        TilStrInitLit(&hoisted__Str_g135, "missing.HC", 10);
-        Bool hoisted__Bool_g136 = TilFileIsDir(&hoisted__Str_g135);
-        TilStrDelete(&hoisted__Str_g135, FALSE);
-        Bool _sw_Bool_g130 = (!hoisted__Bool_g136);
-        Bool hoisted__Bool_g137 = TRUE;
-        Bool hoisted__Bool_g138 = (_sw_Bool_g130 == hoisted__Bool_g137);
-        if (hoisted__Bool_g138) {
-            TilStr hoisted__Str_g131;
-            TilStrInitLit(&hoisted__Str_g131, "missing.HC", 10);
-            Bool hoisted__Bool_g132 = TilFileIsFile(&hoisted__Str_g131);
-            TilStrDelete(&hoisted__Str_g131, FALSE);
-            Bool hoisted__Bool_g133 = (!hoisted__Bool_g132);
-            _m_Bool_g129 = hoisted__Bool_g133;
+        TilStr hoisted__Str_g135_343;
+        TilStrInitLit(&hoisted__Str_g135_343, "missing.HC", 10);
+        Bool hoisted__Bool_g136_344 = TilFileIsDir(&hoisted__Str_g135_343);
+        TilStrDelete(&hoisted__Str_g135_343, FALSE);
+        Bool _sw_Bool_g130_345 = (!hoisted__Bool_g136_344);
+        Bool hoisted__Bool_g137_346 = TRUE;
+        Bool hoisted__Bool_g138_347 = (_sw_Bool_g130_345 == hoisted__Bool_g137_346);
+        if (hoisted__Bool_g138_347) {
+            TilStr hoisted__Str_g131_348;
+            TilStrInitLit(&hoisted__Str_g131_348, "missing.HC", 10);
+            Bool hoisted__Bool_g132_349 = TilFileIsFile(&hoisted__Str_g131_348);
+            TilStrDelete(&hoisted__Str_g131_348, FALSE);
+            Bool hoisted__Bool_g133_350 = (!hoisted__Bool_g132_349);
+            _m_Bool_g129_342 = hoisted__Bool_g133_350;
         } else {
-            Bool hoisted__Bool_g134 = FALSE;
-            _m_Bool_g129 = hoisted__Bool_g134;
+            Bool hoisted__Bool_g134_351 = FALSE;
+            _m_Bool_g129_342 = hoisted__Bool_g134_351;
         }
     }
-    if (_m_Bool_g129) {
-        U64 hoisted__U64_g139 = 1;
-        TilStrArray _va_Array_g20;
-        TilStrArrayNew(&_va_Array_g20, hoisted__U64_g139);
-        I64 _va_Array_g20_ek = 0;
-        U64 hoisted__U64_g140 = 0;
-        TilStr hoisted__Str_g141;
-        TilStrInitLit(&hoisted__Str_g141, "missing kind", 12);
-        TilStrArraySet(&_va_Array_g20, hoisted__U64_g140, &hoisted__Str_g141);
-        TilPrintln(&_va_Array_g20);
+    if (_m_Bool_g129_342) {
+        U64 hoisted__U64_g139_352 = 1;
+        TilStrArray _va_Array_g20_353;
+        TilStrArrayNew(&_va_Array_g20_353, hoisted__U64_g139_352);
+        I64 _va_Array_g20_ek_354 = 0;
+        U64 hoisted__U64_g140_355 = 0;
+        TilStr hoisted__Str_g141_356;
+        TilStrInitLit(&hoisted__Str_g141_356, "missing kind", 12);
+        TilStrArraySet(&_va_Array_g20_353, hoisted__U64_g140_355, &hoisted__Str_g141_356);
+        TilPrintln(&_va_Array_g20_353);
     }
-    Bool _m_Bool_g142 = FALSE;
+    Bool _m_Bool_g142_357 = FALSE;
     {
-        TilStr hoisted__Str_g148;
-        TilStrInitLit(&hoisted__Str_g148, "missing.HC", 10);
-        Bool hoisted__Bool_g149 = TilFileIsDir(&hoisted__Str_g148);
-        TilStrDelete(&hoisted__Str_g148, FALSE);
-        Bool _sw_Bool_g143 = (!hoisted__Bool_g149);
-        Bool hoisted__Bool_g150 = TRUE;
-        Bool hoisted__Bool_g151 = (_sw_Bool_g143 == hoisted__Bool_g150);
-        if (hoisted__Bool_g151) {
-            TilStr hoisted__Str_g144;
-            TilStrInitLit(&hoisted__Str_g144, "missing.HC", 10);
-            Bool hoisted__Bool_g145 = TilFileIsFile(&hoisted__Str_g144);
-            TilStrDelete(&hoisted__Str_g144, FALSE);
-            Bool hoisted__Bool_g146 = (!hoisted__Bool_g145);
-            _m_Bool_g142 = hoisted__Bool_g146;
+        TilStr hoisted__Str_g148_358;
+        TilStrInitLit(&hoisted__Str_g148_358, "missing.HC", 10);
+        Bool hoisted__Bool_g149_359 = TilFileIsDir(&hoisted__Str_g148_358);
+        TilStrDelete(&hoisted__Str_g148_358, FALSE);
+        Bool _sw_Bool_g143_360 = (!hoisted__Bool_g149_359);
+        Bool hoisted__Bool_g150_361 = TRUE;
+        Bool hoisted__Bool_g151_362 = (_sw_Bool_g143_360 == hoisted__Bool_g150_361);
+        if (hoisted__Bool_g151_362) {
+            TilStr hoisted__Str_g144_363;
+            TilStrInitLit(&hoisted__Str_g144_363, "missing.HC", 10);
+            Bool hoisted__Bool_g145_364 = TilFileIsFile(&hoisted__Str_g144_363);
+            TilStrDelete(&hoisted__Str_g144_363, FALSE);
+            Bool hoisted__Bool_g146_365 = (!hoisted__Bool_g145_364);
+            _m_Bool_g142_357 = hoisted__Bool_g146_365;
         } else {
-            Bool hoisted__Bool_g147 = FALSE;
-            _m_Bool_g142 = hoisted__Bool_g147;
+            Bool hoisted__Bool_g147_366 = FALSE;
+            _m_Bool_g142_357 = hoisted__Bool_g147_366;
         }
     }
-    if (_m_Bool_g142) {
-        U64 hoisted__U64_g152 = 1;
-        TilStrArray _va_Array_g21;
-        TilStrArrayNew(&_va_Array_g21, hoisted__U64_g152);
-        I64 _va_Array_g21_ek = 0;
-        U64 hoisted__U64_g153 = 0;
-        TilStr hoisted__Str_g154;
-        TilStrInitLit(&hoisted__Str_g154, "primitive kinds missing", 23);
-        TilStrArraySet(&_va_Array_g21, hoisted__U64_g153, &hoisted__Str_g154);
-        TilPrintln(&_va_Array_g21);
+    if (_m_Bool_g142_357) {
+        U64 hoisted__U64_g152_367 = 1;
+        TilStrArray _va_Array_g21_368;
+        TilStrArrayNew(&_va_Array_g21_368, hoisted__U64_g152_367);
+        I64 _va_Array_g21_ek_369 = 0;
+        U64 hoisted__U64_g153_370 = 0;
+        TilStr hoisted__Str_g154_371;
+        TilStrInitLit(&hoisted__Str_g154_371, "primitive kinds missing", 23);
+        TilStrArraySet(&_va_Array_g21_368, hoisted__U64_g153_370, &hoisted__Str_g154_371);
+        TilPrintln(&_va_Array_g21_368);
     }
-    TilStr hoisted__Str_g219;
-    TilStrInitLit(&hoisted__Str_g219, "TILWRITE.HC.trailing", 20);
-    U64 hoisted__U64_g220 = 0;
-    U64 hoisted__U64_g221 = 11;
-    TilStr write_path;
-    TilStrSubstr(&write_path, &hoisted__Str_g219, hoisted__U64_g220, hoisted__U64_g221);
-    TilStrDelete(&hoisted__Str_g219, FALSE);
-    TilStr hoisted__Str_g222;
-    TilStrInitLit(&hoisted__Str_g222, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g223 = TilFileExists(&hoisted__Str_g222);
-    TilStrDelete(&hoisted__Str_g222, FALSE);
-    if (hoisted__Bool_g223) {
-        TilStr hoisted__Str_g155;
-        TilStrInitLit(&hoisted__Str_g155, "tmp/TILWRITE.HC.trailing", 24);
-        U64 hoisted__U64_g156 = 0;
-        U64 hoisted__U64_g157 = 15;
+    TilStr hoisted__Str_g365_372;
+    TilStrInitLit(&hoisted__Str_g365_372, "TILWRITE.HC.trailing", 20);
+    U64 hoisted__U64_g366_373 = 0;
+    U64 hoisted__U64_g367_374 = 11;
+    TilStr write_path_375;
+    TilStrSubstr(&write_path_375, &hoisted__Str_g365_372, hoisted__U64_g366_373, hoisted__U64_g367_374);
+    TilStrDelete(&hoisted__Str_g365_372, FALSE);
+    TilStr hoisted__Str_g368_376;
+    TilStrInitLit(&hoisted__Str_g368_376, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g369_377 = TilFileExists(&hoisted__Str_g368_376);
+    TilStrDelete(&hoisted__Str_g368_376, FALSE);
+    if (hoisted__Bool_g369_377) {
+        TilStr hoisted__Str_g155_378;
+        TilStrInitLit(&hoisted__Str_g155_378, "tmp/TILWRITE.HC.trailing", 24);
+        U64 hoisted__U64_g156_379 = 0;
+        U64 hoisted__U64_g157_380 = 15;
         {
-            TilStr replacement_2;
-            TilStrSubstr(&replacement_2, &hoisted__Str_g155, hoisted__U64_g156, hoisted__U64_g157);
-            TilStrDelete(&write_path, FALSE);
-            TilStrCopyValue(&write_path, &replacement_2);
+            TilStr replacement_381;
+            TilStrSubstr(&replacement_381, &hoisted__Str_g155_378, hoisted__U64_g156_379, hoisted__U64_g157_380);
+            TilStrDelete(&write_path_375, FALSE);
+            TilStrCopyValue(&write_path_375, &replacement_381);
         }
-        TilStrDelete(&hoisted__Str_g155, FALSE);
+        TilStrDelete(&hoisted__Str_g155_378, FALSE);
     }
-    TilStr hoisted__Str_g224;
-    TilStrInitLit(&hoisted__Str_g224, "longer content", 14);
-    TilFileWrite(&write_path, &hoisted__Str_g224);
-    TilStrDelete(&hoisted__Str_g224, FALSE);
-    TilStr hoisted__Str_g225;
-    TilStrInitLit(&hoisted__Str_g225, "A\x00Z", 3);
-    TilFileWrite(&write_path, &hoisted__Str_g225);
-    TilStrDelete(&hoisted__Str_g225, FALSE);
-    TilStr written;
-    TilFileRead(&written, &write_path);
-    TilStr hoisted__Str_g226;
-    TilStrInitLit(&hoisted__Str_g226, "A\x00Z", 3);
-    Bool hoisted__Bool_g227 = TilStrEq(&written, &hoisted__Str_g226);
-    TilStrDelete(&hoisted__Str_g226, FALSE);
-    if (hoisted__Bool_g227) {
-        U64 hoisted__U64_g158 = 1;
-        TilStrArray _va_Array_g22;
-        TilStrArrayNew(&_va_Array_g22, hoisted__U64_g158);
-        I64 _va_Array_g22_ek = 0;
-        U64 hoisted__U64_g159 = 0;
-        TilStr hoisted__Str_g160;
-        TilStrInitLit(&hoisted__Str_g160, "write roundtrip", 15);
-        TilStrArraySet(&_va_Array_g22, hoisted__U64_g159, &hoisted__Str_g160);
-        TilPrintln(&_va_Array_g22);
+    TilStr hoisted__Str_g370_382;
+    TilStrInitLit(&hoisted__Str_g370_382, "longer content", 14);
+    TilFileWrite(&write_path_375, &hoisted__Str_g370_382);
+    TilStrDelete(&hoisted__Str_g370_382, FALSE);
+    TilStr hoisted__Str_g371_383;
+    TilStrInitLit(&hoisted__Str_g371_383, "A\x00Z", 3);
+    TilFileWrite(&write_path_375, &hoisted__Str_g371_383);
+    TilStrDelete(&hoisted__Str_g371_383, FALSE);
+    TilStr written_384;
+    TilFileRead(&written_384, &write_path_375);
+    TilStr hoisted__Str_g372_385;
+    TilStrInitLit(&hoisted__Str_g372_385, "A\x00Z", 3);
+    Bool hoisted__Bool_g373_386 = TilStrEq(&written_384, &hoisted__Str_g372_385);
+    TilStrDelete(&hoisted__Str_g372_385, FALSE);
+    if (hoisted__Bool_g373_386) {
+        U64 hoisted__U64_g158_387 = 1;
+        TilStrArray _va_Array_g22_388;
+        TilStrArrayNew(&_va_Array_g22_388, hoisted__U64_g158_387);
+        I64 _va_Array_g22_ek_389 = 0;
+        U64 hoisted__U64_g159_390 = 0;
+        TilStr hoisted__Str_g160_391;
+        TilStrInitLit(&hoisted__Str_g160_391, "write roundtrip", 15);
+        TilStrArraySet(&_va_Array_g22_388, hoisted__U64_g159_390, &hoisted__Str_g160_391);
+        TilPrintln(&_va_Array_g22_388);
     }
-    U64 hoisted__U64_g228 = 1;
-    TilStrArray _va_Array_g32;
-    TilStrArrayNew(&_va_Array_g32, hoisted__U64_g228);
-    I64 _va_Array_g32_ek = 0;
-    U64 hoisted__U64_g229 = (&written)->count;
-    I64 hoisted__I64_g230 = ((hoisted__U64_g229) + 0)(I64);
-    U64 hoisted__U64_g231 = 0;
-    TilStr hoisted__Str_g232;
-    TilStrFromI64(&hoisted__Str_g232, hoisted__I64_g230);
-    TilStrArraySet(&_va_Array_g32, hoisted__U64_g231, &hoisted__Str_g232);
-    TilPrintln(&_va_Array_g32);
-    TilStrDelete(&written, FALSE);
-    TilStr hoisted__Str_g233;
-    TilStrInitLit(&hoisted__Str_g233, "", 0);
-    TilFileWrite(&write_path, &hoisted__Str_g233);
-    TilStrDelete(&hoisted__Str_g233, FALSE);
-    TilStr empty_written;
-    TilFileRead(&empty_written, &write_path);
-    Bool hoisted__Bool_g234 = ((&empty_written)->count == 0);
-    if (hoisted__Bool_g234) {
-        U64 hoisted__U64_g161 = 1;
-        TilStrArray _va_Array_g23;
-        TilStrArrayNew(&_va_Array_g23, hoisted__U64_g161);
-        I64 _va_Array_g23_ek = 0;
-        U64 hoisted__U64_g162 = 0;
-        TilStr hoisted__Str_g163;
-        TilStrInitLit(&hoisted__Str_g163, "empty write", 11);
-        TilStrArraySet(&_va_Array_g23, hoisted__U64_g162, &hoisted__Str_g163);
-        TilPrintln(&_va_Array_g23);
+    U64 hoisted__U64_g374_392 = 1;
+    TilStrArray _va_Array_g57_393;
+    TilStrArrayNew(&_va_Array_g57_393, hoisted__U64_g374_392);
+    I64 _va_Array_g57_ek_394 = 0;
+    U64 hoisted__U64_g375_395 = (&written_384)->count;
+    I64 hoisted__I64_g376_396 = ((hoisted__U64_g375_395) + 0)(I64);
+    U64 hoisted__U64_g377_397 = 0;
+    TilStr hoisted__Str_g378_398;
+    TilStrFromI64(&hoisted__Str_g378_398, hoisted__I64_g376_396);
+    TilStrArraySet(&_va_Array_g57_393, hoisted__U64_g377_397, &hoisted__Str_g378_398);
+    TilPrintln(&_va_Array_g57_393);
+    TilStrDelete(&written_384, FALSE);
+    TilStr hoisted__Str_g379_399;
+    TilStrInitLit(&hoisted__Str_g379_399, "", 0);
+    TilFileWrite(&write_path_375, &hoisted__Str_g379_399);
+    TilStrDelete(&hoisted__Str_g379_399, FALSE);
+    TilStr empty_written_400;
+    TilFileRead(&empty_written_400, &write_path_375);
+    Bool hoisted__Bool_g380_401 = ((&empty_written_400)->count == 0);
+    if (hoisted__Bool_g380_401) {
+        U64 hoisted__U64_g161_402 = 1;
+        TilStrArray _va_Array_g23_403;
+        TilStrArrayNew(&_va_Array_g23_403, hoisted__U64_g161_402);
+        I64 _va_Array_g23_ek_404 = 0;
+        U64 hoisted__U64_g162_405 = 0;
+        TilStr hoisted__Str_g163_406;
+        TilStrInitLit(&hoisted__Str_g163_406, "empty write", 11);
+        TilStrArraySet(&_va_Array_g23_403, hoisted__U64_g162_405, &hoisted__Str_g163_406);
+        TilPrintln(&_va_Array_g23_403);
     }
-    TilStrDelete(&empty_written, FALSE);
+    TilStrDelete(&empty_written_400, FALSE);
+    TilStr fs_dir_407;
+    TilStrInitLit(&fs_dir_407, "TILFS", 5);
+    TilStr fs_data_408;
+    TilStrInitLit(&fs_data_408, "TILFS/DATA.HC", 13);
+    TilStr fs_moved_409;
+    TilStrInitLit(&fs_moved_409, "TILFS/MOVED.HC", 14);
+    TilStr hoisted__Str_g381_410;
+    TilStrInitLit(&hoisted__Str_g381_410, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g382_411 = TilFileExists(&hoisted__Str_g381_410);
+    TilStrDelete(&hoisted__Str_g381_410, FALSE);
+    if (hoisted__Bool_g382_411) {
+        {
+            TilStr replacement_412;
+            TilStrInitLit(&replacement_412, "tmp/TILFS", 9);
+            TilStrDelete(&fs_dir_407, FALSE);
+            TilStrCopyValue(&fs_dir_407, &replacement_412);
+        }
+        {
+            TilStr replacement_413;
+            TilStrInitLit(&replacement_413, "tmp/TILFS/DATA.HC", 17);
+            TilStrDelete(&fs_data_408, FALSE);
+            TilStrCopyValue(&fs_data_408, &replacement_413);
+        }
+        {
+            TilStr replacement_414;
+            TilStrInitLit(&replacement_414, "tmp/TILFS/MOVED.HC", 18);
+            TilStrDelete(&fs_moved_409, FALSE);
+            TilStrCopyValue(&fs_moved_409, &replacement_414);
+        }
+    }
+    File_remove_tree(&fs_dir_407);
+    I32 hoisted__I32_g383_415 = TilMakeDirs(&fs_dir_407);
+    I32 hoisted__I32_g384_416 = 0;
+    Bool hoisted__Bool_g385_417 = (hoisted__I32_g383_415 != hoisted__I32_g384_416);
+    if (hoisted__Bool_g385_417) {
+        U64 hoisted__U64_g164_418 = 1;
+        TilStrArray _va_Array_g24_419;
+        TilStrArrayNew(&_va_Array_g24_419, hoisted__U64_g164_418);
+        I64 _va_Array_g24_ek_420 = 0;
+        U64 hoisted__U64_g165_421 = 0;
+        TilStr hoisted__Str_g166_422;
+        TilStrInitLit(&hoisted__Str_g166_422, "could not create filesystem test directory", 42);
+        TilStrArraySet(&_va_Array_g24_419, hoisted__U64_g165_421, &hoisted__Str_g166_422);
+        TilStr hoisted__Str_g167_423;
+        TilStrInitLit(&hoisted__Str_g167_423, "test/script_str_runtime.til:126:27", 34);
+        TilPanicParts(&_va_Array_g24_419, &hoisted__Str_g167_423);
+    }
+    File_remove(&fs_data_408);
+    File_remove(&fs_moved_409);
+    if (TRUE) {
+        Bool hoisted__Bool_g174_424 = TRUE;
+        File writer_425;
+        File_new(&writer_425, &fs_data_408, &hoisted__Bool_g174_424);
+        Bool hoisted__Bool_g175_426 = TilFileExists(&fs_data_408);
+        if (hoisted__Bool_g175_426) {
+            U64 hoisted__U64_g168_427 = 1;
+            TilStrArray _va_Array_g25_428;
+            TilStrArrayNew(&_va_Array_g25_428, hoisted__U64_g168_427);
+            I64 _va_Array_g25_ek_429 = 0;
+            U64 hoisted__U64_g169_430 = 0;
+            TilStr hoisted__Str_g170_431;
+            TilStrInitLit(&hoisted__Str_g170_431, "opened file exists", 18);
+            TilStrArraySet(&_va_Array_g25_428, hoisted__U64_g169_430, &hoisted__Str_g170_431);
+            TilPrintln(&_va_Array_g25_428);
+        }
+        TilStr hoisted__Str_g176_432;
+        TilFileRead(&hoisted__Str_g176_432, &fs_data_408);
+        Bool hoisted__Bool_g177_433 = ((&hoisted__Str_g176_432)->count == 0);
+        TilStrDelete(&hoisted__Str_g176_432, FALSE);
+        if (hoisted__Bool_g177_433) {
+            U64 hoisted__U64_g171_434 = 1;
+            TilStrArray _va_Array_g26_435;
+            TilStrArrayNew(&_va_Array_g26_435, hoisted__U64_g171_434);
+            I64 _va_Array_g26_ek_436 = 0;
+            U64 hoisted__U64_g172_437 = 0;
+            TilStr hoisted__Str_g173_438;
+            TilStrInitLit(&hoisted__Str_g173_438, "open truncates immediately", 26);
+            TilStrArraySet(&_va_Array_g26_435, hoisted__U64_g172_437, &hoisted__Str_g173_438);
+            TilPrintln(&_va_Array_g26_435);
+        }
+        TilStr hoisted__Str_g178_439;
+        TilStrInitLit(&hoisted__Str_g178_439, "abcdefgh", 8);
+        File *ref_value_441 = File_write(&writer_425, &hoisted__Str_g178_439);
+        TilStr hoisted__Str_g180_442;
+        TilStrInitLit(&hoisted__Str_g180_442, "ijk", 3);
+        File_write(ref_value_441, &hoisted__Str_g180_442);
+        TilStrDelete(&hoisted__Str_g178_439, FALSE);
+        TilStrDelete(&hoisted__Str_g180_442, FALSE);
+        U64 hoisted__U64_g181_443 = 1;
+        TilStrArray _va_Array_g27_444;
+        TilStrArrayNew(&_va_Array_g27_444, hoisted__U64_g181_443);
+        I64 _va_Array_g27_ek_445 = 0;
+        I64 hoisted__I64_g182_446 = File_tell(&writer_425);
+        U64 hoisted__U64_g183_447 = 0;
+        TilStr hoisted__Str_g184_448;
+        TilStrFromI64(&hoisted__Str_g184_448, hoisted__I64_g182_446);
+        TilStrArraySet(&_va_Array_g27_444, hoisted__U64_g183_447, &hoisted__Str_g184_448);
+        TilPrintln(&_va_Array_g27_444);
+        File_Delete(&writer_425, FALSE);
+    }
+    if (TRUE) {
+        Bool hoisted__Bool_g188_449 = FALSE;
+        File reader_450;
+        File_new(&reader_450, &fs_data_408, &hoisted__Bool_g188_449);
+        U64 hoisted__U64_g189_451 = 1;
+        TilStrArray _va_Array_g29_452;
+        TilStrArrayNew(&_va_Array_g29_452, hoisted__U64_g189_451);
+        I64 _va_Array_g29_ek_453 = 0;
+        I64 hoisted__I64_g190_454 = 4;
+        U64 hoisted__U64_g191_455 = 0;
+        TilStr hoisted__Str_g192_456;
+        File_read(&hoisted__Str_g192_456, &reader_450, hoisted__I64_g190_454);
+        TilStrArraySet(&_va_Array_g29_452, hoisted__U64_g191_455, &hoisted__Str_g192_456);
+        TilPrintln(&_va_Array_g29_452);
+        I64 hoisted__I64_g193_457 = 2;
+        File_seek_cur(&reader_450, &hoisted__I64_g193_457);
+        U64 hoisted__U64_g194_458 = 1;
+        TilStrArray _va_Array_g30_459;
+        TilStrArrayNew(&_va_Array_g30_459, hoisted__U64_g194_458);
+        I64 _va_Array_g30_ek_460 = 0;
+        I64 hoisted__I64_g195_461 = 3;
+        U64 hoisted__U64_g196_462 = 0;
+        TilStr hoisted__Str_g197_463;
+        File_read(&hoisted__Str_g197_463, &reader_450, hoisted__I64_g195_461);
+        TilStrArraySet(&_va_Array_g30_459, hoisted__U64_g196_462, &hoisted__Str_g197_463);
+        TilPrintln(&_va_Array_g30_459);
+        I64 hoisted__I64_g198_464 = -2;
+        File_seek_end(&reader_450, &hoisted__I64_g198_464);
+        U64 hoisted__U64_g199_465 = 1;
+        TilStrArray _va_Array_g31_466;
+        TilStrArrayNew(&_va_Array_g31_466, hoisted__U64_g199_465);
+        I64 _va_Array_g31_ek_467 = 0;
+        I64 hoisted__I64_g200_468 = 8;
+        U64 hoisted__U64_g201_469 = 0;
+        TilStr hoisted__Str_g202_470;
+        File_read(&hoisted__Str_g202_470, &reader_450, hoisted__I64_g200_468);
+        TilStrArraySet(&_va_Array_g31_466, hoisted__U64_g201_469, &hoisted__Str_g202_470);
+        TilPrintln(&_va_Array_g31_466);
+        I64 hoisted__I64_g203_471 = 100;
+        File_seek(&reader_450, &hoisted__I64_g203_471);
+        I64 hoisted__I64_g204_472 = 3;
+        TilStr hoisted__Str_g205_473;
+        File_read(&hoisted__Str_g205_473, &reader_450, hoisted__I64_g204_472);
+        Bool hoisted__Bool_g206_474 = ((&hoisted__Str_g205_473)->count == 0);
+        TilStrDelete(&hoisted__Str_g205_473, FALSE);
+        if (hoisted__Bool_g206_474) {
+            U64 hoisted__U64_g185_475 = 1;
+            TilStrArray _va_Array_g28_476;
+            TilStrArrayNew(&_va_Array_g28_476, hoisted__U64_g185_475);
+            I64 _va_Array_g28_ek_477 = 0;
+            U64 hoisted__U64_g186_478 = 0;
+            TilStr hoisted__Str_g187_479;
+            TilStrInitLit(&hoisted__Str_g187_479, "past eof", 8);
+            TilStrArraySet(&_va_Array_g28_476, hoisted__U64_g186_478, &hoisted__Str_g187_479);
+            TilPrintln(&_va_Array_g28_476);
+        }
+        U64 hoisted__U64_g207_480 = 1;
+        TilStrArray _va_Array_g32_481;
+        TilStrArrayNew(&_va_Array_g32_481, hoisted__U64_g207_480);
+        I64 _va_Array_g32_ek_482 = 0;
+        U64 hoisted__U64_g208_483 = 0;
+        TilStr hoisted__Str_g209_484;
+        File_read_all(&hoisted__Str_g209_484, &reader_450);
+        TilStrArraySet(&_va_Array_g32_481, hoisted__U64_g208_483, &hoisted__Str_g209_484);
+        TilPrintln(&_va_Array_g32_481);
+        U64 hoisted__U64_g210_485 = 1;
+        TilStrArray _va_Array_g33_486;
+        TilStrArrayNew(&_va_Array_g33_486, hoisted__U64_g210_485);
+        I64 _va_Array_g33_ek_487 = 0;
+        I64 hoisted__I64_g211_488 = File_tell(&reader_450);
+        U64 hoisted__U64_g212_489 = 0;
+        TilStr hoisted__Str_g213_490;
+        TilStrFromI64(&hoisted__Str_g213_490, hoisted__I64_g211_488);
+        TilStrArraySet(&_va_Array_g33_486, hoisted__U64_g212_489, &hoisted__Str_g213_490);
+        TilPrintln(&_va_Array_g33_486);
+        File_Delete(&reader_450, FALSE);
+    }
+    if (TRUE) {
+        File updater_491;
+        File_update(&updater_491, &fs_data_408);
+        I64 hoisted__I64_g214_492 = 3;
+        File *ref_value_494 = File_seek(&updater_491, &hoisted__I64_g214_492);
+        TilStr hoisted__Str_g216_495;
+        TilStrInitLit(&hoisted__Str_g216_495, "XYZ", 3);
+        File_write(ref_value_494, &hoisted__Str_g216_495);
+        TilStrDelete(&hoisted__Str_g216_495, FALSE);
+        I64 hoisted__I64_g217_496 = 2;
+        File *ref_value_498 = File_seek_end(&updater_491, &hoisted__I64_g217_496);
+        TilStr hoisted__Str_g219_499;
+        TilStrInitLit(&hoisted__Str_g219_499, "!", 1);
+        File_write(ref_value_498, &hoisted__Str_g219_499);
+        TilStrDelete(&hoisted__Str_g219_499, FALSE);
+        File_Delete(&updater_491, FALSE);
+    }
+    TilStr updated_500;
+    TilFileRead(&updated_500, &fs_data_408);
+    U64 hoisted__U64_g386_501 = 1;
+    TilStrArray _va_Array_g58_502;
+    TilStrArrayNew(&_va_Array_g58_502, hoisted__U64_g386_501);
+    I64 _va_Array_g58_ek_503 = 0;
+    U64 hoisted__U64_g387_504 = 0;
+    U64 hoisted__U64_g388_505 = 11;
+    U64 hoisted__U64_g389_506 = 0;
+    TilStr hoisted__Str_g390_507;
+    TilStrSubstr(&hoisted__Str_g390_507, &updated_500, hoisted__U64_g387_504, hoisted__U64_g388_505);
+    TilStrArraySet(&_va_Array_g58_502, hoisted__U64_g389_506, &hoisted__Str_g390_507);
+    TilPrintln(&_va_Array_g58_502);
+    U64 hoisted__U64_g391_508 = 11;
+    U64 hoisted__U64_g392_509 = 3;
+    TilStr hoisted__Str_g393_510;
+    TilStrSubstr(&hoisted__Str_g393_510, &updated_500, hoisted__U64_g391_508, hoisted__U64_g392_509);
+    TilStr hoisted__Str_g394_511;
+    TilStrInitLit(&hoisted__Str_g394_511, "\x00\x00!", 3);
+    Bool hoisted__Bool_g395_512 = TilStrEq(&hoisted__Str_g393_510, &hoisted__Str_g394_511);
+    TilStrDelete(&hoisted__Str_g393_510, FALSE);
+    TilStrDelete(&hoisted__Str_g394_511, FALSE);
+    if (hoisted__Bool_g395_512) {
+        U64 hoisted__U64_g220_513 = 1;
+        TilStrArray _va_Array_g34_514;
+        TilStrArrayNew(&_va_Array_g34_514, hoisted__U64_g220_513);
+        I64 _va_Array_g34_ek_515 = 0;
+        U64 hoisted__U64_g221_516 = 0;
+        TilStr hoisted__Str_g222_517;
+        TilStrInitLit(&hoisted__Str_g222_517, "zero-filled gap", 15);
+        TilStrArraySet(&_va_Array_g34_514, hoisted__U64_g221_516, &hoisted__Str_g222_517);
+        TilPrintln(&_va_Array_g34_514);
+    }
+    TilStrDelete(&updated_500, FALSE);
+    if (TRUE) {
+        File appender_518;
+        File_append(&appender_518, &fs_data_408);
+        I64 hoisted__I64_g223_519 = 0;
+        File *ref_value_521 = File_seek(&appender_518, &hoisted__I64_g223_519);
+        TilStr hoisted__Str_g225_522;
+        TilStrInitLit(&hoisted__Str_g225_522, "tail", 4);
+        File_write(ref_value_521, &hoisted__Str_g225_522);
+        TilStrDelete(&hoisted__Str_g225_522, FALSE);
+        U64 hoisted__U64_g226_523 = 1;
+        TilStrArray _va_Array_g35_524;
+        TilStrArrayNew(&_va_Array_g35_524, hoisted__U64_g226_523);
+        I64 _va_Array_g35_ek_525 = 0;
+        I64 hoisted__I64_g227_526 = File_tell(&appender_518);
+        U64 hoisted__U64_g228_527 = 0;
+        TilStr hoisted__Str_g229_528;
+        TilStrFromI64(&hoisted__Str_g229_528, hoisted__I64_g227_526);
+        TilStrArraySet(&_va_Array_g35_524, hoisted__U64_g228_527, &hoisted__Str_g229_528);
+        TilPrintln(&_va_Array_g35_524);
+        File_Delete(&appender_518, FALSE);
+    }
+    TilStr hoisted__Str_g396_529;
+    TilStrInitLit(&hoisted__Str_g396_529, "+", 1);
+    File_appendfile(&fs_data_408, &hoisted__Str_g396_529);
+    TilStrDelete(&hoisted__Str_g396_529, FALSE);
+    TilStr hoisted__Str_g397_530;
+    TilStrInitLit(&hoisted__Str_g397_530, "replaced", 8);
+    TilFileWrite(&fs_moved_409, &hoisted__Str_g397_530);
+    TilStrDelete(&hoisted__Str_g397_530, FALSE);
+    File_rename(&fs_data_408, &fs_moved_409);
+    Bool _m_Bool_g230_531 = FALSE;
+    {
+        Bool hoisted__Bool_g234_532 = TilFileExists(&fs_data_408);
+        Bool _sw_Bool_g231_533 = (!hoisted__Bool_g234_532);
+        Bool hoisted__Bool_g235_534 = TRUE;
+        Bool hoisted__Bool_g236_535 = (_sw_Bool_g231_533 == hoisted__Bool_g235_534);
+        if (hoisted__Bool_g236_535) {
+            Bool hoisted__Bool_g232_536 = TilFileExists(&fs_moved_409);
+            _m_Bool_g230_531 = hoisted__Bool_g232_536;
+        } else {
+            Bool hoisted__Bool_g233_537 = FALSE;
+            _m_Bool_g230_531 = hoisted__Bool_g233_537;
+        }
+    }
+    if (_m_Bool_g230_531) {
+        U64 hoisted__U64_g237_538 = 1;
+        TilStrArray _va_Array_g36_539;
+        TilStrArrayNew(&_va_Array_g36_539, hoisted__U64_g237_538);
+        I64 _va_Array_g36_ek_540 = 0;
+        U64 hoisted__U64_g238_541 = 0;
+        TilStr hoisted__Str_g239_542;
+        TilStrInitLit(&hoisted__Str_g239_542, "renamed", 7);
+        TilStrArraySet(&_va_Array_g36_539, hoisted__U64_g238_541, &hoisted__Str_g239_542);
+        TilPrintln(&_va_Array_g36_539);
+    }
+    TilStr moved_543;
+    TilFileRead(&moved_543, &fs_moved_409);
+    U64 hoisted__U64_g398_544 = 14;
+    U64 hoisted__U64_g399_545 = 5;
+    TilStr hoisted__Str_g400_546;
+    TilStrSubstr(&hoisted__Str_g400_546, &moved_543, hoisted__U64_g398_544, hoisted__U64_g399_545);
+    TilStr hoisted__Str_g401_547;
+    TilStrInitLit(&hoisted__Str_g401_547, "tail+", 5);
+    Bool hoisted__Bool_g402_548 = TilStrEq(&hoisted__Str_g400_546, &hoisted__Str_g401_547);
+    TilStrDelete(&hoisted__Str_g400_546, FALSE);
+    TilStrDelete(&hoisted__Str_g401_547, FALSE);
+    if (hoisted__Bool_g402_548) {
+        U64 hoisted__U64_g240_549 = 1;
+        TilStrArray _va_Array_g37_550;
+        TilStrArrayNew(&_va_Array_g37_550, hoisted__U64_g240_549);
+        I64 _va_Array_g37_ek_551 = 0;
+        U64 hoisted__U64_g241_552 = 0;
+        TilStr hoisted__Str_g242_553;
+        TilStrInitLit(&hoisted__Str_g242_553, "append kept content", 19);
+        TilStrArraySet(&_va_Array_g37_550, hoisted__U64_g241_552, &hoisted__Str_g242_553);
+        TilPrintln(&_va_Array_g37_550);
+    }
+    U64 hoisted__U64_g403_554 = 1;
+    TilStrArray _va_Array_g59_555;
+    TilStrArrayNew(&_va_Array_g59_555, hoisted__U64_g403_554);
+    I64 _va_Array_g59_ek_556 = 0;
+    U64 hoisted__U64_g404_557 = (&moved_543)->count;
+    I64 hoisted__I64_g405_558 = ((hoisted__U64_g404_557) + 0)(I64);
+    U64 hoisted__U64_g406_559 = 0;
+    TilStr hoisted__Str_g407_560;
+    TilStrFromI64(&hoisted__Str_g407_560, hoisted__I64_g405_558);
+    TilStrArraySet(&_va_Array_g59_555, hoisted__U64_g406_559, &hoisted__Str_g407_560);
+    TilPrintln(&_va_Array_g59_555);
+    TilStrDelete(&moved_543, FALSE);
+    if (TRUE) {
+        Dir directory_561;
+        Dir_open(&directory_561, &fs_dir_407);
+        I64 entries_562 = 0;
+        while (TRUE) {
+            TilStr entry_563;
+            Dir_next(&entry_563, &directory_561);
+            Bool hoisted__Bool_g246_564 = ((&entry_563)->count == 0);
+            if (hoisted__Bool_g246_564) {
+                TilStrDelete(&entry_563, FALSE);
+                break;
+            }
+            TilStr hoisted__Str_g247_565;
+            TilStrInitLit(&hoisted__Str_g247_565, "MOVED.HC", 8);
+            Bool hoisted__Bool_g248_566 = TilStrEq(&entry_563, &hoisted__Str_g247_565);
+            TilStrDelete(&hoisted__Str_g247_565, FALSE);
+            if (hoisted__Bool_g248_566) {
+                U64 hoisted__U64_g243_567 = 1;
+                TilStrArray _va_Array_g38_568;
+                TilStrArrayNew(&_va_Array_g38_568, hoisted__U64_g243_567);
+                I64 _va_Array_g38_ek_569 = 0;
+                U64 hoisted__U64_g244_570 = 0;
+                TilStr hoisted__Str_g245_571;
+                TilStrInitLit(&hoisted__Str_g245_571, "directory found file", 20);
+                TilStrArraySet(&_va_Array_g38_568, hoisted__U64_g244_570, &hoisted__Str_g245_571);
+                TilPrintln(&_va_Array_g38_568);
+            }
+            TilStrDelete(&entry_563, FALSE);
+            (++entries_562);
+        }
+        U64 hoisted__U64_g249_572 = 1;
+        TilStrArray _va_Array_g39_573;
+        TilStrArrayNew(&_va_Array_g39_573, hoisted__U64_g249_572);
+        I64 _va_Array_g39_ek_574 = 0;
+        U64 hoisted__U64_g250_575 = 0;
+        TilStr hoisted__Str_g251_576;
+        TilStrFromI64(&hoisted__Str_g251_576, entries_562);
+        TilStrArraySet(&_va_Array_g39_573, hoisted__U64_g250_575, &hoisted__Str_g251_576);
+        TilPrintln(&_va_Array_g39_573);
+        Dir_Delete(&directory_561, FALSE);
+    }
+    Vec__Str names_577;
+    Dir_list(&names_577, &fs_dir_407);
+    U64 hoisted__U64_g408_578 = 1;
+    TilStrArray _va_Array_g60_579;
+    TilStrArrayNew(&_va_Array_g60_579, hoisted__U64_g408_578);
+    I64 _va_Array_g60_ek_580 = 0;
+    U64 hoisted__U64_g409_581 = (&names_577)->count;
+    I64 hoisted__I64_g410_582 = ((hoisted__U64_g409_581) + 0)(I64);
+    U64 hoisted__U64_g411_583 = 0;
+    TilStr hoisted__Str_g412_584;
+    TilStrFromI64(&hoisted__Str_g412_584, hoisted__I64_g410_582);
+    TilStrArraySet(&_va_Array_g60_579, hoisted__U64_g411_583, &hoisted__Str_g412_584);
+    TilPrintln(&_va_Array_g60_579);
+    Vec__Str_Delete(&names_577, FALSE);
+    File_remove(&fs_moved_409);
+    File_remove(&fs_moved_409);
+    Bool hoisted__Bool_g413_585 = TilFileExists(&fs_moved_409);
+    Bool hoisted__Bool_g414_586 = (!hoisted__Bool_g413_585);
+    if (hoisted__Bool_g414_586) {
+        U64 hoisted__U64_g252_587 = 1;
+        TilStrArray _va_Array_g40_588;
+        TilStrArrayNew(&_va_Array_g40_588, hoisted__U64_g252_587);
+        I64 _va_Array_g40_ek_589 = 0;
+        U64 hoisted__U64_g253_590 = 0;
+        TilStr hoisted__Str_g254_591;
+        TilStrInitLit(&hoisted__Str_g254_591, "removed, missing remove ok", 26);
+        TilStrArraySet(&_va_Array_g40_588, hoisted__U64_g253_590, &hoisted__Str_g254_591);
+        TilPrintln(&_va_Array_g40_588);
+    }
+    TilStr tree_src_592;
+    TilStrInitLit(&tree_src_592, "TILFS/TREE", 10);
+    TilStr tree_dst_593;
+    TilStrInitLit(&tree_dst_593, "TILFS/NEW", 9);
+    TilStr tree_leaf_594;
+    TilStrInitLit(&tree_leaf_594, "TILFS/TREE/LEAF.HC", 18);
+    TilStr moved_leaf_595;
+    TilStrInitLit(&moved_leaf_595, "TILFS/NEW/LEAF.HC", 17);
+    TilStr hoisted__Str_g415_596;
+    TilStrInitLit(&hoisted__Str_g415_596, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g416_597 = TilFileExists(&hoisted__Str_g415_596);
+    TilStrDelete(&hoisted__Str_g415_596, FALSE);
+    if (hoisted__Bool_g416_597) {
+        {
+            TilStr replacement_598;
+            TilStrInitLit(&replacement_598, "tmp/TILFS/TREE", 14);
+            TilStrDelete(&tree_src_592, FALSE);
+            TilStrCopyValue(&tree_src_592, &replacement_598);
+        }
+        {
+            TilStr replacement_599;
+            TilStrInitLit(&replacement_599, "tmp/TILFS/NEW", 13);
+            TilStrDelete(&tree_dst_593, FALSE);
+            TilStrCopyValue(&tree_dst_593, &replacement_599);
+        }
+        {
+            TilStr replacement_600;
+            TilStrInitLit(&replacement_600, "tmp/TILFS/TREE/LEAF.HC", 22);
+            TilStrDelete(&tree_leaf_594, FALSE);
+            TilStrCopyValue(&tree_leaf_594, &replacement_600);
+        }
+        {
+            TilStr replacement_601;
+            TilStrInitLit(&replacement_601, "tmp/TILFS/NEW/LEAF.HC", 21);
+            TilStrDelete(&moved_leaf_595, FALSE);
+            TilStrCopyValue(&moved_leaf_595, &replacement_601);
+        }
+    }
+    I32 hoisted__I32_g417_602 = TilMakeDirs(&tree_src_592);
+    I32 hoisted__I32_g418_603 = 0;
+    Bool hoisted__Bool_g419_604 = (hoisted__I32_g417_602 != hoisted__I32_g418_603);
+    if (hoisted__Bool_g419_604) {
+        U64 hoisted__U64_g255_605 = 1;
+        TilStrArray _va_Array_g41_606;
+        TilStrArrayNew(&_va_Array_g41_606, hoisted__U64_g255_605);
+        I64 _va_Array_g41_ek_607 = 0;
+        U64 hoisted__U64_g256_608 = 0;
+        TilStr hoisted__Str_g257_609;
+        TilStrInitLit(&hoisted__Str_g257_609, "could not create tree source", 28);
+        TilStrArraySet(&_va_Array_g41_606, hoisted__U64_g256_608, &hoisted__Str_g257_609);
+        TilStr hoisted__Str_g258_610;
+        TilStrInitLit(&hoisted__Str_g258_610, "test/script_str_runtime.til:203:29", 34);
+        TilPanicParts(&_va_Array_g41_606, &hoisted__Str_g258_610);
+    }
+    I32 hoisted__I32_g420_611 = TilMakeDirs(&tree_dst_593);
+    I32 hoisted__I32_g421_612 = 0;
+    Bool hoisted__Bool_g422_613 = (hoisted__I32_g420_611 != hoisted__I32_g421_612);
+    if (hoisted__Bool_g422_613) {
+        U64 hoisted__U64_g259_614 = 1;
+        TilStrArray _va_Array_g42_615;
+        TilStrArrayNew(&_va_Array_g42_615, hoisted__U64_g259_614);
+        I64 _va_Array_g42_ek_616 = 0;
+        U64 hoisted__U64_g260_617 = 0;
+        TilStr hoisted__Str_g261_618;
+        TilStrInitLit(&hoisted__Str_g261_618, "could not create tree destination", 33);
+        TilStrArraySet(&_va_Array_g42_615, hoisted__U64_g260_617, &hoisted__Str_g261_618);
+        TilStr hoisted__Str_g262_619;
+        TilStrInitLit(&hoisted__Str_g262_619, "test/script_str_runtime.til:204:29", 34);
+        TilPanicParts(&_va_Array_g42_615, &hoisted__Str_g262_619);
+    }
+    TilStr hoisted__Str_g423_620;
+    TilStrInitLit(&hoisted__Str_g423_620, "leaf", 4);
+    TilFileWrite(&tree_leaf_594, &hoisted__Str_g423_620);
+    TilStrDelete(&hoisted__Str_g423_620, FALSE);
+    File_rename(&tree_src_592, &tree_dst_593);
+    Bool _m_Bool_g263_621 = FALSE;
+    {
+        Bool hoisted__Bool_g267_622 = TilFileIsDir(&tree_src_592);
+        Bool _sw_Bool_g264_623 = (!hoisted__Bool_g267_622);
+        Bool hoisted__Bool_g268_624 = TRUE;
+        Bool hoisted__Bool_g269_625 = (_sw_Bool_g264_623 == hoisted__Bool_g268_624);
+        if (hoisted__Bool_g269_625) {
+            Bool hoisted__Bool_g265_626 = TilFileIsFile(&moved_leaf_595);
+            _m_Bool_g263_621 = hoisted__Bool_g265_626;
+        } else {
+            Bool hoisted__Bool_g266_627 = FALSE;
+            _m_Bool_g263_621 = hoisted__Bool_g266_627;
+        }
+    }
+    if (_m_Bool_g263_621) {
+        U64 hoisted__U64_g270_628 = 1;
+        TilStrArray _va_Array_g43_629;
+        TilStrArrayNew(&_va_Array_g43_629, hoisted__U64_g270_628);
+        I64 _va_Array_g43_ek_630 = 0;
+        U64 hoisted__U64_g271_631 = 0;
+        TilStr hoisted__Str_g272_632;
+        TilStrInitLit(&hoisted__Str_g272_632, "directory rename", 16);
+        TilStrArraySet(&_va_Array_g43_629, hoisted__U64_g271_631, &hoisted__Str_g272_632);
+        TilPrintln(&_va_Array_g43_629);
+    }
+    U64 hoisted__U64_g424_633 = 1;
+    TilStrArray _va_Array_g61_634;
+    TilStrArrayNew(&_va_Array_g61_634, hoisted__U64_g424_633);
+    I64 _va_Array_g61_ek_635 = 0;
+    U64 hoisted__U64_g425_636 = 0;
+    TilStr hoisted__Str_g426_637;
+    TilFileRead(&hoisted__Str_g426_637, &moved_leaf_595);
+    TilStrArraySet(&_va_Array_g61_634, hoisted__U64_g425_636, &hoisted__Str_g426_637);
+    TilPrintln(&_va_Array_g61_634);
+    File_remove_tree(&fs_dir_407);
+    Bool hoisted__Bool_g427_638 = TilFileExists(&fs_dir_407);
+    Bool hoisted__Bool_g428_639 = (!hoisted__Bool_g427_638);
+    if (hoisted__Bool_g428_639) {
+        U64 hoisted__U64_g273_640 = 1;
+        TilStrArray _va_Array_g44_641;
+        TilStrArrayNew(&_va_Array_g44_641, hoisted__U64_g273_640);
+        I64 _va_Array_g44_ek_642 = 0;
+        U64 hoisted__U64_g274_643 = 0;
+        TilStr hoisted__Str_g275_644;
+        TilStrInitLit(&hoisted__Str_g275_644, "tree cleanup", 12);
+        TilStrArraySet(&_va_Array_g44_641, hoisted__U64_g274_643, &hoisted__Str_g275_644);
+        TilPrintln(&_va_Array_g44_641);
+    }
+    U64 hoisted__U64_g429_645 = 1030;
+    TilStr sector_content_646;
+    TilStrWithCapacity(&sector_content_646, hoisted__U64_g429_645);
+    {
+        I64 _re_I64_g276_647 = 1030;
+        I64 _rc_I64_g276_648 = 0;
+        while (TRUE) {
+            Bool _wcond_Bool_g277_649 = (_rc_I64_g276_648 < _re_I64_g276_647);
+            if (_wcond_Bool_g277_649) {
+            } else {
+                break;
+            }
+            I64 __650 = _rc_I64_g276_648;
+            (++_rc_I64_g276_648);
+            TilStr hoisted__Str_g278_651;
+            TilStrInitLit(&hoisted__Str_g278_651, "x", 1);
+            TilStrPush(&sector_content_646, &hoisted__Str_g278_651);
+            TilStrDelete(&hoisted__Str_g278_651, FALSE);
+        }
+    }
+    TilFileWrite(&write_path_375, &sector_content_646);
+    if (TRUE) {
+        File sector_update_652;
+        File_update(&sector_update_652, &write_path_375);
+        I64 hoisted__I64_g279_653 = 510;
+        File *ref_value_655 = File_seek(&sector_update_652, &hoisted__I64_g279_653);
+        TilStr hoisted__Str_g281_656;
+        TilStrInitLit(&hoisted__Str_g281_656, "ABCD", 4);
+        File_write(ref_value_655, &hoisted__Str_g281_656);
+        TilStrDelete(&hoisted__Str_g281_656, FALSE);
+        File_Delete(&sector_update_652, FALSE);
+    }
+    if (TRUE) {
+        Bool hoisted__Bool_g282_657 = FALSE;
+        File sector_reader_658;
+        File_new(&sector_reader_658, &write_path_375, &hoisted__Bool_g282_657);
+        I64 hoisted__I64_g283_659 = 508;
+        File_seek(&sector_reader_658, &hoisted__I64_g283_659);
+        U64 hoisted__U64_g284_660 = 1;
+        TilStrArray _va_Array_g45_661;
+        TilStrArrayNew(&_va_Array_g45_661, hoisted__U64_g284_660);
+        I64 _va_Array_g45_ek_662 = 0;
+        I64 hoisted__I64_g285_663 = 8;
+        U64 hoisted__U64_g286_664 = 0;
+        TilStr hoisted__Str_g287_665;
+        File_read(&hoisted__Str_g287_665, &sector_reader_658, hoisted__I64_g285_663);
+        TilStrArraySet(&_va_Array_g45_661, hoisted__U64_g286_664, &hoisted__Str_g287_665);
+        TilPrintln(&_va_Array_g45_661);
+        U64 hoisted__U64_g288_666 = 1;
+        TilStrArray _va_Array_g46_667;
+        TilStrArrayNew(&_va_Array_g46_667, hoisted__U64_g288_666);
+        I64 _va_Array_g46_ek_668 = 0;
+        I64 hoisted__I64_g289_669 = 5000;
+        TilStr hoisted__Str_g290_670;
+        File_read(&hoisted__Str_g290_670, &sector_reader_658, hoisted__I64_g289_669);
+        U64 hoisted__U64_g291_671 = (&hoisted__Str_g290_670)->count;
+        TilStrDelete(&hoisted__Str_g290_670, FALSE);
+        I64 hoisted__I64_g292_672 = ((hoisted__U64_g291_671) + 0)(I64);
+        U64 hoisted__U64_g293_673 = 0;
+        TilStr hoisted__Str_g294_674;
+        TilStrFromI64(&hoisted__Str_g294_674, hoisted__I64_g292_672);
+        TilStrArraySet(&_va_Array_g46_667, hoisted__U64_g293_673, &hoisted__Str_g294_674);
+        TilPrintln(&_va_Array_g46_667);
+        U64 hoisted__U64_g295_675 = 1;
+        TilStrArray _va_Array_g47_676;
+        TilStrArrayNew(&_va_Array_g47_676, hoisted__U64_g295_675);
+        I64 _va_Array_g47_ek_677 = 0;
+        TilStr hoisted__Str_g296_678;
+        File_read_all(&hoisted__Str_g296_678, &sector_reader_658);
+        U64 hoisted__U64_g297_679 = (&hoisted__Str_g296_678)->count;
+        TilStrDelete(&hoisted__Str_g296_678, FALSE);
+        I64 hoisted__I64_g298_680 = ((hoisted__U64_g297_679) + 0)(I64);
+        U64 hoisted__U64_g299_681 = 0;
+        TilStr hoisted__Str_g300_682;
+        TilStrFromI64(&hoisted__Str_g300_682, hoisted__I64_g298_680);
+        TilStrArraySet(&_va_Array_g47_676, hoisted__U64_g299_681, &hoisted__Str_g300_682);
+        TilPrintln(&_va_Array_g47_676);
+        File_Delete(&sector_reader_658, FALSE);
+    }
+    if (TRUE) {
+        File sparse_update_683;
+        File_update(&sparse_update_683, &write_path_375);
+        I64 hoisted__I64_g301_684 = 1800;
+        File *ref_value_686 = File_seek(&sparse_update_683, &hoisted__I64_g301_684);
+        TilStr hoisted__Str_g303_687;
+        TilStrInitLit(&hoisted__Str_g303_687, "Z", 1);
+        File_write(ref_value_686, &hoisted__Str_g303_687);
+        TilStrDelete(&hoisted__Str_g303_687, FALSE);
+        File_Delete(&sparse_update_683, FALSE);
+    }
+    TilStr sparse_bytes_688;
+    TilFileRead(&sparse_bytes_688, &write_path_375);
+    U64 hoisted__U64_g430_689 = 770;
+    TilStr zero_span_690;
+    TilStrWithCapacity(&zero_span_690, hoisted__U64_g430_689);
+    {
+        I64 _re_I64_g304_691 = 770;
+        I64 _rc_I64_g304_692 = 0;
+        while (TRUE) {
+            Bool _wcond_Bool_g305_693 = (_rc_I64_g304_692 < _re_I64_g304_691);
+            if (_wcond_Bool_g305_693) {
+            } else {
+                break;
+            }
+            I64 __694 = _rc_I64_g304_692;
+            (++_rc_I64_g304_692);
+            TilStr hoisted__Str_g306_695;
+            TilStrInitLit(&hoisted__Str_g306_695, "\x00", 1);
+            TilStrPush(&zero_span_690, &hoisted__Str_g306_695);
+            TilStrDelete(&hoisted__Str_g306_695, FALSE);
+        }
+    }
+    U64 hoisted__U64_g431_696 = 1030;
+    U64 hoisted__U64_g432_697 = 770;
+    TilStr hoisted__Str_g433_698;
+    TilStrSubstr(&hoisted__Str_g433_698, &sparse_bytes_688, hoisted__U64_g431_696, hoisted__U64_g432_697);
+    Bool hoisted__Bool_g434_699 = TilStrEq(&hoisted__Str_g433_698, &zero_span_690);
+    TilStrDelete(&hoisted__Str_g433_698, FALSE);
+    if (hoisted__Bool_g434_699) {
+        U64 hoisted__U64_g307_700 = 1;
+        TilStrArray _va_Array_g48_701;
+        TilStrArrayNew(&_va_Array_g48_701, hoisted__U64_g307_700);
+        I64 _va_Array_g48_ek_702 = 0;
+        U64 hoisted__U64_g308_703 = 0;
+        TilStr hoisted__Str_g309_704;
+        TilStrInitLit(&hoisted__Str_g309_704, "multi-sector gap", 16);
+        TilStrArraySet(&_va_Array_g48_701, hoisted__U64_g308_703, &hoisted__Str_g309_704);
+        TilPrintln(&_va_Array_g48_701);
+    }
+    U64 hoisted__U64_g435_705 = 1;
+    TilStrArray _va_Array_g62_706;
+    TilStrArrayNew(&_va_Array_g62_706, hoisted__U64_g435_705);
+    I64 _va_Array_g62_ek_707 = 0;
+    U64 hoisted__U64_g436_708 = (&sparse_bytes_688)->count;
+    I64 hoisted__I64_g437_709 = ((hoisted__U64_g436_708) + 0)(I64);
+    U64 hoisted__U64_g438_710 = 0;
+    TilStr hoisted__Str_g439_711;
+    TilStrFromI64(&hoisted__Str_g439_711, hoisted__I64_g437_709);
+    TilStrArraySet(&_va_Array_g62_706, hoisted__U64_g438_710, &hoisted__Str_g439_711);
+    TilPrintln(&_va_Array_g62_706);
+    TilStrDelete(&sparse_bytes_688, FALSE);
+    TilStrDelete(&zero_span_690, FALSE);
+    TilStrDelete(&sector_content_646, FALSE);
+    File_remove(&write_path_375);
     return 0;
 }
 

@@ -2906,10 +2906,9 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_dynamic_free", "test/script_dynamic_free.til",
         "", 0, format(exp, "script_dynamic_free.expected"), til_bin, asan_flag)
 
-    // Shared Str semantics used by the HolyC backend: literals, owned clones,
-    // views, mutation, integer conversion, counted output, and explicit delete.
-    add_cli_pair(tests, "script_str_runtime", "test/script_str_runtime.til",
-        "", 0, format(exp, "script_str_runtime.expected"), til_bin, asan_flag)
+    // The shared Str/filesystem script mutates one test directory. Keep its
+    // interpreter and native run in one serial row rather than racing them.
+    add_both(tests, "test/script_str_runtime.til", format(" --til-bin ", til_bin, asan_flag))
 
     // Shared POD struct semantics used by HolyC: nested inline definitions,
     // constructor defaults/named args, scalar field mutation, and nested reads.

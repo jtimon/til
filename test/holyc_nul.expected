@@ -4,17 +4,18 @@
 #define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
+
 I64 TilMain()
 {
-    U64 hoisted__U64_g7 = 1;
-    TilStrArray _va_Array_g0;
-    TilStrArrayNew(&_va_Array_g0, hoisted__U64_g7);
-    I64 _va_Array_g0_ek = 0;
-    U64 hoisted__U64_g8 = 0;
-    TilStr hoisted__Str_g9;
-    TilStrInitLit(&hoisted__Str_g9, "\x0", 1);
-    TilStrArraySet(&_va_Array_g0, hoisted__U64_g8, &hoisted__Str_g9);
-    TilPrintln(&_va_Array_g0);
+    U64 hoisted__U64_g7_0 = 1;
+    TilStrArray _va_Array_g0_1;
+    TilStrArrayNew(&_va_Array_g0_1, hoisted__U64_g7_0);
+    I64 _va_Array_g0_ek_2 = 0;
+    U64 hoisted__U64_g8_3 = 0;
+    TilStr hoisted__Str_g9_4;
+    TilStrInitLit(&hoisted__Str_g9_4, "\x0", 1);
+    TilStrArraySet(&_va_Array_g0_1, hoisted__U64_g8_3, &hoisted__Str_g9_4);
+    TilPrintln(&_va_Array_g0_1);
     return 0;
 }
 

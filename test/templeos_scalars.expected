@@ -4,6 +4,7 @@
 #define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
+
 I64 TilI64Div(I64 a, I64 b)
 {
     if (!b)
@@ -22,267 +23,267 @@ extern I64 twice(I64 n);
 
 I64 twice(I64 n)
 {
-    U64 hoisted__U64_0 = 1;
-    TilStrArray _va_Array_0;
-    TilStrArrayNew(&_va_Array_0, hoisted__U64_0);
-    I64 _va_Array_0_ek = 0;
-    U64 hoisted__U64_1 = 0;
-    TilStr hoisted__Str_twice_2;
-    TilStrInitLit(&hoisted__Str_twice_2, "Inside nested twice", 19);
-    TilStrArraySet(&_va_Array_0, hoisted__U64_1, &hoisted__Str_twice_2);
-    TilPrintln(&_va_Array_0);
-    I64 hoisted__I64_3 = 2;
-    I64 hoisted__I64_4 = (n * hoisted__I64_3);
-    return hoisted__I64_4;
+    U64 hoisted__U64_0_0 = 1;
+    TilStrArray _va_Array_0_1;
+    TilStrArrayNew(&_va_Array_0_1, hoisted__U64_0_0);
+    I64 _va_Array_0_ek_2 = 0;
+    U64 hoisted__U64_1_3 = 0;
+    TilStr hoisted__Str_twice_2_4;
+    TilStrInitLit(&hoisted__Str_twice_2_4, "Inside nested twice", 19);
+    TilStrArraySet(&_va_Array_0_1, hoisted__U64_1_3, &hoisted__Str_twice_2_4);
+    TilPrintln(&_va_Array_0_1);
+    I64 hoisted__I64_3_5 = 2;
+    I64 hoisted__I64_4_6 = (n * hoisted__I64_3_5);
+    return hoisted__I64_4_6;
 }
 
 I64 TilMain()
 {
-    U8 u8_value = 255;
-    (u8_value = ((u8_value + 1) & 255));
-    U8 hoisted__U8_g7 = 0;
-    Bool hoisted__Bool_g8 = (u8_value != hoisted__U8_g7);
-    if (hoisted__Bool_g8) {
+    U8 u8_value_7 = 255;
+    (u8_value_7 = ((u8_value_7 + 1) & 255));
+    U8 hoisted__U8_g7_8 = 0;
+    Bool hoisted__Bool_g8_9 = (u8_value_7 != hoisted__U8_g7_8);
+    if (hoisted__Bool_g8_9) {
         while (TRUE) {
         }
     }
-    U16 u16_value = 65535;
-    (u16_value = ((u16_value + 1) & 65535));
-    U16 hoisted__U16_g9 = 0;
-    Bool hoisted__Bool_g10 = (u16_value != hoisted__U16_g9);
-    if (hoisted__Bool_g10) {
+    U16 u16_value_10 = 65535;
+    (u16_value_10 = ((u16_value_10 + 1) & 65535));
+    U16 hoisted__U16_g9_11 = 0;
+    Bool hoisted__Bool_g10_12 = (u16_value_10 != hoisted__U16_g9_11);
+    if (hoisted__Bool_g10_12) {
         while (TRUE) {
         }
     }
-    U32 u32_value = 4294967295;
-    (u32_value = ((u32_value + 1) & 4294967295));
-    U32 hoisted__U32_g11 = 0;
-    Bool hoisted__Bool_g12 = (u32_value != hoisted__U32_g11);
-    if (hoisted__Bool_g12) {
+    U32 u32_value_13 = 4294967295;
+    (u32_value_13 = ((u32_value_13 + 1) & 4294967295));
+    U32 hoisted__U32_g11_14 = 0;
+    Bool hoisted__Bool_g12_15 = (u32_value_13 != hoisted__U32_g11_14);
+    if (hoisted__Bool_g12_15) {
         while (TRUE) {
         }
     }
-    U64 u64_value = 4294967296;
-    (++u64_value);
-    U64 hoisted__U64_g13 = 4294967297;
-    Bool hoisted__Bool_g14 = (u64_value != hoisted__U64_g13);
-    if (hoisted__Bool_g14) {
+    U64 u64_value_16 = 4294967296;
+    (++u64_value_16);
+    U64 hoisted__U64_g13_17 = 4294967297;
+    Bool hoisted__Bool_g14_18 = (u64_value_16 != hoisted__U64_g13_17);
+    if (hoisted__Bool_g14_18) {
         while (TRUE) {
         }
     }
-    I8 i8_value = 127;
-    (i8_value = ((((i8_value + 1) & 255) ^ 128) - 128));
-    I8 hoisted__I8_g15 = -128;
-    Bool hoisted__Bool_g16 = (i8_value != hoisted__I8_g15);
-    if (hoisted__Bool_g16) {
+    I8 i8_value_19 = 127;
+    (i8_value_19 = ((((i8_value_19 + 1) & 255) ^ 128) - 128));
+    I8 hoisted__I8_g15_20 = -128;
+    Bool hoisted__Bool_g16_21 = (i8_value_19 != hoisted__I8_g15_20);
+    if (hoisted__Bool_g16_21) {
         while (TRUE) {
         }
     }
-    I16 i16_value = 32767;
-    (i16_value = ((((i16_value + 1) & 65535) ^ 32768) - 32768));
-    I16 hoisted__I16_g17 = -32768;
-    Bool hoisted__Bool_g18 = (i16_value != hoisted__I16_g17);
-    if (hoisted__Bool_g18) {
+    I16 i16_value_22 = 32767;
+    (i16_value_22 = ((((i16_value_22 + 1) & 65535) ^ 32768) - 32768));
+    I16 hoisted__I16_g17_23 = -32768;
+    Bool hoisted__Bool_g18_24 = (i16_value_22 != hoisted__I16_g17_23);
+    if (hoisted__Bool_g18_24) {
         while (TRUE) {
         }
     }
-    I32 i32_value = 2147483647;
-    (i32_value = ((((i32_value + 1) & 4294967295) ^ 2147483648) - 2147483648));
-    I32 hoisted__I32_g19 = -2147483648;
-    Bool hoisted__Bool_g20 = (i32_value != hoisted__I32_g19);
-    if (hoisted__Bool_g20) {
+    I32 i32_value_25 = 2147483647;
+    (i32_value_25 = ((((i32_value_25 + 1) & 4294967295) ^ 2147483648) - 2147483648));
+    I32 hoisted__I32_g19_26 = -2147483648;
+    Bool hoisted__Bool_g20_27 = (i32_value_25 != hoisted__I32_g19_26);
+    if (hoisted__Bool_g20_27) {
         while (TRUE) {
         }
     }
-    I64 i64_value = -5000000001;
-    (++i64_value);
-    I64 hoisted__I64_g21 = -5000000000;
-    Bool hoisted__Bool_g22 = (i64_value != hoisted__I64_g21);
-    if (hoisted__Bool_g22) {
+    I64 i64_value_28 = -5000000001;
+    (++i64_value_28);
+    I64 hoisted__I64_g21_29 = -5000000000;
+    Bool hoisted__Bool_g22_30 = (i64_value_28 != hoisted__I64_g21_29);
+    if (hoisted__Bool_g22_30) {
         while (TRUE) {
         }
     }
-    U8 shift_base = 0;
-    (shift_base = ((shift_base + 1) & 255));
-    U8 hoisted__U8_g23 = 7;
-    U8 shifted_left = (((shift_base << hoisted__U8_g23)) & 255);
-    U8 hoisted__U8_g24 = 128;
-    Bool hoisted__Bool_g25 = (shifted_left != hoisted__U8_g24);
-    if (hoisted__Bool_g25) {
+    U8 shift_base_31 = 0;
+    (shift_base_31 = ((shift_base_31 + 1) & 255));
+    U8 hoisted__U8_g23_32 = 7;
+    U8 shifted_left_33 = (((shift_base_31 << hoisted__U8_g23_32)) & 255);
+    U8 hoisted__U8_g24_34 = 128;
+    Bool hoisted__Bool_g25_35 = (shifted_left_33 != hoisted__U8_g24_34);
+    if (hoisted__Bool_g25_35) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g26 = 7;
-    U8 shifted_right = (shifted_left >> hoisted__U8_g26);
-    U8 hoisted__U8_g27 = 1;
-    Bool hoisted__Bool_g28 = (shifted_right != hoisted__U8_g27);
-    if (hoisted__Bool_g28) {
+    U8 hoisted__U8_g26_36 = 7;
+    U8 shifted_right_37 = (shifted_left_33 >> hoisted__U8_g26_36);
+    U8 hoisted__U8_g27_38 = 1;
+    Bool hoisted__Bool_g28_39 = (shifted_right_37 != hoisted__U8_g27_38);
+    if (hoisted__Bool_g28_39) {
         while (TRUE) {
         }
     }
-    Bool flag = FALSE;
-    Bool hoisted__Bool_g29 = FALSE;
-    Bool hoisted__Bool_g30 = (flag == hoisted__Bool_g29);
-    flag = hoisted__Bool_g30;
-    Bool hoisted__Bool_g31 = FALSE;
-    Bool hoisted__Bool_g32 = (flag == hoisted__Bool_g31);
-    if (hoisted__Bool_g32) {
+    Bool flag_40 = FALSE;
+    Bool hoisted__Bool_g29_41 = FALSE;
+    Bool hoisted__Bool_g30_42 = (flag_40 == hoisted__Bool_g29_41);
+    flag_40 = hoisted__Bool_g30_42;
+    Bool hoisted__Bool_g31_43 = FALSE;
+    Bool hoisted__Bool_g32_44 = (flag_40 == hoisted__Bool_g31_43);
+    if (hoisted__Bool_g32_44) {
         while (TRUE) {
         }
     }
-    I64 dividend = 6;
-    (++dividend);
-    I64 zero = 0;
-    I64 quotient = TilI64Div(dividend, zero);
-    I64 remainder = TilI64Mod(dividend, zero);
-    I64 hoisted__I64_g33 = 0;
-    Bool hoisted__Bool_g34 = (quotient != hoisted__I64_g33);
-    if (hoisted__Bool_g34) {
+    I64 dividend_45 = 6;
+    (++dividend_45);
+    I64 zero_46 = 0;
+    I64 quotient_47 = TilI64Div(dividend_45, zero_46);
+    I64 remainder_48 = TilI64Mod(dividend_45, zero_46);
+    I64 hoisted__I64_g33_49 = 0;
+    Bool hoisted__Bool_g34_50 = (quotient_47 != hoisted__I64_g33_49);
+    if (hoisted__Bool_g34_50) {
         while (TRUE) {
         }
     }
-    I64 hoisted__I64_g35 = 0;
-    Bool hoisted__Bool_g36 = (remainder != hoisted__I64_g35);
-    if (hoisted__Bool_g36) {
+    I64 hoisted__I64_g35_51 = 0;
+    Bool hoisted__Bool_g36_52 = (remainder_48 != hoisted__I64_g35_51);
+    if (hoisted__Bool_g36_52) {
         while (TRUE) {
         }
     }
-    I64 hoisted__I64_g37 = 3;
-    I64 hoisted__I64_g38 = twice(hoisted__I64_g37);
-    I64 nested = twice(hoisted__I64_g38);
-    I64 hoisted__I64_g39 = 12;
-    Bool hoisted__Bool_g40 = (nested != hoisted__I64_g39);
-    if (hoisted__Bool_g40) {
+    I64 hoisted__I64_g37_53 = 3;
+    I64 hoisted__I64_g38_54 = twice(hoisted__I64_g37_53);
+    I64 nested_55 = twice(hoisted__I64_g38_54);
+    I64 hoisted__I64_g39_56 = 12;
+    Bool hoisted__Bool_g40_57 = (nested_55 != hoisted__I64_g39_56);
+    if (hoisted__Bool_g40_57) {
         while (TRUE) {
         }
     }
-    U8 ops = 255;
-    (ops = ((ops + 1) & 255));
-    (ops = ((ops + 1) & 255));
-    U8 hoisted__U8_g41 = 3;
-    U8 sum = (((ops + hoisted__U8_g41)) & 255);
-    U8 hoisted__U8_g42 = 4;
-    Bool hoisted__Bool_g43 = (sum != hoisted__U8_g42);
-    if (hoisted__Bool_g43) {
+    U8 ops_58 = 255;
+    (ops_58 = ((ops_58 + 1) & 255));
+    (ops_58 = ((ops_58 + 1) & 255));
+    U8 hoisted__U8_g41_59 = 3;
+    U8 sum_60 = (((ops_58 + hoisted__U8_g41_59)) & 255);
+    U8 hoisted__U8_g42_61 = 4;
+    Bool hoisted__Bool_g43_62 = (sum_60 != hoisted__U8_g42_61);
+    if (hoisted__Bool_g43_62) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g44 = 2;
-    U8 difference = (((sum - hoisted__U8_g44)) & 255);
-    U8 hoisted__U8_g45 = 2;
-    Bool hoisted__Bool_g46 = (difference != hoisted__U8_g45);
-    if (hoisted__Bool_g46) {
+    U8 hoisted__U8_g44_63 = 2;
+    U8 difference_64 = (((sum_60 - hoisted__U8_g44_63)) & 255);
+    U8 hoisted__U8_g45_65 = 2;
+    Bool hoisted__Bool_g46_66 = (difference_64 != hoisted__U8_g45_65);
+    if (hoisted__Bool_g46_66) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g47 = 129;
-    U8 product = (((difference * hoisted__U8_g47)) & 255);
-    U8 hoisted__U8_g48 = 2;
-    Bool hoisted__Bool_g49 = (product != hoisted__U8_g48);
-    if (hoisted__Bool_g49) {
+    U8 hoisted__U8_g47_67 = 129;
+    U8 product_68 = (((difference_64 * hoisted__U8_g47_67)) & 255);
+    U8 hoisted__U8_g48_69 = 2;
+    Bool hoisted__Bool_g49_70 = (product_68 != hoisted__U8_g48_69);
+    if (hoisted__Bool_g49_70) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g50 = 15;
-    U8 and_value = (product & hoisted__U8_g50);
-    U8 hoisted__U8_g51 = 2;
-    Bool hoisted__Bool_g52 = (and_value != hoisted__U8_g51);
-    if (hoisted__Bool_g52) {
+    U8 hoisted__U8_g50_71 = 15;
+    U8 and_value_72 = (product_68 & hoisted__U8_g50_71);
+    U8 hoisted__U8_g51_73 = 2;
+    Bool hoisted__Bool_g52_74 = (and_value_72 != hoisted__U8_g51_73);
+    if (hoisted__Bool_g52_74) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g53 = 8;
-    U8 or_value = (and_value | hoisted__U8_g53);
-    U8 hoisted__U8_g54 = 10;
-    Bool hoisted__Bool_g55 = (or_value != hoisted__U8_g54);
-    if (hoisted__Bool_g55) {
+    U8 hoisted__U8_g53_75 = 8;
+    U8 or_value_76 = (and_value_72 | hoisted__U8_g53_75);
+    U8 hoisted__U8_g54_77 = 10;
+    Bool hoisted__Bool_g55_78 = (or_value_76 != hoisted__U8_g54_77);
+    if (hoisted__Bool_g55_78) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g56 = 3;
-    U8 xor_value = (or_value ^ hoisted__U8_g56);
-    U8 hoisted__U8_g57 = 9;
-    Bool hoisted__Bool_g58 = (xor_value != hoisted__U8_g57);
-    if (hoisted__Bool_g58) {
+    U8 hoisted__U8_g56_79 = 3;
+    U8 xor_value_80 = (or_value_76 ^ hoisted__U8_g56_79);
+    U8 hoisted__U8_g57_81 = 9;
+    Bool hoisted__Bool_g58_82 = (xor_value_80 != hoisted__U8_g57_81);
+    if (hoisted__Bool_g58_82) {
         while (TRUE) {
         }
     }
-    U8 bnot_value = 5;
-    U8 inverted = ((~bnot_value) & 255);
-    U8 hoisted__U8_g59 = 250;
-    Bool hoisted__Bool_g60 = (inverted != hoisted__U8_g59);
-    if (hoisted__Bool_g60) {
+    U8 bnot_value_83 = 5;
+    U8 inverted_84 = ((~bnot_value_83) & 255);
+    U8 hoisted__U8_g59_85 = 250;
+    Bool hoisted__Bool_g60_86 = (inverted_84 != hoisted__U8_g59_85);
+    if (hoisted__Bool_g60_86) {
         while (TRUE) {
         }
     }
-    U8 decremented = 0;
-    (decremented = ((decremented - 1) & 255));
-    U8 hoisted__U8_g61 = 255;
-    Bool hoisted__Bool_g62 = (decremented != hoisted__U8_g61);
-    if (hoisted__Bool_g62) {
+    U8 decremented_87 = 0;
+    (decremented_87 = ((decremented_87 - 1) & 255));
+    U8 hoisted__U8_g61_88 = 255;
+    Bool hoisted__Bool_g62_89 = (decremented_87 != hoisted__U8_g61_88);
+    if (hoisted__Bool_g62_89) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g63 = 0;
-    Bool hoisted__Bool_g64 = (ops == hoisted__U8_g63);
-    if (hoisted__Bool_g64) {
+    U8 hoisted__U8_g63_90 = 0;
+    Bool hoisted__Bool_g64_91 = (ops_58 == hoisted__U8_g63_90);
+    if (hoisted__Bool_g64_91) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g65 = 1;
-    Bool hoisted__Bool_g66 = (ops != hoisted__U8_g65);
-    if (hoisted__Bool_g66) {
+    U8 hoisted__U8_g65_92 = 1;
+    Bool hoisted__Bool_g66_93 = (ops_58 != hoisted__U8_g65_92);
+    if (hoisted__Bool_g66_93) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g67 = 1;
-    Bool hoisted__Bool_g68 = (ops < hoisted__U8_g67);
-    if (hoisted__Bool_g68) {
+    U8 hoisted__U8_g67_94 = 1;
+    Bool hoisted__Bool_g68_95 = (ops_58 < hoisted__U8_g67_94);
+    if (hoisted__Bool_g68_95) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g69 = 1;
-    Bool hoisted__Bool_g70 = (ops > hoisted__U8_g69);
-    if (hoisted__Bool_g70) {
+    U8 hoisted__U8_g69_96 = 1;
+    Bool hoisted__Bool_g70_97 = (ops_58 > hoisted__U8_g69_96);
+    if (hoisted__Bool_g70_97) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g71 = 0;
-    Bool hoisted__Bool_g72 = (ops <= hoisted__U8_g71);
-    if (hoisted__Bool_g72) {
+    U8 hoisted__U8_g71_98 = 0;
+    Bool hoisted__Bool_g72_99 = (ops_58 <= hoisted__U8_g71_98);
+    if (hoisted__Bool_g72_99) {
         while (TRUE) {
         }
     }
-    U8 hoisted__U8_g73 = 2;
-    Bool hoisted__Bool_g74 = (ops >= hoisted__U8_g73);
-    if (hoisted__Bool_g74) {
+    U8 hoisted__U8_g73_100 = 2;
+    Bool hoisted__Bool_g74_101 = (ops_58 >= hoisted__U8_g73_100);
+    if (hoisted__Bool_g74_101) {
         while (TRUE) {
         }
     }
-    I64 two = 2;
-    I64 nonzero_quotient = TilI64Div(dividend, two);
-    I64 nonzero_remainder = TilI64Mod(dividend, two);
-    I64 hoisted__I64_g75 = 3;
-    Bool hoisted__Bool_g76 = (nonzero_quotient != hoisted__I64_g75);
-    if (hoisted__Bool_g76) {
+    I64 two_102 = 2;
+    I64 nonzero_quotient_103 = TilI64Div(dividend_45, two_102);
+    I64 nonzero_remainder_104 = TilI64Mod(dividend_45, two_102);
+    I64 hoisted__I64_g75_105 = 3;
+    Bool hoisted__Bool_g76_106 = (nonzero_quotient_103 != hoisted__I64_g75_105);
+    if (hoisted__Bool_g76_106) {
         while (TRUE) {
         }
     }
-    I64 hoisted__I64_g77 = 1;
-    Bool hoisted__Bool_g78 = (nonzero_remainder != hoisted__I64_g77);
-    if (hoisted__Bool_g78) {
+    I64 hoisted__I64_g77_107 = 1;
+    Bool hoisted__Bool_g78_108 = (nonzero_remainder_104 != hoisted__I64_g77_107);
+    if (hoisted__Bool_g78_108) {
         while (TRUE) {
         }
     }
-    U64 hoisted__U64_g79 = 1;
-    TilStrArray _va_Array_g0;
-    TilStrArrayNew(&_va_Array_g0, hoisted__U64_g79);
-    I64 _va_Array_g0_ek = 0;
-    U64 hoisted__U64_g80 = 0;
-    TilStr hoisted__Str_g81;
-    TilStrInitLit(&hoisted__Str_g81, "Scalar checks passed", 20);
-    TilStrArraySet(&_va_Array_g0, hoisted__U64_g80, &hoisted__Str_g81);
-    TilPrintln(&_va_Array_g0);
+    U64 hoisted__U64_g79_109 = 1;
+    TilStrArray _va_Array_g0_110;
+    TilStrArrayNew(&_va_Array_g0_110, hoisted__U64_g79_109);
+    I64 _va_Array_g0_ek_111 = 0;
+    U64 hoisted__U64_g80_112 = 0;
+    TilStr hoisted__Str_g81_113;
+    TilStrInitLit(&hoisted__Str_g81_113, "Scalar checks passed", 20);
+    TilStrArraySet(&_va_Array_g0_110, hoisted__U64_g80_112, &hoisted__Str_g81_113);
+    TilPrintln(&_va_Array_g0_110);
     return 0;
 }
 
