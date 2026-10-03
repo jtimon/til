@@ -2,11 +2,12 @@
 # category: cleanups
 ** WIP #272 Garbager system: single ownership authority, no manual memory outside core
 
-*** Current assessment (master 5bc2070c4)
+*** Current assessment (master 1299f248c)
 
 The leak-era inventory and experiments below are historical. They must not
-be reapplied as pending fixes. This issue remains WIP for the concrete
-ownership-boundary audit below; it does not identify a new ASAN failure.
+be reapplied as pending fixes. The constfolder audit below found and fixed
+an owned-argument leak on comptime abort. This issue remains WIP for the
+remaining runtime/FFI ownership-boundary audit.
 
 Use the placement rule already recorded in
 [[../fixed/302.org][#302]]: manual memory belongs in destructors,
@@ -31,7 +32,7 @@ contract, not just a Dynamic-typed pointer.
     ~free_owned_value~, and the old delete-interception layer are gone.
   - Double-ownership and scope teardown:
     [[../fixed/275.org][#275]] covers the raw runtime's ownership fixes.
-    ~scope_free~ releases interpreter slots and metadata, not nested
+    Normal ~scope_free~ releases interpreter slots and metadata, not nested
     program payloads; raw allocations remain the interpreted program's
     responsibility. The old proposal to make every scope teardown deep
     would violate that current contract.
@@ -46,6 +47,90 @@ contract, not just a Dynamic-typed pointer.
     ~test/globals.til~. [[../fixed/209.org][#209]] subsequently moved the
     destructor's call_free decision into the AST.
 
+*** Constfolder ownership audit: completed slice
+
+Traced ~expr_to_known_raw~, ~is_known~, ~add_known_call_arg~,
+~try_eval_call~, ~raw_to_expr~, and evaluation-scope cleanup:
+
+  - Literal primitives allocate a block; reading a known primitive first
+    loads its inline word and re-boxes it for ~is_known~'s uniform result
+    contract. The caller loads the value and frees that block once after
+    conversion. That free is necessary: ~raw_result_drop~ on a primitive
+    word deliberately frees nothing.
+  - Known aggregates are independent owned clones. Binding them in the
+    temporary evaluation scope transfers the block; owned callee parameters
+    can move it onward and mark the source binding moved. Borrowed reads
+    keep the source owner. Rebuilt Exprs copy value data rather than keeping
+    pointers into these temporary blocks.
+  - Ordinary unknown arguments fail the ~all_comptime~ gate before call
+    evaluation. The internal argument-miss exits also drop any earlier
+    bound arguments and release the temporary scope before returning None
+    or reporting a required-macro error.
+  - Result conversion failure does not skip cleanup: ~raw_to_expr~ returns
+    None, then ~try_eval_call~ drops the owned result, drops its temporary
+    bindings, and releases the scope. An enum containing a struct with an
+    owned Str field exercised this branch in a debugger probe.
+
+The real defect was deeper in comptime abort unwinding. ~is_known~ cloned
+two owned Str arguments, the call moved them into its own scope, and panic
+aborted before the scheduled deletes ran. ~scope_free~ freed only their
+outer slots, orphaning the c_str buffers; cleanup of the caller's evaluation
+scope could not reach arguments it had already moved away. With literal
+owned arguments, the probe produced an ordinary LeakSanitizer report of
+35 bytes in two allocations through ~is_known~ -> ~heap_clone~.
+
+~scope_free~ now drops still-owned nested payloads only when the scope exits
+during an aborted comptime evaluation. Borrowed, moved, raw-allocation,
+static-callable, and already-released payload cases keep their ownership
+rules. Normal execution still leaves program destruction to the AST; this
+is exception unwinding, not a return to unconditional deep scope teardown.
+
+The abort is a failed optional evaluation, not a typer error or a crash of
+the compiler. ~h_exit~ records ~eval_aborted~; ~try_eval_call~ cleans up and
+returns None, keeping the call for runtime. Required macro evaluation would
+instead report an error. The constfolder optimizes expressions inside proc
+and test definitions, but never evaluates a proc call as a constant.
+
+Regression in ~test/constfold.til~ now uses three named tests:
+~test_constfold_abort_owned_args~, ~test_constfold_abort_branch_locals~, and
+~test_constfold_abort_after_release~. Each has an explicitly runtime-only
+proc guard (with ~noop_proc~) returning false. Known func calls inside the
+guarded branches are nevertheless attempted during expression folding;
+~cf_abort_if_nonempty~ reaches ~exit(1)~ and abandons those attempts. The
+regression uses no print/panic-message path. The calls remain in emitted C,
+the runtime guards prevent their execution, and the tests also assert the
+funcs' successful empty-input paths. The third case explicitly deletes a
+local's payload with call_free=false before abort, checking that unwinding
+respects ~payload_released~ and does not destroy it twice.
+
+The named tests run successfully under interpretation and compiled
+execution. ~test/constfold.c~ now contains their bodies, runtime guards,
+remaining abort calls, and registrations, rather than only unused procs
+that disappear during scavenging.
+
+Focused verification: debugger counters confirmed successful result
+conversion, failed aggregate conversion, and a recovered abort. The
+unknown-argument fixture was excluded by the outer comptime gate, as the
+source trace predicts. The fixed abort probe no longer reports the 35-byte
+leak; its live-byte probe matches the empty control. Residual live bytes in
+the controls/conversion probe were traced with LeakSanitizer roots disabled
+to typer global borrow-memo sets and CLI arrays, not constfolder temporary
+results. Those numbers are diagnostic evidence, not a new leak baseline
+or a claim that all live allocations at process teardown are zero.
+
+The initial full-ASAN verification passed 498/498. The expanded regression
+was then compiled with an ASAN build of pre-fix master's checked-in boot
+compiler: it reported 136 bytes in six leaked allocations, with five
+allocations traced through ~is_known~ -> ~heap_clone~ and another from
+branch-local formatting. The fixed compiler translated the same source
+without a normal LeakSanitizer error. This before/after comparison checks
+that the regression actually exposes the missing unwind cleanup.
+
+Final verification on the rebased source: ~make clean && make test~ passed
+496/496 under full ASAN. All three named abort-cleanup tests passed, and
+the regenerated ~test/constfold.c~ includes the guarded calls and test
+registrations.
+
 *** Remaining audit: concrete ownership boundaries
 
 Start with these current call sites. For each, record the allocation's
@@ -53,16 +138,6 @@ owner, every move/borrow, and its release path before proposing removal.
 The question is whether the operation implements that contract or releases
 a value the garbager already owns. No defect is established by this list.
 
-  - Constfolder known arguments (~src/self/constfolder.til~, ~is_known~
-    and ~try_eval_call~): ~is_known~ returns an owned block even for a
-    primitive; primitive evaluation results normally travel as words.
-    The caller loads the word, converts it to an Expr, then explicitly
-    ~EvalHeap.heap_free(own arg_raw)~. Non-primitive known arguments move
-    into the evaluation scope. Audit those success/miss/abort paths and
-    the matching ~scope_drop_owned_bindings~ calls together. Keep the
-    block-vs-word distinction explicit; ~raw_result_drop~ cannot free a
-    primitive word as if it were an allocated block. Coverage:
-    ~test/constfold.til~ and self-translation.
   - Runtime slots and persistent evaluation scopes
     (~src/self/interpreter.til~): distinguish ~scope_free~'s outer-slot
     release from ~scope_drop_owned_bindings~'s deep cleanup of runtime-owned
@@ -90,8 +165,7 @@ decision rather than inventing another rewrite.
 
 Verification for implementation work: ~make clean && make test~ (the full
 ASAN suite); emit/self-applied changes follow ~doc/self.org~'s two-pass
-workflow. The current update is a source audit and issue-plan correction,
-not a fresh full-suite result.
+workflow.
 
 *** Historical investigation (2026-06)
 

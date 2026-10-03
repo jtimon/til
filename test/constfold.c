@@ -214,6 +214,14 @@ static void test_static_global_initializers(void);
 static void test_const_and_or_fold(void);
 static void test_mixed_fold(void);
 static void test_fold_reads_global_const(void);
+static I64 cf_abort_if_nonempty(Str * first, Str * second);
+static I64 cf_abort_owned_args(Str * first, Str * second);
+static I64 cf_abort_owned_branch(Str * first, Str * second);
+static I64 cf_abort_after_release(Str * first, Str * second);
+static Bool cf_abort_runtime_guard(void);
+static void test_constfold_abort_owned_args(void);
+static void test_constfold_abort_branch_locals(void);
+static void test_constfold_abort_after_release(void);
 static void Array__I64_delete(Array__I64 * self, Bool call_free);
 static Array__I64 Array__I64_clone(Array__I64 * self);
 static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind);
@@ -322,6 +330,12 @@ static Str hoisted__Str_test_const_and_or_fold_43 = (Str){.c_str = (void *)"test
 static Str hoisted__Str_test_const_and_or_fold_49 = (Str){.c_str = (void *)"test/constfold.til:512:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_54 = (Str){.c_str = (void *)"test/constfold.til:513:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_const_and_or_fold_58 = (Str){.c_str = (void *)"test/constfold.til:514:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_constfold_abort_after_release_3 = (Str){.c_str = (void *)"test/constfold.til:602:9", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_constfold_abort_after_release_9 = (Str){.c_str = (void *)"test/constfold.til:604:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_constfold_abort_branch_locals_3 = (Str){.c_str = (void *)"test/constfold.til:594:9", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_constfold_abort_branch_locals_9 = (Str){.c_str = (void *)"test/constfold.til:596:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_constfold_abort_owned_args_3 = (Str){.c_str = (void *)"test/constfold.til:586:9", .count = 24ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_test_constfold_abort_owned_args_9 = (Str){.c_str = (void *)"test/constfold.til:588:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_deeply_nested_7 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_enum_fold_1 = (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_enum_fold_4 = (Str){.c_str = (void *)"test/constfold.til:251:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -1777,6 +1791,128 @@ static void test_fold_reads_global_const(void) {
     assert_eq__I64(hoisted__I64_1, hoisted__I64_2, &hoisted__Str_test_fold_reads_global_const_3);
 }
 
+static I64 cf_abort_if_nonempty(Str * first, Str * second) {
+    U64 hoisted__U64_1 = (first->count);
+    U64 hoisted__U64_2 = (second->count);
+    U64 hoisted__U64_3 = ((U64)(hoisted__U64_1 + hoisted__U64_2));
+    U64 hoisted__U64_4 = 0ULL;
+    Bool hoisted__Bool_5 = ((Bool)(hoisted__U64_3 > hoisted__U64_4));
+    if (hoisted__Bool_5) {
+        I64 hoisted__I64_0 = 1;
+        exit(hoisted__I64_0);
+    }
+    I64 hoisted__I64_6 = 0;
+    return hoisted__I64_6;
+}
+
+static I64 cf_abort_owned_args(Str * first, Str * second) {
+    I64 hoisted__I64_0 = cf_abort_if_nonempty(first, second);
+    Str_delete(first, 0);
+    Str_delete(second, 0);
+    return hoisted__I64_0;
+}
+
+static I64 cf_abort_owned_branch(Str * first, Str * second) {
+    U64 hoisted__U64_6 = (first->count);
+    U64 hoisted__U64_7 = 0ULL;
+    Bool hoisted__Bool_8 = ((Bool)(hoisted__U64_6 > hoisted__U64_7));
+    if (hoisted__Bool_8) {
+        U64 hoisted__U64_0 = 2ULL;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_0);
+        I64 _va_Array_0_ek = 0;
+        U64 hoisted__U64_1 = 0ULL;
+        static Str hoisted__Str_cf_abort_owned_branch_2 = (Str){.c_str = (void *)"branch ", .count = 7ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U64_1, &hoisted__Str_cf_abort_owned_branch_2, &_va_Array_0_ek);
+        U64 hoisted__U64_3 = 1ULL;
+        Str hoisted__Str_cf_abort_owned_branch_4 = Str_clone(first);
+        Array__Str_set(&_va_Array_0, hoisted__U64_3, &hoisted__Str_cf_abort_owned_branch_4, &_va_Array_0_ek);
+        Str text = format(&_va_Array_0);
+        I64 hoisted__I64_5 = cf_abort_if_nonempty(&text, second);
+        Str_delete(&text, 0);
+        Str_delete(first, 0);
+        Str_delete(second, 0);
+        return hoisted__I64_5;
+    }
+    Str_delete(first, 0);
+    Str_delete(second, 0);
+    I64 hoisted__I64_9 = 0;
+    return hoisted__I64_9;
+}
+
+static I64 cf_abort_after_release(Str * first, Str * second) {
+    U64 hoisted__U64_2 = 2ULL;
+    Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_2);
+    I64 _va_Array_0_ek = 0;
+    U64 hoisted__U64_3 = 0ULL;
+    Str hoisted__Str_cf_abort_after_release_4 = Str_clone(first);
+    Array__Str_set(&_va_Array_0, hoisted__U64_3, &hoisted__Str_cf_abort_after_release_4, &_va_Array_0_ek);
+    U64 hoisted__U64_5 = 1ULL;
+    static Str hoisted__Str_cf_abort_after_release_6 = (Str){.c_str = (void *)" released", .count = 9ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_0, hoisted__U64_5, &hoisted__Str_cf_abort_after_release_6, &_va_Array_0_ek);
+    Str released = format(&_va_Array_0);
+    Str_delete(first, 0);
+    U64 size = (released.count);
+    Str_delete(&released, 0);
+    U64 hoisted__U64_7 = 0ULL;
+    Bool hoisted__Bool_8 = ((Bool)(size > hoisted__U64_7));
+    if (hoisted__Bool_8) {
+        I64 hoisted__I64_1 = cf_abort_if_nonempty(&_til_str_lits.h000000001505, second);
+        Str_delete(second, 0);
+        return hoisted__I64_1;
+    }
+    Str_delete(second, 0);
+    I64 hoisted__I64_9 = 0;
+    return hoisted__I64_9;
+}
+
+static Bool cf_abort_runtime_guard(void) {
+    noop_proc();
+    Bool hoisted__Bool_0 = 0;
+    return hoisted__Bool_0;
+}
+
+static void test_constfold_abort_owned_args(void) {
+    Bool hoisted__Bool_4 = cf_abort_runtime_guard();
+    if (hoisted__Bool_4) {
+        static Str hoisted__Str_test_constfold_abort_owned_args_0 = (Str){.c_str = (void *)"first allocation", .count = 16ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_test_constfold_abort_owned_args_1 = (Str){.c_str = (void *)"second allocation", .count = 17ULL, .cap = TIL_CAP_LIT};
+        I64 result = cf_abort_owned_args(&hoisted__Str_test_constfold_abort_owned_args_0, &hoisted__Str_test_constfold_abort_owned_args_1);
+        I64 hoisted__I64_2 = 0;
+        assert_eq__I64(result, hoisted__I64_2, &hoisted__Str_test_constfold_abort_owned_args_3);
+    }
+    I64 hoisted__I64_7 = 0;
+    I64 hoisted__I64_8 = 0;
+    assert_eq__I64(hoisted__I64_7, hoisted__I64_8, &hoisted__Str_test_constfold_abort_owned_args_9);
+}
+
+static void test_constfold_abort_branch_locals(void) {
+    Bool hoisted__Bool_4 = cf_abort_runtime_guard();
+    if (hoisted__Bool_4) {
+        static Str hoisted__Str_test_constfold_abort_branch_locals_0 = (Str){.c_str = (void *)"first branch allocation", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_test_constfold_abort_branch_locals_1 = (Str){.c_str = (void *)"second branch allocation", .count = 24ULL, .cap = TIL_CAP_LIT};
+        I64 result = cf_abort_owned_branch(&hoisted__Str_test_constfold_abort_branch_locals_0, &hoisted__Str_test_constfold_abort_branch_locals_1);
+        I64 hoisted__I64_2 = 0;
+        assert_eq__I64(result, hoisted__I64_2, &hoisted__Str_test_constfold_abort_branch_locals_3);
+    }
+    I64 hoisted__I64_7 = 0;
+    I64 hoisted__I64_8 = 0;
+    assert_eq__I64(hoisted__I64_7, hoisted__I64_8, &hoisted__Str_test_constfold_abort_branch_locals_9);
+}
+
+static void test_constfold_abort_after_release(void) {
+    Bool hoisted__Bool_4 = cf_abort_runtime_guard();
+    if (hoisted__Bool_4) {
+        static Str hoisted__Str_test_constfold_abort_after_release_0 = (Str){.c_str = (void *)"already released", .count = 16ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_test_constfold_abort_after_release_1 = (Str){.c_str = (void *)"remaining allocation", .count = 20ULL, .cap = TIL_CAP_LIT};
+        I64 result = cf_abort_after_release(&hoisted__Str_test_constfold_abort_after_release_0, &hoisted__Str_test_constfold_abort_after_release_1);
+        I64 hoisted__I64_2 = 0;
+        assert_eq__I64(result, hoisted__I64_2, &hoisted__Str_test_constfold_abort_after_release_3);
+    }
+    I64 hoisted__I64_7 = 0;
+    I64 hoisted__I64_8 = 0;
+    assert_eq__I64(hoisted__I64_7, hoisted__I64_8, &hoisted__Str_test_constfold_abort_after_release_9);
+}
+
 static void Array__I64_delete(Array__I64 * self, Bool call_free) {
     free(self->data);
     if (call_free) {
@@ -2128,6 +2264,12 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_mixed_fold");
     test_fold_reads_global_const();
     fprintf(stderr, "  pass: %s\n", "test_fold_reads_global_const");
-    fprintf(stderr, "27/27 tests passed\n");
+    test_constfold_abort_owned_args();
+    fprintf(stderr, "  pass: %s\n", "test_constfold_abort_owned_args");
+    test_constfold_abort_branch_locals();
+    fprintf(stderr, "  pass: %s\n", "test_constfold_abort_branch_locals");
+    test_constfold_abort_after_release();
+    fprintf(stderr, "  pass: %s\n", "test_constfold_abort_after_release");
+    fprintf(stderr, "30/30 tests passed\n");
     return 0;
 }

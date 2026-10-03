@@ -541,3 +541,65 @@ test_fold_reads_global_const := test() {
 
 // Declared after its reader on purpose -- that ordering is the witness.
 GATE : USize = 2
+
+// #272: the runtime guard is a proc call and cannot be folded. The func calls
+// INSIDE its branches have known arguments, so the constfolder attempts them
+// while optimizing the test bodies. Their exit(1) aborts optional evaluation:
+// the calls remain in the emitted C, and the false runtime guard prevents them
+// from running. ASAN on the compiler checks unwinding of their owned payloads;
+// interpretation and compiled execution must both complete these named tests.
+cf_abort_if_nonempty := func(first: Str, second: Str) returns I64 {
+    if first.len().add(second.len()) > 0 { exit(1) }
+    return 0
+}
+
+cf_abort_owned_args := func(own first: Str, own second: Str) returns I64 {
+    return cf_abort_if_nonempty(first, second)
+}
+
+cf_abort_owned_branch := func(own first: Str, own second: Str) returns I64 {
+    if first.len() > 0 {
+        text := format("branch ", first)
+        return cf_abort_if_nonempty(text, second)
+    }
+    return 0
+}
+
+cf_abort_after_release := func(own first: Str, own second: Str) returns I64 {
+    released := format(first, " released")
+    size := released.len()
+    // Deliberately drop the payload while retaining its slot: later abort
+    // cleanup must honor payload_released rather than run this delete twice.
+    Str.delete(own released, false)
+    if size > 0 { return cf_abort_if_nonempty("", second) }
+    return 0
+}
+
+cf_abort_runtime_guard := proc() returns Bool {
+    noop_proc()
+    return false
+}
+
+test_constfold_abort_owned_args := test() {
+    if cf_abort_runtime_guard() {
+        result := cf_abort_owned_args(own "first allocation", own "second allocation")
+        assert_eq(I64, result, 0)
+    }
+    assert_eq(I64, cf_abort_owned_args(own "", own ""), 0)
+}
+
+test_constfold_abort_branch_locals := test() {
+    if cf_abort_runtime_guard() {
+        result := cf_abort_owned_branch(own "first branch allocation", own "second branch allocation")
+        assert_eq(I64, result, 0)
+    }
+    assert_eq(I64, cf_abort_owned_branch(own "", own ""), 0)
+}
+
+test_constfold_abort_after_release := test() {
+    if cf_abort_runtime_guard() {
+        result := cf_abort_after_release(own "already released", own "remaining allocation")
+        assert_eq(I64, result, 0)
+    }
+    assert_eq(I64, cf_abort_after_release(own "", own ""), 0)
+}
