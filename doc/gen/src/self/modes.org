@@ -1,5 +1,5 @@
 #+TITLE: src/self/modes.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * context_register_path_mode
@@ -71,9 +71,17 @@ namespace:
     ext_func None() returns shallow Option__ref_Mode
     ext_func Some(val: Mode) returns shallow Option__ref_Mode
     core_func is(self: Option__ref_Mode, other: Option__ref_Mode) returns shallow Bool
+    func eq(shallow self: Option__ref_Mode, shallow other: Option__ref_Mode) returns shallow Bool
     func delete(own self: Option__ref_Mode, shallow call_free: Bool)
+    func cmp(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow I64
+    func to_str(shallow self: Option__ref_Mode) returns Str
     func clone(self: Option__ref_Mode) returns shallow Option__ref_Mode
-    func size() returns shallow USize
+    func size() returns shallow U64
+    func lt(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func gt(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func neq(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func lte(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func gte(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
 }
 #+end_src
 
@@ -111,4 +119,14 @@ a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
 func Option__ref_Mode.take(own self: Option__ref_Mode) returns ref Mode
+#+end_src
+
+* safe_ref__Mode
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.safe_ref__Mode
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func safe_ref__Mode(value: Mode) returns shallow Option__ref_Mode
 #+end_src

@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
@@ -93,7 +93,7 @@ namespace:
     core_func is(self: Option__ref_Scope, other: Option__ref_Scope) returns shallow Bool
     func delete(own self: Option__ref_Scope, shallow call_free: Bool)
     func clone(self: Option__ref_Scope) returns shallow Option__ref_Scope
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -151,4 +151,14 @@ func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
 
 #+begin_src til
 func swap__Set__Str(mut a: Set__Str, mut b: Set__Str)
+#+end_src
+
+* safe_ref__Scope
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.safe_ref__Scope
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func safe_ref__Scope(value: Scope) returns shallow Option__ref_Scope
 #+end_src

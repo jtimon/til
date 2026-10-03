@@ -1,5 +1,5 @@
 #+TITLE: src/core/kwargs_map.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * KwargsMap
@@ -15,13 +15,13 @@ struct KwargsMap {
     mut items : Map__Str_Tuple
 namespace:
     func new() returns KwargsMap
-    func len(self: KwargsMap) returns shallow USize
+    func len(self: KwargsMap) returns shallow U64
     func has(self: KwargsMap, key: Str) returns shallow Bool
-    func set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: USize, own val: Dynamic)
+    func set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: U64, own val: Dynamic)
     func get(self: KwargsMap, key: Str) returns ref Dynamic
     func type_at(self: KwargsMap, key: Str) returns ref Str
-    func size_at(self: KwargsMap, key: Str) returns ref USize
-    func size() returns shallow USize
+    func size_at(self: KwargsMap, key: Str) returns ref U64
+    func size() returns shallow U64
     func clone(self: KwargsMap) returns KwargsMap
     func delete(own self: KwargsMap, shallow call_free: Bool)
     func hash(self: KwargsMap, hasher: HashFn) returns shallow U64
@@ -61,7 +61,7 @@ func KwargsMap.has(self: KwargsMap, key: Str) returns shallow Bool
 Insert or overwrite ~key~ with typed value. The value is owned.
 
 #+begin_src til
-func KwargsMap.set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: USize, own val: Dynamic)
+func KwargsMap.set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: U64, own val: Dynamic)
 #+end_src
 
 * KwargsMap.get
@@ -97,7 +97,7 @@ func KwargsMap.type_at(self: KwargsMap, key: Str) returns ref Str
 Byte size of the value stored under ~key~.
 
 #+begin_src til
-func KwargsMap.size_at(self: KwargsMap, key: Str) returns ref USize
+func KwargsMap.size_at(self: KwargsMap, key: Str) returns ref U64
 #+end_src
 
 * Map__Str_Tuple
@@ -112,8 +112,8 @@ struct Map__Str_Tuple {
     mut values : Vec__Tuple
 namespace:
     func new() returns Map__Str_Tuple
-    func with_capacity(shallow n: USize) returns Map__Str_Tuple
-    func len(self: Map__Str_Tuple) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_Tuple
+    func len(self: Map__Str_Tuple) returns shallow U64
     func clear(mut self: Map__Str_Tuple)
     func has(self: Map__Str_Tuple, key: Str) returns shallow Bool
     func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64) returns ref Tuple
@@ -121,7 +121,7 @@ namespace:
     func remove(mut self: Map__Str_Tuple, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
     func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_Tuple, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -150,7 +150,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_Tuple.with_capacity(shallow n: USize) returns Map__Str_Tuple
+func Map__Str_Tuple.with_capacity(shallow n: U64) returns Map__Str_Tuple
 #+end_src
 
 * Map__Str_Tuple.clear
@@ -228,8 +228,8 @@ struct Vec__Tuple {
     mut cap : USize
 namespace:
     func new() returns Vec__Tuple
-    func with_capacity(shallow n: USize) returns Vec__Tuple
-    func len(self: Vec__Tuple) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Tuple
+    func len(self: Vec__Tuple) returns shallow U64
     func clear(mut self: Vec__Tuple)
     func delete_marked(mut self: Vec__Tuple, marks: Dynamic)
     func push(mut self: Vec__Tuple, own val: Tuple)
@@ -237,18 +237,18 @@ namespace:
     func take(mut self: Vec__Tuple) returns Vec__Tuple
     func move_to(own self: Vec__Tuple, mut dest: Vec__Tuple)
     func move_from(mut self: Vec__Tuple, own other: Vec__Tuple)
-    func unsafe_get(self: Vec__Tuple, i: USize) returns ref Tuple
-    func get(self: Vec__Tuple, shallow i: USize, mut _err_kind: I64) returns ref Tuple
+    func unsafe_get(self: Vec__Tuple, i: U64) returns ref Tuple
+    func get(self: Vec__Tuple, shallow i: U64, mut _err_kind: I64) returns ref Tuple
     func pop(mut self: Vec__Tuple) returns Tuple
-    func remove_at(mut self: Vec__Tuple, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Tuple, shallow n: USize) returns Vec__Tuple
-    func truncate(mut self: Vec__Tuple, shallow n: USize)
-    func unsafe_set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple)
-    func set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple, mut _err_kind: I64)
-    func push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: USize)
+    func remove_at(mut self: Vec__Tuple, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Tuple, shallow n: U64) returns Vec__Tuple
+    func truncate(mut self: Vec__Tuple, shallow n: U64)
+    func unsafe_set(mut self: Vec__Tuple, shallow i: U64, own val: Tuple)
+    func set(mut self: Vec__Tuple, shallow i: U64, own val: Tuple, mut _err_kind: I64)
+    func push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: U64)
     func delete(own self: Vec__Tuple, shallow call_free: Bool)
     func clone(self: Vec__Tuple) returns Vec__Tuple
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -282,7 +282,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__Tuple.with_capacity(shallow n: USize) returns Vec__Tuple
+func Vec__Tuple.with_capacity(shallow n: U64) returns Vec__Tuple
 #+end_src
 
 * Vec__Tuple.clear
@@ -409,7 +409,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__Tuple.unsafe_get(self: Vec__Tuple, i: USize) returns ref Tuple
+func Vec__Tuple.unsafe_get(self: Vec__Tuple, i: U64) returns ref Tuple
 #+end_src
 
 * Vec__Tuple.get
@@ -424,7 +424,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Tuple.get(self: Vec__Tuple, shallow i: USize, mut _err_kind: I64) returns ref Tuple
+func Vec__Tuple.get(self: Vec__Tuple, shallow i: U64, mut _err_kind: I64) returns ref Tuple
 #+end_src
 
 * Vec__Tuple.pop
@@ -449,7 +449,7 @@ func Vec__Tuple.pop(mut self: Vec__Tuple) returns Tuple
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__Tuple.remove_at(mut self: Vec__Tuple, shallow i: USize, mut _err_kind: I64)
+func Vec__Tuple.remove_at(mut self: Vec__Tuple, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__Tuple.take_prefix
@@ -462,7 +462,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__Tuple.take_prefix(mut self: Vec__Tuple, shallow n: USize) returns Vec__Tuple
+func Vec__Tuple.take_prefix(mut self: Vec__Tuple, shallow n: U64) returns Vec__Tuple
 #+end_src
 
 * Vec__Tuple.truncate
@@ -477,7 +477,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__Tuple.truncate(mut self: Vec__Tuple, shallow n: USize)
+func Vec__Tuple.truncate(mut self: Vec__Tuple, shallow n: U64)
 #+end_src
 
 * Vec__Tuple.unsafe_set
@@ -491,7 +491,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__Tuple.unsafe_set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple)
+func Vec__Tuple.unsafe_set(mut self: Vec__Tuple, shallow i: U64, own val: Tuple)
 #+end_src
 
 * Vec__Tuple.set
@@ -505,7 +505,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__Tuple.set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple, mut _err_kind: I64)
+func Vec__Tuple.set(mut self: Vec__Tuple, shallow i: U64, own val: Tuple, mut _err_kind: I64)
 #+end_src
 
 * Vec__Tuple.push_take
@@ -519,7 +519,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__Tuple.push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: USize)
+func Vec__Tuple.push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: U64)
 #+end_src
 
 * Vec__Tuple.delete

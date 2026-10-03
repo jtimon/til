@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * SymbolPool
@@ -14,11 +14,11 @@ struct SymbolPool {
     mut buckets : Vec__U32
     mut next : U32
 namespace:
-    func rebuild(mut self: SymbolPool, shallow count: USize)
+    func rebuild(mut self: SymbolPool, shallow count: U64)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
     func resolve(self: SymbolPool, sym: U32) returns ref Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: SymbolPool) returns SymbolPool
     func delete(own self: SymbolPool, shallow call_free: Bool)
     func hash(self: SymbolPool, hasher: HashFn) returns shallow U64
@@ -42,7 +42,17 @@ func builtin_primitive_from_name(name: Str, mut out: Primitive) returns shallow 
 :END:
 
 #+begin_src til
-func builtin_primitive_size_align(prim: Primitive, mut sz: USize, mut al: USize)
+func builtin_primitive_size_align(prim: Primitive, mut sz: U64, mut al: U64)
+#+end_src
+
+* sym_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.sym_of
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func sym_of(name: Str, symbols: SymbolPool) returns shallow U32
 #+end_src
 
 * builtin_type_from_name
@@ -52,7 +62,27 @@ func builtin_primitive_size_align(prim: Primitive, mut sz: USize, mut al: USize)
 :END:
 
 #+begin_src til
-func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
+func builtin_type_from_name(name: Str, mut out: Type, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+* builtin_type_from_name_sym
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.builtin_type_from_name_sym
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func builtin_type_from_name_sym(name: Str, shallow sym: U32, mut out: Type) returns shallow Bool
+#+end_src
+
+* decl_type_from_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.decl_type_from_name
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func decl_type_from_name(name: Str, mut symbols: SymbolPool) returns Type
 #+end_src
 
 * decl_typed
@@ -62,7 +92,7 @@ func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
 :END:
 
 #+begin_src til
-func decl_typed(type_name: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
+func decl_typed(mut symbols: SymbolPool, type_name: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
 #+end_src
 
 * take_expr
@@ -85,6 +115,16 @@ func take_expr(mut e: Expr) returns Expr
 proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32, shallow quiet: Bool) returns Expr
 #+end_src
 
+* decl_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.decl_type_name
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func decl_type_name(dd: Declaration, symbols: SymbolPool) returns Str
+#+end_src
+
 * expr_type_name_ref
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.parser.expr_type_name_ref
@@ -92,7 +132,7 @@ proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut an
 :END:
 
 #+begin_src til
-func expr_type_name_ref(e: Expr) returns shallow Option__ref_Str
+func expr_type_name_ref(e: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
 #+end_src
 
 * til_type_name_c
@@ -102,7 +142,7 @@ func expr_type_name_ref(e: Expr) returns shallow Option__ref_Str
 :END:
 
 #+begin_src til
-func til_type_name_c(t: Type) returns Str
+func til_type_name_c(t: Type, symbols: SymbolPool) returns Str
 #+end_src
 
 * node_name
@@ -162,7 +202,7 @@ FCALL_ARG_BITS is a USize
 :END:
 
 #+begin_src til
-func set_own_arg(mut fcall: Expr, shallow arg_index: USize)
+func set_own_arg(mut fcall: Expr, shallow arg_index: U64)
 #+end_src
 
 * get_own_arg
@@ -172,7 +212,7 @@ func set_own_arg(mut fcall: Expr, shallow arg_index: USize)
 :END:
 
 #+begin_src til
-func get_own_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+func get_own_arg(fcall: Expr, shallow arg_index: U64) returns shallow Bool
 #+end_src
 
 * set_splat_arg
@@ -182,7 +222,7 @@ func get_own_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
 :END:
 
 #+begin_src til
-func set_splat_arg(mut fcall: Expr, shallow arg_index: USize)
+func set_splat_arg(mut fcall: Expr, shallow arg_index: U64)
 #+end_src
 
 * get_splat_arg
@@ -192,7 +232,7 @@ func set_splat_arg(mut fcall: Expr, shallow arg_index: USize)
 :END:
 
 #+begin_src til
-func get_splat_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+func get_splat_arg(fcall: Expr, shallow arg_index: U64) returns shallow Bool
 #+end_src
 
 * set_ref_arg
@@ -202,7 +242,7 @@ func get_splat_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
 :END:
 
 #+begin_src til
-func set_ref_arg(mut fcall: Expr, shallow arg_index: USize)
+func set_ref_arg(mut fcall: Expr, shallow arg_index: U64)
 #+end_src
 
 * get_ref_arg
@@ -212,7 +252,7 @@ func set_ref_arg(mut fcall: Expr, shallow arg_index: USize)
 :END:
 
 #+begin_src til
-func get_ref_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+func get_ref_arg(fcall: Expr, shallow arg_index: U64) returns shallow Bool
 #+end_src
 
 * fcall_has_ref_args
@@ -225,6 +265,16 @@ func get_ref_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
 func fcall_has_ref_args(fcall: Expr) returns shallow Bool
 #+end_src
 
+* fcall_data_has_arg_markers
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.fcall_data_has_arg_markers
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_data_has_arg_markers(fcd: FCallData) returns shallow Bool
+#+end_src
+
 * set_keep_outer_arg
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.parser.set_keep_outer_arg
@@ -232,7 +282,7 @@ func fcall_has_ref_args(fcall: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func set_keep_outer_arg(mut fcall: Expr, shallow arg_index: USize)
+func set_keep_outer_arg(mut fcall: Expr, shallow arg_index: U64)
 #+end_src
 
 * get_keep_outer_arg
@@ -242,7 +292,7 @@ func set_keep_outer_arg(mut fcall: Expr, shallow arg_index: USize)
 :END:
 
 #+begin_src til
-func get_keep_outer_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+func get_keep_outer_arg(fcall: Expr, shallow arg_index: U64) returns shallow Bool
 #+end_src
 
 * func_type_name
@@ -278,8 +328,8 @@ struct Vec__U32 {
     mut cap : USize
 namespace:
     func new() returns Vec__U32
-    func with_capacity(shallow n: USize) returns Vec__U32
-    func len(self: Vec__U32) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__U32
+    func len(self: Vec__U32) returns shallow U64
     func clear(mut self: Vec__U32)
     func delete_marked(mut self: Vec__U32, marks: Dynamic)
     func push(mut self: Vec__U32, own val: U32)
@@ -287,18 +337,18 @@ namespace:
     func take(mut self: Vec__U32) returns Vec__U32
     func move_to(own self: Vec__U32, mut dest: Vec__U32)
     func move_from(mut self: Vec__U32, own other: Vec__U32)
-    func unsafe_get(self: Vec__U32, i: USize) returns ref U32
-    func get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
+    func unsafe_get(self: Vec__U32, i: U64) returns ref U32
+    func get(self: Vec__U32, shallow i: U64, mut _err_kind: I64) returns ref U32
     func pop(mut self: Vec__U32) returns shallow U32
-    func remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
-    func truncate(mut self: Vec__U32, shallow n: USize)
-    func unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
-    func set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
-    func push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
+    func remove_at(mut self: Vec__U32, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__U32, shallow n: U64) returns Vec__U32
+    func truncate(mut self: Vec__U32, shallow n: U64)
+    func unsafe_set(mut self: Vec__U32, shallow i: U64, own val: U32)
+    func set(mut self: Vec__U32, shallow i: U64, own val: U32, mut _err_kind: I64)
+    func push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: U64)
     func delete(own self: Vec__U32, shallow call_free: Bool)
     func clone(self: Vec__U32) returns Vec__U32
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -332,7 +382,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__U32.with_capacity(shallow n: USize) returns Vec__U32
+func Vec__U32.with_capacity(shallow n: U64) returns Vec__U32
 #+end_src
 
 * Vec__U32.clear
@@ -459,7 +509,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__U32.unsafe_get(self: Vec__U32, i: USize) returns ref U32
+func Vec__U32.unsafe_get(self: Vec__U32, i: U64) returns ref U32
 #+end_src
 
 * Vec__U32.get
@@ -474,7 +524,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__U32.get(self: Vec__U32, shallow i: USize, mut _err_kind: I64) returns ref U32
+func Vec__U32.get(self: Vec__U32, shallow i: U64, mut _err_kind: I64) returns ref U32
 #+end_src
 
 * Vec__U32.pop
@@ -499,7 +549,7 @@ func Vec__U32.pop(mut self: Vec__U32) returns shallow U32
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__U32.remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
+func Vec__U32.remove_at(mut self: Vec__U32, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__U32.take_prefix
@@ -512,7 +562,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__U32.take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
+func Vec__U32.take_prefix(mut self: Vec__U32, shallow n: U64) returns Vec__U32
 #+end_src
 
 * Vec__U32.truncate
@@ -527,7 +577,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__U32.truncate(mut self: Vec__U32, shallow n: USize)
+func Vec__U32.truncate(mut self: Vec__U32, shallow n: U64)
 #+end_src
 
 * Vec__U32.unsafe_set
@@ -541,7 +591,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__U32.unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
+func Vec__U32.unsafe_set(mut self: Vec__U32, shallow i: U64, own val: U32)
 #+end_src
 
 * Vec__U32.set
@@ -555,7 +605,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__U32.set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64)
+func Vec__U32.set(mut self: Vec__U32, shallow i: U64, own val: U32, mut _err_kind: I64)
 #+end_src
 
 * Vec__U32.push_take
@@ -569,7 +619,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__U32.push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
+func Vec__U32.push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: U64)
 #+end_src
 
 * Vec__U32.delete
@@ -621,7 +671,7 @@ namespace:
     func cmp(a: Option__U32, b: Option__U32) returns shallow I64
     func to_str(self: Option__U32) returns Str
     func clone(self: Option__U32) returns Option__U32
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: Option__U32, b: Option__U32) returns shallow Bool
     func gt(a: Option__U32, b: Option__U32) returns shallow Bool
     func neq(a: Option__U32, b: Option__U32) returns shallow Bool
@@ -679,15 +729,15 @@ struct Set__Str {
     mut cap : USize
 namespace:
     func new() returns Set__Str
-    func with_capacity(shallow n: USize) returns Set__Str
-    func len(self: Set__Str) returns shallow USize
+    func with_capacity(shallow n: U64) returns Set__Str
+    func len(self: Set__Str) returns shallow U64
     func clear(mut self: Set__Str)
     func has(self: Set__Str, val: Str) returns shallow Bool
     func add(mut self: Set__Str, own val: Str)
     func remove(mut self: Set__Str, val: Str) returns shallow Bool
     func delete(own self: Set__Str, shallow call_free: Bool)
     func clone(self: Set__Str) returns Set__Str
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -720,7 +770,7 @@ where the final size is known or well predicted; ~new()~ grows
 doubling. n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Set__Str.with_capacity(shallow n: USize) returns Set__Str
+func Set__Str.with_capacity(shallow n: U64) returns Set__Str
 #+end_src
 
 * Set__Str.clear
@@ -787,8 +837,8 @@ struct Map__Str_Str {
     mut values : Vec__Str
 namespace:
     func new() returns Map__Str_Str
-    func with_capacity(shallow n: USize) returns Map__Str_Str
-    func len(self: Map__Str_Str) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_Str
+    func len(self: Map__Str_Str) returns shallow U64
     func clear(mut self: Map__Str_Str)
     func has(self: Map__Str_Str, key: Str) returns shallow Bool
     func get(self: Map__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
@@ -796,7 +846,7 @@ namespace:
     func remove(mut self: Map__Str_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -825,7 +875,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_Str.with_capacity(shallow n: USize) returns Map__Str_Str
+func Map__Str_Str.with_capacity(shallow n: U64) returns Map__Str_Str
 #+end_src
 
 * Map__Str_Str.clear
@@ -903,8 +953,8 @@ struct Vec__Bool {
     mut cap : USize
 namespace:
     func new() returns Vec__Bool
-    func with_capacity(shallow n: USize) returns Vec__Bool
-    func len(self: Vec__Bool) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Bool
+    func len(self: Vec__Bool) returns shallow U64
     func clear(mut self: Vec__Bool)
     func delete_marked(mut self: Vec__Bool, marks: Dynamic)
     func push(mut self: Vec__Bool, own val: Bool)
@@ -912,18 +962,18 @@ namespace:
     func take(mut self: Vec__Bool) returns Vec__Bool
     func move_to(own self: Vec__Bool, mut dest: Vec__Bool)
     func move_from(mut self: Vec__Bool, own other: Vec__Bool)
-    func unsafe_get(self: Vec__Bool, i: USize) returns ref Bool
-    func get(self: Vec__Bool, shallow i: USize, mut _err_kind: I64) returns ref Bool
+    func unsafe_get(self: Vec__Bool, i: U64) returns ref Bool
+    func get(self: Vec__Bool, shallow i: U64, mut _err_kind: I64) returns ref Bool
     func pop(mut self: Vec__Bool) returns shallow Bool
-    func remove_at(mut self: Vec__Bool, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Bool, shallow n: USize) returns Vec__Bool
-    func truncate(mut self: Vec__Bool, shallow n: USize)
-    func unsafe_set(mut self: Vec__Bool, shallow i: USize, own val: Bool)
-    func set(mut self: Vec__Bool, shallow i: USize, own val: Bool, mut _err_kind: I64)
-    func push_take(mut self: Vec__Bool, mut src: Vec__Bool, shallow i: USize)
+    func remove_at(mut self: Vec__Bool, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Bool, shallow n: U64) returns Vec__Bool
+    func truncate(mut self: Vec__Bool, shallow n: U64)
+    func unsafe_set(mut self: Vec__Bool, shallow i: U64, own val: Bool)
+    func set(mut self: Vec__Bool, shallow i: U64, own val: Bool, mut _err_kind: I64)
+    func push_take(mut self: Vec__Bool, mut src: Vec__Bool, shallow i: U64)
     func delete(own self: Vec__Bool, shallow call_free: Bool)
     func clone(self: Vec__Bool) returns Vec__Bool
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -957,7 +1007,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__Bool.with_capacity(shallow n: USize) returns Vec__Bool
+func Vec__Bool.with_capacity(shallow n: U64) returns Vec__Bool
 #+end_src
 
 * Vec__Bool.clear
@@ -1084,7 +1134,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__Bool.unsafe_get(self: Vec__Bool, i: USize) returns ref Bool
+func Vec__Bool.unsafe_get(self: Vec__Bool, i: U64) returns ref Bool
 #+end_src
 
 * Vec__Bool.get
@@ -1099,7 +1149,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Bool.get(self: Vec__Bool, shallow i: USize, mut _err_kind: I64) returns ref Bool
+func Vec__Bool.get(self: Vec__Bool, shallow i: U64, mut _err_kind: I64) returns ref Bool
 #+end_src
 
 * Vec__Bool.pop
@@ -1124,7 +1174,7 @@ func Vec__Bool.pop(mut self: Vec__Bool) returns shallow Bool
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__Bool.remove_at(mut self: Vec__Bool, shallow i: USize, mut _err_kind: I64)
+func Vec__Bool.remove_at(mut self: Vec__Bool, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__Bool.take_prefix
@@ -1137,7 +1187,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__Bool.take_prefix(mut self: Vec__Bool, shallow n: USize) returns Vec__Bool
+func Vec__Bool.take_prefix(mut self: Vec__Bool, shallow n: U64) returns Vec__Bool
 #+end_src
 
 * Vec__Bool.truncate
@@ -1152,7 +1202,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__Bool.truncate(mut self: Vec__Bool, shallow n: USize)
+func Vec__Bool.truncate(mut self: Vec__Bool, shallow n: U64)
 #+end_src
 
 * Vec__Bool.unsafe_set
@@ -1166,7 +1216,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__Bool.unsafe_set(mut self: Vec__Bool, shallow i: USize, own val: Bool)
+func Vec__Bool.unsafe_set(mut self: Vec__Bool, shallow i: U64, own val: Bool)
 #+end_src
 
 * Vec__Bool.set
@@ -1180,7 +1230,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__Bool.set(mut self: Vec__Bool, shallow i: USize, own val: Bool, mut _err_kind: I64)
+func Vec__Bool.set(mut self: Vec__Bool, shallow i: U64, own val: Bool, mut _err_kind: I64)
 #+end_src
 
 * Vec__Bool.push_take
@@ -1194,7 +1244,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__Bool.push_take(mut self: Vec__Bool, mut src: Vec__Bool, shallow i: USize)
+func Vec__Bool.push_take(mut self: Vec__Bool, mut src: Vec__Bool, shallow i: U64)
 #+end_src
 
 * Vec__Bool.delete

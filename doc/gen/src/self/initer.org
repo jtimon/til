@@ -1,6 +1,16 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
+
+* generate_requested_value_method
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.generate_requested_value_method
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func generate_requested_value_method(mut def: Expr, name: Str, method: Str, scope: TypeScope, mut symbols: SymbolPool) returns shallow Bool
+#+end_src
 
 * gen_struct_clone_delete_for_stmt
 :PROPERTIES:
@@ -129,7 +139,7 @@ proc compute_struct_layout(name: Str, mut struct_def: Expr, mut scope: TypeScope
 :END:
 
 #+begin_src til
-proc compute_enum_layout(name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns shallow USize
+proc compute_enum_layout(name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns shallow U64
 #+end_src
 
 * ctx_total_size
@@ -139,7 +149,7 @@ proc compute_enum_layout(name: Str, enum_def: Expr, mut scope: TypeScope, mut ct
 :END:
 
 #+begin_src til
-func ctx_total_size(name: Str, ctx: Context) returns shallow USize
+func ctx_total_size(name: Str, ctx: Context) returns shallow U64
 #+end_src
 
 * EMPTY_FIELD_LAYOUT
@@ -189,7 +199,7 @@ func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope, symbols
 :END:
 
 #+begin_src til
-func init_refresh_interp_type_defs_from(program: Expr, shallow start_idx: USize, mut ctx: Context)
+func init_refresh_interp_type_defs_from(program: Expr, shallow start_idx: U64, mut ctx: Context)
 #+end_src
 
 * GenericSources
@@ -204,7 +214,7 @@ struct GenericSources {
     mut sources : Map__Str_GenericFuncSource
     mut late : Bool
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: GenericSources) returns GenericSources
     func delete(own self: GenericSources, shallow call_free: Bool)
     func hash(self: GenericSources, hasher: HashFn) returns shallow U64
@@ -248,7 +258,7 @@ func init_retire_generic_sources(mut program: Expr, mut scope: TypeScope, symbol
 :END:
 
 #+begin_src til
-func gen_interface_box_fields_for_stmt(mut stmt: Expr)
+func gen_interface_box_fields_for_stmt(mut stmt: Expr, mut symbols: SymbolPool)
 #+end_src
 
 * gen_interface_clone_delete_for_stmt
@@ -268,7 +278,7 @@ func gen_interface_clone_delete_for_stmt(mut stmt: Expr, mut symbols: SymbolPool
 :END:
 
 #+begin_src til
-func gen_implements_defaults_for_stmt(mut stmt: Expr, scope: TypeScope, symbols: SymbolPool)
+func gen_implements_defaults_for_stmt(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
 #+end_src
 
 * normalize_enum_payload_aliases_for_stmt
@@ -301,6 +311,16 @@ proc init_file(path: Str, mut ctx: Context) returns shallow I32
 proc init_repl_delta(path: Str, mut program: Expr, mut ctx: Context) returns shallow I32
 #+end_src
 
+* init_require_simd
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_require_simd
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_require_simd(elem: Str, shallow width: U64, shallow line: U32, shallow col: U32, mut ctx: Context) returns Str
+#+end_src
+
 * Map__Str_GenericFuncSource
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.Map__Str_GenericFuncSource
@@ -313,8 +333,8 @@ struct Map__Str_GenericFuncSource {
     mut values : Vec__GenericFuncSource
 namespace:
     func new() returns Map__Str_GenericFuncSource
-    func with_capacity(shallow n: USize) returns Map__Str_GenericFuncSource
-    func len(self: Map__Str_GenericFuncSource) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_GenericFuncSource
+    func len(self: Map__Str_GenericFuncSource) returns shallow U64
     func clear(mut self: Map__Str_GenericFuncSource)
     func has(self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
     func get(self: Map__Str_GenericFuncSource, key: Str, mut _err_kind: I64) returns ref GenericFuncSource
@@ -322,7 +342,7 @@ namespace:
     func remove(mut self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
     func delete(own self: Map__Str_GenericFuncSource, shallow call_free: Bool)
     func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -351,7 +371,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_GenericFuncSource.with_capacity(shallow n: USize) returns Map__Str_GenericFuncSource
+func Map__Str_GenericFuncSource.with_capacity(shallow n: U64) returns Map__Str_GenericFuncSource
 #+end_src
 
 * Map__Str_GenericFuncSource.clear
@@ -429,8 +449,8 @@ struct Vec__GenericFuncSource {
     mut cap : USize
 namespace:
     func new() returns Vec__GenericFuncSource
-    func with_capacity(shallow n: USize) returns Vec__GenericFuncSource
-    func len(self: Vec__GenericFuncSource) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__GenericFuncSource
+    func len(self: Vec__GenericFuncSource) returns shallow U64
     func clear(mut self: Vec__GenericFuncSource)
     func delete_marked(mut self: Vec__GenericFuncSource, marks: Dynamic)
     func push(mut self: Vec__GenericFuncSource, own val: GenericFuncSource)
@@ -438,18 +458,18 @@ namespace:
     func take(mut self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
     func move_to(own self: Vec__GenericFuncSource, mut dest: Vec__GenericFuncSource)
     func move_from(mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
-    func unsafe_get(self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
-    func get(self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+    func unsafe_get(self: Vec__GenericFuncSource, i: U64) returns ref GenericFuncSource
+    func get(self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64) returns ref GenericFuncSource
     func pop(mut self: Vec__GenericFuncSource) returns GenericFuncSource
-    func remove_at(mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
-    func truncate(mut self: Vec__GenericFuncSource, shallow n: USize)
-    func unsafe_set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource)
-    func set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource, mut _err_kind: I64)
-    func push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: USize)
+    func remove_at(mut self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__GenericFuncSource, shallow n: U64) returns Vec__GenericFuncSource
+    func truncate(mut self: Vec__GenericFuncSource, shallow n: U64)
+    func unsafe_set(mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource)
+    func set(mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource, mut _err_kind: I64)
+    func push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: U64)
     func delete(own self: Vec__GenericFuncSource, shallow call_free: Bool)
     func clone(self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -483,7 +503,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__GenericFuncSource.with_capacity(shallow n: USize) returns Vec__GenericFuncSource
+func Vec__GenericFuncSource.with_capacity(shallow n: U64) returns Vec__GenericFuncSource
 #+end_src
 
 * Vec__GenericFuncSource.clear
@@ -610,7 +630,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__GenericFuncSource.unsafe_get(self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
+func Vec__GenericFuncSource.unsafe_get(self: Vec__GenericFuncSource, i: U64) returns ref GenericFuncSource
 #+end_src
 
 * Vec__GenericFuncSource.get
@@ -625,7 +645,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__GenericFuncSource.get(self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+func Vec__GenericFuncSource.get(self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64) returns ref GenericFuncSource
 #+end_src
 
 * Vec__GenericFuncSource.pop
@@ -650,7 +670,7 @@ func Vec__GenericFuncSource.pop(mut self: Vec__GenericFuncSource) returns Generi
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__GenericFuncSource.remove_at(mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
+func Vec__GenericFuncSource.remove_at(mut self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__GenericFuncSource.take_prefix
@@ -663,7 +683,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__GenericFuncSource.take_prefix(mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
+func Vec__GenericFuncSource.take_prefix(mut self: Vec__GenericFuncSource, shallow n: U64) returns Vec__GenericFuncSource
 #+end_src
 
 * Vec__GenericFuncSource.truncate
@@ -678,7 +698,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__GenericFuncSource.truncate(mut self: Vec__GenericFuncSource, shallow n: USize)
+func Vec__GenericFuncSource.truncate(mut self: Vec__GenericFuncSource, shallow n: U64)
 #+end_src
 
 * Vec__GenericFuncSource.unsafe_set
@@ -692,7 +712,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__GenericFuncSource.unsafe_set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource)
+func Vec__GenericFuncSource.unsafe_set(mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource)
 #+end_src
 
 * Vec__GenericFuncSource.set
@@ -706,7 +726,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__GenericFuncSource.set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource, mut _err_kind: I64)
+func Vec__GenericFuncSource.set(mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource, mut _err_kind: I64)
 #+end_src
 
 * Vec__GenericFuncSource.push_take
@@ -720,7 +740,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__GenericFuncSource.push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: USize)
+func Vec__GenericFuncSource.push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: U64)
 #+end_src
 
 * Vec__GenericFuncSource.delete

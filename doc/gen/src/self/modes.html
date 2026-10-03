@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -50,7 +50,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
-<li><a class="current" href="../../src/self/modes.html">src/self/modes.til</a><ul><li><a href="#til.src.self.modes.context_register_path_mode">context_register_path_mode</a></li><li><a href="#til.src.self.modes.context_set_mode_from_path">context_set_mode_from_path</a></li><li><a href="#til.src.self.modes.context_enter_file">context_enter_file</a></li><li><a href="#til.src.self.modes.context_init_mode_registry">context_init_mode_registry</a></li><li><a href="#til.src.self.modes.mode_resolve">mode_resolve</a></li><li><a href="#til.src.self.modes.Option__ref_Mode">Option__ref_Mode</a></li><li><a href="#til.src.self.modes.Option__ref_Mode.unwrap">Option__ref_Mode.unwrap</a></li><li><a href="#til.src.self.modes.Option__ref_Mode.take">Option__ref_Mode.take</a></li></ul></li>
+<li><a class="current" href="../../src/self/modes.html">src/self/modes.til</a><ul><li><a href="#til.src.self.modes.context_register_path_mode">context_register_path_mode</a></li><li><a href="#til.src.self.modes.context_set_mode_from_path">context_set_mode_from_path</a></li><li><a href="#til.src.self.modes.context_enter_file">context_enter_file</a></li><li><a href="#til.src.self.modes.context_init_mode_registry">context_init_mode_registry</a></li><li><a href="#til.src.self.modes.mode_resolve">mode_resolve</a></li><li><a href="#til.src.self.modes.Option__ref_Mode">Option__ref_Mode</a></li><li><a href="#til.src.self.modes.Option__ref_Mode.unwrap">Option__ref_Mode.unwrap</a></li><li><a href="#til.src.self.modes.Option__ref_Mode.take">Option__ref_Mode.take</a></li><li><a href="#til.src.self.modes.safe_ref__Mode">safe_ref__Mode</a></li></ul></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -133,9 +135,17 @@ namespace:
     ext_func None() returns shallow Option__ref_Mode
     ext_func Some(val: Mode) returns shallow Option__ref_Mode
     core_func is(self: Option__ref_Mode, other: Option__ref_Mode) returns shallow Bool
+    func eq(shallow self: Option__ref_Mode, shallow other: Option__ref_Mode) returns shallow Bool
     func delete(own self: Option__ref_Mode, shallow call_free: Bool)
+    func cmp(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow I64
+    func to_str(shallow self: Option__ref_Mode) returns Str
     func clone(self: Option__ref_Mode) returns shallow Option__ref_Mode
-    func size() returns shallow USize
+    func size() returns shallow U64
+    func lt(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func gt(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func neq(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func lte(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    func gte(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
 }
 </code></pre>
 </article>
@@ -167,6 +177,12 @@ held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.</p>
 </div>
 <pre><code class="language-til">func (own self: Option__ref_Mode) returns ref Mode
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.modes.safe_ref__Mode">
+<h2>safe_ref__Mode</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (value: Mode) returns shallow Option__ref_Mode
 </code></pre>
 </article>
 </main></div>

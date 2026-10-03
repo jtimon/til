@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -433,7 +433,7 @@ namespace:
     proc err(self: Cmd) returns Str
     func close(self: Cmd)
     func delete(own self: Cmd, shallow call_free: Bool)
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: Cmd) returns Cmd
 }
 #+end_src
@@ -547,7 +547,8 @@ proc Cmd.stderr_to_stdout(self: Cmd) returns ref Cmd
 Collect the child's output instead of letting it through, for
 reading with ~out()~ and ~err()~ once it has finished. The two
 streams stay separate; each command captures into its own spool
-file, so concurrent captures never mix.
+file in the caller's local tmp/ directory (created if missing),
+so concurrent captures never mix. Cmd.cwd only changes the child.
 
 #+begin_src til
 proc Cmd.capture(self: Cmd) returns ref Cmd

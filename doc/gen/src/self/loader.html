@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -106,7 +108,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">struct {
     mut path : Str
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: ProgramUnit) returns ProgramUnit
     func delete(own self: ProgramUnit, shallow call_free: Bool)
     func hash(self: ProgramUnit, hasher: HashFn) returns shallow U64
@@ -129,6 +131,8 @@ namespace:
     own mut units : Vec__ProgramUnit
     mut mode_files : Vec__Str
     mut target : Target
+    mut cpu : TargetCpu
+    mut opt_level : USize
     mut cur_mode : Mode
     mut ctx : Context
     mut skip_core : Bool
@@ -138,13 +142,21 @@ namespace:
     mut link_flags : Str
     mut include_flags : Str
     mut link_c_paths : Str
+    mut compiler_revision : Str
+    mut asan_build : Bool
     mut run_tests : Bool
     mut load_errors : I32
     mut usize_override_bits : I64
 namespace:
+    func uses_shared_runtime(self: LoadedProgram) returns shallow Bool
+    func runtime_abi_id(self: LoadedProgram) returns Str
+    func runtime_stem(self: LoadedProgram) returns Str
+    func runtime_shared_basename(self: LoadedProgram) returns Str
+    func core_stem(self: LoadedProgram) returns Str
+    func core_shared_basename(self: LoadedProgram) returns Str
     func unit_paths(self: LoadedProgram) returns Vec__Str
     func delete(own self: LoadedProgram, shallow call_free: Bool)
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: LoadedProgram) returns LoadedProgram
 }
 </code></pre>
@@ -177,7 +189,7 @@ namespace:
     mut deprecated : Str
     mut hidden : Bool
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: DocMeta) returns DocMeta
     func delete(own self: DocMeta, shallow call_free: Bool)
     func hash(self: DocMeta, hasher: HashFn) returns shallow U64
@@ -231,13 +243,13 @@ namespace:
 <article class="doc-entry" id="til.src.self.loader.format_member_info">
 <h2>format_member_info</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (type_name: Str, dname: Str, d: Declaration) returns Str
+<pre><code class="language-til">func (type_name: Str, dname: Str, d: Declaration, symbols: SymbolPool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.format_field_info">
 <h2>format_field_info</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (type_name: Str, field_name: Str, field: Declaration) returns Str
+<pre><code class="language-til">func (type_name: Str, field_name: Str, field: Declaration, symbols: SymbolPool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.format_variant_info">
@@ -279,7 +291,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.loader.finish_init_and_type_program">
 <h2>finish_init_and_type_program</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (mut lp: LoadedProgram)
+<pre><code class="language-til">proc (mut lp: LoadedProgram) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.init_and_type_program_errors">
@@ -351,8 +363,8 @@ namespace:
     mut cap : USize
 namespace:
     func new() returns Vec__ProgramUnit
-    func with_capacity(shallow n: USize) returns Vec__ProgramUnit
-    func len(self: Vec__ProgramUnit) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__ProgramUnit
+    func len(self: Vec__ProgramUnit) returns shallow U64
     func clear(mut self: Vec__ProgramUnit)
     func delete_marked(mut self: Vec__ProgramUnit, marks: Dynamic)
     func push(mut self: Vec__ProgramUnit, own val: ProgramUnit)
@@ -360,18 +372,18 @@ namespace:
     func take(mut self: Vec__ProgramUnit) returns Vec__ProgramUnit
     func move_to(own self: Vec__ProgramUnit, mut dest: Vec__ProgramUnit)
     func move_from(mut self: Vec__ProgramUnit, own other: Vec__ProgramUnit)
-    func unsafe_get(self: Vec__ProgramUnit, i: USize) returns ref ProgramUnit
-    func get(self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64) returns ref ProgramUnit
+    func unsafe_get(self: Vec__ProgramUnit, i: U64) returns ref ProgramUnit
+    func get(self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64) returns ref ProgramUnit
     func pop(mut self: Vec__ProgramUnit) returns ProgramUnit
-    func remove_at(mut self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__ProgramUnit, shallow n: USize) returns Vec__ProgramUnit
-    func truncate(mut self: Vec__ProgramUnit, shallow n: USize)
-    func unsafe_set(mut self: Vec__ProgramUnit, shallow i: USize, own val: ProgramUnit)
-    func set(mut self: Vec__ProgramUnit, shallow i: USize, own val: ProgramUnit, mut _err_kind: I64)
-    func push_take(mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, shallow i: USize)
+    func remove_at(mut self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__ProgramUnit, shallow n: U64) returns Vec__ProgramUnit
+    func truncate(mut self: Vec__ProgramUnit, shallow n: U64)
+    func unsafe_set(mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit)
+    func set(mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit, mut _err_kind: I64)
+    func push_take(mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, shallow i: U64)
     func delete(own self: Vec__ProgramUnit, shallow call_free: Bool)
     func clone(self: Vec__ProgramUnit) returns Vec__ProgramUnit
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -399,7 +411,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__ProgramUnit
+<pre><code class="language-til">func (shallow n: U64) returns Vec__ProgramUnit
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.clear">
@@ -500,7 +512,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__ProgramUnit, i: USize) returns ref ProgramUnit
+<pre><code class="language-til">func (self: Vec__ProgramUnit, i: U64) returns ref ProgramUnit
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.get">
@@ -512,7 +524,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64) returns ref ProgramUnit
+<pre><code class="language-til">func (self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64) returns ref ProgramUnit
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.pop">
@@ -531,7 +543,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.take_prefix">
@@ -541,7 +553,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow n: USize) returns Vec__ProgramUnit
+<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow n: U64) returns Vec__ProgramUnit
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.truncate">
@@ -553,7 +565,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.unsafe_set">
@@ -564,7 +576,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow i: USize, own val: ProgramUnit)
+<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.set">
@@ -575,7 +587,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow i: USize, own val: ProgramUnit, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.push_take">
@@ -586,7 +598,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__ProgramUnit.delete">
@@ -617,8 +629,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func with_capacity(shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func len(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func len(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns shallow U64
     func clear(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry)
     func delete_marked(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
@@ -626,18 +638,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
     func move_to(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut dest: Vec__priv___src_self_loader_til__ImportCheckEntry)
     func move_from(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
-    func unsafe_get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func unsafe_get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
     func pop(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
-    func remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
-    func set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize)
+    func remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry)
+    func set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64)
     func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
     func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -665,7 +677,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.clear">
@@ -766,7 +778,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: USize) returns ref priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64) returns ref priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.get">
@@ -778,7 +790,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.pop">
@@ -797,7 +809,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix">
@@ -807,7 +819,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.truncate">
@@ -819,7 +831,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set">
@@ -830,7 +842,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.set">
@@ -841,7 +853,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.push_take">
@@ -852,7 +864,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.Vec__priv___src_self_loader_til__ImportCheckEntry.delete">

@@ -1,5 +1,5 @@
 #+TITLE: src/std/hash.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * KNUTH_MULT
@@ -59,7 +59,7 @@ func hash_u64(shallow x: U64) returns shallow U64
 :END:
 
 #+begin_src til
-func fnv1a(data: Dynamic, shallow n: USize) returns shallow U64
+func fnv1a(data: Dynamic, shallow n: U64) returns shallow U64
 #+end_src
 
 * hash_str
@@ -79,7 +79,7 @@ func hash_str(s: Str) returns shallow U64
 :END:
 
 #+begin_src til
-func djb2(data: Dynamic, shallow n: USize) returns shallow U64
+func djb2(data: Dynamic, shallow n: U64) returns shallow U64
 #+end_src
 
 * knuth_bytes
@@ -89,7 +89,7 @@ func djb2(data: Dynamic, shallow n: USize) returns shallow U64
 :END:
 
 #+begin_src til
-func knuth_bytes(data: Dynamic, shallow n: USize) returns shallow U64
+func knuth_bytes(data: Dynamic, shallow n: U64) returns shallow U64
 #+end_src
 
 * bucket
@@ -99,5 +99,5 @@ func knuth_bytes(data: Dynamic, shallow n: USize) returns shallow U64
 :END:
 
 #+begin_src til
-func bucket(shallow h: U64, shallow cap: USize) returns shallow USize
+func bucket(shallow h: U64, shallow cap: U64) returns shallow U64
 #+end_src

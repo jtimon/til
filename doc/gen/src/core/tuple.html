@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -30,7 +30,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
-<li><a class="current" href="../../src/core/tuple.html">src/core/tuple.til</a><ul><li><a href="#til.src.core.tuple.Tuple">Tuple</a></li><li><a href="#til.src.core.tuple.Tuple.new">Tuple.new</a></li><li><a href="#til.src.core.tuple.Tuple.push_type_name">Tuple.push_type_name</a></li><li><a href="#til.src.core.tuple.Tuple.push">Tuple.push</a></li><li><a href="#til.src.core.tuple.Tuple.get">Tuple.get</a></li><li><a href="#til.src.core.tuple.Tuple.type_at">Tuple.type_at</a></li><li><a href="#til.src.core.tuple.Tuple.size_at">Tuple.size_at</a></li></ul></li>
+<li><a class="current" href="../../src/core/tuple.html">src/core/tuple.til</a><ul><li><a href="#til.src.core.tuple.Tuple">Tuple</a></li><li><a href="#til.src.core.tuple.Tuple.new">Tuple.new</a></li><li><a href="#til.src.core.tuple.Tuple.push_type_name">Tuple.push_type_name</a></li><li><a href="#til.src.core.tuple.Tuple.push">Tuple.push</a></li><li><a href="#til.src.core.tuple.Tuple.get">Tuple.get</a></li><li><a href="#til.src.core.tuple.Tuple.push_all_dynamic">Tuple.push_all_dynamic</a></li><li><a href="#til.src.core.tuple.Tuple.expect_type">Tuple.expect_type</a></li><li><a href="#til.src.core.tuple.Tuple.get_checked">Tuple.get_checked</a></li><li><a href="#til.src.core.tuple.Tuple.type_at">Tuple.type_at</a></li><li><a href="#til.src.core.tuple.Tuple.size_at">Tuple.size_at</a></li></ul></li>
 <li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
 <li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
 <li><a href="../../src/core/io.html">src/core/io.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -102,15 +104,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut type_sizes : Vec__USize
 namespace:
     func new() returns Tuple
-    func len(self: Tuple) returns shallow USize
+    func len(self: Tuple) returns shallow U64
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
     func push(mut self: Tuple, T: Type, own val: Dynamic)
-    func get(self: Tuple, i: USize) returns ref Dynamic
-    func type_at(self: Tuple, i: USize) returns ref Str
-    func size_at(self: Tuple, i: USize) returns ref USize
+    func get(self: Tuple, i: U64) returns ref Dynamic
+    func push_all_dynamic(mut self: Tuple, arr: Array__Dynamic)
+    func expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
+    func get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
+    func type_at(self: Tuple, i: U64) returns ref Str
+    func size_at(self: Tuple, i: U64) returns ref U64
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -147,7 +152,61 @@ namespace:
 <div class="doc-body">
 <p>Ref to element at index <code>i</code>. Panics if out of bounds.</p>
 </div>
-<pre><code class="language-til">func (self: Tuple, i: USize) returns ref Dynamic
+<pre><code class="language-til">func (self: Tuple, i: U64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.push_all_dynamic">
+<h2>Tuple.push_all_dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>#392: append every element of a raw Dynamic array, each pushed AS
+&quot;Dynamic&quot; -- a word copied, never dereferenced, deleted as a no-op --
+so raw pointers keep raw semantics inside the tuple. The ..Dynamic
+variadic lowering splats an Array(Dynamic) through this; written in
+til (like Array.concat / Array.to_vec before it) because the desugar
+runs inside infer_body and a hand-built loop there would carry
+til_types and ownership no later pass re-checks. <code>arr</code> is borrowed:
+a splatted array stays usable at the call site.</p>
+</div>
+<pre><code class="language-til">func (mut self: Tuple, arr: Array__Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.expect_type">
+<h2>Tuple.expect_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>#392 stage B: panic unless element <code>i</code> really is a <code>want</code>. A Tuple
+element carries its type, so reading one at a typed binding can be
+CHECKED -- the gradual-typing bargain, where a lie about a dynamic
+value fails at runtime instead of quietly reinterpreting bytes
+(reading an I64 element as a Str used to answer len 0).</p>
+<p>An element tagged &quot;Dynamic&quot; is exempt: that tag means a raw word --
+a C pointer, a #302 raw allocation, a splatted Array(Dynamic)
+element -- whose reinterpretation is the caller's business and
+always was. Dynamic means you are on your own, and this keeps it so.</p>
+<p>A typed read reaches this through <code>get_checked</code> below; calling it
+by hand, ahead of an unchecked read, reads the same way.</p>
+<p><code>loc</code> is #281's trailing-__LOC__ parameter: it resolves at the CALL
+SITE, so the panic names the line that read the element wrong.
+Without it every one of these reported src/core/tuple.til, where
+nothing is wrong -- and the whole point of the check is to send the
+reader to the read.</p>
+</div>
+<pre><code class="language-til">func (self: Tuple, shallow i: U64, want: Str, loc: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.tuple.Tuple.get_checked">
+<h2>Tuple.get_checked</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>#392 stage B: <code>get</code> with the READ's static type in hand. A typed
+binding (`ref a : I64 = t.get(0)`) lowers to this, so the read is
+checked against what the element actually is instead of
+reinterpreting its bytes. <code>expect_type</code> decides; see it for why a
+&quot;Dynamic&quot; element is exempt. <code>loc</code> is forwarded rather than
+defaulted again, so the panic names the READ, not this line.</p>
+</div>
+<pre><code class="language-til">func (self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.tuple.Tuple.type_at">
@@ -157,7 +216,7 @@ namespace:
 <p>Type name of the element at index <code>i</code>. Panics if <code>i</code> is past
 the end.</p>
 </div>
-<pre><code class="language-til">func (self: Tuple, i: USize) returns ref Str
+<pre><code class="language-til">func (self: Tuple, i: U64) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.tuple.Tuple.size_at">
@@ -167,7 +226,7 @@ the end.</p>
 <p>Byte size of the element at index <code>i</code>. Panics if <code>i</code> is past
 the end.</p>
 </div>
-<pre><code class="language-til">func (self: Tuple, i: USize) returns ref USize
+<pre><code class="language-til">func (self: Tuple, i: U64) returns ref U64
 </code></pre>
 </article>
 </main></div>

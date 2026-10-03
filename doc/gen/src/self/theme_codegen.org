@@ -1,0 +1,332 @@
+#+TITLE: src/self/theme_codegen.til
+#+SUBTITLE: til 0.0.1-1299f248c
+#+OPTIONS: toc:t
+
+* theme_codegen_translate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.theme_codegen_translate
+:END:
+
+#+begin_src til
+proc theme_codegen_translate(lp: LoadedProgram, output_path: Str) returns shallow I32
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func len(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns shallow U64
+    func clear(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func delete_marked(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func append(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own other: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func move_to(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut dest: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func move_from(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own other: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func unsafe_get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
+    func get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
+    func pop(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns priv___src_self_theme_codegen_til__ThemeColorSpec
+    func remove_at(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func truncate(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut src: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64)
+    func delete(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.new() returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.with_capacity(shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clear(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete_marked(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.append(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own other: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.move_to(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut dest: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.move_from(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own other: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.pop(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.remove_at(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take_prefix(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.truncate(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec, mut _err_kind: I64)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push_take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut src: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow call_free: Bool)
+#+end_src
+
+* Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clone(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+#+end_src
+
+* adopt__priv___src_self_theme_codegen_til__ThemeColorSpec
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.theme_codegen.adopt__priv___src_self_theme_codegen_til__ThemeColorSpec
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_theme_codegen_til__ThemeColorSpec(mut dest: Dynamic, own src: priv___src_self_theme_codegen_til__ThemeColorSpec)
+#+end_src

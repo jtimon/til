@@ -1,5 +1,5 @@
 #+TITLE: src/core/core.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * noop_proc
@@ -10,4 +10,24 @@
 
 #+begin_src til
 ext_proc noop_proc()
+#+end_src
+
+* Simd
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.core.Simd
+:group: Core
+:END:
+
+#+begin_src til
+macro Simd(T: Type, N: I64) returns StructDef
+#+end_src
+
+* simd_width
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.core.simd_width
+:group: Core
+:END:
+
+#+begin_src til
+core_func simd_width(T: Type) returns shallow U64
 #+end_src

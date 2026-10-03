@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -22,6 +22,16 @@ BASE_VERSION is a Str
 macro get_version() returns shallow Str
 #+end_src
 
+* get_compiler_revision
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.get_compiler_revision
+:group: CLI
+:END:
+
+#+begin_src til
+macro get_compiler_revision() returns shallow Str
+#+end_src
+
 * VERSION
 :PROPERTIES:
 :CUSTOM_ID: til.src.til.VERSION
@@ -30,6 +40,16 @@ macro get_version() returns shallow Str
 
 #+begin_src til
 VERSION is a Str
+#+end_src
+
+* COMPILER_REVISION
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.COMPILER_REVISION
+:group: CLI
+:END:
+
+#+begin_src til
+COMPILER_REVISION is a Str
 #+end_src
 
 * get_bin_dir
@@ -89,7 +109,7 @@ proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram
 :END:
 
 #+begin_src til
-proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize, mut aborted: Bool) returns Str
+proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: U64, shallow count: U64, mut aborted: Bool) returns Str
 #+end_src
 
 * repl_source_line_count
@@ -238,6 +258,10 @@ struct CliArgs {
     mut target_str : Str
     mut cc : Str
     mut cc_set : Bool
+    mut cpu_profile : Str
+    mut cpu_set : Bool
+    mut opt_level : USize
+    mut opt_set : Bool
     mut install_prefix : Str
     mut path_idx : USize
     mut early_return : Bool
@@ -247,7 +271,7 @@ struct CliArgs {
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, shallow call_free: Bool)
 }
@@ -270,7 +294,7 @@ proc parse_args(args: Array__Str) returns CliArgs
 :END:
 
 #+begin_src til
-func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: USize) returns Vec__Str
+func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U64) returns Vec__Str
 #+end_src
 
 * main

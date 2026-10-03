@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -27,7 +27,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
 <li><a href="../../src/core/option.html">src/core/option.til</a></li>
-<li><a class="current" href="../../src/core/ast.html">src/core/ast.til</a><ul><li><a href="#til.src.core.ast.Primitive">Primitive</a></li><li><a href="#til.src.core.ast.Type">Type</a></li><li><a href="#til.src.core.ast.FuncType">FuncType</a></li><li><a href="#til.src.core.ast.func_type_to_i64">func_type_to_i64</a></li><li><a href="#til.src.core.ast.func_type_from_i64">func_type_from_i64</a></li><li><a href="#til.src.core.ast.OwnType">OwnType</a></li><li><a href="#til.src.core.ast.own_type_to_i64">own_type_to_i64</a></li><li><a href="#til.src.core.ast.own_type_from_i64">own_type_from_i64</a></li><li><a href="#til.src.core.ast.GcStorage">GcStorage</a></li><li><a href="#til.src.core.ast.Option__Expr">Option__Expr</a></li><li><a href="#til.src.core.ast.Option__Expr.unwrap">Option__Expr.unwrap</a></li><li><a href="#til.src.core.ast.Option__Expr.take">Option__Expr.take</a></li><li><a href="#til.src.core.ast.declaration_type_from_name">declaration_type_from_name</a></li><li><a href="#til.src.core.ast.Declaration">Declaration</a></li><li><a href="#til.src.core.ast.Declaration.default_expr">Declaration.default_expr</a></li><li><a href="#til.src.core.ast.FuncSig">FuncSig</a></li><li><a href="#til.src.core.ast.FunctionDef">FunctionDef</a></li><li><a href="#til.src.core.ast.FCallData">FCallData</a></li><li><a href="#til.src.core.ast.LiteralNumData">LiteralNumData</a></li><li><a href="#til.src.core.ast.LiteralNumData.is_float">LiteralNumData.is_float</a></li><li><a href="#til.src.core.ast.IdentData">IdentData</a></li><li><a href="#til.src.core.ast.Sym">Sym</a></li><li><a href="#til.src.core.ast.FieldAccessData">FieldAccessData</a></li><li><a href="#til.src.core.ast.StructDef">StructDef</a></li><li><a href="#til.src.core.ast.StructDef.push_field">StructDef.push_field</a></li><li><a href="#til.src.core.ast.StructDef.push_member">StructDef.push_member</a></li><li><a href="#til.src.core.ast.StructDef.field_name_at">StructDef.field_name_at</a></li><li><a href="#til.src.core.ast.StructDef.field_at">StructDef.field_at</a></li><li><a href="#til.src.core.ast.StructDef.member_name_at">StructDef.member_name_at</a></li><li><a href="#til.src.core.ast.StructDef.member_at">StructDef.member_at</a></li><li><a href="#til.src.core.ast.member_name_of">member_name_of</a></li><li><a href="#til.src.core.ast.VariantDef">VariantDef</a></li><li><a href="#til.src.core.ast.VariantDef.doc">VariantDef.doc</a></li><li><a href="#til.src.core.ast.EnumDef">EnumDef</a></li><li><a href="#til.src.core.ast.EnumDef.push_member">EnumDef.push_member</a></li><li><a href="#til.src.core.ast.EnumDef.member_name_at">EnumDef.member_name_at</a></li><li><a href="#til.src.core.ast.EnumDef.member_at">EnumDef.member_at</a></li><li><a href="#til.src.core.ast.FieldLayout">FieldLayout</a></li><li><a href="#til.src.core.ast.StructLayout">StructLayout</a></li><li><a href="#til.src.core.ast.AssignData">AssignData</a></li><li><a href="#til.src.core.ast.FieldAssignData">FieldAssignData</a></li><li><a href="#til.src.core.ast.ForInData">ForInData</a></li><li><a href="#til.src.core.ast.Literal">Literal</a></li><li><a href="#til.src.core.ast.MatchData">MatchData</a></li><li><a href="#til.src.core.ast.CaseData">CaseData</a></li><li><a href="#til.src.core.ast.CaptureBlockData">CaptureBlockData</a></li><li><a href="#til.src.core.ast.PrecomputedSequenceData">PrecomputedSequenceData</a></li><li><a href="#til.src.core.ast.TYPE_NONE">TYPE_NONE</a></li><li><a href="#til.src.core.ast.TYPE_UNKNOWN">TYPE_UNKNOWN</a></li><li><a href="#til.src.core.ast.TYPE_DYNAMIC">TYPE_DYNAMIC</a></li><li><a href="#til.src.core.ast.TYPE_FUNCPTR">TYPE_FUNCPTR</a></li><li><a href="#til.src.core.ast.TYPE_BODY">TYPE_BODY</a></li><li><a href="#til.src.core.ast.TYPE_BOOL">TYPE_BOOL</a></li><li><a href="#til.src.core.ast.TYPE_I64">TYPE_I64</a></li><li><a href="#til.src.core.ast.TYPE_F32">TYPE_F32</a></li><li><a href="#til.src.core.ast.TYPE_F64">TYPE_F64</a></li><li><a href="#til.src.core.ast.TYPE_STR">TYPE_STR</a></li><li><a href="#til.src.core.ast.TYPE_STRUCTDEF">TYPE_STRUCTDEF</a></li><li><a href="#til.src.core.ast.TYPE_ENUMDEF">TYPE_ENUMDEF</a></li><li><a href="#til.src.core.ast.TYPE_MAP">TYPE_MAP</a></li><li><a href="#til.src.core.ast.TYPE_SET">TYPE_SET</a></li><li><a href="#til.src.core.ast.NodeType">NodeType</a></li><li><a href="#til.src.core.ast.Expr">Expr</a></li><li><a href="#til.src.core.ast.Expr.delete">Expr.delete</a></li><li><a href="#til.src.core.ast.Expr.error">Expr.error</a></li><li><a href="#til.src.core.ast.Expr.todo_error">Expr.todo_error</a></li><li><a href="#til.src.core.ast.Expr.lang_error">Expr.lang_error</a></li><li><a href="#til.src.core.ast.Expr.add_child">Expr.add_child</a></li><li><a href="#til.src.core.ast.Expr.push_child_clone">Expr.push_child_clone</a></li><li><a href="#til.src.core.ast.Expr.take_children">Expr.take_children</a></li><li><a href="#til.src.core.ast.Expr.new">Expr.new</a></li><li><a href="#til.src.core.ast.ident_of">ident_of</a></li><li><a href="#til.src.core.ast.decl_of">decl_of</a></li><li><a href="#til.src.core.ast.fcall_of">fcall_of</a></li><li><a href="#til.src.core.ast.funcdef_of">funcdef_of</a></li><li><a href="#til.src.core.ast.fieldaccess_of">fieldaccess_of</a></li><li><a href="#til.src.core.ast.structdef_of">structdef_of</a></li><li><a href="#til.src.core.ast.enumdef_of">enumdef_of</a></li><li><a href="#til.src.core.ast.case_of">case_of</a></li><li><a href="#til.src.core.ast.case_pattern_count">case_pattern_count</a></li><li><a href="#til.src.core.ast.case_has_guard">case_has_guard</a></li><li><a href="#til.src.core.ast.Option__ref_Declaration">Option__ref_Declaration</a></li><li><a href="#til.src.core.ast.Option__ref_Declaration.unwrap">Option__ref_Declaration.unwrap</a></li><li><a href="#til.src.core.ast.Option__ref_Declaration.take">Option__ref_Declaration.take</a></li><li><a href="#til.src.core.ast.Option__ref_Str">Option__ref_Str</a></li><li><a href="#til.src.core.ast.Option__ref_Str.unwrap">Option__ref_Str.unwrap</a></li><li><a href="#til.src.core.ast.Option__ref_Str.take">Option__ref_Str.take</a></li><li><a href="#til.src.core.ast.Map__Str_USize">Map__Str_USize</a></li><li><a href="#til.src.core.ast.Map__Str_USize.new">Map__Str_USize.new</a></li><li><a href="#til.src.core.ast.Map__Str_USize.with_capacity">Map__Str_USize.with_capacity</a></li><li><a href="#til.src.core.ast.Map__Str_USize.clear">Map__Str_USize.clear</a></li><li><a href="#til.src.core.ast.Map__Str_USize.has">Map__Str_USize.has</a></li><li><a href="#til.src.core.ast.Map__Str_USize.get">Map__Str_USize.get</a></li><li><a href="#til.src.core.ast.Map__Str_USize.set">Map__Str_USize.set</a></li><li><a href="#til.src.core.ast.Map__Str_USize.remove">Map__Str_USize.remove</a></li><li><a href="#til.src.core.ast.Vec__VariantDef">Vec__VariantDef</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.new">Vec__VariantDef.new</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.with_capacity">Vec__VariantDef.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.clear">Vec__VariantDef.clear</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.delete_marked">Vec__VariantDef.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.push">Vec__VariantDef.push</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.append">Vec__VariantDef.append</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.take">Vec__VariantDef.take</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.move_to">Vec__VariantDef.move_to</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.move_from">Vec__VariantDef.move_from</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.unsafe_get">Vec__VariantDef.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.get">Vec__VariantDef.get</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.pop">Vec__VariantDef.pop</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.remove_at">Vec__VariantDef.remove_at</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.take_prefix">Vec__VariantDef.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.truncate">Vec__VariantDef.truncate</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.unsafe_set">Vec__VariantDef.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.set">Vec__VariantDef.set</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.push_take">Vec__VariantDef.push_take</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.delete">Vec__VariantDef.delete</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.clone">Vec__VariantDef.clone</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout">Vec__FieldLayout</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.new">Vec__FieldLayout.new</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.with_capacity">Vec__FieldLayout.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.clear">Vec__FieldLayout.clear</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.delete_marked">Vec__FieldLayout.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.push">Vec__FieldLayout.push</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.append">Vec__FieldLayout.append</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.take">Vec__FieldLayout.take</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.move_to">Vec__FieldLayout.move_to</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.move_from">Vec__FieldLayout.move_from</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.unsafe_get">Vec__FieldLayout.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.get">Vec__FieldLayout.get</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.pop">Vec__FieldLayout.pop</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.remove_at">Vec__FieldLayout.remove_at</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.take_prefix">Vec__FieldLayout.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.truncate">Vec__FieldLayout.truncate</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.unsafe_set">Vec__FieldLayout.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.set">Vec__FieldLayout.set</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.push_take">Vec__FieldLayout.push_take</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.delete">Vec__FieldLayout.delete</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.clone">Vec__FieldLayout.clone</a></li><li><a href="#til.src.core.ast.Vec__Declaration">Vec__Declaration</a></li><li><a href="#til.src.core.ast.Vec__Declaration.new">Vec__Declaration.new</a></li><li><a href="#til.src.core.ast.Vec__Declaration.with_capacity">Vec__Declaration.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__Declaration.clear">Vec__Declaration.clear</a></li><li><a href="#til.src.core.ast.Vec__Declaration.delete_marked">Vec__Declaration.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__Declaration.push">Vec__Declaration.push</a></li><li><a href="#til.src.core.ast.Vec__Declaration.append">Vec__Declaration.append</a></li><li><a href="#til.src.core.ast.Vec__Declaration.take">Vec__Declaration.take</a></li><li><a href="#til.src.core.ast.Vec__Declaration.move_to">Vec__Declaration.move_to</a></li><li><a href="#til.src.core.ast.Vec__Declaration.move_from">Vec__Declaration.move_from</a></li><li><a href="#til.src.core.ast.Vec__Declaration.unsafe_get">Vec__Declaration.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__Declaration.get">Vec__Declaration.get</a></li><li><a href="#til.src.core.ast.Vec__Declaration.pop">Vec__Declaration.pop</a></li><li><a href="#til.src.core.ast.Vec__Declaration.remove_at">Vec__Declaration.remove_at</a></li><li><a href="#til.src.core.ast.Vec__Declaration.take_prefix">Vec__Declaration.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__Declaration.truncate">Vec__Declaration.truncate</a></li><li><a href="#til.src.core.ast.Vec__Declaration.unsafe_set">Vec__Declaration.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__Declaration.set">Vec__Declaration.set</a></li><li><a href="#til.src.core.ast.Vec__Declaration.push_take">Vec__Declaration.push_take</a></li><li><a href="#til.src.core.ast.Vec__Declaration.delete">Vec__Declaration.delete</a></li><li><a href="#til.src.core.ast.Vec__Declaration.clone">Vec__Declaration.clone</a></li><li><a href="#til.src.core.ast.Vec__Expr">Vec__Expr</a></li><li><a href="#til.src.core.ast.Vec__Expr.new">Vec__Expr.new</a></li><li><a href="#til.src.core.ast.Vec__Expr.with_capacity">Vec__Expr.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__Expr.clear">Vec__Expr.clear</a></li><li><a href="#til.src.core.ast.Vec__Expr.delete_marked">Vec__Expr.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__Expr.push">Vec__Expr.push</a></li><li><a href="#til.src.core.ast.Vec__Expr.append">Vec__Expr.append</a></li><li><a href="#til.src.core.ast.Vec__Expr.take">Vec__Expr.take</a></li><li><a href="#til.src.core.ast.Vec__Expr.move_to">Vec__Expr.move_to</a></li><li><a href="#til.src.core.ast.Vec__Expr.move_from">Vec__Expr.move_from</a></li><li><a href="#til.src.core.ast.Vec__Expr.unsafe_get">Vec__Expr.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__Expr.get">Vec__Expr.get</a></li><li><a href="#til.src.core.ast.Vec__Expr.pop">Vec__Expr.pop</a></li><li><a href="#til.src.core.ast.Vec__Expr.remove_at">Vec__Expr.remove_at</a></li><li><a href="#til.src.core.ast.Vec__Expr.take_prefix">Vec__Expr.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__Expr.truncate">Vec__Expr.truncate</a></li><li><a href="#til.src.core.ast.Vec__Expr.unsafe_set">Vec__Expr.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__Expr.set">Vec__Expr.set</a></li><li><a href="#til.src.core.ast.Vec__Expr.push_take">Vec__Expr.push_take</a></li><li><a href="#til.src.core.ast.Vec__Expr.delete">Vec__Expr.delete</a></li><li><a href="#til.src.core.ast.Vec__Expr.clone">Vec__Expr.clone</a></li><li><a href="#til.src.core.ast.Vec__USize">Vec__USize</a></li><li><a href="#til.src.core.ast.Vec__USize.new">Vec__USize.new</a></li><li><a href="#til.src.core.ast.Vec__USize.with_capacity">Vec__USize.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__USize.clear">Vec__USize.clear</a></li><li><a href="#til.src.core.ast.Vec__USize.delete_marked">Vec__USize.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__USize.push">Vec__USize.push</a></li><li><a href="#til.src.core.ast.Vec__USize.append">Vec__USize.append</a></li><li><a href="#til.src.core.ast.Vec__USize.take">Vec__USize.take</a></li><li><a href="#til.src.core.ast.Vec__USize.move_to">Vec__USize.move_to</a></li><li><a href="#til.src.core.ast.Vec__USize.move_from">Vec__USize.move_from</a></li><li><a href="#til.src.core.ast.Vec__USize.unsafe_get">Vec__USize.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__USize.get">Vec__USize.get</a></li><li><a href="#til.src.core.ast.Vec__USize.pop">Vec__USize.pop</a></li><li><a href="#til.src.core.ast.Vec__USize.remove_at">Vec__USize.remove_at</a></li><li><a href="#til.src.core.ast.Vec__USize.take_prefix">Vec__USize.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__USize.truncate">Vec__USize.truncate</a></li><li><a href="#til.src.core.ast.Vec__USize.unsafe_set">Vec__USize.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__USize.set">Vec__USize.set</a></li><li><a href="#til.src.core.ast.Vec__USize.push_take">Vec__USize.push_take</a></li><li><a href="#til.src.core.ast.Vec__USize.delete">Vec__USize.delete</a></li><li><a href="#til.src.core.ast.Vec__USize.clone">Vec__USize.clone</a></li><li><a href="#til.src.core.ast.adopt__USize">adopt__USize</a></li><li><a href="#til.src.core.ast.adopt__VariantDef">adopt__VariantDef</a></li><li><a href="#til.src.core.ast.adopt__FieldLayout">adopt__FieldLayout</a></li><li><a href="#til.src.core.ast.adopt__Declaration">adopt__Declaration</a></li><li><a href="#til.src.core.ast.adopt__Expr">adopt__Expr</a></li></ul></li>
+<li><a class="current" href="../../src/core/ast.html">src/core/ast.til</a><ul><li><a href="#til.src.core.ast.Primitive">Primitive</a></li><li><a href="#til.src.core.ast.Type">Type</a></li><li><a href="#til.src.core.ast.FuncType">FuncType</a></li><li><a href="#til.src.core.ast.func_type_to_i64">func_type_to_i64</a></li><li><a href="#til.src.core.ast.func_type_from_i64">func_type_from_i64</a></li><li><a href="#til.src.core.ast.OwnType">OwnType</a></li><li><a href="#til.src.core.ast.own_type_to_i64">own_type_to_i64</a></li><li><a href="#til.src.core.ast.own_type_from_i64">own_type_from_i64</a></li><li><a href="#til.src.core.ast.GcStorage">GcStorage</a></li><li><a href="#til.src.core.ast.Option__Expr">Option__Expr</a></li><li><a href="#til.src.core.ast.Option__Expr.unwrap">Option__Expr.unwrap</a></li><li><a href="#til.src.core.ast.Option__Expr.take">Option__Expr.take</a></li><li><a href="#til.src.core.ast.declaration_type_from_name">declaration_type_from_name</a></li><li><a href="#til.src.core.ast.Declaration">Declaration</a></li><li><a href="#til.src.core.ast.Declaration.default_expr">Declaration.default_expr</a></li><li><a href="#til.src.core.ast.FuncSig">FuncSig</a></li><li><a href="#til.src.core.ast.FunctionDef">FunctionDef</a></li><li><a href="#til.src.core.ast.FCallData">FCallData</a></li><li><a href="#til.src.core.ast.LiteralNumData">LiteralNumData</a></li><li><a href="#til.src.core.ast.LiteralNumData.is_float">LiteralNumData.is_float</a></li><li><a href="#til.src.core.ast.IdentData">IdentData</a></li><li><a href="#til.src.core.ast.Sym">Sym</a></li><li><a href="#til.src.core.ast.FieldAccessData">FieldAccessData</a></li><li><a href="#til.src.core.ast.StructDef">StructDef</a></li><li><a href="#til.src.core.ast.StructDef.push_field">StructDef.push_field</a></li><li><a href="#til.src.core.ast.StructDef.push_member">StructDef.push_member</a></li><li><a href="#til.src.core.ast.StructDef.field_name_at">StructDef.field_name_at</a></li><li><a href="#til.src.core.ast.StructDef.field_at">StructDef.field_at</a></li><li><a href="#til.src.core.ast.StructDef.member_name_at">StructDef.member_name_at</a></li><li><a href="#til.src.core.ast.StructDef.member_at">StructDef.member_at</a></li><li><a href="#til.src.core.ast.member_name_of">member_name_of</a></li><li><a href="#til.src.core.ast.VariantDef">VariantDef</a></li><li><a href="#til.src.core.ast.VariantDef.doc">VariantDef.doc</a></li><li><a href="#til.src.core.ast.EnumDef">EnumDef</a></li><li><a href="#til.src.core.ast.EnumDef.push_member">EnumDef.push_member</a></li><li><a href="#til.src.core.ast.EnumDef.member_name_at">EnumDef.member_name_at</a></li><li><a href="#til.src.core.ast.EnumDef.member_at">EnumDef.member_at</a></li><li><a href="#til.src.core.ast.FieldLayout">FieldLayout</a></li><li><a href="#til.src.core.ast.StructLayout">StructLayout</a></li><li><a href="#til.src.core.ast.AssignData">AssignData</a></li><li><a href="#til.src.core.ast.FieldAssignData">FieldAssignData</a></li><li><a href="#til.src.core.ast.ForInData">ForInData</a></li><li><a href="#til.src.core.ast.Literal">Literal</a></li><li><a href="#til.src.core.ast.MatchData">MatchData</a></li><li><a href="#til.src.core.ast.CaseData">CaseData</a></li><li><a href="#til.src.core.ast.CaptureBlockData">CaptureBlockData</a></li><li><a href="#til.src.core.ast.PrecomputedSequenceData">PrecomputedSequenceData</a></li><li><a href="#til.src.core.ast.TYPE_NONE">TYPE_NONE</a></li><li><a href="#til.src.core.ast.TYPE_UNKNOWN">TYPE_UNKNOWN</a></li><li><a href="#til.src.core.ast.TYPE_DYNAMIC">TYPE_DYNAMIC</a></li><li><a href="#til.src.core.ast.TYPE_FUNCPTR">TYPE_FUNCPTR</a></li><li><a href="#til.src.core.ast.TYPE_BODY">TYPE_BODY</a></li><li><a href="#til.src.core.ast.TYPE_BOOL">TYPE_BOOL</a></li><li><a href="#til.src.core.ast.TYPE_I64">TYPE_I64</a></li><li><a href="#til.src.core.ast.TYPE_F32">TYPE_F32</a></li><li><a href="#til.src.core.ast.TYPE_F64">TYPE_F64</a></li><li><a href="#til.src.core.ast.TYPE_STR">TYPE_STR</a></li><li><a href="#til.src.core.ast.TYPE_STRUCTDEF">TYPE_STRUCTDEF</a></li><li><a href="#til.src.core.ast.TYPE_ENUMDEF">TYPE_ENUMDEF</a></li><li><a href="#til.src.core.ast.TYPE_MAP">TYPE_MAP</a></li><li><a href="#til.src.core.ast.TYPE_SET">TYPE_SET</a></li><li><a href="#til.src.core.ast.NodeType">NodeType</a></li><li><a href="#til.src.core.ast.Expr">Expr</a></li><li><a href="#til.src.core.ast.Expr.delete">Expr.delete</a></li><li><a href="#til.src.core.ast.Expr.error">Expr.error</a></li><li><a href="#til.src.core.ast.Expr.todo_error">Expr.todo_error</a></li><li><a href="#til.src.core.ast.Expr.lang_error">Expr.lang_error</a></li><li><a href="#til.src.core.ast.Expr.add_child">Expr.add_child</a></li><li><a href="#til.src.core.ast.Expr.push_child_clone">Expr.push_child_clone</a></li><li><a href="#til.src.core.ast.Expr.take_children">Expr.take_children</a></li><li><a href="#til.src.core.ast.Expr.new">Expr.new</a></li><li><a href="#til.src.core.ast.ident_of">ident_of</a></li><li><a href="#til.src.core.ast.decl_of">decl_of</a></li><li><a href="#til.src.core.ast.fcall_of">fcall_of</a></li><li><a href="#til.src.core.ast.funcdef_of">funcdef_of</a></li><li><a href="#til.src.core.ast.fieldaccess_of">fieldaccess_of</a></li><li><a href="#til.src.core.ast.structdef_of">structdef_of</a></li><li><a href="#til.src.core.ast.enumdef_of">enumdef_of</a></li><li><a href="#til.src.core.ast.case_of">case_of</a></li><li><a href="#til.src.core.ast.case_pattern_count">case_pattern_count</a></li><li><a href="#til.src.core.ast.case_has_guard">case_has_guard</a></li><li><a href="#til.src.core.ast.Option__ref_Declaration">Option__ref_Declaration</a></li><li><a href="#til.src.core.ast.Option__ref_Declaration.unwrap">Option__ref_Declaration.unwrap</a></li><li><a href="#til.src.core.ast.Option__ref_Declaration.take">Option__ref_Declaration.take</a></li><li><a href="#til.src.core.ast.Option__ref_Str">Option__ref_Str</a></li><li><a href="#til.src.core.ast.Option__ref_Str.unwrap">Option__ref_Str.unwrap</a></li><li><a href="#til.src.core.ast.Option__ref_Str.take">Option__ref_Str.take</a></li><li><a href="#til.src.core.ast.Map__Str_USize">Map__Str_USize</a></li><li><a href="#til.src.core.ast.Map__Str_USize.new">Map__Str_USize.new</a></li><li><a href="#til.src.core.ast.Map__Str_USize.with_capacity">Map__Str_USize.with_capacity</a></li><li><a href="#til.src.core.ast.Map__Str_USize.clear">Map__Str_USize.clear</a></li><li><a href="#til.src.core.ast.Map__Str_USize.has">Map__Str_USize.has</a></li><li><a href="#til.src.core.ast.Map__Str_USize.get">Map__Str_USize.get</a></li><li><a href="#til.src.core.ast.Map__Str_USize.set">Map__Str_USize.set</a></li><li><a href="#til.src.core.ast.Map__Str_USize.remove">Map__Str_USize.remove</a></li><li><a href="#til.src.core.ast.Vec__VariantDef">Vec__VariantDef</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.new">Vec__VariantDef.new</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.with_capacity">Vec__VariantDef.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.clear">Vec__VariantDef.clear</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.delete_marked">Vec__VariantDef.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.push">Vec__VariantDef.push</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.append">Vec__VariantDef.append</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.take">Vec__VariantDef.take</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.move_to">Vec__VariantDef.move_to</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.move_from">Vec__VariantDef.move_from</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.unsafe_get">Vec__VariantDef.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.get">Vec__VariantDef.get</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.pop">Vec__VariantDef.pop</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.remove_at">Vec__VariantDef.remove_at</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.take_prefix">Vec__VariantDef.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.truncate">Vec__VariantDef.truncate</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.unsafe_set">Vec__VariantDef.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.set">Vec__VariantDef.set</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.push_take">Vec__VariantDef.push_take</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.delete">Vec__VariantDef.delete</a></li><li><a href="#til.src.core.ast.Vec__VariantDef.clone">Vec__VariantDef.clone</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout">Vec__FieldLayout</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.new">Vec__FieldLayout.new</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.with_capacity">Vec__FieldLayout.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.clear">Vec__FieldLayout.clear</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.delete_marked">Vec__FieldLayout.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.push">Vec__FieldLayout.push</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.append">Vec__FieldLayout.append</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.take">Vec__FieldLayout.take</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.move_to">Vec__FieldLayout.move_to</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.move_from">Vec__FieldLayout.move_from</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.unsafe_get">Vec__FieldLayout.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.get">Vec__FieldLayout.get</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.pop">Vec__FieldLayout.pop</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.remove_at">Vec__FieldLayout.remove_at</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.take_prefix">Vec__FieldLayout.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.truncate">Vec__FieldLayout.truncate</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.unsafe_set">Vec__FieldLayout.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.set">Vec__FieldLayout.set</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.push_take">Vec__FieldLayout.push_take</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.delete">Vec__FieldLayout.delete</a></li><li><a href="#til.src.core.ast.Vec__FieldLayout.clone">Vec__FieldLayout.clone</a></li><li><a href="#til.src.core.ast.Vec__Declaration">Vec__Declaration</a></li><li><a href="#til.src.core.ast.Vec__Declaration.new">Vec__Declaration.new</a></li><li><a href="#til.src.core.ast.Vec__Declaration.with_capacity">Vec__Declaration.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__Declaration.clear">Vec__Declaration.clear</a></li><li><a href="#til.src.core.ast.Vec__Declaration.delete_marked">Vec__Declaration.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__Declaration.push">Vec__Declaration.push</a></li><li><a href="#til.src.core.ast.Vec__Declaration.append">Vec__Declaration.append</a></li><li><a href="#til.src.core.ast.Vec__Declaration.take">Vec__Declaration.take</a></li><li><a href="#til.src.core.ast.Vec__Declaration.move_to">Vec__Declaration.move_to</a></li><li><a href="#til.src.core.ast.Vec__Declaration.move_from">Vec__Declaration.move_from</a></li><li><a href="#til.src.core.ast.Vec__Declaration.unsafe_get">Vec__Declaration.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__Declaration.get">Vec__Declaration.get</a></li><li><a href="#til.src.core.ast.Vec__Declaration.pop">Vec__Declaration.pop</a></li><li><a href="#til.src.core.ast.Vec__Declaration.remove_at">Vec__Declaration.remove_at</a></li><li><a href="#til.src.core.ast.Vec__Declaration.take_prefix">Vec__Declaration.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__Declaration.truncate">Vec__Declaration.truncate</a></li><li><a href="#til.src.core.ast.Vec__Declaration.unsafe_set">Vec__Declaration.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__Declaration.set">Vec__Declaration.set</a></li><li><a href="#til.src.core.ast.Vec__Declaration.push_take">Vec__Declaration.push_take</a></li><li><a href="#til.src.core.ast.Vec__Declaration.delete">Vec__Declaration.delete</a></li><li><a href="#til.src.core.ast.Vec__Declaration.clone">Vec__Declaration.clone</a></li><li><a href="#til.src.core.ast.Vec__Expr">Vec__Expr</a></li><li><a href="#til.src.core.ast.Vec__Expr.new">Vec__Expr.new</a></li><li><a href="#til.src.core.ast.Vec__Expr.with_capacity">Vec__Expr.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__Expr.clear">Vec__Expr.clear</a></li><li><a href="#til.src.core.ast.Vec__Expr.delete_marked">Vec__Expr.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__Expr.push">Vec__Expr.push</a></li><li><a href="#til.src.core.ast.Vec__Expr.append">Vec__Expr.append</a></li><li><a href="#til.src.core.ast.Vec__Expr.take">Vec__Expr.take</a></li><li><a href="#til.src.core.ast.Vec__Expr.move_to">Vec__Expr.move_to</a></li><li><a href="#til.src.core.ast.Vec__Expr.move_from">Vec__Expr.move_from</a></li><li><a href="#til.src.core.ast.Vec__Expr.unsafe_get">Vec__Expr.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__Expr.get">Vec__Expr.get</a></li><li><a href="#til.src.core.ast.Vec__Expr.pop">Vec__Expr.pop</a></li><li><a href="#til.src.core.ast.Vec__Expr.remove_at">Vec__Expr.remove_at</a></li><li><a href="#til.src.core.ast.Vec__Expr.take_prefix">Vec__Expr.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__Expr.truncate">Vec__Expr.truncate</a></li><li><a href="#til.src.core.ast.Vec__Expr.unsafe_set">Vec__Expr.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__Expr.set">Vec__Expr.set</a></li><li><a href="#til.src.core.ast.Vec__Expr.push_take">Vec__Expr.push_take</a></li><li><a href="#til.src.core.ast.Vec__Expr.delete">Vec__Expr.delete</a></li><li><a href="#til.src.core.ast.Vec__Expr.clone">Vec__Expr.clone</a></li><li><a href="#til.src.core.ast.Vec__USize">Vec__USize</a></li><li><a href="#til.src.core.ast.Vec__USize.new">Vec__USize.new</a></li><li><a href="#til.src.core.ast.Vec__USize.with_capacity">Vec__USize.with_capacity</a></li><li><a href="#til.src.core.ast.Vec__USize.clear">Vec__USize.clear</a></li><li><a href="#til.src.core.ast.Vec__USize.delete_marked">Vec__USize.delete_marked</a></li><li><a href="#til.src.core.ast.Vec__USize.push">Vec__USize.push</a></li><li><a href="#til.src.core.ast.Vec__USize.append">Vec__USize.append</a></li><li><a href="#til.src.core.ast.Vec__USize.take">Vec__USize.take</a></li><li><a href="#til.src.core.ast.Vec__USize.move_to">Vec__USize.move_to</a></li><li><a href="#til.src.core.ast.Vec__USize.move_from">Vec__USize.move_from</a></li><li><a href="#til.src.core.ast.Vec__USize.unsafe_get">Vec__USize.unsafe_get</a></li><li><a href="#til.src.core.ast.Vec__USize.get">Vec__USize.get</a></li><li><a href="#til.src.core.ast.Vec__USize.pop">Vec__USize.pop</a></li><li><a href="#til.src.core.ast.Vec__USize.remove_at">Vec__USize.remove_at</a></li><li><a href="#til.src.core.ast.Vec__USize.take_prefix">Vec__USize.take_prefix</a></li><li><a href="#til.src.core.ast.Vec__USize.truncate">Vec__USize.truncate</a></li><li><a href="#til.src.core.ast.Vec__USize.unsafe_set">Vec__USize.unsafe_set</a></li><li><a href="#til.src.core.ast.Vec__USize.set">Vec__USize.set</a></li><li><a href="#til.src.core.ast.Vec__USize.push_take">Vec__USize.push_take</a></li><li><a href="#til.src.core.ast.Vec__USize.delete">Vec__USize.delete</a></li><li><a href="#til.src.core.ast.Vec__USize.clone">Vec__USize.clone</a></li><li><a href="#til.src.core.ast.adopt__USize">adopt__USize</a></li><li><a href="#til.src.core.ast.adopt__VariantDef">adopt__VariantDef</a></li><li><a href="#til.src.core.ast.adopt__FieldLayout">adopt__FieldLayout</a></li><li><a href="#til.src.core.ast.adopt__Declaration">adopt__Declaration</a></li><li><a href="#til.src.core.ast.adopt__Expr">adopt__Expr</a></li><li><a href="#til.src.core.ast.safe_ref__Str">safe_ref__Str</a></li></ul></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
 <li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -125,7 +127,7 @@ namespace:
     func cmp(a: Primitive, b: Primitive) returns shallow I64
     func to_str(self: Primitive) returns Str
     func clone(self: Primitive) returns Primitive
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: Primitive, b: Primitive) returns shallow Bool
     func gt(a: Primitive, b: Primitive) returns shallow Bool
     func neq(a: Primitive, b: Primitive) returns shallow Bool
@@ -155,6 +157,10 @@ types (Struct/Enum/Custom) and is tag-only for builtins.</p>
     Primitive: Primitive
     FuncPtrSig: Str
     Body
+    StructSym: U32
+    EnumSym: U32
+    CustomSym: U32
+    FuncPtrSigSym: U32
 namespace:
     ext_func Unknown() returns Type
     ext_func None() returns Type
@@ -169,13 +175,17 @@ namespace:
     ext_func Primitive(val: Primitive) returns Type
     ext_func FuncPtrSig(own val: Str) returns Type
     ext_func Body() returns Type
+    ext_func StructSym(val: U32) returns Type
+    ext_func EnumSym(val: U32) returns Type
+    ext_func CustomSym(val: U32) returns Type
+    ext_func FuncPtrSigSym(val: U32) returns Type
     core_func is(self: Type, other: Type) returns shallow Bool
     func eq(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, shallow call_free: Bool)
     func cmp(a: Type, b: Type) returns shallow I64
     func to_str(self: Type) returns Str
     func clone(self: Type) returns Type
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: Type, b: Type) returns shallow Bool
     func gt(a: Type, b: Type) returns shallow Bool
     func neq(a: Type, b: Type) returns shallow Bool
@@ -227,7 +237,7 @@ namespace:
     func cmp(a: FuncType, b: FuncType) returns shallow I64
     func to_str(self: FuncType) returns Str
     func clone(self: FuncType) returns FuncType
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: FuncType, b: FuncType) returns shallow Bool
     func gt(a: FuncType, b: FuncType) returns shallow Bool
     func neq(a: FuncType, b: FuncType) returns shallow Bool
@@ -268,7 +278,7 @@ namespace:
     func cmp(a: OwnType, b: OwnType) returns shallow I64
     func to_str(self: OwnType) returns Str
     func clone(self: OwnType) returns OwnType
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: OwnType, b: OwnType) returns shallow Bool
     func gt(a: OwnType, b: OwnType) returns shallow Bool
     func neq(a: OwnType, b: OwnType) returns shallow Bool
@@ -306,7 +316,7 @@ namespace:
     func cmp(a: GcStorage, b: GcStorage) returns shallow I64
     func to_str(self: GcStorage) returns Str
     func clone(self: GcStorage) returns GcStorage
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: GcStorage, b: GcStorage) returns shallow Bool
     func gt(a: GcStorage, b: GcStorage) returns shallow Bool
     func neq(a: GcStorage, b: GcStorage) returns shallow Bool
@@ -334,7 +344,7 @@ namespace:
     func delete(own self: Option__Expr, shallow call_free: Bool)
     func to_str(shallow self: Option__Expr) returns Str
     func clone(shallow self: Option__Expr) returns shallow Option__Expr
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -392,12 +402,14 @@ a clone would copy a whole subtree and break node identity.</p>
     mut default_value : Option__Expr
     mut orig_name : Str
     mut gc_storage : GcStorage
+    mut external_symbol : Str
+    mut infer_call_ownership : Bool
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
     func type_name(self: Declaration) returns Str
     func default_expr(self: Declaration) returns ref Expr
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, shallow call_free: Bool)
     func hash(self: Declaration, hasher: HashFn) returns shallow U64
@@ -434,7 +446,7 @@ the definition). Prefer a switch when the None arm does real work.</p>
 namespace:
     func eq(a: FuncSig, b: FuncSig) returns shallow Bool
     func to_str(self: FuncSig) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: FuncSig) returns FuncSig
     func delete(own self: FuncSig, shallow call_free: Bool)
     func hash(self: FuncSig, hasher: HashFn) returns shallow U64
@@ -450,18 +462,20 @@ namespace:
 <pre><code class="language-til">struct {
     mut sig : FuncSig
     mut auto_generated : Bool
+    mut typed_on_demand : Bool
     mut is_enum_variant_ctor : Bool
+    mut noreturn : Bool
     mut captures : Vec__Declaration
     mut closure_name : Str
-    mut noreturn : Bool
     mut ref_return_params : U64
     mut ref_return_into_params : U64
     mut ref_return_carried_params : U64
     mut namespace_decl : Option__ref_Declaration
+    mut deposit_matrix : U64
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: FunctionDef) returns FunctionDef
     func delete(own self: FunctionDef, shallow call_free: Bool)
     func hash(self: FunctionDef, hasher: HashFn) returns shallow U64
@@ -493,6 +507,7 @@ markers in fcall.children:</p>
     resolution artifact is gone.</p>
 </div>
 <pre><code class="language-til">struct {
+    mut constfold_value : Bool
     mut does_throw : Bool
     mut is_bang : Bool
     mut own_args : U64
@@ -501,10 +516,11 @@ markers in fcall.children:</p>
     mut til_type : Type
     mut ref_args : U64
     mut splat_args : U64
+    mut is_subscript : Bool
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns shallow Bool
     func to_str(_self: FCallData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: FCallData) returns FCallData
     func delete(own self: FCallData, shallow call_free: Bool)
     func hash(self: FCallData, hasher: HashFn) returns shallow U64
@@ -534,11 +550,11 @@ namespace:
     func to_i32(self: LiteralNumData) returns shallow I32
     func to_u32(self: LiteralNumData) returns shallow U32
     func to_u64(self: LiteralNumData) returns shallow U64
-    func to_usize(self: LiteralNumData) returns shallow USize
+    func to_usize(self: LiteralNumData) returns shallow U64
     func to_f32(self: LiteralNumData) returns shallow F32
     func literal_num_text(self: LiteralNumData) returns ref Str
     func is_float(self: LiteralNumData) returns shallow Bool
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: LiteralNumData) returns LiteralNumData
     func delete(own self: LiteralNumData, shallow call_free: Bool)
     func hash(self: LiteralNumData, hasher: HashFn) returns shallow U64
@@ -575,7 +591,7 @@ namespace:
     func eq(a: IdentData, b: IdentData) returns shallow Bool
     func ident_sym(self: IdentData) returns shallow U32
     func ident_name(self: IdentData, names: Vec__Str) returns ref Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: IdentData) returns IdentData
     func delete(own self: IdentData, shallow call_free: Bool)
     func hash(self: IdentData, hasher: HashFn) returns shallow U64
@@ -605,7 +621,7 @@ namespace:
     func eq(a: FieldAccessData, b: FieldAccessData) returns shallow Bool
     func field_access_sym(self: FieldAccessData) returns shallow U32
     func field_access_name(self: FieldAccessData, names: Vec__Str) returns ref Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: FieldAccessData) returns FieldAccessData
     func delete(own self: FieldAccessData, shallow call_free: Bool)
     func hash(self: FieldAccessData, hasher: HashFn) returns shallow U64
@@ -637,16 +653,17 @@ compute_struct_layout at typer time.</p>
     mut is_interface : Bool
     mut interface_ns_marker : Bool
     mut implements_name : Str
+    mut simd_width : USize
 namespace:
     func eq(a: StructDef, b: StructDef) returns shallow Bool
     func to_str(_self: StructDef) returns Str
     func push_field(mut self: StructDef, own fd: Declaration)
     func push_member(mut self: StructDef, own nd: Declaration)
-    func field_name_at(self: StructDef, i: USize) returns ref Str
-    func field_at(self: StructDef, i: USize) returns ref Declaration
-    func member_name_at(self: StructDef, i: USize) returns ref Str
-    func member_at(self: StructDef, i: USize) returns ref Declaration
-    func size() returns shallow USize
+    func field_name_at(self: StructDef, i: U64) returns ref Str
+    func field_at(self: StructDef, i: U64) returns ref Declaration
+    func member_name_at(self: StructDef, i: U64) returns ref Str
+    func member_at(self: StructDef, i: U64) returns ref Declaration
+    func size() returns shallow U64
     func clone(self: StructDef) returns StructDef
     func delete(own self: StructDef, shallow call_free: Bool)
 }
@@ -681,7 +698,7 @@ re-points the index at the newest declaration.</p>
 index (O(members), tiny and emit-time only). Panics if the index
 has no entry for that position (see member_name_of).</p>
 </div>
-<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Str
+<pre><code class="language-til">func (self: StructDef, i: U64) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.StructDef.field_at">
@@ -690,7 +707,7 @@ has no entry for that position (see member_name_of).</p>
 <div class="doc-body">
 <p>Field Declaration at declaration position i (name <code></code> &quot;&quot;).</p>
 </div>
-<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Declaration
+<pre><code class="language-til">func (self: StructDef, i: U64) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.StructDef.member_name_at">
@@ -699,7 +716,7 @@ has no entry for that position (see member_name_of).</p>
 <div class="doc-body">
 <p>Namespace member name at declaration position i.</p>
 </div>
-<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Str
+<pre><code class="language-til">func (self: StructDef, i: U64) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.StructDef.member_at">
@@ -708,7 +725,7 @@ has no entry for that position (see member_name_of).</p>
 <div class="doc-body">
 <p>Namespace member Declaration at declaration position i.</p>
 </div>
-<pre><code class="language-til">func (self: StructDef, i: USize) returns ref Declaration
+<pre><code class="language-til">func (self: StructDef, i: U64) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.member_name_of">
@@ -727,7 +744,7 @@ since Option.unwrap ends in <code>case: panic</code> and core.til imports ast
 before exit; and the borrowed-Str call-shape fix, since
 this is the first Option(ref Str) interpreted code calls.</p>
 </div>
-<pre><code class="language-til">func (idx: Map__Str_USize, pos: USize) returns shallow Option__ref_Str
+<pre><code class="language-til">func (idx: Map__Str_USize, pos: U64) returns shallow Option__ref_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.VariantDef">
@@ -751,7 +768,7 @@ the declaration index the per-variant data used to be keyed by.</p>
 namespace:
     func eq(a: VariantDef, b: VariantDef) returns shallow Bool
     func to_str(self: VariantDef) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: VariantDef) returns VariantDef
     func delete(own self: VariantDef, shallow call_free: Bool)
     func hash(self: VariantDef, hasher: HashFn) returns shallow U64
@@ -795,9 +812,9 @@ namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
     func to_str(_self: EnumDef) returns Str
     func push_member(mut self: EnumDef, own nd: Declaration)
-    func member_name_at(self: EnumDef, i: USize) returns ref Str
-    func member_at(self: EnumDef, i: USize) returns ref Declaration
-    func size() returns shallow USize
+    func member_name_at(self: EnumDef, i: U64) returns ref Str
+    func member_at(self: EnumDef, i: U64) returns ref Declaration
+    func size() returns shallow U64
     func clone(self: EnumDef) returns EnumDef
     func delete(own self: EnumDef, shallow call_free: Bool)
 }
@@ -818,7 +835,7 @@ namespace:
 <div class="doc-body">
 <p>Namespace member name at declaration position i.</p>
 </div>
-<pre><code class="language-til">func (self: EnumDef, i: USize) returns ref Str
+<pre><code class="language-til">func (self: EnumDef, i: U64) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.EnumDef.member_at">
@@ -827,7 +844,7 @@ namespace:
 <div class="doc-body">
 <p>Namespace member Declaration at declaration position i.</p>
 </div>
-<pre><code class="language-til">func (self: EnumDef, i: USize) returns ref Declaration
+<pre><code class="language-til">func (self: EnumDef, i: U64) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.FieldLayout">
@@ -844,7 +861,7 @@ namespace:
 namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns shallow Bool
     func to_str(self: FieldLayout) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: FieldLayout) returns FieldLayout
     func delete(own self: FieldLayout, shallow call_free: Bool)
     func hash(self: FieldLayout, hasher: HashFn) returns shallow U64
@@ -868,7 +885,7 @@ namespace:
 namespace:
     func eq(a: StructLayout, b: StructLayout) returns shallow Bool
     func to_str(self: StructLayout) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: StructLayout) returns StructLayout
     func delete(own self: StructLayout, shallow call_free: Bool)
     func hash(self: StructLayout, hasher: HashFn) returns shallow U64
@@ -890,7 +907,7 @@ namespace:
 namespace:
     func eq(a: AssignData, b: AssignData) returns shallow Bool
     func to_str(self: AssignData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: AssignData) returns AssignData
     func delete(own self: AssignData, shallow call_free: Bool)
     func hash(self: AssignData, hasher: HashFn) returns shallow U64
@@ -914,7 +931,7 @@ namespace:
 namespace:
     func eq(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
     func to_str(self: FieldAssignData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: FieldAssignData) returns FieldAssignData
     func delete(own self: FieldAssignData, shallow call_free: Bool)
     func hash(self: FieldAssignData, hasher: HashFn) returns shallow U64
@@ -944,7 +961,7 @@ empty for the ordinary single-variable form.</p>
 namespace:
     func eq(a: ForInData, b: ForInData) returns shallow Bool
     func to_str(self: ForInData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: ForInData) returns ForInData
     func delete(own self: ForInData, shallow call_free: Bool)
     func hash(self: ForInData, hasher: HashFn) returns shallow U64
@@ -984,7 +1001,7 @@ namespace:
     func delete(own self: Literal, shallow call_free: Bool)
     func to_str(self: Literal) returns Str
     func clone(self: Literal) returns Literal
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -1001,7 +1018,7 @@ the typer records the common arm type here (mirrors FCallData.til_type).</p>
 namespace:
     func eq(a: MatchData, b: MatchData) returns shallow Bool
     func to_str(_self: MatchData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: MatchData) returns MatchData
     func delete(own self: MatchData, shallow call_free: Bool)
     func hash(self: MatchData, hasher: HashFn) returns shallow U64
@@ -1030,7 +1047,7 @@ child count, so there is no second copy of the shape to drift.</p>
 namespace:
     func eq(shallow a: CaseData, shallow b: CaseData) returns shallow Bool
     func to_str(shallow _self: CaseData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(shallow self: CaseData) returns shallow CaseData
     func delete(own self: CaseData, shallow call_free: Bool)
     func hash(shallow self: CaseData, hasher: HashFn) returns shallow U64
@@ -1060,7 +1077,7 @@ scope-restriction check. Child 0 is the Body.</p>
 namespace:
     func eq(a: CaptureBlockData, b: CaptureBlockData) returns shallow Bool
     func to_str(_self: CaptureBlockData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: CaptureBlockData) returns CaptureBlockData
     func delete(own self: CaptureBlockData, shallow call_free: Bool)
     func hash(self: CaptureBlockData, hasher: HashFn) returns shallow U64
@@ -1084,7 +1101,7 @@ No parser or typer path produces this node.</p>
 namespace:
     func eq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns shallow Bool
     func to_str(_self: PrecomputedSequenceData) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: PrecomputedSequenceData) returns PrecomputedSequenceData
     func delete(own self: PrecomputedSequenceData, shallow call_free: Bool)
     func hash(self: PrecomputedSequenceData, hasher: HashFn) returns shallow U64
@@ -1261,7 +1278,7 @@ namespace:
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
     func clone(self: NodeType) returns NodeType
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -1276,7 +1293,6 @@ namespace:
     mut children : Vec__Expr
     mut line : U32
     mut col : U32
-    mut constfold_value : Bool
 namespace:
     func delete(own self: Expr, shallow call_free: Bool)
     proc error(self: Expr, path: Str, msg: Str)
@@ -1292,7 +1308,7 @@ namespace:
     func to_str_indent_with_symbols(self: Expr, names: Vec__Str, shallow indent: U32) returns Str
     func to_str_with_symbols(self: Expr, names: Vec__Str) returns Str
     func to_str(_self: Expr) returns Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: Expr) returns Expr
     func hash(self: Expr, hasher: HashFn) returns shallow U64
 }
@@ -1426,7 +1442,7 @@ Zeroes other's count so it no longer owns the moved items.</p>
 <article class="doc-entry" id="til.src.core.ast.case_pattern_count">
 <h2>case_pattern_count</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func (cn: Expr) returns shallow USize
+<pre><code class="language-til">func (cn: Expr) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.case_has_guard">
@@ -1454,7 +1470,7 @@ namespace:
     func delete(own self: Option__ref_Declaration, shallow call_free: Bool)
     func to_str(shallow self: Option__ref_Declaration) returns Str
     func clone(self: Option__ref_Declaration) returns shallow Option__ref_Declaration
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -1508,7 +1524,7 @@ namespace:
     func cmp(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow I64
     func to_str(shallow self: Option__ref_Str) returns Str
     func clone(self: Option__ref_Str) returns shallow Option__ref_Str
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
     func gt(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
     func neq(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
@@ -1555,16 +1571,16 @@ a clone would copy a whole subtree and break node identity.</p>
     mut values : Vec__USize
 namespace:
     func new() returns Map__Str_USize
-    func with_capacity(shallow n: USize) returns Map__Str_USize
-    func len(self: Map__Str_USize) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_USize
+    func len(self: Map__Str_USize) returns shallow U64
     func clear(mut self: Map__Str_USize)
     func has(self: Map__Str_USize, key: Str) returns shallow Bool
-    func get(self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
-    func set(mut self: Map__Str_USize, key: Str, own val: USize)
+    func get(self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref U64
+    func set(mut self: Map__Str_USize, key: Str, own val: U64)
     func remove(mut self: Map__Str_USize, key: Str) returns shallow Bool
     func delete(own self: Map__Str_USize, shallow call_free: Bool)
     func clone(self: Map__Str_USize) returns Map__Str_USize
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_USize, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -1587,7 +1603,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_USize
+<pre><code class="language-til">func (shallow n: U64) returns Map__Str_USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Map__Str_USize.clear">
@@ -1616,7 +1632,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
 on a missing key.</p>
 </div>
-<pre><code class="language-til">func (self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
+<pre><code class="language-til">func (self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Map__Str_USize.set">
@@ -1625,7 +1641,7 @@ on a missing key.</p>
 <div class="doc-body">
 <p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
 </div>
-<pre><code class="language-til">func (mut self: Map__Str_USize, key: Str, own val: USize)
+<pre><code class="language-til">func (mut self: Map__Str_USize, key: Str, own val: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Map__Str_USize.remove">
@@ -1646,8 +1662,8 @@ on a missing key.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__VariantDef
-    func with_capacity(shallow n: USize) returns Vec__VariantDef
-    func len(self: Vec__VariantDef) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__VariantDef
+    func len(self: Vec__VariantDef) returns shallow U64
     func clear(mut self: Vec__VariantDef)
     func delete_marked(mut self: Vec__VariantDef, marks: Dynamic)
     func push(mut self: Vec__VariantDef, own val: VariantDef)
@@ -1655,18 +1671,18 @@ namespace:
     func take(mut self: Vec__VariantDef) returns Vec__VariantDef
     func move_to(own self: Vec__VariantDef, mut dest: Vec__VariantDef)
     func move_from(mut self: Vec__VariantDef, own other: Vec__VariantDef)
-    func unsafe_get(self: Vec__VariantDef, i: USize) returns ref VariantDef
-    func get(self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64) returns ref VariantDef
+    func unsafe_get(self: Vec__VariantDef, i: U64) returns ref VariantDef
+    func get(self: Vec__VariantDef, shallow i: U64, mut _err_kind: I64) returns ref VariantDef
     func pop(mut self: Vec__VariantDef) returns VariantDef
-    func remove_at(mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
-    func truncate(mut self: Vec__VariantDef, shallow n: USize)
-    func unsafe_set(mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef)
-    func set(mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef, mut _err_kind: I64)
-    func push_take(mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: USize)
+    func remove_at(mut self: Vec__VariantDef, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__VariantDef, shallow n: U64) returns Vec__VariantDef
+    func truncate(mut self: Vec__VariantDef, shallow n: U64)
+    func unsafe_set(mut self: Vec__VariantDef, shallow i: U64, own val: VariantDef)
+    func set(mut self: Vec__VariantDef, shallow i: U64, own val: VariantDef, mut _err_kind: I64)
+    func push_take(mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: U64)
     func delete(own self: Vec__VariantDef, shallow call_free: Bool)
     func clone(self: Vec__VariantDef) returns Vec__VariantDef
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -1694,7 +1710,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__VariantDef
+<pre><code class="language-til">func (shallow n: U64) returns Vec__VariantDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.clear">
@@ -1795,7 +1811,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__VariantDef, i: USize) returns ref VariantDef
+<pre><code class="language-til">func (self: Vec__VariantDef, i: U64) returns ref VariantDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.get">
@@ -1807,7 +1823,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64) returns ref VariantDef
+<pre><code class="language-til">func (self: Vec__VariantDef, shallow i: U64, mut _err_kind: I64) returns ref VariantDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.pop">
@@ -1826,7 +1842,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.take_prefix">
@@ -1836,7 +1852,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: U64) returns Vec__VariantDef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.truncate">
@@ -1848,7 +1864,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.unsafe_set">
@@ -1859,7 +1875,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef)
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: U64, own val: VariantDef)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.set">
@@ -1870,7 +1886,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__VariantDef, shallow i: U64, own val: VariantDef, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.push_take">
@@ -1881,7 +1897,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__VariantDef.delete">
@@ -1912,8 +1928,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__FieldLayout
-    func with_capacity(shallow n: USize) returns Vec__FieldLayout
-    func len(self: Vec__FieldLayout) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__FieldLayout
+    func len(self: Vec__FieldLayout) returns shallow U64
     func clear(mut self: Vec__FieldLayout)
     func delete_marked(mut self: Vec__FieldLayout, marks: Dynamic)
     func push(mut self: Vec__FieldLayout, own val: FieldLayout)
@@ -1921,18 +1937,18 @@ namespace:
     func take(mut self: Vec__FieldLayout) returns Vec__FieldLayout
     func move_to(own self: Vec__FieldLayout, mut dest: Vec__FieldLayout)
     func move_from(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
-    func unsafe_get(self: Vec__FieldLayout, i: USize) returns ref FieldLayout
-    func get(self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64) returns ref FieldLayout
+    func unsafe_get(self: Vec__FieldLayout, i: U64) returns ref FieldLayout
+    func get(self: Vec__FieldLayout, shallow i: U64, mut _err_kind: I64) returns ref FieldLayout
     func pop(mut self: Vec__FieldLayout) returns FieldLayout
-    func remove_at(mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
-    func truncate(mut self: Vec__FieldLayout, shallow n: USize)
-    func unsafe_set(mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout)
-    func set(mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout, mut _err_kind: I64)
-    func push_take(mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: USize)
+    func remove_at(mut self: Vec__FieldLayout, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__FieldLayout, shallow n: U64) returns Vec__FieldLayout
+    func truncate(mut self: Vec__FieldLayout, shallow n: U64)
+    func unsafe_set(mut self: Vec__FieldLayout, shallow i: U64, own val: FieldLayout)
+    func set(mut self: Vec__FieldLayout, shallow i: U64, own val: FieldLayout, mut _err_kind: I64)
+    func push_take(mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: U64)
     func delete(own self: Vec__FieldLayout, shallow call_free: Bool)
     func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -1960,7 +1976,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__FieldLayout
+<pre><code class="language-til">func (shallow n: U64) returns Vec__FieldLayout
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.clear">
@@ -2061,7 +2077,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__FieldLayout, i: USize) returns ref FieldLayout
+<pre><code class="language-til">func (self: Vec__FieldLayout, i: U64) returns ref FieldLayout
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.get">
@@ -2073,7 +2089,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64) returns ref FieldLayout
+<pre><code class="language-til">func (self: Vec__FieldLayout, shallow i: U64, mut _err_kind: I64) returns ref FieldLayout
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.pop">
@@ -2092,7 +2108,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.take_prefix">
@@ -2102,7 +2118,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: USize) returns Vec__FieldLayout
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: U64) returns Vec__FieldLayout
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.truncate">
@@ -2114,7 +2130,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.unsafe_set">
@@ -2125,7 +2141,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout)
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: U64, own val: FieldLayout)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.set">
@@ -2136,7 +2152,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: USize, own val: FieldLayout, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, shallow i: U64, own val: FieldLayout, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.push_take">
@@ -2147,7 +2163,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout.delete">
@@ -2178,8 +2194,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__Declaration
-    func with_capacity(shallow n: USize) returns Vec__Declaration
-    func len(self: Vec__Declaration) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Declaration
+    func len(self: Vec__Declaration) returns shallow U64
     func clear(mut self: Vec__Declaration)
     func delete_marked(mut self: Vec__Declaration, marks: Dynamic)
     func push(mut self: Vec__Declaration, own val: Declaration)
@@ -2187,18 +2203,18 @@ namespace:
     func take(mut self: Vec__Declaration) returns Vec__Declaration
     func move_to(own self: Vec__Declaration, mut dest: Vec__Declaration)
     func move_from(mut self: Vec__Declaration, own other: Vec__Declaration)
-    func unsafe_get(self: Vec__Declaration, i: USize) returns ref Declaration
-    func get(self: Vec__Declaration, shallow i: USize, mut _err_kind: I64) returns ref Declaration
+    func unsafe_get(self: Vec__Declaration, i: U64) returns ref Declaration
+    func get(self: Vec__Declaration, shallow i: U64, mut _err_kind: I64) returns ref Declaration
     func pop(mut self: Vec__Declaration) returns Declaration
-    func remove_at(mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
-    func truncate(mut self: Vec__Declaration, shallow n: USize)
-    func unsafe_set(mut self: Vec__Declaration, shallow i: USize, own val: Declaration)
-    func set(mut self: Vec__Declaration, shallow i: USize, own val: Declaration, mut _err_kind: I64)
-    func push_take(mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: USize)
+    func remove_at(mut self: Vec__Declaration, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Declaration, shallow n: U64) returns Vec__Declaration
+    func truncate(mut self: Vec__Declaration, shallow n: U64)
+    func unsafe_set(mut self: Vec__Declaration, shallow i: U64, own val: Declaration)
+    func set(mut self: Vec__Declaration, shallow i: U64, own val: Declaration, mut _err_kind: I64)
+    func push_take(mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: U64)
     func delete(own self: Vec__Declaration, shallow call_free: Bool)
     func clone(self: Vec__Declaration) returns Vec__Declaration
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -2226,7 +2242,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__Declaration
+<pre><code class="language-til">func (shallow n: U64) returns Vec__Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.clear">
@@ -2327,7 +2343,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Declaration, i: USize) returns ref Declaration
+<pre><code class="language-til">func (self: Vec__Declaration, i: U64) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.get">
@@ -2339,7 +2355,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Declaration, shallow i: USize, mut _err_kind: I64) returns ref Declaration
+<pre><code class="language-til">func (self: Vec__Declaration, shallow i: U64, mut _err_kind: I64) returns ref Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.pop">
@@ -2358,7 +2374,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.take_prefix">
@@ -2368,7 +2384,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: USize) returns Vec__Declaration
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: U64) returns Vec__Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.truncate">
@@ -2380,7 +2396,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.unsafe_set">
@@ -2391,7 +2407,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, own val: Declaration)
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: U64, own val: Declaration)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.set">
@@ -2402,7 +2418,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: USize, own val: Declaration, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Declaration, shallow i: U64, own val: Declaration, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.push_take">
@@ -2413,7 +2429,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Declaration.delete">
@@ -2444,8 +2460,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__Expr
-    func with_capacity(shallow n: USize) returns Vec__Expr
-    func len(self: Vec__Expr) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Expr
+    func len(self: Vec__Expr) returns shallow U64
     func clear(mut self: Vec__Expr)
     func delete_marked(mut self: Vec__Expr, marks: Dynamic)
     func push(mut self: Vec__Expr, own val: Expr)
@@ -2453,18 +2469,18 @@ namespace:
     func take(mut self: Vec__Expr) returns Vec__Expr
     func move_to(own self: Vec__Expr, mut dest: Vec__Expr)
     func move_from(mut self: Vec__Expr, own other: Vec__Expr)
-    func unsafe_get(self: Vec__Expr, i: USize) returns ref Expr
-    func get(self: Vec__Expr, shallow i: USize, mut _err_kind: I64) returns ref Expr
+    func unsafe_get(self: Vec__Expr, i: U64) returns ref Expr
+    func get(self: Vec__Expr, shallow i: U64, mut _err_kind: I64) returns ref Expr
     func pop(mut self: Vec__Expr) returns Expr
-    func remove_at(mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
-    func truncate(mut self: Vec__Expr, shallow n: USize)
-    func unsafe_set(mut self: Vec__Expr, shallow i: USize, own val: Expr)
-    func set(mut self: Vec__Expr, shallow i: USize, own val: Expr, mut _err_kind: I64)
-    func push_take(mut self: Vec__Expr, mut src: Vec__Expr, shallow i: USize)
+    func remove_at(mut self: Vec__Expr, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Expr, shallow n: U64) returns Vec__Expr
+    func truncate(mut self: Vec__Expr, shallow n: U64)
+    func unsafe_set(mut self: Vec__Expr, shallow i: U64, own val: Expr)
+    func set(mut self: Vec__Expr, shallow i: U64, own val: Expr, mut _err_kind: I64)
+    func push_take(mut self: Vec__Expr, mut src: Vec__Expr, shallow i: U64)
     func delete(own self: Vec__Expr, shallow call_free: Bool)
     func clone(self: Vec__Expr) returns Vec__Expr
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -2492,7 +2508,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__Expr
+<pre><code class="language-til">func (shallow n: U64) returns Vec__Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.clear">
@@ -2593,7 +2609,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Expr, i: USize) returns ref Expr
+<pre><code class="language-til">func (self: Vec__Expr, i: U64) returns ref Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.get">
@@ -2605,7 +2621,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Expr, shallow i: USize, mut _err_kind: I64) returns ref Expr
+<pre><code class="language-til">func (self: Vec__Expr, shallow i: U64, mut _err_kind: I64) returns ref Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.pop">
@@ -2624,7 +2640,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.take_prefix">
@@ -2634,7 +2650,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Expr, shallow n: USize) returns Vec__Expr
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow n: U64) returns Vec__Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.truncate">
@@ -2646,7 +2662,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Expr, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.unsafe_set">
@@ -2657,7 +2673,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, own val: Expr)
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: U64, own val: Expr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.set">
@@ -2668,7 +2684,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: USize, own val: Expr, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Expr, shallow i: U64, own val: Expr, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.push_take">
@@ -2679,7 +2695,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Expr, mut src: Vec__Expr, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__Expr, mut src: Vec__Expr, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__Expr.delete">
@@ -2710,27 +2726,27 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__USize
-    func with_capacity(shallow n: USize) returns Vec__USize
-    func len(self: Vec__USize) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__USize
+    func len(self: Vec__USize) returns shallow U64
     func clear(mut self: Vec__USize)
     func delete_marked(mut self: Vec__USize, marks: Dynamic)
-    func push(mut self: Vec__USize, own val: USize)
+    func push(mut self: Vec__USize, own val: U64)
     func append(mut self: Vec__USize, own other: Vec__USize)
     func take(mut self: Vec__USize) returns Vec__USize
     func move_to(own self: Vec__USize, mut dest: Vec__USize)
     func move_from(mut self: Vec__USize, own other: Vec__USize)
-    func unsafe_get(self: Vec__USize, i: USize) returns ref USize
-    func get(self: Vec__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
-    func pop(mut self: Vec__USize) returns shallow USize
-    func remove_at(mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__USize, shallow n: USize) returns Vec__USize
-    func truncate(mut self: Vec__USize, shallow n: USize)
-    func unsafe_set(mut self: Vec__USize, shallow i: USize, own val: USize)
-    func set(mut self: Vec__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
-    func push_take(mut self: Vec__USize, mut src: Vec__USize, shallow i: USize)
+    func unsafe_get(self: Vec__USize, i: U64) returns ref U64
+    func get(self: Vec__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
+    func pop(mut self: Vec__USize) returns shallow U64
+    func remove_at(mut self: Vec__USize, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__USize, shallow n: U64) returns Vec__USize
+    func truncate(mut self: Vec__USize, shallow n: U64)
+    func unsafe_set(mut self: Vec__USize, shallow i: U64, own val: U64)
+    func set(mut self: Vec__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
+    func push_take(mut self: Vec__USize, mut src: Vec__USize, shallow i: U64)
     func delete(own self: Vec__USize, shallow call_free: Bool)
     func clone(self: Vec__USize) returns Vec__USize
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -2758,7 +2774,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__USize
+<pre><code class="language-til">func (shallow n: U64) returns Vec__USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.clear">
@@ -2791,7 +2807,7 @@ to reach into data/count directly.</p>
 <p>Append an element to the end. <code>val</code> is owned: after this call the
 caller must not use the value passed -- clone it first if needed.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, own val: USize)
+<pre><code class="language-til">func (mut self: Vec__USize, own val: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.append">
@@ -2859,7 +2875,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__USize, i: USize) returns ref USize
+<pre><code class="language-til">func (self: Vec__USize, i: U64) returns ref U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.get">
@@ -2871,7 +2887,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__USize, shallow i: USize, mut _err_kind: I64) returns ref USize
+<pre><code class="language-til">func (self: Vec__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.pop">
@@ -2881,7 +2897,7 @@ next mutation.</p>
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize) returns shallow USize
+<pre><code class="language-til">func (mut self: Vec__USize) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.remove_at">
@@ -2890,7 +2906,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__USize, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.take_prefix">
@@ -2900,7 +2916,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, shallow n: USize) returns Vec__USize
+<pre><code class="language-til">func (mut self: Vec__USize, shallow n: U64) returns Vec__USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.truncate">
@@ -2912,7 +2928,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__USize, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.unsafe_set">
@@ -2923,7 +2939,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, own val: USize)
+<pre><code class="language-til">func (mut self: Vec__USize, shallow i: U64, own val: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.set">
@@ -2934,7 +2950,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.push_take">
@@ -2945,7 +2961,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__USize, mut src: Vec__USize, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__USize, mut src: Vec__USize, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.Vec__USize.delete">
@@ -2970,7 +2986,7 @@ unless <code>call_free</code> is false.</p>
 <article class="doc-entry" id="til.src.core.ast.adopt__USize">
 <h2>adopt__USize</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func (mut dest: Dynamic, own src: USize)
+<pre><code class="language-til">func (mut dest: Dynamic, own src: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.adopt__VariantDef">
@@ -2995,6 +3011,12 @@ unless <code>call_free</code> is false.</p>
 <h2>adopt__Expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.safe_ref__Str">
+<h2>safe_ref__Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func (value: Str) returns shallow Option__ref_Str
 </code></pre>
 </article>
 </main></div>

@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -59,7 +59,7 @@ func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values:
 :END:
 
 #+begin_src til
-proc dce_program_bodies(mut program: Expr, symbols: SymbolPool)
+proc dce_program_bodies(mut program: Expr, scope: TypeScope, symbols: SymbolPool)
 #+end_src
 
 * scavenge_imported
@@ -94,8 +94,8 @@ struct Map__Str_priv___src_self_scavenger_til__DeclRef {
     mut values : Vec__priv___src_self_scavenger_til__DeclRef
 namespace:
     func new() returns Map__Str_priv___src_self_scavenger_til__DeclRef
-    func with_capacity(shallow n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
-    func len(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_priv___src_self_scavenger_til__DeclRef
+    func len(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns shallow U64
     func clear(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef)
     func has(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
     func get(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
@@ -103,7 +103,7 @@ namespace:
     func remove(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns shallow Bool
     func delete(own self: Map__Str_priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
     func clone(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns Map__Str_priv___src_self_scavenger_til__DeclRef
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_priv___src_self_scavenger_til__DeclRef, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -132,7 +132,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity(shallow n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
+func Map__Str_priv___src_self_scavenger_til__DeclRef.with_capacity(shallow n: U64) returns Map__Str_priv___src_self_scavenger_til__DeclRef
 #+end_src
 
 * Map__Str_priv___src_self_scavenger_til__DeclRef.clear
@@ -210,8 +210,8 @@ struct Vec__priv___src_self_scavenger_til__DeclRef {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_scavenger_til__DeclRef
-    func with_capacity(shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
-    func len(self: Vec__priv___src_self_scavenger_til__DeclRef) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func len(self: Vec__priv___src_self_scavenger_til__DeclRef) returns shallow U64
     func clear(mut self: Vec__priv___src_self_scavenger_til__DeclRef)
     func delete_marked(mut self: Vec__priv___src_self_scavenger_til__DeclRef, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
@@ -219,18 +219,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
     func move_to(own self: Vec__priv___src_self_scavenger_til__DeclRef, mut dest: Vec__priv___src_self_scavenger_til__DeclRef)
     func move_from(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
-    func unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
-    func get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+    func unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64) returns ref priv___src_self_scavenger_til__DeclRef
+    func get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
     func pop(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns priv___src_self_scavenger_til__DeclRef
-    func remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
-    func truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
-    func set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize)
+    func remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, own val: priv___src_self_scavenger_til__DeclRef)
+    func set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64)
     func delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, shallow call_free: Bool)
     func clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -264,7 +264,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.with_capacity(shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.with_capacity(shallow n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.clear
@@ -391,7 +391,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64) returns ref priv___src_self_scavenger_til__DeclRef
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.get
@@ -406,7 +406,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_scavenger_til__DeclRef
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.pop
@@ -431,7 +431,7 @@ func Vec__priv___src_self_scavenger_til__DeclRef.pop(mut self: Vec__priv___src_s
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_scavenger_til__DeclRef.remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.take_prefix
@@ -444,7 +444,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+func Vec__priv___src_self_scavenger_til__DeclRef.take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.truncate
@@ -459,7 +459,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: USize)
+func Vec__priv___src_self_scavenger_til__DeclRef.truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow n: U64)
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set
@@ -473,7 +473,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+func Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, own val: priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.set
@@ -487,7 +487,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
+func Vec__priv___src_self_scavenger_til__DeclRef.set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64, own val: priv___src_self_scavenger_til__DeclRef, mut _err_kind: I64)
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.push_take
@@ -501,7 +501,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_scavenger_til__DeclRef.push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize)
+func Vec__priv___src_self_scavenger_til__DeclRef.push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64)
 #+end_src
 
 * Vec__priv___src_self_scavenger_til__DeclRef.delete

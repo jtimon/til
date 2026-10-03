@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -108,8 +110,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut values : Vec__priv___src_self_binder_til__AuditedDecl
 namespace:
     func new() returns Map__Str_priv___src_self_binder_til__AuditedDecl
-    func with_capacity(shallow n: USize) returns Map__Str_priv___src_self_binder_til__AuditedDecl
-    func len(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_priv___src_self_binder_til__AuditedDecl
+    func len(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns shallow U64
     func clear(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl)
     func has(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
     func get(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
@@ -117,7 +119,7 @@ namespace:
     func remove(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
     func delete(own self: Map__Str_priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
     func clone(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns Map__Str_priv___src_self_binder_til__AuditedDecl
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_priv___src_self_binder_til__AuditedDecl, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -140,7 +142,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_priv___src_self_binder_til__AuditedDecl
+<pre><code class="language-til">func (shallow n: U64) returns Map__Str_priv___src_self_binder_til__AuditedDecl
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Map__Str_priv___src_self_binder_til__AuditedDecl.clear">
@@ -199,8 +201,8 @@ on a missing key.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_binder_til__AuditedDecl
-    func with_capacity(shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
-    func len(self: Vec__priv___src_self_binder_til__AuditedDecl) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func len(self: Vec__priv___src_self_binder_til__AuditedDecl) returns shallow U64
     func clear(mut self: Vec__priv___src_self_binder_til__AuditedDecl)
     func delete_marked(mut self: Vec__priv___src_self_binder_til__AuditedDecl, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
@@ -208,18 +210,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
     func move_to(own self: Vec__priv___src_self_binder_til__AuditedDecl, mut dest: Vec__priv___src_self_binder_til__AuditedDecl)
     func move_from(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own other: Vec__priv___src_self_binder_til__AuditedDecl)
-    func unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
-    func get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+    func unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: U64) returns ref priv___src_self_binder_til__AuditedDecl
+    func get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
     func pop(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
-    func remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
-    func truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
-    func set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize)
+    func remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl)
+    func set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64)
     func delete(own self: Vec__priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
     func clone(self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -247,7 +249,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
+<pre><code class="language-til">func (shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.clear">
@@ -348,7 +350,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_binder_til__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
+<pre><code class="language-til">func (self: Vec__priv___src_self_binder_til__AuditedDecl, i: U64) returns ref priv___src_self_binder_til__AuditedDecl
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.get">
@@ -360,7 +362,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+<pre><code class="language-til">func (self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.pop">
@@ -379,7 +381,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.take_prefix">
@@ -389,7 +391,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.truncate">
@@ -401,7 +403,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set">
@@ -412,7 +414,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.set">
@@ -423,7 +425,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.push_take">
@@ -434,7 +436,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.binder.Vec__priv___src_self_binder_til__AuditedDecl.delete">

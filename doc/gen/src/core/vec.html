@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a class="current" href="../../src/core/vec.html">src/core/vec.til</a><ul><li><a href="#til.src.core.vec.vec">vec</a></li><li><a href="#til.src.core.vec.Vec">Vec</a></li><li><a href="#til.src.core.vec.Array__Dynamic">Array__Dynamic</a></li><li><a href="#til.src.core.vec.Array__Dynamic.new">Array__Dynamic.new</a></li><li><a href="#til.src.core.vec.Array__Dynamic.unsafe_get">Array__Dynamic.unsafe_get</a></li><li><a href="#til.src.core.vec.Array__Dynamic.get">Array__Dynamic.get</a></li><li><a href="#til.src.core.vec.Array__Dynamic.unsafe_set">Array__Dynamic.unsafe_set</a></li><li><a href="#til.src.core.vec.Array__Dynamic.set">Array__Dynamic.set</a></li><li><a href="#til.src.core.vec.Array__Dynamic.concat">Array__Dynamic.concat</a></li><li><a href="#til.src.core.vec.Array__Dynamic.to_vec">Array__Dynamic.to_vec</a></li><li><a href="#til.src.core.vec.Vec__Dynamic">Vec__Dynamic</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.new">Vec__Dynamic.new</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.with_capacity">Vec__Dynamic.with_capacity</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.clear">Vec__Dynamic.clear</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.delete_marked">Vec__Dynamic.delete_marked</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.push">Vec__Dynamic.push</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.append">Vec__Dynamic.append</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.take">Vec__Dynamic.take</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.move_to">Vec__Dynamic.move_to</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.move_from">Vec__Dynamic.move_from</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.unsafe_get">Vec__Dynamic.unsafe_get</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.get">Vec__Dynamic.get</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.pop">Vec__Dynamic.pop</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.remove_at">Vec__Dynamic.remove_at</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.take_prefix">Vec__Dynamic.take_prefix</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.truncate">Vec__Dynamic.truncate</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.unsafe_set">Vec__Dynamic.unsafe_set</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.set">Vec__Dynamic.set</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.push_take">Vec__Dynamic.push_take</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.delete">Vec__Dynamic.delete</a></li><li><a href="#til.src.core.vec.Vec__Dynamic.clone">Vec__Dynamic.clone</a></li><li><a href="#til.src.core.vec.adopt__Dynamic">adopt__Dynamic</a></li></ul></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -110,17 +112,17 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: USize) returns Array__Dynamic
-    func len(self: Array__Dynamic) returns shallow USize
-    func unsafe_get(self: Array__Dynamic, i: USize) returns ref Dynamic
-    func get(self: Array__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
-    func unsafe_set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
-    func set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+    func new(shallow cap: U64) returns Array__Dynamic
+    func len(self: Array__Dynamic) returns shallow U64
+    func unsafe_get(self: Array__Dynamic, i: U64) returns ref Dynamic
+    func get(self: Array__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
+    func unsafe_set(mut self: Array__Dynamic, shallow i: U64, own val: Dynamic)
+    func set(mut self: Array__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
     func concat(self: Array__Dynamic, other: Array__Dynamic) returns Array__Dynamic
     func to_vec(self: Array__Dynamic) returns Vec__Dynamic
     func clone(self: Array__Dynamic) returns Array__Dynamic
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -130,7 +132,7 @@ namespace:
 <div class="doc-body">
 <p>Create a zero-initialized Array with the given capacity.</p>
 </div>
-<pre><code class="language-til">func (shallow cap: USize) returns Array__Dynamic
+<pre><code class="language-til">func (shallow cap: U64) returns Array__Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Array__Dynamic.unsafe_get">
@@ -143,7 +145,7 @@ unchecked core that <code>get</code> wraps; for-in uses it directly because
 its <code>_fi &lt; len()</code> termination test already proves the index in
 bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Array__Dynamic, i: USize) returns ref Dynamic
+<pre><code class="language-til">func (self: Array__Dynamic, i: U64) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Array__Dynamic.get">
@@ -153,7 +155,7 @@ bounds (issue #284).</p>
 <p>Ref to the element at index <code>i</code>. Throws OutOfBounds if <code>i</code> is
 past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (self: Array__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
+<pre><code class="language-til">func (self: Array__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Array__Dynamic.unsafe_set">
@@ -164,7 +166,7 @@ past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
 the old value. Caller guarantees <code>i &lt; self.cap</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
+<pre><code class="language-til">func (mut self: Array__Dynamic, shallow i: U64, own val: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Array__Dynamic.set">
@@ -175,7 +177,7 @@ mirror of unsafe_get (issue #284).</p>
 owned. Throws OutOfBounds if <code>i</code> is past the end; call as
 <code>arr[i] = val</code> (or <code>arr.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Array__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Array__Dynamic.concat">
@@ -214,8 +216,8 @@ loop whose nodes no later pass would infer.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__Dynamic
-    func with_capacity(shallow n: USize) returns Vec__Dynamic
-    func len(self: Vec__Dynamic) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Dynamic
+    func len(self: Vec__Dynamic) returns shallow U64
     func clear(mut self: Vec__Dynamic)
     func delete_marked(mut self: Vec__Dynamic, marks: Dynamic)
     func push(mut self: Vec__Dynamic, own val: Dynamic)
@@ -223,18 +225,18 @@ namespace:
     func take(mut self: Vec__Dynamic) returns Vec__Dynamic
     func move_to(own self: Vec__Dynamic, mut dest: Vec__Dynamic)
     func move_from(mut self: Vec__Dynamic, own other: Vec__Dynamic)
-    func unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
-    func get(self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
+    func unsafe_get(self: Vec__Dynamic, i: U64) returns ref Dynamic
+    func get(self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
     func pop(mut self: Vec__Dynamic) returns Dynamic
-    func remove_at(mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
-    func truncate(mut self: Vec__Dynamic, shallow n: USize)
-    func unsafe_set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
-    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
-    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+    func remove_at(mut self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Dynamic, shallow n: U64) returns Vec__Dynamic
+    func truncate(mut self: Vec__Dynamic, shallow n: U64)
+    func unsafe_set(mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic)
+    func set(mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
+    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: U64)
     func delete(own self: Vec__Dynamic, shallow call_free: Bool)
     func clone(self: Vec__Dynamic) returns Vec__Dynamic
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -262,7 +264,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__Dynamic
+<pre><code class="language-til">func (shallow n: U64) returns Vec__Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.clear">
@@ -363,7 +365,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Dynamic, i: USize) returns ref Dynamic
+<pre><code class="language-til">func (self: Vec__Dynamic, i: U64) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.get">
@@ -375,7 +377,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
+<pre><code class="language-til">func (self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.pop">
@@ -394,7 +396,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.take_prefix">
@@ -404,7 +406,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow n: U64) returns Vec__Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.truncate">
@@ -416,7 +418,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.unsafe_set">
@@ -427,7 +429,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.set">
@@ -438,7 +440,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.push_take">
@@ -449,7 +451,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.vec.Vec__Dynamic.delete">

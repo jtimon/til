@@ -61,6 +61,10 @@
 *** Primitive:Primitive
 *** FuncPtrSig:Str
 *** Body
+*** StructSym:Sym
+*** EnumSym:Sym
+*** CustomSym:Sym
+*** FuncPtrSigSym:Sym
 ** FuncType: EnumDef
 *** Func
 *** Proc
@@ -93,6 +97,8 @@
 *** default_value := Option__Expr.None
 *** orig_name := ""
 *** gc_storage := GcStorage.Unset
+*** external_symbol := ""
+*** infer_call_ownership := false
 ** FuncSig: StructDef
 *** func_type := FuncType.Func
 *** params := Vec(Declaration).new()
@@ -105,15 +111,18 @@
 ** FunctionDef: StructDef
 *** sig := FuncSig()
 *** auto_generated := false
+*** typed_on_demand := false
 *** is_enum_variant_ctor := false
+*** noreturn := false
 *** captures := Vec(Declaration).new()
 *** closure_name := ""
-*** noreturn := false
 *** ref_return_params : U64 = 0
 *** ref_return_into_params : U64 = 0
 *** ref_return_carried_params : U64 = 0
 *** namespace_decl := Option(ref Declaration).None
+*** deposit_matrix : U64 = 0
 ** FCallData: StructDef
+*** constfold_value := false
 *** does_throw := false
 *** is_bang := false
 *** own_args : U64 = 0
@@ -122,6 +131,7 @@
 *** til_type := Type.Unknown
 *** ref_args : U64 = 0
 *** splat_args : U64 = 0
+*** is_subscript := false
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -140,6 +150,7 @@
 *** is_interface := false
 *** interface_ns_marker := false
 *** implements_name := ""
+*** simd_width : USize = 0
 ** VariantDef: StructDef
 *** name := ""
 *** doc := ""
@@ -238,7 +249,6 @@
 *** children := Vec(Expr).new()
 *** line : U32 = 0
 *** col : U32 = 0
-*** constfold_value : Bool = false
 * parser
 ** SymbolPool: StructDef
 *** names := Vec(Str).new()
@@ -267,6 +277,7 @@
 *** line : U32 = 0
 *** col : U32 = 0
 *** carried := false
+*** deposited := false
 *** field := ""
 ** TypeBinding: StructDef
 *** name := ""
@@ -294,6 +305,7 @@
 *** dynvec_elem := ""
 *** declared_type_name := ""
 *** borrow_roots := Vec(BorrowRoot).new()
+*** is_external_global := false
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
@@ -306,18 +318,15 @@
 *** throw_used_local_names := Set(Str).new()
 *** lowering_param_types := Map(Str, Str).new()
 ** TypeScope: StructDef
-*** bindings := Map(Sym, TypeBinding).new()
-*** target_usize_pname := "U32"
+*** bindings := SymMap(TypeBinding).new()
+*** target_usize_pname := "U64"
 *** target_uptr_pname := "U64"
-*** func_defs := Map(Sym, Dynamic).new()
-*** struct_defs := Map(Sym, Dynamic).new()
+*** func_defs := SymMap(Dynamic).new()
+*** struct_defs := SymMap(Dynamic).new()
 *** parent := Option(ref TypeScope).None
 *** is_func_root := false
 *** current_type_name := ""
 *** typer_func := TyperFuncState()
-*** bindings_filt : U64 = 0
-*** func_defs_filt : U64 = 0
-*** struct_defs_filt : U64 = 0
 ** GenericFuncSource: StructDef
 *** name := ""
 *** path := ""
@@ -339,6 +348,7 @@
 *** stack_local_types := Map(Sym, Str).new()
 *** stack_lit_str_locals := Set(Sym).new()
 *** force_heap_stack_lit_str_own : Bool = false
+*** own_arg_travels_by_slot : Bool = false
 *** unsafe_to_hoist := Set(Sym).new()
 *** ref_locals := Set(Sym).new()
 *** ref_dyn_locals := Set(Sym).new()
@@ -355,7 +365,7 @@
 *** entries_inited := false
 *** loaded := false
 *** struct_defs := Map(Str, ExprPtrBox).new()
-*** type_cache := Vec(FFITypePtrBox).new()
+*** type_cache := Map(Str, FFITypePtrBox).new()
 *** type_cache_inited := false
 ** InternedTypes: StructDef
 *** simples := Vec(Dynamic).new()
@@ -364,6 +374,10 @@
 *** enums := Map(Str, Dynamic).new()
 *** customs := Map(Str, Dynamic).new()
 *** funcsigs := Map(Str, Dynamic).new()
+** ForeignPlace: StructDef
+*** names := Vec(Str).new()
+*** roots := Vec(UPtr).new()
+*** own state : U8
 ** EvalState: StructDef
 *** has_return := false
 *** has_break := false
@@ -378,6 +392,8 @@
 *** eval_aborted := false
 *** repl_session := false
 *** ns_fields := Option(Scope).None
+*** foreign_places := Map(UPtr, ForeignPlace).new()
+*** own foreign_cleanup_dirty : U8 = calloc(1, 1)
 *** cached_str_name := ""
 ** Context: StructDef
 *** mode := Mode()
@@ -385,9 +401,10 @@
 *** path_modes := Map(Str, Mode).new()
 *** mode_registry := Map(Str, Mode).new()
 *** eval_heap := EvalHeap.new()
-*** target_usize_pname := "U32"
+*** target_usize_pname := "U64"
 *** target_uptr_pname := "U64"
-*** target_usize_bytes : USize = 4
+*** target_usize_bytes : USize = 8
+*** target_simd_bits : USize = 128
 *** anon_type_counter : I64 = 0
 *** compile_mode := false
 *** constfolder_foldables := Map(Str, FuncType).new()
@@ -397,6 +414,7 @@
 *** eval := EvalState()
 *** imported := Map(Str, ImportUnit).new()
 *** import_cwd := ""
+*** import_support_dir := ""
 *** check_unused_imports := false
 *** import_use_edges := Set(Str).new()
 *** imports_init_seed_done := Set(Str).new()
@@ -405,9 +423,7 @@
 *** imports_typer_methods_done := Set(Str).new()
 *** imports_typer_fields_done := Set(Str).new()
 *** imports_typer_decls_done := Set(Str).new()
-*** imports_typer_bodies_done := Set(Str).new()
-*** infer_struct_fields_only := false
-*** ... (57 more)
+*** ... (69 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -428,6 +444,10 @@
 *** Wasm32
 *** TempleosX86
 *** Jvm
+** TargetCpu: StructDef
+*** name := "baseline"
+*** simd_bits : USize = 0
+*** c_flags := ""
 * loader
 ** ProgramUnit: StructDef
 *** path := ""
@@ -436,6 +456,8 @@
 *** own units := Vec(ProgramUnit).new()
 *** mode_files := Vec(Str).new()
 *** target := Target.LinuxX64
+*** cpu := TargetCpu()
+*** opt_level : USize = 0
 *** cur_mode := Mode()
 *** ctx := Context()
 *** skip_core := false
@@ -445,6 +467,8 @@
 *** link_flags := ""
 *** include_flags := ""
 *** link_c_paths := ""
+*** compiler_revision := ""
+*** asan_build := false
 *** run_tests := false
 *** load_errors : I32 = 0
 *** usize_override_bits : I64 = 0
@@ -480,6 +504,8 @@
 *** alias : U64 = 0
 *** into : U64 = 0
 *** carried : U64 = 0
+** DepositAcc: StructDef
+*** m : U64 = 0
 ** CoverageNode: StructDef
 *** fully_covered := false
 *** sub_names := Vec(Str).new()
@@ -488,9 +514,9 @@
 ** LocalInfo: StructDef
 *** name := ""
 *** type := Type.Unknown
-*** decl_index : I32 = 0
-*** last_use : I32 = 0
-*** own_transfer : I32 = -1
+*** decl_index : I64 = 0
+*** last_use : I64 = 0
+*** own_transfer : I64 = -1
 *** has_transfer := false
 *** skip_scope_delete := false
 *** is_heap := false
@@ -517,7 +543,7 @@
 ** GcBorrowEdge: StructDef
 *** owner := ""
 *** borrower := ""
-*** fixed_reach : I32 = -1
+*** fixed_reach : I64 = -1
 * scavenger
 ** DeclRef: StructDef
 *** path := ""
@@ -547,6 +573,7 @@
 *** jvm_args_path := ""
 *** jvm_package := ""
 *** jvm_entry_class := ""
+*** theme_path := ""
 *** do_lib := false
 ** DocEntry: StructDef
 *** name := ""
@@ -577,6 +604,9 @@
 *** moved_out := false
 *** is_raw_alloc := false
 *** payload_released := false
+*** ext_slot := Option(ref U8).None
+*** ext_target_layout := false
+*** foreign_root : UPtr = 0
 ** Scope: StructDef
 *** heap_bindings := Map(Str, HeapBinding).new()
 *** heap_aliases := Map(Str, Str).new()
@@ -609,14 +639,20 @@
 *** nparam : USize = 0
 *** own param_shallows : U8 = 0
 *** own param_dynamics : U8 = 0
+*** param_types := Vec(Str).new()
+*** own param_mutables : U8 = 0
+*** own param_owns : U8 = 0
 *** return_is_shallow := false
 *** return_is_ref := false
+*** host_layout := false
 *** own cif : ffi_cif
 *** own arg_types : U8 = 0
 ** ExprPtrBox: StructDef
 *** ref ptr : Expr
 ** FFITypePtrBox: StructDef
 *** own ptr : ffi_type
+*** own offsets : U64
+*** layout_status : I32 = 0
 * binder
 ** BinderState: StructDef
 *** alias_to_primitive := "|"
@@ -626,6 +662,11 @@
 *** line := ""
 *** seen := false
 * desugarer
+** PendingRefBinding: StructDef
+*** name := ""
+*** throw_types := Vec(Str).new()
+*** line : U32 = 0
+*** col : U32 = 0
 ** StmtDesugarNeeds: StructDef
 *** array_vec := false
 *** variadic := false
@@ -636,8 +677,44 @@
 * holyc_codegen
 ** HolyCEmitState: StructDef
 *** user_functions := Set(Str).new()
+*** user_return_types := Map(Str, Str).new()
+*** ref_return_functions := Set(Str).new()
+*** user_ref_params := Map(Str, Set(USize)).new()
+*** str_return_functions := Set(Str).new()
+*** struct_names := Set(Str).new()
+*** enum_types := Map(Str, Str).new()
+*** payload_enum_names := Set(Str).new()
+*** niche_ref_types := Map(Str, Str).new()
+*** collection_elements := Map(Str, Str).new()
+*** vec_names := Set(Str).new()
+*** set_elements := Map(Str, Str).new()
+*** map_keys := Map(Str, Str).new()
+*** map_values := Map(Str, Str).new()
+*** map_key_vecs := Map(Str, Str).new()
+*** map_value_vecs := Map(Str, Str).new()
+*** needed_methods := Map(Str, Map(Str, Bool)).new()
+*** method_definitions := ""
+*** usize_ctype := "U64"
+*** switch_id : USize = 0
+*** temp_id : USize = 0
 *** needs_i64_div := false
 *** needs_i64_mod := false
+*** needs_str_array_clone := false
+*** needs_str_array_get := false
+*** needs_str_array_concat := false
+*** needs_str_array_to_vec := false
+*** ... (2 more)
+** HolyCLocalState: StructDef
+*** ref_return_type := ""
+*** param_pointer_names := Set(Str).new()
+*** payload_names := Map(Str, Str).new()
+*** pointer_types := Map(Str, Str).new()
+*** str_names := Set(Str).new()
+*** str_pointer_names := Set(Str).new()
+*** str_array_names := Set(Str).new()
+*** str_array_pointer_names := Set(Str).new()
+*** struct_types := Map(Str, Str).new()
+*** struct_pointer_types := Map(Str, Str).new()
 * jvm_codegen
 ** JvmEmitState: StructDef
 *** path := ""
@@ -647,6 +724,17 @@
 *** raw_refs := Set(Str).new()
 *** callable_defs := Map(Str, Str).new()
 *** return_cell := false
+** JvmMember: StructDef
+*** name := ""
+*** text := ""
+*** live := false
+** JvmClassOut: StructDef
+*** path := ""
+*** name := ""
+*** head := ""
+*** members := Vec(JvmMember).new()
+*** tail := ""
+*** live := false
 * repl_editor
 ** EditAction: EnumDef
 *** Continue
@@ -673,3 +761,21 @@
 ** AnsiDecoder: StructDef
 *** state : I64 = 0
 *** params := ""
+* theme_codegen
+** ThemeColorSpec: StructDef
+*** name := ""
+*** value := ""
+*** note := ""
+** ThemeSpec: StructDef
+*** name := ""
+*** header := ""
+*** description := ""
+*** source_theme := ""
+*** source_package := ""
+*** source_url := ""
+*** source_license := ""
+*** palette_note := ""
+*** palette_footer := ""
+*** constant_face_note := ""
+*** type_face_note := ""
+*** colors := Vec(ThemeColorSpec).new()

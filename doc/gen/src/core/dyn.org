@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -11,7 +11,7 @@
 #+begin_src til
 struct Dynamic {
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, shallow call_free: Bool)
 }
@@ -24,7 +24,7 @@ namespace:
 :END:
 
 #+begin_src til
-core_func is_n(self: Dynamic, other: Dynamic, shallow size: USize) returns shallow Bool
+core_func is_n(self: Dynamic, other: Dynamic, shallow size: U64) returns shallow Bool
 #+end_src
 
 * get_payload
@@ -98,7 +98,7 @@ ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
 :END:
 
 #+begin_src til
-ext_func dyn_size_of(type_name: Str) returns shallow USize
+ext_func dyn_size_of(type_name: Str) returns shallow U64
 #+end_src
 
 * dyn_storage_kind
@@ -108,7 +108,7 @@ ext_func dyn_size_of(type_name: Str) returns shallow USize
 :END:
 
 #+begin_src til
-ext_func dyn_storage_kind(type_name: Str) returns shallow USize
+ext_func dyn_storage_kind(type_name: Str) returns shallow U64
 #+end_src
 
 * dyn_type_to_str
@@ -148,7 +148,7 @@ func til_type_name(t: Type) returns Str
 :END:
 
 #+begin_src til
-func type_name_storage_kind(type_name: Str) returns shallow USize
+func type_name_storage_kind(type_name: Str) returns shallow U64
 #+end_src
 
 * type_storage_kind
@@ -158,7 +158,7 @@ func type_name_storage_kind(type_name: Str) returns shallow USize
 :END:
 
 #+begin_src til
-func type_storage_kind(t: Type) returns shallow USize
+func type_storage_kind(t: Type) returns shallow U64
 #+end_src
 
 * struct_field_count
@@ -478,7 +478,7 @@ func IncFn(: Dynamic)
 :END:
 
 #+begin_src til
-func DistanceFn(: Dynamic, : Dynamic) returns shallow USize
+func DistanceFn(: Dynamic, : Dynamic) returns shallow U64
 #+end_src
 
 * HashFn
@@ -488,7 +488,7 @@ func DistanceFn(: Dynamic, : Dynamic) returns shallow USize
 :END:
 
 #+begin_src til
-func HashFn(: Dynamic, shallow : USize) returns shallow U64
+func HashFn(: Dynamic, shallow : U64) returns shallow U64
 #+end_src
 
 * TypeHashFn
@@ -548,7 +548,7 @@ func default_inc(_v: Dynamic)
 :END:
 
 #+begin_src til
-func default_distance(_a: Dynamic, _b: Dynamic) returns shallow USize
+func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U64
 #+end_src
 
 * default_type_hash

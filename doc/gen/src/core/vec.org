@@ -1,5 +1,5 @@
 #+TITLE: src/core/vec.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * vec
@@ -35,17 +35,17 @@ struct Array__Dynamic {
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: USize) returns Array__Dynamic
-    func len(self: Array__Dynamic) returns shallow USize
-    func unsafe_get(self: Array__Dynamic, i: USize) returns ref Dynamic
-    func get(self: Array__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
-    func unsafe_set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
-    func set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+    func new(shallow cap: U64) returns Array__Dynamic
+    func len(self: Array__Dynamic) returns shallow U64
+    func unsafe_get(self: Array__Dynamic, i: U64) returns ref Dynamic
+    func get(self: Array__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
+    func unsafe_set(mut self: Array__Dynamic, shallow i: U64, own val: Dynamic)
+    func set(mut self: Array__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
     func concat(self: Array__Dynamic, other: Array__Dynamic) returns Array__Dynamic
     func to_vec(self: Array__Dynamic) returns Vec__Dynamic
     func clone(self: Array__Dynamic) returns Array__Dynamic
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -58,7 +58,7 @@ namespace:
 Create a zero-initialized Array with the given capacity.
 
 #+begin_src til
-func Array__Dynamic.new(shallow cap: USize) returns Array__Dynamic
+func Array__Dynamic.new(shallow cap: U64) returns Array__Dynamic
 #+end_src
 
 * Array__Dynamic.unsafe_get
@@ -74,7 +74,7 @@ its ~_fi < len()~ termination test already proves the index in
 bounds (issue #284).
 
 #+begin_src til
-func Array__Dynamic.unsafe_get(self: Array__Dynamic, i: USize) returns ref Dynamic
+func Array__Dynamic.unsafe_get(self: Array__Dynamic, i: U64) returns ref Dynamic
 #+end_src
 
 * Array__Dynamic.get
@@ -87,7 +87,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__Dynamic.get(self: Array__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
+func Array__Dynamic.get(self: Array__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
 #+end_src
 
 * Array__Dynamic.unsafe_set
@@ -101,7 +101,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Array__Dynamic.unsafe_set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic)
+func Array__Dynamic.unsafe_set(mut self: Array__Dynamic, shallow i: U64, own val: Dynamic)
 #+end_src
 
 * Array__Dynamic.set
@@ -115,7 +115,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Array__Dynamic.set(mut self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+func Array__Dynamic.set(mut self: Array__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
 #+end_src
 
 * Array__Dynamic.concat
@@ -164,8 +164,8 @@ struct Vec__Dynamic {
     mut cap : USize
 namespace:
     func new() returns Vec__Dynamic
-    func with_capacity(shallow n: USize) returns Vec__Dynamic
-    func len(self: Vec__Dynamic) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Dynamic
+    func len(self: Vec__Dynamic) returns shallow U64
     func clear(mut self: Vec__Dynamic)
     func delete_marked(mut self: Vec__Dynamic, marks: Dynamic)
     func push(mut self: Vec__Dynamic, own val: Dynamic)
@@ -173,18 +173,18 @@ namespace:
     func take(mut self: Vec__Dynamic) returns Vec__Dynamic
     func move_to(own self: Vec__Dynamic, mut dest: Vec__Dynamic)
     func move_from(mut self: Vec__Dynamic, own other: Vec__Dynamic)
-    func unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
-    func get(self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
+    func unsafe_get(self: Vec__Dynamic, i: U64) returns ref Dynamic
+    func get(self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
     func pop(mut self: Vec__Dynamic) returns Dynamic
-    func remove_at(mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
-    func truncate(mut self: Vec__Dynamic, shallow n: USize)
-    func unsafe_set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
-    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
-    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+    func remove_at(mut self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Dynamic, shallow n: U64) returns Vec__Dynamic
+    func truncate(mut self: Vec__Dynamic, shallow n: U64)
+    func unsafe_set(mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic)
+    func set(mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
+    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: U64)
     func delete(own self: Vec__Dynamic, shallow call_free: Bool)
     func clone(self: Vec__Dynamic) returns Vec__Dynamic
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -218,7 +218,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__Dynamic.with_capacity(shallow n: USize) returns Vec__Dynamic
+func Vec__Dynamic.with_capacity(shallow n: U64) returns Vec__Dynamic
 #+end_src
 
 * Vec__Dynamic.clear
@@ -345,7 +345,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__Dynamic.unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
+func Vec__Dynamic.unsafe_get(self: Vec__Dynamic, i: U64) returns ref Dynamic
 #+end_src
 
 * Vec__Dynamic.get
@@ -360,7 +360,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Dynamic.get(self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64) returns ref Dynamic
+func Vec__Dynamic.get(self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64) returns ref Dynamic
 #+end_src
 
 * Vec__Dynamic.pop
@@ -385,7 +385,7 @@ func Vec__Dynamic.pop(mut self: Vec__Dynamic) returns Dynamic
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__Dynamic.remove_at(mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
+func Vec__Dynamic.remove_at(mut self: Vec__Dynamic, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__Dynamic.take_prefix
@@ -398,7 +398,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__Dynamic.take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
+func Vec__Dynamic.take_prefix(mut self: Vec__Dynamic, shallow n: U64) returns Vec__Dynamic
 #+end_src
 
 * Vec__Dynamic.truncate
@@ -413,7 +413,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__Dynamic.truncate(mut self: Vec__Dynamic, shallow n: USize)
+func Vec__Dynamic.truncate(mut self: Vec__Dynamic, shallow n: U64)
 #+end_src
 
 * Vec__Dynamic.unsafe_set
@@ -427,7 +427,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__Dynamic.unsafe_set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
+func Vec__Dynamic.unsafe_set(mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic)
 #+end_src
 
 * Vec__Dynamic.set
@@ -441,7 +441,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__Dynamic.set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+func Vec__Dynamic.set(mut self: Vec__Dynamic, shallow i: U64, own val: Dynamic, mut _err_kind: I64)
 #+end_src
 
 * Vec__Dynamic.push_take
@@ -455,7 +455,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__Dynamic.push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+func Vec__Dynamic.push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: U64)
 #+end_src
 
 * Vec__Dynamic.delete

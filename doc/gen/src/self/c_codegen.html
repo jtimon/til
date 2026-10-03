@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -145,15 +147,15 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut cap : USize
 namespace:
     func new() returns Set__USize
-    func with_capacity(shallow n: USize) returns Set__USize
-    func len(self: Set__USize) returns shallow USize
+    func with_capacity(shallow n: U64) returns Set__USize
+    func len(self: Set__USize) returns shallow U64
     func clear(mut self: Set__USize)
-    func has(self: Set__USize, shallow val: USize) returns shallow Bool
-    func add(mut self: Set__USize, own val: USize)
-    func remove(mut self: Set__USize, shallow val: USize) returns shallow Bool
+    func has(self: Set__USize, shallow val: U64) returns shallow Bool
+    func add(mut self: Set__USize, own val: U64)
+    func remove(mut self: Set__USize, shallow val: U64) returns shallow Bool
     func delete(own self: Set__USize, shallow call_free: Bool)
     func clone(self: Set__USize) returns Set__USize
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -180,7 +182,7 @@ where the final size is known or well predicted; <code>new()</code> grows
 0-&gt;1-&gt;2-&gt;4, which is the right default but costs a realloc per
 doubling. n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Set__USize
+<pre><code class="language-til">func (shallow n: U64) returns Set__USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Set__USize.clear">
@@ -198,7 +200,7 @@ doubling. n=0 behaves like new(): lazy-empty, no allocation.</p>
 <div class="doc-body">
 <p>True if the set contains an element equal to <code>val</code>.</p>
 </div>
-<pre><code class="language-til">func (self: Set__USize, shallow val: USize) returns shallow Bool
+<pre><code class="language-til">func (self: Set__USize, shallow val: U64) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Set__USize.add">
@@ -208,7 +210,7 @@ doubling. n=0 behaves like new(): lazy-empty, no allocation.</p>
 <p>Insert <code>val</code> into the set (sorted order). If an equal element
 already exists, <code>val</code> is dropped. <code>val</code> is owned.</p>
 </div>
-<pre><code class="language-til">func (mut self: Set__USize, own val: USize)
+<pre><code class="language-til">func (mut self: Set__USize, own val: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Set__USize.remove">
@@ -220,7 +222,7 @@ absent (Map.remove's counterpart: <code>add</code> is the Set's <code>set</code>
 this is its removal half). Later elements shift left to keep the
 storage sorted and dense.</p>
 </div>
-<pre><code class="language-til">func (mut self: Set__USize, shallow val: USize) returns shallow Bool
+<pre><code class="language-til">func (mut self: Set__USize, shallow val: U64) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo">
@@ -232,8 +234,8 @@ storage sorted and dense.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func with_capacity(shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func len(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func len(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns shallow U64
     func clear(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo)
     func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own val: priv___src_self_c_codegen_til__CollectionInfo)
@@ -241,18 +243,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
     func move_to(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut dest: Vec__priv___src_self_c_codegen_til__CollectionInfo)
     func move_from(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own other: Vec__priv___src_self_c_codegen_til__CollectionInfo)
-    func unsafe_get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: USize) returns ref priv___src_self_c_codegen_til__CollectionInfo
-    func get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+    func unsafe_get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+    func get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
     func pop(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns priv___src_self_c_codegen_til__CollectionInfo
-    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo)
-    func set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize)
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64)
     func delete(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow call_free: Bool)
     func clone(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -280,7 +282,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+<pre><code class="language-til">func (shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.clear">
@@ -381,7 +383,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: USize) returns ref priv___src_self_c_codegen_til__CollectionInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64) returns ref priv___src_self_c_codegen_til__CollectionInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.get">
@@ -393,7 +395,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.pop">
@@ -412,7 +414,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix">
@@ -422,7 +424,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate">
@@ -434,7 +436,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set">
@@ -445,7 +447,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.set">
@@ -456,7 +458,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take">
@@ -467,7 +469,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__CollectionInfo.delete">
@@ -498,8 +500,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func with_capacity(shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func len(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func len(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns shallow U64
     func clear(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo)
     func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own val: priv___src_self_c_codegen_til__DynCallInfo)
@@ -507,18 +509,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
     func move_to(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut dest: Vec__priv___src_self_c_codegen_til__DynCallInfo)
     func move_from(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own other: Vec__priv___src_self_c_codegen_til__DynCallInfo)
-    func unsafe_get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: USize) returns ref priv___src_self_c_codegen_til__DynCallInfo
-    func get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+    func unsafe_get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+    func get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
     func pop(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns priv___src_self_c_codegen_til__DynCallInfo
-    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo)
-    func set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize)
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64)
     func delete(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow call_free: Bool)
     func clone(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -546,7 +548,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+<pre><code class="language-til">func (shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.clear">
@@ -647,7 +649,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: USize) returns ref priv___src_self_c_codegen_til__DynCallInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64) returns ref priv___src_self_c_codegen_til__DynCallInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.get">
@@ -659,7 +661,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+<pre><code class="language-til">func (self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.pop">
@@ -678,7 +680,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix">
@@ -688,7 +690,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate">
@@ -700,7 +702,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set">
@@ -711,7 +713,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.set">
@@ -722,7 +724,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take">
@@ -733,7 +735,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.c_codegen.Vec__priv___src_self_c_codegen_til__DynCallInfo.delete">

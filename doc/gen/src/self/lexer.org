@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * TokenType
@@ -181,7 +181,7 @@ namespace:
     func cmp(a: TokenType, b: TokenType) returns shallow I64
     func to_str(self: TokenType) returns Str
     func clone(self: TokenType) returns TokenType
-    func size() returns shallow USize
+    func size() returns shallow U64
     func lt(a: TokenType, b: TokenType) returns shallow Bool
     func gt(a: TokenType, b: TokenType) returns shallow Bool
     func neq(a: TokenType, b: TokenType) returns shallow Bool
@@ -204,7 +204,7 @@ struct Token {
     line : U32
     col : U32
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: Token) returns Token
     func delete(own self: Token, shallow call_free: Bool)
     func hash(self: Token, hasher: HashFn) returns shallow U64
@@ -271,8 +271,8 @@ struct Map__Str_TokenType {
     mut values : Vec__TokenType
 namespace:
     func new() returns Map__Str_TokenType
-    func with_capacity(shallow n: USize) returns Map__Str_TokenType
-    func len(self: Map__Str_TokenType) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_TokenType
+    func len(self: Map__Str_TokenType) returns shallow U64
     func clear(mut self: Map__Str_TokenType)
     func has(self: Map__Str_TokenType, key: Str) returns shallow Bool
     func get(self: Map__Str_TokenType, key: Str, mut _err_kind: I64) returns ref TokenType
@@ -280,7 +280,7 @@ namespace:
     func remove(mut self: Map__Str_TokenType, key: Str) returns shallow Bool
     func delete(own self: Map__Str_TokenType, shallow call_free: Bool)
     func clone(self: Map__Str_TokenType) returns Map__Str_TokenType
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_TokenType, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -309,7 +309,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_TokenType.with_capacity(shallow n: USize) returns Map__Str_TokenType
+func Map__Str_TokenType.with_capacity(shallow n: U64) returns Map__Str_TokenType
 #+end_src
 
 * Map__Str_TokenType.clear
@@ -387,8 +387,8 @@ struct Vec__Token {
     mut cap : USize
 namespace:
     func new() returns Vec__Token
-    func with_capacity(shallow n: USize) returns Vec__Token
-    func len(self: Vec__Token) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__Token
+    func len(self: Vec__Token) returns shallow U64
     func clear(mut self: Vec__Token)
     func delete_marked(mut self: Vec__Token, marks: Dynamic)
     func push(mut self: Vec__Token, own val: Token)
@@ -396,18 +396,18 @@ namespace:
     func take(mut self: Vec__Token) returns Vec__Token
     func move_to(own self: Vec__Token, mut dest: Vec__Token)
     func move_from(mut self: Vec__Token, own other: Vec__Token)
-    func unsafe_get(self: Vec__Token, i: USize) returns ref Token
-    func get(self: Vec__Token, shallow i: USize, mut _err_kind: I64) returns ref Token
+    func unsafe_get(self: Vec__Token, i: U64) returns ref Token
+    func get(self: Vec__Token, shallow i: U64, mut _err_kind: I64) returns ref Token
     func pop(mut self: Vec__Token) returns Token
-    func remove_at(mut self: Vec__Token, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Token, shallow n: USize) returns Vec__Token
-    func truncate(mut self: Vec__Token, shallow n: USize)
-    func unsafe_set(mut self: Vec__Token, shallow i: USize, own val: Token)
-    func set(mut self: Vec__Token, shallow i: USize, own val: Token, mut _err_kind: I64)
-    func push_take(mut self: Vec__Token, mut src: Vec__Token, shallow i: USize)
+    func remove_at(mut self: Vec__Token, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__Token, shallow n: U64) returns Vec__Token
+    func truncate(mut self: Vec__Token, shallow n: U64)
+    func unsafe_set(mut self: Vec__Token, shallow i: U64, own val: Token)
+    func set(mut self: Vec__Token, shallow i: U64, own val: Token, mut _err_kind: I64)
+    func push_take(mut self: Vec__Token, mut src: Vec__Token, shallow i: U64)
     func delete(own self: Vec__Token, shallow call_free: Bool)
     func clone(self: Vec__Token) returns Vec__Token
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -441,7 +441,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__Token.with_capacity(shallow n: USize) returns Vec__Token
+func Vec__Token.with_capacity(shallow n: U64) returns Vec__Token
 #+end_src
 
 * Vec__Token.clear
@@ -568,7 +568,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__Token.unsafe_get(self: Vec__Token, i: USize) returns ref Token
+func Vec__Token.unsafe_get(self: Vec__Token, i: U64) returns ref Token
 #+end_src
 
 * Vec__Token.get
@@ -583,7 +583,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Token.get(self: Vec__Token, shallow i: USize, mut _err_kind: I64) returns ref Token
+func Vec__Token.get(self: Vec__Token, shallow i: U64, mut _err_kind: I64) returns ref Token
 #+end_src
 
 * Vec__Token.pop
@@ -608,7 +608,7 @@ func Vec__Token.pop(mut self: Vec__Token) returns Token
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__Token.remove_at(mut self: Vec__Token, shallow i: USize, mut _err_kind: I64)
+func Vec__Token.remove_at(mut self: Vec__Token, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__Token.take_prefix
@@ -621,7 +621,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__Token.take_prefix(mut self: Vec__Token, shallow n: USize) returns Vec__Token
+func Vec__Token.take_prefix(mut self: Vec__Token, shallow n: U64) returns Vec__Token
 #+end_src
 
 * Vec__Token.truncate
@@ -636,7 +636,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__Token.truncate(mut self: Vec__Token, shallow n: USize)
+func Vec__Token.truncate(mut self: Vec__Token, shallow n: U64)
 #+end_src
 
 * Vec__Token.unsafe_set
@@ -650,7 +650,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__Token.unsafe_set(mut self: Vec__Token, shallow i: USize, own val: Token)
+func Vec__Token.unsafe_set(mut self: Vec__Token, shallow i: U64, own val: Token)
 #+end_src
 
 * Vec__Token.set
@@ -664,7 +664,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__Token.set(mut self: Vec__Token, shallow i: USize, own val: Token, mut _err_kind: I64)
+func Vec__Token.set(mut self: Vec__Token, shallow i: U64, own val: Token, mut _err_kind: I64)
 #+end_src
 
 * Vec__Token.push_take
@@ -678,7 +678,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__Token.push_take(mut self: Vec__Token, mut src: Vec__Token, shallow i: USize)
+func Vec__Token.push_take(mut self: Vec__Token, mut src: Vec__Token, shallow i: U64)
 #+end_src
 
 * Vec__Token.delete
@@ -719,8 +719,8 @@ struct Vec__TokenType {
     mut cap : USize
 namespace:
     func new() returns Vec__TokenType
-    func with_capacity(shallow n: USize) returns Vec__TokenType
-    func len(self: Vec__TokenType) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__TokenType
+    func len(self: Vec__TokenType) returns shallow U64
     func clear(mut self: Vec__TokenType)
     func delete_marked(mut self: Vec__TokenType, marks: Dynamic)
     func push(mut self: Vec__TokenType, own val: TokenType)
@@ -728,18 +728,18 @@ namespace:
     func take(mut self: Vec__TokenType) returns Vec__TokenType
     func move_to(own self: Vec__TokenType, mut dest: Vec__TokenType)
     func move_from(mut self: Vec__TokenType, own other: Vec__TokenType)
-    func unsafe_get(self: Vec__TokenType, i: USize) returns ref TokenType
-    func get(self: Vec__TokenType, shallow i: USize, mut _err_kind: I64) returns ref TokenType
+    func unsafe_get(self: Vec__TokenType, i: U64) returns ref TokenType
+    func get(self: Vec__TokenType, shallow i: U64, mut _err_kind: I64) returns ref TokenType
     func pop(mut self: Vec__TokenType) returns TokenType
-    func remove_at(mut self: Vec__TokenType, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__TokenType, shallow n: USize) returns Vec__TokenType
-    func truncate(mut self: Vec__TokenType, shallow n: USize)
-    func unsafe_set(mut self: Vec__TokenType, shallow i: USize, own val: TokenType)
-    func set(mut self: Vec__TokenType, shallow i: USize, own val: TokenType, mut _err_kind: I64)
-    func push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, shallow i: USize)
+    func remove_at(mut self: Vec__TokenType, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__TokenType, shallow n: U64) returns Vec__TokenType
+    func truncate(mut self: Vec__TokenType, shallow n: U64)
+    func unsafe_set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType)
+    func set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType, mut _err_kind: I64)
+    func push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, shallow i: U64)
     func delete(own self: Vec__TokenType, shallow call_free: Bool)
     func clone(self: Vec__TokenType) returns Vec__TokenType
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -773,7 +773,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__TokenType.with_capacity(shallow n: USize) returns Vec__TokenType
+func Vec__TokenType.with_capacity(shallow n: U64) returns Vec__TokenType
 #+end_src
 
 * Vec__TokenType.clear
@@ -900,7 +900,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__TokenType.unsafe_get(self: Vec__TokenType, i: USize) returns ref TokenType
+func Vec__TokenType.unsafe_get(self: Vec__TokenType, i: U64) returns ref TokenType
 #+end_src
 
 * Vec__TokenType.get
@@ -915,7 +915,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__TokenType.get(self: Vec__TokenType, shallow i: USize, mut _err_kind: I64) returns ref TokenType
+func Vec__TokenType.get(self: Vec__TokenType, shallow i: U64, mut _err_kind: I64) returns ref TokenType
 #+end_src
 
 * Vec__TokenType.pop
@@ -940,7 +940,7 @@ func Vec__TokenType.pop(mut self: Vec__TokenType) returns TokenType
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__TokenType.remove_at(mut self: Vec__TokenType, shallow i: USize, mut _err_kind: I64)
+func Vec__TokenType.remove_at(mut self: Vec__TokenType, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__TokenType.take_prefix
@@ -953,7 +953,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__TokenType.take_prefix(mut self: Vec__TokenType, shallow n: USize) returns Vec__TokenType
+func Vec__TokenType.take_prefix(mut self: Vec__TokenType, shallow n: U64) returns Vec__TokenType
 #+end_src
 
 * Vec__TokenType.truncate
@@ -968,7 +968,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__TokenType.truncate(mut self: Vec__TokenType, shallow n: USize)
+func Vec__TokenType.truncate(mut self: Vec__TokenType, shallow n: U64)
 #+end_src
 
 * Vec__TokenType.unsafe_set
@@ -982,7 +982,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__TokenType.unsafe_set(mut self: Vec__TokenType, shallow i: USize, own val: TokenType)
+func Vec__TokenType.unsafe_set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType)
 #+end_src
 
 * Vec__TokenType.set
@@ -996,7 +996,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__TokenType.set(mut self: Vec__TokenType, shallow i: USize, own val: TokenType, mut _err_kind: I64)
+func Vec__TokenType.set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType, mut _err_kind: I64)
 #+end_src
 
 * Vec__TokenType.push_take
@@ -1010,7 +1010,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__TokenType.push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, shallow i: USize)
+func Vec__TokenType.push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, shallow i: U64)
 #+end_src
 
 * Vec__TokenType.delete

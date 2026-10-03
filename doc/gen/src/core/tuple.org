@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * Tuple
@@ -19,15 +19,18 @@ struct Tuple {
     mut type_sizes : Vec__USize
 namespace:
     func new() returns Tuple
-    func len(self: Tuple) returns shallow USize
+    func len(self: Tuple) returns shallow U64
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
     func push(mut self: Tuple, T: Type, own val: Dynamic)
-    func get(self: Tuple, i: USize) returns ref Dynamic
-    func type_at(self: Tuple, i: USize) returns ref Str
-    func size_at(self: Tuple, i: USize) returns ref USize
+    func get(self: Tuple, i: U64) returns ref Dynamic
+    func push_all_dynamic(mut self: Tuple, arr: Array__Dynamic)
+    func expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
+    func get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
+    func type_at(self: Tuple, i: U64) returns ref Str
+    func size_at(self: Tuple, i: U64) returns ref U64
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -76,7 +79,73 @@ func Tuple.push(mut self: Tuple, T: Type, own val: Dynamic)
 Ref to element at index ~i~. Panics if out of bounds.
 
 #+begin_src til
-func Tuple.get(self: Tuple, i: USize) returns ref Dynamic
+func Tuple.get(self: Tuple, i: U64) returns ref Dynamic
+#+end_src
+
+* Tuple.push_all_dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.push_all_dynamic
+:group: Core
+:END:
+
+#392: append every element of a raw Dynamic array, each pushed AS
+"Dynamic" -- a word copied, never dereferenced, deleted as a no-op --
+so raw pointers keep raw semantics inside the tuple. The ..Dynamic
+variadic lowering splats an Array(Dynamic) through this; written in
+til (like Array.concat / Array.to_vec before it) because the desugar
+runs inside infer_body and a hand-built loop there would carry
+til_types and ownership no later pass re-checks. ~arr~ is borrowed:
+a splatted array stays usable at the call site.
+
+#+begin_src til
+func Tuple.push_all_dynamic(mut self: Tuple, arr: Array__Dynamic)
+#+end_src
+
+* Tuple.expect_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.expect_type
+:group: Core
+:END:
+
+#392 stage B: panic unless element ~i~ really is a ~want~. A Tuple
+element carries its type, so reading one at a typed binding can be
+CHECKED -- the gradual-typing bargain, where a lie about a dynamic
+value fails at runtime instead of quietly reinterpreting bytes
+(reading an I64 element as a Str used to answer len 0).
+
+An element tagged "Dynamic" is exempt: that tag means a raw word --
+a C pointer, a #302 raw allocation, a splatted Array(Dynamic)
+element -- whose reinterpretation is the caller's business and
+always was. Dynamic means you are on your own, and this keeps it so.
+
+A typed read reaches this through ~get_checked~ below; calling it
+by hand, ahead of an unchecked read, reads the same way.
+
+~loc~ is #281's trailing-__LOC__ parameter: it resolves at the CALL
+SITE, so the panic names the line that read the element wrong.
+Without it every one of these reported src/core/tuple.til, where
+nothing is wrong -- and the whole point of the check is to send the
+reader to the read.
+
+#+begin_src til
+func Tuple.expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
+#+end_src
+
+* Tuple.get_checked
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple.get_checked
+:group: Core
+:END:
+
+#392 stage B: ~get~ with the READ's static type in hand. A typed
+binding (`ref a : I64 = t.get(0)`) lowers to this, so the read is
+checked against what the element actually is instead of
+reinterpreting its bytes. ~expect_type~ decides; see it for why a
+"Dynamic" element is exempt. ~loc~ is forwarded rather than
+defaulted again, so the panic names the READ, not this line.
+
+#+begin_src til
+func Tuple.get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
 #+end_src
 
 * Tuple.type_at
@@ -89,7 +158,7 @@ Type name of the element at index ~i~. Panics if ~i~ is past
 the end.
 
 #+begin_src til
-func Tuple.type_at(self: Tuple, i: USize) returns ref Str
+func Tuple.type_at(self: Tuple, i: U64) returns ref Str
 #+end_src
 
 * Tuple.size_at
@@ -102,5 +171,5 @@ Byte size of the element at index ~i~. Panics if ~i~ is past
 the end.
 
 #+begin_src til
-func Tuple.size_at(self: Tuple, i: USize) returns ref USize
+func Tuple.size_at(self: Tuple, i: U64) returns ref U64
 #+end_src

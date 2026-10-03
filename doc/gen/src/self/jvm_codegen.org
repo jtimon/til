@@ -1,5 +1,5 @@
 #+TITLE: src/self/jvm_codegen.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * jvm_package_segment
@@ -18,4 +18,653 @@ func jvm_package_segment(name: Str) returns Str
 
 #+begin_src til
 proc jvm_codegen_translate(lp: LoadedProgram, source_dir: Str, package_dir: Str, source_path: Str, args_path: Str, package_name: Str) returns shallow I32
+#+end_src
+
+* Vec__JvmClassOut
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__JvmClassOut
+:END:
+
+#+begin_src til
+Vec__JvmClassOut is a None
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_jvm_codegen_til__JvmMember {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns shallow U64
+    func clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+    func delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own val: priv___src_self_jvm_codegen_til__JvmMember)
+    func append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+    func take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+    func move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+    func unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember
+    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmMember
+    func pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns priv___src_self_jvm_codegen_til__JvmMember
+    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
+    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64)
+    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.new() returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own val: priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember, mut _err_kind: I64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow call_free: Bool)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmMember.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.clone(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns shallow U64
+    func clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+    func delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
+    func append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+    func take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+    func move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+    func unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
+    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
+    func pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns priv___src_self_jvm_codegen_til__JvmClassOut
+    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
+    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64)
+    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow call_free: Bool)
+    func clone(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.new() returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut, mut _err_kind: I64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow call_free: Bool)
+#+end_src
+
+* Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+#+end_src
+
+* adopt__priv___src_self_jvm_codegen_til__JvmMember
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.adopt__priv___src_self_jvm_codegen_til__JvmMember
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_jvm_codegen_til__JvmMember(mut dest: Dynamic, own src: priv___src_self_jvm_codegen_til__JvmMember)
+#+end_src
+
+* adopt__priv___src_self_jvm_codegen_til__JvmClassOut
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.jvm_codegen.adopt__priv___src_self_jvm_codegen_til__JvmClassOut
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_jvm_codegen_til__JvmClassOut(mut dest: Dynamic, own src: priv___src_self_jvm_codegen_til__JvmClassOut)
 #+end_src

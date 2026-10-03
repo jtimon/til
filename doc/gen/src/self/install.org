@@ -1,0 +1,57 @@
+#+TITLE: src/self/install.til
+#+SUBTITLE: til 0.0.1-1299f248c
+#+OPTIONS: toc:t
+
+* default_install_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.install.default_install_prefix
+:END:
+
+#+begin_src til
+proc default_install_prefix() returns Str
+#+end_src
+
+* support_root
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.install.support_root
+:END:
+
+#+begin_src til
+func support_root(prefix: Str) returns Str
+#+end_src
+
+* install_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.install.install_file
+:END:
+
+#+begin_src til
+proc install_file(src: Str, dst: Str, what: Str) returns shallow I32
+#+end_src
+
+* install_compiler_support
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.install.install_compiler_support
+:END:
+
+#+begin_src til
+proc install_compiler_support(root: Str, prefix: Str) returns shallow I32
+#+end_src
+
+* print_install_success
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.install.print_install_success
+:END:
+
+#+begin_src til
+proc print_install_success(path: Str)
+#+end_src
+
+* install_executable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.install.install_executable
+:END:
+
+#+begin_src til
+proc install_executable(binary: Str, destination: Str, compiler_root: Str, prefix: Str) returns shallow I32
+#+end_src

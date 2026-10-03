@@ -1,5 +1,5 @@
 #+TITLE: src/self/binder.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * generate_bindings
@@ -34,8 +34,8 @@ struct Map__Str_priv___src_self_binder_til__AuditedDecl {
     mut values : Vec__priv___src_self_binder_til__AuditedDecl
 namespace:
     func new() returns Map__Str_priv___src_self_binder_til__AuditedDecl
-    func with_capacity(shallow n: USize) returns Map__Str_priv___src_self_binder_til__AuditedDecl
-    func len(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_priv___src_self_binder_til__AuditedDecl
+    func len(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns shallow U64
     func clear(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl)
     func has(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
     func get(self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
@@ -43,7 +43,7 @@ namespace:
     func remove(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str) returns shallow Bool
     func delete(own self: Map__Str_priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
     func clone(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns Map__Str_priv___src_self_binder_til__AuditedDecl
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_priv___src_self_binder_til__AuditedDecl, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -72,7 +72,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_priv___src_self_binder_til__AuditedDecl.with_capacity(shallow n: USize) returns Map__Str_priv___src_self_binder_til__AuditedDecl
+func Map__Str_priv___src_self_binder_til__AuditedDecl.with_capacity(shallow n: U64) returns Map__Str_priv___src_self_binder_til__AuditedDecl
 #+end_src
 
 * Map__Str_priv___src_self_binder_til__AuditedDecl.clear
@@ -150,8 +150,8 @@ struct Vec__priv___src_self_binder_til__AuditedDecl {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_binder_til__AuditedDecl
-    func with_capacity(shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
-    func len(self: Vec__priv___src_self_binder_til__AuditedDecl) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func len(self: Vec__priv___src_self_binder_til__AuditedDecl) returns shallow U64
     func clear(mut self: Vec__priv___src_self_binder_til__AuditedDecl)
     func delete_marked(mut self: Vec__priv___src_self_binder_til__AuditedDecl, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own val: priv___src_self_binder_til__AuditedDecl)
@@ -159,18 +159,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
     func move_to(own self: Vec__priv___src_self_binder_til__AuditedDecl, mut dest: Vec__priv___src_self_binder_til__AuditedDecl)
     func move_from(mut self: Vec__priv___src_self_binder_til__AuditedDecl, own other: Vec__priv___src_self_binder_til__AuditedDecl)
-    func unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
-    func get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+    func unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: U64) returns ref priv___src_self_binder_til__AuditedDecl
+    func get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
     func pop(mut self: Vec__priv___src_self_binder_til__AuditedDecl) returns priv___src_self_binder_til__AuditedDecl
-    func remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
-    func truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
-    func set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize)
+    func remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
+    func truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl)
+    func set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+    func push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64)
     func delete(own self: Vec__priv___src_self_binder_til__AuditedDecl, shallow call_free: Bool)
     func clone(self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -204,7 +204,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.with_capacity(shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.with_capacity(shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.clear
@@ -331,7 +331,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: USize) returns ref priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.unsafe_get(self: Vec__priv___src_self_binder_til__AuditedDecl, i: U64) returns ref priv___src_self_binder_til__AuditedDecl
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.get
@@ -346,7 +346,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.get(self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_binder_til__AuditedDecl
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.pop
@@ -371,7 +371,7 @@ func Vec__priv___src_self_binder_til__AuditedDecl.pop(mut self: Vec__priv___src_
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, mut _err_kind: I64)
+func Vec__priv___src_self_binder_til__AuditedDecl.remove_at(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.take_prefix
@@ -384,7 +384,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize) returns Vec__priv___src_self_binder_til__AuditedDecl
+func Vec__priv___src_self_binder_til__AuditedDecl.take_prefix(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64) returns Vec__priv___src_self_binder_til__AuditedDecl
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.truncate
@@ -399,7 +399,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: USize)
+func Vec__priv___src_self_binder_til__AuditedDecl.truncate(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow n: U64)
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set
@@ -413,7 +413,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl)
+func Vec__priv___src_self_binder_til__AuditedDecl.unsafe_set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl)
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.set
@@ -427,7 +427,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
+func Vec__priv___src_self_binder_til__AuditedDecl.set(mut self: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64, own val: priv___src_self_binder_til__AuditedDecl, mut _err_kind: I64)
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.push_take
@@ -441,7 +441,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_binder_til__AuditedDecl.push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: USize)
+func Vec__priv___src_self_binder_til__AuditedDecl.push_take(mut self: Vec__priv___src_self_binder_til__AuditedDecl, mut src: Vec__priv___src_self_binder_til__AuditedDecl, shallow i: U64)
 #+end_src
 
 * Vec__priv___src_self_binder_til__AuditedDecl.delete

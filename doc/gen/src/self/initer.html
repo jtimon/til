@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -51,7 +51,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
-<li><a class="current" href="../../src/self/initer.html">src/self/initer.til</a><ul><li><a href="#til.src.self.initer.gen_struct_clone_delete_for_stmt">gen_struct_clone_delete_for_stmt</a></li><li><a href="#til.src.self.initer.collect_enum_variants">collect_enum_variants</a></li><li><a href="#til.src.self.initer.register_type_def_for_stmt">register_type_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_nonclone_methods_for_stmt">gen_enum_nonclone_methods_for_stmt</a></li><li><a href="#til.src.self.initer.gen_missing_enum_clone_for_stmt">gen_missing_enum_clone_for_stmt</a></li><li><a href="#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a></li><li><a href="#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_struct_size_method_for_stmt">gen_struct_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a></li><li><a href="#til.src.self.initer.gen_cmp_derived_for_stmt">gen_cmp_derived_for_stmt</a></li><li><a href="#til.src.self.initer.compute_struct_layout">compute_struct_layout</a></li><li><a href="#til.src.self.initer.compute_enum_layout">compute_enum_layout</a></li><li><a href="#til.src.self.initer.ctx_total_size">ctx_total_size</a></li><li><a href="#til.src.self.initer.EMPTY_FIELD_LAYOUT">EMPTY_FIELD_LAYOUT</a></li><li><a href="#til.src.self.initer.ctx_field_layout">ctx_field_layout</a></li><li><a href="#til.src.self.initer.init_lift_in_body">init_lift_in_body</a></li><li><a href="#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a></li><li><a href="#til.src.self.initer.init_refresh_interp_type_defs_from">init_refresh_interp_type_defs_from</a></li><li><a href="#til.src.self.initer.GenericSources">GenericSources</a></li><li><a href="#til.src.self.initer.generic_instantiate">generic_instantiate</a></li><li><a href="#til.src.self.initer.init_scan_unresolved_generic_calls">init_scan_unresolved_generic_calls</a></li><li><a href="#til.src.self.initer.init_retire_generic_sources">init_retire_generic_sources</a></li><li><a href="#til.src.self.initer.gen_interface_box_fields_for_stmt">gen_interface_box_fields_for_stmt</a></li><li><a href="#til.src.self.initer.gen_interface_clone_delete_for_stmt">gen_interface_clone_delete_for_stmt</a></li><li><a href="#til.src.self.initer.gen_implements_defaults_for_stmt">gen_implements_defaults_for_stmt</a></li><li><a href="#til.src.self.initer.normalize_enum_payload_aliases_for_stmt">normalize_enum_payload_aliases_for_stmt</a></li><li><a href="#til.src.self.initer.init_file">init_file</a></li><li><a href="#til.src.self.initer.init_repl_delta">init_repl_delta</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.new">Map__Str_GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.with_capacity">Map__Str_GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.clear">Map__Str_GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.has">Map__Str_GenericFuncSource.has</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.get">Map__Str_GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.set">Map__Str_GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.remove">Map__Str_GenericFuncSource.remove</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource">Vec__GenericFuncSource</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.new">Vec__GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.with_capacity">Vec__GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clear">Vec__GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete_marked">Vec__GenericFuncSource.delete_marked</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push">Vec__GenericFuncSource.push</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.append">Vec__GenericFuncSource.append</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take">Vec__GenericFuncSource.take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_to">Vec__GenericFuncSource.move_to</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_from">Vec__GenericFuncSource.move_from</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_get">Vec__GenericFuncSource.unsafe_get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.remove_at">Vec__GenericFuncSource.remove_at</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take_prefix">Vec__GenericFuncSource.take_prefix</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.truncate">Vec__GenericFuncSource.truncate</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_set">Vec__GenericFuncSource.unsafe_set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.set">Vec__GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push_take">Vec__GenericFuncSource.push_take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete">Vec__GenericFuncSource.delete</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clone">Vec__GenericFuncSource.clone</a></li><li><a href="#til.src.self.initer.adopt__GenericFuncSource">adopt__GenericFuncSource</a></li></ul></li>
+<li><a class="current" href="../../src/self/initer.html">src/self/initer.til</a><ul><li><a href="#til.src.self.initer.generate_requested_value_method">generate_requested_value_method</a></li><li><a href="#til.src.self.initer.gen_struct_clone_delete_for_stmt">gen_struct_clone_delete_for_stmt</a></li><li><a href="#til.src.self.initer.collect_enum_variants">collect_enum_variants</a></li><li><a href="#til.src.self.initer.register_type_def_for_stmt">register_type_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_nonclone_methods_for_stmt">gen_enum_nonclone_methods_for_stmt</a></li><li><a href="#til.src.self.initer.gen_missing_enum_clone_for_stmt">gen_missing_enum_clone_for_stmt</a></li><li><a href="#til.src.self.initer.register_funcsig_alias_for_stmt">register_funcsig_alias_for_stmt</a></li><li><a href="#til.src.self.initer.register_function_def_for_stmt">register_function_def_for_stmt</a></li><li><a href="#til.src.self.initer.gen_struct_size_method_for_stmt">gen_struct_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_enum_size_method_for_stmt">gen_enum_size_method_for_stmt</a></li><li><a href="#til.src.self.initer.gen_unity_derived_for_stmt">gen_unity_derived_for_stmt</a></li><li><a href="#til.src.self.initer.gen_cmp_derived_for_stmt">gen_cmp_derived_for_stmt</a></li><li><a href="#til.src.self.initer.compute_struct_layout">compute_struct_layout</a></li><li><a href="#til.src.self.initer.compute_enum_layout">compute_enum_layout</a></li><li><a href="#til.src.self.initer.ctx_total_size">ctx_total_size</a></li><li><a href="#til.src.self.initer.EMPTY_FIELD_LAYOUT">EMPTY_FIELD_LAYOUT</a></li><li><a href="#til.src.self.initer.ctx_field_layout">ctx_field_layout</a></li><li><a href="#til.src.self.initer.init_lift_in_body">init_lift_in_body</a></li><li><a href="#til.src.self.initer.init_refresh_seeded_scope_defs">init_refresh_seeded_scope_defs</a></li><li><a href="#til.src.self.initer.init_refresh_interp_type_defs_from">init_refresh_interp_type_defs_from</a></li><li><a href="#til.src.self.initer.GenericSources">GenericSources</a></li><li><a href="#til.src.self.initer.generic_instantiate">generic_instantiate</a></li><li><a href="#til.src.self.initer.init_scan_unresolved_generic_calls">init_scan_unresolved_generic_calls</a></li><li><a href="#til.src.self.initer.init_retire_generic_sources">init_retire_generic_sources</a></li><li><a href="#til.src.self.initer.gen_interface_box_fields_for_stmt">gen_interface_box_fields_for_stmt</a></li><li><a href="#til.src.self.initer.gen_interface_clone_delete_for_stmt">gen_interface_clone_delete_for_stmt</a></li><li><a href="#til.src.self.initer.gen_implements_defaults_for_stmt">gen_implements_defaults_for_stmt</a></li><li><a href="#til.src.self.initer.normalize_enum_payload_aliases_for_stmt">normalize_enum_payload_aliases_for_stmt</a></li><li><a href="#til.src.self.initer.init_file">init_file</a></li><li><a href="#til.src.self.initer.init_repl_delta">init_repl_delta</a></li><li><a href="#til.src.self.initer.init_require_simd">init_require_simd</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.new">Map__Str_GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.with_capacity">Map__Str_GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.clear">Map__Str_GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.has">Map__Str_GenericFuncSource.has</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.get">Map__Str_GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.set">Map__Str_GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Map__Str_GenericFuncSource.remove">Map__Str_GenericFuncSource.remove</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource">Vec__GenericFuncSource</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.new">Vec__GenericFuncSource.new</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.with_capacity">Vec__GenericFuncSource.with_capacity</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clear">Vec__GenericFuncSource.clear</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete_marked">Vec__GenericFuncSource.delete_marked</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push">Vec__GenericFuncSource.push</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.append">Vec__GenericFuncSource.append</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take">Vec__GenericFuncSource.take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_to">Vec__GenericFuncSource.move_to</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.move_from">Vec__GenericFuncSource.move_from</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_get">Vec__GenericFuncSource.unsafe_get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.get">Vec__GenericFuncSource.get</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.pop">Vec__GenericFuncSource.pop</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.remove_at">Vec__GenericFuncSource.remove_at</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.take_prefix">Vec__GenericFuncSource.take_prefix</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.truncate">Vec__GenericFuncSource.truncate</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.unsafe_set">Vec__GenericFuncSource.unsafe_set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.set">Vec__GenericFuncSource.set</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.push_take">Vec__GenericFuncSource.push_take</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.delete">Vec__GenericFuncSource.delete</a></li><li><a href="#til.src.self.initer.Vec__GenericFuncSource.clone">Vec__GenericFuncSource.clone</a></li><li><a href="#til.src.self.initer.adopt__GenericFuncSource">adopt__GenericFuncSource</a></li></ul></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -88,6 +90,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/initer.til</h1>
+<article class="doc-entry" id="til.src.self.initer.generate_requested_value_method">
+<h2>generate_requested_value_method</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut def: Expr, name: Str, method: Str, scope: TypeScope, mut symbols: SymbolPool) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.initer.gen_struct_clone_delete_for_stmt">
 <h2>gen_struct_clone_delete_for_stmt</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -163,13 +171,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.initer.compute_enum_layout">
 <h2>compute_enum_layout</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns shallow USize
+<pre><code class="language-til">proc (name: Str, enum_def: Expr, mut scope: TypeScope, mut ctx: Context) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.ctx_total_size">
 <h2>ctx_total_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (name: Str, ctx: Context) returns shallow USize
+<pre><code class="language-til">func (name: Str, ctx: Context) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.EMPTY_FIELD_LAYOUT">
@@ -199,7 +207,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.initer.init_refresh_interp_type_defs_from">
 <h2>init_refresh_interp_type_defs_from</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (program: Expr, shallow start_idx: USize, mut ctx: Context)
+<pre><code class="language-til">func (program: Expr, shallow start_idx: U64, mut ctx: Context)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.GenericSources">
@@ -210,7 +218,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut sources : Map__Str_GenericFuncSource
     mut late : Bool
 namespace:
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: GenericSources) returns GenericSources
     func delete(own self: GenericSources, shallow call_free: Bool)
     func hash(self: GenericSources, hasher: HashFn) returns shallow U64
@@ -238,7 +246,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.initer.gen_interface_box_fields_for_stmt">
 <h2>gen_interface_box_fields_for_stmt</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut stmt: Expr)
+<pre><code class="language-til">func (mut stmt: Expr, mut symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.gen_interface_clone_delete_for_stmt">
@@ -250,7 +258,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.initer.gen_implements_defaults_for_stmt">
 <h2>gen_implements_defaults_for_stmt</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, symbols: SymbolPool)
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.normalize_enum_payload_aliases_for_stmt">
@@ -271,6 +279,12 @@ namespace:
 <pre><code class="language-til">proc (path: Str, mut program: Expr, mut ctx: Context) returns shallow I32
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.initer.init_require_simd">
+<h2>init_require_simd</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc (elem: Str, shallow width: U64, shallow line: U32, shallow col: U32, mut ctx: Context) returns Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.initer.Map__Str_GenericFuncSource">
 <h2>Map__Str_GenericFuncSource</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -279,8 +293,8 @@ namespace:
     mut values : Vec__GenericFuncSource
 namespace:
     func new() returns Map__Str_GenericFuncSource
-    func with_capacity(shallow n: USize) returns Map__Str_GenericFuncSource
-    func len(self: Map__Str_GenericFuncSource) returns shallow USize
+    func with_capacity(shallow n: U64) returns Map__Str_GenericFuncSource
+    func len(self: Map__Str_GenericFuncSource) returns shallow U64
     func clear(mut self: Map__Str_GenericFuncSource)
     func has(self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
     func get(self: Map__Str_GenericFuncSource, key: Str, mut _err_kind: I64) returns ref GenericFuncSource
@@ -288,7 +302,7 @@ namespace:
     func remove(mut self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
     func delete(own self: Map__Str_GenericFuncSource, shallow call_free: Bool)
     func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
-    func size() returns shallow USize
+    func size() returns shallow U64
     func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -311,7 +325,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Map__Str_GenericFuncSource
+<pre><code class="language-til">func (shallow n: U64) returns Map__Str_GenericFuncSource
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Map__Str_GenericFuncSource.clear">
@@ -370,8 +384,8 @@ on a missing key.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__GenericFuncSource
-    func with_capacity(shallow n: USize) returns Vec__GenericFuncSource
-    func len(self: Vec__GenericFuncSource) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__GenericFuncSource
+    func len(self: Vec__GenericFuncSource) returns shallow U64
     func clear(mut self: Vec__GenericFuncSource)
     func delete_marked(mut self: Vec__GenericFuncSource, marks: Dynamic)
     func push(mut self: Vec__GenericFuncSource, own val: GenericFuncSource)
@@ -379,18 +393,18 @@ namespace:
     func take(mut self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
     func move_to(own self: Vec__GenericFuncSource, mut dest: Vec__GenericFuncSource)
     func move_from(mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
-    func unsafe_get(self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
-    func get(self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+    func unsafe_get(self: Vec__GenericFuncSource, i: U64) returns ref GenericFuncSource
+    func get(self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64) returns ref GenericFuncSource
     func pop(mut self: Vec__GenericFuncSource) returns GenericFuncSource
-    func remove_at(mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
-    func truncate(mut self: Vec__GenericFuncSource, shallow n: USize)
-    func unsafe_set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource)
-    func set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource, mut _err_kind: I64)
-    func push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: USize)
+    func remove_at(mut self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__GenericFuncSource, shallow n: U64) returns Vec__GenericFuncSource
+    func truncate(mut self: Vec__GenericFuncSource, shallow n: U64)
+    func unsafe_set(mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource)
+    func set(mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource, mut _err_kind: I64)
+    func push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: U64)
     func delete(own self: Vec__GenericFuncSource, shallow call_free: Bool)
     func clone(self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 </code></pre>
 </article>
@@ -418,7 +432,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: USize) returns Vec__GenericFuncSource
+<pre><code class="language-til">func (shallow n: U64) returns Vec__GenericFuncSource
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.clear">
@@ -519,7 +533,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
+<pre><code class="language-til">func (self: Vec__GenericFuncSource, i: U64) returns ref GenericFuncSource
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.get">
@@ -531,7 +545,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+<pre><code class="language-til">func (self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64) returns ref GenericFuncSource
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.pop">
@@ -550,7 +564,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: U64, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.take_prefix">
@@ -560,7 +574,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
+<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow n: U64) returns Vec__GenericFuncSource
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.truncate">
@@ -572,7 +586,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow n: USize)
+<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.unsafe_set">
@@ -583,7 +597,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource)
+<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.set">
@@ -594,7 +608,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, shallow i: U64, own val: GenericFuncSource, mut _err_kind: I64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.push_take">
@@ -605,7 +619,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: USize)
+<pre><code class="language-til">func (mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.initer.Vec__GenericFuncSource.delete">

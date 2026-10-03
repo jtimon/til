@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-4e407a330</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -37,7 +37,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
 <li><a href="../../src/core/range.html">src/core/range.til</a></li>
 <li><a href="../../src/core/set.html">src/core/set.til</a></li>
-<li><a class="current" href="../../src/core/core.html">src/core/core.til</a><ul><li><a href="#til.src.core.core.noop_proc">noop_proc</a></li></ul></li>
+<li><a class="current" href="../../src/core/core.html">src/core/core.til</a><ul><li><a href="#til.src.core.core.noop_proc">noop_proc</a></li><li><a href="#til.src.core.core.Simd">Simd</a></li><li><a href="#til.src.core.core.simd_width">simd_width</a></li></ul></li>
 </ul>
 <h2>Standard library</h2><ul>
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
@@ -78,6 +78,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
@@ -92,6 +94,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>noop_proc</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <pre><code class="language-til">ext_proc ()
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.core.Simd">
+<h2>Simd</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">macro (T: Type, N: I64) returns StructDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.core.simd_width">
+<h2>simd_width</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">core_func (T: Type) returns shallow U64
 </code></pre>
 </article>
 </main></div>

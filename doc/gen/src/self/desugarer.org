@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-proc desugar_fcall_args_for_fdef(mut e: Expr, display_name: Str, fdef_data: FunctionDef, shallow implicit_arg_count: USize, mut ctx: Context) returns shallow Bool
+proc desugar_fcall_args_for_fdef(mut e: Expr, display_name: Str, fdef_data: FunctionDef, shallow implicit_arg_count: U64, mut ctx: Context) returns shallow Bool
 #+end_src
 
 * desugar_user_func_fcall_args
@@ -89,7 +89,7 @@ func throw_type_has_payload(ctx: Context, type_name: Str) returns shallow Bool
 :END:
 
 #+begin_src til
-func append_err_out_params(mut params: Vec__Declaration, throw_types: Vec__Str, ctx: Context)
+func append_err_out_params(mut params: Vec__Declaration, throw_types: Vec__Str, mut ctx: Context)
 #+end_src
 
 * make_int_lit
@@ -142,6 +142,26 @@ proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
 func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
 #+end_src
 
+* PendingRefBinding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.PendingRefBinding
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct PendingRefBinding {
+    mut name : Str
+    mut throw_types : Vec__Str
+    mut line : U32
+    mut col : U32
+namespace:
+    func size() returns shallow U64
+    func clone(self: PendingRefBinding) returns PendingRefBinding
+    func delete(own self: PendingRefBinding, shallow call_free: Bool)
+    func hash(self: PendingRefBinding, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
 * process_throw_catch_in_func_body
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.desugarer.process_throw_catch_in_func_body
@@ -149,7 +169,7 @@ func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: 
 :END:
 
 #+begin_src til
-proc process_throw_catch_in_func_body(mut scope: TypeScope, mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType)
+proc process_throw_catch_in_func_body(mut scope: TypeScope, mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType, shallow validate_declared_throws: Bool)
 #+end_src
 
 * stmt_contains_match
@@ -169,7 +189,7 @@ func stmt_contains_match(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func splice_stmts_before(mut body: Expr, shallow idx: USize, mut pre: Vec__Expr)
+func splice_stmts_before(mut body: Expr, shallow idx: U64, mut pre: Vec__Expr)
 #+end_src
 
 * collect_switch_case_bindings
@@ -199,7 +219,7 @@ func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match
 :END:
 
 #+begin_src til
-func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: USize, own block: Expr)
+func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: U64, own block: Expr)
 #+end_src
 
 * append_switch_else_if
@@ -249,7 +269,7 @@ func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr
 :END:
 
 #+begin_src til
-func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: USize, own block: Expr)
+func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: U64, own block: Expr)
 #+end_src
 
 * make_for_in_range_while_body
@@ -269,7 +289,7 @@ func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_b
 :END:
 
 #+begin_src til
-proc body_pre_passes(mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32) returns shallow Bool
+proc body_pre_passes(mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32, shallow returns_ref: I32) returns shallow Bool
 #+end_src
 
 * hoist_constfolded_stack_outer_ctors
@@ -295,8 +315,8 @@ struct Vec__I32 {
     mut cap : USize
 namespace:
     func new() returns Vec__I32
-    func with_capacity(shallow n: USize) returns Vec__I32
-    func len(self: Vec__I32) returns shallow USize
+    func with_capacity(shallow n: U64) returns Vec__I32
+    func len(self: Vec__I32) returns shallow U64
     func clear(mut self: Vec__I32)
     func delete_marked(mut self: Vec__I32, marks: Dynamic)
     func push(mut self: Vec__I32, own val: I32)
@@ -304,18 +324,18 @@ namespace:
     func take(mut self: Vec__I32) returns Vec__I32
     func move_to(own self: Vec__I32, mut dest: Vec__I32)
     func move_from(mut self: Vec__I32, own other: Vec__I32)
-    func unsafe_get(self: Vec__I32, i: USize) returns ref I32
-    func get(self: Vec__I32, shallow i: USize, mut _err_kind: I64) returns ref I32
+    func unsafe_get(self: Vec__I32, i: U64) returns ref I32
+    func get(self: Vec__I32, shallow i: U64, mut _err_kind: I64) returns ref I32
     func pop(mut self: Vec__I32) returns shallow I32
-    func remove_at(mut self: Vec__I32, shallow i: USize, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__I32, shallow n: USize) returns Vec__I32
-    func truncate(mut self: Vec__I32, shallow n: USize)
-    func unsafe_set(mut self: Vec__I32, shallow i: USize, own val: I32)
-    func set(mut self: Vec__I32, shallow i: USize, own val: I32, mut _err_kind: I64)
-    func push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: USize)
+    func remove_at(mut self: Vec__I32, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__I32, shallow n: U64) returns Vec__I32
+    func truncate(mut self: Vec__I32, shallow n: U64)
+    func unsafe_set(mut self: Vec__I32, shallow i: U64, own val: I32)
+    func set(mut self: Vec__I32, shallow i: U64, own val: I32, mut _err_kind: I64)
+    func push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: U64)
     func delete(own self: Vec__I32, shallow call_free: Bool)
     func clone(self: Vec__I32) returns Vec__I32
-    func size() returns shallow USize
+    func size() returns shallow U64
 }
 #+end_src
 
@@ -349,7 +369,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__I32.with_capacity(shallow n: USize) returns Vec__I32
+func Vec__I32.with_capacity(shallow n: U64) returns Vec__I32
 #+end_src
 
 * Vec__I32.clear
@@ -476,7 +496,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__I32.unsafe_get(self: Vec__I32, i: USize) returns ref I32
+func Vec__I32.unsafe_get(self: Vec__I32, i: U64) returns ref I32
 #+end_src
 
 * Vec__I32.get
@@ -491,7 +511,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__I32.get(self: Vec__I32, shallow i: USize, mut _err_kind: I64) returns ref I32
+func Vec__I32.get(self: Vec__I32, shallow i: U64, mut _err_kind: I64) returns ref I32
 #+end_src
 
 * Vec__I32.pop
@@ -516,7 +536,7 @@ func Vec__I32.pop(mut self: Vec__I32) returns shallow I32
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__I32.remove_at(mut self: Vec__I32, shallow i: USize, mut _err_kind: I64)
+func Vec__I32.remove_at(mut self: Vec__I32, shallow i: U64, mut _err_kind: I64)
 #+end_src
 
 * Vec__I32.take_prefix
@@ -529,7 +549,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__I32.take_prefix(mut self: Vec__I32, shallow n: USize) returns Vec__I32
+func Vec__I32.take_prefix(mut self: Vec__I32, shallow n: U64) returns Vec__I32
 #+end_src
 
 * Vec__I32.truncate
@@ -544,7 +564,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__I32.truncate(mut self: Vec__I32, shallow n: USize)
+func Vec__I32.truncate(mut self: Vec__I32, shallow n: U64)
 #+end_src
 
 * Vec__I32.unsafe_set
@@ -558,7 +578,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__I32.unsafe_set(mut self: Vec__I32, shallow i: USize, own val: I32)
+func Vec__I32.unsafe_set(mut self: Vec__I32, shallow i: U64, own val: I32)
 #+end_src
 
 * Vec__I32.set
@@ -572,7 +592,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__I32.set(mut self: Vec__I32, shallow i: USize, own val: I32, mut _err_kind: I64)
+func Vec__I32.set(mut self: Vec__I32, shallow i: U64, own val: I32, mut _err_kind: I64)
 #+end_src
 
 * Vec__I32.push_take
@@ -586,7 +606,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__I32.push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: USize)
+func Vec__I32.push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: U64)
 #+end_src
 
 * Vec__I32.delete
@@ -614,6 +634,338 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__I32.clone(self: Vec__I32) returns Vec__I32
 #+end_src
 
+* Vec__PendingRefBinding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Vec__PendingRefBinding {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__PendingRefBinding
+    func with_capacity(shallow n: U64) returns Vec__PendingRefBinding
+    func len(self: Vec__PendingRefBinding) returns shallow U64
+    func clear(mut self: Vec__PendingRefBinding)
+    func delete_marked(mut self: Vec__PendingRefBinding, marks: Dynamic)
+    func push(mut self: Vec__PendingRefBinding, own val: PendingRefBinding)
+    func append(mut self: Vec__PendingRefBinding, own other: Vec__PendingRefBinding)
+    func take(mut self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
+    func move_to(own self: Vec__PendingRefBinding, mut dest: Vec__PendingRefBinding)
+    func move_from(mut self: Vec__PendingRefBinding, own other: Vec__PendingRefBinding)
+    func unsafe_get(self: Vec__PendingRefBinding, i: U64) returns ref PendingRefBinding
+    func get(self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64) returns ref PendingRefBinding
+    func pop(mut self: Vec__PendingRefBinding) returns PendingRefBinding
+    func remove_at(mut self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__PendingRefBinding, shallow n: U64) returns Vec__PendingRefBinding
+    func truncate(mut self: Vec__PendingRefBinding, shallow n: U64)
+    func unsafe_set(mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding)
+    func set(mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding, mut _err_kind: I64)
+    func push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, shallow i: U64)
+    func delete(own self: Vec__PendingRefBinding, shallow call_free: Bool)
+    func clone(self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__PendingRefBinding.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.new
+:group: Compiler frontend
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__PendingRefBinding.new() returns Vec__PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__PendingRefBinding.with_capacity(shallow n: U64) returns Vec__PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.clear
+:group: Compiler frontend
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__PendingRefBinding.clear(mut self: Vec__PendingRefBinding)
+#+end_src
+
+* Vec__PendingRefBinding.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.delete_marked
+:group: Compiler frontend
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__PendingRefBinding.delete_marked(mut self: Vec__PendingRefBinding, marks: Dynamic)
+#+end_src
+
+* Vec__PendingRefBinding.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.push
+:group: Compiler frontend
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__PendingRefBinding.push(mut self: Vec__PendingRefBinding, own val: PendingRefBinding)
+#+end_src
+
+* Vec__PendingRefBinding.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.append
+:group: Compiler frontend
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__PendingRefBinding.append(mut self: Vec__PendingRefBinding, own other: Vec__PendingRefBinding)
+#+end_src
+
+* Vec__PendingRefBinding.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.take
+:group: Compiler frontend
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__PendingRefBinding.take(mut self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.move_to
+:group: Compiler frontend
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__PendingRefBinding.move_to(own self: Vec__PendingRefBinding, mut dest: Vec__PendingRefBinding)
+#+end_src
+
+* Vec__PendingRefBinding.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.move_from
+:group: Compiler frontend
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__PendingRefBinding.move_from(mut self: Vec__PendingRefBinding, own other: Vec__PendingRefBinding)
+#+end_src
+
+* Vec__PendingRefBinding.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.unsafe_get
+:group: Compiler frontend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__PendingRefBinding.unsafe_get(self: Vec__PendingRefBinding, i: U64) returns ref PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.get
+:group: Compiler frontend
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__PendingRefBinding.get(self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64) returns ref PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.pop
+:group: Compiler frontend
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__PendingRefBinding.pop(mut self: Vec__PendingRefBinding) returns PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.remove_at
+:group: Compiler frontend
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__PendingRefBinding.remove_at(mut self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__PendingRefBinding.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.take_prefix
+:group: Compiler frontend
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__PendingRefBinding.take_prefix(mut self: Vec__PendingRefBinding, shallow n: U64) returns Vec__PendingRefBinding
+#+end_src
+
+* Vec__PendingRefBinding.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.truncate
+:group: Compiler frontend
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__PendingRefBinding.truncate(mut self: Vec__PendingRefBinding, shallow n: U64)
+#+end_src
+
+* Vec__PendingRefBinding.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.unsafe_set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__PendingRefBinding.unsafe_set(mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding)
+#+end_src
+
+* Vec__PendingRefBinding.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__PendingRefBinding.set(mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding, mut _err_kind: I64)
+#+end_src
+
+* Vec__PendingRefBinding.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.push_take
+:group: Compiler frontend
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__PendingRefBinding.push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, shallow i: U64)
+#+end_src
+
+* Vec__PendingRefBinding.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.delete
+:group: Compiler frontend
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__PendingRefBinding.delete(own self: Vec__PendingRefBinding, shallow call_free: Bool)
+#+end_src
+
+* Vec__PendingRefBinding.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.Vec__PendingRefBinding.clone
+:group: Compiler frontend
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__PendingRefBinding.clone(self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
+#+end_src
+
 * adopt__I32
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.desugarer.adopt__I32
@@ -622,4 +974,14 @@ func Vec__I32.clone(self: Vec__I32) returns Vec__I32
 
 #+begin_src til
 func adopt__I32(mut dest: Dynamic, own src: I32)
+#+end_src
+
+* adopt__PendingRefBinding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.adopt__PendingRefBinding
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func adopt__PendingRefBinding(mut dest: Dynamic, own src: PendingRefBinding)
 #+end_src

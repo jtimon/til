@@ -1,5 +1,5 @@
 #+TITLE: src/std/file.til
-#+SUBTITLE: til 0.0.1-4e407a330
+#+SUBTITLE: til 0.0.1-1299f248c
 #+OPTIONS: toc:t
 
 * cfile_open
@@ -239,7 +239,7 @@ namespace:
     func close(self: File)
     func delete(own self: File, shallow call_free: Bool)
     proc fwrite(self: File, parts: ..Str) returns ref File
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: File) returns File
 }
 #+end_src
@@ -579,7 +579,7 @@ namespace:
     proc list(path: Str) returns Vec__Str
     func close(self: Dir)
     func delete(own self: Dir, shallow call_free: Bool)
-    func size() returns shallow USize
+    func size() returns shallow U64
     func clone(self: Dir) returns Dir
 }
 #+end_src
