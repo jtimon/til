@@ -2,7 +2,28 @@
 # category: examples
 ** WIP #408 tilminal: terminal emulator for standalone use and tiled
 
-Develop [[file:../../examples/tilminal.til][examples/tilminal.til]] into a terminal emulator that can
+*** Development moved to Tiled
+
+The terminal implementation, standalone application and terminal-specific
+tests now live in [[https://github.com/jtimon/tiled][jtimon/tiled]]. The entry point is =src/tilminal.til=;
+shared terminal modules are under =src/terminal/=. See its =doc/terminal.org=
+for the migration record, test commands and remaining work. The migration
+starts from Til =40eb0682e= as present at =b444d7223=.
+
+Tiled's build uses installed Til and does not need this checkout. Its GUI
+test launches tilminal from =bin/=, sends =ls=, checks rendered output pixels
+and closes cleanly; it also retains the Unicode/final-screen case. Native
+Windows/macOS execution, scrollback/alternate screens, Tiled embedding and
+graphics remain follow-up work in that repository. This issue's history and
+design notes below describe the original Til example implementation.
+
+Compiler fixes stay in Til. The bridge-object interleaving regression now
+lives in =test/link_objects.til=; the owned-vector clone ABI is covered by
+=test/vec_clone_abi.til=. Terminal/session/model/GUI tests moved with the app.
+
+*** Original scope and implementation history
+
+Develop [[https://github.com/jtimon/tiled/blob/master/src/tilminal.til][tilminal]] into a terminal emulator that can
 run standalone and serve as the terminal component of
 [[./83.org][#83 tiled]]. Tiled combines an Emacs-like integrated environment with
 i3-style tiling; it should include tilminal rather than implement a

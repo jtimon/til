@@ -1,0 +1,17 @@
+mode cli
+
+// The vector-of-owned-cells clone ABI regression formerly used tilminal's
+// complete screen model. Keep its ownership shape in this small fixture.
+CloneCell := struct { text := ""; span : I64 = 1 }
+CloneGrid := struct { own cells := Vec(CloneCell).new() }
+
+main := proc() {
+    mut original := CloneGrid()
+    original.cells.push(own CloneCell(text = "original"))
+    mut copied := original.clone()
+    ref mut cell : CloneCell = copied.cells[0]
+    cell.text = "changed"
+    assert(original.cells[0].text == "original")
+    assert(copied.cells[0].text == "changed")
+    println("owned vector clone OK")
+}

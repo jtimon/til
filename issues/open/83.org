@@ -2,6 +2,10 @@
 # category: examples
 ** OPEN #83 tiled: editor, window manager, terminal and more
 
+Application development now lives in [[https://github.com/jtimon/tiled][jtimon/tiled]], including standalone
+tilminal and the shared terminal modules migrated under [[./408.org][#408]]. This issue
+retains the original integrated-environment design notes.
+
 Mode gui application. The TempleOS-inspired everything-in-one-app:
   editor + window manager + terminal + session manager + git client.
   Like emacs but in til, with raylib rendering.

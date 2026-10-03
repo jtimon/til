@@ -5,10 +5,13 @@
 *** Decision
 
 Implement the logo prompt only in
-[[file:../../examples/tilminal.til][examples/tilminal.til]], where we control rendering.
+[[https://github.com/jtimon/tiled/blob/master/src/tilminal.til][tilminal in the Tiled repository]], where we control rendering.
 The terminal CLI ~til repl~ keeps its textual ~til[mode]>~ prompt
 and ~til[mode]...~ continuation prompt. This issue remains open for
 the tilminal implementation; this re-analysis does not implement it.
+
+Tilminal's application and shared terminal modules moved to =jtimon/tiled=;
+further terminal UI work belongs there. See [[./408.org][#408]] for the migration record.
 
 Use the existing ~img/til_logo.ttf~, generated from
 ~img/logo-transparent.svg~ by

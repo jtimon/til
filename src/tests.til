@@ -1860,10 +1860,10 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/flow_cd.c test/flow.til '&&' cat gen/c/flow_cd.c"))
     add_count(tests, "errors_clone_value_abi", "build", "static ErrorWithMessage ErrorWithMessage_clone(ErrorWithMessage * self)", 2,
         format(til_bin, " translate -c gen/c/errors_mc.c test/errors.til '&&' cat gen/c/errors_mc.c"))
-    // Tilminal now owns screen cells rather than Vec(Str) output lines.
-    // Its headless clone test keeps the same by-value Vec clone ABI covered.
-    add_count(tests, "tilminal_vec_clone_value_abi", "build", "static Vec__TerminalCell Vec__TerminalCell_clone(Vec__TerminalCell * self)", 2,
-        format(til_bin, " translate -c gen/c/tilminal_vc.c test/terminal_model.til '&&' cat gen/c/tilminal_vc.c"))
+    // Keep the by-value owned-cell vector clone ABI covered independently
+    // of tilminal, whose application and terminal tests now live in Tiled.
+    add_count(tests, "owned_vec_clone_value_abi", "build", "static Vec__CloneCell Vec__CloneCell_clone(Vec__CloneCell * self)", 2,
+        format(til_bin, " translate -c gen/c/owned_vec_clone.c test/vec_clone_abi.til '&&' cat gen/c/owned_vec_clone.c"))
     add_count(tests, "str_clone_value_abi", "build", "Str Str_clone(Str * val)", 2,
         format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
     // Issue #326: the same for an enum's INLINE primitive payload -- the
@@ -2089,7 +2089,6 @@ main := proc(args: ..Str) {
             "examples/minesweeper.til",
             "examples/font_test.til",
             "examples/popcorn.til",
-            "examples/tilminal.til",
             "examples/game_of_life.til",
             "examples/hello_gui.til",
             "examples/raylib.til",
@@ -2113,21 +2112,7 @@ main := proc(args: ..Str) {
             bn := test_basename(gf)
             mut run_args := ""
             if bn == "popcorn" { run_args = " --mute" }
-            // Exercise both an absent wide glyph and a combining mark.
-            // Empty font subsets must not reach raylib's atlas builder.
-            // Keep quotes for test_runner's second shell parse as well.
-            if bn == "tilminal" {
-                run_args = format(" '\"printf ", Str.from_byte(228), Str.from_byte(184), Str.from_byte(128),
-                    "e", Str.from_byte(204), Str.from_byte(129), "\"'")
-            }
-            mut gui_run := format(timeout_cmd, " ", GUI_TIMEOUT, " bin/", gf.strip_suffix(".til"), run_args)
-            if bn == "tilminal" {
-                // #408: the window used to open and immediately panic when
-                // run from bin/: its font path was relative to the CWD.
-                // Keep test_runner's capture redirection in its original
-                // directory while only the application changes CWD.
-                gui_run = format("'(' cd bin '&&' ", timeout_cmd, " ", GUI_TIMEOUT, " ./", gf.strip_suffix(".til"), run_args, " ')'")
-            }
+            gui_run := format(timeout_cmd, " ", GUI_TIMEOUT, " bin/", gf.strip_suffix(".til"), run_args)
             add_single(tests, format("build_", bn), "build", 124, "",
                 format(til_bin, " build", asan_flag, " ", gf, " '&&' ", gui_run))
         }
@@ -2318,13 +2303,11 @@ main := proc(args: ..Str) {
         }
     }
 
-    // #408: pure terminal state and real PTY/ConPTY sessions. One transport
-    // row owns its helper artifacts and drives the unmodified compiler REPL.
-    add_both(tests, "test/terminal_model.til", flags)
-    add_single(tests, "terminal_session", "build", 0, "",
-        format(til_bin, " run", asan_flag, " -o bin/c/terminal_session -c gen/c/terminal_session.c test/terminal_session.til ", til_bin))
-    add_single(tests, "tilminal_build", "build", 0, "",
-        format(til_bin, " build", asan_flag, " -o bin/c/tilminal -c gen/c/tilminal.c examples/tilminal.til"))
+    // Compiler regressions retained after moving terminal application tests
+    // to jtimon/tiled: owned-cell clones and independent link_c objects.
+    add_both(tests, "test/vec_clone_abi.til", flags)
+    add_single(tests, "link_objects", "build", 0, "",
+        format(til_bin, " run", asan_flag, " -o bin/c/link_objects -c gen/c/link_objects.c test/link_objects.til ", til_bin))
 
     // === 2 FFI tests ===
     ffi_exp := "test/ffi.expected"

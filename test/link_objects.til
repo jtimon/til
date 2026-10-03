@@ -1,0 +1,36 @@
+mode cli
+import("std/sys")
+import("std/file")
+
+// Extracted from terminal_session.til when tilminal moved to Tiled. This
+// protects the compiler, independently of any terminal implementation.
+// Force A's cc wrapper to build B after A's bridge compiles but before A
+// links. A directory-wide user_0.o makes A link B's implementation.
+main := proc(compiler: Str) {
+    if host_os() == "windows" { return }
+    dir := "tmp/link_objects"
+    if mkdir_p(dir) != 0 { panic("cannot create link regression directory") }
+    for item in array(Str, "first", "second") {
+        mut value := "11"
+        if item == "second" { value = "22" }
+        File.writefile(format(dir, "/", item, "_bridge.c"), format(
+            "#include \"ext.h\"\nI64 link_value(void) { return ", value, "; }\n"))
+        File.writefile(format(dir, "/", item, ".til"), format(
+            "mode cli\nlink_c(\"", item, "_bridge.c\")\n",
+            "link_value := ext_proc() returns shallow I64 {}\n",
+            "main := proc() { if link_value() != ", value,
+            " { panic(\"linked another program's bridge\") } }\n"))
+    }
+    first_bin := format(dir, "/first")
+    second_bin := format(dir, "/second")
+    other := Cmd.new(compiler, "build", "--force-rebuild", "-o", second_bin,
+        "-c", format(dir, "/second.c"), format(dir, "/second.til"))
+    wrapper := format(dir, "/cc.sh")
+    File.writefile(wrapper, format("#!/bin/sh\ncase \" $* \" in\n  *\" -o ", first_bin,
+        " \"*)\n    ", other.render(), " || exit $?\n    ;;\nesac\nexec cc \"$@\"\n"))
+    Cmd.new("chmod", "+x", wrapper).run_checked()
+    Cmd.new(compiler, "build", "--force-rebuild", format("--cc=", wrapper),
+        "-o", first_bin, "-c", format(dir, "/first.c"), format(dir, "/first.til")).run_checked()
+    Cmd.new(first_bin).run_checked()
+    Cmd.new(second_bin).run_checked()
+}
