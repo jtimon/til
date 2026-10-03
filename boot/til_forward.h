@@ -365,9 +365,12 @@ typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
 typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
+typedef struct priv___src_self_c_codegen_til__BuilderFuncSites priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct Set__USize Set__USize;
 typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
+typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
+typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Set_USize Map__Str_call_Set_USize;
@@ -1225,6 +1228,12 @@ typedef struct priv___src_self_c_codegen_til__DynCallInfo {
 } priv___src_self_c_codegen_til__DynCallInfo;
 
 
+typedef struct priv___src_self_c_codegen_til__BuilderFuncSites {
+    Bool round_dependent;
+    Set__Str sites;
+} priv___src_self_c_codegen_til__BuilderFuncSites;
+
+
 typedef struct Set__USize {
     U8 *data;
     USize count;
@@ -1244,6 +1253,13 @@ typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
     USize count;
     USize cap;
 } Vec__priv___src_self_c_codegen_til__DynCallInfo;
+
+
+typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
@@ -1867,6 +1883,12 @@ typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
     Vec__Str keys;
     Vec__priv___src_self_scavenger_til__DeclRef values;
 } Map__Str_priv___src_self_scavenger_til__DeclRef;
+
+
+typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites {
+    Vec__UPtr keys;
+    Vec__priv___src_self_c_codegen_til__BuilderFuncSites values;
+} Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
 typedef struct Map__Str_call_Set_USize {

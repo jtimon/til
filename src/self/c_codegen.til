@@ -11040,31 +11040,75 @@ priv builder_pod_site_spliced := func(e: Expr, member: Str, reads: Set(U32), sta
     if dup_names.has(bps_name) { return false }
     return stack_names.has(bps_name)
 }
-priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut reads: Set(U32), owner: Str, mut ctx: Context) {
+// Local to one emit-inventory fixpoint. The AST is read-only throughout it,
+// so a FuncDef's address identifies the same body on every round. Addresses
+// are only lookup keys: emission and set iteration never use their order.
+priv BuilderFuncSites := struct {
+    round_dependent := false
+    sites := Set(Str).new()
+}
+
+priv builder_add_func_sites := func(summary: BuilderFuncSites, mut sites: Set(Str)) {
+    for i in 0..summary.sites.len() {
+        ref site : Str = ptr_add(summary.sites.data, i.to_uptr().mul(Str.size().to_uptr()))
+        sites.add(own site.clone())
+    }
+}
+
+// Namespace definitions contain methods whose omission gate reads the PREVIOUS
+// round's sites. A function containing one must keep walking those gates.
+// All other function bodies have invariant sites, including nested functions
+// without namespace definitions: their storage/read sets are body-local too.
+priv builder_sites_depend_on_round := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) { return true }
+    for child : Expr in e.children {
+        if builder_sites_depend_on_round(child) { return true }
+    }
+    return false
+}
+
+priv builder_collect_func_sites := proc(e: Expr, mut sites: Set(Str), mut func_sites: Map(UPtr, BuilderFuncSites), mut ctx: Context) {
+    mut stack_names := Set(Str).new()
+    mut dup_names := Set(Str).new()
+    // The emitter and inventory must agree about free-only deletes. Build
+    // the same read set, only when the body contains a candidate delete.
+    mut reads := Set(U32).new()
+    mut needs_reads := false
+    for child : Expr in e.children {
+        if builder_body_has_free_only_delete(child, ctx) { needs_reads = true break }
+    }
+    if needs_reads {
+        for child : Expr in e.children { builder_collect_body_reads(child, reads, ctx) }
+    }
+    for child : Expr in e.children {
+        builder_collect_ns_member_sites(child, sites, stack_names, dup_names, reads, "", func_sites, ctx)
+    }
+}
+
+priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut reads: Set(U32), owner: Str, mut func_sites: Map(UPtr, BuilderFuncSites), mut ctx: Context) {
     // A delete is body-local, so the storage tracking below is too: each
     // function body starts from fresh name sets, or the same short local
     // name (`c`, `r`) declared across sibling bodies would look like a
     // shadowing conflict and defeat the stack check in every one of them.
     if e.node_type.is(NodeType.FuncDef) {
-        mut bvs_fn_stack := Set(Str).new()
-        mut bvs_fn_dup := Set(Str).new()
-        // #326: the same per-body read set the EMITTER gates the same
-        // decision on (builder_collect_body_liveness), from the same
-        // walker -- a second implementation of the rule would drift, and
-        // the two answers must agree or a call outlives its definition.
-        mut bvs_fn_reads := Set(U32).new()
-        mut bvs_fn_needs := false
-        for bvs_fn_sch : Expr in e.children {
-            if builder_body_has_free_only_delete(bvs_fn_sch, ctx) { bvs_fn_needs = true break }
-        }
-        if bvs_fn_needs {
-            for bvs_fn_rch : Expr in e.children {
-                builder_collect_body_reads(bvs_fn_rch, bvs_fn_reads, ctx)
+        address := word_bits(e).cast(UPtr)
+        if func_sites.has(address) {
+            ref summary : BuilderFuncSites = func_sites[address]
+            if summary.round_dependent.not() {
+                builder_add_func_sites(summary, sites)
+                return
             }
+        } else {
+            mut summary := BuilderFuncSites(round_dependent = builder_sites_depend_on_round(e))
+            if summary.round_dependent.not() {
+                builder_collect_func_sites(e, summary.sites, func_sites, ctx)
+                builder_add_func_sites(summary, sites)
+                func_sites.set(address, own summary)
+                return
+            }
+            func_sites.set(address, own summary)
         }
-        for bvs_fn_ch : Expr in e.children {
-            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_reads, "", ctx)
-        }
+        builder_collect_func_sites(e, sites, func_sites, ctx)
         return
     }
     // Track which bindings the garbager recorded as Stack storage -- the
@@ -11204,10 +11248,10 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         if has_skip.and(cur_bvs == skip_child) { continue }
         if case_body_only.and(cur_bvs != e.children.len().sub(1)) { continue }
         if bvs_move_subst.and(cur_bvs == 0) {
-            builder_collect_ns_member_sites(bvs_ch.children[1], sites, stack_names, dup_names, reads, bvs_owner, ctx)
+            builder_collect_ns_member_sites(bvs_ch.children[1], sites, stack_names, dup_names, reads, bvs_owner, func_sites, ctx)
             continue
         }
-        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, reads, bvs_owner, ctx)
+        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, reads, bvs_owner, func_sites, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         // A site inside an OMITTED definition is not a call: the body that
@@ -11236,7 +11280,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
                     if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
                 }
             }
-            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, reads, "", ctx)
+            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, reads, "", func_sites, ctx)
         }
     }
 }
@@ -11620,6 +11664,10 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     // Monotone -- skipping bodies only removes sites, fewer sites only add
     // omissions -- so it terminates; two or three rounds in practice.
     mut inv_prev_sites : USize = 99999999
+    // Retain only invariant function sites between rounds, not whole-body
+    // read/storage sets. This state dies with the inventory calculation;
+    // later translations and AST transformations cannot reuse it.
+    mut inv_func_sites := Map(UPtr, BuilderFuncSites).new()
     while true {
         mut inv_round_sites := Set(Str).new()
         // The hand-written C runtime (src/c/ext.c) is linked into every
@@ -11659,7 +11707,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
             // local is emitted as an ordinary call.
             for inv_tl_stmt : Expr in lp.ctx.imported[upath].ast.children {
                 if global_decl_has_c_static_initializer(inv_tl_stmt, lp.ctx) { continue }
-                builder_collect_ns_member_sites(inv_tl_stmt, inv_round_sites, inv_stack_names, inv_dup_names, inv_unit_reads, "", lp.ctx)
+                builder_collect_ns_member_sites(inv_tl_stmt, inv_round_sites, inv_stack_names, inv_dup_names, inv_unit_reads, "", inv_func_sites, lp.ctx)
             }
         }
         n_sites := inv_round_sites.len()
