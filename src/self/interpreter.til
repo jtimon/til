@@ -2631,6 +2631,17 @@ priv eval_while := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
     }
 }
 
+// Replacements execute the language destructor while the AST is live. The
+// raw heap cleanup routines are for interpreter storage teardown and cannot
+// substitute for a user-defined delete (including an interface's dispatch).
+priv eval_replacement_delete := proc(mut scope: Scope, shallow value_type: Type, data: Dynamic, call_free: Bool, site: Expr, mut ctx: Context) {
+    mut drop_scope := scope_new(safe_ref(scope))
+    scope_set_raw_owned(drop_scope, "replaced_value", data, interp_intern_type(value_type, ctx), OwnType.Ref, ctx, borrowed = true)
+    mut call := make_delete_call("replaced_value", value_type, false, call_free, site, ctx.symbols).unwrap()
+    eval_fcall(drop_scope, call, fcall_of(call), ctx)
+    scope_free(own drop_scope)
+}
+
 priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
@@ -2697,7 +2708,12 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 // owning path below does; without that the garbager's own
                 // delete and this drop both free it.
                 ref mut assign_data : Dynamic = to_ptr(assign_hb.ptr)
-                _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx, ad.save_old_delete)
+                mut drop_old := ad.save_old_delete
+                if drop_old.and(is_aggregate(hb_type(assign_hb))) {
+                    eval_replacement_delete(scope, hb_type(assign_hb), assign_data, false, stmt, ctx)
+                    drop_old = false
+                }
+                _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx, drop_old)
             } else {
                 scope_drop_existing_heap_slot(scope_get_binding_scope(scope, ad.name), ad.name, ad.save_old_delete)
                 assign_hb.ptr = to_ptr(new_raw)
@@ -2804,7 +2820,27 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 if ffi_place_is_foreign(base, ctx).and(fdecl.own_type.is(OwnType.Shallow)) {
                     ffi_borrow_place(decl_type_name(fdecl, ctx.symbols), ptr_add(base, wf_fl.offset), ctx)
                 }
-                write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, fad.save_old_delete, ctx)
+                mut drop_field := fad.save_old_delete
+                if drop_field.and(fdecl.own_type.is(OwnType.Ref).not()).and(is_aggregate(fdecl.til_type)) {
+                    // Preserve a borrowed replacement before destroying the
+                    // old value: it may alias this very field.
+                    if val_is_ref {
+                        val_raw = heap_clone_by_type(fdecl.til_type, val_raw, ctx)
+                        val_is_ref = false
+                    }
+                    ref field_data : Dynamic = ptr_add(base, wf_fl.offset)
+                    if fdecl.own_type.is(OwnType.Own) {
+                        ref old_data : Dynamic = deref(field_data)
+                        // An owned field may still be its default null slot.
+                        if old_data.is_null().not() {
+                            eval_replacement_delete(scope, fdecl.til_type, old_data, true, stmt, ctx)
+                        }
+                    } else {
+                        eval_replacement_delete(scope, fdecl.til_type, field_data, false, stmt, ctx)
+                    }
+                    drop_field = false
+                }
+                write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, drop_field, ctx)
             }
         case .FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
@@ -5741,6 +5777,18 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             write_ptr(dst, source)
         } else {
             if drop_old { free_inline_struct_slot(dst, name, ctx) }
+            if raw_is_ref.not() {
+                // An owned RHS already supplies the new value. Transfer its
+                // contents, freeing only the outer interpreter allocation;
+                // cloning then dropping it runs extra payload destructors.
+                if ffi_place_is_foreign(dst, ctx) {
+                    ffi_copy_struct_into(name, source, true, dst, false, ctx)
+                } else {
+                    memcpy(dst, source, field_size)
+                }
+                EvalHeap.heap_free(own source)
+                return
+            }
             cloned : Dynamic = heap_clone(name, source, ctx)
             if ffi_place_is_foreign(dst, ctx) {
                 ffi_copy_struct_into(name, cloned, true, dst, false, ctx)

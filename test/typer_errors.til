@@ -789,6 +789,74 @@ terr_iface_return_ref_argument := func() returns TErrConfIface {
     return terr_iface_relay(terr_iface_borrow(source))
 }
 
+// Interface storage preserves borrowed payload provenance across collection
+// deposits and assignments, including owners in shorter-lived inner scopes.
+terr_iface_return_collection := func() returns Vec(TErrConfIface) {
+    source := TErrIfaceConcrete()
+    view: TErrConfIface = source
+    mut values := Vec(TErrConfIface).new()
+    values.push(own view)
+    return values
+}
+
+terr_iface_inner_collection := func() returns I64 {
+    mut values := Vec(TErrConfIface).new()
+    if true {
+        source := TErrIfaceConcrete()
+        view: TErrConfIface = source
+        values.push(own view)
+    }
+    return values[0].must()
+}
+
+terr_iface_inner_assign := func() returns I64 {
+    mut view: TErrConfIface = TErrIfaceConcrete()
+    if true {
+        source := TErrIfaceConcrete()
+        view = source
+    }
+    return view.must()
+}
+
+terr_iface_inner_field := func() returns I64 {
+    mut holder := TErrIfaceHolder(value = TErrIfaceConcrete())
+    if true {
+        source := TErrIfaceConcrete()
+        view: TErrConfIface = source
+        holder.value = view
+    }
+    return holder.value.must()
+}
+
+terr_iface_caller_collection := func(mut values: Vec(TErrConfIface)) {
+    source := TErrIfaceConcrete()
+    view: TErrConfIface = source
+    values.push(own view)
+}
+
+terr_iface_aliased_collection := func() returns I64 {
+    mut values := Vec(TErrConfIface).new()
+    if true {
+        source := TErrIfaceConcrete()
+        view: TErrConfIface = source
+        ref mut alias: Vec(TErrConfIface) = values
+        alias.push(own view)
+    }
+    return values[0].must()
+}
+
+terr_iface_bad_assign := func() returns I64 {
+    mut view: TErrConfIface = TErrIfaceConcrete()
+    view = TErrConfNotIface()
+    return view.must()
+}
+
+terr_iface_bad_field := func() returns I64 {
+    mut holder := TErrIfaceHolder(value = TErrIfaceConcrete())
+    holder.value = TErrConfNotIface()
+    return holder.value.must()
+}
+
 // #287: the key binding of a two-variable for-in cannot be `mut` -- mutating
 // a key in place would corrupt the map's key ordering / bucket placement.
 // Values may be mutated (`for k, mut v`); keys may not.

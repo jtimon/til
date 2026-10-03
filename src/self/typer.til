@@ -1536,22 +1536,6 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             ci++
             pi++
         }
-        // #393: map the callee's deposit pairs onto the actual arguments:
-        // the source argument's borrow roots land in the sink argument's
-        // binding, where later writes through the sink's elements find
-        // them.
-        if fdef_data.deposit_matrix != 0 {
-            for dsink in 0..DEPOSIT_PARAMS {
-                for dsrc in 0..DEPOSIT_PARAMS {
-                    if fdef_data.deposit_matrix.band(deposit_bit(dsink, dsrc)) == 0 { continue }
-                    sink_o := summary_fcall_arg_for_param(e, fdef_data, dsink, scope, ctx.symbols)
-                    if sink_o.is_none() { continue }
-                    src_o := summary_fcall_arg_for_param(e, fdef_data, dsrc, scope, ctx.symbols)
-                    if src_o.is_none() { continue }
-                    apply_call_deposit(scope, sink_o.unwrap(), src_o.unwrap(), ctx.symbols)
-                }
-            }
-        }
         ci = 1
         pi = 0
         while pi < fdef_data.sig.params.len() {
@@ -1686,12 +1670,26 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             // need owned storage, since the callee can return their box or
             // store it inside a returned holder.
             if type_is_interface(ptype, scope, ctx.symbols) {
-                box_inferred_interface_value(scope, e.children[ci], ptype_name, in_func, ctx)
+                box_inferred_interface_value(scope, e.children[ci], ptype_name, param2.own_type.is(OwnType.Own), in_func, ctx)
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, param2.own_type, ctx)
             ci++
             pi++
+        }
+        // Record deposits after coercion: an interface box may introduce a
+        // concrete borrow, or own a temporary and carry no such borrow.
+        if fdef_data.deposit_matrix != 0 {
+            for dsink in 0..DEPOSIT_PARAMS {
+                for dsrc in 0..DEPOSIT_PARAMS {
+                    if fdef_data.deposit_matrix.band(deposit_bit(dsink, dsrc)) == 0 { continue }
+                    sink_o := summary_fcall_arg_for_param(e, fdef_data, dsink, scope, ctx.symbols)
+                    if sink_o.is_none() { continue }
+                    src_o := summary_fcall_arg_for_param(e, fdef_data, dsrc, scope, ctx.symbols)
+                    if src_o.is_none() { continue }
+                    apply_call_deposit(scope, sink_o.unwrap(), src_o.unwrap(), e, ctx)
+                }
+            }
         }
 }
 
@@ -6502,8 +6500,17 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // the other checks) precisely so the destination is known in time.
     saved_fa_expected_type := ctx.generic_expected_type.clone()
     ref saved_fa_expected_for : Dynamic = ctx.generic_expected_for
-    generic_expected_arm(ctx, scope, field_assign_declared_type_name(scope, stmt.children[0], fname, ctx), stmt.children[1])
+    field_type_name := field_assign_declared_type_name(scope, stmt.children[0], fname, ctx)
+    generic_expected_arm(ctx, scope, field_type_name, stmt.children[1])
     infer_expr(scope, stmt.children[1], in_func, ctx)
+    if name_is_interface(field_type_name, scope, ctx.symbols) {
+        // Like construction, an interface value field owns a concrete
+        // replacement. Infer the box before recording deposits/type checks.
+        if stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref).not() {
+            box_inferred_interface_value(scope, stmt.children[1], field_type_name, true, in_func, ctx)
+        }
+        check_declared_value_type(stmt, fname, stmt.children[1], type_from_name(field_type_name, scope, ctx), field_type_name, stmt.fa_own_type(scope, ctx.symbols), scope, ctx)
+    }
     ctx.generic_expected_type = saved_fa_expected_type.clone()
     ctx.generic_expected_for = saved_fa_expected_for
     ref obj : Expr = stmt.children[0]
@@ -6517,7 +6524,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // borrows in the base binding's storage -- the direct-assign form of
     // the deposit a call performs through its pairs.
     if type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols) {
-        apply_call_deposit(scope, obj, rhs, ctx.symbols)
+        apply_call_deposit(scope, obj, rhs, stmt, ctx)
     }
     obj_sname_o := expr_type_name_ref(obj, ctx.symbols)
     if obj_sname_o.is_some() {
@@ -6660,7 +6667,8 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     if stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref).not().and(
         rhs.node_type.is(NodeType.Ident).or(
             rhs.node_type.is(NodeType.FieldAccess).and(is_aggregate(rhs.til_type()))
-        )
+        ).or(type_is_interface(rhs.til_type(), scope, ctx.symbols)
+            .and(interface_box_storage_is_borrowed(rhs, scope, ctx.symbols)))
     ) {
         tname := type_to_name(rhs.til_type(), ctx.symbols)
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
@@ -7176,10 +7184,11 @@ priv infer_interface_payload_call := proc(mut scope: TypeScope, mut call: Expr, 
     resolve_fcall_return_type(scope, call, name, binding_o, fdef_o, in_func, ctx)
 }
 
-// Both locals and arguments borrow existing storage; fresh concrete values
+// Borrowing locals/arguments borrow existing storage; fresh concrete values
 // use owned boxes so returning/storing the interface cannot retain a pointer
-// to a hoisted temporary. The input is already inferred on either path.
-priv box_inferred_interface_value := proc(mut scope: TypeScope, mut value: Expr, iface_name: Str, in_func: I32, mut ctx: Context) {
+// to a hoisted temporary. Value fields and owning parameters own even a named
+// concrete source, matching field construction. The input is already typed.
+priv box_inferred_interface_value := proc(mut scope: TypeScope, mut value: Expr, iface_name: Str, own_payload: Bool, in_func: I32, mut ctx: Context) {
     concrete_o := expr_type_name_ref(value, ctx.symbols)
     if concrete_o.is_none() { return }
     concrete_name := concrete_o.unwrap().clone()
@@ -7187,7 +7196,7 @@ priv box_inferred_interface_value := proc(mut scope: TypeScope, mut value: Expr,
     line := value.line
     col := value.col
     mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
-    if expr_is_borrow_source(value, scope, ctx.symbols).not() {
+    if own_payload.or(expr_is_borrow_source(value, scope, ctx.symbols).not()) {
         box = make_owned_iface_box(iface_name, concrete_name, own value.clone(), line, col, ctx.symbols)
     } else {
         box.add_child(own Expr.new(ident_node(ctx.symbols.intern(iface_name)), line, col))
@@ -7759,7 +7768,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
         else if name_is_interface(declared_name_at_entry, scope, ctx.symbols) {
             infer_expr(scope, stmt.children[0], in_func, ctx)
-            box_inferred_interface_value(scope, stmt.children[0], declared_name_at_entry, in_func, ctx)
+            box_inferred_interface_value(scope, stmt.children[0], declared_name_at_entry, false, in_func, ctx)
         } else { infer_expr(scope, stmt.children[0], in_func, ctx) }
         ctx.generic_expected_type = saved_expected_type.clone()
         ctx.generic_expected_for = saved_expected_for
@@ -8937,6 +8946,10 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     }
     generic_expected_arm(ctx, scope, asg_expected_name, stmt.children[0])
     infer_expr(scope, stmt.children[0], in_func, ctx)
+    if name_is_interface(asg_expected_name, scope, ctx.symbols) {
+        box_inferred_interface_value(scope, stmt.children[0], asg_expected_name, false, in_func, ctx)
+        check_declared_value_type(stmt, aname, stmt.children[0], type_from_name(asg_expected_name, scope, ctx), asg_expected_name, OwnType.Shallow, scope, ctx)
+    }
     ctx.generic_expected_type = saved_asg_expected_type.clone()
     ctx.generic_expected_for = saved_asg_expected_for
     ref mut rhs : Expr = stmt.children[0]
@@ -8985,6 +8998,9 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             if db_o.is_some() {
                 ref mut db : TypeBinding = db_o.unwrap()
                 if binding_is_storage(scope, db, ctx.symbols) {
+                    if type_is_interface(rhs.til_type(), scope, ctx.symbols) {
+                        check_interface_deposit_lifetimes(scope, db, deposited_393, stmt, ctx)
+                    }
                     deposit_roots_into_binding(scope, db, deposited_393, ctx.symbols)
                 }
             }
@@ -11690,13 +11706,76 @@ priv deposit_sink_binding := func(scope: TypeScope, sink: Expr, symbols: SymbolP
     return Option(ref TypeBinding).None
 }
 
-priv apply_call_deposit := func(scope: TypeScope, sink: Expr, src: Expr, symbols: SymbolPool) {
-    deposited := deposit_src_roots(scope, src, symbols)
+// Is the sink declared outside the owner's lexical scope? Match declaration
+// sites, not just names: a nested block may shadow an outer binding.
+priv deposit_sink_outlives_owner := func(scope: TypeScope, owner: TypeBinding, sink: BorrowRoot, symbols: SymbolPool) returns Bool {
+    local_o := scope.local_binding_name(owner.name, symbols)
+    if local_o.is_some() {
+        ref local : TypeBinding = local_o.unwrap()
+        if local.line.eq(owner.line).and(local.col == owner.col).and(local.path == owner.path) {
+            switch scope.parent {
+            case .Some(parent): return lookup_binding_at(parent, sink, symbols).is_some()
+            case .None: return false
+            }
+        }
+    }
+    switch scope.parent {
+    case .Some(parent): return deposit_sink_outlives_owner(parent, owner, sink, symbols)
+    case .None: panic("deposit owner is not in the active scope: ", owner.name)
+    }
+}
+
+// Interface boxing supplies concrete payload provenance. General deposit
+// summaries also include conservative write-credit roots (for example an
+// AST carrier's storage); those are not proof of a retained interface borrow.
+priv check_interface_deposit_lifetimes := proc(scope: TypeScope, sink: TypeBinding, deposited: Vec(BorrowRoot), site: Expr, mut ctx: Context) {
+    mut sinks := Vec(BorrowRoot).new()
+    sinks.push(own borrow_root_of_binding(sink))
+    // A ref local can name storage from an enclosing scope/caller.
+    if sink.own_type.is(OwnType.Ref) {
+        for r : BorrowRoot in sink.borrow_roots {
+            if r.carried.not() { push_root_unique(sinks, r) }
+        }
+    }
+    mut reported := Set(Str).new()
+    for r : BorrowRoot in deposited {
+        if reported.has(r.name) { continue }
+        owner_o := lookup_binding_at(scope, r, ctx.symbols)
+        if owner_o.is_none() { continue }
+        ref owner : TypeBinding = owner_o.unwrap()
+        // Ref aliases/borrowed params do not own the pointed-to storage;
+        // their flattened roots carry its owner. Raw Dynamic is quarantine.
+        if owner.own_type.is(OwnType.Ref).or(owner.is_param.and(owner.own_type.is(OwnType.Own).not())).or(owner.is_builtin).or(owner.type.is(Type.Dynamic)) { continue }
+        global_o := scope_root_ref(scope).local_binding_name(owner.name, ctx.symbols)
+        if global_o.is_some() {
+            ref global : TypeBinding = global_o.unwrap()
+            if global.line.eq(owner.line).and(global.col == owner.col).and(global.path == owner.path) { continue }
+        }
+        for target : BorrowRoot in sinks {
+            target_o := lookup_binding_at(scope, target, ctx.symbols)
+            if target_o.is_none() { continue }
+            ref dest : TypeBinding = target_o.unwrap()
+            if dest.is_param.and(dest.own_type.is(OwnType.Own).not())
+                .or(deposit_sink_outlives_owner(scope, owner, target, ctx.symbols)) {
+                site.type_error(format("cannot store a borrow of local '", owner.name, "' in '", dest.name,
+                    "': the destination outlives the local's scope; store an owned value instead"), ctx)
+                reported.add(own r.name.clone())
+                break
+            }
+        }
+    }
+}
+
+priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, mut ctx: Context) {
+    deposited := deposit_src_roots(scope, src, ctx.symbols)
     if deposited.len() == 0 { return }
-    mut bo := deposit_sink_binding(scope, sink, symbols)
+    mut bo := deposit_sink_binding(scope, sink, ctx.symbols)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
-    deposit_roots_into_binding(scope, b, deposited, symbols)
+    if type_is_interface(src.til_type(), scope, ctx.symbols) {
+        check_interface_deposit_lifetimes(scope, b, deposited, site, ctx)
+    }
+    deposit_roots_into_binding(scope, b, deposited, ctx.symbols)
 }
 
 // --- #344: the per-unit return-borrow summary pass ---------------------

@@ -23,6 +23,64 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Assignment and collection follow-up (based on master 1299f248c)
+
+    Reproduced three gaps:
+
+    - Assigning a conforming concrete value to an interface local/field
+      passed the typer's aggregate-kind check without boxing, then failed C
+      compilation with incompatible struct assignment/initializer errors.
+    - Inserting a borrowed interface from an inner block into an outer Vec
+      compiled but produced ASAN stack-use-after-scope after leaving that
+      block. The existing return checker already rejected returning a Vec
+      holding a borrow of a function local; it did not cover this deposit.
+    - Interpreted field replacement reclaimed an owned interface payload
+      through raw heap cleanup, skipping the concrete type's custom delete.
+      Compiled replacement executed that destructor. The new destruction
+      counter regression exposed the difference.
+
+    Changes:
+
+    - Local assignment uses the same boxing rule as local initialization:
+      fresh concrete values are owned, existing concrete storage is borrowed.
+      Non-ref value-field replacement owns concrete payloads, like field
+      construction. Both paths validate the actual named interface type.
+      Assigning a ref-returned interface into a value field clones its box.
+    - An owning interface parameter (including Vec.push / Array.set /
+      Map.set) receives an owned heap clone when coercing a concrete value,
+      even a named one. Passing an already-boxed borrowed interface keeps
+      its borrow; owning the box does not promote its payload to owned.
+    - Call deposits are recorded AFTER argument coercion, so their roots
+      describe the box actually stored. For interface assignments/deposits,
+      concrete local owners must not be outlived by an enclosing-scope or
+      caller-owned destination. Ref aliases of the destination are followed.
+      These checks use interface payload provenance; general conservative
+      write-credit summaries are not treated as proof of a lifetime escape.
+    - Live interpreted aggregate replacement executes the language delete
+      method instead of substituting raw interpreter heap cleanup. An owned
+      struct RHS transfers into an inline field without an extra clone/drop.
+      Raw heap cleanup still handles interpreter storage teardown.
+
+    Regression tests in ~test/interfaces.til~:
+    ~test_interface_reassignment~, ~test_interface_field_reassignment~,
+    ~test_interface_collection_lifetimes~,
+    ~test_interface_collection_borrows~ and
+    ~test_interface_replacement_destruction~. Coverage includes struct/enum
+    replacement, self-assignment, copied/ref-returned boxes, named concrete
+    collection insertion, heterogeneous Vec iteration/clone/pop/clear, and
+    exactly one destruction of the old payload for local, nested-scope local,
+    field, Array element and Map value replacement.
+
+    ~test/typer_errors.til~ adds the ~terr_iface_*collection~ escape cases,
+    ~terr_iface_inner_assign~, ~terr_iface_inner_field~,
+    ~terr_iface_bad_assign~ and ~terr_iface_bad_field~: eight new rejection
+    cases, including a ref-aliased destination and a caller-owned collection.
+
+    Verification: ~make clean && make test~ passed 496/496, including ASAN
+    and self-translation. Interface tests pass 30/30 on both paths; the
+    negative corpus reports 288 expected errors, with five new scope-deposit
+    diagnostics and one additional return-borrow rejection.
+
 *** Argument lifetime follow-up (based on master b444d7223)
 
     Reproduced compiled ASAN stack-use-after-return in

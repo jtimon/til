@@ -395,3 +395,138 @@ test_interface_argument_enum_payload := test() {
     holder := return_enum_argument(5)
     assert_eq(Str, holder.shape.draw(), "enum 5")
 }
+
+borrow_drawable := func(value: Drawable) returns ref Drawable { return value }
+
+test_interface_reassignment := test() {
+    mut calls := 0
+    mut d: Drawable = make_argument_caption(calls)
+    assert_eq(Str, d.draw(), "argument 1")
+    d = CaptionChoice.Text(format("replacement ", calls.to_str()))
+    assert_eq(Str, d.draw(), "replacement 1")
+    d = make_argument_caption(calls)
+    assert_eq(Str, d.draw(), "argument 2")
+    d = d
+    assert_eq(Str, d.draw(), "argument 2")
+    saved := d.clone()
+    d = CaptionShape(text = format("constructor ", calls.to_str()))
+    assert_eq(Str, saved.draw(), "argument 2")
+    assert_eq(Str, d.draw(), "constructor 2")
+    mut source := CaptionShape(text = format("before ", "assignment"))
+    d = source
+    source.text = format("after ", "assignment")
+    assert_eq(Str, d.draw(), "after assignment")
+    assert_eq(I64, calls, 2)
+}
+
+return_reassigned_holder := func(n: I64) returns DrawHolder {
+    mut holder := DrawHolder(shape = Circle(r = 1))
+    source := CaptionShape(text = format("field ", n.to_str()))
+    holder.shape = source
+    return holder
+}
+
+test_interface_field_reassignment := test() {
+    mut holder := return_reassigned_holder(3)
+    assert_eq(Str, holder.shape.draw(), "field 3")
+    holder.shape = CaptionChoice.Text(format("new ", "field"))
+    assert_eq(Str, holder.shape.draw(), "new field")
+    holder.shape = holder.shape
+    assert_eq(Str, holder.shape.draw(), "new field")
+    owned := return_argument_constructor(4)
+    holder.shape = borrow_drawable(owned)
+    assert_eq(Str, holder.shape.draw(), "constructor 4")
+    assert_eq(Str, owned.draw(), "constructor 4")
+}
+
+make_interface_collection := func(n: I64) returns Vec(Drawable) {
+    mut values := Vec(Drawable).new()
+    source := CaptionShape(text = format("named ", n.to_str()))
+    values.push(own source)
+    values.push(own CaptionChoice.Text(format("enum ", n.to_str())))
+    box: Drawable = CaptionShape(text = format("boxed ", n.to_str()))
+    values.push(own box)
+    return values
+}
+
+test_interface_collection_lifetimes := test() {
+    mut values := make_interface_collection(5)
+    assert_eq(Str, values[0].draw(), "named 5")
+    assert_eq(Str, values[1].draw(), "enum 5")
+    mut count := 0
+    for value in values {
+        assert_eq(Str, value.label(), "shape")
+        count++
+    }
+    assert_eq(I64, count, 3)
+    copies := values.clone()
+    popped := values.pop()
+    values.clear()
+    assert_eq(Str, popped.draw(), "boxed 5")
+    assert_eq(Str, copies[0].draw(), "named 5")
+    assert_eq(Str, copies[1].draw(), "enum 5")
+    assert_eq(Str, copies[2].draw(), "boxed 5")
+}
+
+test_interface_collection_borrows := test() {
+    mut source := CaptionShape(text = format("borrowed ", "before"))
+    view: Drawable = source
+    mut values := Vec(Drawable).new()
+    values.push(own view)
+    source.text = format("borrowed ", "after")
+    assert_eq(Str, values[0].draw(), "borrowed after")
+    popped := values.pop()
+    assert_eq(Str, popped.draw(), "borrowed after")
+}
+
+// Count destruction of the OLD payload independently of any new temporary
+// or clone. Each replacement must add exactly one old-payload destruction.
+StorageProbe := struct implements Drawable {
+    id: I64
+namespace:
+    mut old_drops := 0
+    draw := func(self: StorageProbe) returns Str { return self.id.to_str() }
+    delete := func(own self: StorageProbe, call_free: Bool = true) {
+        if self.id == 1 { StorageProbe.old_drops = StorageProbe.old_drops + 1 }
+        if call_free { free(own self) }
+    }
+}
+
+test_interface_replacement_destruction := test() {
+    mut d: Drawable = StorageProbe(id = 1)
+    assert_eq(Str, d.draw(), "1")
+    before_local := StorageProbe.old_drops
+    d = StorageProbe(id = 2)
+    assert_eq(I64, StorageProbe.old_drops, before_local + 1)
+    assert_eq(Str, d.draw(), "2")
+
+    mut outer: Drawable = StorageProbe(id = 1)
+    assert_eq(Str, outer.draw(), "1")
+    before_outer := StorageProbe.old_drops
+    if true { outer = StorageProbe(id = 2) }
+    assert_eq(I64, StorageProbe.old_drops, before_outer + 1)
+    assert_eq(Str, outer.draw(), "2")
+
+    mut holder := DrawHolder(shape = StorageProbe(id = 1))
+    assert_eq(Str, holder.shape.draw(), "1")
+    before_field := StorageProbe.old_drops
+    holder.shape = StorageProbe(id = 2)
+    assert_eq(I64, StorageProbe.old_drops, before_field + 1)
+    assert_eq(Str, holder.shape.draw(), "2")
+
+    mut array := Array(Drawable).new(1)
+    array.set(0, own StorageProbe(id = 1))!
+    assert_eq(Str, array[0].draw(), "1")
+    before_array := StorageProbe.old_drops
+    array.set(0, own StorageProbe(id = 2))!
+    assert_eq(I64, StorageProbe.old_drops, before_array + 1)
+    assert_eq(Str, array[0].draw(), "2")
+
+    mut map := Map(Str, Drawable).new()
+    map.set("item", own StorageProbe(id = 1))
+    assert_eq(Str, map["item"].draw(), "1")
+    before_map := StorageProbe.old_drops
+    map.set("item", own StorageProbe(id = 2))
+    assert_eq(I64, StorageProbe.old_drops, before_map + 1)
+    assert_eq(Str, map["item"].draw(), "2")
+}
