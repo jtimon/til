@@ -8,6 +8,8 @@ I4Alias := Simd(I32, SIMD_TEST_WIDTH)
 NativeF := Simd(F32, simd_width(F32))
 I1 := Simd(I64, 1)
 F8 := Simd(F32, 8)
+I32x32 := Simd(I32, 32)
+F64x16 := Simd(F64, 16)
 
 // An ordinary constructor whose name resembles the intrinsic dispatch names.
 Simd__ordinary_add := struct { value: I64 = 0 }
@@ -217,6 +219,81 @@ test_simd_memory_parameter_snapshot := test() {
     values.set(0, own 7)!
     assert_eq(I32, simd_memory_snapshot(simd_memory_view(values), values), 7)
     assert_eq(I32, values[0], 99)
+}
+
+test_simd_memory_c_temporary_names := test() {
+    mut til_simd_values := Array(I32).new(34)
+    for i in 0..til_simd_values.len() { til_simd_values.set(i, own i.to_i32())! }
+    til_simd_start : USize = 1
+    til_simd_value := I32x32.load(til_simd_values, til_simd_start)!
+    til_simd_value.store(til_simd_values, 2)!
+    assert(I32x32.load(til_simd_values, 2)!.eq(til_simd_value).all())
+    assert_eq(I32, til_simd_values[0], 0)
+    assert_eq(I32, til_simd_values[33], 32)
+    for start in array(USize, 3, 34, USize.MAX) {
+        mut load_failed := false
+        _invalid := I32x32.load(til_simd_values, start)?
+        catch (err: OutOfBounds) { load_failed = true }
+        assert(load_failed)
+        mut store_failed := false
+        I32x32.splat(99).store(til_simd_values, start)?
+        catch (err: OutOfBounds) { store_failed = true }
+        assert(store_failed)
+        assert(I32x32.load(til_simd_values, 2)!.eq(til_simd_value).all())
+        assert_eq(I32, til_simd_values[0], 0)
+    }
+}
+
+test_simd_wide_integer_chunks := test() {
+    lanes : USize = 32
+    mut lhs := Array(I32).new(34)
+    mut rhs := Array(I32).new(34)
+    for i in 0..34 {
+        lhs.set(i, own i.to_i32() - 17)!
+        rhs.set(i, own I32.MAX - i.to_i32())!
+        if i.mod(3) == 0 { rhs.set(i, own -40)! }
+    }
+    a := I32x32.load(lhs, 1)!
+    b := I32x32.load(rhs, 1)!
+    sum := a + b
+    difference := a - b
+    product := a * b
+    bits := a.bxor(b)
+    mask := a < b
+    selected := mask.select(a, b)
+    for i in 0..lanes {
+        ref l : I32 = lhs[i + 1]
+        ref r : I32 = rhs[i + 1]
+        assert_eq(I32, sum[i], l.cast(U32).add(r.cast(U32)).cast(I32))
+        assert_eq(I32, difference[i], l.cast(U32).sub(r.cast(U32)).cast(I32))
+        assert_eq(I32, product[i], l.cast(U32).mul(r.cast(U32)).cast(I32))
+        assert_eq(I32, bits[i], l.bxor(r))
+        assert_eq(Bool, mask[i], l < r)
+        if l < r { assert_eq(I32, selected[i], l) }
+        else { assert_eq(I32, selected[i], r) }
+    }
+}
+
+test_simd_wide_float_chunks := test() {
+    lanes : USize = 16
+    mut lhs := Array(F64).new(18)
+    mut rhs := Array(F64).new(18)
+    for i in 0..18 {
+        lhs.set(i, own i.to_f64() * 1.25)!
+        rhs.set(i, own (18 - i).to_f64())!
+    }
+    lhs.set(9, own "nan".to_f64())!
+    a := F64x16.load(lhs, 1)!
+    b := F64x16.load(rhs, 1)!
+    sum := a + b
+    mask := a < b
+    for i in 0..lanes {
+        ref l : F64 = lhs[i + 1]
+        ref r : F64 = rhs[i + 1]
+        if i == 8 { assert(sum[i].neq(sum[i])) }
+        else { assert_eq(F64, sum[i], l + r) }
+        assert_eq(Bool, mask[i], l < r)
+    }
 }
 
 test_simd_matrix := test() {

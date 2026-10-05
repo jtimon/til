@@ -3768,6 +3768,20 @@ priv emit_precomputed_sequence_templates := proc(f: File, mut lp: LoadedProgram)
     if emitted.len() > 0 { f.write("\n") }
 }
 
+priv builder_simd_chunk_lanes := func(simd: StructDef, ctx: Context) returns USize {
+    mut lane_bytes : USize = 0
+    mut lane_align : USize = 0
+    switch declaration_resolved_type(simd.fields[0], ctx.scope, ctx.symbols) {
+    case .Primitive(prim): builtin_primitive_size_align(prim, lane_bytes, lane_align)
+    case: panic("SIMD field is not a scalar primitive")
+    }
+    // A target with no baseline SIMD uses single-lane operations.
+    mut lanes := ctx.target_simd_bits / (lane_bytes * 8)
+    if lanes == 0 { lanes = 1 }
+    if lanes > simd.simd_width { lanes = simd.simd_width }
+    return lanes
+}
+
 priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, depth: I32, mut ctx: Context) returns Bool {
     definition := ctx.scope.get_struct(sname, ctx.symbols)
     if definition.is_none() { return false }
@@ -3830,20 +3844,45 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
     if comparison.not().and(lane_c.starts_with("I")) { lane_c = format("U", lane_c.substr(1, lane_c.len() - 1)) }
     if lane_c == "Bool" { lane_c = "U8" }
     result_c := func_return_ctype(funcdef_of(find_callee_fdef(flat, ctx).unwrap()), ctx)
+    // Keep GNU vector temporaries within the selected target's register width.
+    // Oversized vector modes make GCC spill even inlined operations through
+    // stack storage. The public representation remains N scalar-aligned lanes.
+    chunk_lanes := builder_simd_chunk_lanes(simd, ctx)
     f.write("({ ").write(sname).write(" til_simd_a = ")
     emit_deref(f, e.children[1], depth, ctx)
     f.write("; ").write(sname).write(" til_simd_b = ")
     emit_deref(f, e.children[2], depth, ctx)
-    f.write("; typedef ").write(lane_c).write(" til_simd_v __attribute__((vector_size(sizeof(").write(lane_c).write(") * ").write(simd.simd_width.to_str()).write("))); ")
-    f.write("til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, &til_simd_a, sizeof(til_simd_x)); memcpy(&til_simd_y, &til_simd_b, sizeof(til_simd_y)); ")
-    f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
-    f.write(result_c).write(" til_simd_result; ")
-    if comparison {
-        for i in 0..simd.simd_width {
-            f.write("til_simd_result.lane").write(i.to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
+    f.write("; typedef ").write(lane_c).write(" til_simd_v __attribute__((vector_size(sizeof(").write(lane_c).write(") * ").write(chunk_lanes.to_str()).write("))); ")
+    // Preserve the existing single-register form. Splitting is useful for
+    // oversized values; rewriting native-width operations can hurt GCC's SRA.
+    if chunk_lanes == simd.simd_width {
+        f.write("til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, &til_simd_a, sizeof(til_simd_x)); memcpy(&til_simd_y, &til_simd_b, sizeof(til_simd_y)); ")
+        f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+        f.write(result_c).write(" til_simd_result; ")
+        if comparison {
+            for i in 0..simd.simd_width {
+                f.write("til_simd_result.lane").write(i.to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
+            }
+        } else {
+            f.write("memcpy(&til_simd_result, &til_simd_z, sizeof(til_simd_result)); ")
         }
-    } else {
-        f.write("memcpy(&til_simd_result, &til_simd_z, sizeof(til_simd_result)); ")
+        f.write("til_simd_result; })")
+        return true
+    }
+    f.write(result_c).write(" til_simd_result; ")
+    for chunk in 0..(simd.simd_width / chunk_lanes) {
+        first := chunk * chunk_lanes
+        offset := format("sizeof(", lane_c, ") * ", first.to_str())
+        f.write("{ til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, (const U8 *)&til_simd_a + ").write(offset).write(", sizeof(til_simd_x)); memcpy(&til_simd_y, (const U8 *)&til_simd_b + ").write(offset).write(", sizeof(til_simd_y)); ")
+        f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+        if comparison {
+            for i in 0..chunk_lanes {
+                f.write("til_simd_result.lane").write((first + i).to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
+            }
+        } else {
+            f.write("memcpy((U8 *)&til_simd_result + ").write(offset).write(", &til_simd_z, sizeof(til_simd_z)); ")
+        }
+        f.write("} ")
     }
     f.write("til_simd_result; })")
     return true
@@ -4013,6 +4052,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                     emit_deref(f, e.children[2], depth, ctx)
                     f.write("))")
                 }
+            } else if builder_is_inline_simd_memory(sname, mname.field_access_name(ctx.symbols.names), ctx) {
+                emit_inline_simd_memory(f, e, sname, mname.field_access_name(ctx.symbols.names), flat, depth, ctx)
             } else if builder_is_inline_checked_get(flat, ctx) {
                 // `v[i]`: keep the bounds check, drop the call.
                 emit_inline_checked_get(f, e, find_callee_fdef(flat, ctx).unwrap(), depth, ctx)
@@ -10847,6 +10888,54 @@ priv builder_checked_get_body_ok := func(body: Expr) returns Bool {
     return seen_if
 }
 
+priv builder_is_inline_simd_memory := func(owner: Str, member: Str, ctx: Context) returns Bool {
+    if member.eq("load").or(member.eq("store")).not() { return false }
+    def := ctx.scope.get_struct(owner, ctx.symbols)
+    if def.is_none() { return false }
+    switch def.unwrap().node_type {
+    case .StructDef(sd):
+        if sd.simd_width == 0 { return false }
+        return sd.simd_width > builder_simd_chunk_lanes(sd, ctx)
+    case: return false
+    }
+}
+
+// Oversized SIMD memory methods are a checked contiguous copy. Emit that
+// primitive at its direct call site, before GCC's late aggregate-return
+// inlining can leave a stack round-trip (or reject the wrapper altogether).
+// Keep each argument's evaluation and store's value snapshot in source order.
+// The ordinary bodies remain available to exports and reflective dispatch.
+priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, flat: Str, depth: I32, mut ctx: Context) {
+    ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+    ref sd : StructDef = structdef_of(definition)
+    ref fd : FunctionDef = funcdef_of(find_callee_fdef(flat, ctx).unwrap())
+    store := member == "store"
+    mut array_arg : USize = 1
+    f.write("({ ").write(owner).write(" _t_simd_mem_value = ")
+    if store {
+        emit_deref(f, e.children[1], depth, ctx)
+        array_arg = 2
+    } else {
+        f.write("{0}")
+    }
+    f.write("; ").write(param_ctype(fd, array_arg - 1, ctx)).write(" _t_simd_mem_values = ")
+    emit_as_ptr(f, e.children[array_arg], depth, false, ctx)
+    f.write("; USize _t_simd_mem_start = ")
+    emit_deref(f, e.children[array_arg + 1], depth, ctx)
+    f.write("; I64 *_t_simd_mem_error = ")
+    emit_as_ptr(f, e.children[array_arg + 2], depth, false, ctx)
+    f.write("; USize _t_simd_mem_count = _t_simd_mem_values->cap; if (_t_simd_mem_start <= _t_simd_mem_count && _t_simd_mem_count - _t_simd_mem_start >= ")
+        .write(sd.simd_width.to_str()).write(") { memcpy(")
+    address := "(U8 *)_t_simd_mem_values->data + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0)"
+    if store { f.write(address).write(", &_t_simd_mem_value") }
+    else { f.write("&_t_simd_mem_value, ").write(address) }
+    // init_expand_simd declares exactly one payload-less exception:
+    // OutOfBounds, whose callee-local tag is 1. Success leaves the slot alone.
+    f.write(", sizeof(_t_simd_mem_value)); } else { *_t_simd_mem_error = 1; } ")
+    if store { f.write("(void)0; })") }
+    else { f.write("_t_simd_mem_value; })") }
+}
+
 priv builder_is_inline_checked_get := func(flat: Str, ctx: Context) returns Bool {
     fdef_o := find_callee_fdef(flat, ctx)
     if fdef_o.is_none() { return false }
@@ -11357,13 +11446,13 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
 priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if ctx.builder_keep_all_exports { return false }
     flat_in := type_name.concat3("_", member)
-    // Two ways a method is spliced at every direct call site, so no
-    // emitted C calls the out-of-line definition: the len/unsafe_get
-    // accessor shape, and the bounds-checked `v[i]` get. Both ask the
+    // Methods spliced at every direct call site need no out-of-line
+    // definition: len/unsafe_get, checked get, and SIMD memory. Ask the
     // predicate the EMITTER asks -- the gate and the splice must agree on
     // the same shape, or one of them is wrong about what exists.
     if builder_is_inline_accessor(member, flat_in, ctx)
-        .or(builder_is_inline_checked_get(flat_in, ctx)).not() { return false }
+        .or(builder_is_inline_checked_get(flat_in, ctx))
+        .or(builder_is_inline_simd_memory(type_name, member, ctx)).not() { return false }
     // Ask the generated dispatch per METHOD, as the auto-size and
     // variant-ctor gates do. "dyn_fn appears somewhere" is true of every
     // program importing std/dyn_array, whose `dyn_fn(elem_type, "clone")`

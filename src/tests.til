@@ -2168,6 +2168,14 @@ main := proc(args: ..Str) {
     add_both(tests, "test/top_level_bang_generic.til", flags)
     add_both(tests, "test/tuples.til", flags)
     add_both(tests, "test/simd.til", flags)
+    // #409: wide values keep their scalar storage but use register-sized
+    // arithmetic and direct checked copies, not aggregate-return load calls.
+    add_counts(tests, "simd_wide_codegen", "build",
+        format(til_bin, " translate --target=linux-x64 --cpu=baseline -c gen/c/simd_wide_codegen.c test/simd.til '&&' cat gen/c/simd_wide_codegen.c"),
+        CountCheck(needle = "Simd__I32_n2_32_load(", expected_count = 0),
+        CountCheck(needle = "Simd__I32_n2_32_store(", expected_count = 0),
+        CountCheck(needle = "vector_size(sizeof(U32) * 32)", expected_count = 0),
+        CountCheck(needle = "vector_size(sizeof(F64) * 16)", expected_count = 0))
     add_count(tests, "simd_java_unsupported", "typer",
         "SIMD is not supported by this backend", 1,
         format(til_bin, " translate --target=jvm test/simd.til"))
