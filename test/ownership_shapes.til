@@ -580,3 +580,47 @@ view_local_own_arg_in_nested_loop := test() {
     }
     assert_eq(USize, kept, 4)
 }
+
+// --- CFG head effects and rebinding precedence --------------------------
+
+flow_runtime_text := proc() returns Str {
+    noop_proc()
+    mut text := Str.with_capacity(8)
+    text.push_str("head")
+    return text
+}
+
+flow_take_condition := func(own text: Str, flag: Bool) returns Bool {
+    assert_eq(USize, text.len(), 4)
+    return flag
+}
+
+flow_condition_return := proc(flag: Bool) returns USize {
+    text := flow_runtime_text()
+    // The transfer happens in the CFG head, before either branch starts.
+    if flow_take_condition(own text, flag) { return 1 }
+    return 0
+}
+
+own_local_consumed_in_if_condition := test() {
+    assert_eq(USize, flow_condition_return(false), 0)
+    assert_eq(USize, flow_condition_return(true), 1)
+}
+
+flow_replace_text := proc(own text: Str) returns Str {
+    assert_eq(USize, text.len(), 4)
+    return flow_runtime_text()
+}
+
+flow_rebound_return := proc() returns USize {
+    mut text := flow_runtime_text()
+    replacement := flow_runtime_text()
+    // One statement re-owns text while consuming another binding. The
+    // cleanup state must distinguish both effects of the same statement.
+    text = flow_replace_text(own replacement)
+    return text.len()
+}
+
+own_local_reowned_after_transfer_rhs := test() {
+    assert_eq(USize, flow_rebound_return(), 4)
+}

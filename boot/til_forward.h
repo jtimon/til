@@ -346,8 +346,8 @@ typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
-typedef struct Array__USize Array__USize;
 typedef struct Array__Bool Array__Bool;
+typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
@@ -1105,6 +1105,7 @@ typedef struct priv___src_self_garbager_til__BodyFacts {
     Vec__U64 decls;
     Vec__U64 nested;
     Vec__U64 transfers;
+    Vec__U64 reassigns;
     Vec__U64 escapes;
     Vec__Str def_names;
     Vec__I64 def_bits;
@@ -1119,16 +1120,16 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
 } priv___src_self_garbager_til__GcBorrowEdge;
 
 
-typedef struct Array__USize {
-    U8 *data;
-    USize cap;
-} Array__USize;
-
-
 typedef struct Array__Bool {
     U8 *data;
     USize cap;
 } Array__Bool;
+
+
+typedef struct Array__USize {
+    U8 *data;
+    USize cap;
+} Array__USize;
 
 
 typedef struct Array__U8 {

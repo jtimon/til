@@ -584,57 +584,106 @@ priv gc_flow_letter := func(s: U8) returns Str {
 // the last constant in the block, or identity when there is none.
 priv FLOW_ID : U8 = 0
 
-priv gc_flow_stmt_const := func(stmt: Expr, name: Str, scope: TypeScope, ctx: Context) returns U8 {
+priv gc_flow_stmt_const := func(facts: BodyFacts, stmt_idx: USize, bit: USize) returns U8 {
     // Decl-or-reassign checked first: `s = consume(own s)` transfers in
     // the RHS and re-owns in the same statement, net Owned.
-    if expr_contains_decl(stmt, name) { return FLOW_OWNED }
-    if expr_reassigns_var(stmt, name) { return FLOW_OWNED }
-    if expr_transfers_own(stmt, name, scope, ctx) { return FLOW_MOVED }
+    base := stmt_idx.mul(facts.words)
+    if fact_bit_test(facts.decls, base, bit).or(fact_bit_test(facts.reassigns, base, bit)) { return FLOW_OWNED }
+    if fact_bit_test(facts.transfers, base, bit) { return FLOW_MOVED }
     return FLOW_ID
 }
 
-priv gc_flow_stmt_effect := func(stmt: Expr, name: Str, state: U8, scope: TypeScope, ctx: Context) returns U8 {
-    c := gc_flow_stmt_const(stmt, name, scope, ctx)
+priv gc_flow_stmt_effect := func(facts: BodyFacts, stmt_idx: USize, bit: USize, state: U8) returns U8 {
+    c := gc_flow_stmt_const(facts, stmt_idx, bit)
     if c == FLOW_ID { return state }
     return c
 }
 
-// The block's composed transfer function for `name` (see FLOW_ID). The
-// solver evaluates this ONCE per block instead of re-walking the
-// block's statements on every sweep -- the walk asks
-// expr_contains_decl / expr_reassigns_var / expr_transfers_own, three
-// subtree scans per statement, which dominated the fixpoint.
-priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, scope: TypeScope, ctx: Context) returns U8 {
+priv gc_flow_copy_fact_row := func(source: BodyFacts, source_idx: USize, mut target: BodyFacts, target_idx: USize) {
+    bytes := source.words.mul(U64.size())
+    source_offset := source_idx.mul(bytes)
+    target_offset := target_idx.mul(bytes)
+    memcpy(ptr_add(target.decls.data, target_offset), ptr_add(source.decls.data, source_offset), bytes)
+    memcpy(ptr_add(target.reassigns.data, target_offset), ptr_add(source.reassigns.data, source_offset), bytes)
+    memcpy(ptr_add(target.transfers.data, target_offset), ptr_add(source.transfers.data, source_offset), bytes)
+}
+
+priv gc_flow_collect_fact_row := func(selected: Expr, scope: TypeScope, fi: FactIndex, symbols: SymbolPool, mut row: BodyFacts) {
+    bytes := row.words.mul(U64.size())
+    memset(row.decls.data, 0, bytes)
+    memset(row.reassigns.data, 0, bytes)
+    memset(row.transfers.data, 0, bytes)
+    // The other fused-collector rows are scratch OR destinations;
+    // they are never queried here and need no per-row clearing.
+    expr_collect_stmt_facts(selected, scope, true, true, fi, 0, row.uses, row.decls, row.nested, row.escapes, row.transfers, symbols)
+    collect_reassign_facts(selected, fi, 0, row.reassigns)
+}
+
+// Flatten the CFG's evaluated statement views into existing fact rows once
+// for all binding queries. Root straight-line rows already exist. Nested
+// spans and compound tails need their own selected expression: only the
+// condition/subject evaluates at a tail; its branch bodies are other blocks.
+priv gc_flow_cfg_facts := func(blocks: Vec(GcCfgBlock), root_facts: BodyFacts, scope: TypeScope, fi: FactIndex, symbols: SymbolPool, mut offsets: Array(USize)) returns BodyFacts {
+    mut facts := BodyFacts(words = root_facts.words)
+    for bi in 0..blocks.len() {
+        offsets[bi] = facts.n_stmts
+        ref b : GcCfgBlock = blocks[bi]
+        facts.n_stmts = facts.n_stmts.add(b.end.sub(b.start).to_usize())
+    }
+    if facts.n_stmts == 0 { return facts }
+    total := facts.n_stmts.mul(facts.words)
+    facts.decls = zeroed_words(total)
+    facts.reassigns = zeroed_words(total)
+    facts.transfers = zeroed_words(total)
+    mut row := BodyFacts(words = facts.words, n_stmts = 1)
+    row.uses = zeroed_words(row.words)
+    row.decls = zeroed_words(row.words)
+    row.nested = zeroed_words(row.words)
+    row.escapes = zeroed_words(row.words)
+    row.transfers = zeroed_words(row.words)
+    row.reassigns = zeroed_words(row.words)
+    for bi in 0..blocks.len() {
+        ref b : GcCfgBlock = blocks[bi]
+        switch b.body {
+        case .Some(bbody):
+            for j in b.start.to_usize()..b.end.to_usize() {
+                row_idx := offsets[bi].add(j.sub(b.start.to_usize()))
+                ref stmt : Expr = bbody.children[j]
+                if is_compile_directive(stmt, symbols) { continue }
+                tail_compound := j.add(1).eq(b.end.to_usize()).and(stmt_is_conditional_container(stmt))
+                if b.is_root.and(tail_compound.not()) {
+                    gc_flow_copy_fact_row(root_facts, j, facts, row_idx)
+                    continue
+                }
+                if tail_compound.and(stmt.node_type.is(NodeType.Body)) { continue }
+                if tail_compound {
+                    gc_flow_collect_fact_row(stmt.children[0], scope, fi, symbols, row)
+                } else {
+                    gc_flow_collect_fact_row(stmt, scope, fi, symbols, row)
+                }
+                gc_flow_copy_fact_row(row, 0, facts, row_idx)
+            }
+        case .None:
+            // The synthetic exit block has an empty span and no effects.
+        }
+    }
+    return facts
+}
+
+// The block's composed transfer function for one binding (see FLOW_ID).
+// All names share the selected-expression fact rows; the solver composes
+// bit probes once per block, with no per-binding subtree/scope lookups.
+priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, bit: USize, facts: BodyFacts, offsets: Array(USize)) returns U8 {
     ref b : GcCfgBlock = blocks[bid]
     switch b.body {
     case .None:
         // Synthetic exit block: no statements, state passes through.
         return FLOW_ID
-    case .Some(bbody):
+    case .Some:
         mut k := FLOW_ID
-        mut j := b.start
-        while j < b.end {
-            ref stmt : Expr = bbody.children[j.to_usize()]
-            if is_compile_directive(stmt, ctx.symbols) { j = j.add(1); continue }
-            mut tail_compound := false
-            if j.add(1).eq(b.end) {
-                tail_compound = stmt.node_type.is(NodeType.If)
-                    .or(stmt.node_type.is(NodeType.While))
-                    .or(stmt.node_type.is(NodeType.Switch))
-                    .or(stmt.node_type.is(NodeType.Body))
-            }
-            if tail_compound {
-                // Only the condition/subject evaluates here; a bare Body
-                // contributes nothing at the tail.
-                if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
-                    c := gc_flow_stmt_const(stmt.children[0], name, scope, ctx)
-                    if c.neq(FLOW_ID) { k = c }
-                }
-            } else {
-                c := gc_flow_stmt_const(stmt, name, scope, ctx)
-                if c.neq(FLOW_ID) { k = c }
-            }
-            j = j.add(1)
+        for j in 0..b.end.sub(b.start).to_usize() {
+            c := gc_flow_stmt_const(facts, offsets[bid].add(j), bit)
+            if c.neq(FLOW_ID) { k = c }
         }
         return k
     }
@@ -745,10 +794,10 @@ priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize
     }
 }
 
-priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
+priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, bit: USize, facts: BodyFacts, offsets: Array(USize), mut ins: Array(U8), mut outs: Array(U8)) {
     n := blocks.len()
     mut kill := Array(U8).new(n)
-    for i in 0..n { kill[i] = gc_flow_block_kill(blocks, i, name, scope, ctx) }
+    for i in 0..n { kill[i] = gc_flow_block_kill(blocks, i, bit, facts, offsets) }
     mut pred_off := Array(USize).new(n.add(1))
     mut preds := Vec(USize).new()
     gc_flow_preds(blocks, pred_off, preds)
@@ -768,7 +817,7 @@ priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, 
 // blocks index into it -- and shared across locals: the graph, its
 // predecessor lists and the fixpoint scaffolding are per-body, only
 // the per-block transfer functions are per-name.
-priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state: U8, has_exit: Bool, scope: TypeScope, ctx: Context) returns Array(U8) {
+priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state: U8, has_exit: Bool, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns Array(U8) {
     // Nothing in this view can query the table: its exits, if any, live
     // inside nested views, and each of those builds its own. Bodies
     // with nested compounds but no exit of their own are the common
@@ -821,6 +870,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             ref local : LocalInfo = locals[li]
             mut cur := entry_state
             if local.decl_index < 0 { cur = FLOW_OWNED }
+            bit := fact_bit_req(fi, local.name)
             for s in 0..stmts {
                 if first_exit.gte(0).and(s.to_i32().gt(first_exit)) { break }
                 table[li.mul(stmts).add(s)] = cur
@@ -830,9 +880,8 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                     if cur.eq(FLOW_UNINIT).and(s.to_i64().gte(local.decl_index)) { cur = FLOW_OWNED }
                     continue
                 }
-                ref sstmt : Expr = body.children[s]
-                if is_compile_directive(sstmt, ctx.symbols).not() {
-                    c := gc_flow_stmt_const(sstmt, local.name, scope, ctx)
+                if facts.directives.unsafe_get(s).not() {
+                    c := gc_flow_stmt_const(facts, s, bit)
                     if c.neq(FLOW_ID) { cur = c }
                 }
             }
@@ -845,6 +894,8 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     mut pred_off := Array(USize).new(n.add(1))
     mut preds := Vec(USize).new()
     gc_flow_preds(blocks, pred_off, preds)
+    mut offsets := Array(USize).new(n)
+    cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
     mut kill := Array(U8).new(n)
     mut ins := Array(U8).new(n)
     mut outs := Array(U8).new(n)
@@ -899,22 +950,22 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                 continue
             }
         }
-        for bi in 0..n { kill[bi] = gc_flow_block_kill(blocks, bi, local.name, scope, ctx) }
+        bit := fact_bit_req(fi, local.name)
+        for bi in 0..n { kill[bi] = gc_flow_block_kill(blocks, bi, bit, cfg_facts, offsets) }
         gc_flow_fixpoint(n, pred_off, preds, kill, entry, ins, outs)
         for bi in 0..n {
             ref b : GcCfgBlock = blocks[bi]
             if b.is_root.not() { continue }
             if ins[bi].eq(FLOW_UNREACHED) { continue }
             switch b.body {
-            case .Some(bbody):
+            case .Some:
                 mut st : U8 = FLOW_UNREACHED
                 st = ins[bi]
                 mut j := b.start
                 while j < b.end {
                     table[li.mul(stmts).add(j.to_usize())] = st
-                    ref stmt : Expr = bbody.children[j.to_usize()]
-                    if is_compile_directive(stmt, ctx.symbols).not() {
-                        st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
+                    if facts.directives.unsafe_get(j.to_usize()).not() {
+                        st = gc_flow_stmt_effect(facts, j.to_usize(), bit, st)
                     }
                     j = j.add(1)
                 }
@@ -936,14 +987,16 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
 // meet would read as Mixed forever. Uniform Moved (a for-in / bare
 // -block wrapper that transfers on every pass) and uniform Owned
 // (ordinary scope-end cleanup) both return false.
-priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
+priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns Bool {
     mut blocks := Vec(GcCfgBlock).new()
     cfg_build(blocks, body)
     mut entry := FLOW_UNINIT
     if local.decl_index < 0 { entry = FLOW_OWNED }
     mut ins := Array(U8).new(blocks.len())
     mut outs := Array(U8).new(blocks.len())
-    gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
+    mut offsets := Array(USize).new(blocks.len())
+    cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
+    gc_flow_solve(blocks, entry, fact_bit_req(fi, local.name), cfg_facts, offsets, ins, outs)
     mut may_owned := false
     mut may_moved := false
     for p in 0..blocks.len() {
@@ -968,14 +1021,17 @@ priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScop
 // IN, advanced through the block's earlier statements. Statement
 // indexes are the index model's top-level indexes, which root blocks
 // share by construction.
-priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, stmt_idx: I32) returns Bool {
+priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, stmt_idx: I32, facts: BodyFacts, fi: FactIndex) returns Bool {
     mut blocks := Vec(GcCfgBlock).new()
     cfg_build(blocks, body)
     mut entry := FLOW_UNINIT
     if local.decl_index < 0 { entry = FLOW_OWNED }
     mut ins := Array(U8).new(blocks.len())
     mut outs := Array(U8).new(blocks.len())
-    gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
+    bit := fact_bit_req(fi, local.name)
+    mut offsets := Array(USize).new(blocks.len())
+    cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
+    gc_flow_solve(blocks, entry, bit, cfg_facts, offsets, ins, outs)
     for bi in 0..blocks.len() {
         ref b : GcCfgBlock = blocks[bi]
         if b.is_root.not() { continue }
@@ -983,13 +1039,12 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
             mut st : U8 = FLOW_UNREACHED
             if ins[bi].eq(FLOW_UNREACHED).not() {
                 switch b.body {
-                case .Some(bbody):
+                case .Some:
                     mut j := b.start
                     st = gc_flow_meet(st, ins[bi])
                     while j < stmt_idx {
-                        ref stmt : Expr = bbody.children[j.to_usize()]
-                        if is_compile_directive(stmt, ctx.symbols).not() {
-                            st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
+                        if facts.directives.unsafe_get(j.to_usize()).not() {
+                            st = gc_flow_stmt_effect(facts, j.to_usize(), bit, st)
                         }
                         j = j.add(1)
                     }
@@ -1004,16 +1059,18 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
     return false
 }
 
-priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo), scope: TypeScope) {
+priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex) {
     mut names := Map(Str, Str).new()
     mut counts := Map(Str, I64).new()
+    mut offsets := Array(USize).new(blocks.len())
+    cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
     for local : LocalInfo in locals {
         if gc_audit_local_is_noise(local) { continue }
         mut entry := FLOW_UNINIT
         if local.decl_index < 0 { entry = FLOW_OWNED }
         mut ins := Array(U8).new(blocks.len())
         mut outs := Array(U8).new(blocks.len())
-        gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
+        gc_flow_solve(blocks, entry, fact_bit_req(fi, local.name), cfg_facts, offsets, ins, outs)
         mut ss := ""
         for j in 0..blocks.len() {
             if j > 0 { ss = format(ss, ",") }
@@ -1388,7 +1445,7 @@ priv str_clone_to_move_provably_safe := func(name: Str, preceding: Vec(Expr), sy
     return has_owning_decl
 }
 
-// Per-statement name facts for one body (perf): five U64 bitmask rows
+// Per-statement name facts for one body (perf): U64 bitmask rows
 // per statement, filled in a single walk (the expr_collect_* mirrors in
 // typer.til) and probed by the per-local loops below, which previously
 // rescanned every statement subtree once per (statement, local-name)
@@ -1408,6 +1465,10 @@ priv BodyFacts := struct {
     decls := Vec(U64).new()
     nested := Vec(U64).new()
     transfers := Vec(U64).new()
+    // expr_reassigns_var's subtree rule, separate from def_bits' single
+    // top-level initializer target. Unlike decls/transfers it also reads
+    // Assign payloads inside nested FuncDefs.
+    reassigns := Vec(U64).new()
     // Names whose pointer a statement stores into raw memory
     // (write_ptr): reachable afterwards through storage the pass cannot
     // see, so their cleanup stands down.
@@ -1501,6 +1562,14 @@ priv zeroed_words := func(total: USize) returns Vec(U64) {
     return v
 }
 
+priv collect_reassign_facts := func(e: Expr, fi: FactIndex, base: USize, mut reassigns: Vec(U64)) {
+    switch e.node_type {
+    case .Assign(ad): fact_record_name(fi, ad.name, base, reassigns)
+    case:
+    }
+    for child : Expr in e.children { collect_reassign_facts(child, fi, base, reassigns) }
+}
+
 priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool, fi: FactIndex, symbols: SymbolPool) returns BodyFacts {
     mut bf := BodyFacts()
     bf.words = fi.idx.len().add(63) / 64
@@ -1510,6 +1579,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
     bf.decls = zeroed_words(total)
     bf.nested = zeroed_words(total)
     bf.transfers = zeroed_words(total)
+    bf.reassigns = zeroed_words(total)
     bf.escapes = zeroed_words(total)
     mut i : USize = 0
     for stmt : Expr in body.children {
@@ -1519,6 +1589,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
         // walks over the same subtree -- 1.8M collector calls per
         // maps.til compile where one walk needs 411K.
         expr_collect_stmt_facts(stmt, scope, with_transfers, true, fi, base, bf.uses, bf.decls, bf.nested, bf.escapes, bf.transfers, symbols)
+        collect_reassign_facts(stmt, fi, base, bf.reassigns)
         mut dname := ""
         if stmt.children.len() >= 1 {
             switch stmt.node_type {
@@ -2157,7 +2228,7 @@ priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
     return false
 }
 
-priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) {
+priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context, mut facts: BodyFacts, fi: FactIndex) {
     for mut local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             // #302 stage 3: path-sensitive. When every path reaching the
@@ -2168,13 +2239,15 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
             // cleanup on the surviving paths: suppressing the error
             // alone LEAKED (the index model's transfer stand-down left
             // the fall-through with no delete, verified 2026-07-11).
-            if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use.to_i32()) {
+            if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use.to_i32(), facts, fi) {
                 // A shallow-field transfer consumes the inner value but not
                 // its heap wrapper. Preserve that transfer-path cleanup before
                 // clearing the transfer record for the surviving paths.
                 if local.shallow_copy_transfer {
                     ref mut xfer_stmt : Expr = body.children[local.own_transfer.to_usize()]
-                    sink_transfer_path_wrapper_free(xfer_stmt, local, scope, ctx)
+                    if sink_transfer_path_wrapper_free(xfer_stmt, local, scope, ctx) {
+                        facts = body_stmt_facts(body, scope, true, fi, ctx.symbols)
+                    }
                 }
                 // #368: the surviving path may transfer TOO. The record
                 // holds ONE transfer index, so clearing it to -1 here used
@@ -2294,7 +2367,18 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     // on decl_index < stmt_idx), so they enter the view Owned -- the
     // same assumption the positional scan this replaces made implicitly
     // by only looking at preceding siblings within the view.
-    flow_table := gc_flow_stmt_table(body, live, FLOW_OWNED, has_exit, scope, ctx)
+    mut fidx := FactIndex()
+    mut facts := BodyFacts()
+    for local : LocalInfo in live {
+        if local.has_transfer {
+            // The no-transfer closed form never probes facts. Preserve
+            // that fast path for the many nested exit views that use it.
+            fidx = fact_universe(body, scope)
+            facts = body_stmt_facts(body, scope, true, fidx, ctx.symbols)
+            break
+        }
+    }
+    flow_table := gc_flow_stmt_table(body, live, FLOW_OWNED, has_exit, scope, ctx, facts, fidx)
 
     mut old := body.children.take()
 
@@ -2969,7 +3053,7 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
 // caller must recompute them when (and only when) that is the case --
 // and it almost never is: 22 grafts per 8,154 fact computations on a
 // test/first_class.til translate.
-priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) returns Bool {
+priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context, mut facts: BodyFacts, fi: FactIndex) returns Bool {
     mut grafted := false
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
@@ -2996,11 +3080,12 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // the transfer statement means the fall-through path still owns
         // the local, which IS the Mixed verdict -- computed per path
         // instead of by statement order.
-        if gc_flow_exit_is_mixed(body, local, scope, ctx).not() { continue }
+        if gc_flow_exit_is_mixed(body, local, scope, ctx, facts, fi).not() { continue }
         ref mut tstmt : Expr = body.children[local.own_transfer.to_usize()]
         if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)) {
             sink_nontransfer_paths(tstmt, local, scope, ctx)
             grafted = true
+            facts = body_stmt_facts(body, scope, true, fi, ctx.symbols)
             continue
         }
         // #302 stage 3: a Body at own_transfer is EITHER the
@@ -3028,6 +3113,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
             if transfer_lex_inside_while(tstmt, local.name, scope, ctx).not() {
                 sink_nontransfer_paths(tstmt, local, scope, ctx)
                 grafted = true
+                facts = body_stmt_facts(body, scope, true, fi, ctx.symbols)
             }
         }
     }
@@ -3411,8 +3497,8 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     // is restructured. Each pass used to build its own -- collect_scope_
     // locals, collect_borrow_edges, extend_hoist_view_lifetimes and the
     // taint walk below -- so a body's statements were walked four times
-    // over. `with_transfers` is the superset (only collect_scope_locals
-    // reads that row, and it is the only part that consults scope), so
+    // over. `with_transfers` is the superset (ownership collection and
+    // flow read that row, and it is the only part that consults scope), so
     // computing it once here serves all of them.
     //
     // The name->bit index is shared by every consumer: sink below moves
@@ -3432,7 +3518,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     sort_locals_by_name(locals_vec)
     if locals_vec.len() > 0 {
         extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)
-        check_use_after_own_transfer(body, locals_vec, scope, ctx)
+        check_use_after_own_transfer(body, locals_vec, scope, ctx, facts, fidx)
     }
     if insert.not() { return false }
     // Before the zero-locals early return: outer-target assigns need
@@ -3447,11 +3533,9 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     if locals_vec.len() == 0 { return false }
 
     record_storage_decisions(body, locals_vec)
-    if sink_conditional_transfer_deletes(body, locals_vec, scope, ctx) {
-        // Only when sink actually grafted: the rows are positional and
-        // the grafted deletes shift the statements they landed among.
-        facts = body_stmt_facts(body, scope, false, fidx, ctx.symbols)
-    }
+    // The sink refreshes the shared rows after each graft, so later locals'
+    // CFG queries see the changed branches as well as the insertion pass.
+    sink_conditional_transfer_deletes(body, locals_vec, scope, ctx, facts, fidx)
     // After the own-transfer check (so an over-eager taint can't spuriously
     // flag use-after-transfer): defer a local's auto-delete past any later
     // statement that reads a hoisted view aliasing its buffer. See #250.
@@ -3471,7 +3555,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         mut cfg_blocks := Vec(GcCfgBlock).new()
         cfg_build(cfg_blocks, body)
         gc_cfg_dump(ctx, body, cfg_blocks)
-        gc_flow_dump(ctx, cfg_blocks, locals_vec, scope)
+        gc_flow_dump(ctx, cfg_blocks, locals_vec, scope, facts, fidx)
         gc_live_dump(cfg_blocks, locals_vec, ctx.symbols)
     }
 
@@ -3493,7 +3577,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
             break
         }
     }
-    root_flow := gc_flow_stmt_table(body, locals_vec, FLOW_UNINIT, wants_flow, scope, ctx)
+    root_flow := gc_flow_stmt_table(body, locals_vec, FLOW_UNINIT, wants_flow, scope, ctx, facts, fidx)
     root_stmts := body.children.len()
     // #302 stage 3: the view-taint relation, built once here rather
     // than rescanned per query. The two consumers below used to walk

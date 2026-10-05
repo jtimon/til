@@ -138,3 +138,35 @@ design and staging:
     ICE, not a silent leak.
   - Backends execute the recorded decisions; compensation code in
     builder.til and (via #286) interpreter.til is deleted stage by stage.
+
+** Ownership-flow fact reuse
+
+Forward ownership effects read the same name-indexed ~BodyFacts~ rows used
+by local collection, rather than calling declaration, reassignment and
+ownership-transfer subtree predicates separately for every binding. The
+precedence remains declaration/reassignment -> Owned, then transfer -> Moved,
+otherwise identity. The reassignment row follows ~expr_reassigns_var~ exactly,
+including assignments inside nested FuncDefs; declaration and transfer rows
+retain their existing function-body cuts and capture rules.
+
+CFG queries share fact rows for the expressions actually evaluated by each
+block. Ordinary root statements reuse their existing rows. A compound tail
+uses only its condition or switch subject, and a bare Body tail has no effect;
+branch bodies occupy their own blocks. Selected nested/head expressions are
+collected once across all binding queries. The existing no-transfer and
+straight-line fast paths remain in place.
+
+Facts are refreshed after wrapper-free or non-transfer-path grafts, before
+later ownership queries inspect the changed AST. This also keeps transfer rows
+available after sinking, rather than rebuilding only the liveness rows.
+
+On identical self-translation inputs, ~expr_transfers_own~ visits fell from
+21,948,856 to 15,634 and struct lookups from 30,328,465 to 17,915,645. Generated
+C and forward headers were byte-identical, as was ~test/gc_audit.expected~.
+These are work counts, not an isolated elapsed-time comparison while other
+sessions are running. ~test/ownership_shapes.til~ also covers an owned argument
+consumed in an If condition and a reassignment whose RHS consumes a distinct
+binding, with interpreted and ASAN-compiled execution.
+
+Verification: ~make clean && make test~ passes 496/496, including the GC audit
+golden, ASAN, clang and compiler self-translation checks.
