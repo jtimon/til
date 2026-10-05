@@ -1,4 +1,4 @@
-* The Garbager: til's compile-time GC
+* The Garbager: ASAP destruction and ownership cleanup
 
 Companion to [[file:./ownership.org][doc/concepts/ownership.org]] (the lifetime model)
 and [[file:./qualifiers.org][doc/concepts/qualifiers.org]] (the C shapes). Those two
@@ -8,19 +8,70 @@ OUTPUT CONTRACT the pass has today. Issue #302 is the rework that makes this
 contract complete and explicit; this document is its stage 0 snapshot, kept
 current as the stages land.
 
+** Names and metaphors
+
+The two compiler passes have different jobs:
+
+| Pass      | Descriptive name                       | What it handles                         |
+|-----------+----------------------------------------+-----------------------------------------|
+| Garbager  | ASAP destruction / ownership cleanup   | Lifetimes and destruction of owned values |
+| Scavenger | Reachability / dead-code elimination   | Code and declarations that are not needed |
+
+The scavenger "eats dead code". The garbager "takes out the garbage" by
+placing cleanup where ownership ends. The metaphors are useful mnemonics;
+pair them with the descriptive names when introducing a pass. In particular,
+"compile-time GC" here means statically inserted ownership cleanup, not a
+runtime tracing collector or reference-counting scheme. See
+[[file:../pipeline.org][the pipeline]] and
+[[file:../../src/self/scavenger.til][src/self/scavenger.til]].
+
+Passing ~own x~ transfers responsibility for that value to the callee, which
+destroys it or transfers it onward. The caller no longer owns that value.
+The ownership contract requires reassignment cleanup to distinguish the old
+value consumed by an ~own~ RHS from the new value returned into the slot:
+the caller must not delete the consumed value again.
+
+*** Terms in other languages
+
+These are terminology/model comparisons, not claims that the other compilers
+have passes with til's internal names. Checked against the sources below on
+2026-10-05:
+
+- Mojo calls its policy *automatic destruction* and *as-soon-as-possible
+  (ASAP) destruction*. It determines last use at compile time and invokes
+  ~__deinit__()~; ownership transfer ends the source's ownership. This is the
+  closest comparison to til's garbager, though Mojo can destroy values after
+  subexpressions while til's cleanup is statement-oriented.
+- Roc describes *automatic memory management*. Its runtime uses *reference
+  counting* (~incref~ / ~decref~), with allocation/deallocation supplied by the
+  platform. This manages shared allocations without exposing til's explicit
+  ~own~ argument contract to application code.
+- Odin uses *explicit memory management*: allocators, ~free~ / ~delete~, and
+  explicit ~defer~ for scope-exit cleanup. Its FAQ explicitly distinguishes
+  this from ownership semantics and automatic C++-style destructors. A
+  scope-exit defer is a different policy from last-use destruction.
+
+Sources:
+- [[https://docs.modular.com/mojo/manual/lifecycle/death/][Mojo: Automatic destruction]]
+  and [[https://docs.modular.com/mojo/manual/values/ownership/][Mojo: Ownership]].
+- [[https://www.roc-lang.org/fast][Roc: automatic memory management and platforms]]
+  and [[https://github.com/roc-lang/roc/blob/main/src/builtins/utils.zig][Roc runtime: reference-count operations]].
+- [[https://odin-lang.org/docs/faq/#does-odin-have-c-style-destructors][Odin FAQ: destructors]]
+  and [[https://odin-lang.org/docs/overview/#defer-statement][Odin: defer]].
+
 ** What the pass is
 
 ASAP destruction (Mojo-style): every owned value has exactly one owner, and
 the compiler inserts the destructor at the owner's last use, before
 reassignment, and on every early-exit edge. One run per body:
 
-  - function/if/while/block/catch/switch-case bodies: called inline from the
-    typer's scope-management sites (~garbager_destroy_body~), because
-    per-body TypeScopes are stack-locals of ~infer_body~ (lifting them into
-    one phase needs #158's scope cache).
-  - program bodies: one ~garbager_destroy(ctx)~ phase at the tail of
-    ~init_and_type_program~ (loader.til), walking ~ctx.imported~.
-  - REPL deltas: ~garbager_destroy_body~ per delta (loader.til).
+  - File-based programs: one ~garbager_destroy(ctx)~ phase after typing
+    (loader.til). It walks each imported unit and its nested bodies
+    post-order, rebuilding short-lived per-body TypeScopes from the typed
+    AST, parameters and capture metadata. The typer no longer inserts
+    cleanup inline, and this walk retains no per-body scope cache (#158).
+  - REPL deltas: ~garbager_destroy_body~ per delta (loader.til), using the
+    populated program scope.
 
 The orchestrator is ~insert_free_calls~: collect per-binding facts
 (~collect_scope_locals~ -> ~LocalInfo~ with ~decl_index~ / ~last_use~ /

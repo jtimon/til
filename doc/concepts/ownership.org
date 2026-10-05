@@ -14,7 +14,10 @@ The model is deliberately close to Mojo (see "Relation to Mojo"): a value
 has exactly one owner, and the compiler destroys it As Soon As Possible --
 at the owner's last use, not at scope end. The implementation is the
 garbager (pipeline step 5, [[file:../../src/self/garbager.til][src/self/garbager.til]]),
-invoked once per body from the typer.
+which walks typed bodies post-order in a separate post-typing phase. Its
+name is a cleanup metaphor; the scavenger is the distinct reachability /
+dead-code pass. See [[file:./garbager.org][Names and metaphors]] for the terminology
+and comparisons with Mojo, Roc and Odin.
 
 ** The model in one paragraph
 
@@ -28,7 +31,11 @@ ownership -- passing a value as an ~own~ argument, or assigning it into an
 ~own~ field -- makes the garbager stand down for that owner (it is now the
 new owner's job). Using a value after its ownership was transferred is a
 compile error (~check_use_after_own_transfer~). After the pass, every owned
-local has exactly one destructor call on every path that leaves its scope.
+value is destroyed by its current owner or transferred onward on each path.
+An ~own~ call ends the caller's ownership of the argument, even when the call
+is the RHS of a reassignment; replacing the slot does not authorize deleting
+the consumed old value again. The returned replacement is a new ownership
+obligation for the caller.
 
 ** Destructor forms
 
@@ -235,6 +242,9 @@ conventions over 2024-2025 -- ~borrowed~ became ~read~, ~inout~ became
 ~__moveinit__~ dunders with the ~Copyable~/~Movable~ traits whose custom
 forms are ~__init__(out self, *, copy: Self)~ and
 ~__init__(out self, *, deinit move: Self)~. Older posts use the old names.
+The detailed comparison below retains that July terminology. The current
+Mojo 1.1 manual calls the lifecycle method ~__deinit__()~; the current
+cross-language terminology check is in [[file:./garbager.org][the garbager guide]].
 
 *** Same in both
 

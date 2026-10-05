@@ -96,30 +96,30 @@ Two modules sit underneath every phase below:
   typer helpers, and the typer reaches the desugar passes, through the shared
   program scope rather than an explicit import.
 
-5. Asap destruction
+5. Garbager (ASAP destruction / ownership cleanup)
 
-- `insert_free_calls(body, scope, owns_scope)` (per body)
+- ~garbager_destroy(ctx)~ after typing; ~insert_free_calls~ per body
 - Implemented in til: [[file:../src/self/garbager.til][src/self/garbager.til]]
 - Responsibilities:
   - per-binding live-range analysis (~collect_scope_locals~,
     ~extend_ref_local_lifetimes~)
   - diagnose use-after-ownership-transfer
   - promote Decl ownership to Own where needed
-  - insert ~Type.delete()~ / ~free()~ at the last use of every
-    local, before reassignments, and on every early-exit edge
+  - insert ~Type.delete()~ / ~free()~ for values this owner still owns,
+    at last use, on replacement, and on every early-exit edge
     (return / break / continue)
-- After asap insertion, every owned local has an explicit cleanup
-  call on every path that leaves its scope.
-- The asap code now lives in its own ~mode lib~ module
-  (src/self/garbager.til) and the program-body asap runs as its own
-  phase, ~garbager_destroy(ctx)~, at the tail of
-  ~init_and_type_program~ (see [[file:../issues/fixed/204.org][#204]]).
-  The remaining per-body (function/if/while/block/catch) garbager
-  calls are still invoked inline from the typer's scope-management
-  sites because per-body scopes are stack-locals freed when
-  ~infer_body~ returns; lifting them into the single
-  ~garbager_destroy~ walk needs the per-body scope cache on ~Context~
-  and is tracked under [[file:../issues/fixed/158.org][#158]].
+- Passing ~own~ transfers destruction responsibility to the callee; a moved
+  value gets no second caller-side delete. Every path disposes of the value
+  through its current owner or transfers ownership onward.
+- The whole-program pass runs after typing in
+  ~finish_init_and_type_program~. It visits nested bodies post-order and
+  rebuilds short-lived scopes from the typed AST, rather than retaining
+  typer scopes or inserting cleanup during inference
+  ([[file:../issues/fixed/158.org][#158]], [[file:../issues/fixed/204.org][#204]]).
+  REPL deltas use ~garbager_destroy_body~ with their populated program scope.
+- The name is a metaphor for cleaning up *values*. The
+  [[file:./concepts/garbager.org][garbager terminology guide]] contrasts it with
+  the scavenger, which removes *code*.
 
 6. Constfolder
 
@@ -131,10 +131,13 @@ Two modules sit underneath every phase below:
   - track known literal values
 - After constfolder, macros should be gone from the AST.
 
-7. Scavenge
+7. Scavenger (reachability / dead-code elimination)
 
 - `scavenge_imported(lp)`
 - Implemented in til: [[file:../src/self/scavenger.til][src/self/scavenger.til]]
+- The scavenger "eats dead code": it removes code that need not survive in
+  the prepared program. Value lifetimes and destructor placement belong to
+  the garbager (step 5).
 - Removes declarations unreachable from the mode's roots, defined
   centrally per mode in ~scavenge_visited_imported~ (#326). Libraries
   are scavenged like every other mode, with their exported ABI as

@@ -1,0 +1,118 @@
+# priority: high
+# category: bugs
+** OPEN #415 Own-consuming reassignment double-deletes; audit cleanup masking
+
+*** Required ownership behavior
+
+Passing ~own value~ transfers responsibility for that value to the callee.
+The callee destroys it or transfers it onward. In ~value = replace(own value)~,
+the caller owns the returned replacement, but must not also destroy the old
+value already consumed by the RHS. ASAP destruction must make that decision
+at the ownership/cleanup source, not compensate with an idempotent destructor.
+
+*** Reproducer
+
+#+begin_src til
+mode test
+
+runtime_text := proc() returns Str {
+    noop_proc()
+    mut text := Str.with_capacity(8)
+    text.push_str("head")
+    return text
+}
+
+replace_text := proc(own text: Str) returns Str {
+    assert_eq(USize, text.len(), 4)
+    return runtime_text()
+}
+
+test_own_consuming_self_reassignment := test() {
+    mut text := runtime_text()
+    text = replace_text(own text)
+    assert_eq(USize, text.len(), 4)
+}
+#+end_src
+
+Run interpreted and compiled with ~til test --asan~. During the CFG-fact
+optimization, an equivalent ownership_shapes test passed interpreted execution
+but failed compiled ASAN execution with ~attempting double-free~. The same
+failure reproduced with the unmodified master compiler, before the optimization.
+
+Reconfirmed on top of master ~a581330e7~ with the exact source above:
+
+#+begin_example
+bin/til test --asan -o tmp/own_reassignment_415 \
+    -c tmp/own_reassignment_415.c tmp/own_reassignment_415.til
+=== interpret ===
+  pass: test_own_consuming_self_reassignment
+1/1 tests passed
+=== compile + run ===
+ERROR: AddressSanitizer: attempting double-free
+  Str_delete -> test_own_consuming_self_reassignment
+freed by:
+  Str_delete -> replace_text -> test_own_consuming_self_reassignment
+#+end_example
+
+The generated C showed the duplicate ownership obligation explicitly:
+
+#+begin_src c
+static Str replace_text(Str *text) {
+    /* argument use */
+    Str_delete(text, 0);                 /* callee owns the old payload */
+    return runtime_text();
+}
+
+static void test_own_consuming_self_reassignment(void) {
+    Str text = runtime_text();
+    {
+        Str new_value = replace_text(&text);
+        Str_delete(&text, 0);            /* wrong: old payload consumed */
+        text = new_value;
+    }
+    /* later use and legitimate destruction of the replacement */
+}
+#+end_src
+
+*** Cleanup paths and masking audit
+
+Not all frees are protected by null checks or followed by pointer clearing.
+~src/core/str.til~'s ~Str.delete~ frees ~self.c_str~ when ~cap < CAP_VIEW~
+without a null guard or post-free zeroing. Its CAP_VIEW/CAP_LIT tests enforce
+borrowed/static ownership; they do not make a repeated owning delete valid.
+~free~ in ~src/core/mem.til~ is the external free operation. Libc ~free(NULL)~
+is a no-op, but freeing the same non-null allocation twice is invalid.
+
+The interpreter tracks actual transfers: ~scope_move_bound_raw~ clears the
+source binding's pointer and sets ~moved_out~, and storage teardown checks that
+state. Some other cleanup paths contain null checks or clear slots, including
+generated own-field destructors and raw interpreter storage cleanup. Audit
+their contracts rather than assuming they are all necessary or all defensive.
+
+*** Scope / acceptance criteria
+
+- [ ] Fix the garbager's assignment/replacement cleanup decision so an RHS
+  ownership transfer of the old target suppresses its caller-side destruction.
+  Inspect ~insert_assign_delete~, ~flag_outer_assign_rebinds~, and the emitted
+  ~save_old_delete~ path. Preserve destruction when the RHS only borrows the
+  old value or consumes a different value.
+- [ ] Cover body locals, outer-scope/global targets, captures and field/payload
+  replacement paths where the same ownership mistake can occur. Keep the
+  returned replacement's ownership and subsequent cleanup correct.
+- [ ] Inventory null guards, post-free clearing, moved-source zeroing and
+  repeated-cleanup/default-return paths in generated and hand-written
+  destructors, interpreter storage teardown, and backend cleanup adapters.
+- [ ] Remove checks/zeroing whose purpose is to silently absorb a cleanup
+  that ownership analysis should not emit. Fix the ownership/lifecycle cause;
+  do not replace the duplicate delete with another null check or skip guard.
+- [ ] Retain only genuine optional/empty/moved-state handling required by a
+  documented contract (for example a lazy-empty container, None, or transfer
+  metadata). Unexpected repeated owning destruction must fail at its source,
+  not silently become a no-op. Audit and explain each retained case.
+- [ ] Add heap-backed ASAN regressions for self-consuming reassignment and
+  surrounding control-flow shapes, in interpreted and compiled modes. Verify
+  the emitted cleanup counts and real destructor side effects, so nulling or
+  literal/view sentinels cannot conceal a duplicate owning cleanup.
+- [ ] Run the full required clean suite. The existing passing suite lacked
+  this self-consuming reassignment shape; passing counts alone did not prove
+  its ownership handoff correct.
