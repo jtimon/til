@@ -6,8 +6,12 @@ import("std/file")
 // protects the compiler, independently of any terminal implementation.
 // Force A's cc wrapper to build B after A's bridge compiles but before A
 // links. A directory-wide user_0.o makes A link B's implementation.
+// The wrapper is a compiled Til program on every host: no shell script or
+// batch-file argument re-parsing, and no Windows skip.
 main := proc(compiler: Str) {
-    if host_os() == "windows" { return }
+    windows := host_os() == "windows"
+    mut exe := ""
+    if windows { exe = ".exe" }
     dir := "tmp/link_objects"
     if mkdir_p(dir) != 0 { panic("cannot create link regression directory") }
     for item in array(Str, "first", "second") {
@@ -21,16 +25,39 @@ main := proc(compiler: Str) {
             "main := proc() { if link_value() != ", value,
             " { panic(\"linked another program's bridge\") } }\n"))
     }
-    first_bin := format(dir, "/first")
-    second_bin := format(dir, "/second")
-    other := Cmd.new(compiler, "build", "--force-rebuild", "-o", second_bin,
-        "-c", format(dir, "/second.c"), format(dir, "/second.til"))
-    wrapper := format(dir, "/cc.sh")
-    File.writefile(wrapper, format("#!/bin/sh\ncase \" $* \" in\n  *\" -o ", first_bin,
-        " \"*)\n    ", other.render(), " || exit $?\n    ;;\nesac\nexec cc \"$@\"\n"))
-    Cmd.new("chmod", "+x", wrapper).run_checked()
-    Cmd.new(compiler, "build", "--force-rebuild", format("--cc=", wrapper),
+    first_bin := format(dir, "/first", exe)
+    second_bin := format(dir, "/second", exe)
+    // A stale B would hide a wrapper that never matched A's link command.
+    File.remove(second_bin)
+    wrapper := format(dir, "/cc", exe)
+    wrapper_source := format(dir, "/cc.til")
+    compiler_literal := compiler.replace("\\", "\\\\").replace("\"", "\\\"")
+    File.writefile(wrapper_source, format(
+        "mode cli\nimport(\"std/sys\")\nmain := proc(args: ..Str) {\n",
+        "    mut linking := false\n",
+        "    for i in 0..args.len() {\n",
+        "        if args[i] == \"-o\" && i + 1 < args.len() {\n",
+        "            if args[i + 1] == \"", first_bin, "\" { linking = true }\n",
+        "        }\n    }\n",
+        "    if linking {\n",
+        "        Cmd.new(\"", compiler_literal, "\", \"build\", \"--force-rebuild\", \"-o\", \"", second_bin,
+        "\", \"-c\", \"", dir, "/second.c\", \"", dir, "/second.til\").run_checked()\n",
+        "    }\n",
+        "    mut cc := \"cc\"\n",
+        "    if host_os() == \"windows\" { cc = \"gcc\" }\n",
+        "    command := Cmd.new(cc)\n",
+        "    for arg in args { command.arg(arg) }\n",
+        "    exit(command.run())\n}\n"))
+    Cmd.new(compiler, "build", "--force-rebuild", "-o", wrapper,
+        "-c", format(dir, "/cc.c"), wrapper_source).run_checked()
+    // compile_c invokes its compiler through the host shell. cmd.exe needs
+    // native separators in the command name; the forwarded argv uses Cmd.
+    mut cc_command := wrapper.clone()
+    if windows { cc_command = wrapper.replace("/", "\\") }
+    Cmd.new(compiler, "build", "--force-rebuild", format("--cc=", cc_command),
         "-o", first_bin, "-c", format(dir, "/first.c"), format(dir, "/first.til")).run_checked()
+    if File.exists(second_bin).not() { panic("compiler wrapper did not build B during A's link") }
     Cmd.new(first_bin).run_checked()
     Cmd.new(second_bin).run_checked()
+    println("link_objects PASS")
 }

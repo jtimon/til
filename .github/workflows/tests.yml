@@ -447,7 +447,7 @@ jobs:
       # ensure mingw's gcc is present. get_bin_dir walks up from
       # winhost/ to the checkout root, so src/c/ext.c and boot/ resolve
       # there; hello_script uses no runtime ext_func, so no libffi.
-      - name: Build a program with til.exe on windows
+      - name: Build programs and check link_c isolation on windows
         shell: bash
         run: |
           if ! command -v gcc >/dev/null 2>&1; then
@@ -461,6 +461,16 @@ jobs:
           ./winhost/til.exe build -o hello_native.exe examples/hello_script.til
           ./hello_native.exe
           ./hello_native.exe | grep -q "Hello World"
+          # Execute the regression with the Windows compiler and native GCC,
+          # including its compiled compiler wrapper and both linked fixtures.
+          mkdir -p tmp
+          compiler=$(cygpath -w "$PWD/winhost/til.exe")
+          if ! ./winhost/til.exe run --force-rebuild -o tmp/link_objects_driver.exe -c tmp/link_objects_driver.c test/link_objects.til "$compiler" > tmp/link_objects.out 2>&1; then
+            cat tmp/link_objects.out
+            exit 1
+          fi
+          cat tmp/link_objects.out
+          grep -q "link_objects PASS" tmp/link_objects.out
 
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
