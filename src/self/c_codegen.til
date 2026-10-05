@@ -57,12 +57,14 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
 }
 
 
-priv is_stack_local := func(name: Str, mut ctx: Context) returns Bool {
-    return ctx.builder_func.stack_locals.has(ctx.symbols.intern(name))
+// Binding sets already use symbols. Ident callers pass their existing ID;
+// declaration/assignment callers intern once before asking several classifiers.
+priv is_stack_local := func(sym: Sym, ctx: Context) returns Bool {
+    return ctx.builder_func.stack_locals.has(sym)
 }
 
-priv is_stack_lit_str_local := func(name: Str, mut ctx: Context) returns Bool {
-    return ctx.builder_func.stack_lit_str_locals.has(ctx.symbols.intern(name))
+priv is_stack_lit_str_local := func(sym: Sym, ctx: Context) returns Bool {
+    return ctx.builder_func.stack_lit_str_locals.has(sym)
 }
 
 priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
@@ -81,58 +83,58 @@ priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
     }
 }
 
-priv is_value_global := func(name: Str, mut ctx: Context) returns Bool {
-    if is_current_func_param(name, ctx) { return false }
+priv is_value_global := func(sym: Sym, ctx: Context) returns Bool {
+    if is_current_func_param(ctx.symbols.resolve(sym), ctx) { return false }
     // A local (loop var, decl) inside the current function shadows a
     // script global of the same name. Without this guard a library
     // function like Map.new_type_names (local `m`) would inherit the
     // value-global classification of the script's top-level `m`, and
     // codegen would emit `.` field access / value returns against a
     // `Type *` local -- invalid C. See issue #220.
-    if is_stack_local(name, ctx) { return false }
-    if ctx.builder_func.ref_locals.has(ctx.symbols.intern(name)) { return false }
-    if ctx.builder_func.ptr_locals.has(ctx.symbols.intern(name)) { return false }
-    return ctx.script_globals.has(ctx.symbols.intern(name))
+    if is_stack_local(sym, ctx) { return false }
+    if ctx.builder_func.ref_locals.has(sym) { return false }
+    if ctx.builder_func.ptr_locals.has(sym) { return false }
+    return ctx.script_globals.has(sym)
 }
 
-priv is_ref_global := func(name: Str, mut ctx: Context) returns Bool {
-    if is_current_func_param(name, ctx) { return false }
+priv is_ref_global := func(sym: Sym, ctx: Context) returns Bool {
+    if is_current_func_param(ctx.symbols.resolve(sym), ctx) { return false }
     // Same shadowing rule as is_value_global: a current-function local
     // beats a script-level ref global of the same name.
-    if is_stack_local(name, ctx) { return false }
-    if ctx.builder_func.ref_locals.has(ctx.symbols.intern(name)) { return false }
-    if ctx.builder_func.ptr_locals.has(ctx.symbols.intern(name)) { return false }
-    return ctx.ref_globals.has(ctx.symbols.intern(name))
+    if is_stack_local(sym, ctx) { return false }
+    if ctx.builder_func.ref_locals.has(sym) { return false }
+    if ctx.builder_func.ptr_locals.has(sym) { return false }
+    return ctx.ref_globals.has(sym)
 }
 
-priv is_ref_local := func(name: Str, mut ctx: Context) returns Bool {
-    if ctx.builder_func.ref_locals.has(ctx.symbols.intern(name)) { return true }
-    return is_ref_global(name, ctx)
+priv is_ref_local := func(sym: Sym, ctx: Context) returns Bool {
+    if ctx.builder_func.ref_locals.has(sym) { return true }
+    return is_ref_global(sym, ctx)
 }
 
 /// True when `e` is a borrowed pointer to a scalar -- a `ref x : I8` local,
 /// which C spells `I8 *x`. Feeding one to a Dynamic is a pointer hand-over,
 /// not a load: the value wanted IS the address (#357).
-priv dynamic_src_is_pointer_local := func(e: Expr, mut ctx: Context) returns Bool {
+priv dynamic_src_is_pointer_local := func(e: Expr, ctx: Context) returns Bool {
     switch e.node_type {
-    case .Ident(id): return is_ref_local(id.ident_name(ctx.symbols.names), ctx).and(e.til_type().is(Type.Primitive))
+    case .Ident(id): return is_ref_local(id.ident_sym(), ctx).and(e.til_type().is(Type.Primitive))
     case: return false
     }
     return false
 }
 
-priv use_dot_access := func(obj: Expr, mut ctx: Context) returns Bool {
+priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FieldAccess) {
         if builder_fa_is_ptr(obj, ctx).not() { return true }
     }
     if obj.node_type.is(NodeType.FCall).and(fcall_returns_c_value(obj, ctx)) { return true }
     switch obj.node_type {
     case .Ident(ident):
-        if is_stack_local(ident.ident_name(ctx.symbols.names), ctx) { return true }
-        if is_value_global(ident.ident_name(ctx.symbols.names), ctx) { return true }
+        if is_stack_local(ident.ident_sym(), ctx) { return true }
+        if is_value_global(ident.ident_sym(), ctx) { return true }
         // Value parameters, whether shallow or an owned aggregate, use '.'
         // rather than '->'.
-        if is_value_param(ident.ident_name(ctx.symbols.names), ctx) { return true }
+        if is_value_param(ident.ident_sym(), ctx) { return true }
     case:
     }
     return false
@@ -443,15 +445,16 @@ priv builder_fa_is_ns := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
-priv is_value_param := func(name: Str, mut ctx: Context) returns Bool {
+priv is_value_param := func(sym: Sym, ctx: Context) returns Bool {
     // #327: a nested block re-binding this name shadows the parameter, so
     // the ident is the block's local, not the param.
-    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+    if ctx.builder_func.shadowed_params.has(sym) { return false }
     switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
+        ref name : Str = ctx.symbols.resolve(sym)
         for i in 0..fd.sig.params.len() {
             if fd.sig.params[i].name == name {
                 return func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
@@ -500,13 +503,14 @@ priv type_name_travels_by_slot := func(name: Str) returns Bool {
 // so a source-level free(own name) has nothing physical to release. This is
 // the ABI, not a defensive guard: the slot belongs to the caller's frame by
 // definition, so freeing it would be a wild free.
-priv is_slot_own_param := func(name: Str, mut ctx: Context) returns Bool {
-    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+priv is_slot_own_param := func(sym: Sym, ctx: Context) returns Bool {
+    if ctx.builder_func.shadowed_params.has(sym) { return false }
     switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
+        ref name : Str = ctx.symbols.resolve(sym)
         for i in 0..fd.sig.params.len() {
             if fd.sig.params[i].name == name {
                 if fd.sig.params[i].own_type.is(OwnType.Own).not() { return false }
@@ -524,13 +528,14 @@ priv is_slot_own_param := func(name: Str, mut ctx: Context) returns Bool {
 // argument path has already answered from the CALLEE's parameter; anywhere
 // else, the argument's own type is the evidence available.
 
-priv is_stack_outer_param := func(name: Str, mut ctx: Context) returns Bool {
-    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+priv is_stack_outer_param := func(sym: Sym, ctx: Context) returns Bool {
+    if ctx.builder_func.shadowed_params.has(sym) { return false }
     switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
+        ref name : Str = ctx.symbols.resolve(sym)
         for i in 0..fd.sig.params.len() {
             if fd.sig.params[i].name == name {
                 return func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
@@ -545,13 +550,14 @@ priv is_stack_outer_param := func(name: Str, mut ctx: Context) returns Bool {
     }
 }
 
-priv is_own_heap_param := func(name: Str, mut ctx: Context) returns Bool {
-    if ctx.builder_func.shadowed_params.has(ctx.symbols.intern(name)) { return false }
+priv is_own_heap_param := func(sym: Sym, ctx: Context) returns Bool {
+    if ctx.builder_func.shadowed_params.has(sym) { return false }
     switch ctx.builder_func.current_fdef {
     case .None: return false
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
+        ref name : Str = ctx.symbols.resolve(sym)
         for i in 0..fd.sig.params.len() {
             ref p : Declaration = fd.sig.params[i]
             if p.name == name {
@@ -1125,7 +1131,8 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
 priv emit_field := proc(f: File, var: Str, field: Str, mut ctx: Context) {
     f.write(var)
     // Value params join stack locals / value globals on the dot-access path.
-    if is_stack_local(var, ctx).or(is_value_global(var, ctx)).or(is_value_param(var, ctx)) {
+    sym := ctx.symbols.intern(var)
+    if is_stack_local(sym, ctx).or(is_value_global(sym, ctx)).or(is_value_param(sym, ctx)) {
         f.write(".")
     } else {
         f.write("->")
@@ -1133,8 +1140,7 @@ priv emit_field := proc(f: File, var: Str, field: Str, mut ctx: Context) {
     f.write(field)
 }
 
-priv get_stack_local_ctype := func(name: Str, mut ctx: Context) returns Option(ref Str) {
-    sym := ctx.symbols.intern(name)
+priv get_stack_local_ctype := func(sym: Sym, ctx: Context) returns Option(ref Str) {
     ref m : Map(Sym, Str) = ctx.builder_func.stack_local_types
     if m.has(sym) {
         ref ct : Str = m[sym]
@@ -1265,15 +1271,15 @@ priv emit_til_closure_cleanup := proc(f: File, name: Str) {
     f.fwrite("if (", name, " && ", name, "->drop) { ", name, "->drop(", name, "->env); free(", name, "); }")
 }
 
-priv own_value_arg_has_outer_ptr := func(e: Expr, mut ctx: Context) returns Bool {
+priv own_value_arg_has_outer_ptr := func(e: Expr, ctx: Context) returns Bool {
     if e.til_type().is(Type.Dynamic).or(type_is_callable_storage(e.til_type())) { return false }
     switch e.node_type {
     case .Ident(id):
         if ctx.closure_emit_captures.has(id.ident_sym()) { return true }
-        return is_value_param(id.ident_name(ctx.symbols.names), ctx)
-            .or(is_stack_outer_param(id.ident_name(ctx.symbols.names), ctx))
-            .or(is_stack_local(id.ident_name(ctx.symbols.names), ctx))
-            .or(is_value_global(id.ident_name(ctx.symbols.names), ctx)).not()
+        return is_value_param(id.ident_sym(), ctx)
+            .or(is_stack_outer_param(id.ident_sym(), ctx))
+            .or(is_stack_local(id.ident_sym(), ctx))
+            .or(is_value_global(id.ident_sym(), ctx)).not()
     case .FCall: return fcall_returns_c_value(e, ctx).not()
     case .FieldAccess: return builder_fa_is_ptr(e, ctx)
     case: return false
@@ -1759,7 +1765,7 @@ priv builder_resolve_c_ident_name := func(name: Str, mut ctx: Context) returns S
         // script globals: parameters and locals keep their own C names.
         sym := ctx.symbols.intern(name)
         if is_current_func_param(name, ctx)
-        .or(is_stack_local(name, ctx))
+        .or(is_stack_local(sym, ctx))
         .or(ctx.builder_func.ref_locals.has(sym))
         .or(ctx.builder_func.ptr_locals.has(sym)).not() {
             return ctx.builder_external_globals[name].clone()
@@ -1783,8 +1789,9 @@ priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns B
     case .Decl(dd):
         if dd.is_mut { return false }
         if dd.own_type.is(OwnType.Ref) { return false }
-        if is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not()) { return false }
-        if is_ref_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not()) { return false }
+        sym := ctx.symbols.intern(dd.name)
+        if is_value_global(sym, ctx).and(ctx.builder_func.in_func_def.not()) { return false }
+        if is_ref_global(sym, ctx).and(ctx.builder_func.in_func_def.not()) { return false }
         return ctx.builder_str_lit_ident_symbols.has(dd.name)
     case:
         return false
@@ -2210,8 +2217,9 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     case .Decl(dd):
     if dd.external_symbol.len() > 0 { return }
     ref rhs : Expr = e.children[0]
+    decl_sym := ctx.symbols.intern(dd.name)
     if dd.gc_storage.is(GcStorage.HeapBox) {
-        ctx.builder_func.heap_locals.add(own ctx.symbols.intern(dd.name))
+        ctx.builder_func.heap_locals.add(own decl_sym.clone())
     }
     // #220: any decl inside a function body introduces a local that
     // shadows a same-named script global. is_global / is_rg below are
@@ -2223,7 +2231,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     // it changes the global-vs-local decision and nothing else. (stack_locals
     // and ref_locals already cover their own cases; adding here is harmless
     // overlap.)
-    if ctx.builder_func.in_func_def { ctx.builder_func.ptr_locals.add(own ctx.symbols.intern(dd.name)) }
+    if ctx.builder_func.in_func_def { ctx.builder_func.ptr_locals.add(own decl_sym.clone()) }
     // For any FuncPtr-typed decl (own, ref, or value), capture the local's
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
@@ -2264,13 +2272,13 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // be a plain assignment so we don't shadow it with a local
         // (which trips -Werror=unused-variable and leaves the global
         // unset). Same gate the non-FuncPtr branch below uses.
-        is_global_fp := is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not())
+        is_global_fp := is_value_global(decl_sym, ctx).and(ctx.builder_func.in_func_def.not())
         if is_global_fp { f.write(dd.name).write(" = ") }
         else if is_typedef { f.fwrite(ct, " ", dd.name, " = ") }
         else { f.fwrite(ct, dd.name, " = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
     } else if e.til_type().is(Type.Body).and(dd.own_type.is(OwnType.Ref).not()) {
-        is_global_body := is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not())
+        is_global_body := is_value_global(decl_sym, ctx).and(ctx.builder_func.in_func_def.not())
         if is_global_body { f.write(dd.name).write(" = ") }
         else { f.write("TilClosure *").write(dd.name).write(" = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
@@ -2290,15 +2298,15 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // ref_globals. Its initializer is still the same plain
             // assignment; without this it declared a fresh local that
             // shadowed the global, leaving the global unset and unused.
-            is_rg := is_ref_global(dd.name, ctx).or(
-                e.til_type().is(Type.Dynamic).and(is_value_global(dd.name, ctx))).and(ctx.builder_func.in_func_def.not())
+            is_rg := is_ref_global(decl_sym, ctx).or(
+                e.til_type().is(Type.Dynamic).and(is_value_global(decl_sym, ctx))).and(ctx.builder_func.in_func_def.not())
             if is_rg.not() {
-                ctx.builder_func.ref_locals.add(own ctx.symbols.intern(dd.name))
+                ctx.builder_func.ref_locals.add(own decl_sym.clone())
                 // #185: track ref-Dynamic locals so emit_deref can typed-
                 // cast at use sites where narrow_dynamic has retyped the
                 // Ident to a concrete primitive.
                 if dd.til_type.is(Type.Dynamic) {
-                    ctx.builder_func.ref_dyn_locals.add(own ctx.symbols.intern(dd.name))
+                    ctx.builder_func.ref_dyn_locals.add(own decl_sym.clone())
                 }
             }
             ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), decl_type_name(dd, ctx.symbols), ctx)
@@ -2310,10 +2318,10 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // wrote every ref binding's cast twice (840 across the corpus).
         } else {
             ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), decl_type_name(dd, ctx.symbols), ctx)
-            is_global := is_value_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not())
+            is_global := is_value_global(decl_sym, ctx).and(ctx.builder_func.in_func_def.not())
             // Raw-alloc global (emit_global_declarations gave it pointer
             // storage): assign the block address straight through.
-            is_raw_alloc_global := is_ref_global(dd.name, ctx).and(ctx.builder_func.in_func_def.not()).and(rhs_is_allocator_call(rhs, ctx.symbols))
+            is_raw_alloc_global := is_ref_global(decl_sym, ctx).and(ctx.builder_func.in_func_def.not()).and(rhs_is_allocator_call(rhs, ctx.symbols))
             if is_raw_alloc_global {
                 f.write(dd.name).write(" = ")
                 emit_expr(f, rhs, depth, ctx); f.write(";\n")
@@ -2363,8 +2371,8 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         // determines whether each field stores a value or a
                         // transferred pointer.
                         f.write(ctype).write(" ").write(dd.name).write(" = {0};\n")
-                        ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                        ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own decl_sym.clone())
+                        ctx.builder_func.stack_local_types.set(decl_sym, own ctype.clone())
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     } else {
                         f.write(ctype).write(" *").write(dd.name).write(" = malloc(TIL_BOX(").write(ctype).write("));\n")
@@ -2388,17 +2396,17 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         }
                         f.write("ULL, .cap = TIL_CAP_LIT};\n")
                     }
-                    ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                    ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
-                    if dd.is_mut.not() { ctx.builder_func.stack_lit_str_locals.add(own ctx.symbols.intern(dd.name)) }
+                    ctx.builder_func.stack_locals.add(own decl_sym.clone())
+                    ctx.builder_func.stack_local_types.set(decl_sym, own ctype.clone())
+                    if dd.is_mut.not() { ctx.builder_func.stack_lit_str_locals.add(own decl_sym.clone()) }
                 } else if is_global {
                     f.write(dd.name).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
                 } else if stack_storage {
                     f.write(ctype).write(" ").write(dd.name).write(" = ")
                     emit_deref(f, rhs, depth, ctx)
                     f.write(";\n")
-                    ctx.builder_func.stack_locals.add(own ctx.symbols.intern(dd.name))
-                    ctx.builder_func.stack_local_types.set(ctx.symbols.intern(dd.name), own ctype.clone())
+                    ctx.builder_func.stack_locals.add(own decl_sym.clone())
+                    ctx.builder_func.stack_local_types.set(decl_sym, own ctype.clone())
                 } else {
                     f.write(ctype).write(" *").write(dd.name).write(" = ")
                     emit_expr(f, rhs, depth, ctx); f.write(";\n")
@@ -2464,7 +2472,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     case .Ident(rv_ident):
         if type_is_callable_storage(rv.til_type()).not()
         .and(ctx.builder_func.heap_locals.has(rv_ident.ident_sym())
-            .or(is_own_heap_param(rv_ident.ident_name(ctx.symbols.names), ctx))) {
+            .or(is_own_heap_param(rv_ident.ident_sym(), ctx))) {
             heap_return_name = builder_resolve_c_ident_name(rv_ident.ident_name(ctx.symbols.names), ctx)
         }
     case:
@@ -2523,7 +2531,7 @@ priv is_noop_delete_stmt := func(e: Expr, mut ctx: Context) returns Bool {
         // through a pointer into the pool is what TIL_LIT_GUARD panics on.
         // 16,387 of the corpus's 20,628 Str_delete calls were this.
         if ctx.builder_func.stack_lit_str_locals.has(del_arg.ident_sym()) { return true }
-        if is_stack_local(del_arg.ident_name(ctx.symbols.names), ctx).not() { return false }
+        if is_stack_local(del_arg.ident_sym(), ctx).not() { return false }
         if is_enum_type(c1.til_type()) {
             // POD enum (no variant payload): destructor is just
             // `if (call_free) free(self);`. With the local on the
@@ -2713,6 +2721,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         emit_stmt_decl(f, e, depth, ctx)
     case .Assign(ad):
         aname := ad.name
+        assign_sym := ctx.symbols.intern(aname)
         acname := builder_resolve_c_ident_name(aname, ctx)
         ref mut rhs : Expr = e.children[0]
         mut e_sname := ""
@@ -2729,7 +2738,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         if ad.is_move.and(rhs_is_clone_fcall(rhs, ctx.symbols)).and(rhs.children.len().gte(2)) {
             rhs = rhs.children[1]
         }
-        if ctx.closure_emit_captures.has(ctx.symbols.intern(aname)) {
+        if ctx.closure_emit_captures.has(assign_sym) {
             // Writes THROUGH the env pointer into the captured local's
             // storage, so this arm owes the same two things the `mut`-param
             // write-back does: run the OLD value's destructor before
@@ -2755,7 +2764,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             f.write("}\n")
             return
         }
-        if is_ref_local(aname, ctx) {
+        if is_ref_local(assign_sym, ctx) {
             // #221: `ref mut p : Str = get_payload(<enum>); p = "literal"`
             // must write the Str struct THROUGH `p` into the enum's payload
             // memory, not rebind the local pointer to a fresh heap Str.
@@ -2793,7 +2802,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 // target uninitialized. Treat params like stack locals
                 // here so the deref-write path runs.
                 ref rname : Str = rhs_ident.ident_name(ctx.symbols.names)
-                if is_stack_local(rname, ctx)
+                if is_stack_local(rhs_ident.ident_sym(), ctx)
                     .or(is_current_func_param(rname, ctx)).not() { do_rebind = true }
             case:
             }
@@ -2809,7 +2818,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // storage the enum owns.
         if ad.save_old_delete.and(ad.is_payload_alias.not()) {
             ctype := c_type_name(e.til_type(), e_sname, ctx)
-            if is_stack_local(aname, ctx).or(is_value_global(aname, ctx)) {
+            if is_stack_local(assign_sym, ctx).or(is_value_global(assign_sym, ctx)) {
                 // Evaluate before deleting: the RHS may borrow the target
                 // itself (`x = normalize(x)`). The replacement is a value,
                 // so no heap wrapper is needed for this ordering temporary.
@@ -2834,7 +2843,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             }
             return
         }
-        is_hoisted := is_stack_local(aname, ctx).or(is_value_global(aname, ctx))
+        is_hoisted := is_stack_local(assign_sym, ctx).or(is_value_global(assign_sym, ctx))
         if e.til_type().is(Type.Dynamic) {
             f.write(acname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n"); return
         }
@@ -2867,7 +2876,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 mut is_ref_rhs := false
                 switch rhs.node_type {
                 case .Ident(rid):
-                    if is_ref_local(rid.ident_name(ctx.symbols.names), ctx) {
+                    if is_ref_local(rid.ident_sym(), ctx) {
                         is_ref_rhs = true
                         f.write("*").write(builder_resolve_c_ident_name(rid.ident_name(ctx.symbols.names), ctx))
                     }
@@ -2986,12 +2995,15 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 ref swap_target : Expr = e.children[1]
                 mut target_name := ""
                 mut temp_name := ""
+                mut temp_sym : Sym = 0
                 switch swap_target.node_type {
                 case .Ident(tid): target_name = Str.clone(tid.ident_name(ctx.symbols.names))
                 case:
                 }
                 switch e.children[2].node_type {
-                case .Ident(stid): temp_name = Str.clone(stid.ident_name(ctx.symbols.names))
+                case .Ident(stid):
+                    temp_name = Str.clone(stid.ident_name(ctx.symbols.names))
+                    temp_sym = stid.ident_sym()
                 case:
                 }
                 if target_name.len().gt(0).and(temp_name.len().gt(0)) {
@@ -3009,7 +3021,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         // If the temp is a stack-local (Str value, not pointer),
                         // assign directly without dereference and free.
                         f.write("{ TIL_LIT_GUARD(").write(target_name).write("); ")
-                        if is_stack_local(temp_name, ctx) {
+                        if is_stack_local(temp_sym, ctx) {
                             f.write("Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(builder_resolve_c_ident_name(temp_name, ctx)).write("; ")
                         } else {
                             f.write("Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); ")
@@ -3197,7 +3209,7 @@ priv emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, 
     f.write("TilClosure *til_closure = (TilClosure *)(")
     switch callee.node_type {
     case .Ident(cname):
-        if is_ref_local(cname.ident_name(ctx.symbols.names), ctx) {
+        if is_ref_local(cname.ident_sym(), ctx) {
             f.write("DEREF(").write(cname.ident_name(ctx.symbols.names)).write(")")
         } else {
             emit_expr(f, callee, depth, ctx)
@@ -3860,7 +3872,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             return f
         }
         if e.til_type().is_funcptr() {
-            if find_callee_fdef(ident.ident_name(ctx.symbols.names), ctx).is_some().and(ctx.closure_value_names.has(ident.ident_sym())).and(is_stack_local(ident.ident_name(ctx.symbols.names), ctx).or(is_ref_local(ident.ident_name(ctx.symbols.names), ctx)).or(ctx.builder_func.ptr_locals.has(ident.ident_sym())).not()) {
+            if find_callee_fdef(ident.ident_name(ctx.symbols.names), ctx).is_some().and(ctx.closure_value_names.has(ident.ident_sym())).and(is_stack_local(ident.ident_sym(), ctx).or(is_ref_local(ident.ident_sym(), ctx)).or(ctx.builder_func.ptr_locals.has(ident.ident_sym())).not()) {
                 f.write("&")
                 f.write(closure_value_name(ident.ident_name(ctx.symbols.names)))
             } else {
@@ -4101,13 +4113,13 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             mut free_stack_param := false
             switch free_arg.node_type {
             case .Ident(free_id):
-                free_stack_param = is_value_param(free_id.ident_name(ctx.symbols.names), ctx)
-                    .or(is_stack_outer_param(free_id.ident_name(ctx.symbols.names), ctx))
+                free_stack_param = is_value_param(free_id.ident_sym(), ctx)
+                    .or(is_stack_outer_param(free_id.ident_sym(), ctx))
                     // #371: an own PRIMITIVE parameter is a caller-frame
                     // slot, so there is no box to release. One rule covers
                     // both consumption shapes -- adopt's free(own src) and
                     // Set.add's hand-written T.delete + free(own val) pair.
-                    .or(is_slot_own_param(free_id.ident_name(ctx.symbols.names), ctx))
+                    .or(is_slot_own_param(free_id.ident_sym(), ctx))
             case:
             }
             if free_stack_param {
@@ -4835,7 +4847,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
     } else if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
         switch e.node_type {
         case .Ident(ident):
-            if is_ref_local(ident.ident_name(ctx.symbols.names), ctx) {
+            if is_ref_local(ident.ident_sym(), ctx) {
                 f.write("(void *)DEREF(").emit_expr(e, depth, ctx).write(")")
             } else {
                 f.write("(void *)").emit_expr(e, depth, ctx)
@@ -4859,9 +4871,9 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
                 // dereference a `void *` (which is invalid C).
                 ctype := til_type_to_c(e.til_type())
                 f.write("DEREF((").write(ctype).write(" *)").emit_expr(e, depth, ctx).write(")")
-            } else if is_ref_local(ident.ident_name(ctx.symbols.names), ctx) {
+            } else if is_ref_local(ident.ident_sym(), ctx) {
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
-            } else if is_value_param(ident.ident_name(ctx.symbols.names), ctx).or(is_stack_local(ident.ident_name(ctx.symbols.names), ctx)).or(is_value_global(ident.ident_name(ctx.symbols.names), ctx)) {
+            } else if is_value_param(ident.ident_sym(), ctx).or(is_stack_local(ident.ident_sym(), ctx)).or(is_value_global(ident.ident_sym(), ctx)) {
                 emit_expr(f, e, depth, ctx)
             } else {
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
@@ -4900,7 +4912,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
         switch e.node_type {
         case .Ident(ident):
-            if is_ref_local(ident.ident_name(ctx.symbols.names), ctx) { emit_deref(f, e, depth, ctx) }
+            if is_ref_local(ident.ident_sym(), ctx) { emit_deref(f, e, depth, ctx) }
             else { emit_expr(f, e, depth, ctx) }
         case:
             emit_expr(f, e, depth, ctx)
@@ -4925,11 +4937,11 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             emit_expr(f, e, depth, ctx)
             return f
         }
-        stack_outer_param := is_stack_outer_param(ident.ident_name(ctx.symbols.names), ctx)
-        if is_value_param(ident.ident_name(ctx.symbols.names), ctx).or(stack_outer_param)
-        .or(is_stack_local(ident.ident_name(ctx.symbols.names), ctx)).or(is_value_global(ident.ident_name(ctx.symbols.names), ctx)) {
+        stack_outer_param := is_stack_outer_param(ident.ident_sym(), ctx)
+        if is_value_param(ident.ident_sym(), ctx).or(stack_outer_param)
+        .or(is_stack_local(ident.ident_sym(), ctx)).or(is_value_global(ident.ident_sym(), ctx)) {
             if is_own {
-                existing_o := get_stack_local_ctype(ident.ident_name(ctx.symbols.names), ctx)
+                existing_o := get_stack_local_ctype(ident.ident_sym(), ctx)
                 mut ctype := ""
                 if existing_o.is_some() { ctype = existing_o.unwrap().clone() }
                 else {
@@ -4950,7 +4962,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     if stack_outer_param { emit_deref(f, e, depth, ctx) }
                     else { emit_expr(f, e, depth, ctx) }
                     f.write(" }")
-                } else if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_name(ctx.symbols.names), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
+                } else if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_sym(), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
                     f.write("&")
                     f.write(builder_resolve_c_ident_name(ident.ident_name(ctx.symbols.names), ctx))
                 } else {
