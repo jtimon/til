@@ -57,6 +57,58 @@ test_array_subscript := test() {
     assert_eq(I64, a[i.add(1)], 30)
 }
 
+// Runtime indices keep the call-boundary conversion visible to the emitter.
+accessor_runtime_index := proc(mut calls: I64, value: I64) returns I64 {
+    noop_proc()
+    calls++
+    return value
+}
+
+AccessorIndexView := struct<T: Type> {
+    ref data : T = 0
+namespace:
+    unsafe_get := func(self: AccessorIndexView(T), shallow index: USize) returns ref T {
+        // Widening inside the body must happen AFTER the USize parameter
+        // conversion, just as it would for a real call to this method.
+        return ptr_add(self.data, index.cast(U64).mul(T.size().cast(U64)))
+    }
+}
+
+test_array_accessor_conversions := test() {
+    mut values := array(I64, 10, 20, 30)
+    mut calls := 0
+    ref mut middle : I64 = values[accessor_runtime_index(calls, 1)]
+    assert_eq(I64, middle, 20)
+    middle = 25
+    assert_eq(I64, values[1], 25)
+    assert_eq(I64, values[accessor_runtime_index(calls, 1) + 1], 30)
+    assert_eq(I64, calls, 2)
+    for value : I64 in array(I64, -1, 3, I64.MAX) {
+        mut caught := false
+        ref _invalid : I64 = values.get(accessor_runtime_index(calls, value))?
+        catch (err: OutOfBounds) { caught = true }
+        assert(caught)
+    }
+    assert_eq(I64, calls, 5)
+    wide := accessor_runtime_index(calls, 4294967297)
+    view := AccessorIndexView(I64)(data = values[0])
+    assert_eq(I64, view.unsafe_get(accessor_runtime_index(calls, 1)), 25)
+    // Arithmetic observes the selected alias width in both backends, unlike
+    // sizeof during interpretation, which can describe the host layout.
+    mut wrapped : USize = 4294967295
+    wrapped = wrapped + 1
+    if wrapped == 0 {
+        // Narrow before checking bounds AND before the accessor widens to U64.
+        assert_eq(I64, values[wide], 25)
+        assert_eq(I64, view.unsafe_get(wide), 25)
+    } else {
+        mut caught := false
+        ref _invalid : I64 = values.get(wide)?
+        catch (err: OutOfBounds) { caught = true }
+        assert(caught)
+    }
+}
+
 // Issue #225: subscript assignment `a[i] = x` desugars to
 // `a.set(i, own x)!`, the write-side mirror of `a[i] -> a.get(i)!`.
 // Literal and computed indices, round-trip asserted under interp and

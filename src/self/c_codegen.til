@@ -212,24 +212,43 @@ priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) retu
 // it runs the accessor body as a normal func, so both modes agree.
 
 // Substitute the callee's params with the call's argument expressions inside a
-// (cloned) body node: every Ident naming a param becomes a clone of the
-// matching argument. A replaced argument is not re-descended.
-priv inline_subst := proc(mut e: Expr, params: Vec(Declaration), call: Expr, symbols: SymbolPool) {
+// (cloned) body node. Primitive value parameters retain the conversion a C
+// call would perform before entering the body. The argument's stamp cannot
+// tell us whether that conversion is redundant: the typer may already have
+// re-stamped it with the formal type while its emitted value is still I64,
+// a narrower call result, or an explicitly cast expression. Ref parameters
+// must stay places, including the caller's error slot. A replacement is not
+// re-descended, so its original arithmetic/casts keep their own semantics.
+priv inline_subst := proc(mut e: Expr, fd: FunctionDef, call: Expr, mut ctx: Context) {
     for ci in 0..e.children.len() {
         mut matched := false
         switch e.children[ci].node_type {
         case .Ident(id):
-            ref nm : Str = id.ident_name(symbols.names)
-            for pi in 0..params.len() {
-                if params[pi].name.eq(nm) {
-                    e.children[ci] = call.children[pi.add(1)].clone()
+            ref nm : Str = id.ident_name(ctx.symbols.names)
+            for pi in 0..fd.sig.params.len() {
+                ref param : Declaration = fd.sig.params[pi]
+                if param.name.eq(nm) {
+                    ref arg : Expr = call.children[pi + 1]
+                    formal_type := declaration_resolved_type(param, ctx.scope, ctx.symbols)
+                    if formal_type.is(Type.Primitive).and(func_param_passes_c_value(fd, pi, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)) {
+                        mut converted := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
+                        converted.add_child(own Expr.new(ident_node(ctx.symbols.intern("cast")), arg.line, arg.col))
+                        converted.add_child(own arg.clone())
+                        converted.add_child(own Expr.new(ident_node(ctx.symbols.intern(til_type_name_c(formal_type, ctx.symbols))), arg.line, arg.col))
+                        converted.set_til_type(formal_type)
+                        mark_fcall_direct(converted)
+                        e.children[ci] = converted
+                    } else {
+                        e.children[ci] = arg.clone()
+                    }
                     matched = true
+                    break
                 }
             }
         case:
         }
         if matched.not() {
-            inline_subst(e.children[ci], params, call, symbols)
+            inline_subst(e.children[ci], fd, call, ctx)
         }
     }
 }
@@ -300,7 +319,7 @@ priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, mut 
         }
     }
     ref mut ret : Expr = bodyc.children[n.sub(1)]
-    inline_subst(ret, fd.sig.params, e, ctx.symbols)
+    inline_subst(ret, fd, e, ctx)
     ref rv : Expr = ret.children[0]
     f.write("(")
     if fd.sig.return_own_type.is(OwnType.Ref) {
@@ -1214,6 +1233,10 @@ priv fcall_returns_c_value := func(fcall: Expr, ctx: Context) returns Bool {
     }
     callee := resolve_callee_name(fcall, ctx.symbols)
     if callee.len() > 0 {
+        // A cast is emitted as a C value, including casts introduced by
+        // accessor substitution after scavenging removed the unused til
+        // declaration. It must never take the owned-pointer return adapter.
+        if callee == "cast" { return true }
         fdef_o := find_callee_fdef(callee, ctx)
         if fdef_o.is_some() {
             switch fdef_o.unwrap().node_type {
@@ -11120,7 +11143,7 @@ priv builder_splice_hoisted_temps := proc(mut body: Expr, symbols: SymbolPool) {
 priv emit_inline_checked_get := proc(f: File, e: Expr, fdef: Expr, depth: I32, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     mut bodyc := fdef.children[0].clone()
-    inline_subst(bodyc, fd.sig.params, e, ctx.symbols)
+    inline_subst(bodyc, fd, e, ctx)
     builder_splice_hoisted_temps(bodyc, ctx.symbols)
     n := bodyc.children.len()
     ref setk : Expr = bodyc.children[n.sub(2)]

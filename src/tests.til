@@ -2253,6 +2253,12 @@ main := proc(args: ..Str) {
     add_both(tests, "examples/priv_demo.til", flags)
     add_both(tests, "test/imports.til", flags)
     add_both(tests, "test/arrays.til", flags)
+    // The same accessor must narrow before its bounds check/address math.
+    // A 64-bit-only run cannot expose loss of the USize32 parameter boundary.
+    add_counts(tests, "accessor_conversions_usize32", "build",
+        format(til_bin, " test --usize=32", asan_flag,
+            " -c gen/c/accessor_conversions32.c -o bin/c/accessor_conversions32 test/arrays.til"),
+        CountCheck(needle = "pass: test_array_accessor_conversions", expected_count = 2))
     add_both(tests, "test/dyn_arrays.til", flags)
     add_both(tests, "test/test_in_namespace.til", flags)
     add_both(tests, "test/forward_refs.til", flags)
