@@ -16,15 +16,16 @@ language than the one it edits.
 
 What exists today, and how far it is from embedding:
 
-  - The interpreter IS a library already, in the practical sense: it is
-    ordinary til code (src/self/interpreter.til) linked into bin/til,
-    driven by cmd_interpret / the REPL. Nothing about it is
-    process-shaped except its entry points.
+  - The interpreter is ordinary til code (src/self/interpreter.til)
+    linked into bin/til, with reusable session machinery driven by
+    cmd_interpret / the REPL. It is not yet an embedding library:
+    process-wide state, exit/error handling, native binding setup and
+    installation also need explicit embedding contracts.
   - What is missing is the API AROUND it: create a session from inside
     a running program, eval a string or file into it, look a symbol up,
     call it, and register HOST functions the guest can call. The REPL
-    does all of these internally; none of them is callable from user
-    til (or from C) as a surface.
+    has internal machinery for several of these operations, but there
+    is no supported installed host-facing API for them.
   - The FFI already crosses the other direction (guest calls C via
     ext_func + libffi), so "host function visible to the guest" has
     machinery to build on rather than invent.
@@ -120,6 +121,242 @@ it rather than requiring applications to vendor compiler internals.
   checking lifetime/ownership errors and multiple independent sessions.
 - [ ] Run the host with compiler executables unavailable on ~PATH~; it
   still loads the config using its installed interpreter runtime.
+
+*** API and ownership proposal against master b201ae5d5
+
+Design proposal, pending approval before adding public modules, APIs or
+installation paths. The initial target is a compiled Til host using the
+C backend. Tiled's configuration remains ordinary Til, including its
+existing ~init(mut config: TiledConfig)~ function. This proposal changes
+how the host invokes it, not the user's configuration file format.
+
+**** What can be reused, and what cannot simply be exposed
+
+- ~InterpSession~ already owns the global scope, evaluated-unit set and
+  retained programs. ~interp_session_start~, ~prepare_context~,
+  ~eval_core_once~ and ~free~ are useful implementation seams.
+- Persistent bindings borrow canonical types from Contexts; interpreted
+  callables borrow AST FuncDefs and can own captured scopes. The REPL
+  retains LoadedPrograms for precisely these lifetimes. Returning an
+  Expr pointer, raw heap block or InterpCallableBox to a host would not
+  create a safe callable/value API.
+- The existing REPL's ~h_exit~ only intercepts nonzero exits.
+  ~exit(0)~ still terminates the process. Several evaluator handlers and
+  loader paths also call ~exit~ or ~panic~ directly. Setting ~is_repl~
+  is therefore insufficient to keep an embedding host alive.
+- ~load_program~ reads an entry file; the REPL writes scratch source
+  and captures process stdout/stderr to files. Embedding needs an
+  in-memory entry-source path and structured diagnostics/output, not
+  generated source files or process-wide stdio redirection.
+- ~interp_session_prepare_context~ resets FFI state and can compile a
+  ~link_c~ shared library. ~ffi_init_link_libs~ can load libraries into
+  the process. Neither operation belongs in the first compiler-free
+  guest-loading contract.
+- Interpreter dispatch scratch depth and the Scope reuse pool are
+  global; ~src/c/ext.c~ has a process-global user-FFI library handle.
+  A source-level InterpSession alone is not proof of independent or
+  reentrant VMs. Audit these lifetimes before exposing sessions.
+- ~struct_def_of~ and ~func_sig_of~ in ~src/core/dyn.til~ provide
+  reflection to build on. Struct reflection currently supplies field
+  names, types and mutability, not a complete ownership/layout contract;
+  it cannot justify arbitrary native struct memcpy or borrowed-pointer
+  interchange. [[../fixed/275.org][#275]] explains why a second, manually owned runtime
+  value representation must not be introduced around the evaluator.
+
+**** Proposed public operations
+
+Use ~import("std/interp")~ as the supported entry point. Names below
+specify the proposed contract, not APIs that already compile today.
+
+- ~Interp(HostContext).new~: create an owning session. Its default SDK
+  root is captured at host build time; an explicit ~support_root~
+  argument permits relocation.
+  HostContext is the host's type for per-call callback context; the VM
+  does not own or retain an instance of it between calls. An application
+  with no callback state can use an empty context type.
+- ~register_type(T)~: make a supported host type visible to guest
+  typechecking. Derive its contract/adapters from the actual host type,
+  not a handwritten second definition of TiledConfig in guest source.
+- ~register_proc(Signature, name, handler)~: bind a guest-visible name
+  and checked signature to a native host adapter. The adapter receives
+  the current HostContext plus checked argument values; its hidden
+  context parameter is not part of the guest signature. Registration
+  retains the callable/code, not a borrow of the host's live editor.
+- ~load_source(source, virtual_path, import_base, mut host_context)~
+  and ~load_file(path, mut host_context)~: load/typecheck a module and
+  initialize its globals/imports. The first milestone loads one entry
+  module per session, then supports repeated calls. Failed preparation
+  discards its candidate program; it does not publish partial symbols.
+- ~lookup(Signature, name)~: return a checked guest-function handle.
+  Wrong names or signatures are structured errors, not null pointers.
+- ~copy_in(T, value)~: clone supported host data into a guest-owned root
+  and return its typed value handle.
+- ~call(function, arguments, mut host_context)~: invoke an already
+  checked function. Arguments explicitly select guest value, guest
+  mutable borrow or guest ownership transfer. This must use a typed
+  evaluator call path, not synthesize and evaluate source text for
+  every invocation.
+- ~copy_out(T, handle)~: create an independent host-owned result.
+- ~release(handle)~ and ~close~: release one guest root or the whole
+  session. Owning session destruction also performs teardown.
+
+Handles are opaque, session-tagged identities with lifetime generations,
+not exposed AST/raw-memory pointers. Operations always take a live VM
+and reject stale, released or other-session handles before using their
+storage. Copying a token does not clone its guest object; releasing a
+root invalidates its token aliases. Guest-function handles root both
+the callable environment and the program/type information it borrows.
+
+The first data boundary supports core scalars, owned Str copies and
+plain value records containing those fields, sufficient for today's
+TiledConfig (I32, Bool and Str fields). Registration must reject types
+whose ownership/layout the adapter cannot faithfully support: raw
+pointers, ref/own fields, arbitrary containers, custom lifecycle and
+interface values are not silently treated as plain records. Existing
+compiler declarations remain the authority for qualifiers and layouts;
+extend the registration metadata deliberately where current reflection
+does not expose enough information.
+
+**** Ownership: explicit snapshots first, not disguised native borrows
+
+Recommendation for the first boundary: guest roots and explicit copies.
+The host copies its candidate config into a guest-owned value, calls
+~init~ with a mutable borrow of THAT guest value, then copies the result
+back on success. Finally the host replaces its candidate configuration.
+The guest's existing ~mut config~ semantics are real within the guest;
+the API must not claim it is aliasing the original native host object.
+
+This deliberately creates an independent config snapshot during the
+call, rather than a second owner of the same Str buffers. Typed clone,
+move and delete behavior must flow through the existing evaluator and
+compiler lifecycle machinery. Do not recreate the removed Value /
+StructInstance shadow heap or byte-copy managed records.
+
+- Borrowing or mutating a guest argument leaves its session root owned
+  by the VM. Guest callbacks may retain guest data according to normal
+  Til ownership rules; retaining it cannot retain a native stack borrow.
+- An ~own~ argument consumes its guest root once invocation begins,
+  including if evaluation later aborts. Validation failures before
+  entering the function consume nothing. Every abort path must drop or
+  preserve transferred values exactly once.
+- ~copy_out~ returns host-owned strings/records, independent of VM
+  closure, reload or destruction. No borrowed Str view escapes through
+  a public result. Closures stay as checked guest handles, not native
+  function pointers with an invented ABI.
+- Host callbacks receive HostContext only for the dynamic extent of
+  ~load~ or ~call~. Guest code cannot retain that native context pointer.
+  A later editor key event supplies the current host context again.
+  Any native callback captures obey normal host ownership rules.
+
+Direct shared native ~mut T~ / ~ref T~ arguments are a later contract,
+not an implicit optimization of copying. They need escape/lifetime
+enforcement and alias-preserving layout/writeback semantics. In
+particular, the existing FFI's foreign-place tracking is not by itself
+a guarantee that an arbitrary guest-held native reference cannot
+outlive its host owner.
+
+**** Errors, output, sessions and reload
+
+Public operations report ~InterpError~, an owned structured error with
+phase, diagnostics and optional guest exit status. Frontend diagnostics carry
+source path, line and column; text output is a separate host sink.
+Do not infer error categories by parsing printed panic messages.
+
+An embedding execution policy must unwind EVERY guest exit status,
+including zero, to the host. Guest panic/assert/uncaught-throw paths
+must reach the same cleanup discipline. Audit direct evaluator exits
+and loader error paths as well as ~h_exit~. Internal compiler invariant
+failures and arbitrary native FFI faults are not recoverable guest
+errors. CLI/REPL drivers can retain their current exit/printing behavior
+through their own policy around the reusable machinery.
+
+Initially sessions are thread-confined and calls are serialized. A host
+callback attempting guest re-entry receives a clear busy/re-entry error;
+there is no recursive evaluation through unsaved global scratch state.
+Two independent sessions must still alternate calls and tear down in
+either order without affecting each other. Move session-owned scratch,
+pools and callback state under the correct owner; do not unload another
+session's FFI library during reset/free.
+
+First guest profile: library modules, normal source imports, supported
+core/std operations and explicitly registered host calls. Reject runtime
+~link_c~, undeclared native bindings and new native-library loading with
+structured unsupported-operation diagnostics. Registration must keep
+the required native functions reachable in compiled hosts; relying on
+whatever happens to survive linker dead stripping is not registration.
+This profile is not a sandbox for hostile source or unsafe native code.
+
+Reload constructs a fresh session and candidate config while the old
+session remains live. After load/init succeed, the host switches its
+config and callback handles together and then closes the old session.
+Failure discards the candidate and preserves the old active session.
+Host callback side effects are not automatically transactional: during
+configuration the host must route them to candidate state or document
+their immediate effects. A runtime abort need not roll back earlier
+guest-global mutations either.
+
+**** Packaging and installation proposal
+
+- Add ~src/std/interp.til~ as the public source facade; keep engine,
+  loader, typing and lifecycle work in the existing ~src/self/~ modules.
+  Do not expose their Context/Expr layout as the public ABI.
+- Extend ~install_compiler_support~ to install ~src/self/~ as private
+  implementation sources and the already-built native libffi archive
+  at the relative path selected by ~target_ffi_lib~. Bindings already
+  install under ~vendor/bindings/~. The normal build produces the
+  archive; installation copies it; the application build reads/links
+  it. Existing installed core/std sources alone cannot compile the
+  interpreter implementation today.
+- The host compiles the facade and private implementation through the
+  existing Til build path. No separate libtilinterp binary, alternate
+  source tree, serialized AST, generated documentation cache or runtime
+  compiler subprocess is proposed for the first version. The tradeoff
+  is a larger host build/binary and private SDK source installation.
+- Host registration needs runtime type/signature descriptors and typed
+  adapters derived at host build time. These repeat facts from the
+  compiler's declarations inside the host binary so guests need neither
+  Tiled's source nor manually maintained schemas. Reuse existing
+  reflection inventories; do not add a second persistent metadata file.
+- Core/std/mode sources remain runtime SDK assets. Capture the selected
+  support root at HOST BUILD time using the compiler's existing root
+  resolution, with an explicit constructor argument for relocation.
+  Running ~get_bin_dir~ on the Tiled executable is not equivalent to
+  finding the compiler SDK that built it.
+- The host, embedded engine, native runtime and libffi must agree on
+  target and USize/UPtr widths and supported binding layouts. Validate
+  native contracts; a revision string alone is not ABI proof. The
+  current single-version installation still replaces one support tree:
+  upgrading it may require rebuilding embedding hosts. This proposal
+  does not introduce side-by-side compiler installs or promise arbitrary
+  cross-revision compatibility.
+
+All new public names, installation additions, generated-in-binary
+registration descriptors and the explicit snapshot semantics above
+require approval before implementation. They are documented here so
+those decisions precede code rather than being invented while coding.
+
+**** Delivery and acceptance
+
+First extract structured diagnostics and an embedding abort policy,
+then implement session ownership/typed guest-root calls, then host
+type/callback adapters, and finally installation and an external host
+acceptance test. Use the existing self-hosting workflow to determine
+whether an eventual emitted-metadata change needs preparation; the
+feature is not automatically blocked on a multi-commit bootstrap.
+
+The first installed-host acceptance must keep compiler executables OFF
+PATH and perform no C compilation or generated-entry-file writes while
+loading a config edited after host build. Exercise TiledConfig's actual
+I32/Bool/Str shape, snapshot mutation and copy-out, a host callback with
+per-call state, and a retained guest closure called after load returns.
+
+Also test syntax/type/import failures, guest ~exit(0)~/~exit(1)~/panic,
+host callback failures, stale/cross-session handles, multiple sessions,
+reload failure/success, abort during ownership transfer, and session
+destruction with retained values. Strings copied to the host must remain
+valid after VM teardown. Unsupported native borrowing must fail
+explicitly, not silently become copying. These checks precede claiming
+the full set of requirements above complete.
 
 Related: [[https://github.com/jtimon/tiled/blob/master/issues/open/1.org][Tiled #1]] (tiled itself, formerly Til #83), #84 (mode theme -- one .til theme file
 generating .el/.vim/.json is the same "til as the one config language"
