@@ -91,17 +91,17 @@ make_til_type_expr := func(src: Expr, t: Type, mut symbols: SymbolPool) returns 
     }
     if primitive_variant.len() > 0 {
         // Build Type.Primitive(Primitive.<primitive_variant>).
-        mut type_ident_p := Expr.new(ident_node(symbols.intern("Type")), src.line, src.col)
+        mut type_ident_p := Expr.new(own ident_node(symbols.intern("Type")), src.line, src.col)
         type_ident_p.set_til_type(Type.EnumSym(symbols.intern("Type")))
-        mut prim_ident := Expr.new(ident_node(symbols.intern("Primitive")), src.line, src.col)
+        mut prim_ident := Expr.new(own ident_node(symbols.intern("Primitive")), src.line, src.col)
         prim_ident.set_til_type(Type.EnumSym(symbols.intern("Primitive")))
-        mut prim_fa := Expr.new(field_access_node(symbols.intern(primitive_variant)), src.line, src.col)
+        mut prim_fa := Expr.new(own field_access_node(symbols.intern(primitive_variant)), src.line, src.col)
         prim_fa.add_child(own prim_ident)
         prim_fa.set_til_type(Type.EnumSym(symbols.intern("Primitive")))
-        mut type_prim_fa := Expr.new(field_access_node(symbols.intern("Primitive")), src.line, src.col)
+        mut type_prim_fa := Expr.new(own field_access_node(symbols.intern("Primitive")), src.line, src.col)
         type_prim_fa.add_child(own type_ident_p)
         type_prim_fa.set_til_type(Type.Unknown)
-        mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+        mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
         call.add_child(own type_prim_fa)
         call.add_child(own prim_fa)
         // No own marking: Primitive is a payload-less enum, so the
@@ -112,18 +112,18 @@ make_til_type_expr := func(src: Expr, t: Type, mut symbols: SymbolPool) returns 
         call.set_til_type(Type.EnumSym(symbols.intern("Type")))
         return call
     }
-    mut type_ident := Expr.new(ident_node(symbols.intern("Type")), src.line, src.col)
+    mut type_ident := Expr.new(own ident_node(symbols.intern("Type")), src.line, src.col)
     type_ident.set_til_type(Type.EnumSym(symbols.intern("Type")))
-    mut fa := Expr.new(field_access_node(symbols.intern(variant_name)), src.line, src.col)
+    mut fa := Expr.new(own field_access_node(symbols.intern(variant_name)), src.line, src.col)
     fa.add_child(own type_ident)
     if has_payload.not() {
         fa.set_til_type(Type.EnumSym(symbols.intern("Type")))
         return fa
     }
     fa.set_til_type(Type.Unknown)
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.add_child(own fa)
-    mut payload := Expr.new(NodeType.Literal(Literal.Str(payload_name)), src.line, src.col)
+    mut payload := Expr.new(own NodeType.Literal(Literal.Str(payload_name)), src.line, src.col)
     call.add_child(own payload)
     call.set_til_type(Type.EnumSym(symbols.intern("Type")))
     return call
@@ -447,7 +447,7 @@ priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
             switch top_fd.node_type {
             case .FuncDef(top_fdef):
                 if top_fdef.sig.params.len() > 0 {
-                    first_param := decl_type_name(top_fdef.sig.params[0], ctx.symbols)
+                    ref first_param : Str = decl_type_name_ref(top_fdef.sig.params[0], ctx.symbols)
                     if first_param.len() > 0 {
                         // Only a genuine free-function *declaration* is
                         // UFCS-callable; a func-pointer value bound to the
@@ -480,7 +480,7 @@ priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
         }
     }
     if ufcs_match == 0 { return false }
-    mut fn_ident := Expr.new(ident_node(ctx.symbols.intern(lookup_name)), fa.line, fa.col)
+    mut fn_ident := Expr.new(own ident_node(ctx.symbols.intern(lookup_name)), fa.line, fa.col)
     mut new_children := Vec(Expr).new()
     new_children.push(own fn_ident)
     // Move the receiver out of the old callee `fa` (slot 0) instead of
@@ -700,7 +700,7 @@ priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, mut scop
     if fd.default_value.is_none() { return }
     if fd.default_expr().node_type.is_literal_null() {
         if fd.til_type.is(Type.Unknown).not()
-            .and(type_from_name(decl_type_name(fd, ctx.symbols), scope, ctx).is(Type.Dynamic)) { return }
+            .and(type_from_name(decl_type_name_ref(fd, ctx.symbols), scope, ctx).is(Type.Dynamic)) { return }
         fd.default_expr().type_error(format("ref field '", fname, "' cannot default to a null pointer (`0` at a Dynamic slot) -- use Option(ref T) for a real absent state, drop the default to make the field mandatory, or 'ref Dynamic' at a raw C boundary"), ctx)
         return
     }
@@ -1018,7 +1018,7 @@ priv rewrite_ctor_field_shorthand := func(ctor_sdd: StructDef, mut e: Expr, symb
         if fname.len() == 0 { continue }
         line := e.children[i].line
         col := e.children[i].col
-        mut named := Expr.new(NodeType.NamedArg(fname.clone()), line, col)
+        mut named := Expr.new(own NodeType.NamedArg(fname.clone()), line, col)
         named.add_child(own e.children[i].clone())
         e.children[i] = named
     }
@@ -1218,7 +1218,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
             saved_ctor_expected_type := ctx.generic_expected_type.clone()
             ref saved_ctor_expected_for : Dynamic = ctx.generic_expected_for
             if i - 1 < nfields {
-                generic_expected_arm(ctx, scope, decl_type_name(ctor_sdd.field_at(i - 1), ctx.symbols), ci)
+                generic_expected_arm(ctx, scope, decl_type_name_ref(ctor_sdd.field_at(i - 1), ctx.symbols), ci)
             }
             infer_expr(scope, ci, in_func, ctx)
             ctx.generic_expected_type = saved_ctor_expected_type.clone()
@@ -1268,7 +1268,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
 resolve_default_value := func(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr {
     if default_value.node_type.is(NodeType.Loc) {
         loc_str := format(ctx.path, ":", call_expr.line.to_str(), ":", call_expr.col.to_str())
-        return Expr.new(NodeType.Literal(Literal.Str(loc_str)), call_expr.line, call_expr.col)
+        return Expr.new(own NodeType.Literal(Literal.Str(loc_str)), call_expr.line, call_expr.col)
     }
     return default_value.clone()
 }
@@ -1543,7 +1543,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             if fvi >= 0 {
                 if pi.to_i32() == fvi {
                     ref vparam : Declaration = fdef_data.sig.params[pi]
-                    vptype_name := decl_type_name(vparam, ctx.symbols)
+                    ref vptype_name : Str = decl_type_name_ref(vparam, ctx.symbols)
                     // #342: a splat sharing the variadic block with other
                     // args used to be refused here -- which argument carried
                     // the `..` was recorded nowhere, so the desugar wrapped
@@ -1613,7 +1613,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 }
             }
             ref param2 : Declaration = fdef_data.sig.params[pi]
-            ptype_name := decl_type_name(param2, ctx.symbols)
+            ref ptype_name : Str = decl_type_name_ref(param2, ctx.symbols)
             if ptype_name.len() == 0 {
                 ci++
                 pi++
@@ -1815,7 +1815,7 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                     while ai < nargs {
                         if ai >= sig_fdef.sig.params.len() { break }
                         ref arg : Expr = e.children[ai + 1]
-                        expected_name := decl_type_name(sig_fdef.sig.params[ai], ctx.symbols)
+                        ref expected_name : Str = decl_type_name_ref(sig_fdef.sig.params[ai], ctx.symbols)
                         if expected_name.len() == 0 {
                             ai++
                             continue
@@ -2095,7 +2095,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 case .Ident(t): target_lane = resolve_type_alias(scope, t.ident_name(ctx.symbols.names), ctx.symbols).clone()
                 case:
                 }
-                source_lane := decl_type_name(source_simd.fields[0], ctx.symbols)
+                ref source_lane : Str = decl_type_name_ref(source_simd.fields[0], ctx.symbols)
                 source_t := type_from_name_init_name(source_lane, scope, ctx.symbols)
                 target_t := type_from_name_init_name(target_lane, scope, ctx.symbols)
                 float_pair := source_lane.eq("F32").and(target_lane.eq("F64")).or(source_lane.eq("F64").and(target_lane.eq("F32")))
@@ -2116,9 +2116,9 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 compute_ref_return_summaries(ctx.generic_pending, ctx.scope, ctx)
                 mut value := obj.clone()
                 e.children.clear()
-                e.add_child(own Expr.new(ident_node(ctx.symbols.intern("cast")), e.line, e.col))
+                e.add_child(own Expr.new(own ident_node(ctx.symbols.intern("cast")), e.line, e.col))
                 e.add_child(own value)
-                mut target := Expr.new(ident_node(ctx.symbols.intern(target_name)), e.line, e.col)
+                mut target := Expr.new(own ident_node(ctx.symbols.intern(target_name)), e.line, e.col)
                 target.set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
                 e.add_child(own target)
                 e.set_til_type(Type.StructSym(ctx.symbols.intern(target_name)))
@@ -2144,13 +2144,13 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 if value_def.is_some().and(value_def.unwrap().node_type.is(NodeType.StructDef)) {
                     valid_values = structdef_of(value_def.unwrap()).simd_width == receiver_simd.simd_width
                 }
-                if valid_values.not().or(decl_type_name(receiver_simd.fields[0], ctx.symbols) != "Bool") {
+                if valid_values.not().or(decl_type_name_ref(receiver_simd.fields[0], ctx.symbols) != "Bool") {
                     e.type_error("SIMD select requires a Bool mask and same-width SIMD values", ctx)
                     e.set_til_type(Type.Unknown)
                     return true
                 }
                 mut mask_arg := obj.clone()
-                fa.children[0] = Expr.new(ident_node(ctx.symbols.intern(value_name)), obj.line, obj.col)
+                fa.children[0] = Expr.new(own ident_node(ctx.symbols.intern(value_name)), obj.line, obj.col)
                 mut select_args := Vec(Expr).new()
                 select_args.push(own fa.clone())
                 select_args.push(own mask_arg)
@@ -2172,7 +2172,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     if obj.til_type().is_funcptr().and(method.eq("size")) {
         switch obj.node_type {
         case .Ident:
-            mut dyn_recv := Expr.new(ident_node(ctx.symbols.intern("Dynamic")), obj.line, obj.col)
+            mut dyn_recv := Expr.new(own ident_node(ctx.symbols.intern("Dynamic")), obj.line, obj.col)
             dyn_recv.set_til_type(Type.StructSym(ctx.symbols.intern("Dynamic")))
             fa.children[0] = dyn_recv
         case:
@@ -2279,7 +2279,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         }
         ufcs_desugared = true
         ufcs_type_sym := ctx.symbols.intern(type_name)
-        mut type_ident := Expr.new(ident_node(ufcs_type_sym), obj.line, obj.col)
+        mut type_ident := Expr.new(own ident_node(ufcs_type_sym), obj.line, obj.col)
         type_ident.set_til_type(Type.StructSym(ufcs_type_sym))
         // Move the callee into its exactly-sized destination first, then move
         // the receiver directly out of that relocated callee. This reuses the
@@ -2485,11 +2485,11 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             for pi in 0..ns_fdef.sig.params.len() {
                 if pi + 1 >= e.children.len() { break }
                 ref p : Declaration = ns_fdef.sig.params[pi]
-                if p.is_mut.not().or(decl_type_name(p, ctx.symbols) != obj3_sname) { continue }
+                if p.is_mut.not().or(decl_type_name_ref(p, ctx.symbols) != obj3_sname) { continue }
                 // A mutable abstract receiver writes its concrete payload,
                 // not merely the interface box. Follow the carried borrow
                 // so a mutable box cannot launder an immutable concrete.
-                mut payload := Expr.new(field_access_node(ctx.symbols.intern("iface_val")), e.line, e.col)
+                mut payload := Expr.new(own field_access_node(ctx.symbols.intern("iface_val")), e.line, e.col)
                 payload.add_child(own e.children[pi + 1].clone())
                 payload.set_til_type(Type.Dynamic)
                 mark_written_through(scope, payload, ctx.symbols)
@@ -2505,7 +2505,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
             if ns_fdef.sig.params.len() == 0 {
                 e.type_error("abstract interface dispatch requires a receiver", ctx)
-            } else if decl_type_name(ns_fdef.sig.params[0], ctx.symbols) != obj3_sname {
+            } else if decl_type_name_ref(ns_fdef.sig.params[0], ctx.symbols) != obj3_sname {
                 e.type_error("abstract interface dispatch requires its first parameter to have the interface type", ctx)
             }
             if ns_fdef.sig.return_type.eq(obj3_sname).and(ns_fdef.sig.return_own_type.is(OwnType.Ref)) {
@@ -2549,7 +2549,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         }
     case .StructDef(_ns_sdef):
         method_sym := ctx.symbols.intern(method)
-        mut type_ident := Expr.new(ident_node(method_sym), e.children[0].line, e.children[0].col)
+        mut type_ident := Expr.new(own ident_node(method_sym), e.children[0].line, e.children[0].col)
         e.children[0] = type_ident
         mark_fcall_direct(e)
         return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, method_sym, in_func, ctx)
@@ -2990,8 +2990,8 @@ priv infer_cast_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         ref source_simd : StructDef = structdef_of(source_def)
         ref target_simd : StructDef = structdef_of(target_def)
         if source_simd.simd_width.gt(0).and(source_simd.simd_width == target_simd.simd_width) {
-            source_lane := decl_type_name(source_simd.fields[0], ctx.symbols)
-            target_lane := decl_type_name(target_simd.fields[0], ctx.symbols)
+            ref source_lane : Str = decl_type_name_ref(source_simd.fields[0], ctx.symbols)
+            ref target_lane : Str = decl_type_name_ref(target_simd.fields[0], ctx.symbols)
             float_pair := source_lane.eq("F32").and(target_lane.eq("F64")).or(source_lane.eq("F64").and(target_lane.eq("F32")))
             if cast_pair_ok(type_from_name_init_name(source_lane, scope, ctx.symbols), type_from_name_init_name(target_lane, scope, ctx.symbols), ctx.symbols).or(float_pair) {
                 e.children[2].set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
@@ -3340,7 +3340,7 @@ priv generic_closure_walk_calls := func(scope: TypeScope, e: Expr, mut seen: Set
 // Is `pname` one of this source's type-parameter names?
 priv generic_is_type_param := func(gfd: FunctionDef, pname: Str, symbols: SymbolPool) returns Bool {
     for p : Declaration in gfd.sig.params {
-        if decl_type_name(p, symbols).eq("Type").and(p.name.eq(pname)) { return true }
+        if decl_type_name_ref(p, symbols).eq("Type").and(p.name.eq(pname)) { return true }
     }
     return false
 }
@@ -3400,7 +3400,7 @@ priv generic_value_only_fdef := func(gfd: FunctionDef, symbols: SymbolPool) retu
     mut kidx : I32 = gfd.sig.kwargs_index
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
-        if decl_type_name(p, symbols) == "Type" {
+        if decl_type_name_ref(p, symbols) == "Type" {
             cpos : I32 = i.to_i64().to_i32()
             if vidx > cpos { vidx = vidx - 1 }
             if kidx > cpos { kidx = kidx - 1 }
@@ -3419,7 +3419,7 @@ priv generic_value_only_fdef := func(gfd: FunctionDef, symbols: SymbolPool) retu
 priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDef, symbols: SymbolPool) returns Bool {
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
-        if decl_type_name(p, symbols).eq("Type").not() { continue }
+        if decl_type_name_ref(p, symbols).eq("Type").not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() { return false }
         switch e.children[argidx].node_type {
@@ -3440,7 +3440,7 @@ priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDe
 priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, mut ctx: Context) returns Bool {
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
-        if decl_type_name(p, ctx.symbols).eq("Type").not() { continue }
+        if decl_type_name_ref(p, ctx.symbols).eq("Type").not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() {
             e.type_error(format("missing type argument for parameter '", p.name, "' of generic '", display_name, "'"), ctx)
@@ -3450,7 +3450,7 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
         switch arg.node_type {
         case .Ident(an):
             tn := resolve_type_alias_for_name(scope, an.ident_name(ctx.symbols.names), ctx.symbols).clone()
-            mut tid := Expr.new(ident_node(ctx.symbols.intern(tn)), arg.line, arg.col)
+            mut tid := Expr.new(own ident_node(ctx.symbols.intern(tn)), arg.line, arg.col)
             subs.set(p.name, own tid)
             if get_ref_arg(e, argidx) { ref_params.add(own p.name.clone()) }
         case:
@@ -3584,9 +3584,9 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
     // records that this is where its evidence has to come from, so a
     // shape that does not line up says exactly that.
     for np : Declaration in vo.sig.params {
-        np_type := decl_type_name(np, ctx.symbols)
+        ref np_type : Str = decl_type_name_ref(np, ctx.symbols)
         for tp : Declaration in gfd.sig.params {
-            if decl_type_name(tp, ctx.symbols).eq("Type").not() { continue }
+            if decl_type_name_ref(tp, ctx.symbols).eq("Type").not() { continue }
             if np_type.eq(tp.name) { continue }
             if type_name_mentions_param(np_type, tp.name) { nested_only.add(own tp.name.clone()) }
         }
@@ -3604,12 +3604,12 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         if pi.to_i32() == fvi { run = fvc }
         if pi.to_i32() == fkwi { run = fkc }
         ref p : Declaration = vo.sig.params[pi]
-        ptype_name := decl_type_name(p, ctx.symbols)
+        ref ptype_name : Str = decl_type_name_ref(p, ctx.symbols)
         // Nested: the formal is a generated instance name mentioning one
         // or more type parameters. Every operand in the run must agree.
         if generic_is_type_param(gfd, ptype_name, ctx.symbols).not() {
             for ntp : Declaration in gfd.sig.params {
-                if decl_type_name(ntp, ctx.symbols).eq("Type").not() { continue }
+                if decl_type_name_ref(ntp, ctx.symbols).eq("Type").not() { continue }
                 if type_name_mentions_param(ptype_name, ntp.name).not() { continue }
                 for nk in 0..run {
                     if ci + nk >= e.children.len() { break }
@@ -3706,7 +3706,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         pi++
     }
     for tp : Declaration in gfd.sig.params {
-        if decl_type_name(tp, ctx.symbols).eq("Type").not() { continue }
+        if decl_type_name_ref(tp, ctx.symbols).eq("Type").not() { continue }
         mut chosen := ""
         if ev_spell.has(tp.name) {
             chosen = ev_spell[tp.name].clone()
@@ -3728,7 +3728,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
             // were merely insufficient this time.
             mut arg_mentioned := false
             for np : Declaration in vo.sig.params {
-                np_t := decl_type_name(np, ctx.symbols)
+                ref np_t : Str = decl_type_name_ref(np, ctx.symbols)
                 if np_t.eq(tp.name).or(type_name_mentions_param(np_t, tp.name)) { arg_mentioned = true }
             }
             if arg_mentioned.not() {
@@ -3756,7 +3756,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         // instruction -- not a silent fallback to an untyped variadic.
         if vo.sig.variadic_index >= 0 {
             ref vp : Declaration = vo.sig.params[vo.sig.variadic_index.to_usize()]
-            if decl_type_name(vp, ctx.symbols).eq(tp.name) {
+            if decl_type_name_ref(vp, ctx.symbols).eq(tp.name) {
                 va_name := variadic_array_type_name(scope, chosen, ctx.symbols)
                 if scope.get_struct(va_name, ctx.symbols).is_none() {
                     e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
@@ -3766,7 +3766,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                 }
             }
         }
-        mut tid := Expr.new(ident_node(ctx.symbols.intern(chosen)), e.line, e.col)
+        mut tid := Expr.new(own ident_node(ctx.symbols.intern(chosen)), e.line, e.col)
         subs.set(tp.name, own tid)
     }
     return true
@@ -3783,7 +3783,7 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
     // renumbers it too -- `gjoin(Str, "x", ..a)` otherwise left the bit on the
     // position the Type argument used to hold.
     mut splatted := Vec(Bool).new()
-    new_ch.push(own Expr.new(ident_node(symbols.intern(mono)), e.children[0].line, e.children[0].col))
+    new_ch.push(own Expr.new(own ident_node(symbols.intern(mono)), e.children[0].line, e.children[0].col))
     for k in 1..e.children.len() {
         pidx := k - 1
         mut drop_arg := false
@@ -3888,7 +3888,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     } else {
         // The omitted call is already value-only after desugaring: only
         // the callee changes, every aligned value/ownership position stays.
-        e.children[0] = Expr.new(ident_node(ctx.symbols.intern(mono)), e.line, e.col)
+        e.children[0] = Expr.new(own ident_node(ctx.symbols.intern(mono)), e.line, e.col)
     }
     mark_fcall_direct(e)
     // #320/#328: the generic path is the ONLY legitimate consumer of a
@@ -3940,7 +3940,7 @@ priv func_gen_macro_template := func(fd: Expr, symbols: SymbolPool) returns Opti
         }
         if mfd.sig.params.len() == 0 { return Option(ref Expr).None }
         for p : Declaration in mfd.sig.params {
-            if decl_type_name(p, symbols).eq("Type").not() { return Option(ref Expr).None }
+            if decl_type_name_ref(p, symbols).eq("Type").not() { return Option(ref Expr).None }
         }
     case:
         return Option(ref Expr).None
@@ -3990,7 +3990,7 @@ priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr) returns Expr {
         if twin.sig.kwargs_index >= 0 { twin.sig.kwargs_index = twin.sig.kwargs_index + ntype }
     case:
     }
-    mut def := Expr.new(NodeType.FuncDef(twin), tmpl.line, tmpl.col)
+    mut def := Expr.new(own NodeType.FuncDef(twin), tmpl.line, tmpl.col)
     for c : Expr in tmpl.children { def.add_child(own c.clone()) }
     return def
 }
@@ -4583,7 +4583,7 @@ priv interface_contract_signature := func(fd: FunctionDef, self_name: Str, impl_
     returns_borrow := fdef_return_carries_borrow(normalized, scope, ctx.symbols)
     for i in 0..normalized.sig.params.len() {
         ref mut param : Declaration = normalized.sig.params[i]
-        mut name := resolve_type_alias(scope, decl_type_name(param, ctx.symbols), ctx.symbols).clone()
+        mut name := resolve_type_alias(scope, decl_type_name_ref(param, ctx.symbols), ctx.symbols).clone()
         if self_name.len().gt(0).and(name == self_name) { name = impl_name.clone() }
         param.til_type = decl_type_from_name(name, ctx.symbols)
         if i.to_i32().eq(normalized.sig.variadic_index).or(i.to_i32() == normalized.sig.kwargs_index) {
@@ -4665,8 +4665,8 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
                     saved_fld_expected_type := ctx.generic_expected_type.clone()
                     ref saved_fld_expected_for : Dynamic = ctx.generic_expected_for
                     if fd.til_type.is(Type.Unknown).not() {
-                        qualify_dotted_expr(fd.default_expr(), type_from_name(decl_type_name(fd, ctx.symbols), inner, ctx), ctx.symbols)
-                        generic_expected_arm(ctx, inner, decl_type_name(fd, ctx.symbols), fd.default_expr())
+                        qualify_dotted_expr(fd.default_expr(), type_from_name(decl_type_name_ref(fd, ctx.symbols), inner, ctx), ctx.symbols)
+                        generic_expected_arm(ctx, inner, decl_type_name_ref(fd, ctx.symbols), fd.default_expr())
                     }
                     errors_before_default := ctx.errors
                     infer_expr(inner, fd.default_expr(), 0, ctx)
@@ -4900,7 +4900,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     for tc_ci_pos : I64 in tc_const_order {
         ref mut tc_cd : Declaration = tc_ns.unsafe_get(tc_ci_pos.to_usize())
         if tc_cd.external_symbol.len() > 0 {
-            external_type := type_from_name(decl_type_name(tc_cd, ctx.symbols), inner, ctx)
+            external_type := type_from_name(decl_type_name_ref(tc_cd, ctx.symbols), inner, ctx)
             tc_cd.default_expr().set_til_type(external_type.clone())
             bind_ext_global_decl(inner, tc_cd, external_type, ctx.path,
                 tc_cd.default_expr().line, tc_cd.default_expr().col, ctx)
@@ -5026,7 +5026,7 @@ priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) r
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { return false }
-            ftn := decl_type_name(fd, ctx.symbols)
+            ref ftn : Str = decl_type_name_ref(fd, ctx.symbols)
             if ftn.len() == 0 { return false }
             if is_primitive(declaration_resolved_type(fd, scope, ctx.symbols)) { continue }
             if is_shallow_struct(ftn, scope, ctx) { continue }
@@ -5473,7 +5473,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             if mtg_ret { macro_is_template = true }
             if macro_is_template.not() {
                 for tmp_param : Declaration in fdef.sig.params {
-                    if decl_type_name(tmp_param, ctx.symbols) == "Type" {
+                    if decl_type_name_ref(tmp_param, ctx.symbols) == "Type" {
                         macro_is_template = true
                     }
                 }
@@ -5617,7 +5617,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
                 is_ext_va := fdef.sig.func_type.is_bodyless()
                 if is_ext_va.not() { param.own_type = OwnType.Own }
-                va_type := variadic_carrier_type_name(scope, decl_type_name(param, ctx.symbols), ctx.symbols)
+                va_type := variadic_carrier_type_name(scope, decl_type_name_ref(param, ctx.symbols), ctx.symbols)
                 func_scope.set(param.name, Type.StructSym(ctx.symbols.intern(va_type)), false, ctx.path, expr.line, expr.col, true, param.own_type, ctx.symbols)
             } else if i.to_i32() == fdef.sig.kwargs_index {
                 // Same rationale as variadic above.
@@ -5698,7 +5698,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 // `xs.get(i)` against Array__Dynamic -- whose get throws --
                 // and injected err out-args into a call to Tuple.get, which
                 // has none. `xs[0]` died on arity instead of working.
-                if lpi.to_i32() == fdef.sig.variadic_index { lptn = variadic_carrier_type_name(scope, decl_type_name(lpp, ctx.symbols), ctx.symbols) }
+                if lpi.to_i32() == fdef.sig.variadic_index { lptn = variadic_carrier_type_name(scope, decl_type_name_ref(lpp, ctx.symbols), ctx.symbols) }
                 if lpi.to_i32() == fdef.sig.kwargs_index { lptn = "KwargsMap" }
                 if lptn.len() == 0 { continue }
                 func_scope.typer_func.lowering_param_types.set(lpp.name, own lptn)
@@ -6149,22 +6149,22 @@ priv narrow_return_literal := func(mut scope: TypeScope, mut rv: Expr, mut ctx: 
 // The caller must pass a `value` snapshotted BEFORE inference desugared a
 // struct ctor's named args, since the returned box gets re-inferred.
 priv make_owned_iface_box := func(iface_name: Str, concrete_name: Str, own value: Expr, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
-    mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
-    box.add_child(own Expr.new(ident_node(symbols.intern(iface_name)), line, col))
-    mut na_tag := Expr.new(NodeType.NamedArg("iface_type_name"), line, col)
-    na_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
+    mut box := Expr.new(own NodeType.FCall(FCallData()), line, col)
+    box.add_child(own Expr.new(own ident_node(symbols.intern(iface_name)), line, col))
+    mut na_tag := Expr.new(own NodeType.NamedArg("iface_type_name"), line, col)
+    na_tag.add_child(own Expr.new(own NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
     box.add_child(own na_tag)
-    mut na_val := Expr.new(NodeType.NamedArg("iface_val"), line, col)
-    mut clone_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    clone_call.add_child(own Expr.new(ident_node(symbols.intern("dyn_call_ret")), line, col))
-    clone_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
-    clone_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("clone")), line, col))
-    clone_call.add_child(own Expr.new(NodeType.Literal(Literal.Num(LiteralNumData(text = "1"))), line, col))
+    mut na_val := Expr.new(own NodeType.NamedArg("iface_val"), line, col)
+    mut clone_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
+    clone_call.add_child(own Expr.new(own ident_node(symbols.intern("dyn_call_ret")), line, col))
+    clone_call.add_child(own Expr.new(own NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
+    clone_call.add_child(own Expr.new(own NodeType.Literal(Literal.Str("clone")), line, col))
+    clone_call.add_child(own Expr.new(own NodeType.Literal(Literal.Num(LiteralNumData(text = "1"))), line, col))
     clone_call.add_child(own value)
     na_val.add_child(own clone_call)
     box.add_child(own na_val)
-    mut na_owned := Expr.new(NodeType.NamedArg("iface_owned"), line, col)
-    na_owned.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), line, col))
+    mut na_owned := Expr.new(own NodeType.NamedArg("iface_owned"), line, col)
+    na_owned.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(true)), line, col))
     box.add_child(own na_owned)
     return box
 }
@@ -6458,7 +6458,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                     ref mut fld : Declaration = fld_o.unwrap()
                     mut field_type := fld.til_type.clone()
                     if fld.til_type.is(Type.Unknown).not() {
-                        resolved_field_type := type_from_name(decl_type_name(fld, ctx.symbols), scope, ctx)
+                        resolved_field_type := type_from_name(decl_type_name_ref(fld, ctx.symbols), scope, ctx)
                         if resolved_field_type.is(Type.Unknown).not() {
                             field_type = resolved_field_type
                         }
@@ -6609,7 +6609,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                     // misreported every assign as a type mismatch.
                     mut fld_type := fld.til_type.clone()
                     if fld.til_type.is(Type.Unknown).not() {
-                        resolved_fld_type := type_from_name(decl_type_name(fld, ctx.symbols), scope, ctx)
+                        resolved_fld_type := type_from_name(decl_type_name_ref(fld, ctx.symbols), scope, ctx)
                         if resolved_fld_type.is(Type.Unknown).not() {
                             fld_type = resolved_fld_type
                         }
@@ -6673,7 +6673,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         // til_type Unknown).
                         mut nsd_type := nsd.til_type.clone()
                         if nsd.til_type.is(Type.Unknown).not() {
-                            resolved_nsd_type := type_from_name(decl_type_name(nsd, ctx.symbols), scope, ctx)
+                            resolved_nsd_type := type_from_name(decl_type_name_ref(nsd, ctx.symbols), scope, ctx)
                             if resolved_nsd_type.is(Type.Unknown).not() {
                                 nsd_type = resolved_nsd_type
                             }
@@ -6739,30 +6739,30 @@ priv infer_while_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32
         wname := format("_wcond_Bool_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
 
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col)
+        mut decl := Expr.new(own NodeType.Decl(Declaration(name = wname.clone())), line, col)
         decl.set_til_type(Type.Primitive(Primitive.Bool))
         decl.add_child(own cond.clone())
         decl.children[0].set_til_type(Type.Primitive(Primitive.Bool))
 
-        mut ident := Expr.new(ident_node(ctx.symbols.intern(wname)), line, col)
+        mut ident := Expr.new(own ident_node(ctx.symbols.intern(wname)), line, col)
         ident.set_til_type(Type.Primitive(Primitive.Bool))
 
-        mut if_node := Expr.new(NodeType.If, line, col)
+        mut if_node := Expr.new(own NodeType.If, line, col)
         if_node.set_til_type(Type.None)
         if_node.add_child(own ident)
 
-        mut then_body := Expr.new(NodeType.Body, line, col)
+        mut then_body := Expr.new(own NodeType.Body, line, col)
         then_body.set_til_type(Type.None)
         if_node.add_child(own then_body)
 
-        mut else_body := Expr.new(NodeType.Body, line, col)
+        mut else_body := Expr.new(own NodeType.Body, line, col)
         else_body.set_til_type(Type.None)
-        mut brk := Expr.new(NodeType.Break, line, col)
+        mut brk := Expr.new(own NodeType.Break, line, col)
         brk.set_til_type(Type.None)
         else_body.add_child(own brk)
         if_node.add_child(own else_body)
 
-        mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
+        mut true_lit := Expr.new(own NodeType.Literal(Literal.Bool(true)), line, col)
         stmt.children[0] = true_lit
 
         mut old := body.children.take()
@@ -6790,7 +6790,7 @@ priv infer_decl_type_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
     is_enum := stmt.children[0].node_type.is(NodeType.EnumDef)
     ref sdecl : Declaration = decl_of(stmt)
     if sdecl.til_type.is(Type.Unknown).not() {
-        declared_name := decl_type_name(sdecl, ctx.symbols)
+        ref declared_name : Str = decl_type_name_ref(sdecl, ctx.symbols)
         declared := type_from_name(declared_name, scope, ctx)
         mut expected := Type.StructSym(ctx.symbols.intern("StructDef"))
         if is_enum { expected = Type.StructSym(ctx.symbols.intern("EnumDef")) }
@@ -6860,7 +6860,7 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated
         case:
         }
         if sdecl.til_type.is(Type.Unknown).not() {
-            declared_t := type_from_name(decl_type_name(sdecl, ctx.symbols), scope, ctx)
+            declared_t := type_from_name(decl_type_name_ref(sdecl, ctx.symbols), scope, ctx)
             declared_is_funcptr = declared_t.is_funcptr()
             if declared_t.is_funcptr() {
                 switch stmt.children[0].node_type {
@@ -7008,10 +7008,10 @@ priv infer_ext_global_decl := proc(mut scope: TypeScope, mut decl: Declaration,
 
     if valid {
         if decl.til_type.is(Type.Unknown).not() {
-            declared := type_from_name(decl_type_name(decl, ctx.symbols), scope, ctx)
+            declared := type_from_name(decl_type_name_ref(decl, ctx.symbols), scope, ctx)
             if type_eq(declared, external_type, ctx.symbols).not() {
                 at.type_error(format("ext_global type ", type_name,
-                    " does not match declaration type ", decl_type_name(decl, ctx.symbols)), ctx)
+                    " does not match declaration type ", decl_type_name_ref(decl, ctx.symbols)), ctx)
             }
         }
         decl.til_type = decl_type_from_name(type_name, ctx.symbols)
@@ -7045,7 +7045,7 @@ priv declared_type_for_decl := func(mut scope: TypeScope, stmt: Expr, mut ctx: C
     mut declared := stmt.til_type().clone()
     switch declared {
     case .Unknown:
-        declared = type_from_name(decl_type_name(sdecl, ctx.symbols), scope, ctx)
+        declared = type_from_name(decl_type_name_ref(sdecl, ctx.symbols), scope, ctx)
     case .Custom(cname):
         declared = type_from_name(cname, scope, ctx)
     case .CustomSym(csym):
@@ -7240,17 +7240,17 @@ priv box_inferred_interface_value := proc(mut scope: TypeScope, mut value: Expr,
     if concrete_name.eq(iface_name).or(type_implements_iface(concrete_name, iface_name, scope, ctx.symbols).not()) { return }
     line := value.line
     col := value.col
-    mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut box := Expr.new(own NodeType.FCall(FCallData()), line, col)
     if own_payload.or(expr_is_borrow_source(value, scope, ctx.symbols).not()) {
         box = make_owned_iface_box(iface_name, concrete_name, own value.clone(), line, col, ctx.symbols)
     } else {
-        box.add_child(own Expr.new(ident_node(ctx.symbols.intern(iface_name)), line, col))
-        mut tag := Expr.new(NodeType.NamedArg("iface_type_name"), line, col)
-        tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
+        box.add_child(own Expr.new(own ident_node(ctx.symbols.intern(iface_name)), line, col))
+        mut tag := Expr.new(own NodeType.NamedArg("iface_type_name"), line, col)
+        tag.add_child(own Expr.new(own NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
         box.add_child(own tag)
-        mut payload := Expr.new(NodeType.NamedArg("iface_val"), line, col)
-        mut address := Expr.new(NodeType.FCall(FCallData()), line, col)
-        address.add_child(own Expr.new(ident_node(ctx.symbols.intern("to_ptr")), line, col))
+        mut payload := Expr.new(own NodeType.NamedArg("iface_val"), line, col)
+        mut address := Expr.new(own NodeType.FCall(FCallData()), line, col)
+        address.add_child(own Expr.new(own ident_node(ctx.symbols.intern("to_ptr")), line, col))
         address.add_child(own value.clone())
         payload.add_child(own address)
         box.add_child(own payload)
@@ -7452,14 +7452,14 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 if fa_own_type(rhs, scope, ctx.symbols).is(OwnType.Ref) {
                     stmt.type_error(format("'", sdecl.name,
                         "' binds the borrowed pointer field '", til_type_name_c(rhs.til_type(), ctx.symbols),
-                        "'; declare it 'ref ", sdecl.name, " : ", decl_type_name(sdecl, ctx.symbols),
+                        "'; declare it 'ref ", sdecl.name, " : ", decl_type_name_ref(sdecl, ctx.symbols),
                         " = ...' -- the holder does not own it"), ctx)
                 } else {
                     stmt.type_error(format("'", sdecl.name,
                         "' binds the owned pointer field '", til_type_name_c(rhs.til_type(), ctx.symbols),
                         "' by value, which stores one ", til_type_name_c(rhs.til_type(), ctx.symbols),
                         " where the address belongs; declare it 'ref ", sdecl.name,
-                        " : ", decl_type_name(sdecl, ctx.symbols),
+                        " : ", decl_type_name_ref(sdecl, ctx.symbols),
                         " = ...' to borrow the pointer, or ' : Dynamic = ...' for the raw address"), ctx)
                 }
             }
@@ -7687,7 +7687,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     if init_stmt_is_generic_source(stmt, ctx.symbols) { return }
     ref mut ext_decl : Declaration = decl_of(stmt)
     if ext_decl.external_symbol.len() > 0 {
-        external_type := type_from_name(decl_type_name(ext_decl, ctx.symbols), scope, ctx)
+        external_type := type_from_name(decl_type_name_ref(ext_decl, ctx.symbols), scope, ctx)
         stmt.children[0].set_til_type(external_type.clone())
         stmt.set_til_type(external_type.clone())
         bind_ext_global_decl(scope, ext_decl, external_type, ctx.path,
@@ -7752,7 +7752,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
                         needs_sig_fill = rhs_fd.sig.params[0].til_type.is(Type.Unknown)
                     }
                     if needs_sig_fill {
-                        sig_expr_o := scope.lookup_func_name(decl_type_name(sdecl, ctx.symbols), ctx.symbols)
+                        sig_expr_o := scope.lookup_func_name(decl_type_name_ref(sdecl, ctx.symbols), ctx.symbols)
                         if sig_expr_o.is_some() {
                             switch sig_expr_o.unwrap().node_type {
                             case .FuncDef(sig_fd):
@@ -7805,8 +7805,8 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         switch stmt.node_type {
         case .Decl(qdd):
             if qdd.til_type.is(Type.Unknown).not() {
-                qualify_dotted_expr(stmt.children[0], type_from_name(decl_type_name(qdd, ctx.symbols), scope, ctx), ctx.symbols)
-                generic_expected_arm(ctx, scope, decl_type_name(qdd, ctx.symbols), stmt.children[0])
+                qualify_dotted_expr(stmt.children[0], type_from_name(decl_type_name_ref(qdd, ctx.symbols), scope, ctx), ctx.symbols)
+                generic_expected_arm(ctx, scope, decl_type_name_ref(qdd, ctx.symbols), stmt.children[0])
             }
         case:
         }
@@ -8117,8 +8117,8 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
         ctx.hoist_counter++
         ref mut cbody : Expr = stmt.children[0]
         capture_block_rename(cbody, cap.name, fresh, ctx.symbols)
-        mut cdecl := Expr.new(NodeType.Decl(Declaration(name = fresh.clone(), is_mut = cap.is_mut)), stmt.line, stmt.col)
-        cdecl.add_child(own Expr.new(ident_node(ctx.symbols.intern(cap.name)), stmt.line, stmt.col))
+        mut cdecl := Expr.new(own NodeType.Decl(Declaration(name = fresh.clone(), is_mut = cap.is_mut)), stmt.line, stmt.col)
+        cdecl.add_child(own Expr.new(own ident_node(ctx.symbols.intern(cap.name)), stmt.line, stmt.col))
         mut new_ch := Vec(Expr).new()
         new_ch.push(own cdecl)
         for bi in 0..cbody.children.len() { new_ch.push_take(cbody.children, bi) }
@@ -9615,14 +9615,14 @@ type_to_name := func(t: Type, symbols: SymbolPool) returns Str {
 }
 
 make_closure_delete_call := func(var_name: Str, src: Expr, mut symbols: SymbolPool) returns Expr {
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(Type.None)
 
-    mut callee := Expr.new(ident_node(symbols.intern("til_closure_delete")), src.line, src.col)
+    mut callee := Expr.new(own ident_node(symbols.intern("til_closure_delete")), src.line, src.col)
     call.add_child(own callee)
     mark_fcall_direct(call)
 
-    mut arg := Expr.new(ident_node(symbols.intern(var_name)), src.line, src.col)
+    mut arg := Expr.new(own ident_node(symbols.intern(var_name)), src.line, src.col)
     arg.set_til_type(Type.FuncPtr)
     call.add_child(own arg)
 
@@ -9637,23 +9637,23 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
     tname := type_to_name(type, symbols)
     if tname.len() == 0 { return Option(Expr).None }
 
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(Type.None)
 
-    mut type_id := Expr.new(ident_node(symbols.intern(tname)), src.line, src.col)
+    mut type_id := Expr.new(own ident_node(symbols.intern(tname)), src.line, src.col)
     type_id.set_til_type(Type.CustomSym(symbols.intern(tname)))
 
-    mut fa := Expr.new(field_access_node(symbols.intern("delete")), src.line, src.col)
+    mut fa := Expr.new(own field_access_node(symbols.intern("delete")), src.line, src.col)
     fa.add_child(own type_id)
     call.add_child(own fa)
     mark_fcall_direct(call)
 
-    mut arg := Expr.new(ident_node(symbols.intern(var_name)), src.line, src.col)
+    mut arg := Expr.new(own ident_node(symbols.intern(var_name)), src.line, src.col)
     arg.set_til_type(type)
     if arg_is_own { set_own_arg(call, call.children.len()) }
     call.add_child(own arg)
 
-    mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(call_free)), src.line, src.col)
+    mut cf_lit := Expr.new(own NodeType.Literal(Literal.Bool(call_free)), src.line, src.col)
     call.add_child(own cf_lit)
 
     return Option(Expr).Some(own call)
@@ -9755,14 +9755,14 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
 // struct field, where the field's own destructor will free the inner data.
 make_free_call := func(var_name: Str, shallow type: Type, src: Expr, mut symbols: SymbolPool) returns Expr {
     if type.is_funcptr().or(type.is(Type.Body)) { return make_closure_delete_call(var_name, src, symbols) }
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(Type.None)
 
-    mut callee := Expr.new(ident_node(symbols.intern("free")), src.line, src.col)
+    mut callee := Expr.new(own ident_node(symbols.intern("free")), src.line, src.col)
     call.add_child(own callee)
     mark_fcall_direct(call)
 
-    mut arg := Expr.new(ident_node(symbols.intern(var_name)), src.line, src.col)
+    mut arg := Expr.new(own ident_node(symbols.intern(var_name)), src.line, src.col)
     arg.set_til_type(type)
     set_own_arg(call, call.children.len())
     call.add_child(own arg)
@@ -9771,7 +9771,7 @@ make_free_call := func(var_name: Str, shallow type: Type, src: Expr, mut symbols
 }
 
 make_clone_call := func(type_name: Str, shallow type: Type, arg: Expr, src: Expr, mut symbols: SymbolPool) returns Expr {
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(type)
     if is_struct_type(type).and(type_name_ref(type, symbols).len().eq(0)) {
         call.set_til_type(Type.StructSym(symbols.intern(type_name)))
@@ -9779,10 +9779,10 @@ make_clone_call := func(type_name: Str, shallow type: Type, arg: Expr, src: Expr
         call.set_til_type(Type.EnumSym(symbols.intern(type_name)))
     }
 
-    mut type_id := Expr.new(ident_node(symbols.intern(type_name)), src.line, src.col)
+    mut type_id := Expr.new(own ident_node(symbols.intern(type_name)), src.line, src.col)
     type_id.set_til_type(Type.CustomSym(symbols.intern(type_name)))
 
-    mut fa := Expr.new(field_access_node(symbols.intern("clone")), src.line, src.col)
+    mut fa := Expr.new(own field_access_node(symbols.intern("clone")), src.line, src.col)
     fa.add_child(own type_id)
     call.add_child(own fa)
     mark_fcall_direct(call)
@@ -9800,13 +9800,13 @@ priv make_to_str_call := func(type_name: Str, arg: Expr, mut symbols: SymbolPool
 }
 
 make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr, mut symbols: SymbolPool) returns Expr {
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(ret_type)
 
-    mut type_id := Expr.new(ident_node(symbols.intern(sname)), src.line, src.col)
+    mut type_id := Expr.new(own ident_node(symbols.intern(sname)), src.line, src.col)
     type_id.set_til_type(Type.CustomSym(symbols.intern(sname)))
 
-    mut fa := Expr.new(field_access_node(symbols.intern(method)), src.line, src.col)
+    mut fa := Expr.new(own field_access_node(symbols.intern(method)), src.line, src.col)
     fa.add_child(own type_id)
     call.add_child(own fa)
     mark_fcall_direct(call)
@@ -11123,16 +11123,16 @@ fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope, symbols: S
 priv summary_fcall_arg_for_param := func(fcall: Expr, cfd: FunctionDef, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
     mut has_type_param := false
     for p : Declaration in cfd.sig.params {
-        if decl_type_name(p, symbols) == "Type" { has_type_param = true }
+        if decl_type_name_ref(p, symbols) == "Type" { has_type_param = true }
     }
     if has_type_param.not().or(generic_call_is_explicit(scope, fcall, cfd, symbols)) {
         return fcall_arg_for_param(fcall, pi, scope, symbols)
     }
     if pi >= cfd.sig.params.len() { return Option(ref Expr).None }
-    if decl_type_name(cfd.sig.params[pi], symbols) == "Type" { return Option(ref Expr).None }
+    if decl_type_name_ref(cfd.sig.params[pi], symbols) == "Type" { return Option(ref Expr).None }
     mut value_pos : USize = 0
     for before in 0..pi {
-        if decl_type_name(cfd.sig.params[before], symbols) != "Type" { value_pos++ }
+        if decl_type_name_ref(cfd.sig.params[before], symbols) != "Type" { value_pos++ }
     }
     if value_pos + 1 >= fcall.children.len() { return Option(ref Expr).None }
     return safe_ref(fcall.children[value_pos + 1])
@@ -11160,7 +11160,7 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
     case .StructDef(sdd):
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Ref) { return true }
-            if type_carries_borrow_v(scope, decl_type_name(fd, symbols), visited, symbols) { return true }
+            if type_carries_borrow_v(scope, decl_type_name_ref(fd, symbols), visited, symbols) { return true }
         }
     case .EnumDef:
         if enum_has_ref_payload(tdef) { return true }
@@ -11992,7 +11992,7 @@ priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str,
         // its own parameter (`hs.push(...)`) summarises as depositing
         // nothing, and every caller of it loses the root.
         for p : Declaration in params {
-            if p.name == rn { return summary_base_type_name(decl_type_name(p, symbols)) }
+            if p.name == rn { return summary_base_type_name(decl_type_name_ref(p, symbols)) }
         }
     case .FieldAccess(fad):
         if recv.children.len() == 0 { return "" }
@@ -12005,7 +12005,7 @@ priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str,
             fo := member_get(bsd.fields_index, bsd.fields, fad.field_access_name(symbols.names))
             if fo.is_none() { return "" }
             ref bfd : Declaration = fo.unwrap()
-            return summary_base_type_name(decl_type_name(bfd, symbols))
+            return summary_base_type_name(decl_type_name_ref(bfd, symbols))
         case:
         }
     case:
@@ -12064,7 +12064,7 @@ priv summary_param_method := func(e: Expr, scope: TypeScope, params: Vec(Declara
     case .Ident(rid):
         ref rn : Str = rid.ident_name(symbols.names)
         for p : Declaration in params {
-            if p.name == rn { rtn = decl_type_name(p, symbols).clone() }
+            if p.name == rn { rtn = decl_type_name_ref(p, symbols).clone() }
         }
     case:
     }
@@ -13145,7 +13145,7 @@ priv replace_matches_rec := proc(mut scope: TypeScope, mut node: Expr, in_func: 
                 continue
             }
             mname := lower_one_match(scope, node.children[ci], in_func, in_loop, returns_ref, ctx, pre)
-            mut id := Expr.new(ident_node(ctx.symbols.intern(mname)), node.children[ci].line, node.children[ci].col)
+            mut id := Expr.new(own ident_node(ctx.symbols.intern(mname)), node.children[ci].line, node.children[ci].col)
             id.set_til_type(node.children[ci].til_type())
             node.children[ci] = id
         } else {
@@ -13169,7 +13169,7 @@ priv lower_one_match := proc(mut scope: TypeScope, match_node: Expr, in_func: I3
     mname := format("_m_", type_prefix(result_t, ctx.symbols), "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
     ctx.hoist_counter++
 
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, til_type = result_t.clone())), line, col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, til_type = result_t.clone())), line, col)
     decl.add_child(own make_default_value_expr(tname, line, col, ctx.symbols))
 
     // Clone the match and tag it with the result temp; the shared switch
@@ -13181,7 +13181,7 @@ priv lower_one_match := proc(mut scope: TypeScope, match_node: Expr, in_func: I3
     case:
     }
 
-    mut block := Expr.new(NodeType.Body, line, col)
+    mut block := Expr.new(own NodeType.Body, line, col)
     block.add_child(own decl)
     block.add_child(own match_stmt)
     infer_body(scope, block, in_func, 0, in_loop, returns_ref, 0, ctx)
@@ -13269,11 +13269,11 @@ rhs_is_payload_binding := func(rhs: Expr, symbols: SymbolPool) returns Bool {
 // #321: `T.size()` as a call node, the same FieldAccess-on-a-type-Ident shape
 // make_delete_call builds for `T.delete(...)`.
 priv make_type_size_call := func(tname: Str, src: Expr, mut symbols: SymbolPool) returns Expr {
-    mut type_id := Expr.new(ident_node(symbols.intern(tname)), src.line, src.col)
+    mut type_id := Expr.new(own ident_node(symbols.intern(tname)), src.line, src.col)
     type_id.set_til_type(Type.CustomSym(symbols.intern(tname)))
-    mut fa := Expr.new(field_access_node(symbols.intern("size")), src.line, src.col)
+    mut fa := Expr.new(own field_access_node(symbols.intern("size")), src.line, src.col)
     fa.add_child(own type_id)
-    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     call.add_child(own fa)
     return call
 }
@@ -13308,52 +13308,52 @@ priv make_type_size_call := func(tname: Str, src: Expr, mut symbols: SymbolPool)
 // destructor. The param free is also the own-transfer that stands its exit
 // delete down.
 priv make_niche_steal_block := func(bind_name: Str, param_name: Str, tname: Str, tmp: Str, src: Expr, mut symbols: SymbolPool) returns Expr {
-    mut blk := Expr.new(NodeType.Body, src.line, src.col)
+    mut blk := Expr.new(own NodeType.Body, src.line, src.col)
 
     // <tmp> : T = malloc(T.size())
-    mut malloc_id := Expr.new(ident_node(symbols.intern("malloc")), src.line, src.col)
-    mut malloc_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut malloc_id := Expr.new(own ident_node(symbols.intern("malloc")), src.line, src.col)
+    mut malloc_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     malloc_call.add_child(own malloc_id)
     mut msize := make_type_size_call(tname, src, symbols)
     malloc_call.add_child(own msize)
-    mut decl := Expr.new(NodeType.Decl(decl_typed(symbols, name = tmp, type_name = tname)), src.line, src.col)
+    mut decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = tmp, type_name = tname)), src.line, src.col)
     decl.add_child(own malloc_call)
     blk.add_child(own decl)
 
     // memcpy(<tmp>, <binding>, T.size())
-    mut memcpy_id := Expr.new(ident_node(symbols.intern("memcpy")), src.line, src.col)
-    mut copy_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut memcpy_id := Expr.new(own ident_node(symbols.intern("memcpy")), src.line, src.col)
+    mut copy_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     copy_call.add_child(own memcpy_id)
-    copy_call.add_child(own Expr.new(ident_node(symbols.intern(tmp)), src.line, src.col))
-    copy_call.add_child(own Expr.new(ident_node(symbols.intern(bind_name)), src.line, src.col))
+    copy_call.add_child(own Expr.new(own ident_node(symbols.intern(tmp)), src.line, src.col))
+    copy_call.add_child(own Expr.new(own ident_node(symbols.intern(bind_name)), src.line, src.col))
     mut csize := make_type_size_call(tname, src, symbols)
     copy_call.add_child(own csize)
     blk.add_child(own copy_call)
 
     // free(own <binding>)
-    mut free_bind_id := Expr.new(ident_node(symbols.intern("free")), src.line, src.col)
-    mut free_bind_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut free_bind_id := Expr.new(own ident_node(symbols.intern("free")), src.line, src.col)
+    mut free_bind_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     free_bind_call.add_child(own free_bind_id)
     set_own_arg(free_bind_call, free_bind_call.children.len())
-    mut to_ptr_id := Expr.new(ident_node(symbols.intern("to_ptr")), src.line, src.col)
-    mut to_ptr_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut to_ptr_id := Expr.new(own ident_node(symbols.intern("to_ptr")), src.line, src.col)
+    mut to_ptr_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     to_ptr_call.add_child(own to_ptr_id)
-    to_ptr_call.add_child(own Expr.new(ident_node(symbols.intern(bind_name)), src.line, src.col))
+    to_ptr_call.add_child(own Expr.new(own ident_node(symbols.intern(bind_name)), src.line, src.col))
     free_bind_call.add_child(own to_ptr_call)
     blk.add_child(own free_bind_call)
 
     // free(own <param>)
-    mut free_id := Expr.new(ident_node(symbols.intern("free")), src.line, src.col)
-    mut free_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut free_id := Expr.new(own ident_node(symbols.intern("free")), src.line, src.col)
+    mut free_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     free_call.add_child(own free_id)
     set_own_arg(free_call, free_call.children.len())
-    mut param_id := Expr.new(ident_node(symbols.intern(param_name)), src.line, src.col)
+    mut param_id := Expr.new(own ident_node(symbols.intern(param_name)), src.line, src.col)
     free_call.add_child(own param_id)
     blk.add_child(own free_call)
 
     // return <tmp>
-    mut ret := Expr.new(NodeType.Return, src.line, src.col)
-    mut ret_id := Expr.new(ident_node(symbols.intern(tmp)), src.line, src.col)
+    mut ret := Expr.new(own NodeType.Return, src.line, src.col)
+    mut ret_id := Expr.new(own ident_node(symbols.intern(tmp)), src.line, src.col)
     ret.add_child(own ret_id)
     blk.add_child(own ret)
 
@@ -13361,42 +13361,42 @@ priv make_niche_steal_block := func(bind_name: Str, param_name: Str, tname: Str,
 }
 
 priv make_payload_steal_block := func(bind_name: Str, param_name: Str, tname: Str, tmp: Str, src: Expr, mut symbols: SymbolPool) returns Expr {
-    mut blk := Expr.new(NodeType.Body, src.line, src.col)
+    mut blk := Expr.new(own NodeType.Body, src.line, src.col)
 
     // <tmp> : T = malloc(T.size())
-    mut malloc_id := Expr.new(ident_node(symbols.intern("malloc")), src.line, src.col)
-    mut malloc_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut malloc_id := Expr.new(own ident_node(symbols.intern("malloc")), src.line, src.col)
+    mut malloc_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     malloc_call.add_child(own malloc_id)
     mut msize := make_type_size_call(tname, src, symbols)
     malloc_call.add_child(own msize)
-    mut decl := Expr.new(NodeType.Decl(decl_typed(symbols, name = tmp, type_name = tname)), src.line, src.col)
+    mut decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = tmp, type_name = tname)), src.line, src.col)
     decl.add_child(own malloc_call)
     blk.add_child(own decl)
 
     // memcpy(<tmp>, <binding>, T.size())
-    mut memcpy_id := Expr.new(ident_node(symbols.intern("memcpy")), src.line, src.col)
-    mut copy_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut memcpy_id := Expr.new(own ident_node(symbols.intern("memcpy")), src.line, src.col)
+    mut copy_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     copy_call.add_child(own memcpy_id)
-    mut dest_id := Expr.new(ident_node(symbols.intern(tmp)), src.line, src.col)
+    mut dest_id := Expr.new(own ident_node(symbols.intern(tmp)), src.line, src.col)
     copy_call.add_child(own dest_id)
-    mut src_id := Expr.new(ident_node(symbols.intern(bind_name)), src.line, src.col)
+    mut src_id := Expr.new(own ident_node(symbols.intern(bind_name)), src.line, src.col)
     copy_call.add_child(own src_id)
     mut csize := make_type_size_call(tname, src, symbols)
     copy_call.add_child(own csize)
     blk.add_child(own copy_call)
 
     // free(own <param>)
-    mut free_id := Expr.new(ident_node(symbols.intern("free")), src.line, src.col)
-    mut free_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut free_id := Expr.new(own ident_node(symbols.intern("free")), src.line, src.col)
+    mut free_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     free_call.add_child(own free_id)
     set_own_arg(free_call, free_call.children.len())
-    mut param_id := Expr.new(ident_node(symbols.intern(param_name)), src.line, src.col)
+    mut param_id := Expr.new(own ident_node(symbols.intern(param_name)), src.line, src.col)
     free_call.add_child(own param_id)
     blk.add_child(own free_call)
 
     // return <tmp>
-    mut ret := Expr.new(NodeType.Return, src.line, src.col)
-    mut ret_id := Expr.new(ident_node(symbols.intern(tmp)), src.line, src.col)
+    mut ret := Expr.new(own NodeType.Return, src.line, src.col)
+    mut ret_id := Expr.new(own ident_node(symbols.intern(tmp)), src.line, src.col)
     ret.add_child(own ret_id)
     blk.add_child(own ret)
 
@@ -13759,7 +13759,7 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
                 }
                 tvbody.add_child(own tvalue)
             } else {
-                mut tassign := Expr.new(NodeType.Assign(AssignData(name = result_temp.clone())), tvbody.line, tvbody.col)
+                mut tassign := Expr.new(own NodeType.Assign(AssignData(name = result_temp.clone())), tvbody.line, tvbody.col)
                 tassign.add_child(own tvalue)
                 tvbody.add_child(own tassign)
             }
@@ -13805,8 +13805,8 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
         }
     }
 
-    mut sw_ref := Expr.new(NodeType.Literal(Literal.Null), sw_line, sw_col)
-    mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut sw_ref := Expr.new(own NodeType.Literal(Literal.Null), sw_line, sw_col)
+    mut block := Expr.new(own NodeType.Body, stmt.line, stmt.col)
     // #196.B: Never hoist enum-typed subjects. A hoisted local would be
     // either a shallow value copy (whose destructor frees aliased Vec/Str
     // pointers and corrupts the source AST in compile mode) or a deep
@@ -13835,17 +13835,17 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
         case: UNREACHABLE("expected Match, got ", subj_match.node_type.head_str(ctx.symbols.names))
         }
         block.add_child(own subj_match)
-        sw_ref = Expr.new(ident_node(ctx.symbols.intern(result_temp)), sw_line, sw_col)
+        sw_ref = Expr.new(own ident_node(ctx.symbols.intern(result_temp)), sw_line, sw_col)
     } else if is_simple_lvalue_expr(sw_expr).or(is_enum_type(sw_expr.til_type())) {
         sw_ref = sw_expr.clone()
     } else {
         tp := type_prefix(sw_expr.til_type(), ctx.symbols)
         sw_name := format("_sw_", tp, "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
+        mut decl := Expr.new(own NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
         block.add_child(own decl)
-        sw_ref = Expr.new(ident_node(ctx.symbols.intern(sw_name)), sw_line, sw_col)
+        sw_ref = Expr.new(own ident_node(ctx.symbols.intern(sw_name)), sw_line, sw_col)
     }
 
     // Issue #199: a Case with 3 children is `[pattern, guard, body]`; with
@@ -13864,23 +13864,23 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
         if case_has_guard(ag_cn) { any_guard = true }
     }
 
-    mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut first_if := Expr.new(own NodeType.Body, stmt.line, stmt.col)
     mut has_first_if := false
-    mut default_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut default_body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
     mut has_default_body := false
     // For an exhaustive enum switch with no `case:`, the if/elif chain
     // would have no terminal else and C's -Wreturn-type would fire on
     // value-returning funcs. Stash the last non-guarded case body so we
     // can attach it as the synthetic terminal else after the loop.
-    mut last_case_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut last_case_body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
     mut has_last_case_body := false
 
     mut matched_name := ""
     if any_guard {
         matched_name = format("_sw_matched_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
-        mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
-        matched_decl.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
+        mut matched_decl := Expr.new(own NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
+        matched_decl.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
         block.add_child(own matched_decl)
     }
 
@@ -13972,17 +13972,17 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
             for bi in 0..n_bindings {
                 new_body.push_take(all_children, bi)
             }
-            mut user_stmts := Expr.new(NodeType.Body, case_node.line, case_node.col)
+            mut user_stmts := Expr.new(own NodeType.Body, case_node.line, case_node.col)
             for ui in 0..user_stmt_count {
                 user_stmts.children.push_take(all_children, n_bindings + ui)
             }
-            mut matched_assign := Expr.new(NodeType.Assign(AssignData(name = matched_name.clone())), case_node.line, case_node.col)
-            matched_assign.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), case_node.line, case_node.col))
+            mut matched_assign := Expr.new(own NodeType.Assign(AssignData(name = matched_name.clone())), case_node.line, case_node.col)
+            matched_assign.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(true)), case_node.line, case_node.col))
             user_stmts.add_child(own matched_assign)
 
             if has_guard {
                 ref guard_expr : Expr = case_node.children[pat_count]
-                mut guard_if := Expr.new(NodeType.If, case_node.line, case_node.col)
+                mut guard_if := Expr.new(own NodeType.If, case_node.line, case_node.col)
                 guard_if.add_child(own guard_expr.clone())
                 guard_if.add_child(own user_stmts)
                 // #282: the pre-infer throw pass deliberately left a throwing
@@ -14003,12 +14003,12 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
             case_body.children.move_from(own new_body)
 
             // Outer condition: _sw_matched.not().and(pattern_cond)
-            mut not_id := Expr.new(ident_node(ctx.symbols.intern(matched_name)), case_node.line, case_node.col)
+            mut not_id := Expr.new(own ident_node(ctx.symbols.intern(matched_name)), case_node.line, case_node.col)
             mut not_call := make_method_call_fcall(own not_id, "not", case_node.line, case_node.col, ctx.symbols)
             mut gated_cond := make_method_call_fcall(own not_call, "and", case_node.line, case_node.col, ctx.symbols)
             gated_cond.add_child(own condition)
 
-            mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
+            mut if_node := Expr.new(own NodeType.If, case_node.line, case_node.col)
             if_node.add_child(own gated_cond)
             if_node.add_child(own case_body.clone())
             // #282: this case can leave _err_kind set if its guard or body
@@ -14023,7 +14023,7 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
             }
             if case_can_throw { switch_can_throw = true }
         } else {
-            mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
+            mut if_node := Expr.new(own NodeType.If, case_node.line, case_node.col)
             if_node.add_child(own condition)
             if_node.add_child(own case_body.clone())
             if has_first_if.not() {
@@ -14039,9 +14039,9 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
 
     if any_guard {
         if has_default_body {
-            mut nid2 := Expr.new(ident_node(ctx.symbols.intern(matched_name)), stmt.line, stmt.col)
+            mut nid2 := Expr.new(own ident_node(ctx.symbols.intern(matched_name)), stmt.line, stmt.col)
             mut ncall2 := make_method_call_fcall(own nid2, "not", stmt.line, stmt.col, ctx.symbols)
-            mut def_if := Expr.new(NodeType.If, stmt.line, stmt.col)
+            mut def_if := Expr.new(own NodeType.If, stmt.line, stmt.col)
             def_if.add_child(own ncall2)
             def_if.add_child(own default_body.clone())
             // #282: skip the default too if an earlier case's guard threw.
@@ -14224,13 +14224,13 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
     end_name := format("_re_", elem_type, "_", counter)
     cur_name := format("_rc_", elem_type, "_", counter)
 
-    mut block := Expr.new(NodeType.Body, line, col)
+    mut block := Expr.new(own NodeType.Body, line, col)
 
-    mut end_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = end_name, type_name = elem_type)), line, col)
+    mut end_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = end_name, type_name = elem_type)), line, col)
     end_decl.add_child(own end_snapshot)
     block.add_child(own end_decl)
 
-    mut cur_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = cur_name, type_name = elem_type, is_mut = true)), line, col)
+    mut cur_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = cur_name, type_name = elem_type, is_mut = true)), line, col)
     cur_decl.add_child(own start_snapshot)
     block.add_child(own cur_decl)
 
@@ -14253,9 +14253,9 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
     // (#368, fixed; test/gc_audit.til's diverged_then_transfer pins it).
     dir := range_static_direction(start_expr, end_expr, type_from_name(elem_type, scope, ctx))
     if dir != 0 {
-        mut only_cur := Expr.new(ident_node(ctx.symbols.intern(cur_name)), line, col)
-        mut only_cmp := Expr.new(NodeType.Body, line, col)
-        mut only_body := Expr.new(NodeType.Body, line, col)
+        mut only_cur := Expr.new(own ident_node(ctx.symbols.intern(cur_name)), line, col)
+        mut only_cmp := Expr.new(own NodeType.Body, line, col)
+        mut only_body := Expr.new(own NodeType.Body, line, col)
         if dir > 0 {
             only_cmp = make_method_call_fcall(own only_cur, "lt", line, col, ctx.symbols)
             only_body = make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut, ctx.symbols)
@@ -14263,9 +14263,9 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
             only_cmp = make_method_call_fcall(own only_cur, "gt", line, col, ctx.symbols)
             only_body = make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut, ctx.symbols)
         }
-        mut only_end := Expr.new(ident_node(ctx.symbols.intern(end_name)), line, col)
+        mut only_end := Expr.new(own ident_node(ctx.symbols.intern(end_name)), line, col)
         only_cmp.add_child(own only_end)
-        mut only_while := Expr.new(NodeType.While, line, col)
+        mut only_while := Expr.new(own NodeType.While, line, col)
         only_while.add_child(own only_cmp)
         only_while.add_child(own only_body)
         block.add_child(own only_while)
@@ -14273,34 +14273,34 @@ priv desugar_for_in_range_stmt := proc(mut scope: TypeScope, mut body: Expr, stm
         return true
     }
 
-    mut cur_ident_lt := Expr.new(ident_node(ctx.symbols.intern(cur_name)), line, col)
+    mut cur_ident_lt := Expr.new(own ident_node(ctx.symbols.intern(cur_name)), line, col)
     mut lt_call := make_method_call_fcall(own cur_ident_lt, "lt", line, col, ctx.symbols)
-    mut end_ident_lt := Expr.new(ident_node(ctx.symbols.intern(end_name)), line, col)
+    mut end_ident_lt := Expr.new(own ident_node(ctx.symbols.intern(end_name)), line, col)
     lt_call.add_child(own end_ident_lt)
-    mut asc_while := Expr.new(NodeType.While, line, col)
+    mut asc_while := Expr.new(own NodeType.While, line, col)
     asc_while.add_child(own lt_call)
     asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut, ctx.symbols))
 
-    mut cur_ident_gt := Expr.new(ident_node(ctx.symbols.intern(cur_name)), line, col)
+    mut cur_ident_gt := Expr.new(own ident_node(ctx.symbols.intern(cur_name)), line, col)
     mut gt_call := make_method_call_fcall(own cur_ident_gt, "gt", line, col, ctx.symbols)
-    mut end_ident_gt := Expr.new(ident_node(ctx.symbols.intern(end_name)), line, col)
+    mut end_ident_gt := Expr.new(own ident_node(ctx.symbols.intern(end_name)), line, col)
     gt_call.add_child(own end_ident_gt)
-    mut desc_while := Expr.new(NodeType.While, line, col)
+    mut desc_while := Expr.new(own NodeType.While, line, col)
     desc_while.add_child(own gt_call)
     desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut, ctx.symbols))
 
-    mut cur_ident_lte := Expr.new(ident_node(ctx.symbols.intern(cur_name)), line, col)
+    mut cur_ident_lte := Expr.new(own ident_node(ctx.symbols.intern(cur_name)), line, col)
     mut lte_call := make_method_call_fcall(own cur_ident_lte, "lte", line, col, ctx.symbols)
-    mut end_ident_lte := Expr.new(ident_node(ctx.symbols.intern(end_name)), line, col)
+    mut end_ident_lte := Expr.new(own ident_node(ctx.symbols.intern(end_name)), line, col)
     lte_call.add_child(own end_ident_lte)
-    mut if_node := Expr.new(NodeType.If, line, col)
+    mut if_node := Expr.new(own NodeType.If, line, col)
     if_node.add_child(own lte_call)
 
-    mut then_body := Expr.new(NodeType.Body, line, col)
+    mut then_body := Expr.new(own NodeType.Body, line, col)
     then_body.add_child(own asc_while)
     if_node.add_child(own then_body)
 
-    mut else_body := Expr.new(NodeType.Body, line, col)
+    mut else_body := Expr.new(own NodeType.Body, line, col)
     else_body.add_child(own desc_while)
     if_node.add_child(own else_body)
     block.add_child(own if_node)
@@ -14413,7 +14413,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         return false
     }
     ref get_idx_param : Declaration = get_def.sig.params[1]
-    if get_idx_param.til_type.is(Type.Unknown).or(decl_type_name(get_idx_param, ctx.symbols).eq(idx_type).not()) {
+    if get_idx_param.til_type.is(Type.Unknown).or(decl_type_name_ref(get_idx_param, ctx.symbols).eq(idx_type).not()) {
         stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
         return false
     }
@@ -14490,7 +14490,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     col_name := format("_fc_", type_name, "_", counter)
     idx_name := format("_fi_USize_", counter)
 
-    mut block := Expr.new(NodeType.Body, line, col)
+    mut block := Expr.new(own NodeType.Body, line, col)
 
     // When iter is an lvalue (ident or field access), bind _fc as a ref to
     // alias the source instead of letting infer_decl_value insert a deep
@@ -14501,12 +14501,12 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     if iter.node_type.is(NodeType.Ident).or(iter.node_type.is(NodeType.FieldAccess)) {
         col_own_type = OwnType.Ref
     }
-    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
+    mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
-    mut idx_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = idx_name, type_name = idx_type, is_mut = true)), line, col)
-    mut zero := Expr.new(literal_num_node("0"), line, col)
+    mut idx_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = idx_name, type_name = idx_type, is_mut = true)), line, col)
+    mut zero := Expr.new(own literal_num_node("0"), line, col)
     idx_decl.add_child(own zero)
     block.add_child(own idx_decl)
 
@@ -14517,14 +14517,14 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     // pre-pass, no fdef-level slot prepend.
     fk_name := format("_forin_err_kind_", counter)
     if get_throws {
-        mut kind_decl := Expr.new(NodeType.Decl(Declaration(name = fk_name.clone(),
+        mut kind_decl := Expr.new(own NodeType.Decl(Declaration(name = fk_name.clone(),
             til_type = Type.Primitive(Primitive.I64), is_mut = true)), line, col)
         kind_decl.add_child(own make_int_lit(0, line, col))
         block.add_child(own kind_decl)
         for gtn : Str in get_throw_types {
             if throw_type_has_payload(ctx, gtn).not() { continue }
             slot_name := format("_forin_", gtn, "_", counter)
-            mut slot_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = slot_name,
+            mut slot_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = slot_name,
                 type_name = gtn,
                 is_mut = true)), line, col)
             slot_decl.add_child(own make_default_value_expr(gtn, line, col, ctx.symbols))
@@ -14532,43 +14532,43 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         }
     }
 
-    mut while_node := Expr.new(NodeType.While, line, col)
+    mut while_node := Expr.new(own NodeType.While, line, col)
 
-    mut idx_ident_cond := Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col)
+    mut idx_ident_cond := Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col)
     mut cond_call := make_method_call_fcall(own idx_ident_cond, "lt", line, col, ctx.symbols)
-    mut col_ident_len := Expr.new(ident_node(ctx.symbols.intern(col_name)), line, col)
+    mut col_ident_len := Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col)
     cond_call.add_child(own make_method_call_fcall(own col_ident_len, "len", line, col, ctx.symbols))
     while_node.add_child(own cond_call)
 
-    mut wbody := Expr.new(NodeType.Body, line, col)
+    mut wbody := Expr.new(own NodeType.Body, line, col)
 
     // Copy the current position, never borrow the counter: it advances before
     // the user body so continue works, while the visible index stays unchanged.
     // An ignored position needs no binding (in particular for `for _, _`).
     if index_name.len().gt(0).and(index_name.neq("_")) {
-        mut index_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = index_name, type_name = idx_type)), line, col)
-        index_decl.add_child(own Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col))
+        mut index_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = index_name, type_name = idx_type)), line, col)
+        index_decl.add_child(own Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col))
         wbody.add_child(own index_decl)
     }
 
     mut forin_own := OwnType.Shallow
     if get_returns_ref { forin_own = OwnType.Ref }
-    mut elem_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = var_name, type_name = elem_type, own_type = forin_own, is_mut = forin_is_mut)), line, col)
-    mut col_ident_get := Expr.new(ident_node(ctx.symbols.intern(col_name)), line, col)
+    mut elem_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name, type_name = elem_type, own_type = forin_own, is_mut = forin_is_mut)), line, col)
+    mut col_ident_get := Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col)
     mut get_call := make_method_call_fcall(own col_ident_get, method_name, line, col, ctx.symbols)
-    mut idx_ident_get := Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col)
+    mut idx_ident_get := Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col)
     get_call.add_child(own idx_ident_get)
     if get_throws {
         // Pass the block-local err slots as out-args so the throwing
         // get's extended signature is satisfied without any flag-and-
         // lower roundtrip through the throw/catch pass.
-        mut kind_arg := Expr.new(ident_node(ctx.symbols.intern(fk_name)), line, col)
+        mut kind_arg := Expr.new(own ident_node(ctx.symbols.intern(fk_name)), line, col)
         kind_arg.set_til_type(Type.Primitive(Primitive.I64))
         get_call.add_child(own kind_arg)
         for gtn : Str in get_throw_types {
             if throw_type_has_payload(ctx, gtn).not() { continue }
             slot_name := format("_forin_", gtn, "_", counter)
-            mut slot_arg := Expr.new(ident_node(ctx.symbols.intern(slot_name)), line, col)
+            mut slot_arg := Expr.new(own ident_node(ctx.symbols.intern(slot_name)), line, col)
             slot_arg.set_til_type(decl_type_from_name(gtn, ctx.symbols))
             get_call.add_child(own slot_arg)
         }
@@ -14587,7 +14587,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         // if _forin_err_kind_<n>.eq(0).not() { panic("<T>") }
         // for-in is the only caller of this get; on-error semantics is
         // panic-with-type-name, matching the user-visible `arr[i]`.
-        mut kind_id := Expr.new(ident_node(ctx.symbols.intern(fk_name)), line, col)
+        mut kind_id := Expr.new(own ident_node(ctx.symbols.intern(fk_name)), line, col)
         kind_id.set_til_type(Type.Primitive(Primitive.I64))
         mut zero_lit := make_int_lit(0, line, col)
         mut eq_call := make_method_call_fcall(own kind_id, "eq", line, col, ctx.symbols)
@@ -14597,18 +14597,18 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         ref first_throw : Str = get_throw_types[0]
         mut panic_call := make_uncaught_throw_panic(first_throw, line, col, ctx.symbols)
 
-        mut panic_body := Expr.new(NodeType.Body, line, col)
+        mut panic_body := Expr.new(own NodeType.Body, line, col)
         panic_body.add_child(own panic_call)
-        mut if_panic := Expr.new(NodeType.If, line, col)
+        mut if_panic := Expr.new(own NodeType.If, line, col)
         if_panic.add_child(own not_call)
         if_panic.add_child(own panic_body)
         wbody.add_child(own if_panic)
     }
 
-    mut idx_assign := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
-    mut idx_ident_inc := Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col)
+    mut idx_assign := Expr.new(own NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
+    mut idx_ident_inc := Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col)
     mut add_call := make_method_call_fcall(own idx_ident_inc, "add", line, col, ctx.symbols)
-    mut one := Expr.new(literal_num_node("1"), line, col)
+    mut one := Expr.new(own literal_num_node("1"), line, col)
     add_call.add_child(own one)
     idx_assign.add_child(own add_call)
     wbody.add_child(own idx_assign)
@@ -14754,10 +14754,10 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
     // must be set explicitly on the element decls; a typeless `ref` decl
     // makes the interpreter copy rather than alias, so `for k, mut v`
     // writes would not persist.
-    mut keys_probe := Expr.new(field_access_node(ctx.symbols.intern("keys")), line, col)
+    mut keys_probe := Expr.new(own field_access_node(ctx.symbols.intern("keys")), line, col)
     keys_probe.add_child(own iter.clone())
     infer_expr(scope, keys_probe, in_func, ctx)
-    mut vals_probe := Expr.new(field_access_node(ctx.symbols.intern("values")), line, col)
+    mut vals_probe := Expr.new(own field_access_node(ctx.symbols.intern("values")), line, col)
     vals_probe.add_child(own iter.clone())
     infer_expr(scope, vals_probe, in_func, ctx)
     mut key_elem := ""
@@ -14777,7 +14777,7 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         return false
     }
 
-    mut block := Expr.new(NodeType.Body, line, col)
+    mut block := Expr.new(own NodeType.Body, line, col)
 
     // _fc := ref map  (ref when iter is an lvalue, mirroring the
     // single-variable collection desugar; else a shallow value bind).
@@ -14785,56 +14785,56 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
     if iter.node_type.is(NodeType.Ident).or(iter.node_type.is(NodeType.FieldAccess)) {
         col_own_type = OwnType.Ref
     }
-    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
+    mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
     // _fi := 0
-    mut idx_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = idx_name, type_name = "USize", is_mut = true)), line, col)
-    idx_decl.add_child(own Expr.new(literal_num_node("0"), line, col))
+    mut idx_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = idx_name, type_name = "USize", is_mut = true)), line, col)
+    idx_decl.add_child(own Expr.new(own literal_num_node("0"), line, col))
     block.add_child(own idx_decl)
 
     // while _fi < _fc.keys.len()
-    mut while_node := Expr.new(NodeType.While, line, col)
-    mut idx_ident_cond := Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col)
+    mut while_node := Expr.new(own NodeType.While, line, col)
+    mut idx_ident_cond := Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col)
     mut cond_call := make_method_call_fcall(own idx_ident_cond, "lt", line, col, ctx.symbols)
-    mut keys_len_recv := Expr.new(field_access_node(ctx.symbols.intern("keys")), line, col)
-    keys_len_recv.add_child(own Expr.new(ident_node(ctx.symbols.intern(col_name)), line, col))
+    mut keys_len_recv := Expr.new(own field_access_node(ctx.symbols.intern("keys")), line, col)
+    keys_len_recv.add_child(own Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col))
     cond_call.add_child(own make_method_call_fcall(own keys_len_recv, "len", line, col, ctx.symbols))
     while_node.add_child(own cond_call)
 
-    mut wbody := Expr.new(NodeType.Body, line, col)
+    mut wbody := Expr.new(own NodeType.Body, line, col)
 
     // ref [mut] k : K = _fc.keys.unsafe_get(_fi)
     // A `_` binding is a discard: emit no decl for it. The body never
     // references `_`, and two `_` element decls in one scope would collide
     // as identical C identifiers (`for _, _ in map` -> "redefinition of _").
     if var_name.eq("_").not() {
-        mut key_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = var_name, type_name = key_elem, own_type = OwnType.Ref, is_mut = forin_is_mut)), line, col)
-        mut keys_recv := Expr.new(field_access_node(ctx.symbols.intern("keys")), line, col)
-        keys_recv.add_child(own Expr.new(ident_node(ctx.symbols.intern(col_name)), line, col))
+        mut key_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name, type_name = key_elem, own_type = OwnType.Ref, is_mut = forin_is_mut)), line, col)
+        mut keys_recv := Expr.new(own field_access_node(ctx.symbols.intern("keys")), line, col)
+        keys_recv.add_child(own Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col))
         mut key_get := make_method_call_fcall(own keys_recv, "unsafe_get", line, col, ctx.symbols)
-        key_get.add_child(own Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col))
+        key_get.add_child(own Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col))
         key_decl.add_child(own key_get)
         wbody.add_child(own key_decl)
     }
 
     // ref [mut] v : V = _fc.values.unsafe_get(_fi)
     if var_name2.eq("_").not() {
-        mut val_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = var_name2, type_name = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2)), line, col)
-        mut vals_recv := Expr.new(field_access_node(ctx.symbols.intern("values")), line, col)
-        vals_recv.add_child(own Expr.new(ident_node(ctx.symbols.intern(col_name)), line, col))
+        mut val_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name2, type_name = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2)), line, col)
+        mut vals_recv := Expr.new(own field_access_node(ctx.symbols.intern("values")), line, col)
+        vals_recv.add_child(own Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col))
         mut val_get := make_method_call_fcall(own vals_recv, "unsafe_get", line, col, ctx.symbols)
-        val_get.add_child(own Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col))
+        val_get.add_child(own Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col))
         val_decl.add_child(own val_get)
         wbody.add_child(own val_decl)
     }
 
     // _fi = _fi.add(1)
-    mut idx_assign_kv := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
-    mut idx_ident_inc_kv := Expr.new(ident_node(ctx.symbols.intern(idx_name)), line, col)
+    mut idx_assign_kv := Expr.new(own NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
+    mut idx_ident_inc_kv := Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col)
     mut add_call_kv := make_method_call_fcall(own idx_ident_inc_kv, "add", line, col, ctx.symbols)
-    add_call_kv.add_child(own Expr.new(literal_num_node("1"), line, col))
+    add_call_kv.add_child(own Expr.new(own literal_num_node("1"), line, col))
     idx_assign_kv.add_child(own add_call_kv)
     wbody.add_child(own idx_assign_kv)
 

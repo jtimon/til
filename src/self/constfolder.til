@@ -321,27 +321,27 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
         // callers load them from storage before recursing here).
         switch prim {
         case .Bool:
-            return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Bool(word_bits(raw) != 0)), src.line, src.col))
+            return Option(Expr).Some(Expr.new(own NodeType.Literal(Literal.Bool(word_bits(raw) != 0)), src.line, src.col))
         case .F32:
             n := word_f32(word_bits(raw))
-            mut e := Expr.new(literal_num_node(n.to_repr()), src.line, src.col)
+            mut e := Expr.new(own literal_num_node(n.to_repr()), src.line, src.col)
             e.set_til_type(t)
             return Option(Expr).Some(own e)
         case .F64:
             // Bake the folded double as a round-trippable literal. The bits
             // travel as a U64 word (this source predates F64 in its own
             // bootstrap); ext.c renders them at 17 significant digits.
-            mut fe := Expr.new(literal_num_node(f64_bits_to_repr(word_bits(raw))), src.line, src.col)
+            mut fe := Expr.new(own literal_num_node(f64_bits_to_repr(word_bits(raw))), src.line, src.col)
             fe.set_til_type(t)
             return Option(Expr).Some(own fe)
-        case .U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case .U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case .U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case .U64: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case .I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case .I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case .I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U8:  n := word_bits(raw); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U16: n := word_bits(raw); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U32: n := word_bits(raw); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U64: n := word_bits(raw); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case: n := word_bits(raw).cast(I64); mut e := Expr.new(own literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         }
     case .Enum, .EnumSym:
         // #397: the spelling drives the interpreter's name-keyed tables,
@@ -371,9 +371,9 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
             ref vname : Str = cf_vd.name
             if cf_vd.payload_type.len() > 0 {
-                mut recv := Expr.new(ident_node(ename_sym), src.line, src.col)
+                mut recv := Expr.new(own ident_node(ename_sym), src.line, src.col)
                 recv.set_til_type(t)
-                mut variant := Expr.new(field_access_node(ctx.symbols.intern(vname)), src.line, src.col)
+                mut variant := Expr.new(own field_access_node(ctx.symbols.intern(vname)), src.line, src.col)
                 variant.add_child(own recv)
                 variant.set_til_type(t)
                 ref payload_name : Str = cf_vd.payload_type
@@ -388,7 +388,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
                 payload_o := raw_to_expr(payload_raw, payload_type, src, ctx)
                 if payload_o.is_none() { return Option(Expr).None }
                 mut payload : Expr = Option(Expr).take(own payload_o)
-                mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+                mut call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
                 call.add_child(own variant)
                 mark_fcall_direct(call)
                 call.add_child(own payload)
@@ -403,16 +403,16 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
                 if rebuilt_ctor_payload_is_own(ename, vname, ctx) { set_own_arg(call, 1) }
                 return Option(Expr).Some(own call)
             }
-            mut variant_recv := Expr.new(ident_node(ename_sym), src.line, src.col)
+            mut variant_recv := Expr.new(own ident_node(ename_sym), src.line, src.col)
             variant_recv.set_til_type(t)
-            mut variant_expr := Expr.new(field_access_node(ctx.symbols.intern(vname)), src.line, src.col)
+            mut variant_expr := Expr.new(own field_access_node(ctx.symbols.intern(vname)), src.line, src.col)
             variant_expr.add_child(own variant_recv)
             variant_expr.set_til_type(t)
-            mut clone_recv := Expr.new(ident_node(ename_sym), src.line, src.col)
+            mut clone_recv := Expr.new(own ident_node(ename_sym), src.line, src.col)
             clone_recv.set_til_type(t)
-            mut clone_callee := Expr.new(field_access_node(ctx.symbols.intern("clone")), src.line, src.col)
+            mut clone_callee := Expr.new(own field_access_node(ctx.symbols.intern("clone")), src.line, src.col)
             clone_callee.add_child(own clone_recv)
-            mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+            mut clone_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
             clone_call.add_child(own clone_callee)
             mark_fcall_direct(clone_call)
             clone_call.add_child(own variant_expr)
@@ -448,7 +448,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             }
             ordinal := ctx.precomputed_sequence_counter
             ctx.precomputed_sequence_counter = ctx.precomputed_sequence_counter + 1
-            mut seq := Expr.new(NodeType.PrecomputedSequence(PrecomputedSequenceData(
+            mut seq := Expr.new(own NodeType.PrecomputedSequence(PrecomputedSequenceData(
                 til_type = t.clone(), element_type = elem_type,
                 capacity = capacity, ordinal = ordinal)), src.line, src.col)
             seq.children.move_from(own elements)
@@ -461,13 +461,13 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             if cap.lt(CAP_VIEW).and(cap.gt(count)) { return Option(Expr).None }
             view := Str(c_str = s.c_str, count = count, cap = CAP_VIEW)
             escaped := str_to_source_form(view)
-            return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col))
+            return Option(Expr).Some(Expr.new(own NodeType.Literal(Literal.Str(escaped)), src.line, src.col))
         }
         ref sdef : Expr = lookup_interp_type_def(sname, ctx).unwrap()
         switch sdef.node_type {
         case .StructDef(sfd):
-            mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-            mut callee := Expr.new(ident_node(type_sym(t, ctx.symbols)), src.line, src.col)
+            mut ctor := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
+            mut callee := Expr.new(own ident_node(type_sym(t, ctx.symbols)), src.line, src.col)
             callee.set_til_type(t)
             ctor.add_child(own callee)
             mark_fcall_direct(ctor)
@@ -571,7 +571,7 @@ priv expr_is_serialized_aggregate := func(e: Expr) returns Bool {
 priv add_known_call_arg := func(mut scope: Scope, mut call: Expr, raw: Dynamic, shallow t: Type, src: Expr, idx: USize, mut ctx: Context) {
     name := format("constfolder_serialized_arg_", idx.to_str())
     scope_set_raw_owned(scope, name, raw, interp_intern_type(t, ctx), known_bind_own_type(t, ctx), ctx)
-    mut ident := Expr.new(ident_node(ctx.symbols.intern(name)), src.line, src.col)
+    mut ident := Expr.new(own ident_node(ctx.symbols.intern(name)), src.line, src.col)
     ident.set_til_type(t)
     call.add_child(own ident)
 }
@@ -1004,7 +1004,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
 
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len() - 1
-    mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
+    mut ec := Expr.new(own NodeType.FCall(FCallData()), fcall.line, fcall.col)
     ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
     mark_fcall_direct(ec)
@@ -1083,12 +1083,12 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                 case .Ident(atok_id):
                     atok_name := Str.clone(atok_id.ident_name(ctx.symbols.names))
                     if atok_name.len().gt(0).and(atok_name.eq("Type").not()) {
-                        mut atok_recv := Expr.new(ident_node(ctx.symbols.intern("Type")), arg.line, arg.col)
+                        mut atok_recv := Expr.new(own ident_node(ctx.symbols.intern("Type")), arg.line, arg.col)
                         atok_recv.set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
-                        mut atok_fa := Expr.new(field_access_node(ctx.symbols.intern("Custom")), arg.line, arg.col)
+                        mut atok_fa := Expr.new(own field_access_node(ctx.symbols.intern("Custom")), arg.line, arg.col)
                         atok_fa.add_child(own atok_recv)
-                        mut atok_strlit := Expr.new(NodeType.Literal(Literal.Str(atok_name)), arg.line, arg.col)
-                        mut atok_ctor := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
+                        mut atok_strlit := Expr.new(own NodeType.Literal(Literal.Str(atok_name)), arg.line, arg.col)
+                        mut atok_ctor := Expr.new(own NodeType.FCall(FCallData()), arg.line, arg.col)
                         atok_ctor.add_child(own atok_fa)
                         mark_fcall_direct(atok_ctor)
                         atok_ctor.add_child(own atok_strlit)
@@ -1600,7 +1600,7 @@ priv normalize_stack_decl_deletes := func(mut e: Expr, i: USize, symbols: Symbol
         case .FCall(dfcd): dfcd.own_args = 0
         case:
         }
-        stmt.children[2] = Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.children[2].line, stmt.children[2].col)
+        stmt.children[2] = Expr.new(own NodeType.Literal(Literal.Bool(false)), stmt.children[2].line, stmt.children[2].col)
     }
 }
 

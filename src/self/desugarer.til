@@ -150,7 +150,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
                 // the real diagnostic. The compile is already failing; what
                 // matters is that it fails by reporting, not by crashing.
                 slots[i] = slot_default_code(defaults.len())
-                defaults.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
+                defaults.push(own Expr.new(own NodeType.NoDefaultArg, e.line, e.col))
             }
         }
     }
@@ -226,10 +226,10 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
     if typer_is_lambda_target(dd.default_expr()) {
         typer_lift_lambdas_in_expr(dd.default_expr(), top_level, ctx)
         lname := format("_lambda_", synth_symbol_suffix(ctx))
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), dd.default_expr().line, dd.default_expr().col)
+        mut decl := Expr.new(own NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), dd.default_expr().line, dd.default_expr().col)
         decl.add_child(own dd.default_expr().clone())
         top_level.push(own decl)
-        mut ident := Expr.new(ident_node(ctx.symbols.intern(lname)), dd.default_expr().line, dd.default_expr().col)
+        mut ident := Expr.new(own ident_node(ctx.symbols.intern(lname)), dd.default_expr().line, dd.default_expr().col)
         ident.set_til_type(dd.default_expr().til_type())
         dd.default_value = Option(Expr).Some(own ident)
     } else {
@@ -261,7 +261,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
             mut is_template_lift := mtg_ret_lift
             if is_template_lift.not() {
                 for tmp_param_lift : Declaration in lift_fd_check.sig.params {
-                    if decl_type_name(tmp_param_lift, ctx.symbols) == "Type" {
+                    if decl_type_name_ref(tmp_param_lift, ctx.symbols) == "Type" {
                         is_template_lift = true
                     }
                 }
@@ -307,10 +307,10 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
         if typer_is_lambda_target(c).and(is_decl_rhs.not()) {
             typer_lift_lambdas_in_expr(c, top_level, ctx)
             lname := format("_lambda_", synth_symbol_suffix(ctx))
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), c.line, c.col)
+            mut decl := Expr.new(own NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), c.line, c.col)
             decl.add_child(own c.clone())
             top_level.push(own decl)
-            mut ident := Expr.new(ident_node(ctx.symbols.intern(lname)), c.line, c.col)
+            mut ident := Expr.new(own ident_node(ctx.symbols.intern(lname)), c.line, c.col)
             e.children[i] = ident
         } else {
             typer_lift_lambdas_in_expr(c, top_level, ctx)
@@ -972,7 +972,7 @@ append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str
 }
 
 make_int_lit := func(n: I64, line: U32, col: U32) returns Expr {
-    return Expr.new(literal_num_node(n.to_str()), line, col)
+    return Expr.new(own literal_num_node(n.to_str()), line, col)
 }
 
 priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
@@ -981,13 +981,13 @@ priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, line: U3
         type_name = type_name,
         is_mut = true
     )
-    mut decl := Expr.new(NodeType.Decl(dd), line, col)
+    mut decl := Expr.new(own NodeType.Decl(dd), line, col)
     decl.add_child(own init.clone())
     return decl
 }
 
 priv make_assign_stmt := func(name: Str, rhs: Expr, line: U32, col: U32) returns Expr {
-    mut a := Expr.new(NodeType.Assign(AssignData(name = name.clone())), line, col)
+    mut a := Expr.new(own NodeType.Assign(AssignData(name = name.clone())), line, col)
     a.add_child(own rhs.clone())
     return a
 }
@@ -1006,19 +1006,19 @@ priv is_direct_fieldless_throw_ctor := func(e: Expr, type_name: Str, symbols: Sy
 
 make_default_value_expr := func(type_name: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
     switch type_name {
-    case "Str": return Expr.new(NodeType.Literal(Literal.Str("")), line, col)
-    case "Bool": return Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
+    case "Str": return Expr.new(own NodeType.Literal(Literal.Str("")), line, col)
+    case "Bool": return Expr.new(own NodeType.Literal(Literal.Bool(false)), line, col)
     // Pointer-shaped builtins have no constructor. Used only for the
     // (unreachable) fallback return appended to throwing functions.
     case "Dynamic", "Ptr":
-        return Expr.new(NodeType.Literal(Literal.Null), line, col)
+        return Expr.new(own NodeType.Literal(Literal.Null), line, col)
     case:
     }
     for prim_name : Str in PRIM_NAMES {
-        if type_name == prim_name { return Expr.new(literal_num_node("0"), line, col) }
+        if type_name == prim_name { return Expr.new(own literal_num_node("0"), line, col) }
     }
-    mut tident := Expr.new(ident_node(symbols.intern(type_name)), line, col)
-    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut tident := Expr.new(own ident_node(symbols.intern(type_name)), line, col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), line, col)
     call.add_child(own tident)
     return call
 }
@@ -1044,13 +1044,13 @@ priv register_throw_type := func(mut ctx: Context, name: Str) {
 }
 
 make_if_kind_eq_zero_wrap := func(stmt: Expr, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
-    mut wrap_body := Expr.new(NodeType.Body, line, col)
+    mut wrap_body := Expr.new(own NodeType.Body, line, col)
     wrap_body.add_child(own stmt.clone())
-    mut kind_id := Expr.new(ident_node(symbols.intern("_err_kind")), line, col)
+    mut kind_id := Expr.new(own ident_node(symbols.intern("_err_kind")), line, col)
     mut cond := make_method_call_fcall(own kind_id, "eq", line, col, symbols)
     mut zero_lit := make_int_lit(0, line, col)
     cond.add_child(own zero_lit)
-    mut if_node := Expr.new(NodeType.If, line, col)
+    mut if_node := Expr.new(own NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own wrap_body)
     return if_node
@@ -1084,7 +1084,7 @@ priv lower_catch_node := proc(mut ctx: Context, catch_node: Expr, type_to_tag_na
     case: UNREACHABLE("expected Ident, got ", catch_node.children[1].node_type.head_str(ctx.symbols.names))
     }
     tag := tag_for_type(ctx, type_name, type_to_tag_names)
-    mut new_body := Expr.new(NodeType.Body, line, col)
+    mut new_body := Expr.new(own NodeType.Body, line, col)
     new_body.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     ref orig_body : Expr = catch_node.children[2]
     if throw_type_has_payload(ctx, type_name) {
@@ -1102,7 +1102,7 @@ priv lower_catch_node := proc(mut ctx: Context, catch_node: Expr, type_to_tag_na
         // Only materialize a fieldless catch value when the source catch body
         // observes it. The tag alone is sufficient for the common case.
         if subtree_references_name(orig_body, var_name, ctx.symbols) {
-            mut err_decl := Expr.new(NodeType.Decl(decl_typed(ctx.symbols, name = var_name,
+            mut err_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name,
                 type_name = type_name)), line, col)
             err_decl.add_child(own make_default_value_expr(type_name, line, col, ctx.symbols))
             new_body.add_child(own err_decl)
@@ -1111,11 +1111,11 @@ priv lower_catch_node := proc(mut ctx: Context, catch_node: Expr, type_to_tag_na
             new_body.add_child(own cb.clone())
         }
     }
-    mut kind_id := Expr.new(ident_node(ctx.symbols.intern("_err_kind")), line, col)
+    mut kind_id := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), line, col)
     mut cond := make_method_call_fcall(own kind_id, "eq", line, col, ctx.symbols)
     mut tag_lit := make_int_lit(tag, line, col)
     cond.add_child(own tag_lit)
-    mut if_node := Expr.new(NodeType.If, line, col)
+    mut if_node := Expr.new(own NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own new_body)
     return if_node
@@ -1784,12 +1784,12 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut scope: TypeScope, mut
     key := find_callee_throws_key(scope, ctx, e, body)
     if key.len() == 0 { return }
     ref tts : Vec(Str) = ctx.throws_global[key]
-    mut kind_id := Expr.new(ident_node(ctx.symbols.intern("_err_kind")), e.line, e.col)
+    mut kind_id := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), e.line, e.col)
     kind_id.set_til_type(Type.Primitive(Primitive.I64))
     e.add_child(own kind_id)
     for tn : Str in tts {
         if throw_type_has_payload(ctx, tn).not() { continue }
-        mut slot_id := Expr.new(ident_node(ctx.symbols.intern(err_slot_name(tn))), e.line, e.col)
+        mut slot_id := Expr.new(own ident_node(ctx.symbols.intern(err_slot_name(tn))), e.line, e.col)
         slot_id.set_til_type(decl_type_from_name(tn, ctx.symbols))
         e.add_child(own slot_id)
     }
@@ -1850,10 +1850,10 @@ priv validate_and_inject_expr_consolidated := proc(
 // regression. Letting the default do the work is both correct and the
 // cheapest of the three: a single part, no named argument.
 make_uncaught_throw_panic := func(error_type: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
-    mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    panic_call.add_child(own Expr.new(ident_node(symbols.intern("panic")), line, col))
+    mut panic_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
+    panic_call.add_child(own Expr.new(own ident_node(symbols.intern("panic")), line, col))
     msg := format("uncaught throw '", error_type, "'")
-    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(msg)), line, col))
+    panic_call.add_child(own Expr.new(own NodeType.Literal(Literal.Str(msg)), line, col))
     return panic_call
 }
 
@@ -1865,14 +1865,14 @@ make_uncaught_throw_panic := func(error_type: Str, line: U32, col: U32, mut symb
 priv build_bang_lowered := func(mut ctx: Context, error_type: Str, line: U32, col: U32) returns Expr {
     tag := tag_for_type(ctx, error_type, Vec(Str).new())
     mut panic_call := make_uncaught_throw_panic(error_type, line, col, ctx.symbols)
-    mut blk := Expr.new(NodeType.Body, line, col)
+    mut blk := Expr.new(own NodeType.Body, line, col)
     blk.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     blk.add_child(own panic_call)
-    mut kind_id := Expr.new(ident_node(ctx.symbols.intern("_err_kind")), line, col)
+    mut kind_id := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), line, col)
     mut tag_lit := make_int_lit(tag, line, col)
     mut cond := make_method_call_fcall(own kind_id, "eq", line, col, ctx.symbols)
     cond.add_child(own tag_lit)
-    mut if_node := Expr.new(NodeType.If, line, col)
+    mut if_node := Expr.new(own NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own blk)
     return if_node
@@ -1931,7 +1931,7 @@ priv hoist_walk_consolidated := proc(
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
     inject_err_args_on_one_fcall_consolidated(scope, ctx, cloned, body)
-    mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), infer_call_ownership = true)), line, col)
+    mut tmp_decl := Expr.new(own NodeType.Decl(Declaration(name = tmp_name.clone(), infer_call_ownership = true)), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
     ref tts : Vec(Str) = ctx.throws_global[found_key]
@@ -1940,7 +1940,7 @@ priv hoist_walk_consolidated := proc(
         vec_str_push_uniq(seen, tn)
         pre_stmts.push(own build_bang_lowered(ctx, tn, line, col))
     }
-    parent.children[child_idx] = Expr.new(ident_node(ctx.symbols.intern(tmp_name)), line, col)
+    parent.children[child_idx] = Expr.new(own ident_node(ctx.symbols.intern(tmp_name)), line, col)
 }
 
 // A `?`-throwing call that RETURNS A REF and whose result is consumed by
@@ -1990,10 +1990,10 @@ priv hoist_throwing_store_call := proc(
     ctx.bang_counter = ctx.bang_counter + 1
     mut tmp_decl_data := Declaration(name = tmp_name.clone())
     tmp_decl_data.own_type = OwnType.Ref
-    mut tmp_decl := Expr.new(NodeType.Decl(tmp_decl_data), line, col)
+    mut tmp_decl := Expr.new(own NodeType.Decl(tmp_decl_data), line, col)
     tmp_decl.add_child(own child.clone())
     pre_stmts.push(own tmp_decl)
-    parent.children[child_idx] = Expr.new(ident_node(ctx.symbols.intern(tmp_name)), line, col)
+    parent.children[child_idx] = Expr.new(own ident_node(ctx.symbols.intern(tmp_name)), line, col)
     return true
 }
 
@@ -2418,15 +2418,15 @@ priv process_throw_catch_in_body := proc(
                     stop = k
                 }
             }
-            mut rest := Expr.new(NodeType.Body, stmt_line, stmt_col)
+            mut rest := Expr.new(own NodeType.Body, stmt_line, stmt_col)
             for k in j..stop {
                 rest.add_child(own old[k].clone())
             }
             process_throw_catch_in_body(scope, ctx, rest, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
-            mut kind_id := Expr.new(ident_node(ctx.symbols.intern("_err_kind")), stmt_line, stmt_col)
+            mut kind_id := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), stmt_line, stmt_col)
             mut guard_cond := make_method_call_fcall(own kind_id, "eq", stmt_line, stmt_col, ctx.symbols)
             guard_cond.add_child(own make_int_lit(0, stmt_line, stmt_col))
-            mut guard := Expr.new(NodeType.If, stmt_line, stmt_col)
+            mut guard := Expr.new(own NodeType.If, stmt_line, stmt_col)
             guard.add_child(own guard_cond)
             guard.add_child(own rest)
             new_ch.push(own guard)
@@ -2874,15 +2874,15 @@ priv process_throw_catch_in_body := proc(
                         tmp_decl_data.own_type = return_own_type
                     }
                 }
-                mut tmp_decl := Expr.new(NodeType.Decl(tmp_decl_data), stmt_line, stmt_col)
+                mut tmp_decl := Expr.new(own NodeType.Decl(tmp_decl_data), stmt_line, stmt_col)
                 tmp_decl.add_child(own stmt.children[0].clone())
                 new_ch.push(own tmp_decl)
                 for tn : Str in root_bang_throws {
                     new_ch.push(own build_bang_lowered(ctx, tn, stmt_line, stmt_col))
                     _matched_b1 := pending_remove_all_matching(pending, tn)
                 }
-                mut new_ret := Expr.new(NodeType.Return, stmt_line, stmt_col)
-                new_ret.add_child(own Expr.new(ident_node(ctx.symbols.intern(tmp_name)), stmt_line, stmt_col))
+                mut new_ret := Expr.new(own NodeType.Return, stmt_line, stmt_col)
+                new_ret.add_child(own Expr.new(own ident_node(ctx.symbols.intern(tmp_name)), stmt_line, stmt_col))
                 new_ch.push(own new_ret)
                 // The lowered bang checks both panic AND reset
                 // _err_kind = 0 on the error path, so subsequent
@@ -3043,9 +3043,9 @@ process_throw_catch_in_func_body := proc(
     // on the success path and unused on the error path (the err code
     // flows out through the out-param).
     if has_fdef_throws.and(return_type.len().gt(0)) {
-        mut ret := Expr.new(NodeType.Return, line, col)
+        mut ret := Expr.new(own NodeType.Return, line, col)
         if return_own_type.is(OwnType.Ref) {
-            ret.add_child(own Expr.new(NodeType.Literal(Literal.Null), line, col))
+            ret.add_child(own Expr.new(own NodeType.Literal(Literal.Null), line, col))
         } else {
             ret.add_child(own make_default_value_expr(return_type, line, col, ctx.symbols))
         }
@@ -3182,7 +3182,7 @@ collect_switch_case_bindings := proc(mut scope: TypeScope, mut ctx: Context, e: 
 // untouched for the caller to drop normally).
 priv fold_and_chain := func(conds: Vec(Expr), line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
     if conds.len() == 0 {
-        return Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
+        return Expr.new(own NodeType.Literal(Literal.Bool(true)), line, col)
     }
     ref first_c : Expr = conds[0]
     if conds.len() == 1 {
@@ -3214,8 +3214,8 @@ priv fold_and_chain := func(conds: Vec(Expr), line: U32, col: U32, mut symbols: 
 priv make_nested_subject := func(own subj: Expr, shallow payload_t: Type, in_slot: Bool, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
     mut gp := make_get_payload_fcall(own subj, payload_t, line, col, symbols)
     if in_slot.not() { return gp }
-    mut deref_id := Expr.new(ident_node(symbols.intern("deref")), line, col)
-    mut deref_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut deref_id := Expr.new(own ident_node(symbols.intern("deref")), line, col)
+    mut deref_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
     deref_call.add_child(own deref_id)
     deref_call.add_child(own gp)
     deref_call.set_til_type(payload_t)
@@ -3223,7 +3223,7 @@ priv make_nested_subject := func(own subj: Expr, shallow payload_t: Type, in_slo
 }
 
 make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, sw_line: U32, sw_col: U32, mut symbols: SymbolPool) returns Expr {
-    mut condition := Expr.new(NodeType.Body, sw_line, sw_col)
+    mut condition := Expr.new(own NodeType.Body, sw_line, sw_col)
     mut has_condition := false
     if match_expr.node_type.is(NodeType.FCall) {
         if match_expr.children.len() == 3 {
@@ -3300,16 +3300,16 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                     if payload_type.len() > 0 {
                                         // #264: width-correct tag comparison via is_n.
                                         sw_tag_sz := enum_tag_size(enum_def)
-                                        mut iv_id := Expr.new(ident_node(symbols.intern("is_n")), sw_line, sw_col)
+                                        mut iv_id := Expr.new(own ident_node(symbols.intern("is_n")), sw_line, sw_col)
                                         mut sw_id := sw_ref.clone()
-                                        mut vtype_id := Expr.new(ident_node(symbols.intern(type_name)), sw_line, sw_col)
-                                        mut vref := Expr.new(field_access_node(symbols.intern(variant_name)), sw_line, sw_col)
+                                        mut vtype_id := Expr.new(own ident_node(symbols.intern(type_name)), sw_line, sw_col)
+                                        mut vref := Expr.new(own field_access_node(symbols.intern(variant_name)), sw_line, sw_col)
                                         vref.add_child(own vtype_id)
-                                        condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
+                                        condition = Expr.new(own NodeType.FCall(FCallData()), sw_line, sw_col)
                                         condition.add_child(own iv_id)
                                         condition.add_child(own sw_id)
                                         condition.add_child(own vref)
-                                        mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
+                                        mut sw_sz_lit := Expr.new(own literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
                                         condition.add_child(own sw_sz_lit)
 
                                         mut sw_id2 := sw_ref.clone()
@@ -3414,16 +3414,16 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                         // outer condition: sw_ref.is(Type.Variant)
                                         // #264: width-correct tag comparison via is_n.
                                         sw_tag_sz3 := enum_tag_size(enum_def3)
-                                        mut iv_id3 := Expr.new(ident_node(symbols.intern("is_n")), sw_line, sw_col)
+                                        mut iv_id3 := Expr.new(own ident_node(symbols.intern("is_n")), sw_line, sw_col)
                                         mut sw_id3 := sw_ref.clone()
-                                        mut vtype_id3 := Expr.new(ident_node(symbols.intern(type_name3)), sw_line, sw_col)
-                                        mut vref3 := Expr.new(field_access_node(symbols.intern(variant_name3)), sw_line, sw_col)
+                                        mut vtype_id3 := Expr.new(own ident_node(symbols.intern(type_name3)), sw_line, sw_col)
+                                        mut vref3 := Expr.new(own field_access_node(symbols.intern(variant_name3)), sw_line, sw_col)
                                         vref3.add_child(own vtype_id3)
-                                        mut outer_cond3 := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
+                                        mut outer_cond3 := Expr.new(own NodeType.FCall(FCallData()), sw_line, sw_col)
                                         outer_cond3.add_child(own iv_id3)
                                         outer_cond3.add_child(own sw_id3)
                                         outer_cond3.add_child(own vref3)
-                                        mut sw_sz_lit3 := Expr.new(literal_num_node(sw_tag_sz3.to_str()), sw_line, sw_col)
+                                        mut sw_sz_lit3 := Expr.new(own literal_num_node(sw_tag_sz3.to_str()), sw_line, sw_col)
                                         outer_cond3.add_child(own sw_sz_lit3)
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
@@ -3480,16 +3480,16 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                             // switch -- e.g. an enum's generated eq).
                             // #264: width-correct tag comparison via is_n.
                             sw_tag_sz := enum_tag_size(enum_def)
-                            mut iv_id := Expr.new(ident_node(symbols.intern("is_n")), sw_line, sw_col)
+                            mut iv_id := Expr.new(own ident_node(symbols.intern("is_n")), sw_line, sw_col)
                             mut sw_id := sw_ref.clone()
-                            mut vtype_id := Expr.new(ident_node(symbols.intern(type_name)), sw_line, sw_col)
-                            mut vref := Expr.new(field_access_node(symbols.intern(variant_name)), sw_line, sw_col)
+                            mut vtype_id := Expr.new(own ident_node(symbols.intern(type_name)), sw_line, sw_col)
+                            mut vref := Expr.new(own field_access_node(symbols.intern(variant_name)), sw_line, sw_col)
                             vref.add_child(own vtype_id)
-                            condition = Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
+                            condition = Expr.new(own NodeType.FCall(FCallData()), sw_line, sw_col)
                             condition.add_child(own iv_id)
                             condition.add_child(own sw_id)
                             condition.add_child(own vref)
-                            mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
+                            mut sw_sz_lit := Expr.new(own literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
                             condition.add_child(own sw_sz_lit)
                             has_condition = true
                         }
@@ -3555,16 +3555,16 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                 case .Ident(bn): bind_name = Str.clone(bn.ident_name(symbols.names))
                                 case:
                                 }
-                                mut field_acc_bind := Expr.new(field_access_node(symbols.intern(field_name)), sw_line, sw_col)
+                                mut field_acc_bind := Expr.new(own field_access_node(symbols.intern(field_name)), sw_line, sw_col)
                                 field_acc_bind.add_child(own sw_ref.clone())
-                                mut bind_decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), own_type = OwnType.Ref)), sw_line, sw_col)
+                                mut bind_decl := Expr.new(own NodeType.Decl(Declaration(name = bind_name.clone(), own_type = OwnType.Ref)), sw_line, sw_col)
                                 bind_decl.add_child(own field_acc_bind)
                                 sp_bindings.push(own bind_decl)
                             } else {
                                 // Literal/expression match or nested pattern.
                                 // Recurse with sw_ref = sw.field_name; the recursive
                                 // call may itself prepend bindings to case_body.
-                                mut field_acc_match := Expr.new(field_access_node(symbols.intern(field_name)), sw_line, sw_col)
+                                mut field_acc_match := Expr.new(own field_access_node(symbols.intern(field_name)), sw_line, sw_col)
                                 field_acc_match.add_child(own sw_ref.clone())
                                 sub_cond := make_switch_case_condition(scope, case_body, field_pat, field_acc_match, sw_line, sw_col, symbols)
                                 sp_conds.push(own sub_cond)
@@ -3617,7 +3617,7 @@ append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
             }
         }
     }
-    mut else_body := Expr.new(NodeType.Body, if_node.line, if_node.col)
+    mut else_body := Expr.new(own NodeType.Body, if_node.line, if_node.col)
     else_body.add_child(own if_node.clone())
     root_if.add_child(own else_body)
 }
@@ -3869,14 +3869,14 @@ replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: USize, own block:
 }
 
 make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool, mut symbols: SymbolPool) returns Expr {
-    mut wb := Expr.new(NodeType.Body, line, col)
+    mut wb := Expr.new(own NodeType.Body, line, col)
 
-    mut vd := Expr.new(NodeType.Decl(decl_typed(symbols, name = var_name, type_name = elem_type, is_mut = var_is_mut)), line, col)
-    mut cur_ident := Expr.new(ident_node(symbols.intern(cur_name)), line, col)
+    mut vd := Expr.new(own NodeType.Decl(decl_typed(symbols, name = var_name, type_name = elem_type, is_mut = var_is_mut)), line, col)
+    mut cur_ident := Expr.new(own ident_node(symbols.intern(cur_name)), line, col)
     vd.add_child(own cur_ident)
     wb.add_child(own vd)
 
-    mut step_ident := Expr.new(ident_node(symbols.intern(cur_name)), line, col)
+    mut step_ident := Expr.new(own ident_node(symbols.intern(cur_name)), line, col)
     wb.add_child(own make_method_call_fcall(own step_ident, step, line, col, symbols))
 
     for e_bi : Expr in for_body.children {
@@ -4068,7 +4068,7 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope, symbols
 
 priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str, mut symbols: SymbolPool) returns Expr {
     mut new_call := make_ns_call("KwargsMap", "new", Type.StructSym(symbols.intern("KwargsMap")), fcall, symbols)
-    mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
+    mut kw_decl := Expr.new(own NodeType.Decl(Declaration()), fcall.line, fcall.col)
     ref mut dd : Declaration = decl_of(kw_decl)
     dd.name = kw_name.clone()
     kw_decl.set_til_type(Type.StructSym(symbols.intern("KwargsMap")))
@@ -4087,15 +4087,15 @@ priv build_kwargs_map_set := func(fcall: Expr, mut scope: TypeScope, kw_name: St
     ref val : Expr = named_arg.children[0]
     mut set_call := make_ns_call("KwargsMap", "set", Type.None, fcall, ctx.symbols)
 
-    mut self_id := Expr.new(ident_node(ctx.symbols.intern(kw_name)), fcall.line, fcall.col)
+    mut self_id := Expr.new(own ident_node(ctx.symbols.intern(kw_name)), fcall.line, fcall.col)
     self_id.set_til_type(Type.StructSym(ctx.symbols.intern("KwargsMap")))
     set_call.add_child(own self_id)
 
-    mut key_lit := Expr.new(NodeType.Literal(Literal.Str(key_name)), fcall.line, fcall.col)
+    mut key_lit := Expr.new(own NodeType.Literal(Literal.Str(key_name)), fcall.line, fcall.col)
     set_call.add_child(own key_lit)
 
     tname := type_to_name(val.til_type(), ctx.symbols)
-    mut type_lit := Expr.new(NodeType.Literal(Literal.Str(tname.clone())), fcall.line, fcall.col)
+    mut type_lit := Expr.new(own NodeType.Literal(Literal.Str(tname.clone())), fcall.line, fcall.col)
     set_call.add_child(own type_lit)
 
     mut size_call := make_ns_call(tname, "size", usize_type(scope, ctx), fcall, ctx.symbols)
@@ -4124,11 +4124,11 @@ priv build_variadic_array_decl := func(fcall: Expr, mut scope: TypeScope, elem_t
     }
 
     cap_str := vc.to_str()
-    mut cap := Expr.new(literal_num_node(cap_str), fcall.line, fcall.col)
+    mut cap := Expr.new(own literal_num_node(cap_str), fcall.line, fcall.col)
     cap.set_til_type(usize_type(scope, ctx))
     new_call.add_child(own cap)
 
-    mut va_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
+    mut va_decl := Expr.new(own NodeType.Decl(Declaration()), fcall.line, fcall.col)
     ref mut dd : Declaration = decl_of(va_decl)
     dd.name = va_name.clone()
     dd.own_type = OwnType.Own
@@ -4161,12 +4161,12 @@ priv variadic_err_slot_name := func(va_name: Str, suffix: Str) returns Str {
 priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut scope: TypeScope, mut ctx: Context, line: U32, col: U32) {
     // _ek : I64 = 0  -- receives the throwing set's `_err_kind` out-arg
     // (a value out-param, so the builder passes it as `&<va>_ek`).
-    mut ek := Expr.new(NodeType.Decl(Declaration()), line, col)
+    mut ek := Expr.new(own NodeType.Decl(Declaration()), line, col)
     ref mut ek_dd : Declaration = decl_of(ek)
     ek_dd.name = variadic_err_slot_name(va_name, "_ek")
     ek_dd.is_mut = true
     ek.set_til_type(Type.Primitive(Primitive.I64))
-    mut ek_init := Expr.new(literal_num_node("0"), line, col)
+    mut ek_init := Expr.new(own literal_num_node("0"), line, col)
     ek_init.set_til_type(Type.Primitive(Primitive.I64))
     ek.add_child(own ek_init)
     scope.set(variadic_err_slot_name(va_name, "_ek"), Type.Primitive(Primitive.I64), true, ctx.path, line, col, false, OwnType.Shallow, ctx.symbols)
@@ -4224,12 +4224,12 @@ priv build_variadic_array_set := func(fcall: Expr, mut scope: TypeScope, elem_ty
     // build_variadic_err_slots). `j` is always in bounds, so it never throws.
     mut set_call := make_ns_call(array_type, "set", Type.None, fcall, ctx.symbols)
 
-    mut self_id := Expr.new(ident_node(ctx.symbols.intern(va_name)), fcall.line, fcall.col)
+    mut self_id := Expr.new(own ident_node(ctx.symbols.intern(va_name)), fcall.line, fcall.col)
     self_id.set_til_type(Type.StructSym(ctx.symbols.intern(array_type)))
     set_call.add_child(own self_id)
 
     idx_str := j.to_str()
-    mut idx := Expr.new(literal_num_node(idx_str), fcall.line, fcall.col)
+    mut idx := Expr.new(own literal_num_node(idx_str), fcall.line, fcall.col)
     idx.set_til_type(usize_type(scope, ctx))
     set_call.add_child(own idx)
 
@@ -4240,7 +4240,7 @@ priv build_variadic_array_set := func(fcall: Expr, mut scope: TypeScope, elem_ty
     set_call.add_child(own val)
 
     // Manually attach the throwing-set error out-args (see comment above).
-    mut ek_id := Expr.new(ident_node(ctx.symbols.intern(variadic_err_slot_name(va_name, "_ek"))), fcall.line, fcall.col)
+    mut ek_id := Expr.new(own ident_node(ctx.symbols.intern(variadic_err_slot_name(va_name, "_ek"))), fcall.line, fcall.col)
     ek_id.set_til_type(Type.Primitive(Primitive.I64))
     set_call.add_child(own ek_id)
 
@@ -4274,7 +4274,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str, 
     vec_type := format("Vec__", elem_type)
     mut new_call := make_ns_call(vec_type, "new", Type.StructSym(symbols.intern(vec_type)), fcall, symbols)
 
-    mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
+    mut vec_decl := Expr.new(own NodeType.Decl(Declaration()), fcall.line, fcall.col)
     ref mut dd : Declaration = decl_of(vec_decl)
     dd.name = vec_name.clone()
     dd.own_type = OwnType.Own
@@ -4288,7 +4288,7 @@ priv build_builtin_vec_push := func(fcall: Expr, mut scope: TypeScope, elem_type
     vec_type := format("Vec__", elem_type)
     mut push_call := make_ns_call(vec_type, "push", Type.None, fcall, ctx.symbols)
 
-    mut self_id := Expr.new(ident_node(ctx.symbols.intern(vec_name)), fcall.line, fcall.col)
+    mut self_id := Expr.new(own ident_node(ctx.symbols.intern(vec_name)), fcall.line, fcall.col)
     self_id.set_til_type(Type.StructSym(ctx.symbols.intern(vec_type)))
     push_call.add_child(own self_id)
 
@@ -4498,7 +4498,7 @@ priv decl_tuple_typed_read_type := func(stmt: Expr, scope: TypeScope, symbols: S
         return ""
     }
     ref dd : Declaration = decl_of(stmt)
-    declared := decl_type_name(dd, symbols)
+    ref declared : Str = decl_type_name_ref(dd, symbols)
     if declared.len() == 0 { return "" }
     // Same spelling the push side records: desugar_dynamic_variadic_call
     // stores resolve_type_alias_for_name(type of the argument).
@@ -4514,7 +4514,7 @@ priv decl_tuple_typed_read_type := func(stmt: Expr, scope: TypeScope, symbols: S
 // effect twice.
 priv desugar_tuple_typed_read := func(mut stmt: Expr, want: Str, scope: TypeScope, mut ctx: Context) {
     ref mut rhs : Expr = stmt.children[0]
-    mut new_fa := Expr.new(field_access_node(ctx.symbols.intern("get_checked")), rhs.line, rhs.col)
+    mut new_fa := Expr.new(own field_access_node(ctx.symbols.intern("get_checked")), rhs.line, rhs.col)
     // Directness lives on the CALLEE's til_type (fcall_is_direct reads
     // Type.FuncDef there), so the replacement callee has to carry the same
     // stamp the resolved `get` callee had -- without it the builder reaches
@@ -4522,7 +4522,7 @@ priv desugar_tuple_typed_read := func(mut stmt: Expr, want: Str, scope: TypeScop
     new_fa.set_til_type(rhs.children[0].til_type().clone())
     new_fa.add_child(own rhs.children[0].children[0].clone())
     rhs.children[0] = new_fa
-    mut want_lit := Expr.new(NodeType.Literal(Literal.Str(want.clone())), rhs.line, rhs.col)
+    mut want_lit := Expr.new(own NodeType.Literal(Literal.Str(want.clone())), rhs.line, rhs.col)
     want_lit.set_til_type(Type.StructSym(ctx.symbols.intern("Str")))
     rhs.add_child(own want_lit)
     // get_checked's trailing `loc: Str = __LOC__` has to be filled HERE. The
@@ -4532,7 +4532,7 @@ priv desugar_tuple_typed_read := func(mut stmt: Expr, want: Str, scope: TypeScop
     // get_checked's own signature, and the call would reach the backends one
     // argument short. Materializing it through resolve_default_value keeps
     // the location's spelling in the one place that knows it.
-    mut loc_lit := resolve_default_value(Expr.new(NodeType.Loc, rhs.line, rhs.col), rhs, ctx)
+    mut loc_lit := resolve_default_value(Expr.new(own NodeType.Loc, rhs.line, rhs.col), rhs, ctx)
     loc_lit.set_til_type(Type.StructSym(ctx.symbols.intern("Str")))
     rhs.add_child(own loc_lit)
     sync_own_args_from_callee(rhs, scope, ctx.symbols)
@@ -4577,7 +4577,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         new_call.add_child(own et)
     }
 
-    mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration()), stmt.line, stmt.col)
     ref mut dd : Declaration = decl_of(decl)
     dd.name = var_name.clone()
     dd.is_mut = true
@@ -4590,7 +4590,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
     for e_j : Expr in set_lit.children {
         mut add_call := make_ns_call(set_type, "add", Type.None, set_lit, ctx.symbols)
-        mut self_id := Expr.new(ident_node(ctx.symbols.intern(var_name)), set_lit.line, set_lit.col)
+        mut self_id := Expr.new(own ident_node(ctx.symbols.intern(var_name)), set_lit.line, set_lit.col)
         self_id.set_til_type(Type.StructSym(ctx.symbols.intern(set_type)))
         add_call.add_child(own self_id)
         mut val := e_j.clone()
@@ -4662,7 +4662,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         new_call.add_child(own vt)
     }
 
-    mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration()), stmt.line, stmt.col)
     ref mut dd : Declaration = decl_of(decl)
     dd.name = var_name.clone()
     dd.is_mut = true
@@ -4675,7 +4675,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
     for j in 0..n_pairs {
         mut set_call := make_ns_call(map_type, "set", Type.None, map_lit, ctx.symbols)
-        mut self_id := Expr.new(ident_node(ctx.symbols.intern(var_name)), map_lit.line, map_lit.col)
+        mut self_id := Expr.new(own ident_node(ctx.symbols.intern(var_name)), map_lit.line, map_lit.col)
         self_id.set_til_type(Type.StructSym(ctx.symbols.intern(map_type)))
         set_call.add_child(own self_id)
         mut key := map_lit.children[j * 2].clone()
@@ -4736,7 +4736,7 @@ priv desugar_dynamic_variadic_call := func(mut ctx: Context, mut e: Expr, mut ne
     va_name := format("_va_Tuple_", synth_suffix(ctx, ctx.va_counter.to_str()))
     ctx.va_counter++
     mut new_call := make_ns_call("Tuple", "new", Type.StructSym(ctx.symbols.intern("Tuple")), e, ctx.symbols)
-    mut va_decl := Expr.new(NodeType.Decl(Declaration()), e.line, e.col)
+    mut va_decl := Expr.new(own NodeType.Decl(Declaration()), e.line, e.col)
     ref mut dd : Declaration = decl_of(va_decl)
     dd.name = va_name.clone()
     dd.own_type = OwnType.Own
@@ -4751,7 +4751,7 @@ priv desugar_dynamic_variadic_call := func(mut ctx: Context, mut e: Expr, mut ne
         ref arg : Expr = e.children[vi_u.add(j)]
         if get_splat_arg(e, vi_u.add(j)) {
             mut pa := make_ns_call("Tuple", "push_all_dynamic", Type.None, e, ctx.symbols)
-            mut pa_self := Expr.new(ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
+            mut pa_self := Expr.new(own ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
             pa_self.set_til_type(Type.StructSym(ctx.symbols.intern("Tuple")))
             pa.add_child(own pa_self)
             pa.add_child(own arg.clone())
@@ -4760,7 +4760,7 @@ priv desugar_dynamic_variadic_call := func(mut ctx: Context, mut e: Expr, mut ne
             continue
         }
         mut pc := make_ns_call("Tuple", "push_type_name", Type.None, e, ctx.symbols)
-        mut pc_self := Expr.new(ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
+        mut pc_self := Expr.new(own ident_node(ctx.symbols.intern(va_name)), e.line, e.col)
         pc_self.set_til_type(Type.StructSym(ctx.symbols.intern("Tuple")))
         pc.add_child(own pc_self)
         mut tn := resolve_type_alias_for_name(scope, type_to_name(arg.til_type(), ctx.symbols), ctx.symbols).clone()
@@ -4768,7 +4768,7 @@ priv desugar_dynamic_variadic_call := func(mut ctx: Context, mut e: Expr, mut ne
         // whose type never resolved -- in a dynamic block "a word, no type"
         // is the meaning of not knowing, not a guess.
         if tn.len() == 0 { tn = "Dynamic" }
-        mut tn_lit := Expr.new(NodeType.Literal(Literal.Str(tn.clone())), e.line, e.col)
+        mut tn_lit := Expr.new(own NodeType.Literal(Literal.Str(tn.clone())), e.line, e.col)
         tn_lit.set_til_type(Type.StructSym(ctx.symbols.intern("Str")))
         pc.add_child(own tn_lit)
         mut val := build_variadic_arg_value(arg, scope, ctx.symbols)
@@ -4794,7 +4794,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     ref fd : FunctionDef = funcdef_of(fdef)
     vi := fd.sig.variadic_index + 1
     vc := fcall_variadic_count(e, fd.sig.params.len(), fd.sig.kwargs_index >= 0)
-    elem_type := decl_type_name(fd.sig.params[fd.sig.variadic_index.to_usize()], ctx.symbols)
+    ref elem_type : Str = decl_type_name_ref(fd.sig.params[fd.sig.variadic_index.to_usize()], ctx.symbols)
     variadic_own := fd.sig.params[fd.sig.variadic_index.to_usize()].own_type.is(OwnType.Own)
     if variadic_carrier_type_name(scope, elem_type, ctx.symbols) == "Tuple" {
         desugar_dynamic_variadic_call(ctx, e, new_ch, scope, vi, vc, variadic_own)
@@ -5014,7 +5014,7 @@ priv postfold_arg_is_struct_ctor := func(arg: Expr, scope: TypeScope, symbols: S
 // the builder only has to take the resulting local's address.
 priv hoist_postfold_stack_ctor_slot := func(mut ctx: Context, mut src: Vec(Expr),
         i: USize, mut hoisted: Vec(Expr)) returns Expr {
-    mut decl := Expr.new(NodeType.Decl(Declaration()), src[i].line, src[i].col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration()), src[i].line, src[i].col)
     decl.children.push_take(src, i)
     ref val : Expr = decl.children[0]
     temp_name := format("hoisted__", type_prefix(val.til_type(), ctx.symbols), "_",
@@ -5030,7 +5030,7 @@ priv hoist_postfold_stack_ctor_slot := func(mut ctx: Context, mut src: Vec(Expr)
     // same stack decision the pre-fold hoister would have received there.
     dd.gc_storage = GcStorage.Stack
 
-    mut ident := Expr.new(ident_node(ctx.symbols.intern(temp_name)), val.line, val.col)
+    mut ident := Expr.new(own ident_node(ctx.symbols.intern(temp_name)), val.line, val.col)
     ident.set_til_type(val.til_type())
     hoisted.push(own decl)
     return ident
@@ -5163,12 +5163,12 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         if ab.is_mut.not() { return }
         if is_aggregate(ab.type).not() { return }
 
-        mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+        mut call := Expr.new(own NodeType.FCall(FCallData()), stmt.line, stmt.col)
         call.set_til_type(Type.None)
-        fn := Expr.new(ident_node(ctx.symbols.intern("swap_bytes")), stmt.line, stmt.col)
+        fn := Expr.new(own ident_node(ctx.symbols.intern("swap_bytes")), stmt.line, stmt.col)
         call.add_child(own fn)
         mark_fcall_direct(call)
-        mut a := Expr.new(ident_node(ctx.symbols.intern(stmt_name)), stmt.line, stmt.col)
+        mut a := Expr.new(own ident_node(ctx.symbols.intern(stmt_name)), stmt.line, stmt.col)
         a.set_til_type(ab.type)
         call.add_child(own a)
         call.add_child(own stmt.children[0].clone())
@@ -5662,7 +5662,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
     for j in 0..old_args.len() {
         if j.to_i32().gte(vi).and(j.to_i32().lt(vi + vc.to_i32())) {
             if va_inserted.not() {
-                mut va_id := Expr.new(ident_node(symbols.intern(va_name)), line, col)
+                mut va_id := Expr.new(own ident_node(symbols.intern(va_name)), line, col)
                 va_id.set_til_type(Type.StructSym(symbols.intern(array_type)))
                 if variadic_own {
                     mut bit : U64 = 1
@@ -5675,7 +5675,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             continue
         }
         if j.to_i32().eq(vi).and(va_inserted.not()) {
-            mut va_id := Expr.new(ident_node(symbols.intern(va_name)), line, col)
+            mut va_id := Expr.new(own ident_node(symbols.intern(va_name)), line, col)
             va_id.set_til_type(Type.StructSym(symbols.intern(array_type)))
             if variadic_own {
                 mut bit : U64 = 1
@@ -5696,7 +5696,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         fcall_new_ch.push_take(old_args, j)
     }
     if va_inserted.not() {
-        mut va_id := Expr.new(ident_node(symbols.intern(va_name)), line, col)
+        mut va_id := Expr.new(own ident_node(symbols.intern(va_name)), line, col)
         va_id.set_til_type(Type.StructSym(symbols.intern(array_type)))
         if variadic_own {
             mut bit : U64 = 1
@@ -5785,7 +5785,7 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
             mut setter := build_variadic_array_set(e, scope, elem_type, grp_name, start.add(k).add(r), r, ctx)
             new_ch.push(own setter)
         }
-        mut grp_id := Expr.new(ident_node(ctx.symbols.intern(grp_name)), e.line, e.col)
+        mut grp_id := Expr.new(own ident_node(ctx.symbols.intern(grp_name)), e.line, e.col)
         grp_id.set_til_type(Type.StructSym(ctx.symbols.intern(array_type)))
         pieces.push(own grp_id)
         k = k.add(run)
@@ -5800,7 +5800,7 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
     }
 
     // Fold the pieces with concat.
-    mut combined := Expr.new(NodeType.Literal(Literal.Null), e.line, e.col)
+    mut combined := Expr.new(own NodeType.Literal(Literal.Null), e.line, e.col)
     for pi in 0..pieces.len() {
         if pi == 0 {
             combined = pieces[0].clone()
@@ -5828,7 +5828,7 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
 // contiguous path in b60ccb68.
 priv build_collection_alias_decl := func(src: Expr, type_name: Str, name: Str,
         is_mut: Bool, own_type: OwnType, own rhs: Expr, mut symbols: SymbolPool) returns Expr {
-    mut decl := Expr.new(NodeType.Decl(Declaration()), src.line, src.col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration()), src.line, src.col)
     ref mut dd : Declaration = decl_of(decl)
     dd.name = name.clone()
     dd.own_type = own_type
@@ -5869,7 +5869,7 @@ priv bind_folded_vec_literal := func(mut ctx: Context, fcall: Expr, mut new_ch: 
 
     vec_type := format("Vec__", elem_type)
     mut to_vec := make_ns_call(array_type, "to_vec", Type.StructSym(ctx.symbols.intern(vec_type)), fcall, ctx.symbols)
-    mut src_id := Expr.new(ident_node(ctx.symbols.intern(tmp_name)), fcall.line, fcall.col)
+    mut src_id := Expr.new(own ident_node(ctx.symbols.intern(tmp_name)), fcall.line, fcall.col)
     src_id.set_til_type(Type.StructSym(ctx.symbols.intern(array_type)))
     to_vec.add_child(own src_id)
     sync_own_args_from_callee(to_vec, scope, ctx.symbols)
@@ -5996,7 +5996,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32, m
         ji := j.to_i32()
         if ji.gte(ki).and(ji.lt(ki + kc.to_i32())) {
             if kw_inserted.not() {
-                mut kw_id := Expr.new(ident_node(symbols.intern(kw_name)), fcall.line, fcall.col)
+                mut kw_id := Expr.new(own ident_node(symbols.intern(kw_name)), fcall.line, fcall.col)
                 kw_id.set_til_type(Type.StructSym(symbols.intern("KwargsMap")))
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
@@ -6007,7 +6007,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32, m
             continue
         }
         if ji.eq(ki).and(kw_inserted.not()) {
-            mut kw_id := Expr.new(ident_node(symbols.intern(kw_name)), fcall.line, fcall.col)
+            mut kw_id := Expr.new(own ident_node(symbols.intern(kw_name)), fcall.line, fcall.col)
             kw_id.set_til_type(Type.StructSym(symbols.intern("KwargsMap")))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
@@ -6026,7 +6026,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32, m
         fcall_new_ch.push_take(old_args, j)
     }
     if kw_inserted.not() {
-        mut kw_id := Expr.new(ident_node(symbols.intern(kw_name)), fcall.line, fcall.col)
+        mut kw_id := Expr.new(own ident_node(symbols.intern(kw_name)), fcall.line, fcall.col)
         kw_id.set_til_type(Type.StructSym(symbols.intern("KwargsMap")))
         mut bit : U64 = 1
         for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
@@ -6053,7 +6053,7 @@ priv field_assign_needs_delete := func(stmt: Expr, scope: TypeScope, symbols: Sy
 // the original dropped by that overwrite one line later, which made
 // this the compiler's second-largest Expr_clone source.
 priv hoist_slot_to_temp := func(mut ctx: Context, mut src: Vec(Expr), i: USize, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
-    mut decl := Expr.new(NodeType.Decl(Declaration()), src[i].line, src[i].col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration()), src[i].line, src[i].col)
     decl.children.push_take(src, i)
     return finish_hoist_temp(ctx, own decl, hoisted, scope, is_own)
 }
@@ -6062,7 +6062,7 @@ priv hoist_slot_to_temp := func(mut ctx: Context, mut src: Vec(Expr), i: USize, 
 // give up: hoist_stmt_fcall replaces the statement WITH the Decl, so the
 // Decl cannot hold the statement object it is about to overwrite.
 priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
-    mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration()), val.line, val.col)
     decl.add_child(own val.clone())
     return finish_hoist_temp(ctx, own decl, hoisted, scope, is_own)
 }
@@ -6102,7 +6102,7 @@ priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Ve
     // which the builder pairs with `&name` for the own-self arg.
     is_literal_str := val.node_type.is_literal_str()
 
-    mut ident := Expr.new(ident_node(ctx.symbols.intern(tname)), val.line, val.col)
+    mut ident := Expr.new(own ident_node(ctx.symbols.intern(tname)), val.line, val.col)
     ident.set_til_type(semantic_type)
     scope.set(tname, semantic_type, false, ctx.path, val.line, val.col, false, OwnType.Shallow, ctx.symbols)
     ref mut tb : TypeBinding = scope.get_binding_name(tname, ctx.symbols).unwrap()

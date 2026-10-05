@@ -361,7 +361,7 @@ priv anon_decl_key := func(dname: Str, d: Declaration, symbols: SymbolPool) retu
     // default-value tree, so present-vs-absent yields distinct keys.
     mut dv_key := "-"
     if d.default_value.is_some() { dv_key = d.default_expr().to_str_with_symbols(symbols.names) }
-    return format(dname, ":", decl_type_name(d, symbols), ":", mut_tag, own_tag, ":",
+    return format(dname, ":", decl_type_name_ref(d, symbols), ":", mut_tag, own_tag, ":",
         dv_key, ";")
 }
 
@@ -429,7 +429,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
         name := format(kind, p.anon_type_counter.to_str())
         p.anon_type_counter++
         p.anon_cache.set(key, own name.clone())
-        mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
+        mut decl := Expr.new(own NodeType.Decl(Declaration(name = name.clone())), line, col)
         decl.add_child(own def)
         p.anon_decls.push(own decl)
         result = name.clone()
@@ -439,18 +439,18 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
 
 priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), mangled: Str, line: U32, col: U32) {
     if p.type_gen_seen.has(mangled) { return }
-    mut callee := Expr.new(ident_node(p.symbols.intern(name)), line, col)
-    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut callee := Expr.new(own ident_node(p.symbols.intern(name)), line, col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), line, col)
     call.add_child(own callee)
     for i in 0..args.len() {
         // #320: carry each arg's `ref` qualifier onto the generated call so
         // the init expansion sees the same bits a value-position
         // `Name(ref X)` instantiation would set.
         if arg_refs[i] { set_ref_arg(call, call.children.len()) }
-        mut arg_expr := Expr.new(ident_node(p.symbols.intern(args[i])), line, col)
+        mut arg_expr := Expr.new(own ident_node(p.symbols.intern(args[i])), line, col)
         call.add_child(own arg_expr)
     }
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = mangled.clone())), line, col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration(name = mangled.clone())), line, col)
     decl.add_child(own call)
     p.type_gen_decls.push(own decl)
     p.type_gen_seen.add(own mangled.clone())
@@ -493,16 +493,16 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         // Width is a value expression, unlike ordinary type-only applications.
         // The initializer canonicalizes this lifted declaration after resolving
         // constants, and rewrites all annotations to the resulting type name.
-        mut simd_call := Expr.new(NodeType.FCall(FCallData()), tr_line, tr_col)
-        simd_call.add_child(own Expr.new(ident_node(p.symbols.intern(name)), tr_line, tr_col))
+        mut simd_call := Expr.new(own NodeType.FCall(FCallData()), tr_line, tr_col)
+        simd_call.add_child(own Expr.new(own ident_node(p.symbols.intern(name)), tr_line, tr_col))
         simd_elem := parse_type_ref(p)
-        simd_call.add_child(own Expr.new(ident_node(p.symbols.intern(simd_elem)), tr_line, tr_col))
+        simd_call.add_child(own Expr.new(own ident_node(p.symbols.intern(simd_elem)), tr_line, tr_col))
         expect_token(p, TokenType.Comma)
         simd_call.add_child(own parse_expression(p))
         expect_token(p, TokenType.RParen)
         lifted := format("Simd__source", p.anon_type_counter.to_str())
         p.anon_type_counter++
-        mut simd_decl := Expr.new(NodeType.Decl(Declaration(name = lifted.clone())), tr_line, tr_col)
+        mut simd_decl := Expr.new(own NodeType.Decl(Declaration(name = lifted.clone())), tr_line, tr_col)
         simd_decl.add_child(own simd_call)
         p.type_gen_decls.push(own simd_decl)
         return lifted
@@ -601,13 +601,13 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     for i in 0..ptypes.len() {
         fd.sig.params.push(own decl_typed(p.symbols, type_name = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
     }
-    mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
+    mut sig := Expr.new(own NodeType.FuncDef(fd), line, col)
 
     // Wrap in Decl and store for later emission. The synthetic
     // ~_Fn_*~ name is only ever referenced from the parameter type
     // annotations the parser just wrote, all inside the same file --
     // mark priv so the unused-priv check would flag any leak.
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
     decl.add_child(own sig)
     p.fn_sig_decls.push(own decl)
 
@@ -622,7 +622,7 @@ priv parse_block := proc(mut p: Parser) returns Expr {
     // unconsumed inner doc text at '}' is discarded.
     saved_doc := p.pending_doc.clone()
     p.pending_doc = ""
-    mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+    mut body := Expr.new(own NodeType.Body, peek_line(p), peek_col(p))
     while true {
         drain_doc_comments(p)
         if check(p, TokenType.RBrace).or(check(p, TokenType.Eof)) { break }
@@ -666,7 +666,7 @@ priv parse_body_value := proc(mut p: Parser) returns Expr {
     }
     expect_token(p, TokenType.LBrace)
     mut body := parse_block(p)
-    mut node := Expr.new(NodeType.BodyValue(bd), line, col)
+    mut node := Expr.new(own NodeType.BodyValue(bd), line, col)
     node.add_child(own body)
     return node
 }
@@ -850,7 +850,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
-            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, decl_type_name(param_decl, p.symbols)))
+            param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, decl_type_name_ref(param_decl, p.symbols)))
             has_default = true
         }
         if fd.sig.variadic_index.neq(-1).and(is_variadic.or(is_kwargs).or(has_default).not()) {
@@ -905,7 +905,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         fd.captures = parse_capture_list(p)
     }
 
-    mut def := Expr.new(NodeType.FuncDef(fd), kw_line, kw_col)
+    mut def := Expr.new(own NodeType.FuncDef(fd), kw_line, kw_col)
 
     if check(p, TokenType.LBrace) {
         body_line := peek_line(p)
@@ -1021,9 +1021,9 @@ priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec(Declaration),
     for gp : Declaration in gparams {
         fd.sig.params.push(own gp.clone())
     }
-    mut def := Expr.new(NodeType.FuncDef(fd), line, col)
-    mut body := Expr.new(NodeType.Body, line, col)
-    mut ret := Expr.new(NodeType.Return, line, col)
+    mut def := Expr.new(own NodeType.FuncDef(fd), line, col)
+    mut body := Expr.new(own NodeType.Body, line, col)
+    mut ret := Expr.new(own NodeType.Return, line, col)
     ret.add_child(own sdef)
     body.add_child(own ret)
     def.add_child(own body)
@@ -1045,9 +1045,9 @@ priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec(Declaration), l
     for gp : Declaration in gparams {
         fd.sig.params.push(own gp.clone())
     }
-    mut def := Expr.new(NodeType.FuncDef(fd), line, col)
-    mut body := Expr.new(NodeType.Body, line, col)
-    mut ret := Expr.new(NodeType.Return, line, col)
+    mut def := Expr.new(own NodeType.FuncDef(fd), line, col)
+    mut body := Expr.new(own NodeType.Body, line, col)
+    mut ret := Expr.new(own NodeType.Return, line, col)
     ret.add_child(own fdef)
     body.add_child(own ret)
     def.add_child(own body)
@@ -1064,7 +1064,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     is_ext := c_tag.len() > 0
     if is_ext.not() { advance(p) }
 
-    mut def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
+    mut def := Expr.new(own NodeType.StructDef(StructDef()), kw_line, kw_col)
     // The caller just built this node as a StructDef.
     ref mut sdd : StructDef = structdef_of(def)
     if is_ext {
@@ -1193,7 +1193,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p) // consume 'interface'
 
-    mut def := Expr.new(NodeType.StructDef(StructDef(is_interface = true)), kw_line, kw_col)
+    mut def := Expr.new(own NodeType.StructDef(StructDef(is_interface = true)), kw_line, kw_col)
     expect_token(p, TokenType.LBrace)
 
     saved_doc := p.pending_doc.clone()
@@ -1258,7 +1258,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p)
 
-    mut def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
+    mut def := Expr.new(own NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     // The caller just built this node as an EnumDef.
     ref mut edd : EnumDef = enumdef_of(def)
 
@@ -1447,7 +1447,7 @@ priv parse_named_arg := proc(mut p: Parser, mut call: Expr) returns Bool {
     na_col := peek_col(p)
     aname := expect_text(p, TokenType.Ident)
     advance(p) // consume '='
-    mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col)
+    mut na := Expr.new(own NodeType.NamedArg(aname), na_line, na_col)
     na.add_child(own parse_expression(p))
     call.add_child(own na)
     if check(p, TokenType.Comma) { advance(p) }
@@ -1469,14 +1469,14 @@ priv append_arg := func(mut p: Parser, mut call: Expr, own arg: Expr, is_own_arg
         lifted_name := anon_lift(p, own arg, arg_line, arg_col)
         if is_own_arg {
             set_own_arg(call, call.children.len())
-            mut sd_callee := Expr.new(ident_node(p.symbols.intern(helper)), arg_line, arg_col)
-            mut sd_strlit := Expr.new(NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
-            mut sd_call := Expr.new(NodeType.FCall(FCallData()), arg_line, arg_col)
+            mut sd_callee := Expr.new(own ident_node(p.symbols.intern(helper)), arg_line, arg_col)
+            mut sd_strlit := Expr.new(own NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
+            mut sd_call := Expr.new(own NodeType.FCall(FCallData()), arg_line, arg_col)
             sd_call.add_child(own sd_callee)
             sd_call.add_child(own sd_strlit)
             call.add_child(own sd_call)
         } else {
-            call.add_child(own Expr.new(ident_node(p.symbols.intern(lifted_name)), arg_line, arg_col))
+            call.add_child(own Expr.new(own ident_node(p.symbols.intern(lifted_name)), arg_line, arg_col))
         }
     } else {
         if is_own_arg { set_own_arg(call, call.children.len()) }
@@ -1548,7 +1548,7 @@ priv CALL_INITIAL_CHILD_CAPACITY : USize = 2
 priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U32) returns Expr {
     expect_token(p, TokenType.LParen)
 
-    mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), call_line, call_col)
     if check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         call.children = Vec(Expr).with_capacity(CALL_INITIAL_CHILD_CAPACITY)
     }
@@ -1568,7 +1568,7 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
             if check(p, TokenType.Comma).or(check(p, TokenType.RParen)) {
                 rp_line := peek_line(p)
                 rp_col := peek_col(p)
-                call.add_child(own Expr.new(NodeType.RestPattern, rp_line, rp_col))
+                call.add_child(own Expr.new(own NodeType.RestPattern, rp_line, rp_col))
                 if check(p, TokenType.Comma) { advance(p) }
                 continue
             }
@@ -1688,7 +1688,7 @@ priv fold_const_and_or := func(own call: Expr, symbols: SymbolPool) returns Expr
         n++
     }
     if n < 2 { return call }
-    return Expr.new(NodeType.Literal(Literal.Bool(acc)), call.line, call.col)
+    return Expr.new(own NodeType.Literal(Literal.Bool(acc)), call.line, call.col)
 }
 
 priv nest_nary_and_or := func(own call: Expr, mut symbols: SymbolPool) returns Expr {
@@ -1740,8 +1740,8 @@ priv nest_nary_and_or := func(own call: Expr, mut symbols: SymbolPool) returns E
     acc.push(own last)
     while call.children.len() > keep + 1 {
         mut operand := call.children.pop()
-        mut inner := Expr.new(NodeType.FCall(FCallData()), operand.line, operand.col)
-        mut inner_callee := Expr.new(ident_node(symbols.intern(name)), operand.line, operand.col)
+        mut inner := Expr.new(own NodeType.FCall(FCallData()), operand.line, operand.col)
+        mut inner_callee := Expr.new(own ident_node(symbols.intern(name)), operand.line, operand.col)
         inner.add_child(own inner_callee)
         inner.add_child(own operand)
         mut prev := acc.pop()
@@ -1762,9 +1762,9 @@ priv nest_nary_and_or := func(own call: Expr, mut symbols: SymbolPool) returns E
 priv BINARY_CALL_CHILD_COUNT : USize = 2
 
 priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr, mut symbols: SymbolPool) returns Expr {
-    mut callee := Expr.new(field_access_node(symbols.intern(method)), op_line, op_col)
+    mut callee := Expr.new(own field_access_node(symbols.intern(method)), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
-    mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), op_line, op_col)
     call.children = Vec(Expr).with_capacity(BINARY_CALL_CHILD_COUNT)
     Expr.add_child(call, own callee)
     Expr.add_child(call, own rhs)
@@ -1785,7 +1785,7 @@ take_expr := func(mut e: Expr) returns Expr {
     // so every node of that copy was thrown away. The swap leaves `e`
     // holding the same empty Body it was left holding before, with its
     // own line and col.
-    mut taken := Expr.new(NodeType.Body, e.line, e.col)
+    mut taken := Expr.new(own NodeType.Body, e.line, e.col)
     swap(Expr, e, taken)
     return taken
 }
@@ -1795,7 +1795,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     ref t : Token = peek(p)
-    mut e := Expr.new(NodeType.Body, 0, 0) // placeholder
+    mut e := Expr.new(own NodeType.Body, 0, 0) // placeholder
     mut e_set := false
 
     switch t.type {
@@ -1811,15 +1811,15 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // Ident cannot come from source (the lexer needs at least one
         // character), so it is an unambiguous marker, and any that
         // survives to the typer outside a case pattern is a hard error.
-        e = Expr.new(ident_node(p.symbols.intern("")), t_line, t_col)
+        e = Expr.new(own ident_node(p.symbols.intern("")), t_line, t_col)
         e_set = true
     case .StringTok:
         advance(p)
-        e = Expr.new(NodeType.Literal(Literal.Str(tok_text(p, t).clone())), t_line, t_col)
+        e = Expr.new(own NodeType.Literal(Literal.Str(tok_text(p, t).clone())), t_line, t_col)
         e_set = true
     case .Number:
         advance(p)
-        e = Expr.new(literal_num_node(tok_text(p, t)), t_line, t_col)
+        e = Expr.new(own literal_num_node(tok_text(p, t)), t_line, t_col)
         e_set = true
     case .Minus:
         // Unary minus: -N (literal) parses as a single negative numeric
@@ -1830,14 +1830,14 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             if p.tokens[p.pos + 1].type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                e = Expr.new(literal_num_node(format("-", tok_text(p, num_tok))), t_line, t_col)
+                e = Expr.new(own literal_num_node(format("-", tok_text(p, num_tok))), t_line, t_col)
                 e_set = true
             } else {
                 advance(p) // consume '-'
                 mut operand := parse_primary(p)
-                mut neg_access := Expr.new(field_access_node(p.symbols.intern("neg")), t_line, t_col)
+                mut neg_access := Expr.new(own field_access_node(p.symbols.intern("neg")), t_line, t_col)
                 neg_access.add_child(own operand)
-                mut neg_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
+                mut neg_call := Expr.new(own NodeType.FCall(FCallData()), t_line, t_col)
                 neg_call.add_child(own neg_access)
                 e = neg_call
                 e_set = true
@@ -1846,9 +1846,9 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     case .Bang:
         advance(p) // consume '!'
         mut operand := parse_primary(p)
-        mut not_access := Expr.new(field_access_node(p.symbols.intern("not")), t_line, t_col)
+        mut not_access := Expr.new(own field_access_node(p.symbols.intern("not")), t_line, t_col)
         not_access.add_child(own operand)
-        mut not_call := Expr.new(NodeType.FCall(FCallData()), t_line, t_col)
+        mut not_call := Expr.new(own NodeType.FCall(FCallData()), t_line, t_col)
         not_call.add_child(own not_access)
         e = not_call
         e_set = true
@@ -1871,16 +1871,16 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         } else {
             if ch.len() > 0 { byte_val = ch.get(0).cast(I64) }
         }
-        e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
+        e = Expr.new(own literal_num_node(byte_val.to_str()), t_line, t_col)
         e.set_til_type(Type.Primitive(Primitive.U8))
         e_set = true
     case .KwTrue:
         advance(p)
-        e = Expr.new(NodeType.Literal(Literal.Bool(true)), t_line, t_col)
+        e = Expr.new(own NodeType.Literal(Literal.Bool(true)), t_line, t_col)
         e_set = true
     case .KwFalse:
         advance(p)
-        e = Expr.new(NodeType.Literal(Literal.Bool(false)), t_line, t_col)
+        e = Expr.new(own NodeType.Literal(Literal.Bool(false)), t_line, t_col)
         e_set = true
     case .Ident:
         advance(p)
@@ -1893,22 +1893,22 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // field default to the CALL SITE instead). Expanding at parse time
             // would bake in the definition site, so a defaulted __LOC__ could
             // never report the caller.
-            e = Expr.new(NodeType.Loc, t_line, t_col)
+            e = Expr.new(own NodeType.Loc, t_line, t_col)
             e_set = true
         } else if name == "__FILE__" {
-            e = Expr.new(NodeType.Literal(Literal.Str(p.path.clone())), t_line, t_col)
+            e = Expr.new(own NodeType.Literal(Literal.Str(p.path.clone())), t_line, t_col)
             e_set = true
         } else if name == "__LINE__" {
-            e = Expr.new(literal_num_node(t_line.to_str()), t_line, t_col)
+            e = Expr.new(own literal_num_node(t_line.to_str()), t_line, t_col)
             e_set = true
         } else if name == "__COL__" {
-            e = Expr.new(literal_num_node(t_col.to_str()), t_line, t_col)
+            e = Expr.new(own literal_num_node(t_col.to_str()), t_line, t_col)
             e_set = true
         } else if check(p, TokenType.LParen) {
-            e = parse_call(p, own Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
+            e = parse_call(p, own Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
             e_set = true
         } else {
-            e = Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
+            e = Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col)
             e_set = true
         }
     // Function literals and ext_struct return directly, bypassing the
@@ -1926,7 +1926,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // stays a StructDef literal as before (named struct decls, etc).
         if check(p, TokenType.LParen) {
             name := anon_lift(p, own sdef, t_line, t_col)
-            e = parse_call(p, own Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
+            e = parse_call(p, own Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
             e_set = true
         } else {
             return sdef
@@ -1958,7 +1958,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         mut edef := parse_enum_def(p)
         if check(p, TokenType.Dot) {
             name := anon_lift(p, own edef, t_line, t_col)
-            e = Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
+            e = Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col)
             e_set = true
         } else {
             return edef
@@ -1968,7 +1968,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         mut first := parse_expression(p)
         if check(p, TokenType.Colon) {
             // Map literal
-            e = Expr.new(NodeType.Literal(Literal.MapLit), t_line, t_col)
+            e = Expr.new(own NodeType.Literal(Literal.MapLit), t_line, t_col)
             e.add_child(own first)
             advance(p) // consume ':'
             e.add_child(own parse_expression(p))
@@ -1981,7 +1981,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             }
         } else {
             // Set literal
-            e = Expr.new(NodeType.Literal(Literal.SetLit), t_line, t_col)
+            e = Expr.new(own NodeType.Literal(Literal.SetLit), t_line, t_col)
             e.add_child(own first)
             if check(p, TokenType.Comma) { advance(p) }
             while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
@@ -2005,7 +2005,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // whole `match` yields a value. Returns directly (bypassing the
         // postfix chain) -- use `(match ...).method()` if a postfix is needed.
         advance(p)
-        mut node := Expr.new(NodeType.Match(MatchData()), t_line, t_col)
+        mut node := Expr.new(own NodeType.Match(MatchData()), t_line, t_col)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
         while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
@@ -2013,7 +2013,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // Arm body is a single value-expression, wrapped in a Body so the
             // arm shape matches a switch Case (lets the typer reuse the switch
             // desugar). Block-valued arms are deferred (issue #244).
-            mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+            mut cb := Expr.new(own NodeType.Body, peek_line(p), peek_col(p))
             cb.add_child(own parse_expression(p))
             cn.add_child(own cb)
             node.add_child(own cn)
@@ -2060,9 +2060,9 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             advance(p) // consume '['
             mut index := parse_expression(p)
             expect_token(p, TokenType.RBracket)
-            mut get_callee := Expr.new(field_access_node(p.symbols.intern("get")), b_line, b_col)
+            mut get_callee := Expr.new(own field_access_node(p.symbols.intern("get")), b_line, b_col)
             get_callee.add_child(own e.clone())
-            mut get_call := Expr.new(NodeType.FCall(FCallData()), b_line, b_col)
+            mut get_call := Expr.new(own NodeType.FCall(FCallData()), b_line, b_col)
             get_call.children = Vec(Expr).with_capacity(BINARY_CALL_CHILD_COUNT)
             get_call.add_child(own get_callee)
             get_call.add_child(own index)
@@ -2076,11 +2076,11 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         fname := expect_text(p, TokenType.Ident)
         if check(p, TokenType.LParen) {
             // Method call: e.method(args)
-            mut callee := Expr.new(field_access_node(p.symbols.intern(fname)), f_line, f_col)
+            mut callee := Expr.new(own field_access_node(p.symbols.intern(fname)), f_line, f_col)
             callee.add_child(own take_expr(e))
             e = parse_call(p, own callee, f_line, f_col)
         } else {
-            mut access := Expr.new(field_access_node(p.symbols.intern(fname)), f_line, f_col)
+            mut access := Expr.new(own field_access_node(p.symbols.intern(fname)), f_line, f_col)
             access.add_child(own take_expr(e))
             e = access
         }
@@ -2090,9 +2090,9 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         pp_line := peek_line(p)
         pp_col := peek_col(p)
         advance(p)
-        mut inc_access := Expr.new(field_access_node(p.symbols.intern("inc")), pp_line, pp_col)
+        mut inc_access := Expr.new(own field_access_node(p.symbols.intern("inc")), pp_line, pp_col)
         inc_access.add_child(own take_expr(e))
-        mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
+        mut inc_call := Expr.new(own NodeType.FCall(FCallData()), pp_line, pp_col)
         inc_call.add_child(own inc_access)
         e = inc_call
     }
@@ -2100,9 +2100,9 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         mm_line := peek_line(p)
         mm_col := peek_col(p)
         advance(p)
-        mut dec_access := Expr.new(field_access_node(p.symbols.intern("dec")), mm_line, mm_col)
+        mut dec_access := Expr.new(own field_access_node(p.symbols.intern("dec")), mm_line, mm_col)
         dec_access.add_child(own take_expr(e))
-        mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col)
+        mut dec_call := Expr.new(own NodeType.FCall(FCallData()), mm_line, mm_col)
         dec_call.add_child(own dec_access)
         e = dec_call
     }
@@ -2189,10 +2189,10 @@ priv parse_expression := proc(mut p: Parser) returns Expr {
         dt_col := peek_col(p)
         advance(p)
         mut rhs := parse_expression(p)
-        mut range_ident := Expr.new(ident_node(p.symbols.intern("Range")), dt_line, dt_col)
-        mut new_access := Expr.new(field_access_node(p.symbols.intern("new")), dt_line, dt_col)
+        mut range_ident := Expr.new(own ident_node(p.symbols.intern("Range")), dt_line, dt_col)
+        mut new_access := Expr.new(own field_access_node(p.symbols.intern("new")), dt_line, dt_col)
         new_access.add_child(own range_ident)
-        mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
+        mut rcall := Expr.new(own NodeType.FCall(FCallData()), dt_line, dt_col)
         rcall.children = Vec(Expr).with_capacity(RANGE_CALL_CHILD_COUNT)
         rcall.add_child(own new_access)
         rcall.add_child(own take_expr(e))
@@ -2222,9 +2222,9 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         // Namespace sugar: Name := namespace { ... }
         if check(p, TokenType.KwNamespace) {
             advance(p)
-            mut def := Expr.new(NodeType.StructDef(StructDef()), t_line, t_col)
+            mut def := Expr.new(own NodeType.StructDef(StructDef()), t_line, t_col)
             expect_token(p, TokenType.LBrace)
-            mut body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+            mut body := Expr.new(own NodeType.Body, peek_line(p), peek_col(p))
             while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
                 mut stmt := parse_statement(p)
                 switch stmt.node_type {
@@ -2242,13 +2242,13 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             expect_token(p, TokenType.RBrace)
             def.add_child(own body)
             mut dd := Declaration(name = name.clone(), is_mut = is_mut, own_type = own_type)
-            mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
+            mut decl := Expr.new(own NodeType.Decl(dd), t_line, t_col)
             decl.add_child(own def)
             return decl
         }
 
         mut dd := Declaration(name = name.clone(), is_mut = is_mut, own_type = own_type)
-        mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
+        mut decl := Expr.new(own NodeType.Decl(dd), t_line, t_col)
         decl.add_child(own parse_expression(p))
         return decl
     }
@@ -2263,7 +2263,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         if check(p, TokenType.KwFunc).or(check(p, TokenType.KwProc)) {
             mut sig := parse_func_def(p)
             mut dd := Declaration(name = name.clone(), is_mut = is_mut, own_type = own_type)
-            mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
+            mut decl := Expr.new(own NodeType.Decl(dd), t_line, t_col)
             decl.add_child(own sig)
             return decl
         }
@@ -2330,25 +2330,25 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     ffd.sig.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
                 }
                 ffd.captures.move_from(own captures)
-                mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col)
+                mut fdef := Expr.new(own NodeType.FuncDef(ffd), t_line, t_col)
                 fdef.add_child(own body)
                 // Wrap in NODE_DECL with its declared type.
                 mut dd := decl_typed(p.symbols, name = name, type_name = type_name, is_mut = is_mut, own_type = own_type)
-                mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
+                mut decl := Expr.new(own NodeType.Decl(dd), t_line, t_col)
                 decl.add_child(own fdef)
                 return decl
             }
         }
 
         mut dd := decl_typed(p.symbols, name = name, type_name = type_name, is_mut = is_mut, own_type = own_type)
-        mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
+        mut decl := Expr.new(own NodeType.Decl(dd), t_line, t_col)
         decl.add_child(own parse_expr_for_decl_type(p, type_name))
         return decl
     }
 
     // Field access/assign or method call: name.field...
     if check(p, TokenType.Dot) {
-        mut obj := Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
+        mut obj := Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col)
         mut last_field := ""
         mut last_line : U32 = 0
         mut last_col : U32 = 0
@@ -2359,14 +2359,14 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             last_field = expect_text(p, TokenType.Ident)
             if check(p, TokenType.Dot) {
                 // More dots -- intermediate access
-                mut access := Expr.new(field_access_node(p.symbols.intern(last_field)), last_line, last_col)
+                mut access := Expr.new(own field_access_node(p.symbols.intern(last_field)), last_line, last_col)
                 access.add_child(own obj.clone())
                 obj = access
             }
         }
         // Method call: name.method(args)
         if check(p, TokenType.LParen) {
-            mut callee := Expr.new(field_access_node(p.symbols.intern(last_field)), last_line, last_col)
+            mut callee := Expr.new(own field_access_node(p.symbols.intern(last_field)), last_line, last_col)
             callee.add_child(own obj.clone())
             mut mcall := parse_call(p, own callee, last_line, last_col)
             // Chain further `.method(args)` calls: `f.write("a").write("b")`.
@@ -2380,7 +2380,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 chain_line := peek_line(p)
                 chain_col := peek_col(p)
                 chain_name := expect_text(p, TokenType.Ident)
-                mut chain_callee := Expr.new(field_access_node(p.symbols.intern(chain_name)), chain_line, chain_col)
+                mut chain_callee := Expr.new(own field_access_node(p.symbols.intern(chain_name)), chain_line, chain_col)
                 chain_callee.add_child(own mcall.clone())
                 mcall = parse_call(p, own chain_callee, chain_line, chain_col)
             }
@@ -2396,11 +2396,11 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             advance(p)
             mut method2 := "dec"
             if is_inc2 { method2 = "inc" }
-            mut facc := Expr.new(field_access_node(p.symbols.intern(last_field)), last_line, last_col)
+            mut facc := Expr.new(own field_access_node(p.symbols.intern(last_field)), last_line, last_col)
             facc.add_child(own obj.clone())
-            mut inc_acc := Expr.new(field_access_node(p.symbols.intern(method2)), pp2_line, pp2_col)
+            mut inc_acc := Expr.new(own field_access_node(p.symbols.intern(method2)), pp2_line, pp2_col)
             inc_acc.add_child(own facc)
-            mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp2_line, pp2_col)
+            mut inc_call := Expr.new(own NodeType.FCall(FCallData()), pp2_line, pp2_col)
             inc_call.add_child(own inc_acc)
             return inc_call
         }
@@ -2410,7 +2410,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         }
         // Field assignment: name.field = value
         expect_token(p, TokenType.Eq)
-        mut fa := Expr.new(NodeType.FieldAssign(FieldAssignData(name=last_field)), t_line, t_col)
+        mut fa := Expr.new(own NodeType.FieldAssign(FieldAssignData(name=last_field)), t_line, t_col)
         fa.add_child(own obj.clone())
         fa.add_child(own parse_expression(p))
         return fa
@@ -2419,7 +2419,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
     // Assignment: name = value
     if check(p, TokenType.Eq) {
         advance(p)
-        mut assign := Expr.new(NodeType.Assign(AssignData(name = name.clone())), t_line, t_col)
+        mut assign := Expr.new(own NodeType.Assign(AssignData(name = name.clone())), t_line, t_col)
         assign.add_child(own parse_expression(p))
         return assign
     }
@@ -2429,7 +2429,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
     // `gswap_angle(I64)(x, y)` mirrors expression-position chaining done
     // by parse_primary).
     if check(p, TokenType.LParen) {
-        mut call := parse_call(p, own Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
+        mut call := parse_call(p, own Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col), t_line, t_col)
         while check(p, TokenType.LParen) {
             pc_line := peek_line(p)
             pc_col := peek_col(p)
@@ -2453,7 +2453,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     parse_fail(p, t_line, t_col, "left side of '=' is not a field access")
                 }
                 advance(p) // consume '='
-                mut fa := Expr.new(NodeType.FieldAssign(FieldAssignData(name = fa_name)), t_line, t_col)
+                mut fa := Expr.new(own NodeType.FieldAssign(FieldAssignData(name = fa_name)), t_line, t_col)
                 fa.add_child(own chained.children[0].clone())
                 fa.add_child(own parse_expression(p))
                 return fa
@@ -2476,16 +2476,16 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         advance(p)
         mut method := "dec"
         if is_inc { method = "inc" }
-        mut ident := Expr.new(ident_node(p.symbols.intern(name)), t_line, t_col)
-        mut acc := Expr.new(field_access_node(p.symbols.intern(method)), pp_line, pp_col)
+        mut ident := Expr.new(own ident_node(p.symbols.intern(name)), t_line, t_col)
+        mut acc := Expr.new(own field_access_node(p.symbols.intern(method)), pp_line, pp_col)
         acc.add_child(own ident)
-        mut call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
+        mut call := Expr.new(own NodeType.FCall(FCallData()), pp_line, pp_col)
         call.add_child(own acc)
         return call
     }
 
     parse_fail(p, t_line, t_col, "expected ':=', ':', '=' or '(' after identifier '", name, "'")
-    return Expr.new(NodeType.Body, 0, 0) // unreachable
+    return Expr.new(own NodeType.Body, 0, 0) // unreachable
 }
 
 // parse_statement
@@ -2545,7 +2545,7 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
 // `switch` (statement-list body) and `match` (single value-expr body).
 priv parse_case_head := proc(mut p: Parser) returns Expr {
     expect_token(p, TokenType.KwCase)
-    mut cn := Expr.new(NodeType.Case(CaseData(pattern_count = 0)), peek_line(p), peek_col(p))
+    mut cn := Expr.new(own NodeType.Case(CaseData(pattern_count = 0)), peek_line(p), peek_col(p))
     mut pattern_count : USize = 0
     if check(p, TokenType.Colon).not() {
         // Issue #262: compile-time list pattern, `case []:` or
@@ -2557,14 +2557,14 @@ priv parse_case_head := proc(mut p: Parser) returns Expr {
             lp_line := peek_line(p)
             lp_col := peek_col(p)
             advance(p)
-            mut lp := Expr.new(NodeType.ListPattern, lp_line, lp_col)
+            mut lp := Expr.new(own NodeType.ListPattern, lp_line, lp_col)
             if check(p, TokenType.RBracket).not() {
                 head_name := expect_text(p, TokenType.Ident)
-                lp.add_child(own Expr.new(ident_node(p.symbols.intern(head_name)), lp_line, lp_col))
+                lp.add_child(own Expr.new(own ident_node(p.symbols.intern(head_name)), lp_line, lp_col))
                 expect_token(p, TokenType.Comma)
                 expect_token(p, TokenType.DotDot)
                 tail_name := expect_text(p, TokenType.Ident)
-                lp.add_child(own Expr.new(ident_node(p.symbols.intern(tail_name)), lp_line, lp_col))
+                lp.add_child(own Expr.new(own ident_node(p.symbols.intern(tail_name)), lp_line, lp_col))
             }
             expect_token(p, TokenType.RBracket)
             cn.add_child(own lp)
@@ -2600,12 +2600,12 @@ priv parse_switch := proc(mut p: Parser) returns Expr {
     sw_line := peek_line(p)
     sw_col := peek_col(p)
     advance(p)
-    mut node := Expr.new(NodeType.Switch, sw_line, sw_col)
+    mut node := Expr.new(own NodeType.Switch, sw_line, sw_col)
     node.add_child(own parse_expression(p))
     expect_token(p, TokenType.LBrace)
     while check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).not() {
         mut cn := parse_case_head(p)
-        mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+        mut cb := Expr.new(own NodeType.Body, peek_line(p), peek_col(p))
         while check(p, TokenType.KwCase).or(check(p, TokenType.RBrace)).or(check(p, TokenType.Eof)).not() {
             cb.add_child(own parse_statement(p))
         }
@@ -2651,7 +2651,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         } else {
             expect_token(p, TokenType.ColonEq)
         }
-        mut decl := Expr.new(NodeType.Decl(dd), i_line, i_col)
+        mut decl := Expr.new(own NodeType.Decl(dd), i_line, i_col)
         decl.add_child(own parse_expression(p))
         return decl
     case .KwMut:
@@ -2668,14 +2668,14 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         parse_fail(p, t_line, t_col, "redundant 'const' on local: locals are immutable by default; drop it")
     case .KwReturn:
         advance(p)
-        mut ret := Expr.new(NodeType.Return, t_line, t_col)
+        mut ret := Expr.new(own NodeType.Return, t_line, t_col)
         if check(p, TokenType.RBrace).or(check(p, TokenType.Eof)).or(check(p, TokenType.KwCase)).not() {
             ret.add_child(own parse_expression(p))
         }
         return ret
     case .KwIf:
         advance(p)
-        mut node := Expr.new(NodeType.If, t_line, t_col)
+        mut node := Expr.new(own NodeType.If, t_line, t_col)
         node.children = Vec(Expr).with_capacity(CONTROL_FLOW_CHILD_COUNT)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
@@ -2683,7 +2683,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.KwElse) {
             advance(p)
             if check(p, TokenType.KwIf) {
-                mut else_body := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+                mut else_body := Expr.new(own NodeType.Body, peek_line(p), peek_col(p))
                 else_body.add_child(own parse_statement(p))
                 node.add_child(own else_body)
             } else {
@@ -2709,13 +2709,13 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     case .LBracket:
         mut cbd := CaptureBlockData()
         cbd.captures = parse_capture_list(p)
-        mut cb := Expr.new(NodeType.CaptureBlock(cbd), t_line, t_col)
+        mut cb := Expr.new(own NodeType.CaptureBlock(cbd), t_line, t_col)
         expect_token(p, TokenType.LBrace)
         cb.add_child(own parse_block(p))
         return cb
     case .KwWhile:
         advance(p)
-        mut node := Expr.new(NodeType.While, t_line, t_col)
+        mut node := Expr.new(own NodeType.While, t_line, t_col)
         node.children = Vec(Expr).with_capacity(CONTROL_FLOW_CHILD_COUNT)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
@@ -2748,7 +2748,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             }
             fid.name2 = expect_text(p, TokenType.Ident)
         }
-        mut node := Expr.new(NodeType.ForIn(fid), i_line, i_col)
+        mut node := Expr.new(own NodeType.ForIn(fid), i_line, i_col)
         node.children = Vec(Expr).with_capacity(CONTROL_FLOW_CHILD_COUNT)
         if has_declared_type {
             node.set_til_type(declared_type)
@@ -2791,14 +2791,14 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         return expr
     case .KwBreak:
         advance(p)
-        return Expr.new(NodeType.Break, t_line, t_col)
+        return Expr.new(own NodeType.Break, t_line, t_col)
     case .KwContinue:
         advance(p)
-        return Expr.new(NodeType.Continue, t_line, t_col)
+        return Expr.new(own NodeType.Continue, t_line, t_col)
     // Issue #198: `throw <expr>`. One child = thrown expression.
     case .KwThrow:
         advance(p)
-        mut tn := Expr.new(NodeType.Throw, t_line, t_col)
+        mut tn := Expr.new(own NodeType.Throw, t_line, t_col)
         tn.add_child(own parse_expression(p))
         return tn
     // Issue #198: `catch (err: T) { body }`.
@@ -2816,16 +2816,16 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.RParen)
         expect_token(p, TokenType.LBrace)
         mut body := parse_block(p)
-        mut cn := Expr.new(NodeType.Catch, t_line, t_col)
-        cn.add_child(own Expr.new(ident_node(p.symbols.intern(var_name)), v_line, v_col))
-        cn.add_child(own Expr.new(ident_node(p.symbols.intern(type_name)), ty_line, ty_col))
+        mut cn := Expr.new(own NodeType.Catch, t_line, t_col)
+        cn.add_child(own Expr.new(own ident_node(p.symbols.intern(var_name)), v_line, v_col))
+        cn.add_child(own Expr.new(own ident_node(p.symbols.intern(type_name)), ty_line, ty_col))
         cn.add_child(own body)
         return cn
     case:
     }
 
     parse_fail(p, t_line, t_col, "expected statement, found '", tok_text(p, t), "'")
-    return Expr.new(NodeType.Body, 0, 0) // unreachable
+    return Expr.new(own NodeType.Body, 0, 0) // unreachable
 }
 
 // parse: entry point
@@ -2853,7 +2853,7 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
     // Parse body. Drain leading doc comments before the EOF check so
     // trailing /// lines (e.g. a single-line REPL input) don't panic when
     // there's no following statement to attach them to.
-    mut root := Expr.new(NodeType.Body, 1, 1)
+    mut root := Expr.new(own NodeType.Body, 1, 1)
     while true {
         drain_doc_comments(p)
         if check(p, TokenType.Eof) { break }
@@ -2907,6 +2907,67 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 // the primitive spellings and the StructDef/FuncDef/... table stay in one
 // place. Lives HERE, not context.til, because parser-only programs
 // (til ast, the parsing tests) load this file without context.til.
+// Stable storage for decl_type_name_ref's fixed answers: it returns a ref,
+// so the spellings of the payload-less variants need storage that outlives
+// every caller. Same table as core's Declaration.type_name.
+priv DTN_I8 : Str = "I8"
+priv DTN_U8 : Str = "U8"
+priv DTN_I16 : Str = "I16"
+priv DTN_U16 : Str = "U16"
+priv DTN_I32 : Str = "I32"
+priv DTN_U32 : Str = "U32"
+priv DTN_I64 : Str = "I64"
+priv DTN_U64 : Str = "U64"
+priv DTN_F32 : Str = "F32"
+priv DTN_F64 : Str = "F64"
+priv DTN_BOOL : Str = "Bool"
+priv DTN_NONE : Str = "None"
+priv DTN_STRUCTDEF : Str = "StructDef"
+priv DTN_ENUMDEF : Str = "EnumDef"
+priv DTN_FUNCTIONDEF : Str = "FunctionDef"
+priv DTN_FN : Str = "Fn"
+priv DTN_BODY : Str = "Body"
+priv DTN_DYNAMIC : Str = "Dynamic"
+priv DTN_EMPTY : Str = ""
+
+// Borrowing twin of decl_type_name, for the callers that only read the name
+// (compare it, pass it on, measure it) -- most of them. The owning form
+// clones a payload spelling per call (164K calls per first_class
+// translate); this one hands back a ref into the Type's payload, the pool's
+// names vector, or the table above. The Declaration must outlive the ref
+// and keep its til_type unchanged while the ref is held.
+decl_type_name_ref := func(dd: Declaration, symbols: SymbolPool) returns ref Str {
+    switch dd.til_type {
+    case .Struct(s):     return s
+    case .Enum(s):       return s
+    case .Custom(s):     return s
+    case .FuncPtrSig(s): return s
+    case .StructSym(s_sym):     return symbols.resolve(s_sym)
+    case .EnumSym(e_sym):       return symbols.resolve(e_sym)
+    case .CustomSym(c_sym):     return symbols.resolve(c_sym)
+    case .FuncPtrSigSym(f_sym): return symbols.resolve(f_sym)
+    case .Primitive(Primitive.I8): return DTN_I8
+    case .Primitive(Primitive.U8): return DTN_U8
+    case .Primitive(Primitive.I16): return DTN_I16
+    case .Primitive(Primitive.U16): return DTN_U16
+    case .Primitive(Primitive.I32): return DTN_I32
+    case .Primitive(Primitive.U32): return DTN_U32
+    case .Primitive(Primitive.I64): return DTN_I64
+    case .Primitive(Primitive.U64): return DTN_U64
+    case .Primitive(Primitive.F32): return DTN_F32
+    case .Primitive(Primitive.F64): return DTN_F64
+    case .Primitive(Primitive.Bool): return DTN_BOOL
+    case .None: return DTN_NONE
+    case .StructDef: return DTN_STRUCTDEF
+    case .EnumDef: return DTN_ENUMDEF
+    case .FuncDef: return DTN_FUNCTIONDEF
+    case .FuncPtr: return DTN_FN
+    case .Body: return DTN_BODY
+    case .Dynamic: return DTN_DYNAMIC
+    case: return DTN_EMPTY
+    }
+}
+
 decl_type_name := func(dd: Declaration, symbols: SymbolPool) returns Str {
     switch dd.til_type {
     case .StructSym(s_sym):     return Str.clone(symbols.resolve(s_sym))

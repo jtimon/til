@@ -162,7 +162,7 @@ priv jvm_funcsig_class := func(fd: FunctionDef, symbols: SymbolPool) returns Str
         if param.own_type.is(OwnType.Ref) { ownership = "ref" }
         else if param.own_type.is(OwnType.Shallow) { ownership = "shallow" }
         if param.is_mut { ownership = format(ownership, "_mut") }
-        key = format(key, "__", ownership, "_", decl_type_name(param, symbols))
+        key = format(key, "__", ownership, "_", decl_type_name_ref(param, symbols))
     }
     if fd.sig.return_type.len() == 0 { key = format(key, "__void") }
     else {
@@ -851,11 +851,11 @@ priv jvm_signature_param_type := func(fd: FunctionDef, i: USize,
         ref param : Declaration = fd.sig.params[i]
         mut param_type := param.til_type.clone()
         if fd.sig.variadic_index == i.to_i32() {
-            param_type = Type.StructSym(sym_of(format("Array__", decl_type_name(param, lp.ctx.symbols)), lp.ctx.symbols))
+            param_type = Type.StructSym(sym_of(format("Array__", decl_type_name_ref(param, lp.ctx.symbols)), lp.ctx.symbols))
         }
         mut out := jvm_type_lp(param_type, lp)
         if out.len() == 0 {
-            param_type = type_from_name_init_name(decl_type_name(param, lp.ctx.symbols), lp.ctx.scope, lp.ctx.symbols)
+            param_type = type_from_name_init_name(decl_type_name_ref(param, lp.ctx.symbols), lp.ctx.scope, lp.ctx.symbols)
             out = jvm_type_lp(param_type, lp)
         }
         if jvm_param_needs_cell(fd, i) { return jvm_cell_type(param_type) }
@@ -1115,10 +1115,10 @@ priv jvm_emit_struct_ctor := proc(e: Expr, name: Str,
                 arg = jvm_emit_expr(e.children[i], state, lp)
             }
             arg_type := jvm_type(e.children[i].til_type(), lp.ctx.symbols)
-            if decl_type_name(field, lp.ctx.symbols).eq("USize").and(arg_type != "int") {
+            if decl_type_name_ref(field, lp.ctx.symbols).eq("USize").and(arg_type != "int") {
                 arg = format("(int) (", arg, ")")
             }
-            if decl_type_name(field, lp.ctx.symbols).eq("UPtr").and(arg_type != "long") {
+            if decl_type_name_ref(field, lp.ctx.symbols).eq("UPtr").and(arg_type != "long") {
                 arg = format("(long) (", arg, ")")
             }
             args = format(args, arg)
@@ -2294,7 +2294,7 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
                 if field.own_type.is(OwnType.Ref) { param_type = field_type.clone() }
             }
             if field_type.len() == 0 {
-                jvm_fail_expr(def_expr, format("field type '", decl_type_name(field, lp.ctx.symbols), "'"), state, lp.ctx.symbols.names)
+                jvm_fail_expr(def_expr, format("field type '", decl_type_name_ref(field, lp.ctx.symbols), "'"), state, lp.ctx.symbols.names)
             }
             jname := jvm_field_name(fname)
             fields = format(fields, "    ", field_type, " ", jname, ";\n")
@@ -2649,7 +2649,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                 def_o := lp.ctx.scope.get_struct(type_name, lp.ctx.symbols)
                 if def_o.is_some() {
                     ref def_expr : Expr = def_o.unwrap()
-                    mut synthetic := Expr.new(NodeType.Decl(Declaration(name = type_name.clone())),
+                    mut synthetic := Expr.new(own NodeType.Decl(Declaration(name = type_name.clone())),
                         def_expr.line, def_expr.col)
                     synthetic.add_child(own def_expr.clone())
                     if def_expr.node_type.is(NodeType.StructDef) {
@@ -2677,7 +2677,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                     ref fd : FunctionDef = funcdef_of(fexpr)
                     if fd.sig.func_type.is_bodyless()
                         .or(jvm_runtime_bound_function(name)).not() {
-                        mut synthetic := Expr.new(NodeType.Decl(Declaration(name = name.clone())),
+                        mut synthetic := Expr.new(own NodeType.Decl(Declaration(name = name.clone())),
                             fexpr.line, fexpr.col)
                         synthetic.add_child(own fexpr.clone())
                         jvm_add_member(functions_out, jvm_func_name(name),

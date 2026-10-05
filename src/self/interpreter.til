@@ -59,7 +59,7 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
         if decl_is_funcsig(dd, ctx) { return false }
-        if decl_type_name(dd, ctx.symbols) == "Str" { return false }
+        if decl_type_name_ref(dd, ctx.symbols) == "Str" { return false }
         fsd_o := field_nested_def(dd, ctx)
         if fsd_o.is_some() {
             ref fsd : Expr = fsd_o.unwrap()
@@ -1580,9 +1580,9 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
         fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
         ref slot : Dynamic = ptr_add(data, fl.offset)
         if fd.own_type.is(OwnType.Shallow) {
-            ffi_borrow_place_walk(decl_type_name(fd, ctx.symbols), slot, root, visited, ctx)
+            ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), slot, root, visited, ctx)
         } else {
-            ffi_borrow_place_walk(decl_type_name(fd, ctx.symbols), deref(slot), root, visited, ctx)
+            ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), deref(slot), root, visited, ctx)
         }
     }
 }
@@ -1624,7 +1624,7 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         fl := place_field_layout(sname, fa.field_access_name(ctx.symbols.names), parent, ctx)
         ref slot : Dynamic = ptr_add(parent, fl.offset)
         if fdecl.own_type.is(OwnType.Shallow) {
-            if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(decl_type_name(fdecl, ctx.symbols), slot, ctx) }
+            if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), slot, ctx) }
             return safe_ref(Dynamic, slot)
         }
         // REM: a non-shallow field yields the STORED pointer. A field
@@ -1633,7 +1633,7 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         // already treat both as "no base" and error out, so nothing changes
         // today, and step 1's forbid removes the case entirely.
         ref stored : Dynamic = deref(slot)
-        if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(decl_type_name(fdecl, ctx.symbols), stored, ctx) }
+        if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), stored, ctx) }
         return safe_ref(Dynamic, stored)
     case .FCall:
         mut info := raw_result_info_new()
@@ -1747,11 +1747,11 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             if info.is_ref {
                 if fdecl.own_type.is(OwnType.Shallow).not() {
                     ref pointed : Dynamic = deref(ptr_add(base, fl.offset))
-                    if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name(fdecl, ctx.symbols), pointed, ctx) }
+                    if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), pointed, ctx) }
                     result : Dynamic = pointed
                     return result
                 }
-                if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name(fdecl, ctx.symbols), ptr_add(base, fl.offset), ctx) }
+                if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), ptr_add(base, fl.offset), ctx) }
                 return ptr_add(base, fl.offset)
             }
             return read_field(base, fdecl, fl.offset, fl.size, ctx)
@@ -2818,7 +2818,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname).unwrap()
                 wf_fl := place_field_layout(cur_sname, fname, base, ctx)
                 if ffi_place_is_foreign(base, ctx).and(fdecl.own_type.is(OwnType.Shallow)) {
-                    ffi_borrow_place(decl_type_name(fdecl, ctx.symbols), ptr_add(base, wf_fl.offset), ctx)
+                    ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), ptr_add(base, wf_fl.offset), ctx)
                 }
                 mut drop_field := fad.save_old_delete
                 if drop_field.and(fdecl.own_type.is(OwnType.Ref).not()).and(is_aggregate(fdecl.til_type)) {
@@ -3335,7 +3335,7 @@ priv bind_interface_receiver := proc(mut dispatch_scope: Scope, mut box: Dynamic
         ref payload_owned : Bool = ptr_add(box, owned_fl.offset)
         if payload_owned.not() {
             scope_set_raw_owned(dispatch_scope, payload_name, payload, interp_intern_type(concrete_type, ctx), OwnType.Ref, ctx, borrowed = true)
-            mut source := Expr.new(ident_node(ctx.symbols.intern(payload_name)), site.line, site.col)
+            mut source := Expr.new(own ident_node(ctx.symbols.intern(payload_name)), site.line, site.col)
             source.set_til_type(concrete_type)
             mut clone_call := make_clone_call(concrete_name, concrete_type, source, site, ctx.symbols)
             payload = eval_call(dispatch_scope, clone_call, ctx)
@@ -3346,7 +3346,7 @@ priv bind_interface_receiver := proc(mut dispatch_scope: Scope, mut box: Dynamic
     } else {
         scope_set_raw_owned(dispatch_scope, payload_name, payload, interp_intern_type(concrete_type, ctx), OwnType.Ref, ctx, borrowed = true)
     }
-    mut receiver := Expr.new(ident_node(ctx.symbols.intern(payload_name)), site.line, site.col)
+    mut receiver := Expr.new(own ident_node(ctx.symbols.intern(payload_name)), site.line, site.col)
     receiver.set_til_type(concrete_type)
     return receiver
 }
@@ -3371,7 +3371,7 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
     ref target : FunctionDef = funcdef_of(target_o.unwrap())
     mut dispatch_scope := scope_new(safe_ref(scope))
     mut call := e.clone()
-    mut type_id := Expr.new(ident_node(ctx.symbols.intern(concrete_name)), e.line, e.col)
+    mut type_id := Expr.new(own ident_node(ctx.symbols.intern(concrete_name)), e.line, e.col)
     type_id.set_til_type(concrete_type)
     call.children[0].children[0] = type_id
     mut boxes := Vec(InterfaceCallBox).new()
@@ -3379,7 +3379,7 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
     call.children[1] = bind_interface_receiver(dispatch_scope, box, iface_name, concrete_name, concrete_type, 0, own_self, e, ctx)
     for pi in 1..contract.sig.params.len() {
         ref param : Declaration = contract.sig.params[pi]
-        if decl_type_name(param, ctx.symbols) != iface_name { continue }
+        if decl_type_name_ref(param, ctx.symbols) != iface_name { continue }
         mut arg_info := raw_result_info_new()
         mut arg_box : Dynamic = 0
         if param.own_type.is(OwnType.Own).and(e.children[pi + 1].node_type.is(NodeType.Ident)) {
@@ -3490,7 +3490,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                         if fp_fdef.sig.return_type.len() > 0 { concrete_result_type = type_from_name_init_name(fp_fdef.sig.return_type, ctx.scope, ctx.symbols) }
                         // Swapped in, not cloned: the dispatch only needs the
                         // callee slot to hold a flat Ident for this call.
-                        mut flat_ident := Expr.new(ident_node(ctx.symbols.intern(fp_flat)), callee_expr.line, callee_expr.col)
+                        mut flat_ident := Expr.new(own ident_node(ctx.symbols.intern(fp_flat)), callee_expr.line, callee_expr.col)
                         flat_ident.set_til_type(Type.FuncDef)
                         swap(Expr, e.children[0], flat_ident)
                         e.set_til_type(concrete_result_type)
@@ -3568,7 +3568,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 // If the receiver type is unknown (eg Dynamic), fall back to
                 // the unqualified top-level name. Required for and/or/not.
                 orig_direct_result_type := call_type.clone()
-                mut flat_ident2 := Expr.new(ident_node(ctx.symbols.intern(flat_str)), callee_expr.line, callee_expr.col)
+                mut flat_ident2 := Expr.new(own ident_node(ctx.symbols.intern(flat_str)), callee_expr.line, callee_expr.col)
                 flat_ident2.set_til_type(Type.FuncDef)
                 swap(Expr, e.children[0], flat_ident2)
                 e.set_til_type(direct_result_type)
@@ -6155,7 +6155,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
 
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
     ffi_reset(lp.ctx)
-    empty := Expr.new(NodeType.Body, 0, 0)
+    empty := Expr.new(own NodeType.Body, 0, 0)
     ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
     if ffi_rc.eq(0).not() { return ffi_rc }
     runtime_ext_path := realpath_str(lp.ext_c_path)
@@ -6294,7 +6294,7 @@ priv interp_body_slice_clear := func(mut body: Expr) {
 
 priv interp_eval_program_slice := proc(mut session: InterpSession, mut lp: LoadedProgram, mut program: Expr, start_idx: USize, count: USize) {
     if count == 0 { return }
-    mut body := Expr.new(NodeType.Body, 0, 0)
+    mut body := Expr.new(own NodeType.Body, 0, 0)
     interp_body_slice(program, start_idx, count, body)
     eval_body(session_global(session), body, lp.ctx)
     interp_body_slice_clear(body)
@@ -6528,7 +6528,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         // stride and CLI parsing resolve the width
                         // themselves (elem_size_for_type/parse_cli_arg
                         // both handle USize/UPtr).
-                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, decl_type_name(fd.sig.params[vi.to_usize()], lp.ctx.symbols), lp.ctx.symbols).clone()
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, decl_type_name_ref(fd.sig.params[vi.to_usize()], lp.ctx.symbols), lp.ctx.symbols).clone()
                         arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                         va_array_binding_o := lp.ctx.scope.get_binding_name(format("Array__", va_elem), lp.ctx.symbols)
                         if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
@@ -6536,7 +6536,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.StructSym(lp.ctx.symbols.intern(va_array_binding.name)), lp.ctx), param.own_type, lp.ctx)
                         argi = argi + va_count.to_i32()
                     } else {
-                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], decl_type_name(param, lp.ctx.symbols), lp.ctx)
+                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], decl_type_name_ref(param, lp.ctx.symbols), lp.ctx)
                         scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols), lp.ctx), param.own_type, lp.ctx)
                         argi++
                     }
@@ -7154,8 +7154,8 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
         if target_simd.simd_width > 0 {
             source_name := expr_type_name_ref(src_expr, ctx.symbols).unwrap().clone()
             ref source_simd : StructDef = structdef_of(lookup_interp_type_def(source_name, ctx).unwrap())
-            source_lane := decl_type_name(source_simd.fields[0], ctx.symbols)
-            target_lane := decl_type_name(target_simd.fields[0], ctx.symbols)
+            ref source_lane : Str = decl_type_name_ref(source_simd.fields[0], ctx.symbols)
+            ref target_lane : Str = decl_type_name_ref(target_simd.fields[0], ctx.symbols)
             source_t := type_from_name_init_name(source_lane, ctx.scope, ctx.symbols)
             target_t := type_from_name_init_name(target_lane, ctx.scope, ctx.symbols)
             source_stride := raw_type_size(source_t, ctx)
@@ -7488,7 +7488,7 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
         exit(1)
     }
     ref fd : Declaration = sd.field_at(idx)
-    str_copy_into(r, decl_type_name(fd, ctx.symbols), ctx)
+    str_copy_into(r, decl_type_name_ref(fd, ctx.symbols), ctx)
     return true
 }
 
@@ -7662,7 +7662,7 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
         exit(1)
     }
     ref pd : Declaration = fd.sig.params[idx]
-    str_copy_into(r, decl_type_name(pd, ctx.symbols), ctx)
+    str_copy_into(r, decl_type_name_ref(pd, ctx.symbols), ctx)
     return true
 }
 
@@ -7998,7 +7998,7 @@ priv shallow_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Boo
 priv field_ffi_type := proc(dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
-    t_o := known_ffi_type(decl_type_name(dd, ctx.symbols), ctx, host_layout)
+    t_o := known_ffi_type(decl_type_name_ref(dd, ctx.symbols), ctx, host_layout)
     if t_o.is_some() { return t_o.unwrap() }
     return ffi_type_ref("ffi_type_sint64")
 }
@@ -8622,13 +8622,13 @@ priv h_dyn_call := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Cont
     method := eval_str_owned(s, e.children[2], ctx)
 
     // Build fake AST: Type.method(args...)
-    mut type_ident := Expr.new(ident_node(ctx.symbols.intern(type_name)), e.line, e.col)
+    mut type_ident := Expr.new(own ident_node(ctx.symbols.intern(type_name)), e.line, e.col)
     type_ident.set_til_type(Type.StructSym(ctx.symbols.intern(type_name)))
 
-    mut field_access := Expr.new(field_access_node(ctx.symbols.intern(method)), e.line, e.col)
+    mut field_access := Expr.new(own field_access_node(ctx.symbols.intern(method)), e.line, e.col)
     field_access.add_child(own type_ident)
     // Critical: NodeType.FCall must have an initialized FCallData payload.
-    mut fake_call := Expr.new(NodeType.FCall(FCallData()), e.line, e.col)
+    mut fake_call := Expr.new(own NodeType.FCall(FCallData()), e.line, e.col)
     fake_call.set_til_type(e.til_type())
     fake_call.add_child(own field_access)
     mark_fcall_direct(fake_call)
@@ -8665,14 +8665,14 @@ priv get_elem_size := proc(mut s: Scope, type_name: Str, src: Expr, mut ctx: Con
         exit(1)
     }
     // Build fake call: Type.size()
-    mut type_ident := Expr.new(ident_node(ctx.symbols.intern(type_name)), src.line, src.col)
+    mut type_ident := Expr.new(own ident_node(ctx.symbols.intern(type_name)), src.line, src.col)
     type_ident.set_til_type(Type.StructSym(ctx.symbols.intern(type_name)))
 
-    mut field_access := Expr.new(field_access_node(ctx.symbols.intern("size")), src.line, src.col)
+    mut field_access := Expr.new(own field_access_node(ctx.symbols.intern("size")), src.line, src.col)
     field_access.add_child(own type_ident)
 
     // Critical: NodeType.FCall must have an initialized FCallData payload.
-    mut fake_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    mut fake_call := Expr.new(own NodeType.FCall(FCallData()), src.line, src.col)
     fake_call.set_til_type(type_from_name_init_name("USize", ctx.scope, ctx.symbols))
     fake_call.add_child(own field_access)
     mark_fcall_direct(fake_call)
@@ -8927,12 +8927,12 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             ref mut dst_field : Dynamic = ptr_add(dst, dst_offset.to_usize())
             if fd.own_type.is(OwnType.Shallow).not() {
                 memcpy(dst_field, src_field, Dynamic.size())
-            } else if decl_type_name(fd, ctx.symbols).eq("USize").or(decl_type_name(fd, ctx.symbols).eq("UPtr")) {
-                ffi_copy_width_field(type_name, decl_type_name(fd, ctx.symbols), sd.field_name_at(i), src_field, src_host, dst_field, dst_host, ctx)
+            } else if decl_type_name_ref(fd, ctx.symbols).eq("USize").or(decl_type_name_ref(fd, ctx.symbols).eq("UPtr")) {
+                ffi_copy_width_field(type_name, decl_type_name_ref(fd, ctx.symbols), sd.field_name_at(i), src_field, src_host, dst_field, dst_host, ctx)
             } else {
                 ref field_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
-                    ffi_copy_struct_into(decl_type_name(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx)
+                    ffi_copy_struct_into(decl_type_name_ref(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx)
                 } else {
                     memcpy(dst_field, src_field, field_type.size.to_usize())
                 }
@@ -9020,7 +9020,7 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
         ref ft : ffi_type = deref(ptr_add(from.ptr.elements, i.mul(8)))
         if delta.lt(from_offset).or(delta.gte(from_offset + ft.size)) { continue }
         if ft.type == FFI_TYPE_STRUCT.to_u16() {
-            return ffi_rebase_reference(decl_type_name(sd.fields[i], ctx.symbols),
+            return ffi_rebase_reference(decl_type_name_ref(sd.fields[i], ctx.symbols),
                 ptr_add(converted, from_offset.to_usize()), ptr_add(original, into_offset.to_usize()),
                 borrowed, converted_host, original_host, ctx)
         }
@@ -9042,10 +9042,10 @@ priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut c
             fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
             if fd.own_type.is(OwnType.Own) {
                 write_ptr(ptr_add(data, fl.offset), bits_word(0))
-            } else if fd.own_type.is(OwnType.Shallow).and(ctx.ffi.struct_defs.has(decl_type_name(fd, ctx.symbols))) {
+            } else if fd.own_type.is(OwnType.Shallow).and(ctx.ffi.struct_defs.has(decl_type_name_ref(fd, ctx.symbols))) {
                 ref field_type : ffi_type = field_ffi_type(fd, ctx, true)
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
-                    ffi_clear_struct_ownership(decl_type_name(fd, ctx.symbols), ptr_add(data, fl.offset), ctx)
+                    ffi_clear_struct_ownership(decl_type_name_ref(fd, ctx.symbols), ptr_add(data, fl.offset), ctx)
                 }
             }
         }
@@ -9134,7 +9134,7 @@ priv interp_ext_c_string_param := func(mut scope: Scope, name: Str, arg_index: U
     case .FuncDef(fd):
         if arg_index >= fd.sig.params.len() { return false }
         ref p : Declaration = fd.sig.params[arg_index]
-        if decl_type_name(p, symbols).eq("I8").not() { return false }
+        if decl_type_name_ref(p, symbols).eq("I8").not() { return false }
         return p.own_type.is(OwnType.Ref).and(p.is_mut.not())
     case:
         return false
@@ -9839,7 +9839,7 @@ priv simd_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut res
     if definition.node_type.is(NodeType.StructDef).not() { return false }
     ref simd : StructDef = structdef_of(definition)
     if simd.simd_width == 0 { return false }
-    elem := decl_type_name(simd.fields[0], ctx.symbols)
+    ref elem : Str = decl_type_name_ref(simd.fields[0], ctx.symbols)
     lane_type := type_from_name_init_name(elem, ctx.scope, ctx.symbols)
     stride := raw_type_size(lane_type, ctx)
     if op == "len" {
@@ -9965,9 +9965,9 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
         write_bool(ptr_add(pmutables, k), pk.is_mut)
         ref mut own_slot : Bool = ptr_add(powns, k)
         own_slot = pk.own_type.is(OwnType.Own)
-        ptypes.push(own decl_type_name(pk, ctx.symbols).clone())
+        ptypes.push(own decl_type_name_ref(pk, ctx.symbols).clone())
         if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(decl_type_name(pk, ctx.symbols), ctx, host_layout))
+            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(decl_type_name_ref(pk, ctx.symbols), ctx, host_layout))
             has_shallow = true
         } else {
             write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))

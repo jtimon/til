@@ -947,7 +947,7 @@ init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
         // never used to type anything, e.g. til_type_name_c) is NOT a
         // generic and must be left untouched.
         for p : Declaration in fd.sig.params {
-            if decl_type_name(p, symbols).eq("Type").not() { continue }
+            if decl_type_name_ref(p, symbols).eq("Type").not() { continue }
             tname := p.name
             // Directly (`v: T`, `returns T`), or as a SEGMENT of a
             // generated instance name: the parser mangles an annotation
@@ -958,7 +958,7 @@ init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
             // an undefined type and `T` an unused parameter.
             if type_name_mentions_param(fd.sig.return_type, tname) { return true }
             for q : Declaration in fd.sig.params {
-                if type_name_mentions_param(decl_type_name(q, symbols), tname) { return true }
+                if type_name_mentions_param(decl_type_name_ref(q, symbols), tname) { return true }
             }
         }
         return false
@@ -1003,7 +1003,7 @@ generic_source_throws_depend_on_type := func(rhs: Expr, symbols: SymbolPool) ret
     switch rhs.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.sig.params {
-            if decl_type_name(p, symbols).eq("Type").not() { continue }
+            if decl_type_name_ref(p, symbols).eq("Type").not() { continue }
             for t : Str in fd.sig.throw_types {
                 if type_name_mentions_param(t, p.name) { return true }
             }
@@ -1056,7 +1056,7 @@ func_def_type := func(fdef: Expr) returns shallow FuncType {
 ImportUnit := struct {
     mode_str := ""
     mode := Mode()
-    own ast := Expr.new(NodeType.Body, 0, 0)
+    own ast := Expr.new(own NodeType.Body, 0, 0)
     import_dir := ""
     import_lib_dir := ""
     // Mode auto-imports are the one dependency edge with no source AST call.
@@ -1467,7 +1467,7 @@ Context := struct {
     // every child at once (take_children) once infer_body_stmt has
     // returned to the top-level loop. Reset at type_check_unit entry and
     // asserted empty at unit exit.
-    own generic_pending : Expr = Expr.new(NodeType.Body, 0, 0)
+    own generic_pending : Expr = Expr.new(own NodeType.Body, 0, 0)
     // (#328's lambda_counter lived here; #101 replaced it with the
     // per-owner synth_symbol_seq below -- a late concrete body lifts under
     // its own unique mono name, so it cannot collide with the initial
@@ -1479,7 +1479,7 @@ Context := struct {
     // is registered into the scope by pointer, so it has to outlive the
     // call that built it -- this holder owns it for the unit. Reset
     // alongside generic_pending at type_check_unit entry.
-    own func_gen_twins : Expr = Expr.new(NodeType.Body, 0, 0)
+    own func_gen_twins : Expr = Expr.new(own NodeType.Body, 0, 0)
     // #328 follow-up: expected-type evidence for generic inference.
     // `v : Point = gdefault()` names T's answer in the ANNOTATION, which
     // argument evidence cannot see (gdefault has no value parameters).
@@ -2180,16 +2180,16 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
 }
 
 make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
-    mut acc := Expr.new(field_access_node(symbols.intern(method)), line, col)
+    mut acc := Expr.new(own field_access_node(symbols.intern(method)), line, col)
     acc.add_child(own recv)
-    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), line, col)
     call.add_child(own acc)
     return call
 }
 
 make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
-    mut gp := Expr.new(ident_node(symbols.intern("get_payload")), line, col)
-    mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut gp := Expr.new(own ident_node(symbols.intern("get_payload")), line, col)
+    mut gc := Expr.new(own NodeType.FCall(FCallData()), line, col)
     gc.add_child(own gp)
     mark_fcall_direct(gc)
     gc.add_child(own arg)
@@ -2203,24 +2203,24 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: 
 // ((E*)a)->tag == ((E*)b)->tag compare (see builder.til). The old 4-byte-only
 // `is` builtin was folded into this -- is_n's typed tag read handles any width.
 make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size: USize, line: U32, col: U32, mut symbols: SymbolPool) returns Expr {
-    mut iv := Expr.new(ident_node(symbols.intern("is_n")), line, col)
-    mut arg_id := Expr.new(ident_node(symbols.intern(arg_name)), line, col)
-    mut et := Expr.new(ident_node(symbols.intern(ename)), line, col)
-    mut vr := Expr.new(field_access_node(symbols.intern(vname)), line, col)
+    mut iv := Expr.new(own ident_node(symbols.intern("is_n")), line, col)
+    mut arg_id := Expr.new(own ident_node(symbols.intern(arg_name)), line, col)
+    mut et := Expr.new(own ident_node(symbols.intern(ename)), line, col)
+    mut vr := Expr.new(own field_access_node(symbols.intern(vname)), line, col)
     vr.add_child(own et)
-    mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut is_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
     is_call.add_child(own iv)
     mark_fcall_direct(is_call)
     is_call.add_child(own arg_id)
     is_call.add_child(own vr)
-    mut sz_lit := Expr.new(literal_num_node(tag_size.to_str()), line, col)
+    mut sz_lit := Expr.new(own literal_num_node(tag_size.to_str()), line, col)
     is_call.add_child(own sz_lit)
     return is_call
 }
 
 make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false) returns Expr {
     mut gc := make_get_payload_fcall(own arg, decl_type_from_name(vtype, symbols), line, col, symbols)
-    mut decl := Expr.new(NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+    mut decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
     // REM: gc must be consumed in BOTH branches of a symmetric if/else --
     // an if-with-return plus fall-through consumption is a two-site
     // conditional transfer the garbager miscompiles (double free, found
@@ -2230,8 +2230,8 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
         // source, so the binding must LOAD the slot, not alias it: wrap in
         // deref(...) (a ref-returning ext_func both backends already
         // handle). Pre-typed to the payload type like get_payload itself.
-        mut dv := Expr.new(ident_node(symbols.intern("deref")), line, col)
-        mut dc := Expr.new(NodeType.FCall(FCallData()), line, col)
+        mut dv := Expr.new(own ident_node(symbols.intern("deref")), line, col)
+        mut dc := Expr.new(own NodeType.FCall(FCallData()), line, col)
         dc.add_child(own dv)
         dc.add_child(own gc)
         dc.set_til_type(decl_type_from_name(vtype, symbols))
@@ -2269,8 +2269,8 @@ make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, v
     mut out := Vec(Expr).new()
     if expr_contains_ident_named(arg, bind_name, symbols) {
         out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, symbols, is_ref_payload, used))
-        mut alias_rhs := Expr.new(ident_node(symbols.intern(fresh_name)), line, col)
-        mut alias_decl := Expr.new(NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+        mut alias_rhs := Expr.new(own ident_node(symbols.intern(fresh_name)), line, col)
+        mut alias_decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
         alias_decl.add_child(own alias_rhs)
         out.push(own alias_decl)
     } else {
@@ -2406,10 +2406,10 @@ func_param_has_stack_outer := func(fd: FunctionDef, i: USize, stack_abi_ok: Bool
         // #392: a ..Dynamic parameter's carrier is Tuple, not Array__Dynamic
         // (which may ALSO exist); the outer-storage answer must name the
         // struct the collector is actually built as.
-        if resolve_type_alias_for_name(scope, decl_type_name(p, symbols), symbols) == "Dynamic" {
+        if resolve_type_alias_for_name(scope, decl_type_name_ref(p, symbols), symbols) == "Dynamic" {
             return scope.get_struct("Tuple", symbols).is_some()
         }
-        arr_name := "Array__".format(resolve_type_alias_for_name(scope, decl_type_name(p, symbols), symbols))
+        arr_name := "Array__".format(resolve_type_alias_for_name(scope, decl_type_name_ref(p, symbols), symbols))
         return scope.get_struct(arr_name, symbols).is_some()
     }
     if i.to_i32() == fd.sig.kwargs_index { return scope.get_struct("KwargsMap", symbols).is_some() }
@@ -2588,7 +2588,7 @@ init_delete_is_noop := func(type_name: Str, scope: TypeScope, symbols: SymbolPoo
         for idn_fd : Declaration in idn_sd.fields {
             if idn_fd.own_type.is(OwnType.Ref) { continue }
             if idn_fd.own_type.is(OwnType.Own) { return false }
-            if init_delete_is_noop(decl_type_name(idn_fd, symbols), scope, symbols).not() { return false }
+            if init_delete_is_noop(decl_type_name_ref(idn_fd, symbols), scope, symbols).not() { return false }
         }
         return true
     case .EnumDef(idn_ed):
@@ -2617,7 +2617,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope, symbols: SymbolP
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { continue }
-            ftn := decl_type_name(fd, symbols)
+            ref ftn : Str = decl_type_name_ref(fd, symbols)
             if is_pod_type_for_clone(ftn, scope, symbols).not() { return false }
         }
         return true

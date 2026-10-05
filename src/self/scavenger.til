@@ -423,7 +423,7 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
         cr_is_macro := fdef.sig.func_type.is(FuncType.Macro)
         for p : Declaration in fdef.sig.params {
             if p.til_type.is(Type.Unknown).or(cr_is_macro).not() {
-                vec_push_str(refs, decl_type_name(p, symbols))
+                vec_push_str(refs, decl_type_name_ref(p, symbols))
             }
         }
         if fdef.sig.variadic_index >= 0 {
@@ -467,7 +467,7 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
         }
     case .Decl(decl):
         if decl.til_type.is(Type.Unknown).not() {
-            vec_push_str(refs, decl_type_name(decl, symbols))
+            vec_push_str(refs, decl_type_name_ref(decl, symbols))
         }
     case:
     }
@@ -488,7 +488,7 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
             // The field's declared type stays -- that one is the struct's
             // layout, not a default.
             if cr_fd.til_type.is(Type.Unknown).not() {
-                vec_push_str(refs, decl_type_name(cr_fd, symbols))
+                vec_push_str(refs, decl_type_name_ref(cr_fd, symbols))
             }
         }
     case:
@@ -1620,8 +1620,8 @@ priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) 
             case .FuncDef(fdef):
                 mut pi : I32 = 0
                 for p : Declaration in fdef.sig.params {
-                    seed_cli_arg_helpers(decl_type_name(p, lp.ctx.symbols), worklist)
-                    if pi == fdef.sig.variadic_index { push_qn(worklist, decl_type_name(p, lp.ctx.symbols), "delete") }
+                    seed_cli_arg_helpers(decl_type_name_ref(p, lp.ctx.symbols), worklist)
+                    if pi == fdef.sig.variadic_index { push_qn(worklist, decl_type_name_ref(p, lp.ctx.symbols), "delete") }
                     pi++
                 }
             case:
@@ -1782,7 +1782,7 @@ priv shared_core_signature := func(fd: FunctionDef, ctx: Context, core_top: Map(
         if shared_core_type(fd.sig.return_type, ctx).not() { return false }
     }
     for p : Declaration in fd.sig.params {
-        if shared_core_type(decl_type_name(p, ctx.symbols), ctx).not() { return false }
+        if shared_core_type(decl_type_name_ref(p, ctx.symbols), ctx).not() { return false }
     }
     // A fieldless core error uses the fixed scalar error slot, not an
     // artifact-specific payload layout (Vec(Str).get, Array(Str).set).
@@ -1862,7 +1862,7 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
                     if stable_fields {
                         ref sd : StructDef = structdef_of(rhs)
                         for field : Declaration in sd.fields {
-                            if shared_core_type(decl_type_name(field, lp.ctx.symbols), lp.ctx).not() { stable_fields = false break }
+                            if shared_core_type(decl_type_name_ref(field, lp.ctx.symbols), lp.ctx).not() { stable_fields = false break }
                         }
                     }
                     if stable_fields { candidates.set(d.name, own d.name.clone()) }
@@ -1886,12 +1886,12 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
                             shared_core_collect_refs(value, refs, lp.ctx.symbols)
                             if fd.sig.variadic_index >= 0 {
                                 ref variadic : Declaration = fd.sig.params[fd.sig.variadic_index.to_usize()]
-                                vec_push_str(refs, format("Array__", decl_type_name(variadic, lp.ctx.symbols)))
+                                vec_push_str(refs, format("Array__", decl_type_name_ref(variadic, lp.ctx.symbols)))
                             }
                             deps.set(source_name, own refs)
                         }
                     case .Literal:
-                        if member.is_mut.not().and(shared_core_type(decl_type_name(member, lp.ctx.symbols), lp.ctx)) {
+                        if member.is_mut.not().and(shared_core_type(decl_type_name_ref(member, lp.ctx.symbols), lp.ctx)) {
                             candidates.set(source_name, own c_name)
                         }
                     case:
@@ -1918,12 +1918,12 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
                         shared_core_collect_refs(rhs, refs, lp.ctx.symbols)
                         if fd.sig.variadic_index >= 0 {
                             ref variadic : Declaration = fd.sig.params[fd.sig.variadic_index.to_usize()]
-                            vec_push_str(refs, format("Array__", decl_type_name(variadic, lp.ctx.symbols)))
+                            vec_push_str(refs, format("Array__", decl_type_name_ref(variadic, lp.ctx.symbols)))
                         }
                         deps.set(d.name, own refs)
                     }
                 case .Literal:
-                    if d.is_mut.not().and(shared_core_type(decl_type_name(d, lp.ctx.symbols), lp.ctx)) {
+                    if d.is_mut.not().and(shared_core_type(decl_type_name_ref(d, lp.ctx.symbols), lp.ctx)) {
                         candidates.set(d.name, own d.name.clone())
                     }
                 case:
@@ -2272,7 +2272,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                         // see collect_refs. Only the field's type is, because
                         // that is the struct's layout.
                         if bfs_fd.til_type.is(Type.Unknown).not() {
-                            vec_push_str(worklist, decl_type_name(bfs_fd, lp.ctx.symbols))
+                            vec_push_str(worklist, decl_type_name_ref(bfs_fd, lp.ctx.symbols))
                         }
                     }
                 case .EnumDef(bfs_edd):
@@ -2293,7 +2293,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                     // a Decl NODE; the walk below starts at the initializer.
                     switch decl.node_type {
                     case .Decl(bfs_dd):
-                        if bfs_dd.til_type.is(Type.Unknown).not() { vec_push_str(worklist, decl_type_name(bfs_dd, lp.ctx.symbols)) }
+                        if bfs_dd.til_type.is(Type.Unknown).not() { vec_push_str(worklist, decl_type_name_ref(bfs_dd, lp.ctx.symbols)) }
                     case:
                     }
                     collect_refs(decl.children[0], worklist, lp.ctx.symbols)
@@ -2312,7 +2312,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                         // see collect_refs. Only the field's type is, because
                         // that is the struct's layout.
                         if bfs_fd2.til_type.is(Type.Unknown).not() {
-                            vec_push_str(worklist, decl_type_name(bfs_fd2, lp.ctx.symbols))
+                            vec_push_str(worklist, decl_type_name_ref(bfs_fd2, lp.ctx.symbols))
                         }
                     }
                 case .EnumDef(bfs_edd2):
@@ -2329,7 +2329,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                     // Same declared-type edge as the user-unit branch above.
                     switch decl.node_type {
                     case .Decl(bfs_dd2):
-                        if bfs_dd2.til_type.is(Type.Unknown).not() { vec_push_str(worklist, decl_type_name(bfs_dd2, lp.ctx.symbols)) }
+                        if bfs_dd2.til_type.is(Type.Unknown).not() { vec_push_str(worklist, decl_type_name_ref(bfs_dd2, lp.ctx.symbols)) }
                     case:
                     }
                     collect_refs(decl.children[0], worklist, lp.ctx.symbols)
@@ -2395,7 +2395,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                             if fd.sig.func_type.is_ext() {
                                 mut own_self := false
                                 for p : Declaration in fd.sig.params {
-                                    if p.own_type.is(OwnType.Own).and(decl_type_name(p, lp.ctx.symbols) == iface_name) { own_self = true }
+                                    if p.own_type.is(OwnType.Own).and(decl_type_name_ref(p, lp.ctx.symbols) == iface_name) { own_self = true }
                                 }
                                 if own_self { push_qn(worklist, iface_name, "delete") }
                                 for path : Str in lp.unit_paths() {

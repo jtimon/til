@@ -374,7 +374,7 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
     type_errors := type_program_errors(doc_lp, false)
     if type_errors > 0 { panic("REPL user doc cache refresh failed") }
 
-    mut user_merged := Expr.new(NodeType.Body, 0, 0)
+    mut user_merged := Expr.new(own NodeType.Body, 0, 0)
     for u : ProgramUnit in doc_lp.units {
         ref iu : ImportUnit = doc_lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }

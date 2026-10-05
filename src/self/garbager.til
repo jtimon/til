@@ -2976,7 +2976,7 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
             else_done = sink_nontransfer_paths(else_body, local, scope, ctx)
             if else_done.not() { else_done = add_delete_to_branch(else_body, local, node, scope, ctx) }
         } else {
-            mut else_body_new := Expr.new(NodeType.Body, node.line, node.col)
+            mut else_body_new := Expr.new(own NodeType.Body, node.line, node.col)
             else_done = add_delete_to_branch(else_body_new, local, node, scope, ctx)
             if else_done { node.add_child(own else_body_new) }
         }
@@ -3005,9 +3005,9 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
             all_done = all_done.and(case_done)
         }
         if has_default.not() {
-            mut default_body := Expr.new(NodeType.Body, node.line, node.col)
+            mut default_body := Expr.new(own NodeType.Body, node.line, node.col)
             if add_delete_to_branch(default_body, local, node, scope, ctx) {
-                mut default_case := Expr.new(NodeType.Case(CaseData(pattern_count = 0)), node.line, node.col)
+                mut default_case := Expr.new(own NodeType.Case(CaseData(pattern_count = 0)), node.line, node.col)
                 default_case.add_child(own default_body)
                 node.add_child(own default_case)
             }
@@ -3309,7 +3309,7 @@ priv realign_delete_call_free_expr := proc(mut e: Expr, stack_names: Set(Sym), o
             case:
             }
             if already_false.not() {
-                mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), cf.line, cf.col)
+                mut false_lit := Expr.new(own NodeType.Literal(Literal.Bool(false)), cf.line, cf.col)
                 false_lit.set_til_type(cf.til_type().clone())
                 e.children[2] = false_lit
             }
@@ -3708,7 +3708,7 @@ priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut sco
     for i in 0..fd.sig.params.len() {
         ref param : Declaration = fd.sig.params[i]
         if i.to_i32() == fd.sig.variadic_index {
-            va_type := Type.StructSym(ctx.symbols.intern(variadic_carrier_type_name(scope, decl_type_name(param, ctx.symbols), ctx.symbols)))
+            va_type := Type.StructSym(ctx.symbols.intern(variadic_carrier_type_name(scope, decl_type_name_ref(param, ctx.symbols), ctx.symbols)))
             scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
                 true, param.own_type, ctx.symbols)
             continue
