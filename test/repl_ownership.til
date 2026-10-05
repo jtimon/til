@@ -1,0 +1,73 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #272: keep the ASAN ownership checks in a short session. The broad REPL
+// functional smoke test runs separately, so its many sequential turns do not
+// become the full suite's ASAN wall-clock tail.
+count_matches := func(haystack: Str, needle: Str) returns I64 {
+    mut count : I64 = 0
+    mut start : USize = 0
+    while start < haystack.len() {
+        pos := haystack.substr(start, haystack.len() - start).find(needle)
+        if pos < 0 { return count }
+        count++
+        start = start + pos.to_usize() + needle.len()
+    }
+    return count
+}
+
+require_count := proc(output: Str, needle: Str, expected: I64) {
+    actual := count_matches(output, needle)
+    if actual != expected {
+        println("repl_ownership FAIL: '", needle, "' count=", actual.to_str(),
+            " expected=", expected.to_str())
+        print(output)
+        exit(1)
+    }
+}
+
+main := proc(compiler: Str) {
+    File.writefile("tmp/repl_ownership_input", format(
+        "fail272 := proc(own first: Str, own second: Str) {\n",
+        "    noop_proc()\n",
+        "    panic(first, second)\n",
+        "}\n",
+        "kept272 := format(\"persistent \", \"value\")\n",
+        "fail272(own format(\"delta272 \", \"first\"), own format(\"delta272 \", \"second\"))\n",
+        "println(\"REPL272_DELTA_SURVIVED\")\n",
+        "println(format(\"REPL272_DELTA_KEPT=\", kept272))\n",
+        // Loading help data, then refreshing it after a declaration, must
+        // release the registry globals' previous owned buffers.
+        "help(\"println\")\n",
+        "refresh272 := 9\n",
+        "help(\"refresh272\")\n",
+        "sys272 := import(\"src/std/sys\")\n",
+        "if sys272.host_os().len().gt(0) {\n",
+        "    fail272(own format(\"full272 \", \"first\"), own format(\"full272 \", \"second\"))\n",
+        "    println(\"REPL272_FULL_RAN\")\n",
+        "}\n",
+        "println(\"REPL272_FULL_SURVIVED\")\n",
+        "println(format(\"REPL272_FULL_KEPT=\", kept272))\n"))
+    cmd := format("XDG_STATE_HOME=tmp/repl_ownership_state HOME=tmp/repl_ownership_home '",
+        compiler, "' < tmp/repl_ownership_input > tmp/repl_ownership_output 2>&1")
+    status := wait_cmd(spawn_cmd(cmd))
+    output := File.readfile("tmp/repl_ownership_output")
+    if status != 0 {
+        println("repl_ownership FAIL: REPL exited ", status.to_str())
+        print(output)
+        exit(1)
+    }
+    require_count(output, ": panic: delta272 firstdelta272 second", 1)
+    require_count(output, ": panic: full272 firstfull272 second", 1)
+    require_count(output, "REPL272_DELTA_SURVIVED", 1)
+    require_count(output, "REPL272_FULL_SURVIVED", 1)
+    require_count(output, "REPL272_DELTA_KEPT=persistent value", 1)
+    require_count(output, "REPL272_FULL_KEPT=persistent value", 1)
+    require_count(output, "REPL272_FULL_RAN", 0)
+    require_count(output, "proc println(parts: ..Str)", 1)
+    require_count(output, "refresh272 is a I64", 1)
+    require_count(output, "error:", 0)
+    println("repl_ownership PASS")
+}

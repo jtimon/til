@@ -148,7 +148,7 @@ teardown rule; borrowed, moved, raw-allocation, static-callable, and already-
 released payload cases retain their existing ownership exclusions. The
 focused owned-argument session no longer reports that LeakSanitizer error.
 
-Regression: ~test/repl_help.til~ exercises owned-argument panics through both
+Regression: ~test/repl_ownership.til~ exercises owned-argument panics through both
 the incremental delta path and the import-driven full-load path. It checks
 that subsequent turns run, earlier bindings retain their contents, and the
 tail after the failing call does not execute. The driver now takes the
@@ -181,6 +181,30 @@ both panic paths survive and preserve their earlier binding.
 Verification: ~make clean && make test_two_pass~ passed 495/495, including
 ~repl_help~ and both backends of ~test/globals.til~. This is a ~Two-pass:~
 change because the garbager's recorded global cleanup changes emitted C.
+
+*** REPL regression runtime
+
+The first regression ran the whole broad ~repl_help~ smoke script with the
+ASAN compiler. It was already scheduled early in the parallel runner, but
+the turns inside that one session are sequential. That row became the
+suite's wall-clock tail: on master b201ae5d5 it took 127.03s and the complete
+suite's wall clock was 127.50s.
+
+Ownership checks now live in the short ~test/repl_ownership.til~ driver,
+which is interpreted rather than producing another driver binary/C artifact.
+It passes the suite-selected compiler to its child REPL. The session covers
+both abort paths, retained bindings, skipped post-abort code, and help-data
+refresh after a declaration (the global-overwrite leak). A nonzero child
+exit, including an ASAN leak failure, fails the row. The broad functional
+smoke remains in ~test/repl_help.til~ with the regular compiler; it still
+checks help, state, parsing errors, recovery, and #407 rejection paths.
+The two drivers have independent temporary inputs/outputs and run in parallel.
+
+After the split, the broad row took 29.79s and the ASAN ownership row took
+49.26s; suite wall time dropped to 77.96s (about 39% lower). The final
+~make clean && make test~ passed 497/497. These are complete before/after
+runs at the same source base and default parallelism, not timings that omit
+the slow row or exclude it from the wall-clock metric.
 
 *** Remaining audit: concrete ownership boundaries
 
