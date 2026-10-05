@@ -10714,7 +10714,8 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
         sig_o := find_callee_fdef(sig_name, ctx)
         if sig_o.is_some().and(sig_o.unwrap().children.len() == 0) { return sig_o }
     case .FuncPtrSigSym(fsig_sym):
-        sig_sym_o := find_callee_fdef(ctx.symbols.resolve(fsig_sym), ctx)
+        // The twin already carries the symbol: probe by it, no hash.
+        sig_sym_o := ctx.scope.lookup_func_symbol_sym(fsig_sym)
         if sig_sym_o.is_some().and(sig_sym_o.unwrap().children.len() == 0) { return sig_sym_o }
     case:
     }
