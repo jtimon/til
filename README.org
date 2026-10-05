@@ -92,7 +92,7 @@ sysroots. Install these packages (Ubuntu/Debian) for each target:
 - ~linux-x86~ (32-bit): ~gcc-multilib~, ~qemu-user~ (for testing)
 - ~linux-arm32~: ~gcc-arm-linux-gnueabihf~, ~qemu-user~ (for testing)
 - ~linux-riscv32~: No standard Ubuntu packages exist; use a Bootlin prebuilt toolchain (see CI configuration)
-- ~windows-x64~ / ~windows-x86~: ~mingw-w64~ (ships both the x86_64 and i686 cross compilers)
+- ~windows-x64~ / ~windows-x86~: ~mingw-w64~ (ships both the x86_64 and i686 cross compilers), plus ~cmake~ for the vendored libraries' windows archives -- a program importing ~std/crypto~ links ~vendor/secp256k1/build-win64/lib/libsecp256k1.a~ (or its ~build-win32~ twin for ~windows-x86~); build it first with ~bin/make~ and that path
 - ~macos-arm64~ / ~macos-x64~: ~clang~, ~lld~, ~llvm~ -- the whole LLVM toolchain, not just clang: lld links (and ad-hoc-signs arm64) Mach-O, llvm-ar/llvm-nm build the mac gui archives and framework stubs for ~make build_mac~. No Apple SDK and no mac needed (vendored headers + .tbd stubs)
 - ~wasm32~ browser GUI: ~make build_wasm~ uses the vendored emsdk tree under ~vendor/emscripten/~, installs the generated emscripten payload under ignored ~vendor/emscripten/node/~ and ~vendor/emscripten/upstream/~, and builds raylib-web
 

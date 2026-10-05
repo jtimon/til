@@ -478,6 +478,18 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
                 new_lf = new_lf.format(" vendor/nng/build-win64/libnng.a")
                 continue
             }
+            // Windows libsecp256k1 (issue #235): the same swap, per arch,
+            // for the std/crypto link(). The mingw archives are the
+            // bin/make path goals vendor/secp256k1/build-win{64,32}/lib/
+            // libsecp256k1.a; resolved like the gui/ffi archives so an
+            // installed tree finds them under its root. No system libs
+            // follow: the library is plain C with no dependencies.
+            if is_win.and(t.ends_with("libsecp256k1.a")) {
+                mut secp_win := "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
+                if target.is(Target.WindowsX86) { secp_win = "vendor/secp256k1/build-win32/lib/libsecp256k1.a" }
+                new_lf = new_lf.format(" ", resolve_target_archives(secp_win, ext_c_path))
+                continue
+            }
             new_lf = new_lf.format(" ", t)
         }
         if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32") }

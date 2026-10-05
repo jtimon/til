@@ -249,7 +249,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri mingw-w64 cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -280,6 +280,18 @@ jobs:
           file bin/editor.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/editor-x86.exe examples/editor.til
           file bin/editor-x86.exe | grep -q "Intel 80386"
+      # Issue #235: std/crypto on windows. libsecp256k1 cross-builds from
+      # the vendored source for both arches (mingw is the whole toolchain
+      # change; no shims, unlike nng), and test/crypto.til -- the FIPS
+      # 180-4 SHA-256 and BIP-340 vectors through the std wrapper -- links
+      # against those archives and RUNS on the windows runner below.
+      - name: Cross-compile the std/crypto test for windows-x64 and windows-x86
+        run: |
+          make vendor/secp256k1/build-win64/lib/libsecp256k1.a vendor/secp256k1/build-win32/lib/libsecp256k1.a
+          ./bin/til build --target=windows-x64 -o bin/crypto.exe test/crypto.til
+          file bin/crypto.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/crypto-x86.exe test/crypto.til
+          file bin/crypto-x86.exe | grep -q "Intel 80386"
       - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -287,6 +299,8 @@ jobs:
           path: |
             bin/hello_script.exe
             bin/hello_script-x86.exe
+            bin/crypto.exe
+            bin/crypto-x86.exe
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
@@ -304,6 +318,13 @@ jobs:
           ./hello_script.exe | grep -q "Hello World"
           ./hello_script-x86.exe
           ./hello_script-x86.exe | grep -q "Hello World"
+      # Issue #235: a failing vector panics and exits nonzero, which fails
+      # the step; the pass lines are in the log for reading.
+      - name: Run the std/crypto test (x64 + x86 via WOW64)
+        shell: bash
+        run: |
+          ./crypto.exe
+          ./crypto-x86.exe
 
   # Issue #25: til itself running on a windows HOST. bin/til.exe is the
   # compiler cross-built for windows (build_win_host) on linux, then run

@@ -48,6 +48,8 @@ NNG_SO := "vendor/nng/libnng.so"
 NNG_WIN_LIB := "vendor/nng/build-win64/libnng.a"
 SECP256K1_LIB := "vendor/secp256k1/libsecp256k1.a"
 SECP256K1_SO := "vendor/secp256k1/libsecp256k1.so"
+SECP256K1_WIN64_LIB := "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
+SECP256K1_WIN32_LIB := "vendor/secp256k1/build-win32/lib/libsecp256k1.a"
 LIBFFI_DIR := "vendor/libffi"
 LIBFFI_STAMP := "vendor/libffi/.built"
 LIBFFI_WIN64_LIB := "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
@@ -514,21 +516,47 @@ build_secp256k1 := proc(mut b: Build) {
     mut inputs := Vec(Str).new()
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(SECP256K1_LIB, inputs).not() { return }
-    run("cmake", "-S", "vendor/secp256k1", "-B", "vendor/secp256k1/build",
-        "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF",
-        "-DSECP256K1_ENABLE_MODULE_ECDH=OFF",
-        "-DSECP256K1_ENABLE_MODULE_RECOVERY=OFF",
-        "-DSECP256K1_ENABLE_MODULE_EXTRAKEYS=ON",
-        "-DSECP256K1_ENABLE_MODULE_SCHNORRSIG=ON",
-        "-DSECP256K1_ENABLE_MODULE_MUSIG=OFF",
-        "-DSECP256K1_ENABLE_MODULE_ELLSWIFT=OFF",
-        "-DSECP256K1_ENABLE_MODULE_SILENTPAYMENTS=OFF",
-        "-DSECP256K1_BUILD_BENCHMARK=OFF", "-DSECP256K1_BUILD_TESTS=OFF",
-        "-DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF", "-DSECP256K1_BUILD_CTIME_TESTS=OFF",
-        "-DSECP256K1_BUILD_EXAMPLES=OFF", "-DSECP256K1_INSTALL=OFF",
-        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+    mut argv := secp256k1_cmake_configure("vendor/secp256k1/build")
+    argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+    run_argv(argv)
     run("cmake", "--build", "vendor/secp256k1/build", "--parallel")
     copy("vendor/secp256k1/build/lib/libsecp256k1.a", SECP256K1_LIB)
+}
+
+/// The cmake configure command every libsecp256k1 build shares: the
+/// library alone, with exactly the modules BIP-340 needs. One list, so
+/// the native archive and the windows cross archives cannot drift to
+/// different module sets.
+secp256k1_cmake_configure := func(build_dir: Str) returns Vec(Str) {
+    mut argv := Vec(Str).new()
+    argv.push(own "cmake")
+    argv.push(own "-S")
+    argv.push(own "vendor/secp256k1")
+    argv.push(own "-B")
+    argv.push(own build_dir.clone())
+    argv.push(own "-DCMAKE_BUILD_TYPE=Release")
+    argv.push(own "-DBUILD_SHARED_LIBS=OFF")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_ECDH=OFF")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_RECOVERY=OFF")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_EXTRAKEYS=ON")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_SCHNORRSIG=ON")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_MUSIG=OFF")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_ELLSWIFT=OFF")
+    argv.push(own "-DSECP256K1_ENABLE_MODULE_SILENTPAYMENTS=OFF")
+    argv.push(own "-DSECP256K1_BUILD_BENCHMARK=OFF")
+    argv.push(own "-DSECP256K1_BUILD_TESTS=OFF")
+    argv.push(own "-DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF")
+    argv.push(own "-DSECP256K1_BUILD_CTIME_TESTS=OFF")
+    argv.push(own "-DSECP256K1_BUILD_EXAMPLES=OFF")
+    argv.push(own "-DSECP256K1_INSTALL=OFF")
+    // Upstream auto-detects valgrind/memcheck.h and, when found, compiles
+    // in its client requests and adds the header's directory to the
+    // include path. That instrumentation serves the ctime tests, which
+    // are not built here; left on, it made the archive depend on whether
+    // the HOST has valgrind installed, and put the host's /usr/include in
+    // front of mingw's own headers in the windows cross builds.
+    argv.push(own "-DSECP256K1_VALGRIND=OFF")
+    return argv
 }
 
 /// Everything a native til build links or dlopens. bin/til_boot needs
@@ -1180,6 +1208,25 @@ build_nng_win := proc(mut b: Build) {
     run("cmake", "--build", "vendor/nng/build-win64", "--parallel")
 }
 
+/// libsecp256k1 for a mingw triple (issue #235), so a --target=windows-*
+/// program importing std/crypto links. Unlike nng it needs no shims: the
+/// library is plain C99 with no system dependencies, so the mingw
+/// compiler is the whole toolchain change. Static, so upstream's header
+/// selects plain `extern` for every API symbol -- and til emits its own
+/// prototypes anyway, never the header's dllimport form. Built in its own
+/// directory, like the windows nng, so the native build is untouched.
+build_secp256k1_win := proc(mut b: Build, triple: Str, build_dir: Str, output: Str) {
+    if b.begin(format("secp256k1-", triple)).not() { return }
+    mut inputs := Vec(Str).new()
+    inputs.push(own SELF_SRC.clone())
+    if needs_rebuild(output, inputs).not() { return }
+    mut argv := secp256k1_cmake_configure(build_dir)
+    argv.push(own "-DCMAKE_SYSTEM_NAME=Windows")
+    argv.push(own format("-DCMAKE_C_COMPILER=", triple, "-gcc"))
+    run_argv(argv)
+    run("cmake", "--build", build_dir, "--parallel")
+}
+
 /// The nng custom-mode examples, consumed via --extra-modes and
 /// linking libnng. Shared by the windows and macOS server sweeps.
 server_examples := func() returns Vec(Str) {
@@ -1587,6 +1634,12 @@ libffi_win64 := proc(mut b: Build) {
 libffi_win32 := proc(mut b: Build) {
     build_libffi_cross(b, "i686-w64-mingw32", LIBFFI_WIN32_LIB)
 }
+secp256k1_win64 := proc(mut b: Build) {
+    build_secp256k1_win(b, "x86_64-w64-mingw32", "vendor/secp256k1/build-win64", SECP256K1_WIN64_LIB)
+}
+secp256k1_win32 := proc(mut b: Build) {
+    build_secp256k1_win(b, "i686-w64-mingw32", "vendor/secp256k1/build-win32", SECP256K1_WIN32_LIB)
+}
 
 commands := func() returns Vec(Command) {
     mut out := Vec(Command).new()
@@ -1672,6 +1725,10 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = NNG_WIN_LIB, alias_of = "win_server", is_path = true, go = build_nng_win))
     out.push(own Command(name = LIBFFI_WIN64_LIB, alias_of = "build_win_host", is_path = true, go = libffi_win64))
     out.push(own Command(name = LIBFFI_WIN32_LIB, alias_of = "build_win32", is_path = true, go = libffi_win32))
+    out.push(own Command(name = SECP256K1_WIN64_LIB, is_path = true, go = secp256k1_win64,
+        about = "windows-x64 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = SECP256K1_WIN32_LIB, is_path = true, go = secp256k1_win32,
+        about = "windows-x86 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/raylib/src/libraylib-win64.a", alias_of = "build_win", is_path = true, go = gui_raylib_win64))
     out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-win64.a", alias_of = "build_win", is_path = true, go = gui_tinyfd_win64))
     out.push(own Command(name = "vendor/raylib/src/libraylib-win32.a", alias_of = "build_win32", is_path = true, go = gui_raylib_win32))
