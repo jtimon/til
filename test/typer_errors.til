@@ -857,6 +857,70 @@ terr_iface_bad_field := func() returns I64 {
     return holder.value.must()
 }
 
+// Full interface signatures: each mismatch used to pass the name/count-only
+// conformance check. Empty error types intentionally share the same lowered
+// _err_kind-only parameter shape, so throws need their own contract check.
+TErrContractFailure := struct {}
+TErrContractOther := struct {}
+TErrFullContract := interface {
+    borrow := ext_func(self: TErrFullContract, text: Str) returns Str {}
+    take := ext_func(self: TErrFullContract, own text: Str) returns Str {}
+    mutate := ext_func(mut self: TErrFullContract, n: I64) returns I64 {}
+    returned := ext_func(self: TErrFullContract) returns Str {}
+    effect := ext_func(self: TErrFullContract) returns Str {}
+    extra_mut := ext_func(self: TErrFullContract, n: I64) returns I64 {}
+    fallback := func(_self: TErrFullContract, text: Str) returns Str { return text.clone() }
+    fallible := ext_func(self: TErrFullContract) returns I64 throws TErrContractFailure {}
+    ordered := ext_func(self: TErrFullContract) returns I64 throws TErrContractFailure, TErrContractOther {}
+}
+TErrBadFullContract := struct implements TErrFullContract {
+    text := "contract"
+namespace:
+    borrow := func(_self: TErrBadFullContract, own text: Str) returns Str { return text }
+    take := func(_self: TErrBadFullContract, text: Str) returns Str { return text.clone() }
+    mutate := func(_self: TErrBadFullContract, n: I64) returns I64 { return n }
+    returned := func(self: TErrBadFullContract) returns ref Str { return self.text }
+    effect := proc(self: TErrBadFullContract) returns Str { print(""); return self.text.clone() }
+    extra_mut := func(_self: TErrBadFullContract, mut n: I64) returns I64 { n++; return n }
+    fallback := func(_self: TErrBadFullContract, shallow text: Str) returns Str { return text.clone() }
+    fallible := func(_self: TErrBadFullContract) returns I64 throws TErrContractOther { throw TErrContractOther() }
+    ordered := func(self: TErrBadFullContract) returns I64 throws TErrContractOther, TErrContractFailure {
+        if self.text.len() == 0 { throw TErrContractOther() }
+        throw TErrContractFailure()
+    }
+}
+
+TErrDefaultContract := interface {
+    label := func(_self: TErrDefaultContract) returns Str { return "label" }
+    code := func(_self: TErrDefaultContract) returns I64 { return 1 }
+    quiet := func(_self: TErrDefaultContract) returns Str { return "quiet" }
+}
+TErrBadDefaultContract := struct implements TErrDefaultContract {
+    n := 0
+namespace:
+    label := func(self: TErrBadDefaultContract) returns I64 { return self.n }
+    code := 1
+    quiet := proc(_self: TErrBadDefaultContract) returns Str { print(""); return "quiet" }
+}
+
+TErrSelfContract := interface {
+    value := ext_func(self: TErrSelfContract) returns I64 {}
+}
+TErrOwnedSelfEnum := enum implements TErrSelfContract {
+    Value,
+namespace:
+    value := func(own _self: TErrOwnedSelfEnum) returns I64 { return 1 }
+}
+
+TErrVariadicContract := interface {
+    count := ext_func(self: TErrVariadicContract, items: ..Str) returns USize {}
+}
+TErrFixedArityContract := struct implements TErrVariadicContract {
+    n := 0
+namespace:
+    count := func(_self: TErrFixedArityContract, items: Str) returns USize { return items.len() }
+}
+
 // #287: the key binding of a two-variable for-in cannot be `mut` -- mutating
 // a key in place would corrupt the map's key ordering / bucket placement.
 // Values may be mutated (`for k, mut v`); keys may not.

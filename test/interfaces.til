@@ -530,3 +530,101 @@ test_interface_replacement_destruction := test() {
     assert_eq(I64, StorageProbe.old_drops, before_map + 1)
     assert_eq(Str, map["item"].draw(), "2")
 }
+
+// Full contracts retain ownership/mutability and borrowed returns. Exercise
+// the concrete methods here as well as conformance: higher-arity/own-argument
+// dynamic dispatch is a separate lowering contract.
+FullContract := interface {
+    read := ext_func(self: FullContract) returns Str {}
+    add := ext_func(mut self: FullContract, n: I64) returns I64 {}
+    take := ext_func(self: FullContract, own text: Str) returns Str {}
+    borrow := ext_func(self: FullContract) returns ref Str {}
+    announce := ext_proc(self: FullContract) {}
+    label := func(self: FullContract) returns Str { return self.read() }
+}
+
+ContractValue := struct implements FullContract {
+    text: Str
+    n := 0
+namespace:
+    read := func(self: ContractValue) returns Str { return self.text.clone() }
+    add := func(mut self: ContractValue, n: I64) returns I64 {
+        self.n = self.n + n
+        return self.n
+    }
+    take := func(_self: ContractValue, own text: Str) returns Str { return text }
+    borrow := func(self: ContractValue) returns ref Str { return self.text }
+    announce := proc(_self: ContractValue) { print("") }
+    label := func(self: ContractValue) returns Str { return format("override ", self.text) }
+}
+
+test_interface_full_contract := test() {
+    mut value := ContractValue(text = "contract")
+    assert_eq(I64, value.add(3), 3)
+    assert_eq(Str, value.take(own "owned"), "owned")
+    ref text: Str = value.borrow()
+    assert_eq(Str, text, "contract")
+    assert_eq(Str, value.label(), "override contract")
+    value.announce()
+}
+
+// The implementation precedes its interface. Aliases and auto-shallow Self,
+// scalar returns, and inherited defaults must not depend on inference order.
+ContractCount := I64
+CounterValue := struct implements CounterContract {
+    n: ContractCount = 7
+namespace:
+    value := func(self: CounterValue) returns ContractCount { return self.n }
+    copy := func(self: CounterValue) returns CounterValue { return self.clone() }
+    consume := func(own self: CounterValue) returns ContractCount { return self.n }
+    count := func(_self: CounterValue, items: ..Str) returns USize { return items.len() }
+}
+
+CounterContract := interface {
+    value := ext_func(self: CounterContract) returns I64 {}
+    copy := ext_func(self: CounterContract) returns CounterContract {}
+    consume := ext_func(own self: CounterContract) returns I64 {}
+    count := ext_func(self: CounterContract, items: ..Str) returns USize {}
+    twice := func(self: CounterContract) returns I64 { return self.value() * 2 }
+}
+
+test_interface_normalized_contract := test() {
+    value := CounterValue()
+    copied := value.copy()
+    assert_eq(I64, copied.value(), 7)
+    assert_eq(I64, value.twice(), 14)
+    assert_eq(USize, value.count("a", "b"), 2)
+    assert_eq(I64, CounterValue.consume(own copied), 7)
+}
+
+ConsumeContract := interface {
+    take := ext_func(self: ConsumeContract, own text: Str) returns Str {}
+}
+ContractEnum := enum implements ConsumeContract {
+    Value,
+namespace:
+    take := func(_self: ContractEnum, own text: Str) returns Str { return text }
+}
+
+test_interface_enum_owned_contract := test() {
+    value := ContractEnum.Value
+    assert_eq(Str, value.take(own "enum contract"), "enum contract")
+}
+
+ContractFailure := struct {}
+FallibleContract := interface {
+    value := ext_func(self: FallibleContract) returns I64 throws ContractFailure {}
+}
+FallibleValue := struct implements FallibleContract {
+    n := 0
+namespace:
+    value := func(self: FallibleValue) returns I64 throws ContractFailure {
+        if self.n == 0 { throw ContractFailure() }
+        return self.n
+    }
+}
+
+test_interface_throw_contract := test() {
+    value := FallibleValue(n = 9)
+    assert_eq(I64, value.value()!, 9)
+}

@@ -4584,26 +4584,57 @@ priv typer_resolve_enum_payload_types := func(edef: EnumDef, mut scope: TypeScop
     }
 }
 
-// Issue #251: does the implementing method `impl_fd` match the interface's
-// abstract-method signature `iface_fd`? Same param count, same param types
-// and return type -- but the interface's OWN name is "Self" and substitutes
-// to the implementing type's name (so `self: Drawable` in the interface
-// matches `self: Circle` in Circle). The func KIND differs by design
-// (interface: ext_func/ext_proc; impl: func/proc), so it is not compared.
-priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd: Expr, impl_fd: Expr, symbols: SymbolPool) returns Bool {
+// Compare contracts independently of namespace inference order. An abstract
+// ext_func/ext_proc is a til contract, not an FFI ABI: apply the ordinary til
+// auto-shallow rules after substituting Self with the concrete implementer.
+// The real declarations stay untouched. This also makes an already-inferred
+// implementation compare identically to one whose body has not been visited.
+priv interface_contract_signature := func(fd: FunctionDef, self_name: Str, impl_name: Str, scope: TypeScope, mut ctx: Context) returns FuncSig {
+    mut normalized := FunctionDef(sig = fd.sig.clone())
+    if fd.sig.func_type.is_proc() { normalized.sig.func_type = FuncType.Proc }
+    else { normalized.sig.func_type = FuncType.Func }
+    if normalized.sig.return_type.len() > 0 {
+        resolved_return := resolve_type_alias(scope, normalized.sig.return_type, ctx.symbols).clone()
+        normalized.sig.return_type = resolved_return
+        if normalized.sig.return_type == self_name { normalized.sig.return_type = impl_name.clone() }
+        if normalized.sig.return_own_type.is(OwnType.Own) {
+            rt := decl_type_from_name(normalized.sig.return_type, ctx.symbols)
+            if is_auto_shallow_type(rt, normalized.sig.return_type, scope, ctx) {
+                normalized.sig.return_own_type = OwnType.Shallow
+            }
+        }
+    }
+    returns_borrow := fdef_return_carries_borrow(normalized, scope, ctx.symbols)
+    for i in 0..normalized.sig.params.len() {
+        ref mut param : Declaration = normalized.sig.params[i]
+        mut name := resolve_type_alias(scope, decl_type_name(param, ctx.symbols), ctx.symbols).clone()
+        if self_name.len().gt(0).and(name == self_name) { name = impl_name.clone() }
+        param.til_type = decl_type_from_name(name, ctx.symbols)
+        if i.to_i32().eq(normalized.sig.variadic_index).or(i.to_i32() == normalized.sig.kwargs_index) {
+            param.own_type = OwnType.Own
+        } else if returns_borrow.not().and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
+            if is_auto_shallow_type(declaration_resolved_type(param, scope, ctx.symbols), name, scope, ctx) {
+                param.own_type = OwnType.Shallow
+            }
+        }
+    }
+    return normalized.sig.clone()
+}
+
+// Abstract methods and concrete-default overrides obey the same full
+// callable contract. FuncSig.eq includes ownership, mutability, return
+// ownership, variadic/kwargs positions and the ordered throws list. Throws
+// order is ABI-significant: lowering supplies positional error out-params.
+priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd: Expr, impl_fd: Expr, scope: TypeScope, mut ctx: Context) returns Bool {
     switch iface_fd.node_type {
     case .FuncDef(ifd):
         switch impl_fd.node_type {
         case .FuncDef(mfd):
-            if ifd.sig.params.len() != mfd.sig.params.len() { return false }
-            for i in 0..ifd.sig.params.len() {
-                mut it := decl_type_name(ifd.sig.params[i], symbols)
-                if it == iface_name { it = impl_name.clone() }
-                if it.eq(decl_type_name(mfd.sig.params[i], symbols)).not() { return false }
-            }
-            mut ir := ifd.sig.return_type.clone()
-            if ir == iface_name { ir = impl_name.clone() }
-            return ir == mfd.sig.return_type
+            if mfd.sig.func_type.is_plain().or(mfd.sig.func_type.is_ext()).not() { return false }
+            iface_self := resolve_type_alias(scope, iface_name, ctx.symbols).clone()
+            expected := interface_contract_signature(ifd, iface_self, impl_name, scope, ctx)
+            actual := interface_contract_signature(mfd, "", impl_name, scope, ctx)
+            return expected == actual
         case:
             return false
         }
@@ -4791,9 +4822,9 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     case:
     }
     // Issue #251: `struct implements Iface` / `enum implements Iface` --
-    // verify the type provides every ABSTRACT (ext_func/ext_proc) method the
-    // interface lists, with a matching signature. Concrete defaults are
-    // inherited and not required. Structs and enums both carry methods in
+    // verify every abstract method and every concrete-default override has
+    // the interface's callable contract. Concrete defaults are copied by the
+    // preparation pass, so inherited copies are checked too. Both types carry methods in
     // their namespace, so the check is identical; only where the interface
     // name is recorded differs. Reported as aggregatable type errors.
     mut impl_iface_name := ""
@@ -4829,14 +4860,16 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
                 switch am.default_expr().node_type {
                 case .FuncDef(am_fd):
                     if am_fd.auto_generated { continue }
-                    // Only abstract (ext_func/ext_proc) methods must be
-                    // provided; func/proc defaults are inherited.
-                    if am_fd.sig.func_type.is_ext().not() { continue }
+                    // Invalid interface member kinds were diagnosed above;
+                    // only its abstract and concrete methods are contracts.
+                    if am_fd.sig.func_type.is_ext().or(am_fd.sig.func_type.is_plain()).not() { continue }
                     switch find_ns_decl(expr, am_name) {
                     case .None:
                         expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
                     case .Some(impl_m):
-                        if interface_method_conforms(impl_iface_name, impl_self_name, am.default_expr(), impl_m.default_expr(), ctx.symbols).not() {
+                        if impl_m.default_value.is_none() {
+                            expr.type_error(format("'", impl_self_name, ".", am_name, "' has no implementation for interface '", impl_iface_name, "'"), ctx)
+                        } else if interface_method_conforms(impl_iface_name, impl_self_name, am.default_expr(), impl_m.default_expr(), scope, ctx).not() {
                             impl_m.default_expr().type_error(format("'", impl_self_name, ".", am_name, "' does not match the signature of '", impl_iface_name, ".", am_name, "' declared in the interface"), ctx)
                         }
                     }

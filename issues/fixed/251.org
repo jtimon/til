@@ -23,6 +23,49 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Conformance follow-up (based on master 7b20f9811)
+
+    Reproduced acceptance of incompatible parameter ownership, mutable self,
+    proc implementations of func contracts, different throws declarations,
+    and a concrete-default override with the wrong return type. The matcher
+    compared only parameter count/type names and return type, and skipped
+    all concrete defaults.
+
+    ~interface_method_conforms~ now compares complete ~FuncSig~ contracts:
+    parameter types/ownership/mutability (including self), return type and
+    ownership, func/proc family, variadic/kwargs positions and the ordered
+    throws list. ~ext_func~ matches ~func~ and ~ext_proc~ matches ~proc~;
+    the two families remain distinct. Throws must match exactly rather than
+    allowing subsets/reordering: lowering uses positional error out-params.
+    Non-callable default overrides are rejected too.
+
+    ~interface_contract_signature~ builds a comparison-only signature:
+    resolves ordinary type aliases, substitutes the interface's direct Self
+    type with the implementing type, then applies the existing ordinary-til
+    auto-shallow and variadic ownership rules. This avoids comparing an
+    abstract ext declaration's FFI-shaped qualifiers against an ordinary
+    method's normalized ABI, and avoids dependence on namespace typing order.
+    The original declarations are not mutated. Inherited concrete defaults
+    and explicit overrides both go through the same check.
+
+    Regression coverage:
+    - ~test/interfaces.til~: ~test_interface_full_contract~,
+      ~test_interface_normalized_contract~, ~test_interface_enum_owned_contract~
+      and ~test_interface_throw_contract~ cover matching qualifiers/effects,
+      borrowed returns, owned arguments/self, aliases, scalar/Self
+      normalization, implementation-before-interface ordering, variadics,
+      inherited/overridden defaults, enums and matching throws.
+    - ~test/typer_errors.til~: fourteen new conformance rejections in
+      ~TErrBadFullContract~, ~TErrBadDefaultContract~, ~TErrOwnedSelfEnum~ and
+      ~TErrFixedArityContract~. The empty error types intentionally have the
+      same lowered parameter shape, so their mismatch tests verify throws
+      checking rather than accidentally relying on an arity/type difference.
+
+    Verification: ~make clean && make test~ passed 495/495, including ASAN
+    and self-translation. Interface tests pass 34/34; the negative corpus
+    reports 302 expected errors, including sixteen signature mismatches
+    (fourteen new and the two original struct/enum wrong-signature cases).
+
 *** Assignment and collection follow-up (based on master 1299f248c)
 
     Reproduced three gaps:
