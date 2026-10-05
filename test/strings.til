@@ -107,6 +107,15 @@ test_find := test() {
     assert_eq(I64, "".find("a"), -1)
     assert_eq(I64, "aaa".find("a"), 0)
     assert_eq(I64, "abcabc".find("bc"), 1)
+    // The last candidate start is inclusive: a needle ending exactly at
+    // the end of the haystack is found.
+    assert_eq(I64, "hello".find("lo"), 3)
+    assert_eq(I64, "hello".find("o"), 4)
+    // A first-byte match that fails on the rest keeps scanning.
+    assert_eq(I64, "ababc".find("abc"), 2)
+    assert_eq(I64, "aab".find("ab"), 1)
+    // A needle longer than the haystack never matches.
+    assert_eq(I64, "hi".find("hello"), -1)
 }
 
 test_rfind := test() {
@@ -116,6 +125,24 @@ test_rfind := test() {
     assert_eq(I64, "hello".rfind("xyz"), -1)
     assert_eq(I64, "hello".rfind(""), -1)
     assert_eq(I64, "aaa".rfind("a"), 2)
+    // The backward walk reaches index 0 and the final byte.
+    assert_eq(I64, "abc".rfind("abc"), 0)
+    assert_eq(I64, "abc".rfind("a"), 0)
+    assert_eq(I64, "hello".rfind("o"), 4)
+    assert_eq(I64, "hello".rfind("lo"), 3)
+    // A first-byte match that fails on the rest keeps walking back.
+    assert_eq(I64, "abcab".rfind("abc"), 0)
+    assert_eq(I64, "".rfind("a"), -1)
+    assert_eq(I64, "hi".rfind("hello"), -1)
+}
+
+test_affix_same_length_mismatch := test() {
+    // Equal-length prefix/suffix that differs only in its last/first byte:
+    // the whole-length memcmp must still say no.
+    assert("abc".starts_with("abd").not())
+    assert("abc".ends_with("bbc").not())
+    assert("abc".starts_with("abc"))
+    assert("abc".ends_with("abc"))
 }
 
 test_replace := test() {

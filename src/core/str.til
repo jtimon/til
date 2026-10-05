@@ -238,40 +238,19 @@ namespace:
     /// True if ~a~ contains ~b~ as a substring.
     contains := func(a: Str, b: Str) returns Bool {
         if b.count == 0 { return true }
-        if b.count > a.count { return false }
-        for i in 0..a.count.sub(b.count) + 1 {
-            mut found := true
-            for j in 0..b.count {
-                ref ac : I8 = a.unsafe_get(i + j)
-                ref bc : I8 = b.unsafe_get(j)
-                if ac != bc { found = false }
-            }
-            if found { return true }
-        }
-        return false
+        return a.find(b) >= 0
     }
 
     /// True if ~a~ starts with prefix ~b~.
     starts_with := func(a: Str, b: Str) returns Bool {
         if b.count > a.count { return false }
-        for i in 0..b.count {
-            ref ac : I8 = a.unsafe_get(i)
-            ref bc : I8 = b.unsafe_get(i)
-            if ac != bc { return false }
-        }
-        return true
+        return memcmp(a.c_str, b.c_str, b.count) == 0
     }
 
     /// True if ~a~ ends with suffix ~b~.
     ends_with := func(a: Str, b: Str) returns Bool {
         if b.count > a.count { return false }
-        offset := a.count - b.count
-        for i in 0..b.count {
-            ref ac : I8 = a.unsafe_get(offset + i)
-            ref bc : I8 = b.unsafe_get(i)
-            if ac != bc { return false }
-        }
-        return true
+        return memcmp(ptr_add(a.c_str, a.count - b.count), b.c_str, b.count) == 0
     }
 
     /// True if the string has zero length.
@@ -283,16 +262,22 @@ namespace:
     find := func(self: Str, needle: Str) returns I64 {
         if needle.count == 0 { return -1 }
         if needle.count > self.count { return -1 }
-        for i in 0..self.count.sub(needle.count) + 1 {
-            mut found := true
-            mut j : USize = 0
-            while j < needle.count {
-                ref ac : I8 = self.unsafe_get(i + j)
-                ref bc : I8 = needle.unsafe_get(j)
-                if ac != bc { found = false; break }
-                j++
+        // Scan for the needle's first byte reading the buffer directly --
+        // ptr_add lowers to pointer arithmetic, where the unsafe_get the old
+        // loops called was a function call per byte at -O0 (5,500
+        // instructions per find of "." in a qualified name) -- and confirm
+        // the rest with one memcmp, the same trade cmp and eq made.
+        ref first : I8 = needle.c_str
+        last_start : USize = self.count - needle.count
+        rest : USize = needle.count - 1
+        mut i : USize = 0
+        while i <= last_start {
+            ref c : I8 = ptr_add(self.c_str, i)
+            if c == first {
+                if rest == 0 { return i.to_i64() }
+                if memcmp(ptr_add(self.c_str, i + 1), ptr_add(needle.c_str, 1), rest) == 0 { return i.to_i64() }
             }
-            if found { return i.to_i64() }
+            i++
         }
         return -1
     }
@@ -301,17 +286,20 @@ namespace:
     rfind := func(self: Str, needle: Str) returns I64 {
         if needle.count == 0 { return -1 }
         if needle.count > self.count { return -1 }
-        mut last := -1
-        for i in 0..self.count.sub(needle.count) + 1 {
-            mut found := true
-            for j in 0..needle.count {
-                ref ac : I8 = self.unsafe_get(i + j)
-                ref bc : I8 = needle.unsafe_get(j)
-                if ac != bc { found = false }
+        // Same shape as find, walking the candidate starts from the end so
+        // the first hit IS the last occurrence.
+        ref first : I8 = needle.c_str
+        rest : USize = needle.count - 1
+        mut i : USize = self.count - needle.count + 1
+        while i > 0 {
+            i--
+            ref c : I8 = ptr_add(self.c_str, i)
+            if c == first {
+                if rest == 0 { return i.to_i64() }
+                if memcmp(ptr_add(self.c_str, i + 1), ptr_add(needle.c_str, 1), rest) == 0 { return i.to_i64() }
             }
-            if found { last = i.to_i64() }
         }
-        return last
+        return -1
     }
 
     /// Return a new Str with all occurrences of ~from~ replaced by ~to~.
