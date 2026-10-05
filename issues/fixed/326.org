@@ -998,7 +998,7 @@ with no prediction and no re-read.
   receivers apart). 206 classes / 5,778 lines -> 37 / 3,281, zero dead.
   javac's errors on the six fixtures are the same set before and after
   (none of them compiled at the time -- a USize regression the default
-  suite cannot see because it runs no JDK, recorded in #375); with that
+  suite cannot see because it runs no JDK, recorded and since fixed in #375); with that
   one call site patched by hand, the three that then compile print
   identical output. jvm_sources_include_runtime pins the source list, a
   dropped setter and a kept interface method.

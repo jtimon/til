@@ -13,6 +13,20 @@ public final class TilRuntime {
     private static final int CAP_LITERAL = -1;
     private static final int CAP_VIEW = -2;
 
+    // A Str keeps count and capacity as Java ints, and StrParts.length() is
+    // one -- the JVM indexes by int -- while USize is whatever width the
+    // build chose. Generated code converts at this boundary when the two
+    // differ. A read sign-extends: every real length fits an int, and
+    // CAP_LITERAL/CAP_VIEW are -1/-2 at every width. A write must fit back,
+    // or it fails here.
+    public static long widenLength(int value) { return value; }
+    public static int narrowLength(long value) {
+        if (value != (int) value) {
+            throw new IllegalStateException("length out of the JVM int range: " + Long.toUnsignedString(value));
+        }
+        return (int) value;
+    }
+
     public static final class Str {
         private Ptr data;
         private int count;

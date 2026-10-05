@@ -292,7 +292,7 @@ Stage B: this includes
 ~bin/<name>.jar~, the JDK 17 PATH tools, the unnamed-module/package decision,
 fixed little-endian raw memory, and the eventual opt-in ~make test_jvm~.
 
-**** Regression found 2026-10-01: no JVM fixture compiles
+**** Regression found 2026-10-01 (fixed 2026-10-05): no JVM fixture compiled
 
 Found while auditing the JVM output for #326. At master ~a0a3c3b~,
 ~til run --target=jvm~ fails in javac for all six JVM fixtures --
@@ -339,6 +339,34 @@ the rest of those paths still work. #326's
 JVM pruning (~a0a3c3b~, which drops dead classes and members) was checked
 against the compiler before it: identical javac error sets on all six
 fixtures, and identical output for the three that run once patched.
+
+Fixed 2026-10-05. The emitter had hardcoded USize as Java ~int~ (and UPtr
+as ~long~) in its type table, its literals and its struct constructors,
+while the typer had since given USize the build's target width -- U64 on
+the JVM by default, U32 under ~--usize=32~. Every question the emitter
+asks of a type now asks it of what the scope's target resolves the alias
+to (~jvm_concrete~, built on ~type_from_name_init_name~, the one authority),
+and the hand-written runtime is the boundary it always was: ~TilRuntime.Str~
+keeps ~count~ and ~cap~ as Java ints (the JVM indexes by int), so its fields
+are never cells and a wider USize crosses through ~TilRuntime.widenLength~
+(sign-extending, so ~CAP_LIT~/~CAP_VIEW~ keep their meaning) and
+~narrowLength~ (checked), as does ~StrParts.length()~. ~CAP_LIT~, ~CAP_VIEW~
+and ~T.size()~ are spelled in the resolved carrier. Separately from the
+width: a by-value parameter the body hands to a callee's cell parameter is
+boxed on entry (~jvm_param_boxed_on_entry~) -- the signature, which callers
+read, and the body had disagreed about it -- and a conversion between two
+types with the same Java carrier writes no identity cast (the cast source
+was spelled with ~type_name_ref~, which is empty for a primitive, so every
+I64 -> U64 cast came out ~(long)~).
+
+All six fixtures now compile under the builder's ~javac --release 17
+-Xlint:all -Werror~, run, and print the interpreter's output (the three
+stage fixtures match their ~.expected~), at both ~--usize=32~ and the
+default width. The default suite still runs no JDK: ~jvm_stage_d_cells~ and
+~jvm_stage_e_aggregate_source~ pin the entry boxing, the missing identity
+cast, the absent ~new (~ and the Str boundary reads in the translated Java.
+Catching the next regression of this kind in the act is Stage G's
+~make test_jvm~.
 
 *** Staged implementation plan
 

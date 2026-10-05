@@ -1301,14 +1301,29 @@ main := proc(args: ..Str) {
         CountCheck(needle = "public int length()", expected_count = 1))
     add_count(tests, "jvm_direct_call_source", "build", "f_p_show", 2,
         format("'(' ", til_bin, " translate --target=jvm test/jvm_scalar_smoke.til '&&' cat gen/jvm/test/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Unit_p_test_x2fjvm_x5fscalar_x5fsmoke_x2etil.java '&&' cat gen/jvm/test/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Main.java ')'"))
-    add_count(tests, "jvm_stage_d_cells", "build", "TilRuntime.I64Cell", 6,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_d.til '&&' cat gen/jvm/test/jvm_stage_d/src/til/generated/p_jvm_x5fstage_x5fd/*.java ')'"))
+    // #375: none of these runs javac (the suite stays JDK-free), so they pin
+    // the shapes javac rejected: a by-value parameter the body hands to a
+    // callee's cell parameter is boxed on entry (it used to pass a `long`
+    // where a U64Slot was expected), and an I64 -> U64 cast between two
+    // `long` carriers writes no identity cast (-Xlint:cast with -Werror).
+    add_counts(tests, "jvm_stage_d_cells", "build",
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_d.til '&&' cat gen/jvm/test/jvm_stage_d/src/til/generated/p_jvm_x5fstage_x5fd/*.java ')'"),
+        CountCheck(needle = "TilRuntime.I64Cell", expected_count = 6),
+        CountCheck(needle = "new TilRuntime.U64Cell(v_p_i_arg)", expected_count = 1),
+        CountCheck(needle = "(long) (v_p_seed", expected_count = 0))
     add_cli_pair(tests, "jvm_stage_d", "test/jvm_stage_d.til", "", 0,
         "test/jvm_stage_d.expected", til_bin, asan_flag)
     add_cli_pair(tests, "jvm_stage_e", "test/jvm_stage_e.til", "", 0,
         "test/jvm_stage_e.expected", til_bin, asan_flag)
-    add_count(tests, "jvm_stage_e_aggregate_source", "build", "final class S_p_JvmPoint", 1,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/test/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/S_p_JvmPoint.java ')'"))
+    // #375: USize resolves through the build's target width -- a USize cell
+    // used to come out as `new (...)`, its class name empty -- and the
+    // runtime Str's int lengths are read through TilRuntime.widenLength
+    // when USize is wider.
+    add_counts(tests, "jvm_stage_e_aggregate_source", "build",
+        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/test/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/*.java ')'"),
+        CountCheck(needle = "final class S_p_JvmPoint", expected_count = 1),
+        CountCheck(needle = "new (", expected_count = 0),
+        CountCheck(needle = "TilRuntime.widenLength(", expected_count = 8))
     add_count(tests, "jvm_stage_e_heap_source", "build", "TilRuntime.ptrAdd", 3,
         format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/test/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
     add_cli_pair(tests, "jvm_stage_f", "test/jvm_stage_f.til", "", 0,
