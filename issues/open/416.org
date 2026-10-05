@@ -1,0 +1,76 @@
+# priority: medium
+# category: features
+** OPEN #416 Qualifiers in template/macro type arguments: Vec(ref T) / Vec(own T)
+
+   Let a template (macro) type argument carry an ownership qualifier, so a
+   container can say how it holds its elements: `Vec(own T)` owns each
+   element, `Vec(ref T)` borrows each element. Today a type argument is a
+   bare Type and the container's ownership of its elements is fixed by the
+   container.
+
+*** Motivation
+
+   1. Borrowed containers of ordinary types. `Vec(ref Str)`,
+      `Map(Str, ref Expr)`, `Set(ref Node)`: today these are either owned
+      copies or Vec(Dynamic) islands the garbager cannot see
+      (doc/concepts/ownership.org, "Known manual-memory islands"). A `ref`
+      element follows the same owner-outlives-the-view rule as #329's
+      Slice(T), extended through the garbager over push/insert/set.
+
+   2. A static, per-container statement of interface ownership. Since
+      d11c2acf (#251 follow-up) a heterogeneous `Vec(Drawable)` already
+      works: each element is the fat box {tag, ptr} of #415, and its
+      iface_owned flag says whether THAT element owns or borrows its
+      concrete, decided by the provenance rule (fresh value -> owned,
+      existing storage -> borrowed) and guarded by the deposit escape
+      checks. The qualifier form makes ownership a property of the
+      container instead of each element:
+
+          shapes := Vec(own Drawable).new()
+          shapes.push(Circle(r = 1))       // owned clone; the Vec frees it
+          shapes.push(Polygon.Tri)
+          for s in shapes { println(s.draw()) }   // runtime dispatch per element
+
+          views := Vec(ref Drawable).new()
+          views.push(c)                    // borrow; c must outlive views
+
+      This is the same shape as `Vec(Dynamic)` plus a cast (#212), with the
+      type tag carried by the element. Whether it REPLACES per-element
+      iface_owned for interface elements or merely constrains it follows
+      the #415 decision; it is useful for ordinary types either way.
+
+*** Semantics to settle
+
+   - Element clone/delete follow the qualifier: own -> the element type's
+     clone/delete (for an interface element, the tag-dispatching pair);
+     ref -> pointer copy and no-op delete. Unqualified keeps today's
+     behaviour.
+   - Lifetime: a `Vec(ref T)` borrows every source. The deposit escape
+     checks d11c2acf added for interface elements are the model for the
+     general case: an inner-scope or caller-owned destination may not
+     outlive the owner, and ref aliases of the destination are followed.
+   - Syntax: the qualifier sits on the type argument -- `Vec(ref Drawable)`
+     -- and a macro parameter declared `T: Type` receives it. Whether the
+     qualifier is part of the Type value or a separate macro-parameter kind
+     is open.
+   - Interaction with #243: the erased Vec and a monomorphized Vec(T) both
+     need the element qualifier; decide whether it threads into
+     elem_clone/elem_delete selection (erased), into the expanded StructDef
+     (monomorphized), or both.
+
+*** Relations
+
+   #415 (the interface box this stores), #243 (erased vs monomorphized
+   containers; templates == macros), #329 (borrowed views; lifetime rule),
+   #212 (cast), #57 (macro machinery).
+
+*** Acceptance
+
+   - `Vec(ref T)` / `Map(K, ref V)` never free elements; escaping a dead
+     owner is diagnosed (or, where liveness cannot yet be proven, rejected
+     loudly rather than copied silently).
+   - `Vec(own Drawable)` and `Vec(ref Drawable)` hold mixed conforming
+     concretes with the stated ownership and dispatch per element in
+     interpret and compile modes, ASAN clean.
+   - Existing Vec/Array/Set/Map behaviour unchanged for unqualified
+     arguments.

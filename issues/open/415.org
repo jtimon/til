@@ -1,0 +1,138 @@
+# priority: medium
+# category: features
+** OPEN #415 Dynamic interface values: explicit own/ref vs provenance-inferred boxing, and the remaining dispatch gaps
+
+   Re-scopes the dynamic-dispatch half of the interface work after the #251
+   follow-ups that landed on master in 2026-10 (b444d722, 377ed500,
+   d11c2acf; the running status lives in issues/fixed/251.org). Those
+   commits implemented, on the existing iface_owned design, the lifetime and
+   storage behaviour that an earlier draft of this issue proposed to rework.
+   This issue records what exists, the one design decision still open, and
+   the gaps nobody has taken.
+
+*** What master implements today
+
+   An interface value is a synthetic struct (gen_interface_box_fields_for_stmt):
+
+       Drawable = { iface_type_name: Str, iface_val: Dynamic (ref), iface_owned: Bool }
+
+   iface_val points at the concrete (heap-owned or borrowed); iface_owned
+   says which. The generated clone deep-copies an owned payload and
+   pointer-copies a borrowed one; the generated delete frees only an owned
+   payload. Abstract calls lower to dyn_call_ret(iface_type_name, "method",
+   ...). Boxing happens at argument, local, return, field-construction,
+   assignment, field-reassignment and container-deposit sites, with one
+   PROVENANCE rule (box_inferred_interface_value, box_return_value,
+   make_owned_iface_box in src/self/typer.til):
+
+   - a FRESH concrete value (constructor, factory result, temporary) is
+     boxed as an OWNED heap clone;
+   - EXISTING concrete storage (a named variable, a field chain, a
+     ref-returning call) is boxed as a BORROW: the box aliases it, and a
+     later write through the source stays visible
+     (test_interface_named_local_borrow, test_interface_collection_borrows);
+   - an `own` interface parameter (Vec.push / Array.set / Map.set) owns a
+     concrete argument even when named; an already-boxed borrowed interface
+     keeps its borrow; copying a lent box into a value field clones the box.
+
+   A borrow-checker extension keeps borrowed boxes safe: returning or
+   depositing a borrow of a dying local -- directly, inside a holder, via a
+   helper, into an outer-scope or caller-owned collection -- is a typer
+   error (terr_iface_return_*, terr_iface_*collection*, terr_iface_inner_*).
+   Heterogeneous `Vec(Drawable)` / `Array(Drawable)` / `Map(Str, Drawable)`
+   of mixed structs and enums work, including clone/pop/clear and exactly
+   one destruction of a replaced payload (test_interface_collection_lifetimes,
+   test_interface_replacement_destruction). make test: 496/496 with ASAN.
+
+   The items an earlier draft folded in here are therefore DONE on master:
+   field reassignment, collection storage, local/holder/argument escape
+   lifetimes, and cloning an enum-holding box (exercised by the collection
+   clone test and test_interface_enum_temporary_lifetime).
+
+*** The open design decision: implicit provenance vs explicit own/ref
+
+   The provenance rule decides owned-vs-borrowed from WHERE the value came
+   from, and records the answer in a runtime flag. til already states
+   ownership statically, per binding (doc/concepts/qualifiers.org,
+   doc/concepts/ownership.org): params are Ref by default; returns Own;
+   locals owned (`own` and `shallow` are both rejected on a local), with
+   `ref` for a borrow; struct fields Shallow (inline, owning their nested
+   heap), `own` for a heap pointer, `ref` for a borrow; enum payloads owned
+   by default (`own` rejected as redundant), `ref` for a borrow. Under those
+   rules a bare binding has no borrowing spelling except `ref` -- yet today
+   `view: Drawable = source` is a borrow of `source` while
+   `view: Drawable = Circle(r = 1)` is an owned clone: the same syntax, two
+   lifetimes, told apart by the initializer's shape.
+
+   The alternative is to make the qualifier carry it, exactly like every
+   other aggregate:
+
+       d : Drawable = c             // owning box: independent clone of c
+       ref e : Drawable = c         // borrow: aliases c; c must outlive e
+       Scene := struct {
+           own shape: Drawable      // heap box owning the concrete (Box<dyn Drawable>)
+           ref backdrop: Drawable   // borrowed (&dyn Drawable)
+           // shape: Drawable       // inline owning box, or rejected -- see below
+       }
+
+   With that, iface_owned is redundant (own -> clone/delete run; ref -> they
+   are skipped, as for any aggregate); the tag-dispatching clone/delete stay
+   only because the payload is type-erased (a plain `own Dynamic` cannot
+   free it -- Dynamic.delete is a no-op); and the borrow checker keeps its
+   escape rules for `ref` boxes. The cost is a semantic change to behaviour
+   master pinned with tests: `view: Drawable = source` would become an
+   independent copy (test_interface_named_local_borrow asserts the alias),
+   so every alias site would have to write `ref`. Rust makes exactly this
+   split (Box<dyn T> / &dyn T, no bare dyn T); Go's interface values are
+   always implicit fat pointers. Decide which til wants before changing
+   anything; this section then becomes the recorded answer.
+
+   Related sub-question: a bare Shallow interface FIELD (`shape: Drawable`,
+   legal today) is an inline fat box that owns its concrete -- the same
+   shape as a Shallow `name: Str` field owning its buffer, and as an enum
+   payload (owned by default). Under explicit own/ref it could stay as the
+   owning form (with `own` redundant, mirroring payloads) or be rejected in
+   favour of own/ref only (the Rust rule). Same decision, same place.
+
+*** Remaining gaps (not addressed by the 2026-10 commits)
+
+   - A concrete DEFAULT called through an interface-typed receiver is a
+     static call to the interface's default even when the concrete type
+     overrides it: label() through a boxed Labeled returns the interface's
+     "shape", not Labeled's "custom". Only abstract calls dispatch
+     dynamically. Either dispatch defaults through the box as well, or
+     diagnose the shadowed override.
+   - dyn_call carries at most one argument besides self; an abstract method
+     with two or more non-self params is a typer error at dispatch
+     (infer_field_access_fcall).
+   - collect_refs records a `*.method` wildcard for runtime-tag dispatch that
+     keeps `method` on EVERY top-level type (this once resurrected an nng
+     type sharing a C tag and broke master). Narrow it to types that
+     implement an interface declaring `method`.
+   - interface_method_conforms compares parameter count, type names and
+     return type only -- not ownership/mutability, func/proc effects or
+     throws -- and checks abstract methods only, not overrides of defaults.
+   - Self substitution does not rewrite nested generic types or explicit
+     interface-name references inside a copied default body.
+   - `Iface()` (an empty box) is constructible and supplies no target for an
+     abstract call; a user-declared clone/delete on an interface still
+     suppresses the generated box lifecycle methods.
+
+*** Acceptance
+
+   - The ownership decision above is recorded here as decided and the
+     implementation matches it: either iface_owned is gone and own/ref drive
+     clone/delete, or the provenance rule is documented in
+     doc/concepts/ownership.org as the interface-specific exception, alias
+     semantics stated.
+   - Each remaining gap has either a fix with a regression test or an
+     explicit diagnostic.
+   - make test green on both backends under ASAN.
+
+*** Relations
+
+   #251/#268/#269 (fixed; the base and the status record). #416
+   (qualifiers on template arguments -- the per-container, static form of
+   what iface_owned does per element). #417 (static generic bounds -- the
+   other half of "interfaces"; most `d: Drawable` parameters written so far
+   are better expressed there).

@@ -19,6 +19,9 @@
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
 *** [[./open/367.org][#367]] The NUL guarantee in the type: #343's route 2
+*** [[./open/415.org][#415]] Dynamic interface values: explicit own/ref vs provenance-inferred boxing, and the remaining dispatch gaps
+*** [[./open/416.org][#416]] Qualifiers in template/macro type arguments: Vec(ref T) / Vec(own T)
+*** [[./open/417.org][#417]] Generic bounds: T implements A[, B, ...] for static, monomorphized polymorphism
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods

@@ -1,0 +1,81 @@
+# priority: medium
+# category: features
+** OPEN #417 Generic bounds: T implements A[, B, ...] for static, monomorphized polymorphism
+
+   `d: Drawable` (dynamic dispatch through a boxed value, #269/#415) and a
+   bounded type parameter are different features. The second is a GENERIC
+   BOUND: the function is instantiated per concrete type, calls are
+   resolved statically, and there is no box, no heap copy and no runtime
+   tag. It is Rust's `impl Trait` / `<T: Trait>`, Swift generics, C++
+   concepts, Java generics -- and it composes for several interfaces where
+   dynamic dispatch does not (Rust forbids `dyn A + B`; Go needs an ad-hoc
+   `interface{ A; B }`). The #251 status (issues/fixed/251.org) records the
+   gap: the parser keeps one implements_name per struct/enum, and multiple
+   implemented interfaces, interface inheritance and interface bounds on
+   generic parameters are not provided.
+
+       // static: one specialization per concrete type, direct calls
+       print_it := func(T: Type implements Drawable, d: T) {
+           println(d.draw())
+       }
+       print_it(Circle(r = 1))      // print_it_Circle  -> Circle.draw
+       print_it(Polygon.Tri)        // print_it_Polygon -> Polygon.draw
+
+       // several bounds
+       dump := func(T: Type implements Iterable, Printable, e: T) { ... }
+
+       // dynamic, for contrast: one function, boxed value, runtime dispatch
+       render := func(d: Drawable) returns Str { return d.draw() }
+
+   til already has function-level type parameters with explicit and
+   inferred instantiation (`generic_argument_holder := func(T: Type, tag: T,
+   d: Drawable)` in test/interfaces.til, called both as
+   `generic_argument_holder(I64, 7, x)` and `generic_argument_holder(7, x)`),
+   so the bound attaches to an existing mechanism rather than a new one.
+
+   Rust's rule of thumb applies: if the static form works, use it; the
+   dynamic box is for a bag of mixed things dispatched at runtime (#416) or
+   a type decided at runtime. Most `d: Drawable` parameters written so far
+   are the static kind in disguise.
+
+*** Semantics
+
+   - Bound check = the #251 conformance check (interface_method_conforms):
+     the concrete must provide every abstract method of every listed
+     interface; a call with a non-conforming argument is a typer error at
+     the call site naming the missing method. Widening that check (#415
+     lists what it does not compare) benefits both features.
+   - Instantiation = the #57 macro machinery (monomorphization by
+     substitution, as #243 proposes for Vec(T)): one FuncDef per distinct
+     concrete T reached from call sites.
+   - Inside the body, `d.method()` resolves statically to T.method; the
+     interface's concrete defaults (#268) are already copied into T's
+     namespace, so a concrete override IS honoured here -- unlike through a
+     box today (#415, first gap).
+
+*** Design questions
+
+   - Syntax: `T: Type implements A, B` on the existing type parameter, vs an
+     inline `d: T implements A` on the value parameter, vs both.
+   - `returns T`, and `T` in fields (a struct generic over a bounded T --
+     Vec(T) territory, #243).
+   - Instantiation policy: per call site with dedup by concrete type; error
+     on unbounded recursive instantiation.
+   - Whether `d: Drawable` on a parameter should eventually be sugar for the
+     bound (static) rather than the box (dynamic), leaving the box to
+     explicit own/ref positions and containers. Not decided; record the
+     tradeoff.
+
+*** Relations
+
+   #251 (conformance check reused), #268 (defaults), #269/#415 (the dynamic
+   alternative), #243/#57 (monomorphization machinery), #416 (where
+   heterogeneity lives).
+
+*** Acceptance
+
+   - A bounded generic function accepts every conforming struct and enum,
+     rejects a non-conforming one at the call site, and its calls resolve
+     statically (no dyn_call in the generated C).
+   - Multiple bounds work and are checked independently.
+   - interpret and compile modes agree; make test green.
