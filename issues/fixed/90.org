@@ -484,3 +484,23 @@ were byte-identical. Deterministic work counts changed as follows:
 Set(Str) clone backing-storage requests fell from about 1.14 GiB to 93.4 MiB
 cumulatively (not peak memory). Other sessions were active during profiling
 and tests, so their elapsed times are not an isolated merge-time benchmark.
+
+*** Follow-up: function mutation deltas (2026-10-03)
+
+The remaining per-function snapshots still copied the program-wide assignment
+blocklist. Mutation collection now records only newly inserted names, using
+their stable symbol IDs. On exit the function removes those entries in reverse
+order. Names already blocked globally or by an enclosing function are never
+recorded and remain blocked; sibling definitions do not inherit local entries.
+The IDs also survive AST rewrites and symbol-pool growth during folding.
+
+Both profiled compilers translated identical current ~src/til.til~ inputs with
+~--usize=32~, producing byte-identical C and forward headers. Set(Str) clone
+calls fell from 6,134 to 9 (the remaining calls are outside this snapshot path),
+and their cumulative backing-storage requests fell from 94.9 MiB to 452 KiB.
+Mutation-walker calls remained 1,259,031. These are work/allocation counts,
+not an elapsed-time comparison under concurrent sessions.
+
+Verification: ~make clean && make test~ passes 495/495, including ASAN,
+clang and self-translation checks. The 33 constfold and 10 closure tests also
+pass separately in both interpreted and compiled modes.

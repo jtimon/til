@@ -66,11 +66,15 @@ priv known_bind_own_type := func(shallow t: Type, ctx: Context) returns OwnType 
 // Assignment targets are a conservative program-wide blocklist. Mutation
 // through calls is collected separately per body: common local names such as
 // `a` must not suppress constants in unrelated functions.
-priv collect_target_idents := proc(e: Expr, mut names: Set(Str), symbols: Vec(Str)) {
+priv collect_target_idents := proc(e: Expr, mut names: Set(Str), mut introduced: Vec(Sym), symbols: Vec(Str)) {
     switch e.node_type {
-    case .Ident(id): names.add(own id.ident_name(symbols).clone())
+    case .Ident(id):
+        if names.has(id.ident_name(symbols)).not() {
+            names.add(own id.ident_name(symbols).clone())
+            introduced.push(own id.ident_sym())
+        }
     case:
-        for child : Expr in e.children { collect_target_idents(child, names, symbols) }
+        for child : Expr in e.children { collect_target_idents(child, names, introduced, symbols) }
     }
 }
 
@@ -105,7 +109,7 @@ priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     for c : Expr in e.children { collect_assign_targets(c, names) }
 }
 
-priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut ctx: Context) {
+priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut introduced: Vec(Sym), mut ctx: Context) {
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len() > 0 {
@@ -128,7 +132,7 @@ priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut ctx: Context)
                         mut aggregate_arg := pi + 1 < e.children.len()
                         if aggregate_arg { aggregate_arg = constfolder_type_is_aggregate(e.children[pi + 1].til_type(), ctx) }
                         if mutates_arg.and(aggregate_arg) {
-                            collect_target_idents(e.children[pi + 1], names, ctx.symbols.names)
+                            collect_target_idents(e.children[pi + 1], names, introduced, ctx.symbols.names)
                         }
                     }
                 case:
@@ -136,7 +140,7 @@ priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut ctx: Context)
             }
         }
     }
-    for c : Expr in e.children { collect_mut_targets(c, names, ctx) }
+    for c : Expr in e.children { collect_mut_targets(c, names, introduced, ctx) }
 }
 
 priv constfolder_has_macro := func(ctx: Context, name: Str) returns Bool {
@@ -1629,15 +1633,14 @@ constfolder_normalize_stack_decls_in_body := func(mut body: Expr, symbols: Symbo
 // "-18446744073709551615" because a sibling's leaked `hoisted__U64_<n>`
 // matched its own.
 priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
-    mut assigned_snapshot := Set(Str).new()
+    mut introduced := Vec(Sym).new()
     function_scope := e.node_type.is(NodeType.FuncDef)
     if function_scope {
         // The enclosing function scan already covers every nested block.
         // Blocks need independent known facts, not another mutation scan
         // or a deep copy of the program-wide assignment blocklist.
-        assigned_snapshot = ctx.constfolder_assigned.clone()
         if e.children.len() > 0 {
-            collect_mut_targets(e.children[0], ctx.constfolder_assigned, ctx)
+            collect_mut_targets(e.children[0], ctx.constfolder_assigned, introduced, ctx)
         }
     }
     mut snapshot_fd := Option(Scope).None
@@ -1658,7 +1661,13 @@ priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     fold_subtree_inner(scope, e, ctx)
     constfolder_clear_known(ctx)
     swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
-    if function_scope { swap(Set(Str), ctx.constfolder_assigned, assigned_snapshot) }
+    // Existing global/outer-function entries were never recorded. Symbol
+    // IDs stay stable even when folding rewrites the AST or grows its pool.
+    mut restore_index := introduced.len()
+    while restore_index > 0 {
+        restore_index = restore_index - 1
+        ctx.constfolder_assigned.remove(ctx.symbols.resolve(introduced.unsafe_get(restore_index)))
+    }
 }
 
 priv constfolder_shadow_candidate := func(sym: Sym, candidates: Set(Sym), mut shadows: Set(Sym), mut introduced: Vec(Sym)) {
@@ -1913,7 +1922,8 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
     // top-level entry; the walk descends into all nested func bodies.
     if at_global {
         collect_assign_targets(body, ctx.constfolder_assigned)
-        collect_mut_targets(body, ctx.constfolder_assigned, ctx)
+        mut introduced := Vec(Sym).new()
+        collect_mut_targets(body, ctx.constfolder_assigned, introduced, ctx)
     }
     // Walk statement-by-statement so top-level non-mut Decls get bound
     // in the constfolder interpreter scope as soon as their RHS folds to a
