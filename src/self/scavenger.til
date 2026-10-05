@@ -2380,6 +2380,46 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
             if alias_base == "UPtr" { push_qn(worklist, lp.ctx.target_uptr_pname, alias_member) }
         }
 
+        if alias_dot >= 0 {
+            dot_pos := alias_dot.to_usize()
+            iface_name := name.substr(0, dot_pos)
+            member := name.substr(dot_pos + 1, name.len() - dot_pos - 1)
+            iface_o := lp.ctx.scope.get_struct(iface_name, lp.ctx.symbols)
+            if iface_o.is_some() {
+                ref iface : Expr = iface_o.unwrap()
+                if iface.node_type.is(NodeType.StructDef) {
+                    if structdef_of(iface).is_interface {
+                        method_o := find_namespace_func(iface, member, lp.ctx.scope, lp.ctx.symbols)
+                        if method_o.is_some() {
+                            ref fd : FunctionDef = funcdef_of(method_o.unwrap())
+                            if fd.sig.func_type.is_ext() {
+                                mut own_self := false
+                                for p : Declaration in fd.sig.params {
+                                    if p.own_type.is(OwnType.Own).and(decl_type_name(p, lp.ctx.symbols) == iface_name) { own_self = true }
+                                }
+                                if own_self { push_qn(worklist, iface_name, "delete") }
+                                for path : Str in lp.unit_paths() {
+                                    for candidate : Expr in lp.ctx.imported[path].ast.children {
+                                        if is_struct_or_enum(candidate).not() { continue }
+                                        ref def : Expr = candidate.children[0]
+                                        mut implemented := ""
+                                        switch def.node_type {
+                                        case .StructDef(sd): implemented = sd.implements_name.clone()
+                                        case .EnumDef(ed): implemented = ed.implements_name.clone()
+                                        case:
+                                        }
+                                        if resolve_type_alias(lp.ctx.scope, implemented, lp.ctx.symbols) != iface_name { continue }
+                                        ref impl_name : Str = decl_of(candidate).name
+                                        push_qn(worklist, impl_name, member)
+                                        if own_self { push_qn(worklist, impl_name, "clone") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
         if ns_fdef_o.is_some() {
             collect_refs(ns_fdef_o.unwrap(), worklist, lp.ctx.symbols)

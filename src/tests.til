@@ -1724,12 +1724,9 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/fc_vc.c test/first_class.til '&&' cat gen/c/fc_vc.c"))
     add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 9,
         format(til_bin, " translate -c gen/c/fc_ir.c test/first_class.til '&&' cat gen/c/fc_ir.c"))
-    // An interface's ABSTRACT method has no definition anywhere --
-    // implementers copy the defaults and supply their own bodies, and
-    // dispatch goes to the copies -- so its prototype was a
-    // declared-never-defined name, the corpus's last one that is not a
-    // genuine external (ext.c / vendor).
-    add_count(tests, "interfaces_no_abstract_prototype", "build", "Drawable_draw", 0,
+    // Abstract methods now have typed dispatch definitions. The signature
+    // survives to the backend rather than becoming an untyped dyn_call.
+    add_count(tests, "interfaces_typed_dispatcher", "build", "Drawable_draw(Drawable * self) {", 1,
         format(til_bin, " translate -c gen/c/if_ap.c test/interfaces.til '&&' cat gen/c/if_ap.c"))
     // A generic template's body is not a reachability blob: methods root
     // per qualified name, so Array.to_vec's Vec reference must not keep
@@ -2516,7 +2513,10 @@ main := proc(args: ..Str) {
     // shape it covers is one they used to fail differently.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 302),
+        CountCheck(needle = "error:", expected_count = 312),
+        CountCheck(needle = "cannot return a reference into owned parameter", expected_count = 1),
+        CountCheck(needle = "func cannot call proc 'TErrProcDispatch.announce'", expected_count = 1),
+        CountCheck(needle = "cannot mutate the interface payload", expected_count = 1),
         CountCheck(needle = "does not match the signature of", expected_count = 16),
         CountCheck(needle = "is() compares only the enum tag", expected_count = 2),
         CountCheck(needle = "is null inside this catch", expected_count = 1),
@@ -2543,7 +2543,10 @@ main := proc(args: ..Str) {
         CountCheck(needle = "is an aggregate, not a word", expected_count = 5))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 302),
+        CountCheck(needle = "error:", expected_count = 312),
+        CountCheck(needle = "cannot return a reference into owned parameter", expected_count = 1),
+        CountCheck(needle = "func cannot call proc 'TErrProcDispatch.announce'", expected_count = 1),
+        CountCheck(needle = "cannot mutate the interface payload", expected_count = 1),
         CountCheck(needle = "does not match the signature of", expected_count = 16),
         CountCheck(needle = "is() compares only the enum tag", expected_count = 2),
         CountCheck(needle = "is null inside this catch", expected_count = 1),

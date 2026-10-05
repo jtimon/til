@@ -2356,76 +2356,19 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     check_member_priv(e, obj3_sname, method, ns_member_priv, scope, ctx)
     // #154: calling a method of a cross-file type uses that type's import.
     note_cross_file_type_use_sym(scope, ctx, obj3_sym)
-    // #269: a call to an ABSTRACT method through an interface-typed receiver
-    // cannot be resolved statically -- the receiver is a box carrying the
-    // concrete implementer's type name (see gen_interface_box_fields_for_stmt
-    // and the boxing rewrite in infer_and_validate_fcall_args). Lower the
-    // call onto the existing dyn_call machinery, which dispatches on the
-    // box's tag at runtime in BOTH backends:
-    //   Iface.method(recv, extra...) ->
-    //   dyn_call_ret(recv.iface_type_name, "method", arity, recv.iface_val, extra...)
-    // Concrete default methods stay statically dispatched to the interface's
-    // own implementation.
-    if def_is_interface(sdef2_o).and(e.children.len().gte(2)) {
-        mut abs_method := false
-        mut abs_returns := false
-        mut abs_ret_type := ""
-        switch ns_func2.node_type {
-        case .FuncDef(abs_fd):
-            if abs_fd.sig.func_type.is_ext() {
-                abs_method = true
-                abs_returns = abs_fd.sig.return_type.len() > 0
-                abs_ret_type = abs_fd.sig.return_type.clone()
-            }
-        case:
+    // Keep abstract interface calls typed against their actual signature.
+    // Erasing them to dyn_call here loses own/ref/effect information and
+    // duplicates the receiver. Backends dispatch this ordinary call instead.
+    if def_is_interface(sdef2_o) {
+        ref mut abs_fd : FunctionDef = funcdef_of(ns_func2)
+        if abs_fd.sig.func_type.is_ext() {
+            // A caller can precede the interface's body sweep.
+            abs_kind := abs_fd.sig.func_type
+            abs_fd.sig = interface_contract_signature(abs_fd, "", "", scope, ctx)
+            abs_fd.sig.func_type = abs_kind
         }
-        mut recv_is_iface := false
-        recv_sname_o := expr_type_name_ref(e.children[1], ctx.symbols)
-        if recv_sname_o.is_some() {
-            ref recv_sname : Str = recv_sname_o.unwrap()
-            recv_is_iface = recv_sname == obj3_sname
-        }
-        if abs_method.and(recv_is_iface) {
-            payload_args := e.children.len() - 1
-            if payload_args > 2 {
-                e.type_error(format("interface dispatch of '", obj3_sname, ".", method,
-                    "': dyn_call supports at most one argument besides self"), ctx)
-                e.set_til_type(Type.Unknown)
-                return true
-            }
-            dl := e.line
-            dc := e.col
-            mut dyn_callee_name := "dyn_call"
-            if abs_returns { dyn_callee_name = "dyn_call_ret" }
-            mut dyn_children := Vec(Expr).new()
-            dyn_children.push(own Expr.new(ident_node(ctx.symbols.intern(dyn_callee_name)), dl, dc))
-            mut fa_tag := Expr.new(field_access_node(ctx.symbols.intern("iface_type_name")), dl, dc)
-            fa_tag.add_child(own e.children[1].clone())
-            dyn_children.push(own fa_tag)
-            dyn_children.push(own Expr.new(NodeType.Literal(Literal.Str(method.clone())), dl, dc))
-            dyn_children.push(own Expr.new(NodeType.Literal(Literal.Num(LiteralNumData(text = payload_args.to_str()))), dl, dc))
-            mut fa_val := Expr.new(field_access_node(ctx.symbols.intern("iface_val")), dl, dc)
-            fa_val.add_child(own e.children[1].clone())
-            dyn_children.push(own fa_val)
-            for xi in 2..e.children.len() {
-                dyn_children.push_take(e.children, xi)
-            }
-            e.children = dyn_children
-            switch e.node_type {
-            case .FCall(dyn_fcd):
-                dyn_fcd.own_args = 0
-                // #342: the call is now dyn_call with a wholly different
-                // argument list, so the parsed splat positions describe
-                // nothing here -- clear them with the own bits rather than
-                // leave a bitmap pointing at the new arguments.
-                dyn_fcd.splat_args = 0
-            case:
-            }
-            infer_expr(scope, e, in_func, ctx)
-            if abs_ret_type.len() > 0 {
-                e.set_til_type(type_from_name(abs_ret_type, scope, ctx))
-            }
-            return true
+        if abs_fd.sig.func_type.is_ext().and(abs_fd.sig.func_type.is_proc()).and(in_func != 0) {
+            e.type_error(format("func cannot call proc '", obj3_sname, ".", method, "'"), ctx)
         }
     }
     if func_state.proc_def_depth.gt(0).or(in_func.neq(0)) {
@@ -2538,6 +2481,37 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
         validate_fcall_own_args_for_fdef(scope, e, ns_fdef, ctx)
+        if def_is_interface(sdef2_o).and(ns_fdef.sig.func_type.is_ext()) {
+            for pi in 0..ns_fdef.sig.params.len() {
+                if pi + 1 >= e.children.len() { break }
+                ref p : Declaration = ns_fdef.sig.params[pi]
+                if p.is_mut.not().or(decl_type_name(p, ctx.symbols) != obj3_sname) { continue }
+                // A mutable abstract receiver writes its concrete payload,
+                // not merely the interface box. Follow the carried borrow
+                // so a mutable box cannot launder an immutable concrete.
+                mut payload := Expr.new(field_access_node(ctx.symbols.intern("iface_val")), e.line, e.col)
+                payload.add_child(own e.children[pi + 1].clone())
+                payload.set_til_type(Type.Dynamic)
+                mark_written_through(scope, payload, ctx.symbols)
+                check_write_roots_mut(scope, e, payload, "mutate the interface payload", ctx)
+            }
+            mut source_params : USize = 0
+            for p : Declaration in ns_fdef.sig.params {
+                if p.name.starts_with("_err_").not() { source_params++ }
+            }
+            if source_params > 2 {
+                e.type_error(format("interface dispatch of '", obj3_sname, ".", method,
+                    "': supports at most one argument besides self"), ctx)
+            }
+            if ns_fdef.sig.params.len() == 0 {
+                e.type_error("abstract interface dispatch requires a receiver", ctx)
+            } else if decl_type_name(ns_fdef.sig.params[0], ctx.symbols) != obj3_sname {
+                e.type_error("abstract interface dispatch requires its first parameter to have the interface type", ctx)
+            }
+            if ns_fdef.sig.return_type.eq(obj3_sname).and(ns_fdef.sig.return_own_type.is(OwnType.Ref)) {
+                e.type_error("interface dispatch cannot return ref Self: the concrete reference has no owning interface box; return the interface by value instead", ctx)
+            }
+        }
         mut rt := Type.None
         if ns_fdef.sig.return_type.len() > 0 {
             rt = type_from_name(ns_fdef.sig.return_type, scope, ctx)
@@ -4801,7 +4775,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
                 expr.type_error("interface has no 'namespace:' marker: it has no fields, so every declaration is already a method", ctx)
             }
             mut ifni : USize = 0
-            for if_nd : Declaration in if_sdd.ns_decls {
+            for mut if_nd : Declaration in if_sdd.ns_decls {
                 ref if_name : Str = if_sdd.member_name_at(ifni)
                 ifni = ifni + 1
                 if if_nd.default_value.is_none() { continue }
@@ -4815,6 +4789,12 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
                     ok_kind := ift.is_plain().or(ift.is_ext())
                     if ok_kind.not() {
                         if_nd.default_expr().type_error(format("interface member '", if_name, "' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
+                    } else if ift.is_ext() {
+                        // These declarations describe til calls, not an FFI
+                        // boundary. Preserve abstractness while giving their
+                        // callers the same effective qualifier rules as til.
+                        if_fd.sig = interface_contract_signature(if_fd, "", "", scope, ctx)
+                        if_fd.sig.func_type = ift
                     }
                 case:
                     if_nd.default_expr().type_error(format("interface member '", if_name, "' must be a method: an interface cannot have fields"), ctx)
@@ -5187,10 +5167,40 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
     return type_carries_borrow(scope, resolved, symbols)
 }
 
-priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, mut ctx: Context) {
+priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     mut throws_count : USize = 0
-    ref fdef : FunctionDef = funcdef_of(expr)
+    ref mut fdef : FunctionDef = funcdef_of(expr)
     if fdef.sig.return_own_type.is(OwnType.Ref).not() { return }
+    // The source-level summary distinguishes an alias INTO an input from
+    // a borrow that input merely carries (including Option(ref T).take).
+    // A consuming call cannot return a reference into its owned input's
+    // storage: the caller/dispatcher releases that storage after the call.
+    mut owned_params : U64 = 0
+    for pi in 0..fdef.sig.params.len() {
+        if fdef.sig.params[pi].own_type.is(OwnType.Own) { owned_params = owned_params.bor(summary_param_bit(pi)) }
+    }
+    if owned_params.neq(0).and(fdef.sig.func_type.is_bodyless().not()) {
+        // The pre-typing fixpoint deliberately over-approximates unresolved
+        // fields. Use the settled body and its real scope for this ownership
+        // verdict, and publish that refinement for callers such as a helper
+        // forwarding Option(ref T).take's borrowed result.
+        mut roots := Map(Str, RootBits).new()
+        for pi in 0..fdef.sig.params.len() {
+            roots.set(fdef.sig.params[pi].name, own RootBits(alias = summary_param_bit(pi)))
+        }
+        mut deposits := DepositAcc()
+        result := summary_walk(expr.children[0], roots, deposits, func_scope,
+            func_scope.active_type_name(), fdef.sig.params, ctx.symbols, ctx)
+        fdef.ref_return_params = result.alias
+        fdef.ref_return_into_params = result.into
+        fdef.ref_return_carried_params = result.carried
+        for pi in 0..fdef.sig.params.len() {
+            if owned_params.band(result.alias).band(summary_param_bit(pi)) != 0 {
+                expr.type_error(format("cannot return a reference into owned parameter '", fdef.sig.params[pi].name,
+                    "': its storage is consumed by this call; return an owned value instead"), ctx)
+            }
+        }
+    }
     throws_count = fdef.sig.throw_types.len()
     for stmt : Expr in expr.children[0].children {
         if stmt.node_type.is(NodeType.Return).not() { continue }
@@ -12427,6 +12437,11 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         if e.children.len() > 0 {
             summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
             if d.own_type.is(OwnType.Ref) {
+                // The Case pattern already says whether this payload is
+                // inline or borrowed. Its synthesized get_payload binding
+                // must not replace that fact with a raw pointer alias when
+                // the typed body is summarized again.
+                if roots.has(d.name).and(rhs_is_payload_binding(e.children[0], symbols)) { return RootBits() }
                 db := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
                 if db.is_zero().not() { roots.set(d.name, own db.clone()) }
             } else if e.children[0].node_type.is(NodeType.FCall) {
@@ -12446,12 +12461,17 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         }
         return RootBits()
     case .Switch, .Match:
+        mut case_bits := RootBits()
         if e.children.len() > 0 {
             subj := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
-            if subj.is_zero().not() {
-                for ci in 1..e.children.len() { summary_bind_case(e.children[ci], subj, roots, scope, self_type, symbols) }
+            for ci in 1..e.children.len() {
+                // Bind immediately before its arm, not all arms up front:
+                // two variants can reuse a name with different ownership.
+                summary_bind_case(e.children[ci], subj, roots, scope, self_type, symbols)
+                case_bits = case_bits.bor(summary_walk(e.children[ci], roots, acc, scope, self_type, params, symbols, ctx))
             }
         }
+        return case_bits
     case .Assign(ad):
         // #393: `hs = rhs` unions the source's carrying relations into the
         // target; a parameter target is a deposit the caller can observe.
@@ -12493,6 +12513,22 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
     if fd_expr.children.len() == 0 { return false }
     switch fd_expr.node_type {
     case .FuncDef(fd):
+        if fd.sig.func_type.is_ext().and(name_is_interface(self_type, scope, ctx.symbols)) {
+            // An abstract ref result can alias any borrowed input; unlike an
+            // FFI raw pointer it has a typed contract whose callers must keep
+            // those owners alive and retain their mutability provenance.
+            if fd.sig.return_own_type.is(OwnType.Ref) {
+                mut roots := fd.ref_return_params
+                for pi in 0..fd.sig.params.len() {
+                    ref p : Declaration = fd.sig.params[pi]
+                    if p.own_type.is(OwnType.Ref).and(p.name.starts_with("_err_").not()) {
+                        roots = roots.bor(summary_param_bit(pi))
+                    }
+                }
+                if roots != fd.ref_return_params { fd.ref_return_params = roots; return true }
+            }
+            return false
+        }
         // A bodyless raw / core / FFI ref has no typed root to hand back.
         if fd.sig.func_type.is_bodyless() { return false }
         // #351/#357: summaries cover every shape that can hand a borrow

@@ -921,6 +921,60 @@ namespace:
     count := func(_self: TErrFixedArityContract, items: Str) returns USize { return items.len() }
 }
 
+// Dynamic calls must validate the original interface contract, before any
+// backend dispatch: the old dyn_call rewrite erased these constraints.
+terr_iface_dispatch_missing_own := func(view: TErrFullContract, own text: Str) returns Str {
+    return view.take(text)
+}
+terr_iface_dispatch_extra_own := func(view: TErrFullContract, own text: Str) returns Str {
+    return view.borrow(own text)
+}
+terr_iface_dispatch_immutable := func(view: TErrFullContract) returns I64 {
+    return view.mutate(1)
+}
+terr_iface_dispatch_arg_type := func(view: TErrFullContract, n: I64) returns Str {
+    return view.borrow(n)
+}
+
+TErrProcDispatch := interface { announce := ext_proc(self: TErrProcDispatch) {} }
+terr_iface_dispatch_effect := func(view: TErrProcDispatch) { view.announce() }
+
+TErrMutDispatch := interface { bump := ext_func(mut self: TErrMutDispatch) {} }
+TErrMutValue := struct implements TErrMutDispatch {
+    n := 0
+namespace:
+    bump := func(mut self: TErrMutValue) { self.n = self.n + 1 }
+}
+terr_iface_dispatch_payload := func() {
+    source := TErrMutValue()
+    mut view: TErrMutDispatch = source
+    view.bump()
+}
+
+// Unsupported erased shapes fail at the call, rather than generating an
+// invalid wrapper or a reference to a freshly allocated interface box.
+TErrRefSelfDispatch := interface {
+    borrow := ext_func(self: TErrRefSelfDispatch) returns ref TErrRefSelfDispatch {}
+}
+terr_iface_dispatch_ref_self := func(view: TErrRefSelfDispatch) returns ref TErrRefSelfDispatch {
+    return view.borrow()
+}
+TErrManyDispatch := interface {
+    add := ext_func(self: TErrManyDispatch, a: I64, b: I64) returns I64 {}
+}
+terr_iface_dispatch_many := func(view: TErrManyDispatch) returns I64 { return view.add(1, 2) }
+TErrStaticDispatch := interface { get := ext_func() returns I64 {} }
+terr_iface_dispatch_static := func() returns I64 { return TErrStaticDispatch.get() }
+
+TErrOwnedRefDispatch := interface {
+    get := ext_func(own self: TErrOwnedRefDispatch) returns ref I64 {}
+}
+TErrOwnedRefValue := struct implements TErrOwnedRefDispatch {
+    n := 7
+namespace:
+    get := func(own self: TErrOwnedRefValue) returns ref I64 { return self.n }
+}
+
 // #287: the key binding of a two-variable for-in cannot be `mut` -- mutating
 // a key in place would corrupt the map's key ordering / bucket placement.
 // Values may be mutated (`for k, mut v`); keys may not.

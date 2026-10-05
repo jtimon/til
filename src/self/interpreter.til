@@ -3319,6 +3319,100 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
     }
 }
 
+priv InterfaceCallBox := struct {
+    ref data: Dynamic
+    release := false
+}
+
+priv bind_interface_receiver := proc(mut dispatch_scope: Scope, mut box: Dynamic, iface_name: Str,
+    concrete_name: Str, shallow concrete_type: Type, index: USize, own_payload: Bool, site: Expr, mut ctx: Context) returns Expr {
+    ref value_fl : FieldLayout = ctx_field_layout(iface_name, "iface_val", ctx)
+    ref owned_fl : FieldLayout = ctx_field_layout(iface_name, "iface_owned", ctx)
+    ref initial_payload : Dynamic = deref(ptr_add(box, value_fl.offset))
+    mut payload : Dynamic = initial_payload
+    payload_name := format("_t_iface_receiver_", index.to_str())
+    if own_payload {
+        ref payload_owned : Bool = ptr_add(box, owned_fl.offset)
+        if payload_owned.not() {
+            scope_set_raw_owned(dispatch_scope, payload_name, payload, interp_intern_type(concrete_type, ctx), OwnType.Ref, ctx, borrowed = true)
+            mut source := Expr.new(ident_node(ctx.symbols.intern(payload_name)), site.line, site.col)
+            source.set_til_type(concrete_type)
+            mut clone_call := make_clone_call(concrete_name, concrete_type, source, site, ctx.symbols)
+            payload = eval_call(dispatch_scope, clone_call, ctx)
+        }
+        write_bool(ptr_add(box, owned_fl.offset), false)
+        write_ptr(ptr_add(box, value_fl.offset), bits_word(0))
+        scope_set_raw_owned(dispatch_scope, payload_name, payload, interp_intern_type(concrete_type, ctx), OwnType.Own, ctx)
+    } else {
+        scope_set_raw_owned(dispatch_scope, payload_name, payload, interp_intern_type(concrete_type, ctx), OwnType.Ref, ctx, borrowed = true)
+    }
+    mut receiver := Expr.new(ident_node(ctx.symbols.intern(payload_name)), site.line, site.col)
+    receiver.set_til_type(concrete_type)
+    return receiver
+}
+
+priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str, contract: FunctionDef, mut ctx: Context, mut destination: Dynamic) returns Dynamic {
+    own_self := contract.sig.params[0].own_type.is(OwnType.Own)
+    mut receiver_info := raw_result_info_new()
+    mut box : Dynamic = 0
+    if own_self.and(e.children[1].node_type.is(NodeType.Ident)) {
+        box = scope_move_bound_raw(scope, ident_of(e.children[1]).ident_name(ctx.symbols.names), ctx)
+    } else {
+        box = eval_expr_raw_info(scope, e.children[1], ctx, receiver_info)
+    }
+    ref tag_fl : FieldLayout = ctx_field_layout(iface_name, "iface_type_name", ctx)
+    ref value_fl : FieldLayout = ctx_field_layout(iface_name, "iface_val", ctx)
+    ref owned_fl : FieldLayout = ctx_field_layout(iface_name, "iface_owned", ctx)
+    ref concrete_name : Str = ptr_add(box, tag_fl.offset)
+    concrete_type := type_from_name_init_name(concrete_name, ctx.scope, ctx.symbols)
+    ref method : Str = fieldaccess_of(e.children[0]).field_access_name(ctx.symbols.names)
+    target_o := ns_func_def(concrete_name, method, ctx)
+    if target_o.is_none() { panic("interface dispatch: no implementation of ", iface_name, ".", method) }
+    ref target : FunctionDef = funcdef_of(target_o.unwrap())
+    mut dispatch_scope := scope_new(safe_ref(scope))
+    mut call := e.clone()
+    mut type_id := Expr.new(ident_node(ctx.symbols.intern(concrete_name)), e.line, e.col)
+    type_id.set_til_type(concrete_type)
+    call.children[0].children[0] = type_id
+    mut boxes := Vec(InterfaceCallBox).new()
+    boxes.push(own InterfaceCallBox(data = box, release = own_self.or(receiver_info.is_ref.not())))
+    call.children[1] = bind_interface_receiver(dispatch_scope, box, iface_name, concrete_name, concrete_type, 0, own_self, e, ctx)
+    for pi in 1..contract.sig.params.len() {
+        ref param : Declaration = contract.sig.params[pi]
+        if decl_type_name(param, ctx.symbols) != iface_name { continue }
+        mut arg_info := raw_result_info_new()
+        mut arg_box : Dynamic = 0
+        if param.own_type.is(OwnType.Own).and(e.children[pi + 1].node_type.is(NodeType.Ident)) {
+            arg_box = scope_move_bound_raw(scope, ident_of(e.children[pi + 1]).ident_name(ctx.symbols.names), ctx)
+        } else {
+            arg_box = eval_expr_raw_info(scope, e.children[pi + 1], ctx, arg_info)
+        }
+        ref arg_name : Str = ptr_add(arg_box, tag_fl.offset)
+        if arg_name != concrete_name { panic("interface dispatch: Self arguments have different runtime types") }
+        boxes.push(own InterfaceCallBox(data = arg_box, release = param.own_type.is(OwnType.Own).or(arg_info.is_ref.not())))
+        call.children[pi + 1] = bind_interface_receiver(dispatch_scope, arg_box, iface_name, concrete_name, concrete_type, pi, param.own_type.is(OwnType.Own), e, ctx)
+    }
+    mut ret_type := Type.None
+    if target.sig.return_type.len() > 0 { ret_type = type_from_name_init_name(target.sig.return_type, ctx.scope, ctx.symbols) }
+    call.set_til_type(ret_type)
+    mut result_info := raw_result_info_new()
+    mut result : Dynamic = eval_call_info(dispatch_scope, call, ret_type, ctx, result_info)
+    if contract.sig.return_type == iface_name {
+        mut wrapped : Dynamic = EvalHeap.heap_alloc(ctx_total_size(iface_name, ctx))
+        tag_copy : Dynamic = heap_clone("Str", to_ptr(concrete_name), ctx)
+        memcpy(ptr_add(wrapped, tag_fl.offset), tag_copy, tag_fl.size)
+        EvalHeap.heap_free(own tag_copy)
+        write_ptr(ptr_add(wrapped, value_fl.offset), result)
+        write_bool(ptr_add(wrapped, owned_fl.offset), true)
+        result = wrapped
+    }
+    scope_free(own dispatch_scope)
+    for used_box : InterfaceCallBox in boxes {
+        if used_box.release { raw_result_drop_ptr(e.children[1].til_type(), used_box.data, false, ctx) }
+    }
+    return raw_result_finish(e.til_type(), result, destination, contract.sig.return_own_type.is(OwnType.Ref), ctx)
+}
+
 priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Type, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic = bits_word(0)) returns Dynamic {
     ref mut callee_expr : Expr = e.children[0]
     info.is_ref = false
@@ -3367,6 +3461,19 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         }
         ref func_def : Expr = callable_raw_func_def(fn_raw)
         set_resolved_call_result_info(call_type, func_def, destination, info, ctx)
+        ref iface_fd : FunctionDef = funcdef_of(func_def)
+        if iface_fd.sig.func_type.is_ext() {
+            mut iface_fallback := ""
+            ref iface_name : Str = field_access_sname(callee_expr, iface_fallback, ctx.symbols)
+            iface_o := lookup_interp_type_def(iface_name, ctx)
+            if iface_o.is_some().and(iface_o.unwrap().node_type.is(NodeType.StructDef)) {
+                if structdef_of(iface_o.unwrap()).is_interface {
+                    result : Dynamic = eval_interface_call(scope, e, iface_name, iface_fd, ctx, destination)
+                    if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
+                    return result
+                }
+            }
+        }
 
             // FuncPtr field: stored function may be ext_func from another type
             if callee_expr.til_type().is_funcptr() {

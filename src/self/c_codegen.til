@@ -5802,10 +5802,157 @@ priv begin_shared_core_global_definition := func(f: File, name: Str, ctype: Str,
     return true
 }
 
+// The interface method remains a typed call in the AST. Its C definition is
+// a signature-preserving dispatcher, so normal argument storage/ownership
+// and ref-return handling apply to the caller, including error out-params.
+priv interface_method_dispatchable := func(name: Str, fd: FunctionDef, symbols: SymbolPool) returns Bool {
+    if fd.sig.params.len() == 0 { return false }
+    if decl_type_name(fd.sig.params[0], symbols) != name { return false }
+    return fd.sig.return_type.eq(name).and(fd.sig.return_own_type.is(OwnType.Ref)).not()
+}
+
+priv emit_interface_receiver := proc(f: File, iface_name: Str, concrete: Str, def: Expr, param: Declaration, index: USize, lp: LoadedProgram) {
+    source := format("_t_iface_box_", index.to_str())
+    payload := format("_t_iface_receiver_", index.to_str())
+    if index > 0 {
+        f.write("        ").write(iface_name).write(" *").write(source).write(" = ")
+        if param.own_type.is(OwnType.Shallow) { f.write("&") }
+        f.write(param.name).write(";\n")
+        f.write("        if (").write(source).write("->iface_type_name.count != ").write(concrete.len().to_str())
+            .write(" || memcmp(").write(source).write("->iface_type_name.c_str, \"").write(concrete).write("\", ")
+            .write(concrete.len().to_str()).write(") != 0) { fprintf(stderr, \"interface dispatch: Self arguments have different runtime types\\n\"); exit(1); }\n")
+    }
+    f.write("        ").write(concrete).write(" *").write(payload).write(" = (").write(concrete).write(" *)").write(source).write("->iface_val;\n")
+    if param.own_type.is(OwnType.Own) {
+        ref clone_fd : FunctionDef = funcdef_of(find_namespace_func(def, "clone", lp.ctx.scope, lp.ctx.symbols).unwrap())
+        f.write("        if (!").write(source).write("->iface_owned) {\n")
+        if func_returns_c_value(clone_fd) {
+            f.write("            ").write(concrete).write(" *_t_iface_copy = malloc(TIL_BOX(").write(concrete).write("));\n            *_t_iface_copy = ")
+        } else { f.write("            ").write(concrete).write(" *_t_iface_copy = ") }
+        f.write(concrete).write("_clone(")
+        if func_param_passes_c_value(clone_fd, 0, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols) { f.write("*") }
+        f.write(payload).write(");\n            ").write(payload).write(" = _t_iface_copy;\n        }\n")
+        f.write("        ").write(source).write("->iface_owned = 0;\n        ").write(source).write("->iface_val = NULL;\n")
+    }
+}
+
+priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr, mut lp: LoadedProgram) {
+    ref fd : FunctionDef = funcdef_of(fdef)
+    receiver := "_t_iface_box_0"
+    full_name := name.concat3("_", method)
+    if builder_func_is_tu_local(full_name, lp.ctx) { f.write("static ") }
+    f.write(func_return_ctype(fd, lp.ctx)).write(" ").write(full_name).write("(")
+    emit_param_list(f, fdef, true, false, lp.ctx)
+    f.write(") {\n")
+    f.write("    ").write(name).write(" *").write(receiver).write(" = ")
+    if fd.sig.params[0].own_type.is(OwnType.Shallow) { f.write("&") }
+    f.write(fd.sig.params[0].name).write(";\n")
+    mut arms : USize = 0
+    for path : Str in lp.unit_paths() {
+        for stmt : Expr in lp.ctx.imported[path].ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            ref def : Expr = stmt.children[0]
+            mut implemented := ""
+            switch def.node_type {
+            case .StructDef(sd): implemented = sd.implements_name.clone()
+            case .EnumDef(ed): implemented = ed.implements_name.clone()
+            case:
+            }
+            if resolve_type_alias(lp.ctx.scope, implemented, lp.ctx.symbols) != name { continue }
+            ref concrete : Str = decl_of(stmt).name
+            ref target : FunctionDef = funcdef_of(find_namespace_func(def, method, lp.ctx.scope, lp.ctx.symbols).unwrap())
+            arms++
+            f.write("    if (").write(receiver).write("->iface_type_name.count == ")
+                .write(concrete.len().to_str()).write(" && memcmp(").write(receiver)
+                .write("->iface_type_name.c_str, \"").write(concrete).write("\", ")
+                .write(concrete.len().to_str()).write(") == 0) {\n")
+            for i in 0..fd.sig.params.len() {
+                if decl_type_name(fd.sig.params[i], lp.ctx.symbols) == name {
+                    emit_interface_receiver(f, name, concrete, def, fd.sig.params[i], i, lp)
+                }
+            }
+            has_return := fd.sig.return_type.len() > 0
+            if has_return {
+                f.write("        ").write(func_return_ctype(target, lp.ctx)).write(" _t_iface_result = ")
+            } else { f.write("        ") }
+            f.write(concrete).write("_").write(method).write("(")
+            for i in 0..fd.sig.params.len() {
+                if i > 0 { f.write(", ") }
+                target_value := func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                if decl_type_name(fd.sig.params[i], lp.ctx.symbols) == name {
+                    if target_value { f.write("*") }
+                    f.write("_t_iface_receiver_").write(i.to_str())
+                } else {
+                    source_value := func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                    if target_value.and(source_value.not()) { f.write("*") }
+                    if source_value.and(target_value.not()) { f.write("&") }
+                    f.write(fd.sig.params[i].name)
+                }
+            }
+            f.write(");\n")
+            for i in 0..fd.sig.params.len() {
+                if fd.sig.params[i].own_type.is(OwnType.Own).not() { continue }
+                if func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                    .or(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)) {
+                    if decl_type_name(fd.sig.params[i], lp.ctx.symbols) == name {
+                        f.write("        free(_t_iface_receiver_").write(i.to_str()).write(");\n")
+                    }
+                    else if func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()
+                        .and(is_aggregate(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols))
+                            .or(i.to_i32() == fd.sig.variadic_index).or(i.to_i32() == fd.sig.kwargs_index)) {
+                        // Owned primitives still arrive in caller-frame
+                        // slots at the abstract boundary; only aggregate/
+                        // variadic outer allocations belong to this bridge.
+                        f.write("        free(").write(fd.sig.params[i].name).write(");\n")
+                    }
+                }
+            }
+            for p : Declaration in fd.sig.params {
+                if p.own_type.is(OwnType.Own).and(decl_type_name(p, lp.ctx.symbols) == name) {
+                    f.write("        ").write(name).write("_delete(").write(p.name).write(", 1);\n")
+                }
+            }
+            if has_return {
+                if fd.sig.return_type == name {
+                    f.write("        ").write(concrete).write(" *_t_iface_payload = ")
+                    if func_returns_c_value(target) {
+                        f.write("malloc(TIL_BOX(").write(concrete).write("));\n        *_t_iface_payload = _t_iface_result;\n")
+                    } else { f.write("_t_iface_result;\n") }
+                    f.write("        ").write(name).write(" *_t_iface_box = malloc(TIL_BOX(").write(name).write("));\n")
+                    f.write("        *_t_iface_box = (").write(name).write("){.iface_type_name = (Str){.c_str=(void *)\"")
+                        .write(concrete).write("\", .count=").write(concrete.len().to_str()).write(", .cap=TIL_CAP_LIT}, .iface_val=(void *)_t_iface_payload, .iface_owned=1};\n")
+                    f.write("        return _t_iface_box;\n")
+                } else if func_returns_c_value(fd).not().and(func_returns_c_value(target)) {
+                    result_type := type_name_to_c_value(fd.sig.return_type, lp.ctx)
+                    f.write("        ").write(result_type).write(" *_t_iface_box = malloc(TIL_BOX(").write(result_type).write("));\n")
+                    f.write("        *_t_iface_box = _t_iface_result;\n        return _t_iface_box;\n")
+                } else if func_returns_c_value(fd).and(func_returns_c_value(target).not()) {
+                    f.write("        ").write(type_name_to_c_value(fd.sig.return_type, lp.ctx)).write(" _t_iface_value = *_t_iface_result;\n")
+                    f.write("        free(_t_iface_result);\n        return _t_iface_value;\n")
+                } else { f.write("        return _t_iface_result;\n") }
+            } else { f.write("        return;\n") }
+            f.write("    }\n")
+        }
+    }
+    if arms == 0 {
+        f.write("    (void)").write(receiver).write(";\n")
+        for p : Declaration in fd.sig.params { f.write("    (void)").write(p.name).write(";\n") }
+    }
+    f.write("    fprintf(stderr, \"interface dispatch: no implementation of ").write(name).write(".").write(method).write("\\n\");\n    exit(1);\n}\n\n")
+}
+
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, mut lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
-    if fd.sig.func_type.is_bodyless() { return }
+    if fd.sig.func_type.is_bodyless() {
+        if fd.sig.func_type.is_ext().and(def_is_interface(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())) {
+            if interface_method_dispatchable(name, fd, lp.ctx.symbols)
+                .and(qname_in_set(lp.ctx.builder_ns_member_sites, name, ".", dd_name).or(lp.ctx.builder_keep_all_exports)) {
+                emit_interface_dispatch(f, name, dd_name, fdef, lp)
+            }
+        }
+        return
+    }
     is_auto_size = dd_name.eq("size").and(fd.auto_generated)
     // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
@@ -8144,16 +8291,14 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
                     // every such method got a prototype that nothing defines
                     // and nothing calls -- 61 in til's own output.
                     if builder_ns_method_lowered_inline(fdd.default_expr()) { continue }
-                    // An interface's ABSTRACT method (the `ext_func` shape,
-                    // #268) has no definition anywhere: implementers copy
-                    // the concrete defaults and provide their own abstract
-                    // bodies, and calls dispatch to those copies. The dyn
-                    // wrapper loops already skip the pair; the prototype
-                    // was the corpus's last declared-never-defined name
-                    // that is not a genuine external.
+                    // Called abstract methods have signature-preserving
+                    // dispatcher definitions; uncalled ones need no symbol.
                     switch fdd.default_expr().node_type {
                     case .FuncDef(af2_fd):
-                        if af2_fd.sig.func_type.is_ext().and(def_is_interface(rhs)) { continue }
+                        if af2_fd.sig.func_type.is_ext().and(def_is_interface(rhs)) {
+                            if interface_method_dispatchable(dd.name, af2_fd, lp.ctx.symbols).not() { continue }
+                            if qname_in_set(lp.ctx.builder_ns_member_sites, dd.name, ".", def_ns_name_at(rhs, cur_af2i)).or(lp.ctx.builder_keep_all_exports).not() { continue }
+                        }
                     case:
                     }
                     if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
@@ -11445,6 +11590,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     }
 }
 priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if builder_interface_target_kept(type_name, member, ctx) { return false }
     if ctx.builder_keep_all_exports { return false }
     flat_in := type_name.concat3("_", member)
     // Methods spliced at every direct call site need no out-of-line
@@ -11464,6 +11610,7 @@ priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Co
     return qname_in_set(ctx.builder_reflect_inventory, "dyn_call_m", ".", member).not()
 }
 priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if builder_interface_target_kept(type_name, member, ctx) { return false }
     // Not restricted to the AUTO-GENERATED ones: core writes `size` by
     // hand for the primitives (`func() returns USize { return 1 }`), and
     // the argument is the same either way -- the constfolder folds every
@@ -11499,6 +11646,7 @@ priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Cont
     return builder_variant_ctor_kept(type_name, bvco_def, member, ctx).not()
 }
 priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if builder_interface_target_kept(type_name, member, ctx) { return false }
     if member.eq("clone").or(member.eq("delete")).or(member.eq("eq")).not() { return false }
     // Any ENUM or STRUCT, payload-carrying and non-POD included: the site
     // inventory decides. Stack-local payload-less enum deletes are the only
@@ -11523,6 +11671,11 @@ priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context
     if builder_size_method_omitted(type_name, member, ctx) { return true }
     if builder_pod_lifecycle_omitted(type_name, member, ctx) { return true }
     return builder_variant_ctor_omitted(type_name, member, ctx)
+}
+
+priv builder_interface_target_kept := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if ctx.builder_reflect_inventory.has("interface_dispatch").not() { return false }
+    return qname_in_set(ctx.builder_reflect_inventory, "iface_call.", type_name, format(".", member))
 }
 priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, ctx: Context) returns Bool {
     if def_ns_get(enum_def, vname).is_none() { return false }
@@ -11868,6 +12021,52 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
             for inv_tl_stmt : Expr in lp.ctx.imported[upath].ast.children {
                 if global_decl_has_c_static_initializer(inv_tl_stmt, lp.ctx) { continue }
                 builder_collect_ns_member_sites(inv_tl_stmt, inv_round_sites, inv_stack_names, inv_dup_names, inv_unit_reads, "", inv_func_sites, lp.ctx)
+            }
+        }
+        // Interface dispatcher bodies make direct calls not spelled in the
+        // til AST. Keep those namespace methods with the existing dynamic
+        // dispatch inventory, including clone/delete for consuming self.
+        for ipath : Str in lp.unit_paths() {
+            for istmt : Expr in lp.ctx.imported[ipath].ast.children {
+                if is_struct_or_enum(istmt).not() { continue }
+                ref idef : Expr = istmt.children[0]
+                if def_is_interface(idef).not() { continue }
+                ref iname : Str = decl_of(istmt).name
+                mut mi : USize = 0
+                ref members : Vec(Declaration) = def_ns_decls(idef)
+                for member : Declaration in members {
+                    ref mname : Str = def_ns_name_at(idef, mi)
+                    mi++
+                    if member.default_value.is_none() { continue }
+                    if member.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+                    ref ifd : FunctionDef = funcdef_of(member.default_expr())
+                    if ifd.sig.func_type.is_ext().not() { continue }
+                    if qname_in_set(inv_round_sites, iname, ".", mname).or(lp.ctx.builder_keep_all_exports).not() { continue }
+                    lp.ctx.builder_reflect_inventory.add(own Str.clone("interface_dispatch"))
+                    mut needs_clone := false
+                    for p : Declaration in ifd.sig.params {
+                        if p.own_type.is(OwnType.Own).and(decl_type_name(p, lp.ctx.symbols) == iname) {
+                            needs_clone = true
+                            inv_round_sites.add(own format(iname, ".delete"))
+                        }
+                    }
+                    for cpath : Str in lp.unit_paths() {
+                        for candidate : Expr in lp.ctx.imported[cpath].ast.children {
+                            if is_struct_or_enum(candidate).not() { continue }
+                            ref cdef : Expr = candidate.children[0]
+                            mut implemented := ""
+                            switch cdef.node_type {
+                            case .StructDef(sd): implemented = sd.implements_name.clone()
+                            case .EnumDef(ed): implemented = ed.implements_name.clone()
+                            case:
+                            }
+                            if resolve_type_alias(lp.ctx.scope, implemented, lp.ctx.symbols) != iname { continue }
+                            ref cname : Str = decl_of(candidate).name
+                            lp.ctx.builder_reflect_inventory.add(own format("iface_call.", cname, ".", mname))
+                            if needs_clone { lp.ctx.builder_reflect_inventory.add(own format("iface_call.", cname, ".clone")) }
+                        }
+                    }
+                }
             }
         }
         n_sites := inv_round_sites.len()

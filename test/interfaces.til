@@ -1,5 +1,8 @@
 mode test
 
+// Calls can be typed before the interface's declaration is visited.
+forward_interface_value := func(view: CounterContract) returns I64 { return view.value() }
+
 // Issue #251: an interface is an abstract-class-like contract that desugars
 // to a fieldless struct. A member is either ABSTRACT -- declared with
 // `ext_func`/`ext_proc` and an empty `{}` body, to be provided by
@@ -540,6 +543,8 @@ FullContract := interface {
     take := ext_func(self: FullContract, own text: Str) returns Str {}
     borrow := ext_func(self: FullContract) returns ref Str {}
     announce := ext_proc(self: FullContract) {}
+    consume := ext_func(own self: FullContract) returns Str {}
+    take_number := ext_func(self: FullContract, own n: I64) returns I64 {}
     label := func(self: FullContract) returns Str { return self.read() }
 }
 
@@ -555,6 +560,8 @@ namespace:
     take := func(_self: ContractValue, own text: Str) returns Str { return text }
     borrow := func(self: ContractValue) returns ref Str { return self.text }
     announce := proc(_self: ContractValue) { print("") }
+    consume := func(own self: ContractValue) returns Str { return self.text.clone() }
+    take_number := func(_self: ContractValue, own n: I64) returns I64 { return n }
     label := func(self: ContractValue) returns Str { return format("override ", self.text) }
 }
 
@@ -578,6 +585,8 @@ namespace:
     copy := func(self: CounterValue) returns CounterValue { return self.clone() }
     consume := func(own self: CounterValue) returns ContractCount { return self.n }
     count := func(_self: CounterValue, items: ..Str) returns USize { return items.len() }
+    same := func(self: CounterValue, other: CounterValue) returns Bool { return self.n == other.n }
+    merge := func(self: CounterValue, own other: CounterValue) returns I64 { return self.n + other.n }
 }
 
 CounterContract := interface {
@@ -585,6 +594,8 @@ CounterContract := interface {
     copy := ext_func(self: CounterContract) returns CounterContract {}
     consume := ext_func(own self: CounterContract) returns I64 {}
     count := ext_func(self: CounterContract, items: ..Str) returns USize {}
+    same := ext_func(self: CounterContract, other: CounterContract) returns Bool {}
+    merge := ext_func(self: CounterContract, own other: CounterContract) returns I64 {}
     twice := func(self: CounterContract) returns I64 { return self.value() * 2 }
 }
 
@@ -627,4 +638,124 @@ namespace:
 test_interface_throw_contract := test() {
     value := FallibleValue(n = 9)
     assert_eq(I64, value.value()!, 9)
+}
+
+make_full_contract := func(mut calls: I64) returns FullContract {
+    calls++
+    return ContractValue(text = format("receiver ", calls.to_str()))
+}
+make_dispatch_argument := func(mut calls: I64) returns Str {
+    calls++
+    return format("argument ", calls.to_str())
+}
+
+test_interface_dispatch_once_and_owned_args := test() {
+    mut calls := 0
+    assert_eq(Str, make_full_contract(calls).read(), "receiver 1")
+    assert_eq(I64, calls, 1)
+    assert_eq(Str, make_full_contract(calls).take(own make_dispatch_argument(calls)), "argument 3")
+    assert_eq(I64, calls, 3)
+    view := make_full_contract(calls)
+    number := 17
+    assert_eq(I64, view.take_number(own number), 17)
+}
+
+dispatch_announce := proc(view: FullContract) { view.announce() }
+
+test_interface_dispatch_mut_and_ref := test() {
+    mut value := ContractValue(text = "borrowed", n = 1)
+    mut view: FullContract = value
+    assert_eq(I64, view.add(4), 5)
+    assert_eq(I64, value.n, 5)
+    ref text: Str = view.borrow()
+    assert_eq(Str, text, "borrowed")
+    dispatch_announce(view)
+}
+
+Finishable := interface {
+    finish := ext_func(own self: Finishable) returns I64 {}
+}
+FinishValue := struct implements Finishable {
+    n: I64
+namespace:
+    mut drops := 0
+    finish := func(own self: FinishValue) returns I64 { return self.n }
+    delete := func(own self: FinishValue, call_free: Bool = true) {
+        FinishValue.drops = FinishValue.drops + 1
+        if call_free { free(own self) }
+    }
+}
+
+FinishChoice := enum implements Finishable {
+    Value: I64,
+namespace:
+    finish := func(own self: FinishChoice) returns I64 {
+        switch self {
+        case .Value(n): return n
+        }
+    }
+}
+
+test_interface_dispatch_owned_self := test() {
+    owned: Finishable = FinishValue(n = 5)
+    before_owned := FinishValue.drops
+    assert_eq(I64, Finishable.finish(own owned), 5)
+    assert_eq(I64, FinishValue.drops, before_owned + 1)
+    source := FinishValue(n = 7)
+    borrowed: Finishable = source
+    before_borrowed := FinishValue.drops
+    assert_eq(I64, Finishable.finish(own borrowed), 7)
+    assert_eq(I64, FinishValue.drops, before_borrowed + 1)
+    assert_eq(I64, source.n, 7)
+    choice: Finishable = FinishChoice.Value(11)
+    assert_eq(I64, Finishable.finish(own choice), 11)
+}
+
+test_interface_dispatch_self_values := test() {
+    view: CounterContract = CounterValue(n = 7)
+    copy := view.copy()
+    assert_eq(I64, forward_interface_value(view), 7)
+    assert_eq(I64, copy.value(), 7)
+    assert(view.same(copy))
+    assert_eq(I64, view.merge(own copy), 14)
+    assert_eq(USize, view.count("a", "b"), 2)
+    assert_eq(I64, CounterContract.consume(own view), 7)
+}
+
+dispatch_fallible := func(view: FallibleContract) returns I64 throws ContractFailure {
+    return view.value()?
+}
+
+test_interface_dispatch_throws := test() {
+    good := FallibleValue(n = 9)
+    bad := FallibleValue(n = 0)
+    assert_eq(I64, dispatch_fallible(good)!, 9)
+    mut caught := false
+    dispatch_fallible(bad)?
+    catch (err: ContractFailure) { caught = err.eq(ContractFailure()) }
+    assert(caught)
+}
+
+DispatchFailure := struct { message := "" }
+CheckedBorrow := interface {
+    get := ext_func(self: CheckedBorrow) returns ref Str throws DispatchFailure {}
+}
+CheckedValue := struct implements CheckedBorrow {
+    text: Str
+namespace:
+    get := func(self: CheckedValue) returns ref Str throws DispatchFailure {
+        if self.text.len() == 0 { throw DispatchFailure(message = "empty") }
+        return self.text
+    }
+}
+
+test_interface_dispatch_ref_throws := test() {
+    good: CheckedBorrow = CheckedValue(text = "checked")
+    ref text: Str = good.get()!
+    assert_eq(Str, text, "checked")
+    bad: CheckedBorrow = CheckedValue(text = "")
+    mut message := ""
+    bad.get()?
+    catch (err: DispatchFailure) { message = err.message }
+    assert_eq(Str, message, "empty")
 }

@@ -395,6 +395,7 @@ typedef struct HeapBinding HeapBinding;
 typedef struct Scope Scope;
 typedef struct InterpSession InterpSession;
 typedef struct priv___src_self_interpreter_til__RawResultInfo priv___src_self_interpreter_til__RawResultInfo;
+typedef struct priv___src_self_interpreter_til__InterfaceCallBox priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
 typedef struct priv___src_self_interpreter_til__InterpAlias priv___src_self_interpreter_til__InterpAlias;
 typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpreter_til__ExtStr;
@@ -402,6 +403,7 @@ typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Option__ref_U8 Option__ref_U8;
+typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
@@ -1411,6 +1413,12 @@ typedef struct priv___src_self_interpreter_til__RawResultInfo {
 } priv___src_self_interpreter_til__RawResultInfo;
 
 
+typedef struct priv___src_self_interpreter_til__InterfaceCallBox {
+    void * *data;
+    Bool release;
+} priv___src_self_interpreter_til__InterfaceCallBox;
+
+
 typedef struct priv___src_self_interpreter_til__DynPtrBox {
     U8 *p;
 } priv___src_self_interpreter_til__DynPtrBox;
@@ -1461,6 +1469,13 @@ typedef struct FFITypePtrBox {
 struct Option__ref_U8 {
     U8 *data;
 };
+
+typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_interpreter_til__InterfaceCallBox;
+
 
 struct Option__ref_HeapBinding {
     HeapBinding *data;

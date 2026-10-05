@@ -14,3 +14,28 @@ eat := proc(own s: Str) {
 doomed := format("a", "b")
 eat(own doomed)
 println(doomed)
+
+// Interface dispatch must preserve both the owned receiver and owned
+// argument bits so the same post-typing transfer check sees these moves.
+TransferredInterface := interface {
+    consume := ext_proc(own self: TransferredInterface) {}
+    take := ext_func(self: TransferredInterface, own text: Str) returns Str {}
+    read := ext_func(self: TransferredInterface) returns Str {}
+}
+TransferredValue := struct implements TransferredInterface {
+    text: Str
+namespace:
+    consume := proc(own self: TransferredValue) { println(self.text) }
+    take := func(_self: TransferredValue, own text: Str) returns Str { return text }
+    read := func(self: TransferredValue) returns Str { return self.text.clone() }
+}
+
+receiver: TransferredInterface = TransferredValue(text = "receiver")
+TransferredInterface.consume(own receiver)
+println(receiver.read())
+
+view: TransferredInterface = TransferredValue(text = "argument")
+argument := format("owned ", "argument")
+result := view.take(own argument)
+println(result)
+println(argument)

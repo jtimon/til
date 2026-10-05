@@ -23,6 +23,78 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Contract-preserving dispatch (based on master b201ae5d5)
+
+    Reproduced a receiver factory running twice for one interface call and
+    valid ~returns ref~ methods being treated as owned results. The typer
+    rewrote abstract calls to ~dyn_call~/~dyn_call_ret~ before ordinary call
+    validation, duplicated the receiver to extract tag/payload, and cleared
+    all ownership bits. Thus the checked implementation contract was lost
+    at the call boundary.
+
+    Abstract calls now retain their interface-qualified callee and signature
+    in the AST. They use ordinary argument/default/ownership validation,
+    func/proc checks, hoisting and result ownership. Abstract signatures use
+    til's effective qualifier rules rather than an external C function's
+    implicit scalar-pointer ABI; forward calls normalize on demand too.
+    Mutable Self arguments also check the concrete borrow behind the box,
+    and abstract ref results retain borrowed-input provenance.
+
+    Backend implementation:
+    - C emits a typed ~Iface_method~ dispatcher under the existing method
+      name. It selects only conforming implementations and adapts value/
+      pointer ABIs without erasing the caller's contract. The scavenger and
+      existing emission inventory retain its concrete targets and lifecycle
+      dependencies; unrelated same-named methods are not dispatch targets.
+    - The interpreter resolves the same interface call to the concrete
+      method, with the original ownership bits and return qualifier intact.
+      Receiver/argument expressions are evaluated once.
+    - Consuming Self transfers an owned payload, or clones a borrowed one
+      before consumption, then releases the interface box. Owned argument
+      shells are released according to their ABI; primitive caller-frame
+      slots are never freed. Value Self returns are boxed, and additional
+      Self arguments are unboxed only after checking the runtime types agree.
+    - Throws forward the normal error out-parameters, including payloads and
+      borrowed results. Synthetic error parameters do not consume the current
+      one-explicit-argument-besides-self allowance.
+
+    A destructor-count regression also exposed ordinary ~return self.n~ from
+    an owning parameter skipping self's cleanup. ~hoist_return_expr~ now
+    reads such scalar fields before exit cleanup, so consuming dispatch does
+    not inherit that leak/skipped custom destructor.
+
+    A consuming method returning a reference into its owned parameter also
+    reproduced ASAN heap-use-after-free. Return checking now rejects that
+    invalid implementation at its definition. A reference reached
+    through a ref field is a carried borrow, not a reference into the owned
+    parameter's own storage, and is distinguished by the existing roots.
+    The ownership verdict uses the settled typed body rather than the
+    pre-typing over-approximation. Switch summaries preserve the pattern's
+    payload ownership when revisiting synthesized bindings, so consuming
+    ~Option(ref T)~ can still return the reference it merely carries.
+
+    Tests: six ~test_interface_dispatch_*~ cases in ~test/interfaces.til~
+    cover receiver/argument evaluation order, owned Str/scalar arguments,
+    mutable borrowed payloads, ref returns, proc calls, owned/borrowed Self
+    consumption and destructor counts, structs/enums, forward calls, Self
+    arguments/results, variadics, and fieldless/payload throws. Nine new
+    ~terr_iface_dispatch_*~ rejection cases cover call contracts and
+    unsupported shapes; ~TErrOwnedRefValue~ checks the consuming ref-return
+    rejection. ~test/use_after_transfer_error.til~ also verifies
+    use-after-transfer rejection for an interface receiver and argument.
+    The generated-C check now requires a real typed dispatcher definition.
+
+    Concrete defaults still use their existing static dispatch. Ordinary
+    multi-argument dispatch remains limited as above. ~ref Self~ results and
+    abstract calls without an interface receiver are rejected explicitly;
+    returning a concrete reference does not itself provide a stable returned
+    interface box.
+
+    Verification: ~make clean && make test~ passed 496/496, including ASAN
+    and self-translation. Interface tests pass 40/40 interpreted and compiled;
+    the negative corpus has 312 expected errors and the transfer fixture has
+    three expected diagnostics.
+
 *** Conformance follow-up (based on master 7b20f9811)
 
     Reproduced acceptance of incompatible parameter ownership, mutable self,

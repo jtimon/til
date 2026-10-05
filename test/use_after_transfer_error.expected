@@ -1,4 +1,10 @@
+test/use_after_transfer_error.til:41:9: error: use of 'argument' after ownership transfer
+test/use_after_transfer_error.til:39:1: note: ownership transferred here
+  help: pass a clone instead: own argument.clone()
 test/use_after_transfer_error.til:16:9: error: use of 'doomed' after ownership transfer
 test/use_after_transfer_error.til:15:1: note: ownership transferred here
   help: pass a clone instead: own doomed.clone()
-1 type error(s) found
+test/use_after_transfer_error.til:35:18: error: use of 'receiver' after ownership transfer
+test/use_after_transfer_error.til:34:22: note: ownership transferred here
+  help: pass a clone instead: own receiver.clone()
+3 type error(s) found

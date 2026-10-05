@@ -5519,8 +5519,8 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     // ref temp but not the container the temp points into, and
     // `return ps[0].v` read freed memory (heap-use-after-free, both
     // backends). Hoist the read into a value temp so it happens before
-    // the deletes. Params are exempt (their storage is the caller's, no
-    // local delete touches it -- and hoisting every `return self.x`
+    // the deletes. Borrowed params are exempt (their storage is the caller's,
+    // no local delete touches it -- and hoisting every `return self.x`
     // would churn the world), aggregates copy pointers rather than the
     // bytes behind them so a hoist alone cannot save those (rejected
     // separately), and a ref-returning function must hand back the
@@ -5555,7 +5555,10 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     sf := scope.find_name(root_name, ctx.symbols)
     switch sf {
     case .Found(rb):
-        if rb.own_type.is(OwnType.Ref).and(rb.is_param.not()) {
+        // An owning parameter also needs its destructor before returning a
+        // scalar field. Leaving `return self.n` in place made the garbager
+        // exclude self from exit cleanup just because the return reads it.
+        if rb.own_type.is(OwnType.Own).or(rb.own_type.is(OwnType.Ref).and(rb.is_param.not())) {
             stmt.children[0] = hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
         }
     case:
