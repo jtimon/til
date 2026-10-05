@@ -27,7 +27,7 @@ container := proc(uid: Str, args: ..Str) returns Cmd {
 
 // Keyboard setup belongs to this test, not to an untracked host fixture.
 // Expect owns and reaps QEMU synchronously, including its timeout path.
-guest_driver := func() returns Str {
+guest_driver := func(input_commands: Str = "") returns Str {
     return format(
         "set timeout 120\nlog_user 0\n",
         "spawn qemu-system-x86_64 -accel tcg -m 512 -smp 1 -drive file=guest.raw,format=raw,if=ide -cdrom TempleOS.ISO -boot d -display none -monitor stdio -debugcon file:debug.log -global isa-debugcon.iobase=0xe9 -device isa-debug-exit,iobase=0xf4,iosize=0x04\n",
@@ -47,16 +47,18 @@ guest_driver := func() returns Str {
         " send \"sendkey ret\\r\"\n expect \"(qemu)\"\n}\n",
         "type_text {CBlkDev *bd=BlkDevNextFreeSlot('C',BDT_ATA);bd->base0=0x1F0;bd->base1=0x3F6;bd->unit=0;BlkDevAdd(bd,I64_MIN,FALSE,TRUE);}\nafter 2000\n",
         "type_text {ExeFile(\"C:/Home/Once.HC\");}\n",
+        input_commands,
         "expect eof\nafter cancel $deadline\nexit [lindex [wait] 3]\n")
 }
 
-run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str) {
+run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str, input_commands: Str = "") {
     // Every case gets a fresh writable disk, including failure cases.
     setup := container(uid, "sh", "-ec",
         "truncate -s 0 guest.raw; truncate -s 64M guest.raw; printf 'label: dos\nstart=2048,type=c\n' | sfdisk --quiet guest.raw; mformat -F -i guest.raw@@1048576 ::; mmd -i guest.raw@@1048576 ::/Home; mcopy -o -i guest.raw@@1048576 Once.HC ::/Home/Once.HC; mcopy -o -i guest.raw@@1048576 Ext.HC ::/Home/Ext.HC; mcopy -o -i guest.raw@@1048576 TILTEST.HC ::/Home/TILTEST.HC")
     setup.stdout_to(format(WORK, "/setup.log"))
     setup.stderr_to_stdout()
     if setup.run() != 0 { panic("guest disk setup failed; see ", WORK, "/setup.log") }
+    File.writefile(format(WORK, "/run.exp"), guest_driver(input_commands))
     command := container(uid, "expect", "run.exp")
     command.stdout_to(format(WORK, "/run.log"))
     command.stderr_to_stdout()
@@ -147,15 +149,15 @@ main := proc() {
     if digest.starts_with(ISO_SHA).not() { panic("TempleOS ISO checksum mismatch: ", digest) }
     File.writefile(format(WORK, "/Once.HC"), File.readfile("test/templeos.HC"))
     File.writefile(format(WORK, "/Ext.HC"), File.readfile("src/holyc/ext.HC"))
-    File.writefile(format(WORK, "/run.exp"), guest_driver())
 
     sources := array(Str, "examples/hello_script.til", "examples/fizzbuzz.til",
         "examples/templeos_calls.til", "examples/templeos_scalars.til",
         "test/script_raw_alloc.til", "test/script_dynamic_free.til",
-        "test/script_str_runtime.til", "test/script_struct_runtime.til")
+        "test/script_str_runtime.til", "test/script_struct_runtime.til",
+        "test/holyc_f64.til", "test/holyc_continue.til")
     goldens := array(Str, "", "test/fizzbuzz.expected", "", "",
         "test/script_raw_alloc.expected", "test/script_dynamic_free.expected",
-        "test/script_str_runtime.expected", "test/script_struct_runtime.expected")
+        "test/script_str_runtime.expected", "test/script_struct_runtime.expected", "", "")
     for bits : Str in array(Str, "32", "64") {
         for i, source in sources {
             host := Cmd.new("timeout", "120", "bin/til", "interpret", format("--usize=", bits), source)
@@ -185,6 +187,18 @@ main := proc() {
             "-c", format(WORK, "/TILTEST.HC"), format(WORK, "/boundary.til")).run_checked()
         File.appendfile(format(WORK, "/TILTEST.HC"), format(width_checks(bits), file_boundary_checks()))
         run_guest(identity, format("boundaries_", bits), "boundary checks\n", "pass")
+        File.writefile(format(WORK, "/input.til"), format("mode script\nimport(\"std/sys\")\n",
+            "mut line := Str.with_capacity(3)\nline.push_str(\"old\")\n",
+            "if in_read_line(line).not() { panic(\"missing first line\") }\nprintln(line)\n",
+            "if in_read_line(line).not() { panic(\"missing blank line\") }\n",
+            "if line.len() == 0 { println(\"blank input\") }\n"))
+        input_expected := captured(Cmd.new("sh", "-ec", format(
+            "printf 'native line\\n\\n' | bin/til interpret --usize=", bits, " ", WORK, "/input.til")))
+        if input_expected != "native line\nblank input\n" { panic("host line input mismatch") }
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), format(WORK, "/input.til")).run_checked()
+        run_guest(identity, format("line_input_", bits), input_expected, "pass",
+            "after 2000\ntype_text {native line}\nafter 500\ntype_text {}\n")
         failure_case(identity, bits, "missing", "content := File.readfile(\"MISSING.HC\")\nprintln(content)\n",
             "cfile_open: could not open 'MISSING.HC'\n", "")
         failure_case(identity, bits, "parent_read", "content := File.readfile(\"CHILD/PARENT.HC\")\nprintln(content)\n",

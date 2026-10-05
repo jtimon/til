@@ -74,6 +74,10 @@
   - I8/U8, I16/U16, I32/U32, I64/U64 and Bool have their HolyC widths and are
     passed and returned by value. UPtr and all raw addresses are 64-bit. The
     source-level USize width is resolved by the frontend.
+  - F64 uses native eight-byte float storage. HolyC has no F32 storage type,
+    so F32 uses four-byte IEEE binary32 bits with x87 widening/rounding
+    helpers. Literals preserve their resolved float bits, and numeric
+    conversions use conversion primitives rather than HolyC storage casts.
   - Raw pointers cross the boundary as ~U8 *~ values. Ownership changes do not
     add pointer indirection: ~TilFree~ consumes a pointer value. A slot load is
     the explicit exception and uses ~U8 **~ through ~TilDeref~.
@@ -539,6 +543,44 @@
   directory, and file removal of a directory at both widths. Compiler/native exceptions
   now retain the guest console in an extracted diagnostic log, instead of
   leaving only an error token.
+
+*** Milestone 3: broader script language and native services
+
+  HolyC now executes the frontend's lowered throwing calls, hidden error
+  parameters, propagation, catches, and cleanup. Full-value byte swaps
+  support both scalar values and error aggregates. Scalar, aggregate, and
+  borrowed-reference returns retain their respective ABI. Continue jumps
+  target the innermost lowered loop without skipping its increment or the
+  ownership pass's cleanup. Variadic functions/methods receive the same
+  Array(T) values produced by shared lowering; format consumes Array(Str)
+  into an owned string, so File.fwrite uses its normal standard-library body.
+
+  F32/F64 values, arithmetic, comparisons, integer conversions, cloning,
+  typed raw-pointer reads/deletion, and aggregate/ordered-container storage
+  are supported. F32 rounds back to binary32 after arithmetic; integer-to-F32
+  conversion avoids an intermediate F64 double-rounding error, and unsigned
+  conversions preserve U64's upper half. NaN comparisons match the core
+  contract, including unordered comparisons and cmp returning zero. Float
+  parsing and decimal string/repr formatting are still explicit unsupported
+  operations.
+
+  clock_ms uses TempleOS uptime in milliseconds, and positive sleep_ms
+  durations call the native scheduler. in_read_line replaces the destination's
+  owned bytes using GetStr, including successful blank lines. The native
+  interactive console has no stream EOF; keyboard acceptance compares two
+  lines, including a blank line, against the hosted interpreter.
+
+  The shared Str/runtime corpus now produces 80 lines across interpreter,
+  compiled C, and TempleOS. Its language checks cover nested propagation,
+  successful and failing scalar/aggregate returns, a throwing borrowed return,
+  destructor counters, nested continue cleanup, empty and populated variadics,
+  File.fwrite, scalar swaps, float precision/NaN/infinity/conversions, float
+  aggregates/enums/ordered keys, raw float memory, and clock/sleep behavior.
+  The former F64/continue rejection tests are now positive translation and
+  guest cases. make test_templeos passed all 53 cases at both USize widths,
+  including FAT32/RedSea workflows, line input, expected failures, and the
+  hard timeout. The final expanded shared corpus also passed focused native
+  reruns at USize 32 and 64.
 
 *** QEMU validation
 

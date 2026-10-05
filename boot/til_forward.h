@@ -1266,6 +1266,7 @@ typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Str ref_return_type;
+    Str continue_label;
     Set__Str param_pointer_names;
     Map__Str_Str payload_names;
     Map__Str_Str pointer_types;

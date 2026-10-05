@@ -1,1 +1,30 @@
-error: HolyC codegen: unsupported declaration type 'F64'
+
+#define TIL_USIZE U64
+#define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
+#define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
+#include "/Home/Ext.HC"
+
+
+I64 TilMain()
+{
+    F64 value_0 = TilF64Bits(4609434218613702656);
+    F64 hoisted__F64_g10_1 = TilF64Bits(4607182418800017408);
+    F64 hoisted__F64_g11_2 = (value_0 + hoisted__F64_g10_1);
+    value_0 = hoisted__F64_g11_2;
+    F64 hoisted__F64_g12_3 = TilF64Bits(4612811918334230528);
+    Bool hoisted__Bool_g13_4 = TilF64Compare(value_0, hoisted__F64_g12_3, 0);
+    if (hoisted__Bool_g13_4) {
+        U64 hoisted__U64_g7_5 = 1;
+        TilStrArray _va_Array_g0_6;
+        TilStrArrayNew(&_va_Array_g0_6, hoisted__U64_g7_5);
+        I64 _va_Array_g0_ek_7 = 0;
+        U64 hoisted__U64_g8_8 = 0;
+        TilStr hoisted__Str_g9_9;
+        TilStrInitLit(&hoisted__Str_g9_9, "f64 arithmetic", 14);
+        TilStrArraySet(&_va_Array_g0_6, hoisted__U64_g8_8, &hoisted__Str_g9_9);
+        TilPrintln(&_va_Array_g0_6);
+    }
+    return 0;
+}
+
+TilMain;

@@ -239,3 +239,152 @@ own sparse_bytes.delete()
 own zero_span.delete()
 own sector_content.delete()
 File.remove(write_path)
+
+LanguageError := struct { msg := "" }
+LanguageCounts := struct { closed := 0; entered := 0 }
+LanguageGuard := struct {
+    label := ""
+    ref closes : LanguageCounts
+namespace:
+    delete := func(own self: LanguageGuard, call_free: Bool = true) {
+        self.closes.closed = self.closes.closed + 1
+        own self.label.delete(false)
+        if call_free { free(own self) }
+    }
+}
+language_checked := proc(n: I64, mut closes: LanguageCounts) returns Str throws LanguageError {
+    closes.entered = closes.entered + 1
+    println("checked")
+    guard := LanguageGuard(label="inner", closes=closes)
+    if n < 0 { throw LanguageError(msg=guard.label.clone()) }
+    return guard.label.clone()
+}
+language_forward := proc(n: I64, mut closes: LanguageCounts) returns Str throws LanguageError {
+    closes.entered = closes.entered + 1
+    guard := LanguageGuard(label="outer", closes=closes)
+    value := language_checked(n, closes)?
+    println(guard.label)
+    return value
+}
+mut language_result := ""
+mut language_closes := LanguageCounts()
+language_result = language_forward(-1, language_closes)? catch (error: LanguageError) {
+    println(error.msg)
+    language_result = "caught"
+}
+println(language_result)
+println(language_closes.closed.to_str())
+language_result = language_forward(1, language_closes)!
+println(language_result)
+println(language_closes.closed.to_str())
+own language_result.delete()
+mut continue_total := 0
+for i in 0..5 {
+    if i == 2 { continue }
+    continue_total = continue_total + i
+}
+println(continue_total.to_str())
+mut nested_total := 0
+for i in 0..3 {
+    for j in 0..4 {
+        guard := LanguageGuard(label="loop", closes=language_closes)
+        if guard.label != "loop" { panic("wrong loop guard") }
+        if j == 1 { continue }
+        if i == 1 { continue }
+        nested_total = nested_total + j
+    }
+}
+println("nested continue:", nested_total.to_str(), ":", language_closes.closed.to_str())
+language_number := func(n: I64, mut closes: LanguageCounts) returns I64 throws LanguageError {
+    closes.entered = closes.entered + 1
+    guard := LanguageGuard(label="number", closes=closes)
+    if n < 0 { throw LanguageError(msg=guard.label.clone()) }
+    return n + 1
+}
+mut number_result := language_number(6, language_closes)!
+if number_result != 7 { panic("wrong successful throwing return") }
+number_result = language_number(-1, language_closes)? catch (error: LanguageError) {
+    println(error.msg)
+}
+println("scalar throw:", number_result.to_str(), ":", language_closes.closed.to_str())
+language_borrow := func(mut closes: LanguageCounts, n: I64) returns ref LanguageCounts throws LanguageError {
+    closes.entered = closes.entered + 1
+    if n < 0 { throw LanguageError(msg="borrow") }
+    return closes
+}
+ref borrowed_closes : LanguageCounts = language_borrow(language_closes, 1)!
+if borrowed_closes.closed.eq(18).and(borrowed_closes.entered.eq(7)) { println("throwing reference") }
+language_sum := func(base: I64, parts: ..I64) returns I64 {
+    mut total := base
+    for part : I64 in parts { total = total + part }
+    return total
+}
+println("variadic:", language_sum(10, 1, 2, 3).to_str(), ":", language_sum(10).to_str())
+mut swap_left : I64 = 3
+mut swap_right : I64 = 7
+swap_bytes(swap_left, swap_right, I64.size().to_uptr())
+if swap_left.eq(7).and(swap_right.eq(3)) { println("scalar swap") }
+if true {
+    formatted_file := File.new(write_path, true)
+    formatted_file.fwrite("var", "-", "args")
+    own formatted_file.delete(false)
+}
+println(File.readfile(write_path))
+File.remove(write_path)
+
+mut float_small : F32 = 16777216.0
+mut float_large : F64 = 16777216.0
+float_small = float_small.add(1.0)
+float_large = float_large.add(1.0)
+if float_small.eq(16777216.0).and(float_large.eq(16777217.0)) { println("float widths") }
+mut float_zero : F64 = 0.0
+float_nan := float_zero.div(float_zero)
+float_inf := 1.0.div(float_zero)
+if float_nan.eq(float_nan).not().and(float_nan.neq(float_nan)) { println("nan comparisons") }
+if float_inf.gt(1.0).and(float_nan.lt(1.0).or(float_nan.gte(1.0)).not()) { println("infinity and unordered") }
+mut small_zero : F32 = 0.0
+small_nan := small_zero.div(small_zero)
+if small_nan.eq(small_nan).not() { println("f32 nan") }
+float_as_i64 := float_large.to_i64()
+println(float_as_i64.to_str())
+conversion_number := language_closes.closed * -1
+converted_small := F32.from_i64(conversion_number)
+converted_large := F64.from_i64(conversion_number)
+if converted_small.to_f64().eq(converted_large).and(converted_large.to_f32().to_i64().eq(conversion_number)) {
+    println("float conversions")
+}
+mut wide_conversion : I64 = 4611686293305294848
+wide_conversion.inc()
+mut unsigned_conversion : U64 = 0
+unsigned_conversion.dec()
+if wide_conversion.to_f32().eq(4611686568183201792.0)
+    .and(unsigned_conversion.to_f64().eq(18446744073709551616.0))
+    .and(unsigned_conversion.to_f32().to_f64().eq(18446744073709551616.0)) {
+    println("wide float conversions")
+}
+FloatPair := struct { small : F32 = 0.0; large : F64 = 0.0 }
+float_pair := FloatPair(small=-1.5, large=2.5)
+float_pair_copy := float_pair.clone()
+if float_pair.eq(float_pair_copy).and(float_pair.small.mul(2.0).to_i64().eq(-3)) {
+    println("float aggregates")
+}
+mut signed_float : F64 = -1.5
+if signed_float.sub(0.5).mul(4.0).div(2.0).eq(-4.0)
+    .and(float_pair.small.sub(0.5).div(2.0).eq(-1.0))
+    .and(signed_float.to_i64().eq(-1)) { println("float arithmetic") }
+mut heap_float : F32 = malloc(F32.size().to_uptr())
+memcpy(heap_float, float_pair.small, F32.size().to_uptr())
+if heap_float.eq(-1.5) { println("float pointer") }
+own heap_float.delete()
+float_keys := Set(F32).new()
+float_keys.add(own F32.from_i64(2))
+float_keys.add(own F32.from_i64(-1))
+if float_keys.has(F32.from_i64(-1)).and(float_keys.len().eq(2)) { println("float ordering") }
+FloatPayload := enum { Small: F32, Large: F64 }
+float_payload_low := FloatPayload.Small(converted_small)
+float_payload_high := FloatPayload.Small(float_small)
+if float_payload_low.cmp(float_payload_high) < 0 { println("float enum ordering") }
+started := clock_ms()
+sleep_ms(20)
+elapsed := clock_ms() - started
+if elapsed >= 10 { println("clock and sleep") }

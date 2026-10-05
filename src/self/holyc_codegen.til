@@ -42,6 +42,7 @@ priv HolyCEmitState := struct {
 
 priv HolyCLocalState := struct {
     ref_return_type := ""
+    continue_label := ""
     param_pointer_names := Set(Str).new()
     payload_names := Map(Str, Str).new()
     pointer_types := Map(Str, Str).new()
@@ -102,7 +103,7 @@ priv holyc_field_call_name := func(e: Expr, ctx: Context) returns Str {
 
 priv holyc_scalar_type_name := func(name: Str) returns Bool {
     switch name {
-    case "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Bool":
+    case "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Bool", "F32", "F64":
         return true
     case:
         return false
@@ -182,6 +183,7 @@ priv holyc_enum_tag_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitStat
 
 priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState {
     return HolyCLocalState(ref_return_type = locals.ref_return_type.clone(),
+        continue_label = locals.continue_label.clone(),
         param_pointer_names = locals.param_pointer_names.clone(),
         payload_names = locals.payload_names.clone(),
         pointer_types = locals.pointer_types.clone(),
@@ -455,6 +457,13 @@ priv holyc_struct_eq_supported := func(type_name: Str, ctx: Context,
 
 priv holyc_field_eq_expr := func(type_name: Str, left: Str, right: Str,
     pointer: Bool, state: HolyCEmitState, mut error: Str) returns Str {
+    if type_name.eq("F32").or(type_name.eq("F64")) {
+        mut a := left
+        mut b := right
+        if pointer { a = holyc_checked_load(left, type_name); b = holyc_checked_load(right, type_name) }
+        if type_name == "F32" { a = format("TilF32Load(", a, ")"); b = format("TilF32Load(", b, ")") }
+        return format("TilF64Compare(", a, ", ", b, ", 0)")
+    }
     if holyc_scalar_type_name(type_name) {
         if pointer {
             return format("(", holyc_checked_load(left, type_name), " == ",
@@ -522,6 +531,11 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
             return ""
         }
         direct_name := holyc_callable_name(e, ctx, state)
+        if direct_name == "format" {
+            if e.children.len() != 2 { error = "invalid format call"; return "" }
+            parts := holyc_str_array_ref(e.children[1], ctx, locals, error)
+            return format("TilFormat(&", dest, ", ", parts, ")")
+        }
         if direct_name.eq("cfile_read_all").or(direct_name.eq("cfile_read_n"))
             .or(direct_name.eq("cdir_next")) {
             handle := holyc_pointer_expr(e.children[1], ctx, state, locals, error)
@@ -1176,6 +1190,29 @@ priv holyc_core_binop := func(op: Str) returns Str {
     return ""
 }
 
+priv holyc_float_op := func(method: Str) returns I64 {
+    switch method {
+    case "add": return 0
+    case "sub": return 1
+    case "mul": return 2
+    case "div": return 3
+    case: return -1
+    }
+}
+
+priv holyc_float_cmp := func(method: Str) returns I64 {
+    switch method {
+    case "eq": return 0
+    case "neq": return 1
+    case "lt": return 2
+    case "gt": return 3
+    case "lte": return 4
+    case "gte": return 5
+    case "cmp": return 6
+    case: return -1
+    }
+}
+
 priv holyc_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
     if e.children.len() == 0 {
         name_o := expr_type_name_ref(e, symbols)
@@ -1351,7 +1388,7 @@ priv holyc_prepare_state := func(program: Expr, ctx: Context,
                     mut ref_params := Set(USize).new()
                     for i in 0..fdef.sig.params.len() {
                         ref param : Declaration = fdef.sig.params[i]
-                        if holyc_param_is_pointer(param, state, ctx.symbols) {
+                        if fdef.sig.variadic_index.eq(i.to_i32()).or(holyc_param_is_pointer(param, state, ctx.symbols)) {
                             ref_params.add(own i.clone())
                         }
                     }
@@ -1426,7 +1463,7 @@ priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
         }
         mut ref_params := Set(USize).new()
         for i in 0..fd.sig.params.len() {
-            if holyc_param_is_pointer(fd.sig.params[i], state, ctx.symbols) {
+            if fd.sig.variadic_index.eq(i.to_i32()).or(holyc_param_is_pointer(fd.sig.params[i], state, ctx.symbols)) {
                 ref_params.add(own i.clone())
             }
         }
@@ -1503,16 +1540,12 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
             error = format("unsupported function kind '", func_type_name(fdef.sig.func_type), "'")
             return ""
         }
-        if fdef.sig.variadic_index.gte(0).or(fdef.sig.kwargs_index.gte(0)) {
-            error = "variadic and keyword parameters are not supported yet"
+        if fdef.sig.kwargs_index.gte(0) {
+            error = "keyword parameter collectors are not supported yet"
             return ""
         }
         if fdef.captures.len().gt(0) {
             error = "capturing functions are not supported yet"
-            return ""
-        }
-        if fdef.sig.throw_types.len().gt(0) {
-            error = "throwing functions are not supported yet"
             return ""
         }
         mut return_type := "U0"
@@ -1552,6 +1585,9 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
         for i in 0..fdef.sig.params.len() {
             ref param : Declaration = fdef.sig.params[i]
             mut param_type := holyc_storage_type_name(decl_type_name(param, symbols))
+            if fdef.sig.variadic_index == i.to_i32() {
+                param_type = format("Array__", param_type)
+            }
             if state.enum_types.has(param_type).and(state.payload_enum_names.has(param_type).not()) { param_type = state.enum_types[param_type].clone() }
             if state.niche_ref_types.has(param_type).and(param.is_mut.not()) {
                 if params.len() > 0 { params = format(params, ", ") }
@@ -1598,6 +1634,18 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
     locals: HolyCLocalState, mut error: Str) returns Str {
     switch e.node_type {
     case .Literal(Literal.Num(num)):
+        if type_is_primitive(e.til_type(), Primitive.F32) {
+            value := num.to_f32()
+            mut bits : U32 = malloc(4)
+            memcpy(bits, value, 4)
+            return bits.to_str()
+        }
+        if type_is_primitive(e.til_type(), Primitive.F64) {
+            value := num.literal_num_text().to_f64()
+            mut bits : U64 = malloc(8)
+            memcpy(bits, value, 8)
+            return format("TilF64Bits(", bits.to_str(), ")")
+        }
         return Str.clone(num.literal_num_text())
     case .Literal(Literal.Bool(b)):
         if b { return "TRUE" }
@@ -2085,8 +2133,8 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 switch owner {
                 case "I8", "U8", "Bool": return "1"
                 case "I16", "U16": return "2"
-                case "I32", "U32": return "4"
-                case "I64", "U64": return "8"
+                case "I32", "U32", "F32": return "4"
+                case "I64", "U64", "F64": return "8"
                 case:
                     error = format("unsupported size call for '", owner, "'")
                     return ""
@@ -2108,6 +2156,57 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 left := holyc_pointer_expr(e.children[1], ctx, state, locals, error)
                 right := holyc_pointer_expr(e.children[2], ctx, state, locals, error)
                 return format("(", left, " == ", right, ")")
+            }
+            if method.eq("to_f32").or(method.eq("to_f64"))
+                .or(method.eq("from_i64").and(owner.eq("F32").or(owner.eq("F64")))) {
+                if e.children.len() != 2 { error = "invalid floating conversion"; return "" }
+                mut value := holyc_expr(e.children[1], ctx, state, locals, error)
+                if method == "from_i64" {
+                    if owner == "F32" { return format("TilF32FromI64(", value, ")") }
+                    return format("ToF64(", value, ")")
+                }
+                if owner == "F32" { return format("TilF32Load(", value, ")") }
+                if owner == "U64" {
+                    if method == "to_f32" { return format("TilF32FromU64(", value, ")") }
+                    return format("TilF64FromU64(", value, ")")
+                }
+                if owner.neq("F64").and(method.eq("to_f32")) {
+                    return format("TilF32FromI64(", value, ")")
+                }
+                if owner != "F64" { value = format("ToF64(", value, ")") }
+                if method == "to_f32" {
+                    return format("TilF32Round(", value, ")")
+                }
+                return value
+            }
+            if owner.eq("F32").or(owner.eq("F64")) {
+                if method == "clone" { return holyc_expr(e.children[1], ctx, state, locals, error) }
+                if method == "delete" {
+                    if e.children.len() != 3 { error = "invalid float delete call"; return "" }
+                    ptr := holyc_pointer_expr(e.children[1], ctx, state, locals, error)
+                    call_free := holyc_delete_free_flag(e.children[1], e.children[2], ctx, state, locals, error)
+                    return format("TilFloatDelete(", ptr, ", ", call_free, ")")
+                }
+                mut left := holyc_expr(e.children[1], ctx, state, locals, error)
+                if method == "to_i64" {
+                    if owner == "F32" { left = format("TilF32Load(", left, ")") }
+                    return format("ToI64(", left, ")")
+                }
+                if e.children.len() != 3 { error = format("unsupported float call '", owner, ".", method, "'"); return "" }
+                mut right := holyc_expr(e.children[2], ctx, state, locals, error)
+                op := holyc_float_op(method)
+                if op >= 0 {
+                    if owner == "F32" { return format("TilF32Math(", left, ", ", right, ", ", op.to_str(), ")") }
+                    if method == "div" { return format("TilF64Div(", left, ", ", right, ")") }
+                    return format("(", left, " ", holyc_core_binop(method), " ", right, ")")
+                }
+                cmp := holyc_float_cmp(method)
+                if cmp >= 0 {
+                    if owner == "F32" { left = format("TilF32Load(", left, ")"); right = format("TilF32Load(", right, ")") }
+                    return format("TilF64Compare(", left, ", ", right, ", ", cmp.to_str(), ")")
+                }
+                error = format("unsupported floating operation '", method, "'")
+                return ""
             }
             if method.eq("to_i64").and(holyc_scalar_type_name(owner)) {
                 if e.children.len() != 2 {
@@ -2191,6 +2290,20 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if e.children.len() != 2 { error = "invalid cfile_exists call"; return "" }
                 path := holyc_str_ref(e.children[1], ctx, locals, error)
                 return format("TilFileExists(", path, ")")
+            }
+            if name == "clock_ms" { return "TilClockMs()" }
+            if name == "sleep_ms" {
+                duration := holyc_expr(e.children[1], ctx, state, locals, error)
+                return format("TilSleepMs(", duration, ")")
+            }
+            if name == "in_read_line" {
+                line := holyc_str_ref(e.children[1], ctx, locals, error)
+                return format("TilReadLine(", line, ")")
+            }
+            if name.eq("F32_from_i64_ext").or(name.eq("F64_from_i64_ext")) {
+                value := holyc_expr(e.children[1], ctx, state, locals, error)
+                if name == "F32_from_i64_ext" { return format("TilF32FromI64(", value, ")") }
+                return format("ToF64(", value, ")")
             }
             if name.eq("cfile_open").or(name.eq("cfile_open_update"))
                 .or(name.eq("cfile_open_append")).or(name.eq("cdir_open")) {
@@ -2717,24 +2830,27 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
         case .FCall:
             if holyc_direct_call_name(stmt, ctx) == "swap_bytes" {
                 if stmt.children.len() != 4 { error = "invalid aggregate swap"; return "" }
-                ref type_name : Str = type_name_ref(stmt.children[1].til_type(), ctx.symbols)
-                if state.payload_enum_names.has(type_name).not()
-                    .or(type_name_ref(stmt.children[2].til_type(), ctx.symbols).neq(type_name)) {
-                    error = "only same-type payload enum swaps are supported yet"
+                mut type_name := type_name_ref(stmt.children[1].til_type(), ctx.symbols).clone()
+                if type_name.len() == 0 { type_name = til_type_name_c(stmt.children[1].til_type(), ctx.symbols) }
+                mut right_type := type_name_ref(stmt.children[2].til_type(), ctx.symbols).clone()
+                if right_type.len() == 0 { right_type = til_type_name_c(stmt.children[2].til_type(), ctx.symbols) }
+                if right_type != type_name {
+                    error = "swap requires matching value types"
                     return ""
                 }
-                left := holyc_struct_ref(stmt.children[1], ctx, locals, error)
-                right := holyc_struct_ref(stmt.children[2], ctx, locals, error)
+                left := holyc_pointer_expr(stmt.children[1], ctx, state, locals, error)
+                right := holyc_pointer_expr(stmt.children[2], ctx, state, locals, error)
                 count := holyc_expr(stmt.children[3], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
                 swap_value := holyc_temp("swap_value", state)
+                ctype := holyc_value_ctype(type_name, state)
                 out = format(out, prefix, "{\n",
-                    prefix, "    if (", count, " != sizeof(", type_name,
-                    ")) TilPanicZ(\"partial enum swap is not supported\");\n",
-                    prefix, "    ", type_name, " ", swap_value, ";\n",
-                    prefix, "    ", type_name, "_CopyValue(&", swap_value, ", ", left, ");\n",
-                    prefix, "    ", type_name, "_CopyValue(", left, ", ", right, ");\n",
-                    prefix, "    ", type_name, "_CopyValue(", right, ", &", swap_value, ");\n", prefix, "}\n")
+                    prefix, "    if (", count, " != sizeof(", ctype,
+                    ")) TilPanicZ(\"partial value swap is not supported\");\n",
+                    prefix, "    ", ctype, " ", swap_value, ";\n",
+                    prefix, "    TilMemCpy(&", swap_value, ", ", left, ", sizeof(", ctype, "));\n",
+                    prefix, "    TilMemCpy(", left, ", ", right, ", sizeof(", ctype, "));\n",
+                    prefix, "    TilMemCpy(", right, ", &", swap_value, ", sizeof(", ctype, "));\n", prefix, "}\n")
                 i++
                 continue
             }
@@ -2749,9 +2865,12 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
             condition := holyc_expr(stmt.children[0], ctx, state, locals, error)
             if error.len() > 0 { return "" }
             mut nested_locals := holyc_clone_locals(locals)
+            label := holyc_temp("loop_continue", state)
+            nested_locals.continue_label = label.clone()
             nested := holyc_body(stmt.children[1], depth + 1, false, aggregate_return_type, ctx, state, nested_locals, error)
             if error.len() > 0 { return "" }
-            out = format(out, prefix, "while (", condition, ") {\n", nested, prefix, "}\n")
+            out = format(out, prefix, "while (", condition, ") {\n", nested,
+                prefix, label, ":\n", prefix, "    ;\n", prefix, "}\n")
         case .If:
             if stmt.children.len().lt(2).or(stmt.children.len().gt(3)) {
                 error = "invalid if statement"
@@ -2813,8 +2932,8 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
         case .Break:
             out = format(out, prefix, "break;\n")
         case .Continue:
-            error = "continue is not supported by TempleOS HolyC"
-            return ""
+            if locals.continue_label.len() == 0 { error = "continue has no loop target"; return "" }
+            out = format(out, prefix, "goto ", locals.continue_label, ";\n")
         case .Return:
             if stmt.children.len() == 0 {
                 if aggregate_return_type.len() > 0 {
@@ -2981,7 +3100,9 @@ priv holyc_enum_definition := func(name: Str, def: Expr, ctx: Context,
                     }
                 } else if method == "Eq" {
                     mut comparison := format("a->", field, " == b->", field)
-                    if payload_type == "Str" {
+                    if payload_type.eq("F32").or(payload_type.eq("F64")) {
+                        comparison = holyc_field_eq_expr(payload_type, format("a->", field), format("b->", field), false, state, error)
+                    } else if payload_type == "Str" {
                         comparison = format("TilStrEq(&a->", field, ", &b->", field, ")")
                     } else if holyc_aggregate_type(payload_type, state) {
                         comparison = format(payload_type, "_Eq(&a->", field, ", &b->", field, ")")
@@ -3345,6 +3466,8 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
     mut slot := "self->data[mid]"
     if is_map { slot = "self->keys.data[mid]" }
     if key == "Str" { out = format(out, "TilStrCmp(&", slot, ", value);\n") }
+    else if key == "F32" { out = format(out, "TilF64Compare(TilF32Load(", slot, "), TilF32Load(value), 6);\n") }
+    else if key == "F64" { out = format(out, "TilF64Compare(", slot, ", value, 6);\n") }
     else if holyc_aggregate_type(key, state) {
         out = format(out, key, "_Cmp(&", slot, ", value);\n")
     } else if state.enum_types.has(key) {
@@ -3506,8 +3629,15 @@ priv holyc_enum_cmp_definition := func(name: Str, def: Expr, state: HolyCEmitSta
                     left = holyc_checked_load(left, holyc_value_ctype(payload, state))
                     right = holyc_checked_load(right, holyc_value_ctype(payload, state))
                 }
-                out = format(out, "      return (", left, " > ", right,
-                    ") - (", left, " < ", right, ");\n")
+                if payload == "F32" {
+                    out = format(out, "      return TilF64Compare(TilF32Load(", left,
+                        "), TilF32Load(", right, "), 6);\n")
+                } else if payload == "F64" {
+                    out = format(out, "      return TilF64Compare(", left, ", ", right, ", 6);\n")
+                } else {
+                    out = format(out, "      return (", left, " > ", right,
+                        ") - (", left, " < ", right, ");\n")
+                }
             } else {
                 error = format("unsupported ordered enum payload '", name, ".", variant.name, "'")
                 return ""
@@ -3804,8 +3934,12 @@ priv holyc_emit_function := func(name: Str, func_expr: Expr, ctx: Context,
             .or(holyc_aggregate_type(return_type, state)) {
             aggregate_return_type = return_type
         }
-        for param : Declaration in fdef.sig.params {
-            param_type := holyc_storage_type_name(decl_type_name(param, ctx.symbols))
+        for i in 0..fdef.sig.params.len() {
+            ref param : Declaration = fdef.sig.params[i]
+            mut param_type := holyc_storage_type_name(decl_type_name(param, ctx.symbols))
+            if fdef.sig.variadic_index == i.to_i32() {
+                param_type = format("Array__", param_type)
+            }
             if param_type == "Str" {
                 locals.str_pointer_names.add(own param.name.clone())
                 locals.param_pointer_names.add(own param.name.clone())

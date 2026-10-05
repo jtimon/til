@@ -49,3 +49,32 @@ xxABCDxx
 1030
 multi-sector gap
 1801
+checked
+inner
+caught
+2
+checked
+outer
+inner
+4
+8
+nested continue:10:16
+number
+scalar throw:0:18
+throwing reference
+variadic:16:10
+scalar swap
+var-args
+float widths
+nan comparisons
+infinity and unordered
+f32 nan
+16777217
+float conversions
+wide float conversions
+float aggregates
+float arithmetic
+float pointer
+float ordering
+float enum ordering
+clock and sleep

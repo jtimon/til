@@ -2,6 +2,135 @@
 // UPtr and raw byte counts are U64. The emitter supplies TIL_USIZE and
 // the matching Str sentinels for the resolved source-level USize width.
 
+// HolyC has native F64, but no four-byte float storage type. F32 carries
+// IEEE binary32 bits; x87 loads and stores implement widening and rounding.
+#define F32 U32
+public F64 TilF32Load(F32 bits)
+{
+  F64 noreg result;
+  asm {
+    FLD U32 SF_ARG1[RBP]
+    FSTP U64 &result[RBP]
+  }
+  return result;
+}
+
+public F32 TilF32Round(F64 value)
+{
+  F32 noreg result;
+  U16 noreg saved,noreg working;
+  asm {
+    FSTCW U16 &saved[RBP]
+    MOV AX,U16 &saved[RBP]
+    AND AX,~0x0C00
+    OR AX,0x003F
+    MOV U16 &working[RBP],AX
+    FLDCW U16 &working[RBP]
+    FLD U64 SF_ARG1[RBP]
+    FSTP U32 &result[RBP]
+    FCLEX
+    FLDCW U16 &saved[RBP]
+  }
+  return result;
+}
+
+public F64 TilF64Div(F64 a,F64 b)
+{
+  F64 noreg result;
+  U16 noreg saved,noreg working;
+  asm {
+    FSTCW U16 &saved[RBP]
+    MOV AX,U16 &saved[RBP]
+    AND AX,~0x0C00
+    OR AX,0x003F
+    MOV U16 &working[RBP],AX
+    FLDCW U16 &working[RBP]
+    FLD U64 SF_ARG1[RBP]
+    FDIV ST0,U64 SF_ARG2[RBP]
+    FSTP U64 &result[RBP]
+    FCLEX
+    FLDCW U16 &saved[RBP]
+  }
+  return result;
+}
+
+public F32 TilF32FromI64(I64 value)
+{
+  F32 noreg result;
+  U16 noreg saved,noreg working;
+  asm {
+    FSTCW U16 &saved[RBP]
+    MOV AX,U16 &saved[RBP]
+    AND AX,~0x0C00
+    OR AX,0x003F
+    MOV U16 &working[RBP],AX
+    FLDCW U16 &working[RBP]
+    FILD U64 SF_ARG1[RBP]
+    FSTP U32 &result[RBP]
+    FCLEX
+    FLDCW U16 &saved[RBP]
+  }
+  return result;
+}
+
+public F64 TilF64Bits(U64 bits)
+{
+  return bits(F64);
+}
+
+public Bool TilF64IsNaN(F64 value)
+{
+  U64 bits=value(U64);
+  return (bits&0x7FF0000000000000)==0x7FF0000000000000 &&
+    (bits&0x000FFFFFFFFFFFFF)!=0;
+}
+
+public I64 TilF64Compare(F64 a,F64 b,I64 op)
+{
+  if (TilF64IsNaN(a) || TilF64IsNaN(b)) {
+    if (op==1) return TRUE;
+    return 0;
+  }
+  switch (op) {
+    case 0: return a==b;
+    case 1: return a!=b;
+    case 2: return a<b;
+    case 3: return a>b;
+    case 4: return a<=b;
+    case 5: return a>=b;
+    case 6: return (a>b)-(a<b);
+  }
+  throw('TILPANIC');
+  return 0;
+}
+
+public F32 TilF32Math(F32 a,F32 b,I64 op)
+{
+  F64 x=TilF32Load(a),y=TilF32Load(b);
+  switch (op) {
+    case 0: return TilF32Round(x+y);
+    case 1: return TilF32Round(x-y);
+    case 2: return TilF32Round(x*y);
+    case 3: return TilF32Round(TilF64Div(x,y));
+  }
+  throw('TILPANIC');
+  return 0;
+}
+
+public F64 TilF64FromU64(U64 value)
+{
+  // Keep the low bit sticky when halving: ties still round correctly.
+  if (value>I64_MAX) return ToF64((value>>1)|(value&1))*2.0;
+  return ToF64(value);
+}
+
+public F32 TilF32FromU64(U64 value)
+{
+  if (value>I64_MAX)
+    return TilF32Math(TilF32FromI64((value>>1)|(value&1)),0x40000000,2);
+  return TilF32FromI64(value);
+}
+
 public class TilStr {
   U8 *c_str;
   TIL_USIZE count;
@@ -114,6 +243,11 @@ public U0 TilFree(U8 *ptr)
 {
   if (ptr)
     Free(ptr);
+}
+
+public U0 TilFloatDelete(U8 *ptr,Bool call_free)
+{
+  if (call_free) Free(ptr);
 }
 
 public U8 *TilMemCpy(U8 *dst,U8 *src,U64 count)
@@ -1000,4 +1134,46 @@ public U0 TilPrintln(TilStrArray *parts)
 {
   TilPrint(parts);
   TilRawWrite("\n",1);
+}
+
+public U0 TilFormat(TilStr *out,TilStrArray *parts)
+{
+  TIL_USIZE total=0,i=0;
+  while (i<parts->cap) {
+    if (parts->data[i].count>=TIL_STR_CAP_VIEW-total)
+      TilPanicZ("format: size overflow\n");
+    total+=parts->data[i].count;
+    i++;
+  }
+  TilStrWithCapacity(out,total);
+  i=0;
+  while (i<parts->cap) {
+    TilStrPush(out,&parts->data[i]);
+    i++;
+  }
+  TilStrArrayDelete(parts);
+}
+
+public I64 TilClockMs()
+{
+  return ToI64(tS*1000.0);
+}
+
+public U0 TilSleepMs(I64 ms)
+{
+  if (ms>0) Sleep(ms);
+}
+
+public Bool TilReadLine(TilStr *line)
+{
+  U8 *input=GetStr;
+  TIL_USIZE count;
+  count=StrLen(input);
+  // GetStr returns an allocated line without its newline, including for
+  // blank input. TempleOS's interactive console has no stream EOF.
+  TilStrDelete(line,FALSE);
+  line->c_str=input;
+  line->count=count;
+  line->cap=count;
+  return TRUE;
 }
