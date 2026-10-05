@@ -22,7 +22,8 @@
   - [X] ~U256~ in core (four U64 words, the 32 bytes being the wire
     serialization; hex in/out, byte-wise cmp/eq), the type for keys,
     messages and digests.
-  - [X] ~src/std/crypto.til~ instead of ~mode crypto~: a til SHA-256
+  - [X] ~src/std/crypto.til~, the user-facing API (not a mode: see
+    "mode crypto" below for what the mode is for): a til SHA-256
     (~sha256~ / ~sha256_str~ returning U256 -- libsecp256k1 only exports
     its tagged hash, and a nostr event id is plain SHA-256) and
     ~schnorr_pubkey~ / ~schnorr_sign~ / ~schnorr_verify~ over U256 and a
@@ -33,6 +34,9 @@
     bytes to a bucket index, this one hashes a caller-serialized byte
     string to a digest. ~test/crypto.til~: FIPS 180-4 SHA-256 vectors
     and BIP-340 vectors 0-14 through the wrapper, both backends.
+  - [ ] ~mode crypto~, the constant-time dialect described below, with
+    the typer errors that teach the idiom, and ~sha256~ moved into it as
+    the first file under the rules.
   - [ ] Cross targets: only the native archive is built; a windows twin of
     ~build_nng_win~ is needed before a ~--target=windows-*~ program can
     link it.
@@ -56,18 +60,62 @@
   key generation, ECDSA, recovery, ECDH, tweaks, and a pure-til curve
   implementation are outside this issue.
 
+*** mode crypto: the constant-time dialect
+
+  The mode is NOT the packaging of the API (that is ~src/std/crypto.til~,
+  an ordinary std module any mode can import). ~mode crypto~ is the
+  dialect cryptographic PRIMITIVES are written in: code whose timing and
+  memory access pattern must not depend on the data it handles, enforced
+  by the typer the way ~is_pure~ is enforced for ~mode theme~. The point
+  is that the branch cannot be written, and the error teaches the idiom
+  instead of just refusing:
+
+  - ~if~ / ~else~ / ~switch~ on anything: "no branching in mode crypto;
+    select with arithmetic: r = a * mask + b * (1 - mask), where mask is
+    0 or 1 -- think harder about this".
+  - ~while~, and ~for~ over a range that is not a literal or a constant:
+    every loop has a fixed trip count.
+  - indexing with a data-derived value: only a loop variable or a
+    constant may index, because a data-dependent index is a cache-timing
+    branch.
+  - short-circuit ~and~ / ~or~: spell them ~band~ / ~bor~ on masks.
+  - calling out of the mode with secret arguments. The simplest rule
+    treats every value in a crypto file as secret, so a crypto function
+    may call only other crypto functions and the arithmetic core. A
+    secret/public distinction in the type system is the open design
+    question; it is not needed for the first files.
+
+  Two facts bound what the mode can promise. Source discipline is not
+  machine discipline: the C compiler may turn a mask select back into a
+  branch, so the backend owes the same care (libsecp256k1 checks this
+  with valgrind-based ctime tests rather than language rules), and the
+  interpreter is not constant-time at all -- it runs the rules for
+  development, never for secrets. And nothing shipped so far needs the
+  mode: the constant-time work of the std API happens inside
+  libsecp256k1, and the til SHA-256 is branch-free by construction (fixed
+  loops, no data-dependent control flow or indexing), which makes it the
+  first file to move under the mode as the proof that the rules hold.
+
+  A pure-til curve implementation (#339) is what the mode is ultimately
+  for: the invitation for cryptography reviewers mentioned below.
+
 *** Required warning
 
-  ~mode crypto~ is an experimental til interface over the real upstream
-  library, not a security-reviewed cryptographic API. Selecting the mode and
-  its generated documentation must prominently say:
+  ~src/std/crypto.til~ is an experimental til interface over the real
+  upstream library, not a security-reviewed cryptographic API, and the
+  same holds for anything written under ~mode crypto~. The module header,
+  selecting the mode, and the generated documentation must prominently
+  say:
 
   #+begin_example
-  WARNING: til and mode crypto are experimental and have not had a security
+  WARNING: til and this module are experimental and have not had a security
   review. Do not rely on this interface to protect anything important. Prefer
   the upstream libsecp256k1 API directly, possibly through a project-owned
   custom mode, unless you are deliberately testing this experiment.
   #+end_example
+
+  (~src/std/crypto.til~ carries exactly this text; ~mode crypto~ says the
+  same of itself when it lands.)
 
   A future cryptography implementation written in til would be valuable as an
   experiment and as an invitation for cryptography experts to review and
@@ -102,7 +150,12 @@
   Use owned wrapper types for secret keys, public keys, messages, and
   signatures instead of four interchangeable byte arrays. Reject wrong lengths
   and invalid secret/public keys at construction. Invalid signatures are a
-  normal ~false~ result. Verify every signature immediately after signing, as
+  normal ~false~ result. (As shipped: ~U256~ is the one 32-byte type for
+  keys, messages and digests -- its ~from_hex~ rejects wrong lengths and
+  its bytes are the wire serialization -- and ~Signature~ is the 64-byte
+  type; key validity is checked by the library at use, throwing
+  ~CryptoError~, rather than at construction. Distinct SecretKey /
+  PublicKey wrappers over U256 remain a possible tightening.) Verify every signature immediately after signing, as
   upstream's ~secp256k1_schnorrsig_sign32~ does not do that itself, and fail
   loudly if self-verification fails. Zero all C temporaries that held secrets.
 
@@ -117,6 +170,6 @@
     vendored release.
   - Cover the official BIP-340 valid and invalid test vectors through the til
     wrapper, interpreted and compiled.
-  - Cross-build every supported native target and verify that only ~mode
-    crypto~ programs link the dependency.
+  - Cross-build every supported native target and verify that only
+    programs importing ~std/crypto~ link the dependency.
   - Confirm the warning is visible and that no system libsecp256k1 is needed.
