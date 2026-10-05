@@ -2706,16 +2706,16 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
 
 // #302 stage 4: the OUTER-scope save_old_delete decision, consolidated
 // from the typer's infer_assign_stmt (the flag now has one writer pass:
-// this file). An assign from a nested scope to an enclosing
-// function-local that rebinds an owned aggregate must free the old
+// this file). An assign from a nested scope to an enclosing local or
+// global that rebinds an owned aggregate must free the old
 // value inline: the RHS shapes are a clone-wrapped ident / any
 // own-returning call (both fcall_returns_own) or a Str literal rebind.
-// Ref targets rebind a borrow, not a value, and globals outlive the
-// body -- both excluded, matching the old typer rule. Runs for EVERY
+// Ref targets rebind a borrow, not a value. A global's slot outlives the
+// body, but its old payload does not survive replacement. Runs for EVERY
 // body -- including bodies with no locals of their own, which is where
 // most outer-target assigns live (if branches, loop wrappers), and
 // which insert_free_calls otherwise early-returns on.
-priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), mut scope: TypeScope, symbols: SymbolPool) {
+priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, symbols: SymbolPool) {
     for mut stmt : Expr in body.children {
         switch stmt.node_type {
         case .Assign(ad):
@@ -2729,7 +2729,6 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), m
             switch sf_out {
             case .Found(ob):
                 mut flag_it := is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
-                    .and(assign_target_is_func_local(scope, vname, symbols))
                 // A PAYLOAD ALIAS is the exception to the ref exclusion
                 // above: writing through it replaces a value its enum OWNS,
                 // so the old payload must be torn down at the write. This
@@ -3402,7 +3401,7 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     }
 }
 
-priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32,
+priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScope, scope_exit: I32,
     stack_own_params: Set(Str), insert: Bool) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_none()

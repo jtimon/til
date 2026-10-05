@@ -1135,14 +1135,16 @@ main := proc(args: ..Str) {
     // hide entirely behind the rest of the suite. (Their durations still
     // sum into cli_ms, which measures elapsed time, not work.)
     //
-    // repl_help drives bin/til's REPL over a piped script and self-checks,
+    // repl_help drives the selected compiler's REPL over a piped script and self-checks,
     // exiting 0 on PASS / 1 on FAIL. It used to be a separate hand-run
     // `make test_repl_help` target outside the suite, so the suite could
     // pass green while the REPL was broken (it did, twice, during the
     // doc.til core->std move). Registered here it runs wherever bin/tests
     // runs -- make test, linux CI, and the mac jobs that invoke bin/tests
     // directly. Exit-code-only check (no expected_out).
-    add_single(tests, "repl_help", "cli", 0, "", format(TIL, " run test/repl_help.til"))
+    // Forward --til-bin to the child too: the full suite must check REPL
+    // abort cleanup with ASAN, not only instrument the surrounding driver.
+    add_single(tests, "repl_help", "cli", 0, "", format(TIL, " run test/repl_help.til ", til_bin))
 
     // #332: the REPL line editor's real-terminal half. Drives bin/til
     // through a pseudo-terminal with actual escape/control bytes and an

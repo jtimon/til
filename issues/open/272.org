@@ -2,12 +2,13 @@
 # category: cleanups
 ** WIP #272 Garbager system: single ownership authority, no manual memory outside core
 
-*** Current assessment (master 1299f248c)
+*** Current assessment (master 7b20f9811)
 
 The leak-era inventory and experiments below are historical. They must not
-be reapplied as pending fixes. The constfolder audit below found and fixed
-an owned-argument leak on comptime abort. This issue remains WIP for the
-remaining runtime/FFI ownership-boundary audit.
+be reapplied as pending fixes. The constfolder and REPL audits below found
+and fixed owned-argument leaks on recovered aborts, plus a global-replacement
+leak exposed by instrumenting the REPL smoke test. This issue remains WIP
+for the remaining runtime/FFI ownership-boundary audit.
 
 Use the placement rule already recorded in
 [[../fixed/302.org][#302]]: manual memory belongs in destructors,
@@ -79,8 +80,9 @@ scope could not reach arguments it had already moved away. With literal
 owned arguments, the probe produced an ordinary LeakSanitizer report of
 35 bytes in two allocations through ~is_known~ -> ~heap_clone~.
 
-~scope_free~ now drops still-owned nested payloads only when the scope exits
-during an aborted comptime evaluation. Borrowed, moved, raw-allocation,
+The first fix made ~scope_free~ drop still-owned nested payloads when a scope
+exits during an aborted comptime evaluation. The REPL follow-up below extends
+that recovery rule. Borrowed, moved, raw-allocation,
 static-callable, and already-released payload cases keep their ownership
 rules. Normal execution still leaves program destruction to the AST; this
 is exception unwinding, not a return to unconditional deep scope teardown.
@@ -130,6 +132,55 @@ Final verification on the rebased source: ~make clean && make test~ passed
 496/496 under full ASAN. All three named abort-cleanup tests passed, and
 the regenerated ~test/constfold.c~ includes the guarded calls and test
 registrations.
+
+*** REPL abort and global replacement: completed slice
+
+The runtime REPL uses the same ~eval_aborted~ state to recover from a failing
+exit, but the first cleanup fix required ~constfold_active~. A piped session
+with a proc taking two owned strings reached panic, printed its message,
+survived the failed turn, and preserved an earlier string binding. At process
+shutdown LeakSanitizer reported 29 bytes in two leaked argument buffers.
+The proc call was runtime execution, not constant folding.
+
+~scope_free~ now handles an aborted evaluation when either ~constfold_active~
+or ~repl_session~ is set. Ordinary successful execution keeps the slot-only
+teardown rule; borrowed, moved, raw-allocation, static-callable, and already-
+released payload cases retain their existing ownership exclusions. The
+focused owned-argument session no longer reports that LeakSanitizer error.
+
+Regression: ~test/repl_help.til~ exercises owned-argument panics through both
+the incremental delta path and the import-driven full-load path. It checks
+that subsequent turns run, earlier bindings retain their contents, and the
+tail after the failing call does not execute. The driver now takes the
+compiler selected by the suite's existing ~--til-bin~ option, so full-ASAN
+testing actually runs the REPL child under ASAN instead of always spawning
+~bin/til~. A nonzero child exit fails the driver and shows its captured output.
+
+That instrumentation exposed another ownership defect: refreshing help data
+overwrote the owned ~__til_info_blob__~ and ~__til_docs_blob__~ globals without
+dropping their old payloads. The smoke test retained 301901 bytes in two
+documentation buffers after the abort leak was fixed. In a smaller session,
+repeated help-data refreshes leaked an additional pair at each replacement.
+The emitted C also assigned to those globals without old-value deletes.
+
+Root cause: ~flag_outer_assign_rebinds~ excluded globals because their slots
+outlive the function body. Slot lifetime does not extend the lifetime of the
+payload being overwritten. The garbager now records ~save_old_delete~ for
+the same aggregate rebind shapes on globals as on enclosing function locals;
+ref targets keep their existing borrow-rebind rule. Both the interpreter
+and C backend consume that AST decision. The doc library needs no manual
+cleanup calls. Read-only scope parameters lost their now-redundant ~mut~
+qualifier as required by the typer.
+
+~test/globals.til~ pins function-driven global replacement with an observable
+destructor count, plus Str replacement whose RHS borrows the old global.
+The destructor-count assertion fails before the fix. With both fixes, the
+ASAN-driven REPL smoke test passes without the documentation-buffer report;
+both panic paths survive and preserve their earlier binding.
+
+Verification: ~make clean && make test_two_pass~ passed 495/495, including
+~repl_help~ and both backends of ~test/globals.til~. This is a ~Two-pass:~
+change because the garbager's recorded global cleanup changes emitted C.
 
 *** Remaining audit: concrete ownership boundaries
 

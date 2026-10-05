@@ -62,6 +62,25 @@ assert(DeleteOnOverwrite.delete_count.eq(1))
 tracked = DeleteOnOverwrite(id=3)
 assert(DeleteOnOverwrite.delete_count.eq(2))
 
+// #272: assignments from a function must delete a global's old value too.
+replace_tracked := func(value: I64) {
+    tracked = DeleteOnOverwrite(id = value)
+}
+replace_tracked(4)
+assert(DeleteOnOverwrite.delete_count.eq(3))
+replace_tracked(5)
+assert(DeleteOnOverwrite.delete_count.eq(4))
+
+mut registry_text := format("initial ", "value")
+replace_registry_text := func(value: Str) {
+    registry_text = format(value, "!")
+}
+replace_registry_text("next")
+assert_eq(Str, registry_text, "next!")
+// RHS evaluation must finish before dropping the old global it borrows.
+replace_registry_text(registry_text)
+assert_eq(Str, registry_text, "next!!")
+
 // #302: a program-scope raw pointer follows the same raw-pointer contract as a
 // proc local (qualifiers.org): malloc it, pass it as the pointer VALUE, and
 // free(own) it. The builder used to classify it as a value global, so plain

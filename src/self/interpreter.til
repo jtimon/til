@@ -5090,7 +5090,7 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, ow
 scope_free := func(own s: Scope) {
     // Runtime slots represent compiled stack storage. Normally the AST's
     // delete/free calls own payload destruction; this teardown frees the slots.
-    // Aborted speculative evaluation skips the remaining AST cleanup, so its
+    // Recovered constfold/REPL aborts skip the remaining AST cleanup, so their
     // exiting scopes also drop payloads they still own. Borrowed/moved/raw and
     // already-released values keep their existing ownership rules below.
     for _, hb in s.heap_bindings {
@@ -5100,7 +5100,7 @@ scope_free := func(own s: Scope) {
         // datum is the program's own block, not the interpreter's slot.
         if hb.is_raw_alloc { continue }
         mut slot : Dynamic = hb.ptr
-        if hb.ctx.eval.constfold_active.and(hb.ctx.eval.eval_aborted)
+        if hb.ctx.eval.constfold_active.or(hb.ctx.eval.repl_session).and(hb.ctx.eval.eval_aborted)
         .and(hb.is_static_callable.or(hb.payload_released).not()) {
             heap_drop_by_type(hb_type(hb), slot, hb.ctx)
         }
