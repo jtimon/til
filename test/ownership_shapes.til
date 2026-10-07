@@ -624,3 +624,43 @@ flow_rebound_return := proc() returns USize {
 own_local_reowned_after_transfer_rhs := test() {
     assert_eq(USize, flow_rebound_return(), 4)
 }
+
+// --- batched ownership-flow effects ------------------------------------
+
+// The condition consumes one binding on BOTH paths; the two return paths
+// consume different siblings. A condition block must not inherit transfers
+// from the branch bodies, and each binding must keep its own flow state.
+flow_distinct_local_paths := func(flag: Bool) returns USize {
+    left_text := "aaa"
+    right_text := "bb"
+    mut left := left_text.clone()
+    right := right_text.clone()
+    condition := left_text.clone()
+    if take_own(own condition) == 3 {
+        if flag {
+            left = "aaaa"
+            return take_own(own left) + right.len()
+        }
+    }
+    return left.len() + take_own(own right)
+}
+
+flow_replace_owned := func(own s: Str) returns Str {
+    return format(s, "!")
+}
+
+// Consuming the RHS does not leave the assignment target moved: the same
+// statement installs a fresh owned value, which still needs cleanup.
+flow_reassign_after_consume := func(flag: Bool) returns USize {
+    text := "aaa"
+    mut value := text.clone()
+    if flag { value = flow_replace_owned(own value) }
+    return value.len()
+}
+
+own_local_batched_flow_paths := test() {
+    assert_eq(USize, flow_distinct_local_paths(true), 6)
+    assert_eq(USize, flow_distinct_local_paths(false), 5)
+    assert_eq(USize, flow_reassign_after_consume(true), 4)
+    assert_eq(USize, flow_reassign_after_consume(false), 3)
+}

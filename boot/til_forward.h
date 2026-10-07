@@ -344,6 +344,7 @@ typedef struct Vec__I32 Vec__I32;
 typedef struct Vec__PendingRefBinding Vec__PendingRefBinding;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
+typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbager_til__GcFlowKills;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__Bool Array__Bool;
@@ -1096,6 +1097,13 @@ typedef struct priv___src_self_garbager_til__GcCfgBlock {
     Bool is_root;
     Vec__I32 succs;
 } priv___src_self_garbager_til__GcCfgBlock;
+
+
+typedef struct priv___src_self_garbager_til__GcFlowKills {
+    USize words;
+    Vec__U64 owned;
+    Vec__U64 moved;
+} priv___src_self_garbager_til__GcFlowKills;
 
 
 typedef struct priv___src_self_garbager_til__BodyFacts {

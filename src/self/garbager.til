@@ -608,15 +608,11 @@ priv gc_flow_copy_fact_row := func(source: BodyFacts, source_idx: USize, mut tar
     memcpy(ptr_add(target.transfers.data, target_offset), ptr_add(source.transfers.data, source_offset), bytes)
 }
 
-priv gc_flow_collect_fact_row := func(selected: Expr, scope: TypeScope, fi: FactIndex, symbols: SymbolPool, mut row: BodyFacts) {
-    bytes := row.words.mul(U64.size())
-    memset(row.decls.data, 0, bytes)
-    memset(row.reassigns.data, 0, bytes)
-    memset(row.transfers.data, 0, bytes)
-    // The other fused-collector rows are scratch OR destinations;
-    // they are never queried here and need no per-row clearing.
-    expr_collect_stmt_facts(selected, scope, true, true, fi, 0, row.uses, row.decls, row.nested, row.escapes, row.transfers, symbols)
-    collect_reassign_facts(selected, fi, 0, row.reassigns)
+priv gc_flow_collect_fact_row := func(selected: Expr, scope: TypeScope, fi: FactIndex, symbols: SymbolPool, mut facts: BodyFacts, row_idx: USize) {
+    // Each destination row is initially zero and filled exactly once. Only
+    // collect the three flow facts, directly into their final storage.
+    expr_collect_flow_facts(selected, scope, fi, row_idx.mul(facts.words), true, true,
+        facts.decls, facts.reassigns, facts.transfers, symbols)
 }
 
 // Flatten the CFG's evaluated statement views into existing fact rows once
@@ -635,13 +631,6 @@ priv gc_flow_cfg_facts := func(blocks: Vec(GcCfgBlock), root_facts: BodyFacts, s
     facts.decls = zeroed_words(total)
     facts.reassigns = zeroed_words(total)
     facts.transfers = zeroed_words(total)
-    mut row := BodyFacts(words = facts.words, n_stmts = 1)
-    row.uses = zeroed_words(row.words)
-    row.decls = zeroed_words(row.words)
-    row.nested = zeroed_words(row.words)
-    row.escapes = zeroed_words(row.words)
-    row.transfers = zeroed_words(row.words)
-    row.reassigns = zeroed_words(row.words)
     for bi in 0..blocks.len() {
         ref b : GcCfgBlock = blocks[bi]
         switch b.body {
@@ -657,11 +646,10 @@ priv gc_flow_cfg_facts := func(blocks: Vec(GcCfgBlock), root_facts: BodyFacts, s
                 }
                 if tail_compound.and(stmt.node_type.is(NodeType.Body)) { continue }
                 if tail_compound {
-                    gc_flow_collect_fact_row(stmt.children[0], scope, fi, symbols, row)
+                    gc_flow_collect_fact_row(stmt.children[0], scope, fi, symbols, facts, row_idx)
                 } else {
-                    gc_flow_collect_fact_row(stmt, scope, fi, symbols, row)
+                    gc_flow_collect_fact_row(stmt, scope, fi, symbols, facts, row_idx)
                 }
-                gc_flow_copy_fact_row(row, 0, facts, row_idx)
             }
         case .None:
             // The synthetic exit block has an empty span and no effects.
@@ -804,6 +792,51 @@ priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, bit: USize,
     gc_flow_fixpoint(n, pred_off, preds, kill, entry_state, ins, outs)
 }
 
+priv GcFlowKills := struct {
+    words : USize = 0
+    owned := Vec(U64).new()
+    moved := Vec(U64).new()
+}
+
+// Compose block effects for all bindings together, 64 at a time, using the
+// same fact universe as the shared statement rows. Two bit rows per block
+// encode its constant effects; neither bit set means identity. This replaces
+// a statement-row scan per (block, local) in the multi-local solve.
+priv gc_flow_block_effects := func(blocks: Vec(GcCfgBlock), facts: BodyFacts, offsets: Array(USize)) returns GcFlowKills {
+    mut kills := GcFlowKills(words = facts.words)
+    total := blocks.len().mul(facts.words)
+    kills.owned = zeroed_words(total)
+    kills.moved = zeroed_words(total)
+    for bi in 0..blocks.len() {
+        ref b : GcCfgBlock = blocks[bi]
+        block_base := bi.mul(facts.words)
+        // The synthetic exit has an empty span, so its masks stay zero.
+        for j in 0..b.end.sub(b.start).to_usize() {
+            base := offsets[bi].add(j).mul(facts.words)
+            for w in 0..facts.words {
+                at := base.add(w)
+                owned := facts.decls.unsafe_get(at).bor(facts.reassigns.unsafe_get(at))
+                ref moved : U64 = facts.transfers.unsafe_get(at)
+                if owned.bor(moved) == 0 { continue }
+                ref mut block_owned : U64 = kills.owned.unsafe_get(block_base.add(w))
+                ref mut block_moved : U64 = kills.moved.unsafe_get(block_base.add(w))
+                // Last non-identity effect wins; Owned wins over Moved
+                // within one statement, including consume-then-reassign.
+                block_owned = block_owned.band(moved.bnot()).bor(owned)
+                block_moved = block_moved.bor(moved).band(owned.bnot())
+            }
+        }
+    }
+    return kills
+}
+
+priv gc_flow_kill_at := func(kills: GcFlowKills, block: USize, bit: USize) returns U8 {
+    base := block.mul(kills.words)
+    if fact_bit_test(kills.owned, base, bit) { return FLOW_OWNED }
+    if fact_bit_test(kills.moved, base, bit) { return FLOW_MOVED }
+    return FLOW_ID
+}
+
 // #302 stage 3: the per-statement ownership state of every live local
 // in one table, so the insertion loop can ASK the dataflow instead of
 // approximating it by statement order.
@@ -815,8 +848,9 @@ priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, bit: USize,
 //
 // Built BEFORE the caller's move_from empties body.children -- the
 // blocks index into it -- and shared across locals: the graph, its
-// predecessor lists and the fixpoint scaffolding are per-body, only
-// the per-block transfer functions are per-name.
+// predecessor lists and the fixpoint scaffolding are per-body. Transfer
+// effects are collected for all names together; only the state solve is
+// per-name.
 priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state: U8, has_exit: Bool, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns Array(U8) {
     // Nothing in this view can query the table: its exits, if any, live
     // inside nested views, and each of those builds its own. Bodies
@@ -916,6 +950,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             j = j.add(1)
         }
     }
+    kills := gc_flow_block_effects(blocks, cfg_facts, offsets)
     for li in 0..locals.len() {
         ref local : LocalInfo = locals[li]
         // A binding with no Decl in this view (a param, or a local of
@@ -951,7 +986,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             }
         }
         bit := fact_bit_req(fi, local.name)
-        for bi in 0..n { kill[bi] = gc_flow_block_kill(blocks, bi, bit, cfg_facts, offsets) }
+        for bi in 0..n { kill[bi] = gc_flow_kill_at(kills, bi, bit) }
         gc_flow_fixpoint(n, pred_off, preds, kill, entry, ins, outs)
         for bi in 0..n {
             ref b : GcCfgBlock = blocks[bi]
@@ -964,7 +999,9 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                 mut j := b.start
                 while j < b.end {
                     table[li.mul(stmts).add(j.to_usize())] = st
-                    if facts.directives.unsafe_get(j.to_usize()).not() {
+                    // No later entry in this block observes the final
+                    // statement's outgoing state; the CFG kill owns it.
+                    if j.add(1).lt(b.end).and(facts.directives.unsafe_get(j.to_usize()).not()) {
                         st = gc_flow_stmt_effect(facts, j.to_usize(), bit, st)
                     }
                     j = j.add(1)

@@ -10828,6 +10828,67 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, fi: Fact
     }
 }
 
+// The flow solver's three predicates, collected for every queried name in
+// one traversal: expr_contains_decl / expr_reassigns_var / expr_transfers_own.
+// Fill only the existing declaration, reassignment and transfer rows; the
+// CFG does not query uses, nested uses or pointer escapes for these views.
+// Their recursion cuts differ: declarations stop at FuncDef, transfers stop
+// after FuncDef/BodyValue captures, but reassignments descend through both.
+expr_collect_flow_facts := func(e: Expr, scope: TypeScope, fi: FactIndex, base: USize,
+        decls_on: Bool, transfers_on: Bool, mut decls: Vec(U64), mut reassigns: Vec(U64), mut moved: Vec(U64), symbols: SymbolPool) {
+    mut child_decls_on := decls_on
+    mut child_transfers_on := transfers_on
+    switch e.node_type {
+    case .Decl(dd):
+        if decls_on { fact_record_name(fi, dd.name, base, decls) }
+    case .Assign(ad):
+        fact_record_name(fi, ad.name, base, reassigns)
+    case .FuncDef(fd):
+        if transfers_on {
+            for cap : Declaration in fd.captures {
+                if cap.own_type.is(OwnType.Own) { fact_record_name(fi, cap.name, base, moved) }
+            }
+        }
+        child_decls_on = false
+        child_transfers_on = false
+    case .BodyValue(bvd):
+        if transfers_on {
+            for cap : Declaration in bvd.captures {
+                if cap.own_type.is(OwnType.Own) { fact_record_name(fi, cap.name, base, moved) }
+            }
+        }
+        child_transfers_on = false
+    case .CaptureBlock(cbd):
+        if transfers_on {
+            for cap : Declaration in cbd.captures {
+                if cap.own_type.is(OwnType.Own) { fact_record_name(fi, cap.name, base, moved) }
+            }
+        }
+    case .FCall(fcd):
+        if transfers_on.and(fcd.swap_replace).and(e.children.len().gte(3)) {
+            switch e.children[2].node_type {
+            case .Ident(src): fact_record_name(fi, src.ident_name(symbols.names), base, moved)
+            case:
+            }
+        }
+    case:
+    }
+    if child_transfers_on {
+        // Share ctor-field and own-parameter resolution with the existing
+        // body-fact collector; each call site resolves its signature once.
+        fcall_collect_own_arg_names(e, scope, fi, base, moved, symbols)
+        if field_assign_transfers_own(e, scope, symbols).and(e.children.len().gt(1)) {
+            switch e.children[1].node_type {
+            case .Ident(id): fact_record_name(fi, id.ident_name(symbols.names), base, moved)
+            case:
+            }
+        }
+    }
+    for child : Expr in e.children {
+        expr_collect_flow_facts(child, scope, fi, base, child_decls_on, child_transfers_on, decls, reassigns, moved, symbols)
+    }
+}
+
 // All five per-statement fact rows in ONE traversal. The collectors above
 // each walked the whole statement subtree separately -- five passes over
 // the same nodes, ~1.6M collector invocations per maps.til compile where
