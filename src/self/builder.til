@@ -910,7 +910,7 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
     return install_executable(paths.bin_path, bin_dst, compiler_root, install_prefix)
 }
 
-// Prefix used when spawning a child binary that was just built with --asan.
+// ASAN_OPTIONS for a child binary that was just built with --asan.
 // til may itself be running under ASAN with detect_leaks=0 (the asan_safe_cmd
 // wrap in tests.til, used to suppress the compiler's own known leaks). Without
 // this override the child process tree inherits detect_leaks=0 and the
@@ -923,32 +923,49 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
 // mac ASAN suite, issue #25). Pass an explicit =0 there so children still
 // get a deterministic setting; leak checking on darwin needs Apple's
 // `leaks` tooling instead.
-priv asan_child_prefix := proc(asan: Bool) returns Str {
-    if asan {
-        if host_os() == "macos" { return "ASAN_OPTIONS=detect_leaks=0 " }
-        return "ASAN_OPTIONS=detect_leaks=1 "
-    }
-    return ""
+priv asan_child_options := proc() returns Str {
+    if host_os() == "macos" { return "detect_leaks=0" }
+    return "detect_leaks=1"
 }
 
+// The built program runs through Cmd, never through the host shell. A
+// shell re-parses the command line it is handed, and differently per
+// host: cmd.exe cuts a command name at its first `/` and knows nothing
+// of single-quote quoting, so the `./bin/x 'arg'` string this used to
+// hand system_cmd failed on a windows host before the program started
+// ("'.' is not recognized as an internal or external command"). An argv
+// means exactly the bytes it holds on both hosts, and the ASAN setting
+// is a child environment entry rather than a `NAME=value ` shell prefix.
 priv run_artifact := proc(paths: BuildPaths, user_argv: Vec(Str),
     target: Target, asan: Bool) returns I32 {
-        mut cmd := ""
+        command := Cmd.new()
         if target.is(Target.Jvm) {
-            cmd = format("java -Xverify:all -jar '", paths.bin_path, "'")
+            command.args("java", "-Xverify:all", "-jar", paths.bin_path)
         } else {
             // -o names a filesystem path, including a bare filename. Execute
-            // that freshly built file rather than searching PATH for its name.
+            // that freshly built file rather than searching PATH for its
+            // name: execvp and CreateProcess only search for a name without
+            // a directory part, so that is the one spelling that needs `./`.
             mut executable := paths.bin_path.clone()
-            if File.is_absolute(executable).not() {
+            mut has_dir := executable.contains("/")
+            if host_os() == "windows" { has_dir = has_dir.or(executable.contains("\\")) }
+            if has_dir.not() {
                 executable = format("./", paths.bin_path)
             }
-            cmd = format(asan_child_prefix(asan), executable)
+            command.arg(executable)
+            if asan { command.env("ASAN_OPTIONS", asan_child_options()) }
         }
         for uarg : Str in user_argv {
-            cmd = cmd.format(" '", uarg, "'")
+            command.arg(uarg)
         }
-        return system_cmd(cmd)
+        status := command.run()
+        // Cmd reports a signal death as MINUS the signal number; the shell
+        // that used to run the program reported 128 + N, and that is what
+        // `til run` exited with, so keep that spelling. Anything else is the
+        // program's own exit code (on windows the raw process code, as the
+        // I32 truncation of system()'s status was before).
+        if status < 0 { return (128 - status).to_i32() }
+        return status.to_i32()
 }
 
 cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {

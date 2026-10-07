@@ -149,6 +149,7 @@ typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__USize Vec__USize;
 typedef struct File File;
+typedef struct Cmd Cmd;
 enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -698,6 +699,11 @@ typedef struct File {
     Bool is_write;
     Bool is_update;
 } File;
+
+
+typedef struct Cmd {
+    U8 *handle;
+} Cmd;
 
 
 struct TokenType {
