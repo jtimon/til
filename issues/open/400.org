@@ -2,9 +2,15 @@
 # category: bugs
 ** OPEN #400 Dynamic's width is written down twice, and only one copy follows the target
 
-~Dynamic~ means "one machine word", but the codebase spells that width two
-different ways, and they only agree because every exercised target has 8-byte
-pointers:
+*** Re-analysis (2026-10-07)
+
+Source review on master ~dd23d262d~ confirms the mismatch remains. This is
+an implementation plan, not a verified fix; no cross-target execution was
+performed for this review.
+
+~Dynamic~ means one pointer-sized raw word, but the codebase spells that
+width differently. The hard-coded and target-aware answers agree on
+8-byte-pointer targets:
 
 - The til side says a literal 8. ~Dynamic.size()~ (src/core/dyn.til) returns
   ~8~; ~PTR_SIZE_BYTES : USize = 8~ in src/self/typer.til feeds every "is one
@@ -24,35 +30,73 @@ literal, 8) while the runtime string-keyed ~dyn_size_of("Dynamic")~ answers
 slot would disagree about element width -- the same class of split #394
 closed, reopened one abstraction level up.
 
-This is not purely hypothetical: ~Target.Wasm32~ is a live target
-(src/self/builder.til builds it, GUI mode emits .html) and wasm32 pointers
-are 4 bytes. Nothing exercises Dynamic-heavy paths there today, which is why
-nothing is observably broken -- hence low priority -- and #313 (narrowing
-UPtr on 64-bit hosts) would move the same fault line onto mainstream builds
-if it ever lands.
+This does not depend on introducing a new target. ~target_is_32bit~ in
+src/self/targets.til already covers Linux x86, Linux ARM32, Linux RISC-V32,
+Windows x86, and Wasm32. ~target_uptr_name~ selects ~U32~ for all of them.
+The original claim that every current target has 8-byte pointers was false.
+
+#313 is a separate pointer-representation project, not a prerequisite for
+this fix. The current C backend uses native pointers; changing a typedef
+alone cannot implement pointer compression.
+
+*** Existing authorities and host/target split
+
+- ~ctx.target_uptr_pname~ already records the resolved target pointer
+  integer type. Derive its width through ~unsigned_prim_width_for_name~;
+  do not introduce another independent target-width setting. ~USize~ is
+  independently selectable through ~--usize~ and is not the authority for
+  Dynamic's width.
+- ~UPtr.size()~ inside the running compiler describes the HOST pointer
+  width. ~primitive_type_info~ in src/self/initer.til already uses it for
+  Dynamic's interpreter layout. Those buffers contain real host pointers
+  even when the compiler emits code for a narrower target.
+- ~ctx_total_size~ reads ~ctx.struct_layouts~, the host-side layout data.
+  Both ~dynamic_slot_overflow~ and ~is_shallow_struct~ compare that size
+  against ~PTR_SIZE_BYTES~. Merely changing the threshold to the target
+  width would compare two different layouts and can reject an aggregate
+  that fits in one target word.
+- #309 leaves auto-generated size methods unfolded on width-mismatched
+  targets and emits C ~sizeof~ for them. Dynamic's hand-written ~size~
+  method does not receive that auto-generated-method treatment.
+- ~h_dyn_size_of~'s initial 8 is the callable-storage default. Other types,
+  including Dynamic, go through its size-method/layout path. Its result
+  buffer is written at target USize width; that is distinct from the
+  pointer width whose size is being reported.
 
 *** Fix direction
 
-One authority for the width, target-aware, that both spellings read:
+- Make core ~Dynamic.size()~ follow ~UPtr.size()~, checking alias resolution
+  and folding on cross-target builds as well as native builds.
+- Replace ~Tuple.push_all_dynamic~'s allocation/copy literals with
+  ~Dynamic.size()~.
+- Replace the typer's fixed word threshold and diagnostic width with the
+  resolved target pointer width. Make the compared value size target-aware
+  too, including aggregate layout; do not change the interpreter's shared
+  host-layout tables to achieve this. Audit automatic shallow classification
+  alongside raw Dynamic slot rejection, since both use the constant.
+- Remove the interpreter's literal callable width while preserving its
+  host-memory contract. Audit size evaluation during cross-compilation so
+  host buffer sizes are not baked into emitted target code. Do not globally
+  replace host pointer allocations with target-width allocations.
+- Keep compiled ~dyn_size_of("Dynamic")~ consistent with native C pointer
+  storage (~sizeof(void *)~). No new pointer-compression semantics belong
+  in this fix.
 
-- The typer already knows the target when it folds ~Dynamic.size()~ and when
-  it compares against ~PTR_SIZE_BYTES~; #309 solved the same problem for
-  USize with ~ctx.target_usize_bytes~ plus C-side ~sizeof~ through real
-  typedefs. The same route fits here: a per-target pointer width on ctx that
-  ~Dynamic.size()~'s fold, ~PTR_SIZE_BYTES~'s users, ~h_dyn_size_of~, and
-  the diagnostics' "8-byte word" text all consult.
-- ~Tuple.push_all_dynamic~'s literal 8s become ~Dynamic.size()~ so core
-  stops carrying a third copy.
+*** Regression coverage
 
-Until then the invariant to not break: every current target has 8-byte
-pointers, so the literal and the sizeof agree -- any new target that does
-not (or #313) must pick up this issue first.
-
-*** Regression test
-
-Cross-width is not runnable until such a target is exercised, so the
-pinnable part today is single-authority: ~dyn_size_of("Dynamic")~ (runtime
-spelling, behind a func) == ~Dynamic.size()~ on both backends -- half of
-which test_dyn_size_of already asserts -- plus a grep-level check is not
-worth automating; the real test arrives with the first 4-byte-pointer
-target's suite run.
+- Extend existing ~test_dyn_size_of~ / ~test_dyn_size_of_runtime_name~ in
+  test/dynamic.til and the Dynamic Tuple coverage in test/tuples.til:
+  runtime-name ~dyn_size_of("Dynamic")~, ~Dynamic.size()~, and ~UPtr.size()~
+  must agree. Exercise raw Dynamic Array/Vec slots and Tuple splats.
+- Replace test/macros.til's assumption that ~Dynamic.size() == 8~ with a
+  pointer-width assertion, retaining its compile-time-folding coverage.
+- Check that ~--usize=32~ versus ~--usize=64~ does not change Dynamic's
+  width on the same pointer-width target.
+- Add 32-bit-target checks for emitted size behavior and typer boundaries:
+  a four-byte value fits, an eight-byte value does not, and an aggregate
+  whose host layout is wider but whose target layout fits is accepted.
+  Cover automatic shallow classification as well as Dynamic containers.
+- Translation/type-checking regressions can run without a Wasm runtime.
+  Execute the container/splat cases on an available 32-bit target to verify
+  actual allocation, stride, and copy behavior; distinguish those runtime
+  results from translation-only coverage.
