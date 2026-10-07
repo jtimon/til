@@ -5839,6 +5839,7 @@ priv begin_shared_core_global_definition := func(f: File, name: Str, ctype: Str,
 // a signature-preserving dispatcher, so normal argument storage/ownership
 // and ref-return handling apply to the caller, including error out-params.
 priv interface_method_dispatchable := func(name: Str, fd: FunctionDef, symbols: SymbolPool) returns Bool {
+    if fd.auto_generated { return false }
     if fd.sig.params.len() == 0 { return false }
     if decl_type_name(fd.sig.params[0], symbols) != name { return false }
     return fd.sig.return_type.eq(name).and(fd.sig.return_own_type.is(OwnType.Ref)).not()
@@ -5880,6 +5881,20 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
     f.write("    ").write(name).write(" *").write(receiver).write(" = ")
     if fd.sig.params[0].own_type.is(OwnType.Shallow) { f.write("&") }
     f.write(fd.sig.params[0].name).write(";\n")
+    if fd.sig.func_type.is_plain() {
+        // Standalone Iface() values have no concrete payload. They retain
+        // their own default body; boxed implementers use the branches below.
+        f.write("    if (").write(receiver).write("->iface_type_name.count == 0) {\n        ")
+        if fd.sig.return_type.len() > 0 { f.write("return ") }
+        f.write("_t_").write(full_name).write("_default(")
+        for i in 0..fd.sig.params.len() {
+            if i > 0 { f.write(", ") }
+            f.write(fd.sig.params[i].name)
+        }
+        f.write(");\n")
+        if fd.sig.return_type.len() == 0 { f.write("        return;\n") }
+        f.write("    }\n")
+    }
     mut arms : USize = 0
     for path : Str in lp.unit_paths() {
         for stmt : Expr in lp.ctx.imported[path].ast.children {
@@ -5902,6 +5917,18 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
             for i in 0..fd.sig.params.len() {
                 if decl_type_name(fd.sig.params[i], lp.ctx.symbols) == name {
                     emit_interface_receiver(f, name, concrete, def, fd.sig.params[i], i, lp)
+                } else if func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                    .and(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not())
+                    .and(func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()) {
+                    // An external override may own a heap outer where an
+                    // ordinary default's ABI only lends caller-frame storage.
+                    mut atype := decl_type_name(fd.sig.params[i], lp.ctx.symbols)
+                    if i.to_i32() == fd.sig.variadic_index { atype = builder_variadic_array_type_name(lp.ctx, atype) }
+                    if i.to_i32() == fd.sig.kwargs_index { atype = "KwargsMap" }
+                    ctype := type_name_to_c_value(atype, lp.ctx)
+                    f.write("        ").write(ctype).write(" *_t_iface_argument_").write(i.to_str())
+                        .write(" = malloc(TIL_BOX(").write(ctype).write("));\n        *_t_iface_argument_")
+                        .write(i.to_str()).write(" = *").write(fd.sig.params[i].name).write(";\n")
                 }
             }
             has_return := fd.sig.return_type.len() > 0
@@ -5917,9 +5944,14 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     f.write("_t_iface_receiver_").write(i.to_str())
                 } else {
                     source_value := func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
-                    if target_value.and(source_value.not()) { f.write("*") }
-                    if source_value.and(target_value.not()) { f.write("&") }
-                    f.write(fd.sig.params[i].name)
+                    if func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                        .and(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()).and(target_value.not()) {
+                        f.write("_t_iface_argument_").write(i.to_str())
+                    } else {
+                        if target_value.and(source_value.not()) { f.write("*") }
+                        if source_value.and(target_value.not()) { f.write("&") }
+                        f.write(fd.sig.params[i].name)
+                    }
                 }
             }
             f.write(");\n")
@@ -5931,6 +5963,7 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                         f.write("        free(_t_iface_receiver_").write(i.to_str()).write(");\n")
                     }
                     else if func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()
+                        .and(func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not())
                         .and(is_aggregate(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols))
                             .or(i.to_i32() == fd.sig.variadic_index).or(i.to_i32() == fd.sig.kwargs_index)) {
                         // Owned primitives still arrive in caller-frame
@@ -5940,10 +5973,15 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     }
                 }
             }
+            mut cleanup_i : USize = 0
             for p : Declaration in fd.sig.params {
                 if p.own_type.is(OwnType.Own).and(decl_type_name(p, lp.ctx.symbols) == name) {
-                    f.write("        ").write(name).write("_delete(").write(p.name).write(", 1);\n")
+                    f.write("        ").write(name).write("_delete(").write(p.name).write(", ")
+                    if func_param_has_stack_outer(fd, cleanup_i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols) { f.write("0") }
+                    else { f.write("1") }
+                    f.write(");\n")
                 }
+                cleanup_i++
             }
             if has_return {
                 if fd.sig.return_type == name {
@@ -5951,8 +5989,12 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     if func_returns_c_value(target) {
                         f.write("malloc(TIL_BOX(").write(concrete).write("));\n        *_t_iface_payload = _t_iface_result;\n")
                     } else { f.write("_t_iface_result;\n") }
-                    f.write("        ").write(name).write(" *_t_iface_box = malloc(TIL_BOX(").write(name).write("));\n")
-                    f.write("        *_t_iface_box = (").write(name).write("){.iface_type_name = (Str){.c_str=(void *)\"")
+                    if func_returns_c_value(fd) {
+                        f.write("        ").write(name).write(" _t_iface_box;\n        _t_iface_box = (")
+                    } else {
+                        f.write("        ").write(name).write(" *_t_iface_box = malloc(TIL_BOX(").write(name).write("));\n        *_t_iface_box = (")
+                    }
+                    f.write(name).write("){.iface_type_name = (Str){.c_str=(void *)\"")
                         .write(concrete).write("\", .count=").write(concrete.len().to_str()).write(", .cap=TIL_CAP_LIT}, .iface_val=(void *)_t_iface_payload, .iface_owned=1};\n")
                     f.write("        return _t_iface_box;\n")
                 } else if func_returns_c_value(fd).not().and(func_returns_c_value(target)) {
@@ -5961,7 +6003,9 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     f.write("        *_t_iface_box = _t_iface_result;\n        return _t_iface_box;\n")
                 } else if func_returns_c_value(fd).and(func_returns_c_value(target).not()) {
                     f.write("        ").write(type_name_to_c_value(fd.sig.return_type, lp.ctx)).write(" _t_iface_value = *_t_iface_result;\n")
-                    f.write("        free(_t_iface_result);\n        return _t_iface_value;\n")
+                    if fd.sig.return_type == "Str" { f.write("        if (_t_iface_result->cap != TIL_CAP_LIT) { free(_t_iface_result); }\n") }
+                    else { f.write("        free(_t_iface_result);\n") }
+                    f.write("        return _t_iface_value;\n")
                 } else { f.write("        return _t_iface_result;\n") }
             } else { f.write("        return;\n") }
             f.write("    }\n")
@@ -5977,6 +6021,15 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, mut lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
+    if fd.sig.func_type.is_plain().and(fdef.children.len().gt(0)).and(interface_method_dispatchable(name, fd, lp.ctx.symbols))
+        .and(def_is_interface(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())) {
+        if qname_in_set(lp.ctx.builder_ns_member_sites, name, ".", dd_name)
+            .or(builder_dyn_fn_target_kept(name, dd_name, lp.ctx)).or(lp.ctx.builder_keep_all_exports) {
+            emit_func_def(f, format("_t_", name, "_", dd_name, "_default"), fdef, mode, true, lp)
+            emit_interface_dispatch(f, name, dd_name, fdef, lp)
+        }
+        return
+    }
     if fd.sig.func_type.is_bodyless() {
         if fd.sig.func_type.is_ext().and(def_is_interface(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())) {
             if interface_method_dispatchable(name, fd, lp.ctx.symbols)
@@ -11136,10 +11189,31 @@ priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, 
     else { f.write("_t_simd_mem_value; })") }
 }
 
+// A default body is not the body an interface-typed call necessarily runs.
+// Check the owner, not just the familiar len/get accessor shape.
+priv builder_is_virtual_interface_method := func(flat: Str, fdef: Expr, ctx: Context) returns Bool {
+    ref fd : FunctionDef = funcdef_of(fdef)
+    if fd.auto_generated.or(fd.sig.params.len().eq(0)) { return false }
+    ref first_type : Type = fd.sig.params[0].til_type
+    if is_named_type(first_type).not() { return false }
+    def_o := ctx.scope.get_struct_by_sym(type_sym(first_type, ctx.symbols))
+    if def_o.is_none() { return false }
+    if def_is_interface(def_o.unwrap()).not() { return false }
+    owner := type_name_ref(first_type, ctx.symbols).clone()
+    prefix := format(owner, "_")
+    if flat.starts_with(prefix).not() { return false }
+    member_o := def_ns_get(def_o.unwrap(), flat.substr(prefix.len(), flat.len() - prefix.len()))
+    if member_o.is_none() { return false }
+    ref member : Declaration = member_o.unwrap()
+    if member.default_value.is_none() { return false }
+    return member.default_expr().ptr_eq(fdef)
+}
+
 priv builder_is_inline_checked_get := func(flat: Str, ctx: Context) returns Bool {
     fdef_o := find_callee_fdef(flat, ctx)
     if fdef_o.is_none() { return false }
     ref fdef : Expr = fdef_o.unwrap()
+    if builder_is_virtual_interface_method(flat, fdef, ctx) { return false }
     switch fdef.node_type {
     case .FuncDef(fd):
         if fd.sig.func_type.is(FuncType.Func).not() { return false }
@@ -11218,6 +11292,7 @@ priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) ret
     fdef_o := find_callee_fdef(flat, ctx)
     if fdef_o.is_none() { return false }
     ref fdef : Expr = fdef_o.unwrap()
+    if builder_is_virtual_interface_method(flat, fdef, ctx) { return false }
     switch fdef.node_type {
     case .FuncDef(fd):
         if fd.sig.func_type.is(FuncType.Func).not() { return false }
@@ -12094,8 +12169,11 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
                     if member.default_value.is_none() { continue }
                     if member.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                     ref ifd : FunctionDef = funcdef_of(member.default_expr())
-                    if ifd.sig.func_type.is_ext().not() { continue }
-                    if qname_in_set(inv_round_sites, iname, ".", mname).or(lp.ctx.builder_keep_all_exports).not() { continue }
+                    if interface_method_dispatchable(iname, ifd, lp.ctx.symbols).not() { continue }
+                    if ifd.sig.func_type.is_ext().or(ifd.sig.func_type.is_plain()).not() { continue }
+                    if qname_in_set(inv_round_sites, iname, ".", mname)
+                        .or(ifd.sig.func_type.is_plain().and(builder_dyn_fn_target_kept(iname, mname, lp.ctx)))
+                        .or(lp.ctx.builder_keep_all_exports).not() { continue }
                     lp.ctx.builder_reflect_inventory.add(own Str.clone("interface_dispatch"))
                     mut needs_clone := false
                     for p : Declaration in ifd.sig.params {

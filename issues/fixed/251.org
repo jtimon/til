@@ -23,6 +23,65 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Virtual concrete defaults (based on master 179d836f5)
+
+    Interface-typed calls now select the concrete struct/enum's override, or
+    its copied default when there is no override. A default calling another
+    default therefore sees that concrete type's overrides too. Previously a
+    boxed override returned the interface's base result (~"default"~ instead
+    of ~"override"~ in the reproduction).
+
+    User-written receiver methods join the typed dispatch path. Generated
+    box clone/delete/size helpers remain box operations, and methods without
+    an interface receiver remain ordinary namespace calls. Standalone
+    ~Iface()~ values (empty concrete-type tag) still run the interface's own
+    default body. C keeps that body in a private helper; the interpreter
+    invokes it with the already-evaluated receiver.
+
+    The C bridge now handles ordinary default-method ABIs as well as abstract
+    declarations: caller-frame owned argument/receiver shells are not freed,
+    Self results can return interface boxes by value, and an external override
+    can receive the heap outer its ABI requires. Default methods keep their
+    existing full parameter lists; the separate abstract-call arity limit
+    is unchanged.
+
+    Accessor inlining and speculative constant folding cannot substitute the
+    interface body for a virtual call: it is not proof of the selected
+    override's body or effects. Scavenging and emission retain overridden and
+    inherited targets, including methods reached only through ~dyn_fn~.
+    Interpreter callable dispatch resolves the method against live member
+    Exprs; using ~namespace_decl~ exposed an ASAN use-after-free when constant
+    folding moved the top-level Declaration vector.
+
+    Default ref-return contracts retain borrowed-input provenance even if
+    the base body returns a global: an override can instead borrow its
+    receiver. This contract is restored after checking a default body with
+    owned arguments, whose own return analysis may be narrower. Default proc
+    calls and mutable payloads receive the same
+    contract checks as abstract calls.
+
+    Regression tests: ~test_interface_default_virtual_selection~,
+    ~test_interface_default_owned_results~,
+    ~test_interface_default_callable_once~ and
+    ~test_interface_default_ref_override~ in ~test/interfaces.til~. Coverage
+    includes structs/enums, nested defaults, len-accessor optimization,
+    multi-argument defaults, owned arguments/results/receivers, exactly-once
+    consuming-receiver destruction, standalone values, a dyn_fn-only callable field,
+    override side effects, single receiver evaluation and borrowed returns.
+    Three ~terr_iface_default_*~ cases retain effect/mutability rejection.
+
+    Verification: ~make clean && make test~ passed 498/498, including ASAN
+    and self-translation; interface tests pass 44/44 on both paths and the
+    negative corpus reports 315 expected errors.
+
+    Existing limits reproduced with the BASE compiler during this work:
+    - A borrow-carrying copy can conservatively pin its source through scope
+      end. Consuming the source later can be rejected even after the copy
+      itself has been consumed.
+    - Directly initializing a local FuncSig with ~dyn_fn~ segfaults in the
+      interpreter. The callable regression uses a FuncSig field, the existing
+      DynArray/DynVec storage pattern.
+
 *** Contract-preserving dispatch (based on master b201ae5d5)
 
     Reproduced a receiver factory running twice for one interface call and

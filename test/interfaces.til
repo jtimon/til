@@ -152,10 +152,8 @@ test_dispatch_enum := test() {
     assert_eq(Str, render(p), "polygon")
 }
 
-// #269: a concrete default called through the interface value stays a
-// static call to the interface's implementation, but an abstract call
-// INSIDE it (describe's body calls self.draw()) dispatches to the boxed
-// concrete type.
+// Defaults now dispatch to the concrete type's override or copied body.
+// describe's inner self.draw() must still reach that type's implementation.
 describe_of := func(d: Drawable) returns Str {
     return d.describe()
 }
@@ -758,4 +756,136 @@ test_interface_dispatch_ref_throws := test() {
     bad.get()?
     catch (err: DispatchFailure) { message = err.message }
     assert_eq(Str, message, "empty")
+}
+
+DefaultFlow := interface {
+    label := func(_self: DefaultFlow) returns Str { return "default" }
+    indirect := func(_self: DefaultFlow) returns Str { return "indirect default" }
+    nested := func(self: DefaultFlow) returns Str { return self.label() }
+    take := func(_self: DefaultFlow, own text: Str) returns Str { return text }
+    finish := func(own self: DefaultFlow) returns Str { return self.label() }
+    copy := func(self: DefaultFlow) returns DefaultFlow { return self.clone() }
+    len := func(_self: DefaultFlow) returns USize { return 1 }
+    combine := func(_self: DefaultFlow, a: I64, b: I64) returns I64 { return a + b }
+    constant := func() returns I64 { return 9 }
+}
+PlainFlow := struct implements DefaultFlow {
+    n := 1
+namespace:
+    mut drops := 0
+    delete := func(own self: PlainFlow, call_free: Bool = true) {
+        PlainFlow.drops = PlainFlow.drops + 1
+        if call_free { free(own self) }
+    }
+}
+OverrideFlow := struct implements DefaultFlow {
+    n := 2
+namespace:
+    mut labels := 0
+    label := func(_self: OverrideFlow) returns Str {
+        OverrideFlow.labels = OverrideFlow.labels + 1
+        return "override"
+    }
+    indirect := func(self: OverrideFlow) returns Str { return format("indirect ", self.label()) }
+    take := func(_self: OverrideFlow, own text: Str) returns Str { return format("override ", text) }
+    len := func(_self: OverrideFlow) returns USize { return 2 }
+    combine := func(_self: OverrideFlow, a: I64, b: I64) returns I64 { return a * b }
+}
+EnumFlow := enum implements DefaultFlow {
+    Value,
+namespace:
+    label := func(_self: EnumFlow) returns Str { return "enum" }
+}
+
+runtime_default_len := func(view: DefaultFlow) returns USize { return view.len() }
+
+test_interface_default_virtual_selection := test() {
+    plain: DefaultFlow = PlainFlow()
+    changed: DefaultFlow = OverrideFlow()
+    choice: DefaultFlow = EnumFlow.Value
+    assert_eq(Str, plain.label(), "default")
+    assert_eq(Str, changed.label(), "override")
+    assert_eq(Str, choice.label(), "enum")
+    assert_eq(Str, changed.nested(), "override")
+    assert_eq(Str, choice.nested(), "enum")
+    assert_eq(USize, runtime_default_len(plain), 1)
+    assert_eq(USize, runtime_default_len(changed), 2)
+    assert_eq(I64, plain.combine(3, 4), 7)
+    assert_eq(I64, changed.combine(3, 4), 12)
+    assert_eq(I64, DefaultFlow.constant(), 9)
+    assert_eq(Str, DefaultFlow().label(), "default")
+    assert_eq(Str, DefaultFlow().nested(), "default")
+}
+
+test_interface_default_owned_results := test() {
+    plain: DefaultFlow = PlainFlow()
+    changed: DefaultFlow = OverrideFlow()
+    choice: DefaultFlow = EnumFlow.Value
+    plain_copy := plain.copy()
+    changed_copy := changed.copy()
+    choice_copy := choice.copy()
+    assert_eq(Str, plain_copy.label(), "default")
+    assert_eq(Str, changed_copy.label(), "override")
+    assert_eq(Str, choice_copy.label(), "enum")
+    before := PlainFlow.drops
+    assert_eq(Str, DefaultFlow.finish(own plain_copy), "default")
+    assert_eq(I64, PlainFlow.drops, before + 1)
+    assert_eq(Str, plain.label(), "default")
+    assert_eq(Str, DefaultFlow.finish(own changed_copy), "override")
+    assert_eq(Str, DefaultFlow.finish(own choice_copy), "enum")
+    mut calls := 0
+    assert_eq(Str, plain.take(own make_dispatch_argument(calls)), "argument 1")
+    assert_eq(Str, changed.take(own make_dispatch_argument(calls)), "override argument 2")
+    empty := DefaultFlow()
+    assert_eq(Str, empty.take(own make_dispatch_argument(calls)), "argument 3")
+    empty_copy := empty.copy()
+    assert_eq(Str, DefaultFlow.finish(own empty_copy), "default")
+    // Copy provenance conservatively pins empty for this scope. Consume a
+    // separate standalone receiver to exercise the default-body own ABI.
+    standalone := DefaultFlow()
+    assert_eq(Str, DefaultFlow.finish(own standalone), "default")
+    assert_eq(I64, calls, 3)
+}
+
+DefaultLabel := func(DefaultFlow) returns Str
+DefaultCallbacks := struct { label: DefaultLabel }
+make_default_flow := func(mut calls: I64) returns DefaultFlow {
+    calls++
+    return OverrideFlow(n = calls)
+}
+
+test_interface_default_callable_once := test() {
+    mut calls := 0
+    before_labels := OverrideFlow.labels
+    assert_eq(Str, make_default_flow(calls).nested(), "override")
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, OverrideFlow.labels, before_labels + 1)
+    callbacks := DefaultCallbacks(label = dyn_fn("DefaultFlow", "indirect"))
+    view := make_default_flow(calls)
+    assert_eq(Str, callbacks.label(view), "indirect override")
+    assert_eq(Str, callbacks.label(DefaultFlow()), "indirect default")
+    assert_eq(I64, calls, 2)
+    assert_eq(I64, OverrideFlow.labels, before_labels + 2)
+}
+
+DefaultNumberCell := struct { n := 3 }
+default_number_cell := DefaultNumberCell()
+DefaultBorrow := interface {
+    get := func(_self: DefaultBorrow, own _text: Str) returns ref I64 { return default_number_cell.n }
+}
+BorrowFlow := struct implements DefaultBorrow {
+    n := 7
+namespace:
+    get := func(self: BorrowFlow, own _text: Str) returns ref I64 { return self.n }
+}
+
+test_interface_default_ref_override := test() {
+    mut view: DefaultBorrow = BorrowFlow()
+    ref mut number: I64 = view.get(own "unused")
+    number++
+    assert_eq(I64, view.get(own "unused"), 8)
+    assert_eq(I64, default_number_cell.n, 3)
+    empty := DefaultBorrow()
+    ref base: I64 = empty.get(own "unused")
+    assert_eq(I64, base, 3)
 }

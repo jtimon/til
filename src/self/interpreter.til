@@ -3350,7 +3350,31 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
         scope_free(own body_scope)
         if destination.is_null().not() { return destination }
         return raw_unit_result(e.til_type(), ctx)
-    case .FuncDef:
+    case .FuncDef(fd):
+        // A default taken as a function value has the same virtual semantics
+        // as a direct interface-qualified call.
+        if fd.auto_generated.not().and(fd.sig.func_type.is_plain()).and(fd.sig.params.len().gt(0)) {
+            iface_name := decl_type_name(fd.sig.params[0], ctx.symbols)
+            iface_o := lookup_interp_type_def(iface_name, ctx)
+            if iface_o.is_some().and(iface_o.unwrap().node_type.is(NodeType.StructDef)) {
+                ref iface : Expr = iface_o.unwrap()
+                if structdef_of(iface).is_interface
+                    .and(fd.sig.return_type.eq(iface_name).and(fd.sig.return_own_type.is(OwnType.Ref)).not()) {
+                    // namespace_decl borrows a top-level Declaration, which
+                    // can move during constant folding. Resolve against the
+                    // live type's member Exprs instead of that stale address.
+                    ref members : Vec(Declaration) = def_ns_decls(iface)
+                    for mi in 0..members.len() {
+                        ref member : Declaration = members[mi]
+                        if member.default_value.is_none() { continue }
+                        if member.default_expr().ptr_eq(func_def) {
+                            method := def_ns_name_at(iface, mi).clone()
+                            return eval_interface_call(caller_scope, e, iface_name, method, fd, parent_scope, ctx, destination)
+                        }
+                    }
+                }
+            }
+        }
         return eval_user_func_call(caller_scope, e, func_def, parent_scope, ctx, destination)
     case:
         interp_error(e, "callee did not evaluate to a function", ctx)
@@ -3391,7 +3415,7 @@ priv bind_interface_receiver := proc(mut dispatch_scope: Scope, mut box: Dynamic
     return receiver
 }
 
-priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str, contract: FunctionDef, mut ctx: Context, mut destination: Dynamic) returns Dynamic {
+priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str, method: Str, contract: FunctionDef, default_scope: Scope, mut ctx: Context, mut destination: Dynamic) returns Dynamic {
     own_self := contract.sig.params[0].own_type.is(OwnType.Own)
     mut receiver_info := raw_result_info_new()
     mut box : Dynamic = 0
@@ -3404,8 +3428,25 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
     ref value_fl : FieldLayout = ctx_field_layout(iface_name, "iface_val", ctx)
     ref owned_fl : FieldLayout = ctx_field_layout(iface_name, "iface_owned", ctx)
     ref concrete_name : Str = ptr_add(box, tag_fl.offset)
+    if concrete_name.len().eq(0).and(contract.sig.func_type.is_plain()) {
+        // Iface() is an existing, valid standalone value. Its own default
+        // body runs without reevaluating the receiver or dispatching again.
+        mut fallback_scope := scope_new(safe_ref(scope))
+        self_name := "_t_iface_default_self"
+        mut own_type := OwnType.Ref
+        if own_self { own_type = OwnType.Own }
+        scope_set_raw_owned(fallback_scope, self_name, box, interp_intern_type(e.children[1].til_type(), ctx), own_type, ctx, borrowed = own_self.not())
+        mut fallback_call := e.clone()
+        mut self_arg := Expr.new(ident_node(ctx.symbols.intern(self_name)), e.line, e.col)
+        self_arg.set_til_type(e.children[1].til_type())
+        fallback_call.children[1] = self_arg
+        result : Dynamic = eval_user_func_call(fallback_scope, fallback_call,
+            ns_func_def(iface_name, method, ctx).unwrap(), default_scope, ctx, destination)
+        scope_free(own fallback_scope)
+        if own_self.not().and(receiver_info.is_ref.not()) { raw_result_drop_ptr(e.children[1].til_type(), box, false, ctx) }
+        return result
+    }
     concrete_type := type_from_name_init_name(concrete_name, ctx.scope, ctx.symbols)
-    ref method : Str = fieldaccess_of(e.children[0]).field_access_name(ctx.symbols.names)
     target_o := ns_func_def(concrete_name, method, ctx)
     if target_o.is_none() { panic("interface dispatch: no implementation of ", iface_name, ".", method) }
     ref target : FunctionDef = funcdef_of(target_o.unwrap())
@@ -3413,7 +3454,10 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
     mut call := e.clone()
     mut type_id := Expr.new(ident_node(ctx.symbols.intern(concrete_name)), e.line, e.col)
     type_id.set_til_type(concrete_type)
-    call.children[0].children[0] = type_id
+    mut callee := Expr.new(field_access_node(ctx.symbols.intern(method)), e.line, e.col)
+    callee.add_child(own type_id)
+    call.children[0] = callee
+    mark_fcall_direct(call)
     mut boxes := Vec(InterfaceCallBox).new()
     boxes.push(own InterfaceCallBox(data = box, release = own_self.or(receiver_info.is_ref.not())))
     call.children[1] = bind_interface_receiver(dispatch_scope, box, iface_name, concrete_name, concrete_type, 0, own_self, e, ctx)
@@ -3508,7 +3552,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             iface_o := lookup_interp_type_def(iface_name, ctx)
             if iface_o.is_some().and(iface_o.unwrap().node_type.is(NodeType.StructDef)) {
                 if structdef_of(iface_o.unwrap()).is_interface {
-                    result : Dynamic = eval_interface_call(scope, e, iface_name, iface_fd, ctx, destination)
+                    ref method : Str = fieldaccess_of(callee_expr).field_access_name(ctx.symbols.names)
+                    result : Dynamic = eval_interface_call(scope, e, iface_name, method, iface_fd, scope_root_ref(scope), ctx, destination)
                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                     return result
                 }

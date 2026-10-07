@@ -2360,7 +2360,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     check_member_priv(e, obj3_sname, method, ns_member_priv, scope, ctx)
     // #154: calling a method of a cross-file type uses that type's import.
     note_cross_file_type_use_sym(scope, ctx, obj3_sym)
-    // Keep abstract interface calls typed against their actual signature.
+    // Keep interface calls typed against their actual signature.
     // Erasing them to dyn_call here loses own/ref/effect information and
     // duplicates the receiver. Backends dispatch this ordinary call instead.
     if def_is_interface(sdef2_o) {
@@ -2371,7 +2371,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             abs_fd.sig = interface_contract_signature(abs_fd, "", "", scope, ctx)
             abs_fd.sig.func_type = abs_kind
         }
-        if abs_fd.sig.func_type.is_ext().and(abs_fd.sig.func_type.is_proc()).and(in_func != 0) {
+        if abs_fd.auto_generated.not().and(abs_fd.sig.func_type.is_proc()).and(in_func != 0) {
             e.type_error(format("func cannot call proc '", obj3_sname, ".", method, "'"), ctx)
         }
     }
@@ -2485,12 +2485,15 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
         validate_fcall_own_args_for_fdef(scope, e, ns_fdef, ctx)
-        if def_is_interface(sdef2_o).and(ns_fdef.sig.func_type.is_ext()) {
+        if def_is_interface(sdef2_o).and(ns_fdef.auto_generated.not())
+            .and(ns_fdef.sig.func_type.is_ext().or(ns_fdef.sig.func_type.is_plain()
+                .and(ns_fdef.sig.params.len().gt(0))
+                .and(decl_type_name(ns_fdef.sig.params[0], ctx.symbols) == obj3_sname))) {
             for pi in 0..ns_fdef.sig.params.len() {
                 if pi + 1 >= e.children.len() { break }
                 ref p : Declaration = ns_fdef.sig.params[pi]
                 if p.is_mut.not().or(decl_type_name(p, ctx.symbols) != obj3_sname) { continue }
-                // A mutable abstract receiver writes its concrete payload,
+                // A mutable interface receiver writes its concrete payload,
                 // not merely the interface box. Follow the carried borrow
                 // so a mutable box cannot launder an immutable concrete.
                 mut payload := Expr.new(field_access_node(ctx.symbols.intern("iface_val")), e.line, e.col)
@@ -2503,7 +2506,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             for p : Declaration in ns_fdef.sig.params {
                 if p.name.starts_with("_err_").not() { source_params++ }
             }
-            if source_params > 2 {
+            if ns_fdef.sig.func_type.is_ext().and(source_params > 2) {
                 e.type_error(format("interface dispatch of '", obj3_sname, ".", method,
                     "': supports at most one argument besides self"), ctx)
             }
@@ -5203,6 +5206,12 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, m
                 expr.type_error(format("cannot return a reference into owned parameter '", fdef.sig.params[pi].name,
                     "': its storage is consumed by this call; return an owned value instead"), ctx)
             }
+        }
+        if name_is_interface(func_scope.active_type_name(), func_scope, ctx.symbols) {
+            // The body verdict above checks this default implementation.
+            // Calls still need the virtual contract's borrowed-input roots:
+            // an override can borrow where the default returns a global.
+            _ := update_ref_return_summary(expr, func_scope, func_scope.active_type_name(), ctx)
         }
     }
     throws_count = fdef.sig.throw_types.len()
@@ -12578,8 +12587,10 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
     if fd_expr.children.len() == 0 { return false }
     switch fd_expr.node_type {
     case .FuncDef(fd):
-        if fd.sig.func_type.is_ext().and(name_is_interface(self_type, scope, ctx.symbols)) {
-            // An abstract ref result can alias any borrowed input; unlike an
+        if fd.auto_generated.not().and(name_is_interface(self_type, scope, ctx.symbols))
+            .and(fd.sig.func_type.is_ext().or(fd.sig.func_type.is_plain()
+                .and(fd.sig.params.len().gt(0)).and(decl_type_name(fd.sig.params[0], ctx.symbols) == self_type))) {
+            // A virtual ref result can alias any borrowed input; unlike an
             // FFI raw pointer it has a typed contract whose callers must keep
             // those owners alive and retain their mutability provenance.
             if fd.sig.return_own_type.is(OwnType.Ref) {
@@ -12592,7 +12603,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
                 }
                 if roots != fd.ref_return_params { fd.ref_return_params = roots; return true }
             }
-            return false
+            if fd.sig.func_type.is_ext() { return false }
         }
         // A bodyless raw / core / FFI ref has no typed root to hand back.
         if fd.sig.func_type.is_bodyless() { return false }

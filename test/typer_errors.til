@@ -939,7 +939,10 @@ terr_iface_dispatch_arg_type := func(view: TErrFullContract, n: I64) returns Str
 TErrProcDispatch := interface { announce := ext_proc(self: TErrProcDispatch) {} }
 terr_iface_dispatch_effect := func(view: TErrProcDispatch) { view.announce() }
 
-TErrMutDispatch := interface { bump := ext_func(mut self: TErrMutDispatch) {} }
+TErrMutDispatch := interface {
+    bump := ext_func(mut self: TErrMutDispatch) {}
+    bump_default := func(mut self: TErrMutDispatch) { self.bump() }
+}
 TErrMutValue := struct implements TErrMutDispatch {
     n := 0
 namespace:
@@ -949,6 +952,22 @@ terr_iface_dispatch_payload := func() {
     source := TErrMutValue()
     mut view: TErrMutDispatch = source
     view.bump()
+}
+
+TErrDefaultProc := interface { announce := proc(_self: TErrDefaultProc) { print("") } }
+terr_iface_default_effect := func(view: TErrDefaultProc) { view.announce() }
+terr_iface_default_payload := func() {
+    source := TErrMutValue()
+    mut view: TErrMutDispatch = source
+    view.bump_default()
+}
+terr_default_cell := TErrConfNotIface()
+TErrDefaultBorrow := interface {
+    get := func(_self: TErrDefaultBorrow, own _text: Str) returns ref I64 { return terr_default_cell.y }
+}
+terr_iface_default_ref_mut := func(view: TErrDefaultBorrow) {
+    ref mut value: I64 = view.get(own "unused")
+    value++
 }
 
 // Unsupported erased shapes fail at the call, rather than generating an

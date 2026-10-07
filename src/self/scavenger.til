@@ -2440,7 +2440,9 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                         method_o := find_namespace_func(iface, member, lp.ctx.scope, lp.ctx.symbols)
                         if method_o.is_some() {
                             ref fd : FunctionDef = funcdef_of(method_o.unwrap())
-                            if fd.sig.func_type.is_ext() {
+                            if fd.auto_generated.not().and(fd.sig.func_type.is_ext()
+                                .or(fd.sig.func_type.is_plain().and(fd.sig.params.len().gt(0))
+                                    .and(decl_type_name(fd.sig.params[0], lp.ctx.symbols) == iface_name))) {
                                 mut own_self := false
                                 for p : Declaration in fd.sig.params {
                                     if p.own_type.is(OwnType.Own).and(decl_type_name(p, lp.ctx.symbols) == iface_name) { own_self = true }
