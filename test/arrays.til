@@ -72,6 +72,11 @@ namespace:
         // conversion, just as it would for a real call to this method.
         return ptr_add(self.data, index.cast(U64).mul(T.size().cast(U64)))
     }
+    // A real pointer-ABI call, rather than an accessor-body splice.
+    get_at := proc(self: AccessorIndexView(T), index: USize) returns ref T {
+        noop_proc()
+        return ptr_add(self.data, index.to_uptr().mul(T.size().to_uptr()))
+    }
 }
 
 test_array_accessor_conversions := test() {
@@ -93,6 +98,8 @@ test_array_accessor_conversions := test() {
     wide := accessor_runtime_index(calls, 4294967297)
     view := AccessorIndexView(I64)(data = values[0])
     assert_eq(I64, view.unsafe_get(accessor_runtime_index(calls, 1)), 25)
+    assert_eq(I64, values.unsafe_get(accessor_runtime_index(calls, 1)), 25)
+    assert_eq(I64, view.get_at(accessor_runtime_index(calls, 1)), 25)
     // Arithmetic observes the selected alias width in both backends, unlike
     // sizeof during interpretation, which can describe the host layout.
     mut wrapped : USize = 4294967295
@@ -101,12 +108,56 @@ test_array_accessor_conversions := test() {
         // Narrow before checking bounds AND before the accessor widens to U64.
         assert_eq(I64, values[wide], 25)
         assert_eq(I64, view.unsafe_get(wide), 25)
+        assert_eq(I64, values.unsafe_get(wide), 25)
+        assert_eq(I64, view.get_at(wide), 25)
     } else {
         mut caught := false
         ref _invalid : I64 = values.get(wide)?
         catch (err: OutOfBounds) { caught = true }
         assert(caught)
     }
+}
+
+size_reference_identity := func(value: UPtr) returns ref UPtr { return value }
+
+size_reference_advance := func(mut value: UPtr) { value = value + 1 }
+size_reference_identity_usize := func(value: USize) returns ref USize { return value }
+size_reference_advance_usize := func(mut value: USize) { value = value + 1 }
+
+test_size_reference_identity_and_conversion := test() {
+    mut native : UPtr = 17
+    ref original : UPtr = size_reference_identity(native)
+    ref alias : UPtr = size_reference_identity(native)
+    assert(ptr_eq(original, alias))
+    size_reference_advance(native)
+    assert_eq(UPtr, alias, 18)
+    ref mut writable : UPtr = size_reference_identity(native)
+    writable = 23
+    assert_eq(UPtr, native, 23)
+
+    mut size : USize = 5
+    ref size_alias : USize = size_reference_identity_usize(size)
+    ref size_again : USize = size_reference_identity_usize(size)
+    assert(ptr_eq(size_alias, size_again))
+    size_reference_advance_usize(size)
+    assert_eq(USize, size_alias, 6)
+
+    mut calls := 0
+    mut signed_value := accessor_runtime_index(calls, -1)
+    ref converted : UPtr = size_reference_identity(signed_value)
+    assert_eq(UPtr, converted, UPtr.MAX)
+    signed_value = 7
+    assert_eq(I64, signed_value, 7)
+    assert_eq(UPtr, converted, UPtr.MAX)
+    ref temporary : UPtr = size_reference_identity(accessor_runtime_index(calls, 5))
+    assert_eq(UPtr, temporary, 5)
+    assert_eq(I64, calls, 2)
+    small_signed := accessor_runtime_index(calls, -1).to_i8()
+    ref widened_signed : UPtr = size_reference_identity(small_signed)
+    assert_eq(UPtr, widened_signed, UPtr.MAX)
+    small_unsigned := accessor_runtime_index(calls, 255).to_u8()
+    ref widened_unsigned : UPtr = size_reference_identity(small_unsigned)
+    assert_eq(UPtr, widened_unsigned, 255)
 }
 
 // Issue #225: subscript assignment `a[i] = x` desugars to

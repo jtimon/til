@@ -2307,7 +2307,14 @@ main := proc(args: ..Str) {
     add_counts(tests, "accessor_conversions_usize32", "build",
         format(til_bin, " test --usize=32", asan_flag,
             " -c gen/c/accessor_conversions32.c -o bin/c/accessor_conversions32 test/arrays.til"),
-        CountCheck(needle = "pass: test_array_accessor_conversions", expected_count = 2))
+        CountCheck(needle = "pass: test_array_accessor_conversions", expected_count = 2),
+        CountCheck(needle = "pass: test_size_reference_identity_and_conversion", expected_count = 2))
+    add_count(tests, "size_ref_storage_error_interp", "typer", "mutable size parameter 'value' requires matching storage type", 1,
+        format(til_bin, " interpret --usize=64 test/size_ref_errors.til"))
+    add_count(tests, "size_ref_storage_error_build", "typer", "mutable size parameter 'value' requires matching storage type", 1,
+        format(til_bin, " build --usize=64", asan_flag, " test/size_ref_errors.til"))
+    add_count(tests, "size_ref_storage_error_usize32", "typer", "mutable size parameter 'value' requires matching storage type", 2,
+        format(til_bin, " interpret --usize=32 test/size_ref_errors.til"))
     add_both(tests, "test/dyn_arrays.til", flags)
     add_both(tests, "test/test_in_namespace.til", flags)
     add_both(tests, "test/forward_refs.til", flags)

@@ -1,0 +1,12 @@
+mode script
+
+advance_size_reference := func(mut value: UPtr) { value = value + 1 }
+
+// An implicit value conversion would direct the write into a temporary,
+// leaving the caller unchanged. Mutable references need matching storage.
+mut wrong_storage : I64 = 1
+advance_size_reference(wrong_storage)
+
+advance_size_width := func(mut value: USize) { value = value + 1 }
+mut wide_storage : U64 = 4294967297
+advance_size_width(wide_storage)

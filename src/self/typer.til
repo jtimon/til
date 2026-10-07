@@ -1410,6 +1410,40 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
 
 }
 
+// A reference-ABI size parameter cannot rely on C's by-value argument
+// conversion. Materialize a differing readonly scalar before the call so the
+// ordinary hoister/lifetime machinery owns its converted storage. Matching
+// types remain the original place, and a writable reference must keep that
+// storage rather than write into a converted temporary.
+priv coerce_size_reference_arg := proc(mut arg: Expr, param: Declaration, ptype: Type, ptype_name: Str, scope: TypeScope, mut ctx: Context) {
+    if param.own_type.is(OwnType.Ref).not() { return }
+    if can_implicit_usize_coerce(arg.til_type(), ptype, ptype_name).not() { return }
+    if arg.til_type() == ptype { return }
+    if param.is_mut {
+        arg.type_error(format("mutable size parameter '", param.name,
+            "' requires matching storage type ", ptype_name, "; got ",
+            type_to_name(arg.til_type(), ctx.symbols)), ctx)
+        return
+    }
+    if expr_is_address(arg, scope, ctx.symbols) {
+        arg.type_error(format("size parameter '", param.name,
+            "' needs a scalar conversion, not a pointer field"), ctx)
+        return
+    }
+    // This is the already-permitted implicit size conversion, represented as
+    // a typed cast. It may narrow or change signedness; user-written casts
+    // still go through infer_cast_fcall's stricter public cast rules.
+    mut converted := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
+    converted.add_child(own Expr.new(ident_node(ctx.symbols.intern("cast")), arg.line, arg.col))
+    converted.add_child(own arg.clone())
+    mut target := Expr.new(ident_node(ctx.symbols.intern(til_type_name_c(ptype, ctx.symbols))), arg.line, arg.col)
+    target.set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
+    converted.add_child(own target)
+    converted.set_til_type(ptype)
+    mark_fcall_direct(converted)
+    arg = converted
+}
+
 // #342: the splat counterpart of validate_fcall_arg. A `..` argument stands
 // for the whole variadic run, so what has to match the parameter is the
 // container's ELEMENT type, not the container. Unknown and Dynamic are left
@@ -1678,6 +1712,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, param2.own_type, ctx)
+            coerce_size_reference_arg(e.children[ci], param2, ptype, ptype_name, scope, ctx)
             ci++
             pi++
         }
