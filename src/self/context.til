@@ -1319,6 +1319,11 @@ EvalState := struct {
     // instead of terminating the process, so one panic does not end the
     // session. See h_exit.
     repl_session := false
+    embedded := false
+    exit_status := Option(I64).None
+    failure_site := SourceDiagnostic()
+    guest_output := ""
+    function_paths := Map(UPtr, Str).new()
     // #321/#324: the namespace-fields table, OWNED. It was `ref ... = NULL`
     // -- an owned pointer wearing a borrow label, freed through the #324
     // hole -- with a separate ns_inited Bool as a second source of truth
@@ -1351,6 +1356,8 @@ EvalState := struct {
 Context := struct {
     mode := Mode()
     path := ""
+    collect_diagnostics := false
+    diagnostics := Vec(SourceDiagnostic).new()
     path_modes := Map(Str, Mode).new()
     mode_registry := Map(Str, Mode).new()
     // The raw-bytes runtime heap (rstil's EvalHeap), threaded through Context

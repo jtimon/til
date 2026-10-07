@@ -59,6 +59,23 @@ Scalars (I8..I64, U8..U64, F32, Bool) need no destruction: their auto-generated
 ~delete~ is a no-op and the pass suppresses the call. Only compound types
 (~Str~, structs, enums, ~Vec~/~Map~/~Set~/...) and raw ~Dynamic~ carry heap.
 
+*** Resource teardown belongs in delete
+
+Resource-owning types such as ~File~ and ~TilVm~ keep a private ~close~
+helper and call it from ~delete(own self, call_free)~. The helper isolates
+the cleanup logic for maintenance and testing; callers do not need a
+separate public close operation or a closed-but-still-live object state.
+Keep that call on its own line, so a cleanup hypothesis can be tested by
+changing one call rather than editing the whole teardown implementation.
+
+ASAP inserts ~delete~ after the last use, including ordinary early-exit
+paths. This gives automatic resource release without reference counters:
+the compiler tracks ownership and borrows rather than maintaining a runtime
+reference count. Explicit ~own resource.delete()~ transfers ownership for
+early teardown and prevents later use. The destructor closes the resource,
+destroys its owned fields, then frees its outer box only if ~call_free~ is
+true. Test both implicit destruction and explicit deletion under ASAN.
+
 ** Destruction by context and qualifier
 
 Read this together with qualifiers.org's identical four-context split. "Who

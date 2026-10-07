@@ -1,0 +1,135 @@
+mode lib
+
+import("../self/interpreter")
+
+/// An owned source diagnostic. It remains valid after its VM is destroyed.
+TilVmDiagnostic := SourceDiagnostic
+
+/// Loading or evaluating a guest failed. No part of the failed module is kept.
+TilVmError := struct {
+    phase := ""
+    diagnostics := Vec(TilVmDiagnostic).new()
+    exit_status := Option(I64).None
+namespace:
+    to_str := func(self: TilVmError) returns Str {
+        mut text := self.phase.clone()
+        for d : TilVmDiagnostic in self.diagnostics {
+            text = format(text, "\n", d.path, ":", d.line.to_str(), ":", d.col.to_str(), ": ", d.message)
+        }
+        return text
+    }
+}
+
+priv tilvm_error := func(phase: Str, ctx: Context) returns TilVmError {
+    return TilVmError(phase = phase.clone(), diagnostics = ctx.diagnostics.clone(),
+        exit_status = ctx.eval.exit_status.clone())
+}
+
+priv tilvm_native_declarations := proc(e: Expr, path: Str, mut ctx: Context) {
+    switch e.node_type {
+    case .FuncDef(fd):
+        if fd.sig.func_type.is_ext() {
+            type_error_at(path, e.line, e.col, "native declarations require host registration; not supported by this TilVm interface", ctx)
+        }
+    case .FCall:
+        if e.children.len() > 0 {
+            switch e.children[0].node_type {
+            case .Ident(id):
+                if id.ident_name(ctx.symbols.names) == "ext_global" {
+                    type_error_at(path, e.line, e.col, "native globals require host registration; not supported by this TilVm interface", ctx)
+                }
+            case:
+            }
+        }
+    case:
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref decls : Vec(Declaration) = def_ns_decls(e)
+        for d : Declaration in decls {
+            if d.default_value.is_some() { tilvm_native_declarations(d.default_expr(), path, ctx) }
+        }
+    }
+    for child : Expr in e.children { tilvm_native_declarations(child, path, ctx) }
+}
+
+/// An independent interpreter session. Serialize all VM use on one thread.
+/// The session owns all guest globals, code and strings. Destroy it to release
+/// them: ASAP calls delete after the last use, or use own vm.delete() explicitly.
+TilVm := struct {
+    priv support_root := ""
+    priv session := InterpSession()
+namespace:
+    /// support_root names the installed lib/til SDK directory, not a compiler
+    /// executable. It must match the SDK used to compile the host.
+    new := func(support_root: Str) returns TilVm {
+        mut vm := TilVm(support_root = support_root.clone())
+        interp_session_start(vm.session, Vec(Str).new())
+        return vm
+    }
+
+    /// Load one mode lib module and evaluate its initializers in this process.
+    /// A failed load can be retried on the same VM. A successful load seals the
+    /// first-slice session; reload uses a fresh VM. No compiler is run.
+    load_file := proc(mut self: TilVm, path: Str) throws TilVmError {
+        if self.session.retained_programs.len() > 0 {
+            mut err := TilVmError(phase = "load")
+            err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), message = "session already has a module; reload in a new TilVm"))
+            throw err
+        }
+        root := realpath_str(self.support_root)
+        if root.len().eq(0).or(File.is_file(format(root, "/src/core/modes.til")).not()) {
+            mut err := TilVmError(phase = "load")
+            err.diagnostics.push(own TilVmDiagnostic(path = self.support_root.clone(), message = "TilVm support_root is not an installed Til SDK"))
+            throw err
+        }
+        mut lp := load_program(path, root, realpath_str("."), format(root, "/src/c/ext.c"), Vec(Str).new(), "", true)
+        if lp.load_errors > 0 { throw tilvm_error("load", lp.ctx) }
+        if lp.link_c_paths.len().gt(0).or(lp.link_flags.len().gt(0)) {
+            type_error_at(path, 1, 1, "TilVm cannot compile link_c or load native libraries", lp.ctx)
+        }
+        for u : ProgramUnit in lp.units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            tilvm_native_declarations(iu.ast, u.path, lp.ctx)
+        }
+        if lp.ctx.errors > 0 { throw tilvm_error("load", lp.ctx) }
+        if init_and_type_program_errors(lp, false) > 0 { throw tilvm_error("type", lp.ctx) }
+
+        // Bindings borrow the program's Context and AST. Move it to its stable
+        // address BEFORE creating any runtime binding, including on abort paths.
+        mut raw : Dynamic = interp_program_to_heap(own lp)
+        ref mut program : LoadedProgram = to_ptr(raw)
+        interp_session_retain_program(self.session, raw)
+        rc := interp_session_prepare_context(self.session, program, "")
+        if rc != 0 { panic("embedded context unexpectedly requested native FFI setup") }
+        interp_session_eval_core_once(self.session, program)
+        if program.ctx.eval.eval_aborted.not() {
+            interp_session_eval_user_units(self.session, program)
+        }
+        if program.ctx.eval.eval_aborted {
+            err := tilvm_error("eval", program.ctx)
+            interp_session_free(self.session)
+            interp_session_start(self.session, Vec(Str).new())
+            throw err
+        }
+    }
+
+    // Keep resource teardown in one helper, independently readable/testable.
+    // Only delete invokes it: there is no public closed-but-live VM state.
+    priv close := func(mut self: TilVm) {
+        interp_session_free(self.session)
+    }
+
+    // A VM is a unique resource, not a snapshot. Suppress the generated
+    // fieldwise clone, which would duplicate raw program owners. Privacy
+    // rejects application copies; reaching this internally is a bug.
+    priv clone := func(self: TilVm) returns TilVm {
+        panic("cannot clone a TilVm; create an independent session for ", self.support_root)
+    }
+
+    delete := func(own self: TilVm, call_free: Bool = true) {
+        TilVm.close(self)
+        own self.session.delete(false)
+        own self.support_root.delete(false)
+        if call_free { free(own self) }
+    }
+}

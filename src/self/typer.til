@@ -276,12 +276,16 @@ priv CtorArg := enum {
 // Non-priv so the garbager module can report use-after-ownership-transfer
 // against the same diagnostic counter.
 type_error := proc(e: Expr, msg: Str, mut ctx: Context) {
-    e.error(ctx.path, msg)
-    ctx.errors++
+    type_error_at(ctx.path, e.line, e.col, msg, ctx)
 }
 
 type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, mut ctx: Context) {
-    println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
+    if ctx.collect_diagnostics {
+        ctx.diagnostics.push(own SourceDiagnostic(path = path.clone(), line = line,
+            col = col, message = msg.clone()))
+    } else {
+        println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
+    }
     ctx.errors++
 }
 

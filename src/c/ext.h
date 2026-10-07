@@ -286,6 +286,8 @@ Bool cfile_exists(const Str *path);
 void cfile_close(const void *handle);
 void cfile_write_str(const void *handle, const Str *s);
 Str *cfile_read_all(const void *handle);
+// Compiler/VM loader: ordinary I/O errors are returned, never process exits.
+I64 compiler_read_source(const Str *path, Str *out, Str *err);
 I64 cfile_tell(const void *handle);
 void cfile_seek(const void *handle, I64 pos);
 void cfile_seek_cur(const void *handle, I64 delta);

@@ -370,6 +370,13 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
         if fd.til_type.is(Type.Unknown) { return }
     }
     has_clone := sdd.ns_index.has("clone")
+    if has_clone {
+        // Declaring a private clone is meaningful even without a call: it
+        // suppresses the synthesized public clone of a unique resource.
+        // Method generation has consumed that declaration's contract.
+        ref mut declared_clone : Declaration = sdd.ns_decls[sdd.ns_index["clone"]]
+        declared_clone.used = true
+    }
     has_delete := sdd.ns_index.has("delete")
     has_hash := sdd.ns_index.has("hash")
     has_eq := sdd.ns_index.has("eq")

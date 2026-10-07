@@ -1,5 +1,19 @@
 mode lib
 
+// Owned diagnostics cross the compiler/embedding boundary without borrowing
+// tokens, source text or ASTs from a program that may have failed to load.
+SourceDiagnostic := struct {
+    path := ""
+    line : U32 = 0
+    col : U32 = 0
+    message := ""
+}
+
+priv lex_error := proc(path: Str, line: U32, col: U32, message: Str, quiet: Bool, mut diagnostics: Vec(SourceDiagnostic)) {
+    diagnostics.push(own SourceDiagnostic(path = path.clone(), line = line, col = col, message = message.clone()))
+    if quiet.not() { println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", message) }
+}
+
 // --- TokenType enum ---
 // Matches lexer.h TokenType (TOK_* -> PascalCase)
 
@@ -386,7 +400,7 @@ priv emit_doc_block_lines := func(mut tokens: Vec(Token), src: Str, from: USize,
 // char pointer. Each Token records the byte range of its text within
 // `src` (start/len) rather than copying it.
 
-tokenize := proc(src: Str, path: Str) returns Vec(Token) {
+tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(SourceDiagnostic) = Vec(SourceDiagnostic).new()) returns Vec(Token) {
     mut tokens := Vec(Token).new()
     mut pos : USize = 0
     mut line : U32 = 1
@@ -471,7 +485,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                         pos++
                     }
                     if depth > 0 {
-                        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated comment")
+                        lex_error(path, doc_line, col, "unterminated comment", quiet, diagnostics)
                     }
                     if is_doc.and(depth.lte(0)) {
                         emit_doc_block_lines(tokens, src, body_start, content_end, doc_line, col)
@@ -502,7 +516,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 pos++
                 push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, line, col)
             } else {
-                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
+                lex_error(path, line, col, "unterminated string", quiet, diagnostics)
                 push_tok(tokens, TokenType.Error, start, pos - start, line, col)
             }
             continue
@@ -519,7 +533,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 push_tok(tokens, TokenType.Char, ch_start, pos - ch_start, line, col)
                 pos++
             } else {
-                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
+                lex_error(path, line, col, "unterminated character literal", quiet, diagnostics)
                 push_tok(tokens, TokenType.Error, start, pos - start, line, col)
             }
             continue
@@ -640,7 +654,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
             }
 
             // Unknown character
-            println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
+            lex_error(path, line, col, "unexpected character", quiet, diagnostics)
             push_tok(tokens, TokenType.Error, start, 1, line, col)
             pos++
         }

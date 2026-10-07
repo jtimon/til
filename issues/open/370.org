@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #370 til embeds in the lua/lisp sense: host program, guest til
+** WIP #370 til embeds in the lua/lisp sense: host program, guest til
 
 [[https://github.com/jtimon/tiled/blob/master/issues/open/1.org][Tiled #1]] (formerly Til #83) is emacs/neovim done without the split brain:
 til for the host AND til for the guest. That only works if til can be EMBEDDED the
@@ -108,19 +108,66 @@ it rather than requiring applications to vendor compiler internals.
 
 *** First acceptance checks
 
-- [ ] Build a small Til host using the installed embedding interface,
+- [X] Build a small Til host using the installed embedding interface,
   outside the compiler repository, then evaluate a config created or
   edited after the host binary was built.
 - [ ] Pass a mutable config value into guest ~init~, then observe its
   changes in the original host process.
 - [ ] Register a host buffer-editing function; bind a guest function to
   a key and call it after startup to edit a host-owned scratch buffer.
-- [ ] Report a bad config with its filename/line while the host remains
+- [X] Report a bad config with its filename/line while the host remains
   alive; repair the file and successfully load it in the same process.
 - [ ] Exercise reload and teardown with retained callbacks and strings,
   checking lifetime/ownership errors and multiple independent sessions.
-- [ ] Run the host with compiler executables unavailable on ~PATH~; it
+- [X] Run the host with compiler executables unavailable on ~PATH~; it
   still loads the config using its installed interpreter runtime.
+
+*** Approved first slice: TilVm loading and destruction
+
+The public module is ~std/tilvm~, with type ~TilVm~. The approved first
+slice is ~TilVm.new(support_root)~ and ~vm.load_file(path) throws TilVmError~.
+~support_root~ explicitly names the installed ~lib/til~ SDK used to compile
+the host. One ~mode lib~ entry module loads per session; failed candidates
+are discarded and the same session can retry. Successful reload uses a
+fresh session. Guest output uses the host's standard output; failures return
+owned diagnostics (path, line, column, message) and an optional exit status.
+
+There is no public ~close~: a private helper holds resource teardown and
+~delete(own self, call_free)~ calls it. ASAP inserts destruction after the
+last use; explicit ~own vm.delete()~ performs early teardown. This follows
+~File~'s pattern, now documented in ~doc/concepts/ownership.org~.
+Cloning is private too: a fieldwise clone would duplicate raw program owners.
+The initializer recognizes a declared clone as a meaningful override of
+automatic generation, even when no source call uses it. All VM operations
+must be serialized on one thread; independent sessions can coexist and be
+loaded/destroyed in either order.
+
+Installation includes private ~src/self/~ implementation sources and the
+existing native libffi archive. The host compiles the engine into its own
+binary; runtime loading needs the matching SDK source assets but neither
+a compiler executable nor generated entry-point code. The first slice
+rejects guest native declarations and native link directives. It is not a
+sandbox and does not recover from arbitrary native faults.
+
+Verification: ~test/tilvm.til~ is a separately compiled ASAN host, built by
+~test/install.til~ through the installed ~std/tilvm~ module. It writes its
+guest configs after compilation and runs with empty ~PATH~. Regressions
+cover lexical/syntax/type/import errors, mode/native-declaration rejection,
+both exit statuses, panic, bounds failure, abort with owned string arguments,
+reflection errors, division by zero, retry, independent live sessions, and
+implicit/explicit destruction. The installer also checks that ~close~ and
+~clone~ remain private and restores the missing-libffi test fixture now that
+the real installation supplies the archive.
+
+~make clean && make test~ passed 498/498. An additional independent copy of
+the installed SDK and host source under ~til_worktrees/tmp/issue-370-host/~
+(outside either compiler checkout) compiled the host with ASAN and ran it
+with empty ~PATH~, without ASAN errors. Logs are that project's
+~tmp/build.log~ and ~tmp/run.log~. No system installation was changed.
+
+Host-function registration, guest value interchange and retained callbacks
+remain the next API decisions. The broader proposal below is still pending;
+its ~Interp~ spelling is superseded by ~TilVm~.
 
 *** API and ownership proposal against master b201ae5d5
 

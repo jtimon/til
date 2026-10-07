@@ -150,6 +150,7 @@ typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__USize Vec__USize;
 typedef struct File File;
 typedef struct Cmd Cmd;
+typedef struct SourceDiagnostic SourceDiagnostic;
 enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -237,6 +238,7 @@ enum {
 typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Map__Str_TokenType Map__Str_TokenType;
+typedef struct Vec__SourceDiagnostic Vec__SourceDiagnostic;
 typedef struct Vec__Token Vec__Token;
 typedef struct Vec__TokenType Vec__TokenType;
 typedef struct SymbolPool SymbolPool;
@@ -276,6 +278,12 @@ typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Map__Str_FFITypePtrBox Map__Str_FFITypePtrBox;
 typedef struct Vec__UPtr Vec__UPtr;
+enum {
+    Option__I64_TAG_None,
+    Option__I64_TAG_Some
+};
+typedef struct Option__I64 Option__I64;
+typedef struct Map__UPtr_Str Map__UPtr_Str;
 typedef struct Map__UPtr_ForeignPlace Map__UPtr_ForeignPlace;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
@@ -706,6 +714,14 @@ typedef struct Cmd {
 } Cmd;
 
 
+typedef struct SourceDiagnostic {
+    Str path;
+    U32 line;
+    U32 col;
+    Str message;
+} SourceDiagnostic;
+
+
 struct TokenType {
     U8 tag;
 };
@@ -717,6 +733,13 @@ typedef struct Token {
     U32 line;
     U32 col;
 } Token;
+
+
+typedef struct Vec__SourceDiagnostic {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__SourceDiagnostic;
 
 
 typedef struct Vec__Token {
@@ -854,6 +877,20 @@ typedef struct Vec__UPtr {
     USize count;
     USize cap;
 } Vec__UPtr;
+
+
+struct Option__I64 {
+    U8 tag;
+    union {
+        I64 Some;
+        void *_til_payload_align;
+    } data;
+};
+
+typedef struct Map__UPtr_Str {
+    Vec__UPtr keys;
+    Vec__Str values;
+} Map__UPtr_Str;
 
 
 struct Option__Scope {
@@ -1740,6 +1777,9 @@ typedef struct priv___src_self_parser_til__Parser {
     Str pending_doc;
     I32 error_count;
     Str error_msg;
+    U32 error_line;
+    U32 error_col;
+    Str error_detail;
     Str source;
     SymbolPool *symbols;
 } priv___src_self_parser_til__Parser;
@@ -2043,6 +2083,11 @@ typedef struct EvalState {
     Bool constfold_active;
     Bool eval_aborted;
     Bool repl_session;
+    Bool embedded;
+    Option__I64 exit_status;
+    SourceDiagnostic failure_site;
+    Str guest_output;
+    Map__UPtr_Str function_paths;
     Option__Scope ns_fields;
     Map__UPtr_ForeignPlace foreign_places;
     U8 *foreign_cleanup_dirty;
@@ -2053,6 +2098,8 @@ typedef struct EvalState {
 typedef struct Context {
     Mode mode;
     Str path;
+    Bool collect_diagnostics;
+    Vec__SourceDiagnostic diagnostics;
     Map__Str_Mode path_modes;
     Map__Str_Mode mode_registry;
     EvalHeap eval_heap;

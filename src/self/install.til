@@ -2,6 +2,7 @@ mode lib
 
 import("../std/sys")
 import("../std/file")
+import("targets")
 
 // Copy-only installation, shared by the compiler and the build program.
 // Building belongs to the caller, before entering the privileged phase.
@@ -38,6 +39,15 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
     if rc != 0 { return rc }
+    // std/tilvm compiles the interpreter into an independent host. These are
+    // private implementation sources, not a public Context/Expr ABI.
+    rc = install_tree(format(root, "/src/self"), format(dst_root, "/src/self"), "install embedding implementation sources")
+    if rc != 0 { return rc }
+    ffi_archive := target_ffi_lib(detect_current_target())
+    if ffi_archive.len() > 0 {
+        rc = install_file(format(root, "/", ffi_archive), format(dst_root, "/", ffi_archive), "install embedding libffi archive")
+        if rc != 0 { return rc }
+    }
     // There is no top-level lib/ to install. It held six example-only
     // modules (alphabeta, cell, fonts, music, svg, the custom_modes
     // preludes) and moved to examples/lib/ -- nothing in src/ ever

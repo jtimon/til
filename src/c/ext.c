@@ -2073,7 +2073,7 @@ I64 repl_term_columns(void) {
 
 #endif  /* _WIN32 / __EMSCRIPTEN__ / POSIX */
 
-I64 repl_history_read(const Str *path, Str *out, Str *err) {
+static I64 read_file_result(const Str *path, Str *out, Str *err, Bool missing_optional) {
     char *p = dup_n((const char *)path->c_str, path->count);
     if (!p) {
         fprintf(stderr, "repl_history_read: allocation failed\n");
@@ -2082,7 +2082,7 @@ I64 repl_history_read(const Str *path, Str *out, Str *err) {
     FILE *f = fopen(p, "rb");
     if (!f) {
         int code = errno;
-        I64 r = (code == ENOENT) ? 1 : repl_history_fail(err, "read", p, code);
+        I64 r = (code == ENOENT && missing_optional) ? 1 : repl_history_fail(err, "read", p, code);
         free(p);
         return r;
     }
@@ -2119,6 +2119,14 @@ I64 repl_history_read(const Str *path, Str *out, Str *err) {
     free(buf);
     free(p);
     return 0;
+}
+
+I64 repl_history_read(const Str *path, Str *out, Str *err) {
+    return read_file_result(path, out, err, 1);
+}
+
+I64 compiler_read_source(const Str *path, Str *out, Str *err) {
+    return read_file_result(path, out, err, 0);
 }
 
 I64 repl_history_write(const Str *path, const Str *contents, Str *err) {

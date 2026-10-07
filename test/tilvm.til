@@ -1,0 +1,65 @@
+mode cli
+
+import("std/tilvm")
+import("std/file")
+
+// A standalone host: test/install.til builds this against the installed SDK.
+// Run from an independent directory with an empty PATH. All guest files are
+// created AFTER host compilation; neither the Til nor C compiler is needed.
+expect_failure := proc(mut vm: TilVm, source: Str, phase: Str, detail: Str, line: U32) {
+    File.writefile("guest.til", source)
+    mut failed := false
+    vm.load_file("guest.til")?
+    catch (err: TilVmError) {
+        failed = true
+        expect(err.phase == phase, err.to_str())
+        assert(err.diagnostics.len() > 0)
+        ref d : TilVmDiagnostic = err.diagnostics[0]
+        expect(d.path == "guest.til", err.to_str())
+        expect(d.line == line, err.to_str())
+        expect(d.message.contains(detail), err.to_str())
+    }
+    assert(failed)
+}
+
+implicit_teardown := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    // ASAP inserts TilVm.delete here, which calls its private close helper.
+}
+
+main := proc(root: Str) returns I64 {
+    mut vm := TilVm.new(root)
+    expect_failure(vm, "mode lib\nbroken := func( {\n", "load", "expected", 2)
+    expect_failure(vm, "mode lib\n/* unterminated\n", "load", "unterminated comment", 2)
+    expect_failure(vm, "mode lib\nbad: I64 = \"wrong\"\n", "type", "I64", 2)
+    expect_failure(vm, "mode lib\nimport(\"./missing_vm_module\")\n", "load", "could not find import", 2)
+    expect_failure(vm, "mode cli\n", "load", "mode lib", 1)
+    expect_failure(vm, "mode lib\nexit(0)\n", "eval", "status 0", 2)
+    expect_failure(vm, "mode lib\nexit(1)\n", "eval", "status 1", 2)
+    expect_failure(vm, "mode lib\npanic(\"vm panic detail\")\n", "eval", "vm panic detail", 2)
+    expect_failure(vm, "mode lib\nvalues := vec(I64, 1)\nprintln(values[5].to_str())\n", "eval", "OutOfBounds", 3)
+    expect_failure(vm, "mode lib\nfail := proc(own a: Str, own b: Str) { noop_proc(); panic(a, b) }\nfail(own format(\"first\", \" argument\"), own format(\"second\", \" argument\"))\n", "eval", "first argument", 2)
+    expect_failure(vm, "mode lib\nprintln(dyn_size_of(\"NoSuchType\").to_str())\n", "eval", "unknown type", 2)
+    expect_failure(vm, "mode lib\nprintln(struct_field_count(\"NoSuchType\").to_str())\n", "eval", "not found", 2)
+    expect_failure(vm, "mode lib\nprintln(struct_field_name(\"Str\", 99))\n", "eval", "out of range", 2)
+    expect_failure(vm, "mode lib\nprintln(1.div(0).to_str())\n", "eval", "division by zero", 2)
+    expect_failure(vm, "mode lib\nforeign := ext_proc() {}\n", "load", "native declarations", 2)
+    expect_failure(vm, "mode lib\nforeign := ext_global(I64, \"unknown_native_global\")\n", "load", "native globals", 2)
+
+    File.writefile("guest.til", "mode lib\nmessage := format(\"guest \", \"loaded\")\nprintln(message)\n")
+    vm.load_file("guest.til")!
+    // A second live VM can load and die without invalidating the first.
+    implicit_teardown(root)
+    mut rejected := false
+    vm.load_file("guest.til")?
+    catch (err: TilVmError) {
+        rejected = true
+        assert(err.to_str().contains("already has a module"))
+    }
+    assert(rejected)
+    own vm.delete()
+    implicit_teardown(root)
+    println("TilVm host survived errors and teardown")
+    return 0
+}

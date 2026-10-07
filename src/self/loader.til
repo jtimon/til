@@ -16,6 +16,21 @@ import("scavenger")
 
 REPL_DOC_INDEX := "doc/gen/index.org"
 
+compiler_read_source := ext_proc(path: Str, mut out: Str, mut err: Str) returns shallow I64 {}
+
+priv load_source_text := proc(path: Str, mut source: Str, mut ctx: Context) returns Bool {
+    if ctx.collect_diagnostics.not() {
+        source = File.readfile(path)
+        return true
+    }
+    mut err := ""
+    if compiler_read_source(path, source, err) != 0 {
+        type_error_at(path, 0, 0, err, ctx)
+        return false
+    }
+    return true
+}
+
 priv normalize_mode_name := func(mode_name: Str) returns Str {
     if mode_name.len() > 0 {
         return mode_name
@@ -82,7 +97,12 @@ priv resolve_imports := proc(body: Expr, source_path: Str, base_dir: Str,
         if import_path.len() == 0 { continue }
         abs := resolve_import_abs(import_path, base_dir, lib_dir, ctx.import_support_dir)
         if abs == "" {
-            println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
+            if ctx.collect_diagnostics {
+                type_error_at(source_path, stmt.line, stmt.col,
+                    format("could not find import '", import_path, "' (from ", base_dir, "/)"), ctx)
+            } else {
+                println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
+            }
             return 1
         }
         err := load_import_unit(abs, resolved_set, units, lib_dir, ctx, cwd)
@@ -113,14 +133,20 @@ priv load_import_unit := proc(abs: Str, mut resolved_set: Set(Str),
     if resolved_set.has(abs) { return 0 }
     resolved_set.add(own abs.clone())
     disp := display_path(abs, cwd)
-    source := File.readfile(abs)
-    tokens := tokenize(source, disp)
+    mut source := ""
+    if load_source_text(abs, source, ctx).not() { return 1 }
+    tokens := tokenize(source, disp, ctx.collect_diagnostics, ctx.diagnostics)
+    if ctx.collect_diagnostics.and(ctx.diagnostics.len() > 0) { return 1 }
     mut mode_str := ""
     mut parse_errors_ast : I32 = 0
-    mut ast := parse(tokens, source, disp, mode_str, ctx.anon_type_counter, ctx.symbols, parse_errors_ast)
+    mut ast := parse(tokens, source, disp, mode_str, ctx.anon_type_counter, ctx.symbols, parse_errors_ast, ctx.collect_diagnostics, ctx.diagnostics)
     // parse returns a partial AST for the REPL; do not type a broken file.
     if parse_errors_ast > 0 { return 1 }
     mode_str = normalize_mode_name(mode_str)
+    if ctx.collect_diagnostics.and(mode_resolve(ctx, mode_str).is_none()) {
+        type_error_at(disp, 1, 1, format("unknown mode '", mode_str, "'"), ctx)
+        return 1
+    }
     mode := require_mode(ctx, disp, mode_str).clone()
     context_register_path_mode(ctx, disp, mode)
     mut mode_disp := ""
@@ -877,8 +903,10 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str,
 // REPL passes the user's cwd so its tmp/ scratch file does not leak into the
 // paths the user types. Check `load_errors` on the result: non-zero means the
 // program is unusable because an import could not be resolved or parsed.
-load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), import_base: Str = "") returns LoadedProgram {
+load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), import_base: Str = "", embedded: Bool = false) returns LoadedProgram {
     mut lp := LoadedProgram()
+    lp.ctx.collect_diagnostics = embedded
+    lp.ctx.eval.embedded = embedded
     context_init_mode_registry(lp.ctx)
     // The bootstrap mode is the one definition that has no source file.
     ref mut bootstrap_mode : Mode = lp.ctx.mode_registry["mode"]
@@ -968,11 +996,19 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     }
 
     // Load user file
-    source := File.readfile(path)
-    tokens := tokenize(source, path)
+    mut source := ""
+    if load_source_text(path, source, lp.ctx).not() {
+        lp.load_errors = 1
+        return lp
+    }
+    tokens := tokenize(source, path, embedded, lp.ctx.diagnostics)
+    if embedded.and(lp.ctx.diagnostics.len() > 0) {
+        lp.load_errors = 1
+        return lp
+    }
     mut mode_str := ""
     mut parse_errors_user_ast : I32 = 0
-    mut user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_user_ast)
+    mut user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, lp.ctx.symbols, parse_errors_user_ast, embedded, lp.ctx.diagnostics)
     // A syntax error must stop the load here. parse reports it and returns a
     // PARTIAL ast, and carrying on would bury that message under downstream
     // type errors. Recorded rather than exit(1): the entrypoint is the REPL's
@@ -984,6 +1020,11 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         return lp
     }
     mode_str = normalize_mode_name(mode_str)
+    if embedded.and(mode_str != "lib") {
+        type_error_at(path, 1, 1, "TilVm.load_file requires mode lib", lp.ctx)
+        lp.load_errors = 1
+        return lp
+    }
     ref cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
     context_register_path_mode(lp.ctx, path, cur_mode)
     lp.ctx.mode = cur_mode.clone()

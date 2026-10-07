@@ -64,6 +64,9 @@ main := proc() returns I64 {
     require(format(PREFIX, "/bin/til"))
     require(format(PREFIX, "/lib/til/src/core/core.til"))
     require(format(PREFIX, "/lib/til/src/std/file.til"))
+    require(format(PREFIX, "/lib/til/src/std/tilvm.til"))
+    require(format(PREFIX, "/lib/til/src/self/interpreter.til"))
+    require(format(PREFIX, "/lib/til/", target_ffi_lib(detect_current_target())))
     require(format(PREFIX, "/lib/til/vendor/bindings/raylib.til"))
     require(format(PREFIX, "/lib/til/vendor/bindings/tinyfd.til"))
     require(format(PREFIX, "/lib/til/vendor/raylib/src/libraylib.a"))
@@ -106,6 +109,33 @@ main := proc() returns I64 {
     }
     if run.out() != "installed til works" {
         panic("the program built by the installed til printed '", run.out(), "'")
+    }
+
+    // #370: the host imports only installed logical namespaces. Its config
+    // files do not exist until the compiled host creates them at runtime.
+    File.writefile(format(WORK, "/tilvm_host.til"), File.readfile("test/tilvm.til"))
+    vm_build := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_host", "tilvm_host.til")
+    vm_build.cwd(WORK)
+    vm_build.run_checked()
+    vm_run := Cmd.new("./bin/tilvm_host", "../install_test/lib/til")
+    vm_run.cwd(WORK)
+    vm_run.env("PATH", "")
+    vm_run.capture()
+    if vm_run.run() != 0 { panic("installed TilVm host failed: ", vm_run.out(), vm_run.err()) }
+    if vm_run.out().contains("TilVm host survived errors and teardown").not() {
+        panic("installed TilVm host did not finish: ", vm_run.out(), vm_run.err())
+    }
+    for method : Str in vec(Str, "close", "clone") {
+        File.writefile(format(WORK, "/tilvm_private.til"), format(
+            "mode cli\nimport(\"std/tilvm\")\nmain := proc(root: Str) {\n",
+            "    mut vm := TilVm.new(root)\n    vm.", method, "()\n}\n"))
+        private_build := Cmd.new(installed_til, "build", "tilvm_private.til")
+        private_build.cwd(WORK)
+        private_build.capture()
+        if private_build.run() == 0 { panic("TilVm.", method, " unexpectedly public") }
+        if private_build.out().contains("priv").not() {
+            panic("TilVm private-member rejection missing: ", private_build.out(), private_build.err())
+        }
     }
 
     // #413: an isolated external project, a non-default install prefix,
@@ -280,8 +310,8 @@ main := proc() returns I64 {
         panic("the gui program built by the installed til printed '", gui_run.out(), "'")
     }
 
-    // The missing-libffi report. The install prefix deliberately ships
-    // no libffi archive, which makes this the one place the check fires
+    // The missing-libffi report. Remove the installed archive in this fixture
+    // (embedding now installs it), so this remains a place the check fires
     // hermetically on every host: a program whose generated C calls
     // libffi (it imports the installed binding and calls ffi_prep_cif)
     // must FAIL the build with the actionable report, before any linker
@@ -289,6 +319,8 @@ main := proc() returns I64 {
     // failure surfaced as a screenful of unresolved ffi_* symbols. The
     // asserted substring is the platform-independent part; the path and
     // build hint in the full message are per-target.
+    ffi_archive := target_ffi_lib(detect_current_target())
+    File.remove(format(PREFIX, "/lib/til/", ffi_archive))
     File.writefile(format(WORK, "/installed_ffi.til"), format(
         "mode cli\n\n",
         "import(\"../install_test/lib/til/vendor/bindings/libffi\")\n\n",
@@ -311,6 +343,9 @@ main := proc() returns I64 {
     }
     if ffi_build.out().contains("build it first:").not() {
         panic("the missing-libffi report lost its build hint; got '", ffi_build.out(), "'")
+    }
+    if install_file(ffi_archive, format(PREFIX, "/lib/til/", ffi_archive), "restore installed libffi test fixture") != 0 {
+        panic("could not restore installed libffi archive")
     }
 
     repl := Cmd.new("sh", "-c", "printf '%s\\n' 'help(\"println\")' | ../install_test/bin/til")

@@ -25,6 +25,36 @@ priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
     println("  note: this is a bug in the language, please report it")
 }
 
+priv interp_embedded_error := func(e: Expr, msg: Str, mut ctx: Context) {
+    if ctx.eval.constfold_active.not() {
+        ctx.diagnostics.push(own SourceDiagnostic(path = ctx.path.clone(), line = e.line,
+            col = e.col, message = msg.clone()))
+    }
+    ctx.eval.eval_aborted = true
+}
+
+priv interp_eval_error := proc(e: Expr, msg: Str, mut ctx: Context) {
+    if ctx.eval.embedded {
+        interp_embedded_error(e, msg, ctx)
+    } else {
+        interp_error(e, msg, ctx)
+        exit(1)
+    }
+}
+
+priv interp_embedded_paths := func(e: Expr, path: Str, mut ctx: Context) {
+    if e.node_type.is(NodeType.FuncDef) {
+        ctx.eval.function_paths.set(word_bits(to_ptr(e)).cast(UPtr), own path.clone())
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref decls : Vec(Declaration) = def_ns_decls(e)
+        for d : Declaration in decls {
+            if d.default_value.is_some() { interp_embedded_paths(d.default_expr(), path, ctx) }
+        }
+    }
+    for child : Expr in e.children { interp_embedded_paths(child, path, ctx) }
+}
+
 // True when a struct has a byte layout that a raw memcpy clones correctly --
 // i.e. no field contains an owned heap pointer that would alias. This is the
 // interpreter-side POD predicate; it is
@@ -3249,7 +3279,17 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     c.eval.interp_ret_is_ref = callee_ret_is_ref
     c.eval.interp_ret_dest = destination
     if use_return_destination.not() { c.eval.interp_ret_dest = 0 }
+    mut saved_path := ""
+    if c.eval.embedded.and(c.eval.constfold_active.not()) {
+        saved_path = c.path.clone()
+        if c.path.starts_with(display_path(format(c.import_support_dir, "/src/core/"), c.import_cwd)).not() {
+            c.eval.failure_site = SourceDiagnostic(path = c.path.clone(), line = e.line, col = e.col)
+        }
+        fn_address := word_bits(to_ptr(func_def)).cast(UPtr)
+        context_enter_file(c, c.eval.function_paths[fn_address])
+    }
     eval_body(call_scope, body, ctx)
+    if c.eval.embedded.and(c.eval.constfold_active.not()) { context_enter_file(c, saved_path) }
     c.eval.interp_ret_is_ref = saved_ret_is_ref
     c.eval.interp_ret_dest = saved_ret_dest
     c.eval.interp_ret_type = saved_ret_type
@@ -3736,7 +3776,9 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 // missing symbol has to say so.
                 if ext_fd.sig.func_type.is_ext() {
                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
-                    if ctx.eval.constfold_active.not() {
+                    if ctx.eval.embedded {
+                        interp_embedded_error(e, format("native function is not registered for TilVm: ", name.ident_name(ctx.symbols.names)), ctx)
+                    } else if ctx.eval.constfold_active.not() {
                         panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name(ctx.symbols.names))
                     }
                     ctx.eval.eval_aborted = true
@@ -5207,7 +5249,7 @@ scope_free := func(own s: Scope) {
         // datum is the program's own block, not the interpreter's slot.
         if hb.is_raw_alloc { continue }
         mut slot : Dynamic = hb.ptr
-        if hb.ctx.eval.constfold_active.or(hb.ctx.eval.repl_session).and(hb.ctx.eval.eval_aborted)
+        if hb.ctx.eval.constfold_active.or(hb.ctx.eval.repl_session).or(hb.ctx.eval.embedded).and(hb.ctx.eval.eval_aborted)
         .and(hb.is_static_callable.or(hb.payload_released).not()) {
             heap_drop_by_type(hb_type(hb), slot, hb.ctx)
         }
@@ -6104,8 +6146,10 @@ interp_session_free := func(mut session: InterpSession) {
         swap(Option(Scope), session.global, sg_old)
         scope_free(own Option(Scope).take(own sg_old))
     }
-    for box : DynPtrBox in session.retained_programs {
+    for mut box : DynPtrBox in session.retained_programs {
         if box.p.is_null().not() {
+            ref mut retained : LoadedProgram = to_ptr(box.p)
+            if retained.ctx.eval.embedded { interpreter_free_ns(retained.ctx) }
             LoadedProgram.delete(own to_ptr(box.p), true)
         }
     }
@@ -6156,15 +6200,19 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
     ffi_reset(lp.ctx)
     empty := Expr.new(NodeType.Body, 0, 0)
-    ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
-    if ffi_rc.eq(0).not() { return ffi_rc }
+    if lp.ctx.eval.embedded.not() {
+        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
+        if ffi_rc.eq(0).not() { return ffi_rc }
+    }
     runtime_ext_path := realpath_str(lp.ext_c_path)
     runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         ffi_init_struct_defs_append(iu.ast, lp.ctx)
         ffi_init_scan_program(iu.ast, lp.ctx, realpath_str(upath).starts_with(runtime_src_prefix))
+        if lp.ctx.eval.embedded { interp_embedded_paths(iu.ast, upath, lp.ctx) }
     }
+    if lp.ctx.eval.embedded { lp.ctx.ffi.loaded = true }
 
     // A REPL turn clones a Context but borrows may have ended in a different
     // retained snapshot. Rebuild liveness from the session's actual bindings,
@@ -6243,6 +6291,7 @@ interp_session_eval_core_once := proc(mut session: InterpSession, mut lp: Loaded
             ref mut iu : ImportUnit = lp.ctx.imported[u.path]
             context_enter_file(lp.ctx, u.path)
             eval_body(session_global(session), iu.ast, lp.ctx)
+            if lp.ctx.eval.eval_aborted { return }
         }
     }
     session.core_evaluated = true
@@ -6254,6 +6303,7 @@ interp_session_eval_user_units := proc(mut session: InterpSession, mut lp: Loade
         ref mut iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
         eval_body(session_global(session), iu.ast, lp.ctx)
+        if lp.ctx.eval.eval_aborted { return }
     }
     interp_reset_control_flow(lp.ctx)
 }
@@ -7211,6 +7261,7 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
 
 priv h_print_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
+    if ctx.eval.embedded.and(ctx.eval.constfold_active.not()) { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
     // A const-fold eval is speculative and must emit no program output: if a
     // fold candidate reaches a print (e.g. through panic's message on a
     // failure branch the comptime inputs hit), swallow it. The fold itself is
@@ -7236,6 +7287,17 @@ priv h_exit := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) re
         return true
     }
     code := eval_i64_arg(s, e.children[1], ctx)
+    if ctx.eval.embedded {
+        ctx.eval.exit_status = Option(I64).Some(code)
+        mut site := ctx.eval.failure_site.clone()
+        if ctx.path.starts_with(display_path(format(ctx.import_support_dir, "/src/core/"), ctx.import_cwd)).not() {
+            site = SourceDiagnostic(path = ctx.path.clone(), line = e.line, col = e.col)
+        }
+        site.message = format("guest exited with status ", code.to_str(), "\n", ctx.eval.guest_output)
+        ctx.diagnostics.push(own site)
+        ctx.eval.eval_aborted = true
+        return true
+    }
     // A REPL session takes the same road for a FAILING exit. panic / TODO /
     // UNREACHABLE / assert all end in exit(1) after printing their message, so
     // before this one typo -- or an uncaught throw, or an out-of-bounds index
@@ -7279,16 +7341,16 @@ priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Contex
     stored_o := ns_get(type_name, method, ctx)
     if stored_o.is_some() {
         if ns_func_def(type_name, method, ctx).is_none() {
-            interp_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
-            exit(1)
+            interp_eval_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
+            return true
         }
         write_ptr(r, callable_storage_clone(deref(stored_o.unwrap())))
         return true
     }
     static_o := static_ns_func_def(type_name, method, ctx)
     if static_o.is_none() {
-        interp_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
-        exit(1)
+        interp_eval_error(e, format("dyn_fn: no method ", type_name, ".", method), ctx)
+        return true
     }
     write_ptr(r, static_o.unwrap())
     return true
@@ -7307,8 +7369,8 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
         // "T has no size() method", which is about a different question
         // and left the two backends wording the same miss differently.
         if ns_func_def(type_name, "size", ctx).is_none() {
-            interp_error(e, format("dyn_size_of: unknown type ", type_name), ctx)
-            exit(1)
+            interp_eval_error(e, format("dyn_size_of: unknown type ", type_name), ctx)
+            return true
         }
         if size_intrinsics_use_sizeof(ctx) {
             sz = elem_size_for_type(type_name, ctx)
@@ -7332,7 +7394,7 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
 // The caller's Expr comes in so an unknown name is reported the way the
 // emitted dispatcher reports it -- same text, at the call site -- rather
 // than as a panic naming the line of interpreter.til that noticed.
-priv storage_kind_for_type_name := proc(type_name: Str, src: Expr, ctx: Context) returns USize {
+priv storage_kind_for_type_name := proc(type_name: Str, src: Expr, mut ctx: Context) returns USize {
     resolved := type_from_name_init_name(type_name, ctx.scope, ctx.symbols)
     if is_primitive(resolved).or(resolved.is(Type.Dynamic)) { return ELEM_POD }
     if type_is_callable_storage(resolved) { return ELEM_FN }
@@ -7344,14 +7406,14 @@ priv storage_kind_for_type_name := proc(type_name: Str, src: Expr, ctx: Context)
             if tdef.children.len() == 0 { return ELEM_FN }
         }
     }
-    interp_error(src, format("dyn_storage_kind: unknown type ", type_name), ctx)
-    exit(1)
+    interp_eval_error(src, format("dyn_storage_kind: unknown type ", type_name), ctx)
     return ELEM_POD
 }
 
 priv h_dyn_storage_kind := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     kind := storage_kind_for_type_name(type_name, e, ctx)
+    if ctx.eval.eval_aborted { return true }
     tw := ctx.target_usize_bytes
     switch tw {
     case 2: write_u16(r, kind.to_i64().to_u16())
@@ -7403,18 +7465,23 @@ priv eval_str_owned := proc(mut s: Scope, mut arg: Expr, mut ctx: Context) retur
 // program mentions the type, just not in a way rooting can see (the literal
 // is what roots it; a name computed at runtime cannot be). Both backends say
 // the same two lines.
-priv interp_reflect_type_not_found := proc(e: Expr, who: Str, type_name: Str, ctx: Context) {
+priv interp_reflect_type_not_found := proc(e: Expr, who: Str, type_name: Str, mut ctx: Context) {
+    if ctx.eval.embedded {
+        interp_embedded_error(e, format(who, ": type '", type_name, "' not found"), ctx)
+        return
+    }
     interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
     println("  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere")
+    exit(1)
 }
 
 // The out-of-range twin, worded exactly as the emitted dispatcher words it
 // (type and index both named) so the two backends read the same.
-priv interp_reflect_index_out_of_range := proc(e: Expr, who: Str, type_name: Str, idx: USize, ctx: Context) {
-    interp_error(e, format(who, ": type '", type_name, "' index ", idx.to_str(), " out of range"), ctx)
+priv interp_reflect_index_out_of_range := proc(e: Expr, who: Str, type_name: Str, idx: USize, mut ctx: Context) {
+    interp_eval_error(e, format(who, ": type '", type_name, "' index ", idx.to_str(), " out of range"), ctx)
 }
 
-priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, mut ctx: Context) returns Option(ref Expr) {
     // A miss means `who` asked to introspect a type name with no registered
     // def -- a not-found error. The name is a RUNTIME string, so it can also
     // name an ordinary value (`struct_field_count("x")` with `x := 5`): that
@@ -7423,21 +7490,23 @@ priv interp_lookup_struct := proc(mut s: Scope, e: Expr, type_name: Str, who: St
     hb_o := scope_lookup_heap_binding(s, type_name)
     if hb_o.is_none() {
         interp_reflect_type_not_found(e, who, type_name, ctx)
-        exit(1)
+        return Option(ref Expr).None
     }
     node_o := hb_func_def(hb_o.unwrap())
     mut is_struct := false
     if node_o.is_some() { is_struct = node_o.unwrap().node_type.is(NodeType.StructDef) }
     if is_struct.not() {
-        interp_error(e, format(who, ": '", type_name, "' is not a struct"), ctx)
-        exit(1)
+        interp_eval_error(e, format(who, ": '", type_name, "' is not a struct"), ctx)
+        return Option(ref Expr).None
     }
-    return node_o.unwrap()
+    return node_o
 }
 
 priv h_struct_field_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
+    node_o := interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
+    if node_o.is_none() { return true } // An error has aborted this evaluation.
+    ref node : Expr = node_o.unwrap()
     ref sd : StructDef = structdef_of(node)
     write_i64(r, sd.fields.len().to_i64())
     return true
@@ -7454,11 +7523,13 @@ priv eval_index_arg := proc(mut s: Scope, mut e: Expr, mut ctx: Context) returns
 priv h_struct_field_name := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
+    node_o := interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref sd : StructDef = structdef_of(node)
     if idx >= sd.fields.len() {
         interp_reflect_index_out_of_range(e, "struct_field_name", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     str_copy_into(r, sd.field_name_at(idx), ctx)
     return true
@@ -7467,11 +7538,13 @@ priv h_struct_field_name := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
 priv h_struct_field_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
+    node_o := interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref sd : StructDef = structdef_of(node)
     if idx >= sd.fields.len() {
         interp_reflect_index_out_of_range(e, "struct_field_is_mut", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref fd : Declaration = sd.field_at(idx)
     if fd.is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
@@ -7481,11 +7554,13 @@ priv h_struct_field_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
 priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
+    node_o := interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref sd : StructDef = structdef_of(node)
     if idx >= sd.fields.len() {
         interp_reflect_index_out_of_range(e, "struct_field_type", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref fd : Declaration = sd.field_at(idx)
     str_copy_into(r, decl_type_name(fd, ctx.symbols), ctx)
@@ -7495,27 +7570,29 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
 // Look up a registered enum type's AST node by name, erroring out if
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
-priv interp_lookup_enum := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_enum := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, mut ctx: Context) returns Option(ref Expr) {
     // Same runtime-string exposure as interp_lookup_struct: a name that is
     // bound to a value carries no def, and is reported as "not an enum".
     hb_o := scope_lookup_heap_binding(s, type_name)
     if hb_o.is_none() {
         interp_reflect_type_not_found(e, who, type_name, ctx)
-        exit(1)
+        return Option(ref Expr).None
     }
     node_o := hb_func_def(hb_o.unwrap())
     mut is_enum := false
     if node_o.is_some() { is_enum = node_o.unwrap().node_type.is(NodeType.EnumDef) }
     if is_enum.not() {
-        interp_error(e, format(who, ": '", type_name, "' is not an enum"), ctx)
-        exit(1)
+        interp_eval_error(e, format(who, ": '", type_name, "' is not an enum"), ctx)
+        return Option(ref Expr).None
     }
-    return node_o.unwrap()
+    return node_o
 }
 
 priv h_enum_variant_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     write_i64(r, ed.variants.len().to_i64())
     return true
@@ -7524,11 +7601,13 @@ priv h_enum_variant_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut
 priv h_enum_variant_name := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_name", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref vd : VariantDef = ed.variants[idx]
     str_copy_into(r, vd.name, ctx)
@@ -7538,11 +7617,13 @@ priv h_enum_variant_name := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
 priv h_enum_variant_has_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_has_payload", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref vd : VariantDef = ed.variants[idx]
     if vd.payload_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
@@ -7552,11 +7633,13 @@ priv h_enum_variant_has_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynami
 priv h_enum_variant_payload_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_payload_type", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref vd : VariantDef = ed.variants[idx]
     str_copy_into(r, vd.payload_type, ctx)
@@ -7566,11 +7649,13 @@ priv h_enum_variant_payload_type := proc(mut s: Scope, mut e: Expr, mut r: Dynam
 priv h_enum_variant_tag_value := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_tag_value", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_tag_value", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_tag_value", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref vd : VariantDef = ed.variants[idx]
     write_i64(r, vd.tag_value)
@@ -7580,11 +7665,13 @@ priv h_enum_variant_tag_value := proc(mut s: Scope, mut e: Expr, mut r: Dynamic,
 priv h_enum_variant_payload_is_const := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_const", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_const", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_payload_is_const", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref vd : VariantDef = ed.variants[idx]
     if vd.payload_const { write_i64(r, 1) } else { write_i64(r, 0) }
@@ -7594,11 +7681,13 @@ priv h_enum_variant_payload_is_const := proc(mut s: Scope, mut e: Expr, mut r: D
 priv h_enum_variant_payload_is_ref := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_ref", ctx)
+    node_o := interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_ref", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref ed : EnumDef = enumdef_of(node)
     if idx >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_payload_is_ref", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref vd : VariantDef = ed.variants[idx]
     if vd.payload_ref { write_i64(r, 1) } else { write_i64(r, 0) }
@@ -7608,23 +7697,23 @@ priv h_enum_variant_payload_is_ref := proc(mut s: Scope, mut e: Expr, mut r: Dyn
 // Look up a registered FuncSig type's bodyless FuncDef node by name,
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
-priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: Str, mut ctx: Context) returns Option(ref Expr) {
     // Same runtime-string exposure as interp_lookup_struct: a name that is
     // bound to a value carries no def, and is reported as "not a function
     // signature".
     hb_o := scope_lookup_heap_binding(s, type_name)
     if hb_o.is_none() {
         interp_reflect_type_not_found(e, who, type_name, ctx)
-        exit(1)
+        return Option(ref Expr).None
     }
     node_o := hb_func_def(hb_o.unwrap())
     mut is_funcdef := false
     if node_o.is_some() { is_funcdef = node_o.unwrap().node_type.is(NodeType.FuncDef) }
     if is_funcdef.not() {
-        interp_error(e, format(who, ": '", type_name, "' is not a function signature"), ctx)
-        exit(1)
+        interp_eval_error(e, format(who, ": '", type_name, "' is not a function signature"), ctx)
+        return Option(ref Expr).None
     }
-    return node_o.unwrap()
+    return node_o
 }
 
 // Throw lowering appends ABI-only `_err_kind` / payload parameters. Reflection
@@ -7638,7 +7727,9 @@ priv interp_funcsig_param_count := func(fd: FunctionDef) returns USize {
 
 priv h_func_sig_func_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_func_type", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_func_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     write_i64(r, func_type_to_i64(fd.sig.func_type))
     return true
@@ -7646,7 +7737,9 @@ priv h_func_sig_func_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut
 
 priv h_func_sig_param_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     write_i64(r, interp_funcsig_param_count(fd).to_i64())
     return true
@@ -7655,11 +7748,13 @@ priv h_func_sig_param_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
 priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= interp_funcsig_param_count(fd) {
         interp_reflect_index_out_of_range(e, "func_sig_param_type", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref pd : Declaration = fd.sig.params[idx]
     str_copy_into(r, decl_type_name(pd, ctx.symbols), ctx)
@@ -7669,11 +7764,13 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
 priv h_func_sig_param_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_own_type", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_param_own_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= interp_funcsig_param_count(fd) {
         interp_reflect_index_out_of_range(e, "func_sig_param_own_type", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     write_i64(r, own_type_to_i64(fd.sig.params[idx].own_type))
     return true
@@ -7682,11 +7779,13 @@ priv h_func_sig_param_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic
 priv h_func_sig_param_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_is_mut", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_param_is_mut", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= interp_funcsig_param_count(fd) {
         interp_reflect_index_out_of_range(e, "func_sig_param_is_mut", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     if fd.sig.params[idx].is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
@@ -7694,7 +7793,9 @@ priv h_func_sig_param_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
 
 priv h_func_sig_return_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if fd.sig.return_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
@@ -7703,11 +7804,13 @@ priv h_func_sig_return_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
 priv h_func_sig_return_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if idx.neq(0).or(fd.sig.return_type.len().eq(0)) {
         interp_reflect_index_out_of_range(e, "func_sig_return_type", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     str_copy_into(r, fd.sig.return_type, ctx)
     return true
@@ -7715,7 +7818,9 @@ priv h_func_sig_return_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
 
 priv h_func_sig_variadic_index := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_variadic_index", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_variadic_index", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     write_i64(r, fd.sig.variadic_index.cast(I64))
     return true
@@ -7723,7 +7828,9 @@ priv h_func_sig_variadic_index := proc(mut s: Scope, mut e: Expr, mut r: Dynamic
 
 priv h_func_sig_kwargs_index := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_kwargs_index", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_kwargs_index", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     write_i64(r, fd.sig.kwargs_index.cast(I64))
     return true
@@ -7731,7 +7838,9 @@ priv h_func_sig_kwargs_index := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
 
 priv h_func_sig_return_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_own_type", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_own_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     write_i64(r, own_type_to_i64(fd.sig.return_own_type))
     return true
@@ -7739,7 +7848,9 @@ priv h_func_sig_return_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynami
 
 priv h_func_sig_return_shallow_explicit := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_shallow_explicit", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_shallow_explicit", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if fd.sig.return_shallow_explicit { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
@@ -7747,7 +7858,9 @@ priv h_func_sig_return_shallow_explicit := proc(mut s: Scope, mut e: Expr, mut r
 
 priv h_func_sig_throw_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     write_i64(r, fd.sig.throw_types.len().to_i64())
     return true
@@ -7756,11 +7869,13 @@ priv h_func_sig_throw_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
 priv h_func_sig_throw_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
-    ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
     ref fd : FunctionDef = funcdef_of(node)
     if idx >= fd.sig.throw_types.len() {
         interp_reflect_index_out_of_range(e, "func_sig_throw_type", type_name, idx, ctx)
-        exit(1)
+        return true
     }
     ref tt : Str = fd.sig.throw_types[idx]
     str_copy_into(r, tt, ctx)
@@ -9750,6 +9865,18 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
         ref mut be : Expr = e.children[2]
         av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
         bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
+        if ctx.eval.embedded.and(cat.eq("u").or(cat.eq("i"))).and(op_str.eq("div").or(op_str.eq("mod"))) {
+            if raw_to_u64(scalar_type, bv, ctx) == 0 {
+                interp_embedded_error(e, "integer division by zero", ctx)
+                return true
+            }
+            if cat == "i" {
+                if raw_to_i64(scalar_type, av, ctx).eq(I64.MIN).and(raw_to_i64(scalar_type, bv, ctx).eq(-1)) {
+                    interp_embedded_error(e, "integer division overflow", ctx)
+                    return true
+                }
+            }
+        }
         if cat == "u" {
             scalar_write_raw(type_str, result, scalar_apply_u64(op_str, raw_to_u64(scalar_type, av, ctx), raw_to_u64(scalar_type, bv, ctx)).cast(I64))
             return true
@@ -10066,17 +10193,22 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
 }
 
 
-priv ffi_resolve := func(name: Str, runtime_decl: Bool, mut host_layout: Bool) returns ref U8 {
-    ref user_fn : U8 = ffi_user_symbol(name)
-    if user_fn.is_null().not() {
-        host_layout = true
-        return user_fn
+priv ffi_resolve := func(name: Str, runtime_decl: Bool, mut host_layout: Bool, embedded: Bool = false) returns ref U8 {
+    if embedded.not() {
+        ref user_fn : U8 = ffi_user_symbol(name)
+        if user_fn.is_null().not() {
+            host_layout = true
+            return user_fn
+        }
     }
     host_layout = runtime_decl
     return ffi_global_symbol(name)
 }
 
 ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Bool = false) {
+    // Only the SDK's runtime declarations may resolve native symbols. Guest
+    // native registration is a separate contract; no user .so is consulted.
+    if ctx.eval.embedded.and(runtime_decl.not()) { return }
     if ctx.ffi.entries_inited.not() {
         ctx.ffi.entries = Map(Str, FFIEntry).new()
         ctx.ffi.entries_inited = true
@@ -10094,7 +10226,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Boo
                         switch stmt.node_type {
                         case .Decl(dname):
                             mut host_layout := false
-                            ref fn_ptr : U8 = ffi_resolve(dname.name, runtime_decl, host_layout)
+                            ref fn_ptr : U8 = ffi_resolve(dname.name, runtime_decl, host_layout, ctx.eval.embedded)
                             if fn_ptr.is_null().not() {
                                 ffi_register(dname.name, fn_ptr, fdef, host_layout, ctx)
                             }
@@ -10124,7 +10256,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Boo
                     if fd_func_type.is_ext() {
                         flat_name := sdd.name.concat3("_", sdd_data.member_name_at(cur_ni))
                         mut host_layout := false
-                        ref fn_ptr : U8 = ffi_resolve(flat_name, runtime_decl, host_layout)
+                        ref fn_ptr : U8 = ffi_resolve(flat_name, runtime_decl, host_layout, ctx.eval.embedded)
                         if fn_ptr.is_null().not() {
                             ffi_register(flat_name, fn_ptr, fdef, host_layout, ctx)
                         }
@@ -10142,7 +10274,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Boo
                                     if ifd.sig.func_type.is_ext() {
                                         ref iname : Declaration = decl_of(inner)
                                         mut host_layout := false
-                                        ref ifn : U8 = ffi_resolve(iname.name, runtime_decl, host_layout)
+                                        ref ifn : U8 = ffi_resolve(iname.name, runtime_decl, host_layout, ctx.eval.embedded)
                                         if ifn.is_null().not() {
                                             ffi_register(iname.name, ifn, idef, host_layout, ctx)
                                         }
@@ -10175,7 +10307,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     return 0
 }
 ffi_cleanup := proc(mut ctx: Context) {
-    if ctx.ffi.loaded { ffi_close_user_so() }
+    if ctx.ffi.loaded.and(ctx.eval.embedded.not()) { ffi_close_user_so() }
     if ctx.ffi.entries_inited {
         // The reset's drain runs FFIEntry.delete per entry, whose `own`
         // fields free the six raw allocations -- the manual per-entry

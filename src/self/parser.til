@@ -101,6 +101,9 @@ priv Parser := struct {
     // unwinds, exactly as the typer already does with its error count.
     error_count : I32 = 0
     error_msg := ""
+    error_line : U32 = 0
+    error_col : U32 = 0
+    error_detail := ""
     // Non-owning view of the caller's lexed source. Tokens store only byte
     // ranges (start/len); tok_text materialises a token's text as a
     // transient sub-view into this buffer. The view is safe because the
@@ -148,6 +151,9 @@ priv parse_fail := func(mut p: Parser, line: U32, col: U32, parts: ..Str) {
         // a proc. `parse` prints it once on the way out.
         p.error_msg = format(p.path, ":", line.to_str(), ":", col.to_str(),
                              ": error: ", format(..parts))
+        p.error_line = line
+        p.error_col = col
+        p.error_detail = format(..parts)
     }
     p.error_count = p.error_count + 1
     // Park ON the Eof token, not past it: tokenize always appends one, every
@@ -2836,7 +2842,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
 // `quiet` suppresses that report for a TRIAL parse whose failure is not the
 // user's error -- the REPL's speculative expression wrap, which retries the
 // raw line and reports only if that fails too.
-parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0, quiet: Bool = false) returns Expr {
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0, quiet: Bool = false, mut diagnostics: Vec(SourceDiagnostic) = Vec(SourceDiagnostic).new()) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter, symbols = symbols)
 
     // Parse optional mode declaration
@@ -2875,6 +2881,10 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
     }
     anon_type_counter = p.anon_type_counter
     parse_errors = p.error_count
+    if p.error_count > 0 {
+        diagnostics.push(own SourceDiagnostic(path = path.clone(), line = p.error_line,
+            col = p.error_col, message = p.error_detail.clone()))
+    }
     if p.error_count.gt(0).and(quiet.not()) { println(p.error_msg) }
     // Anonymous lambdas (`func(...){...}` literals in expression positions)
     // used to be lifted here too, but they now move to top level in the
