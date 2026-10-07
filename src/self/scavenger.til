@@ -887,6 +887,9 @@ priv rhs_is_pure_byvalue := func(e: Expr) returns Bool {
     case .Literal(Literal.Bool): return true
     case .Literal(Literal.Null): return true
     case .Literal(Literal.Str):  return true
+    // #326: a copy of a primitive is a value and nothing else -- the
+    // `_ = _rc_U32_N` a `for _ in a..b` lowers its unread binder to.
+    case .Ident: return is_primitive(e.til_type())
     case:
     }
     return false
@@ -1171,6 +1174,12 @@ priv dce_call_is_pure := func(e: Expr, scope: TypeScope, symbols: SymbolPool, de
     if dce_is_pure_builtin(e, symbols) { return true }
     if dce_pod_clone_call(e, scope, symbols) { return true }
     if dce_noop_delete_call(e, scope, symbols) { return true }
+    // Constructing a struct whose delete does nothing builds a value and
+    // nothing else: no field needs cleanup, so there is nothing to acquire
+    // or hand over. Its arguments are the caller's subtree to check.
+    if fcall_is_struct_ctor(e, scope, symbols) {
+        return init_delete_is_noop(expr_type_name_ref(e, symbols).unwrap(), scope, symbols)
+    }
     dcp_o := dce_callee_fdef(e, scope, symbols)
     if dcp_o.is_none() { return false }
     return dce_fdef_is_pure(dcp_o.unwrap(), scope, symbols, depth)
@@ -1268,6 +1277,19 @@ priv dce_drop_dead_loop_blocks := func(mut body: Expr, scope: TypeScope, symbols
     return ddb_any
 }
 
+// #326: a by-value aggregate whose delete does nothing holds nothing to
+// release, so once nothing but those no-op deletes reads it -- which is
+// what `p := Point(x = 3, y = 7); Point.delete(own p)` lowers to -- the
+// binding is dead weight: it goes with its deletes (match_trivial_delete
+// already treats them as weak refs), and only the right-hand side's own
+// effect, if it has one, is kept as a statement.
+priv dce_aggregate_holds_nothing := func(dd: Declaration, rhs: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if dd.gc_storage.is(GcStorage.Stack).not() { return false }
+    dah_tn_o := expr_type_name_ref(rhs, symbols)
+    if dah_tn_o.is_none() { return false }
+    return init_delete_is_noop(dah_tn_o.unwrap(), scope, symbols)
+}
+
 // One DCE pass over a single Body. Returns true if anything was removed.
 // Mark codes for body rewrite: 0=keep (default), 1=delete, 2=replace-with-rhs.
 priv MARK_DELETE : U8 = 1
@@ -1309,15 +1331,18 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
     n := body.children.len()
     if n == 0 { return false }
 
-    // Phase 1: identify candidate temp Decls. Two flavors:
+    // Phase 1: identify candidate temp Decls. Three flavors:
     //   - literal-RHS by-value temps (LiteralNum/Bool/Null/Str): the
     //     whole Decl can be deleted outright. LiteralStr qualifies
     //     because the typer marks these decls Shallow and the builder
     //     emits them as stack compound literals -- no allocation, and
     //     the paired delete is a no-op view cleanup.
-    //   - `_t_*` with a trivial stack-scalar FCall RHS: the binding is
-    //     unused, but the FCall may have side effects, so replace the Decl
-    //     with the bare FCall. Results that own storage stay as Decl + delete:
+    //   - a by-value aggregate whose delete does nothing
+    //     (dce_aggregate_holds_nothing): deleted outright when its RHS is
+    //     pure, replaced by its bare FCall when the call has an effect.
+    //   - a stack-scalar FCall RHS: deleted outright when the call is pure;
+    //     otherwise the binding is unused but the FCall may have side
+    //     effects, so replace the Decl with the bare FCall. Results that own storage stay as Decl + delete:
     //     the garbager's AST, not either backend, says how they are reclaimed.
     mut candidates := Set(Str).new()
     mut candidates_replace := Set(Str).new()
@@ -1326,19 +1351,24 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
         if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
         case .Decl(dd):
-            if dd.is_mut { continue }
+            ref rhs : Expr = stmt.children[0]
+            // #326: a `mut` binding the body never mentions at all -- no
+            // read, no write (an Assign target is a ref), no capture -- is
+            // as dead as an immutable one. A variadic array's `_ek` slot is
+            // the case: it exists for the throwing `set`'s out-arg, so an
+            // array with no set left (empty, or folded) never touches it.
+            // Only a literal initializer qualifies; anything else stays.
+            if dd.is_mut.and(rhs_is_pure_byvalue(rhs).not()) { continue }
             // At top level only ever drop compiler-internal temps;
-            // user-named globals may be exported. Both hoisted__* and
-            // codegen _t_* temps are compiler-internal (users cannot name
-            // a leading-underscore binding), so both are safe to drop --
-            // _t_* matters since constfolder's ext_func folding (issue #136
-            // item 1) orphans arg temps like `_t_I64_858 = -2` in main()'s
-            // top-level init.
+            // user-named globals may be exported. hoisted__*, codegen _t_*
+            // and the variadic lowering's _va_* temps are compiler-internal,
+            // so all are safe to drop -- _t_* matters since constfolder's
+            // ext_func folding (issue #136 item 1) orphans arg temps like
+            // `_t_I64_858 = -2` in main()'s top-level init.
             if at_top_level {
-                is_internal := dd.name.starts_with("hoisted__").or(dd.name.starts_with("_t_"))
+                is_internal := dd.name.starts_with("hoisted__").or(dd.name.starts_with("_t_")).or(dd.name.starts_with("_va_"))
                 if is_internal.not() { continue }
             }
-            ref rhs : Expr = stmt.children[0]
             if dd.own_type.is(OwnType.Ref) {
                 // Ref-typed hoisted temps come from stmt-level FCalls
                 // whose declared return is `ref T` (e.g. advance(p)):
@@ -1349,10 +1379,28 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
                     if dce_call_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH).not() {
                         candidates_replace.add(own dd.name.clone())
                     }
+                } else if dce_expr_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH) {
+                    // #326: an unread borrow of a place is an address
+                    // computation and nothing else -- the `_n` of a
+                    // `case Some(_n):` (`get_payload(...)`) or the `_ny` of
+                    // a `case Point(y = _ny)` (`p.y`), which #86 lets a user
+                    // name and leave unused.
+                    candidates.add(own dd.name.clone())
                 }
             } else if rhs_is_pure_byvalue(rhs) {
                 candidates.add(own dd.name.clone())
-            } else if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
+            } else if dce_aggregate_holds_nothing(dd, rhs, scope, symbols) {
+                if dce_expr_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH) {
+                    candidates.add(own dd.name.clone())
+                } else if rhs.node_type.is(NodeType.FCall) {
+                    candidates.add(own dd.name.clone())
+                    candidates_replace.add(own dd.name.clone())
+                }
+            } else if rhs.node_type.is(NodeType.FCall) {
+                // #326: any name, not just hoisted__ temps. Below top level
+                // an unread user binding is always a `_` one (#86 rejects
+                // the rest) -- a `for _ in a..b`'s per-step copy of its
+                // counter, a `_ := x.safe_add(y)` that keeps only the throw.
                 if dd.gc_storage.is(GcStorage.Stack).and(rhs.til_type().is(Type.Primitive).or(rhs.til_type().is(Type.None))) {
                     candidates.add(own dd.name.clone())
                     if dce_call_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH).not() {
@@ -1570,7 +1618,7 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
 }
 
 // #326: the argv-parsing helper a CLI parameter of type `tname` needs.
-// This mirrors cli_box_expr in builder.til, which picks exactly ONE
+// This mirrors cli_box_expr in c_codegen.til, which picks exactly ONE
 // conversion per parameter type; keep the two in sync when adding a type
 // (validate_cli_main already rejects any type neither of them handles).
 priv seed_cli_arg_helpers := func(tname: Str, mut worklist: Vec(Str)) {

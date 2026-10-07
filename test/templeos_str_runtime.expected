@@ -2424,962 +2424,960 @@ I64 TilMain()
             } else {
                 break;
             }
-            I64 __731 = _rc_I64_g276_728;
             (++_rc_I64_g276_728);
-            TilStr hoisted__Str_g278_732;
-            TilStrInitLit(&hoisted__Str_g278_732, "x", 1);
-            TilStrPush(&sector_content_726, &hoisted__Str_g278_732);
-            TilStrDelete(&hoisted__Str_g278_732, FALSE);
+            TilStr hoisted__Str_g278_731;
+            TilStrInitLit(&hoisted__Str_g278_731, "x", 1);
+            TilStrPush(&sector_content_726, &hoisted__Str_g278_731);
+            TilStrDelete(&hoisted__Str_g278_731, FALSE);
         loop_continue_729:
             ;
         }
     }
     TilFileWrite(&write_path_454, &sector_content_726);
     if (TRUE) {
-        File sector_update_733;
-        File_update(&sector_update_733, &write_path_454);
-        I64 hoisted__I64_g279_734 = 510;
-        File *ref_value_736 = File_seek(&sector_update_733, &hoisted__I64_g279_734);
-        TilStr hoisted__Str_g281_737;
-        TilStrInitLit(&hoisted__Str_g281_737, "ABCD", 4);
-        File_write(ref_value_736, &hoisted__Str_g281_737);
-        TilStrDelete(&hoisted__Str_g281_737, FALSE);
-        File_Delete(&sector_update_733, FALSE);
+        File sector_update_732;
+        File_update(&sector_update_732, &write_path_454);
+        I64 hoisted__I64_g279_733 = 510;
+        File *ref_value_735 = File_seek(&sector_update_732, &hoisted__I64_g279_733);
+        TilStr hoisted__Str_g281_736;
+        TilStrInitLit(&hoisted__Str_g281_736, "ABCD", 4);
+        File_write(ref_value_735, &hoisted__Str_g281_736);
+        TilStrDelete(&hoisted__Str_g281_736, FALSE);
+        File_Delete(&sector_update_732, FALSE);
     }
     if (TRUE) {
-        Bool hoisted__Bool_g282_738 = FALSE;
-        File sector_reader_739;
-        File_new(&sector_reader_739, &write_path_454, &hoisted__Bool_g282_738);
-        I64 hoisted__I64_g283_740 = 508;
-        File_seek(&sector_reader_739, &hoisted__I64_g283_740);
-        U64 hoisted__U64_g284_741 = 1;
-        TilStrArray _va_Array_g45_742;
-        TilStrArrayNew(&_va_Array_g45_742, hoisted__U64_g284_741);
-        I64 _va_Array_g45_ek_743 = 0;
-        I64 hoisted__I64_g285_744 = 8;
-        U64 hoisted__U64_g286_745 = 0;
-        TilStr hoisted__Str_g287_746;
-        File_read(&hoisted__Str_g287_746, &sector_reader_739, hoisted__I64_g285_744);
-        TilStrArraySet(&_va_Array_g45_742, hoisted__U64_g286_745, &hoisted__Str_g287_746);
-        TilPrintln(&_va_Array_g45_742);
-        U64 hoisted__U64_g288_747 = 1;
-        TilStrArray _va_Array_g46_748;
-        TilStrArrayNew(&_va_Array_g46_748, hoisted__U64_g288_747);
-        I64 _va_Array_g46_ek_749 = 0;
-        I64 hoisted__I64_g289_750 = 5000;
-        TilStr hoisted__Str_g290_751;
-        File_read(&hoisted__Str_g290_751, &sector_reader_739, hoisted__I64_g289_750);
-        U64 hoisted__U64_g291_752 = (&hoisted__Str_g290_751)->count;
-        TilStrDelete(&hoisted__Str_g290_751, FALSE);
-        I64 hoisted__I64_g292_753 = ((hoisted__U64_g291_752) + 0)(I64);
-        U64 hoisted__U64_g293_754 = 0;
-        TilStr hoisted__Str_g294_755;
-        TilStrFromI64(&hoisted__Str_g294_755, hoisted__I64_g292_753);
-        TilStrArraySet(&_va_Array_g46_748, hoisted__U64_g293_754, &hoisted__Str_g294_755);
-        TilPrintln(&_va_Array_g46_748);
-        U64 hoisted__U64_g295_756 = 1;
-        TilStrArray _va_Array_g47_757;
-        TilStrArrayNew(&_va_Array_g47_757, hoisted__U64_g295_756);
-        I64 _va_Array_g47_ek_758 = 0;
-        TilStr hoisted__Str_g296_759;
-        File_read_all(&hoisted__Str_g296_759, &sector_reader_739);
-        U64 hoisted__U64_g297_760 = (&hoisted__Str_g296_759)->count;
-        TilStrDelete(&hoisted__Str_g296_759, FALSE);
-        I64 hoisted__I64_g298_761 = ((hoisted__U64_g297_760) + 0)(I64);
-        U64 hoisted__U64_g299_762 = 0;
-        TilStr hoisted__Str_g300_763;
-        TilStrFromI64(&hoisted__Str_g300_763, hoisted__I64_g298_761);
-        TilStrArraySet(&_va_Array_g47_757, hoisted__U64_g299_762, &hoisted__Str_g300_763);
-        TilPrintln(&_va_Array_g47_757);
-        File_Delete(&sector_reader_739, FALSE);
+        Bool hoisted__Bool_g282_737 = FALSE;
+        File sector_reader_738;
+        File_new(&sector_reader_738, &write_path_454, &hoisted__Bool_g282_737);
+        I64 hoisted__I64_g283_739 = 508;
+        File_seek(&sector_reader_738, &hoisted__I64_g283_739);
+        U64 hoisted__U64_g284_740 = 1;
+        TilStrArray _va_Array_g45_741;
+        TilStrArrayNew(&_va_Array_g45_741, hoisted__U64_g284_740);
+        I64 _va_Array_g45_ek_742 = 0;
+        I64 hoisted__I64_g285_743 = 8;
+        U64 hoisted__U64_g286_744 = 0;
+        TilStr hoisted__Str_g287_745;
+        File_read(&hoisted__Str_g287_745, &sector_reader_738, hoisted__I64_g285_743);
+        TilStrArraySet(&_va_Array_g45_741, hoisted__U64_g286_744, &hoisted__Str_g287_745);
+        TilPrintln(&_va_Array_g45_741);
+        U64 hoisted__U64_g288_746 = 1;
+        TilStrArray _va_Array_g46_747;
+        TilStrArrayNew(&_va_Array_g46_747, hoisted__U64_g288_746);
+        I64 _va_Array_g46_ek_748 = 0;
+        I64 hoisted__I64_g289_749 = 5000;
+        TilStr hoisted__Str_g290_750;
+        File_read(&hoisted__Str_g290_750, &sector_reader_738, hoisted__I64_g289_749);
+        U64 hoisted__U64_g291_751 = (&hoisted__Str_g290_750)->count;
+        TilStrDelete(&hoisted__Str_g290_750, FALSE);
+        I64 hoisted__I64_g292_752 = ((hoisted__U64_g291_751) + 0)(I64);
+        U64 hoisted__U64_g293_753 = 0;
+        TilStr hoisted__Str_g294_754;
+        TilStrFromI64(&hoisted__Str_g294_754, hoisted__I64_g292_752);
+        TilStrArraySet(&_va_Array_g46_747, hoisted__U64_g293_753, &hoisted__Str_g294_754);
+        TilPrintln(&_va_Array_g46_747);
+        U64 hoisted__U64_g295_755 = 1;
+        TilStrArray _va_Array_g47_756;
+        TilStrArrayNew(&_va_Array_g47_756, hoisted__U64_g295_755);
+        I64 _va_Array_g47_ek_757 = 0;
+        TilStr hoisted__Str_g296_758;
+        File_read_all(&hoisted__Str_g296_758, &sector_reader_738);
+        U64 hoisted__U64_g297_759 = (&hoisted__Str_g296_758)->count;
+        TilStrDelete(&hoisted__Str_g296_758, FALSE);
+        I64 hoisted__I64_g298_760 = ((hoisted__U64_g297_759) + 0)(I64);
+        U64 hoisted__U64_g299_761 = 0;
+        TilStr hoisted__Str_g300_762;
+        TilStrFromI64(&hoisted__Str_g300_762, hoisted__I64_g298_760);
+        TilStrArraySet(&_va_Array_g47_756, hoisted__U64_g299_761, &hoisted__Str_g300_762);
+        TilPrintln(&_va_Array_g47_756);
+        File_Delete(&sector_reader_738, FALSE);
     }
     if (TRUE) {
-        File sparse_update_764;
-        File_update(&sparse_update_764, &write_path_454);
-        I64 hoisted__I64_g301_765 = 1800;
-        File *ref_value_767 = File_seek(&sparse_update_764, &hoisted__I64_g301_765);
-        TilStr hoisted__Str_g303_768;
-        TilStrInitLit(&hoisted__Str_g303_768, "Z", 1);
-        File_write(ref_value_767, &hoisted__Str_g303_768);
-        TilStrDelete(&hoisted__Str_g303_768, FALSE);
-        File_Delete(&sparse_update_764, FALSE);
+        File sparse_update_763;
+        File_update(&sparse_update_763, &write_path_454);
+        I64 hoisted__I64_g301_764 = 1800;
+        File *ref_value_766 = File_seek(&sparse_update_763, &hoisted__I64_g301_764);
+        TilStr hoisted__Str_g303_767;
+        TilStrInitLit(&hoisted__Str_g303_767, "Z", 1);
+        File_write(ref_value_766, &hoisted__Str_g303_767);
+        TilStrDelete(&hoisted__Str_g303_767, FALSE);
+        File_Delete(&sparse_update_763, FALSE);
     }
-    TilStr sparse_bytes_769;
-    TilFileRead(&sparse_bytes_769, &write_path_454);
-    U64 hoisted__U64_g643_770 = 770;
-    TilStr zero_span_771;
-    TilStrWithCapacity(&zero_span_771, hoisted__U64_g643_770);
+    TilStr sparse_bytes_768;
+    TilFileRead(&sparse_bytes_768, &write_path_454);
+    U64 hoisted__U64_g643_769 = 770;
+    TilStr zero_span_770;
+    TilStrWithCapacity(&zero_span_770, hoisted__U64_g643_769);
     {
-        I64 _re_I64_g304_772 = 770;
-        I64 _rc_I64_g304_773 = 0;
+        I64 _re_I64_g304_771 = 770;
+        I64 _rc_I64_g304_772 = 0;
         while (TRUE) {
-            Bool _wcond_Bool_g305_775 = (_rc_I64_g304_773 < _re_I64_g304_772);
-            if (_wcond_Bool_g305_775) {
+            Bool _wcond_Bool_g305_774 = (_rc_I64_g304_772 < _re_I64_g304_771);
+            if (_wcond_Bool_g305_774) {
             } else {
                 break;
             }
-            I64 __776 = _rc_I64_g304_773;
-            (++_rc_I64_g304_773);
-            TilStr hoisted__Str_g306_777;
-            TilStrInitLit(&hoisted__Str_g306_777, "\x00", 1);
-            TilStrPush(&zero_span_771, &hoisted__Str_g306_777);
-            TilStrDelete(&hoisted__Str_g306_777, FALSE);
-        loop_continue_774:
+            (++_rc_I64_g304_772);
+            TilStr hoisted__Str_g306_775;
+            TilStrInitLit(&hoisted__Str_g306_775, "\x00", 1);
+            TilStrPush(&zero_span_770, &hoisted__Str_g306_775);
+            TilStrDelete(&hoisted__Str_g306_775, FALSE);
+        loop_continue_773:
             ;
         }
     }
-    U64 hoisted__U64_g644_778 = 1030;
-    U64 hoisted__U64_g645_779 = 770;
-    TilStr hoisted__Str_g646_780;
-    TilStrSubstr(&hoisted__Str_g646_780, &sparse_bytes_769, hoisted__U64_g644_778, hoisted__U64_g645_779);
-    Bool hoisted__Bool_g647_781 = TilStrEq(&hoisted__Str_g646_780, &zero_span_771);
-    TilStrDelete(&hoisted__Str_g646_780, FALSE);
-    if (hoisted__Bool_g647_781) {
-        U64 hoisted__U64_g307_782 = 1;
-        TilStrArray _va_Array_g48_783;
-        TilStrArrayNew(&_va_Array_g48_783, hoisted__U64_g307_782);
-        I64 _va_Array_g48_ek_784 = 0;
-        U64 hoisted__U64_g308_785 = 0;
-        TilStr hoisted__Str_g309_786;
-        TilStrInitLit(&hoisted__Str_g309_786, "multi-sector gap", 16);
-        TilStrArraySet(&_va_Array_g48_783, hoisted__U64_g308_785, &hoisted__Str_g309_786);
-        TilPrintln(&_va_Array_g48_783);
+    U64 hoisted__U64_g644_776 = 1030;
+    U64 hoisted__U64_g645_777 = 770;
+    TilStr hoisted__Str_g646_778;
+    TilStrSubstr(&hoisted__Str_g646_778, &sparse_bytes_768, hoisted__U64_g644_776, hoisted__U64_g645_777);
+    Bool hoisted__Bool_g647_779 = TilStrEq(&hoisted__Str_g646_778, &zero_span_770);
+    TilStrDelete(&hoisted__Str_g646_778, FALSE);
+    if (hoisted__Bool_g647_779) {
+        U64 hoisted__U64_g307_780 = 1;
+        TilStrArray _va_Array_g48_781;
+        TilStrArrayNew(&_va_Array_g48_781, hoisted__U64_g307_780);
+        I64 _va_Array_g48_ek_782 = 0;
+        U64 hoisted__U64_g308_783 = 0;
+        TilStr hoisted__Str_g309_784;
+        TilStrInitLit(&hoisted__Str_g309_784, "multi-sector gap", 16);
+        TilStrArraySet(&_va_Array_g48_781, hoisted__U64_g308_783, &hoisted__Str_g309_784);
+        TilPrintln(&_va_Array_g48_781);
     }
-    U64 hoisted__U64_g648_787 = 1;
-    TilStrArray _va_Array_g84_788;
-    TilStrArrayNew(&_va_Array_g84_788, hoisted__U64_g648_787);
-    I64 _va_Array_g84_ek_789 = 0;
-    U64 hoisted__U64_g649_790 = (&sparse_bytes_769)->count;
-    I64 hoisted__I64_g650_791 = ((hoisted__U64_g649_790) + 0)(I64);
-    U64 hoisted__U64_g651_792 = 0;
-    TilStr hoisted__Str_g652_793;
-    TilStrFromI64(&hoisted__Str_g652_793, hoisted__I64_g650_791);
-    TilStrArraySet(&_va_Array_g84_788, hoisted__U64_g651_792, &hoisted__Str_g652_793);
-    TilPrintln(&_va_Array_g84_788);
-    TilStrDelete(&sparse_bytes_769, FALSE);
-    TilStrDelete(&zero_span_771, FALSE);
+    U64 hoisted__U64_g648_785 = 1;
+    TilStrArray _va_Array_g84_786;
+    TilStrArrayNew(&_va_Array_g84_786, hoisted__U64_g648_785);
+    I64 _va_Array_g84_ek_787 = 0;
+    U64 hoisted__U64_g649_788 = (&sparse_bytes_768)->count;
+    I64 hoisted__I64_g650_789 = ((hoisted__U64_g649_788) + 0)(I64);
+    U64 hoisted__U64_g651_790 = 0;
+    TilStr hoisted__Str_g652_791;
+    TilStrFromI64(&hoisted__Str_g652_791, hoisted__I64_g650_789);
+    TilStrArraySet(&_va_Array_g84_786, hoisted__U64_g651_790, &hoisted__Str_g652_791);
+    TilPrintln(&_va_Array_g84_786);
+    TilStrDelete(&sparse_bytes_768, FALSE);
+    TilStrDelete(&zero_span_770, FALSE);
     TilStrDelete(&sector_content_726, FALSE);
     File_remove(&write_path_454);
-    TilStr language_result_794;
-    TilStrInitLit(&language_result_794, "", 0);
-    I64 hoisted__I64_g653_795 = 0;
-    I64 hoisted__I64_g654_796 = 0;
-    LanguageCounts language_closes_797;
-    language_closes_797.closed = hoisted__I64_g653_795;
-    language_closes_797.entered = hoisted__I64_g654_796;
-    I64 hoisted__I64_g655_798 = -1;
-    TilStrDelete(&language_result_794, FALSE);
+    TilStr language_result_792;
+    TilStrInitLit(&language_result_792, "", 0);
+    I64 hoisted__I64_g653_793 = 0;
+    I64 hoisted__I64_g654_794 = 0;
+    LanguageCounts language_closes_795;
+    language_closes_795.closed = hoisted__I64_g653_793;
+    language_closes_795.entered = hoisted__I64_g654_794;
+    I64 hoisted__I64_g655_796 = -1;
+    TilStrDelete(&language_result_792, FALSE);
     {
-        TilStr replacement_799;
-        language_forward(&replacement_799, hoisted__I64_g655_798, &language_closes_797, &_err_kind_171, &_err_LanguageError_172);
-        TilStrDelete(&language_result_794, FALSE);
-        TilStrCopyValue(&language_result_794, &replacement_799);
+        TilStr replacement_797;
+        language_forward(&replacement_797, hoisted__I64_g655_796, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+        TilStrDelete(&language_result_792, FALSE);
+        TilStrCopyValue(&language_result_792, &replacement_797);
     }
-    I64 hoisted__I64_g656_800 = 5;
-    Bool hoisted__Bool_g657_801 = (_err_kind_171 == hoisted__I64_g656_800);
-    if (hoisted__Bool_g657_801) {
-        I64 hoisted__I64_g310_802 = 0;
-        _err_kind_171 = hoisted__I64_g310_802;
-        U64 hoisted__U64_g311_803 = 1;
-        TilStrArray _va_Array_g49_804;
-        TilStrArrayNew(&_va_Array_g49_804, hoisted__U64_g311_803);
-        I64 _va_Array_g49_ek_805 = 0;
-        U64 hoisted__U64_g312_806 = 0;
-        TilStr hoisted__Str_g313_807;
-        TilStrClone(&hoisted__Str_g313_807, &_err_LanguageError_172.msg);
-        TilStrArraySet(&_va_Array_g49_804, hoisted__U64_g312_806, &hoisted__Str_g313_807);
-        TilPrintln(&_va_Array_g49_804);
+    I64 hoisted__I64_g656_798 = 5;
+    Bool hoisted__Bool_g657_799 = (_err_kind_171 == hoisted__I64_g656_798);
+    if (hoisted__Bool_g657_799) {
+        I64 hoisted__I64_g310_800 = 0;
+        _err_kind_171 = hoisted__I64_g310_800;
+        U64 hoisted__U64_g311_801 = 1;
+        TilStrArray _va_Array_g49_802;
+        TilStrArrayNew(&_va_Array_g49_802, hoisted__U64_g311_801);
+        I64 _va_Array_g49_ek_803 = 0;
+        U64 hoisted__U64_g312_804 = 0;
+        TilStr hoisted__Str_g313_805;
+        TilStrClone(&hoisted__Str_g313_805, &_err_LanguageError_172.msg);
+        TilStrArraySet(&_va_Array_g49_802, hoisted__U64_g312_804, &hoisted__Str_g313_805);
+        TilPrintln(&_va_Array_g49_802);
         {
-            TilStr replacement_808;
-            TilStrInitLit(&replacement_808, "caught", 6);
-            TilStrDelete(&language_result_794, FALSE);
-            TilStrCopyValue(&language_result_794, &replacement_808);
+            TilStr replacement_806;
+            TilStrInitLit(&replacement_806, "caught", 6);
+            TilStrDelete(&language_result_792, FALSE);
+            TilStrCopyValue(&language_result_792, &replacement_806);
         }
     }
-    U64 hoisted__U64_g658_809 = 1;
-    TilStrArray _va_Array_g85_810;
-    TilStrArrayNew(&_va_Array_g85_810, hoisted__U64_g658_809);
-    I64 _va_Array_g85_ek_811 = 0;
-    U64 hoisted__U64_g659_812 = 0;
-    TilStr hoisted__Str_g660_813;
-    TilStrClone(&hoisted__Str_g660_813, &language_result_794);
-    TilStrArraySet(&_va_Array_g85_810, hoisted__U64_g659_812, &hoisted__Str_g660_813);
-    TilPrintln(&_va_Array_g85_810);
-    U64 hoisted__U64_g661_814 = 1;
-    TilStrArray _va_Array_g86_815;
-    TilStrArrayNew(&_va_Array_g86_815, hoisted__U64_g661_814);
-    I64 _va_Array_g86_ek_816 = 0;
-    U64 hoisted__U64_g662_817 = 0;
-    TilStr hoisted__Str_g663_818;
-    TilStrFromI64(&hoisted__Str_g663_818, language_closes_797.closed);
-    TilStrArraySet(&_va_Array_g86_815, hoisted__U64_g662_817, &hoisted__Str_g663_818);
-    TilPrintln(&_va_Array_g86_815);
-    I64 hoisted__I64_g664_819 = 1;
-    TilStrDelete(&language_result_794, FALSE);
+    U64 hoisted__U64_g658_807 = 1;
+    TilStrArray _va_Array_g85_808;
+    TilStrArrayNew(&_va_Array_g85_808, hoisted__U64_g658_807);
+    I64 _va_Array_g85_ek_809 = 0;
+    U64 hoisted__U64_g659_810 = 0;
+    TilStr hoisted__Str_g660_811;
+    TilStrClone(&hoisted__Str_g660_811, &language_result_792);
+    TilStrArraySet(&_va_Array_g85_808, hoisted__U64_g659_810, &hoisted__Str_g660_811);
+    TilPrintln(&_va_Array_g85_808);
+    U64 hoisted__U64_g661_812 = 1;
+    TilStrArray _va_Array_g86_813;
+    TilStrArrayNew(&_va_Array_g86_813, hoisted__U64_g661_812);
+    I64 _va_Array_g86_ek_814 = 0;
+    U64 hoisted__U64_g662_815 = 0;
+    TilStr hoisted__Str_g663_816;
+    TilStrFromI64(&hoisted__Str_g663_816, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g86_813, hoisted__U64_g662_815, &hoisted__Str_g663_816);
+    TilPrintln(&_va_Array_g86_813);
+    I64 hoisted__I64_g664_817 = 1;
+    TilStrDelete(&language_result_792, FALSE);
     {
-        TilStr replacement_820;
-        language_forward(&replacement_820, hoisted__I64_g664_819, &language_closes_797, &_err_kind_171, &_err_LanguageError_172);
-        TilStrDelete(&language_result_794, FALSE);
-        TilStrCopyValue(&language_result_794, &replacement_820);
+        TilStr replacement_818;
+        language_forward(&replacement_818, hoisted__I64_g664_817, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+        TilStrDelete(&language_result_792, FALSE);
+        TilStrCopyValue(&language_result_792, &replacement_818);
     }
-    I64 hoisted__I64_g665_821 = 5;
-    Bool hoisted__Bool_g666_822 = (_err_kind_171 == hoisted__I64_g665_821);
-    if (hoisted__Bool_g666_822) {
-        I64 hoisted__I64_g314_823 = 0;
-        _err_kind_171 = hoisted__I64_g314_823;
-        U64 hoisted__U64_g315_824 = 1;
-        TilStrArray _va_Array_g50_825;
-        TilStrArrayNew(&_va_Array_g50_825, hoisted__U64_g315_824);
-        I64 _va_Array_g50_ek_826 = 0;
-        U64 hoisted__U64_g316_827 = 0;
-        TilStr hoisted__Str_g317_828;
-        TilStrInitLit(&hoisted__Str_g317_828, "uncaught throw 'LanguageError'", 30);
-        TilStrArraySet(&_va_Array_g50_825, hoisted__U64_g316_827, &hoisted__Str_g317_828);
-        TilStr hoisted__Str_g318_829;
-        TilStrInitLit(&hoisted__Str_g318_829, "test/script_str_runtime.til:277:1", 33);
-        TilPanicParts(&_va_Array_g50_825, &hoisted__Str_g318_829);
+    I64 hoisted__I64_g665_819 = 5;
+    Bool hoisted__Bool_g666_820 = (_err_kind_171 == hoisted__I64_g665_819);
+    if (hoisted__Bool_g666_820) {
+        I64 hoisted__I64_g314_821 = 0;
+        _err_kind_171 = hoisted__I64_g314_821;
+        U64 hoisted__U64_g315_822 = 1;
+        TilStrArray _va_Array_g50_823;
+        TilStrArrayNew(&_va_Array_g50_823, hoisted__U64_g315_822);
+        I64 _va_Array_g50_ek_824 = 0;
+        U64 hoisted__U64_g316_825 = 0;
+        TilStr hoisted__Str_g317_826;
+        TilStrInitLit(&hoisted__Str_g317_826, "uncaught throw 'LanguageError'", 30);
+        TilStrArraySet(&_va_Array_g50_823, hoisted__U64_g316_825, &hoisted__Str_g317_826);
+        TilStr hoisted__Str_g318_827;
+        TilStrInitLit(&hoisted__Str_g318_827, "test/script_str_runtime.til:277:1", 33);
+        TilPanicParts(&_va_Array_g50_823, &hoisted__Str_g318_827);
     }
-    U64 hoisted__U64_g667_830 = 1;
-    TilStrArray _va_Array_g87_831;
-    TilStrArrayNew(&_va_Array_g87_831, hoisted__U64_g667_830);
-    I64 _va_Array_g87_ek_832 = 0;
-    U64 hoisted__U64_g668_833 = 0;
-    TilStr hoisted__Str_g669_834;
-    TilStrClone(&hoisted__Str_g669_834, &language_result_794);
-    TilStrArraySet(&_va_Array_g87_831, hoisted__U64_g668_833, &hoisted__Str_g669_834);
-    TilPrintln(&_va_Array_g87_831);
-    U64 hoisted__U64_g670_835 = 1;
-    TilStrArray _va_Array_g88_836;
-    TilStrArrayNew(&_va_Array_g88_836, hoisted__U64_g670_835);
-    I64 _va_Array_g88_ek_837 = 0;
-    U64 hoisted__U64_g671_838 = 0;
-    TilStr hoisted__Str_g672_839;
-    TilStrFromI64(&hoisted__Str_g672_839, language_closes_797.closed);
-    TilStrArraySet(&_va_Array_g88_836, hoisted__U64_g671_838, &hoisted__Str_g672_839);
-    TilPrintln(&_va_Array_g88_836);
-    TilStrDelete(&language_result_794, FALSE);
-    I64 continue_total_840 = 0;
+    U64 hoisted__U64_g667_828 = 1;
+    TilStrArray _va_Array_g87_829;
+    TilStrArrayNew(&_va_Array_g87_829, hoisted__U64_g667_828);
+    I64 _va_Array_g87_ek_830 = 0;
+    U64 hoisted__U64_g668_831 = 0;
+    TilStr hoisted__Str_g669_832;
+    TilStrClone(&hoisted__Str_g669_832, &language_result_792);
+    TilStrArraySet(&_va_Array_g87_829, hoisted__U64_g668_831, &hoisted__Str_g669_832);
+    TilPrintln(&_va_Array_g87_829);
+    U64 hoisted__U64_g670_833 = 1;
+    TilStrArray _va_Array_g88_834;
+    TilStrArrayNew(&_va_Array_g88_834, hoisted__U64_g670_833);
+    I64 _va_Array_g88_ek_835 = 0;
+    U64 hoisted__U64_g671_836 = 0;
+    TilStr hoisted__Str_g672_837;
+    TilStrFromI64(&hoisted__Str_g672_837, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g88_834, hoisted__U64_g671_836, &hoisted__Str_g672_837);
+    TilPrintln(&_va_Array_g88_834);
+    TilStrDelete(&language_result_792, FALSE);
+    I64 continue_total_838 = 0;
     {
-        I64 _re_I64_g319_841 = 5;
-        I64 _rc_I64_g319_842 = 0;
+        I64 _re_I64_g319_839 = 5;
+        I64 _rc_I64_g319_840 = 0;
         while (TRUE) {
-            Bool _wcond_Bool_g320_844 = (_rc_I64_g319_842 < _re_I64_g319_841);
-            if (_wcond_Bool_g320_844) {
+            Bool _wcond_Bool_g320_842 = (_rc_I64_g319_840 < _re_I64_g319_839);
+            if (_wcond_Bool_g320_842) {
             } else {
                 break;
             }
-            I64 i_845 = _rc_I64_g319_842;
-            (++_rc_I64_g319_842);
-            I64 hoisted__I64_g321_846 = 2;
-            Bool hoisted__Bool_g322_847 = (i_845 == hoisted__I64_g321_846);
-            if (hoisted__Bool_g322_847) {
-                goto loop_continue_843;
+            I64 i_843 = _rc_I64_g319_840;
+            (++_rc_I64_g319_840);
+            I64 hoisted__I64_g321_844 = 2;
+            Bool hoisted__Bool_g322_845 = (i_843 == hoisted__I64_g321_844);
+            if (hoisted__Bool_g322_845) {
+                goto loop_continue_841;
             }
-            I64 hoisted__I64_g323_848 = (continue_total_840 + i_845);
-            continue_total_840 = hoisted__I64_g323_848;
-        loop_continue_843:
+            I64 hoisted__I64_g323_846 = (continue_total_838 + i_843);
+            continue_total_838 = hoisted__I64_g323_846;
+        loop_continue_841:
             ;
         }
     }
-    U64 hoisted__U64_g673_849 = 1;
-    TilStrArray _va_Array_g89_850;
-    TilStrArrayNew(&_va_Array_g89_850, hoisted__U64_g673_849);
-    I64 _va_Array_g89_ek_851 = 0;
-    U64 hoisted__U64_g674_852 = 0;
-    TilStr hoisted__Str_g675_853;
-    TilStrFromI64(&hoisted__Str_g675_853, continue_total_840);
-    TilStrArraySet(&_va_Array_g89_850, hoisted__U64_g674_852, &hoisted__Str_g675_853);
-    TilPrintln(&_va_Array_g89_850);
-    I64 nested_total_854 = 0;
+    U64 hoisted__U64_g673_847 = 1;
+    TilStrArray _va_Array_g89_848;
+    TilStrArrayNew(&_va_Array_g89_848, hoisted__U64_g673_847);
+    I64 _va_Array_g89_ek_849 = 0;
+    U64 hoisted__U64_g674_850 = 0;
+    TilStr hoisted__Str_g675_851;
+    TilStrFromI64(&hoisted__Str_g675_851, continue_total_838);
+    TilStrArraySet(&_va_Array_g89_848, hoisted__U64_g674_850, &hoisted__Str_g675_851);
+    TilPrintln(&_va_Array_g89_848);
+    I64 nested_total_852 = 0;
     {
-        I64 _re_I64_g324_855 = 3;
-        I64 _rc_I64_g324_856 = 0;
+        I64 _re_I64_g324_853 = 3;
+        I64 _rc_I64_g324_854 = 0;
         while (TRUE) {
-            Bool _wcond_Bool_g325_858 = (_rc_I64_g324_856 < _re_I64_g324_855);
-            if (_wcond_Bool_g325_858) {
+            Bool _wcond_Bool_g325_856 = (_rc_I64_g324_854 < _re_I64_g324_853);
+            if (_wcond_Bool_g325_856) {
             } else {
                 break;
             }
-            I64 i_859 = _rc_I64_g324_856;
-            (++_rc_I64_g324_856);
+            I64 i_857 = _rc_I64_g324_854;
+            (++_rc_I64_g324_854);
             {
-                I64 _re_I64_g326_860 = 4;
-                I64 _rc_I64_g326_861 = 0;
+                I64 _re_I64_g326_858 = 4;
+                I64 _rc_I64_g326_859 = 0;
                 while (TRUE) {
-                    Bool _wcond_Bool_g327_863 = (_rc_I64_g326_861 < _re_I64_g326_860);
-                    if (_wcond_Bool_g327_863) {
+                    Bool _wcond_Bool_g327_861 = (_rc_I64_g326_859 < _re_I64_g326_858);
+                    if (_wcond_Bool_g327_861) {
                     } else {
                         break;
                     }
-                    I64 j_864 = _rc_I64_g326_861;
-                    (++_rc_I64_g326_861);
-                    LanguageGuard guard_865;
-                    TilStrInitLit(&guard_865.label, "loop", 4);
-                    guard_865.closes = &language_closes_797;
-                    TilStr hoisted__Str_g332_866;
-                    TilStrInitLit(&hoisted__Str_g332_866, "loop", 4);
-                    Bool hoisted__Bool_g333_867 = (!TilStrEq(&guard_865.label, &hoisted__Str_g332_866));
-                    TilStrDelete(&hoisted__Str_g332_866, FALSE);
-                    if (hoisted__Bool_g333_867) {
-                        U64 hoisted__U64_g328_868 = 1;
-                        TilStrArray _va_Array_g51_869;
-                        TilStrArrayNew(&_va_Array_g51_869, hoisted__U64_g328_868);
-                        I64 _va_Array_g51_ek_870 = 0;
-                        U64 hoisted__U64_g329_871 = 0;
-                        TilStr hoisted__Str_g330_872;
-                        TilStrInitLit(&hoisted__Str_g330_872, "wrong loop guard", 16);
-                        TilStrArraySet(&_va_Array_g51_869, hoisted__U64_g329_871, &hoisted__Str_g330_872);
-                        TilStr hoisted__Str_g331_873;
-                        TilStrInitLit(&hoisted__Str_g331_873, "test/script_str_runtime.til:291:36", 34);
-                        TilPanicParts(&_va_Array_g51_869, &hoisted__Str_g331_873);
+                    I64 j_862 = _rc_I64_g326_859;
+                    (++_rc_I64_g326_859);
+                    LanguageGuard guard_863;
+                    TilStrInitLit(&guard_863.label, "loop", 4);
+                    guard_863.closes = &language_closes_795;
+                    TilStr hoisted__Str_g332_864;
+                    TilStrInitLit(&hoisted__Str_g332_864, "loop", 4);
+                    Bool hoisted__Bool_g333_865 = (!TilStrEq(&guard_863.label, &hoisted__Str_g332_864));
+                    TilStrDelete(&hoisted__Str_g332_864, FALSE);
+                    if (hoisted__Bool_g333_865) {
+                        U64 hoisted__U64_g328_866 = 1;
+                        TilStrArray _va_Array_g51_867;
+                        TilStrArrayNew(&_va_Array_g51_867, hoisted__U64_g328_866);
+                        I64 _va_Array_g51_ek_868 = 0;
+                        U64 hoisted__U64_g329_869 = 0;
+                        TilStr hoisted__Str_g330_870;
+                        TilStrInitLit(&hoisted__Str_g330_870, "wrong loop guard", 16);
+                        TilStrArraySet(&_va_Array_g51_867, hoisted__U64_g329_869, &hoisted__Str_g330_870);
+                        TilStr hoisted__Str_g331_871;
+                        TilStrInitLit(&hoisted__Str_g331_871, "test/script_str_runtime.til:291:36", 34);
+                        TilPanicParts(&_va_Array_g51_867, &hoisted__Str_g331_871);
                     }
-                    LanguageGuard_Delete(&guard_865, FALSE);
-                    I64 hoisted__I64_g334_874 = 1;
-                    Bool hoisted__Bool_g335_875 = (j_864 == hoisted__I64_g334_874);
-                    if (hoisted__Bool_g335_875) {
-                        goto loop_continue_862;
+                    LanguageGuard_Delete(&guard_863, FALSE);
+                    I64 hoisted__I64_g334_872 = 1;
+                    Bool hoisted__Bool_g335_873 = (j_862 == hoisted__I64_g334_872);
+                    if (hoisted__Bool_g335_873) {
+                        goto loop_continue_860;
                     }
-                    I64 hoisted__I64_g336_876 = 1;
-                    Bool hoisted__Bool_g337_877 = (i_859 == hoisted__I64_g336_876);
-                    if (hoisted__Bool_g337_877) {
-                        goto loop_continue_862;
+                    I64 hoisted__I64_g336_874 = 1;
+                    Bool hoisted__Bool_g337_875 = (i_857 == hoisted__I64_g336_874);
+                    if (hoisted__Bool_g337_875) {
+                        goto loop_continue_860;
                     }
-                    I64 hoisted__I64_g338_878 = (nested_total_854 + j_864);
-                    nested_total_854 = hoisted__I64_g338_878;
-                loop_continue_862:
+                    I64 hoisted__I64_g338_876 = (nested_total_852 + j_862);
+                    nested_total_852 = hoisted__I64_g338_876;
+                loop_continue_860:
                     ;
                 }
             }
-        loop_continue_857:
+        loop_continue_855:
             ;
         }
     }
-    U64 hoisted__U64_g676_879 = 4;
-    TilStrArray _va_Array_g90_880;
-    TilStrArrayNew(&_va_Array_g90_880, hoisted__U64_g676_879);
-    I64 _va_Array_g90_ek_881 = 0;
-    U64 hoisted__U64_g677_882 = 0;
-    TilStr hoisted__Str_g678_883;
-    TilStrInitLit(&hoisted__Str_g678_883, "nested continue:", 16);
-    TilStrArraySet(&_va_Array_g90_880, hoisted__U64_g677_882, &hoisted__Str_g678_883);
-    U64 hoisted__U64_g679_884 = 1;
-    TilStr hoisted__Str_g680_885;
-    TilStrFromI64(&hoisted__Str_g680_885, nested_total_854);
-    TilStrArraySet(&_va_Array_g90_880, hoisted__U64_g679_884, &hoisted__Str_g680_885);
-    U64 hoisted__U64_g681_886 = 2;
-    TilStr hoisted__Str_g682_887;
-    TilStrInitLit(&hoisted__Str_g682_887, ":", 1);
-    TilStrArraySet(&_va_Array_g90_880, hoisted__U64_g681_886, &hoisted__Str_g682_887);
-    U64 hoisted__U64_g683_888 = 3;
-    TilStr hoisted__Str_g684_889;
-    TilStrFromI64(&hoisted__Str_g684_889, language_closes_797.closed);
-    TilStrArraySet(&_va_Array_g90_880, hoisted__U64_g683_888, &hoisted__Str_g684_889);
-    TilPrintln(&_va_Array_g90_880);
-    I64 hoisted__I64_g685_890 = 6;
-    I64 number_result_891 = language_number(hoisted__I64_g685_890, &language_closes_797, &_err_kind_171, &_err_LanguageError_172);
-    I64 hoisted__I64_g686_892 = 5;
-    Bool hoisted__Bool_g687_893 = (_err_kind_171 == hoisted__I64_g686_892);
-    if (hoisted__Bool_g687_893) {
-        I64 hoisted__I64_g339_894 = 0;
-        _err_kind_171 = hoisted__I64_g339_894;
-        U64 hoisted__U64_g340_895 = 1;
-        TilStrArray _va_Array_g52_896;
-        TilStrArrayNew(&_va_Array_g52_896, hoisted__U64_g340_895);
-        I64 _va_Array_g52_ek_897 = 0;
-        U64 hoisted__U64_g341_898 = 0;
-        TilStr hoisted__Str_g342_899;
-        TilStrInitLit(&hoisted__Str_g342_899, "uncaught throw 'LanguageError'", 30);
-        TilStrArraySet(&_va_Array_g52_896, hoisted__U64_g341_898, &hoisted__Str_g342_899);
-        TilStr hoisted__Str_g343_900;
-        TilStrInitLit(&hoisted__Str_g343_900, "test/script_str_runtime.til:304:5", 33);
-        TilPanicParts(&_va_Array_g52_896, &hoisted__Str_g343_900);
+    U64 hoisted__U64_g676_877 = 4;
+    TilStrArray _va_Array_g90_878;
+    TilStrArrayNew(&_va_Array_g90_878, hoisted__U64_g676_877);
+    I64 _va_Array_g90_ek_879 = 0;
+    U64 hoisted__U64_g677_880 = 0;
+    TilStr hoisted__Str_g678_881;
+    TilStrInitLit(&hoisted__Str_g678_881, "nested continue:", 16);
+    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g677_880, &hoisted__Str_g678_881);
+    U64 hoisted__U64_g679_882 = 1;
+    TilStr hoisted__Str_g680_883;
+    TilStrFromI64(&hoisted__Str_g680_883, nested_total_852);
+    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g679_882, &hoisted__Str_g680_883);
+    U64 hoisted__U64_g681_884 = 2;
+    TilStr hoisted__Str_g682_885;
+    TilStrInitLit(&hoisted__Str_g682_885, ":", 1);
+    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g681_884, &hoisted__Str_g682_885);
+    U64 hoisted__U64_g683_886 = 3;
+    TilStr hoisted__Str_g684_887;
+    TilStrFromI64(&hoisted__Str_g684_887, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g683_886, &hoisted__Str_g684_887);
+    TilPrintln(&_va_Array_g90_878);
+    I64 hoisted__I64_g685_888 = 6;
+    I64 number_result_889 = language_number(hoisted__I64_g685_888, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+    I64 hoisted__I64_g686_890 = 5;
+    Bool hoisted__Bool_g687_891 = (_err_kind_171 == hoisted__I64_g686_890);
+    if (hoisted__Bool_g687_891) {
+        I64 hoisted__I64_g339_892 = 0;
+        _err_kind_171 = hoisted__I64_g339_892;
+        U64 hoisted__U64_g340_893 = 1;
+        TilStrArray _va_Array_g52_894;
+        TilStrArrayNew(&_va_Array_g52_894, hoisted__U64_g340_893);
+        I64 _va_Array_g52_ek_895 = 0;
+        U64 hoisted__U64_g341_896 = 0;
+        TilStr hoisted__Str_g342_897;
+        TilStrInitLit(&hoisted__Str_g342_897, "uncaught throw 'LanguageError'", 30);
+        TilStrArraySet(&_va_Array_g52_894, hoisted__U64_g341_896, &hoisted__Str_g342_897);
+        TilStr hoisted__Str_g343_898;
+        TilStrInitLit(&hoisted__Str_g343_898, "test/script_str_runtime.til:304:5", 33);
+        TilPanicParts(&_va_Array_g52_894, &hoisted__Str_g343_898);
     }
-    I64 hoisted__I64_g688_901 = 7;
-    Bool hoisted__Bool_g689_902 = (number_result_891 != hoisted__I64_g688_901);
-    if (hoisted__Bool_g689_902) {
-        U64 hoisted__U64_g344_903 = 1;
-        TilStrArray _va_Array_g53_904;
-        TilStrArrayNew(&_va_Array_g53_904, hoisted__U64_g344_903);
-        I64 _va_Array_g53_ek_905 = 0;
-        U64 hoisted__U64_g345_906 = 0;
-        TilStr hoisted__Str_g346_907;
-        TilStrInitLit(&hoisted__Str_g346_907, "wrong successful throwing return", 32);
-        TilStrArraySet(&_va_Array_g53_904, hoisted__U64_g345_906, &hoisted__Str_g346_907);
-        TilStr hoisted__Str_g347_908;
-        TilStrInitLit(&hoisted__Str_g347_908, "test/script_str_runtime.til:305:25", 34);
-        TilPanicParts(&_va_Array_g53_904, &hoisted__Str_g347_908);
+    I64 hoisted__I64_g688_899 = 7;
+    Bool hoisted__Bool_g689_900 = (number_result_889 != hoisted__I64_g688_899);
+    if (hoisted__Bool_g689_900) {
+        U64 hoisted__U64_g344_901 = 1;
+        TilStrArray _va_Array_g53_902;
+        TilStrArrayNew(&_va_Array_g53_902, hoisted__U64_g344_901);
+        I64 _va_Array_g53_ek_903 = 0;
+        U64 hoisted__U64_g345_904 = 0;
+        TilStr hoisted__Str_g346_905;
+        TilStrInitLit(&hoisted__Str_g346_905, "wrong successful throwing return", 32);
+        TilStrArraySet(&_va_Array_g53_902, hoisted__U64_g345_904, &hoisted__Str_g346_905);
+        TilStr hoisted__Str_g347_906;
+        TilStrInitLit(&hoisted__Str_g347_906, "test/script_str_runtime.til:305:25", 34);
+        TilPanicParts(&_va_Array_g53_902, &hoisted__Str_g347_906);
     }
-    I64 hoisted__I64_g690_909 = -1;
-    I64 hoisted__I64_g691_910 = language_number(hoisted__I64_g690_909, &language_closes_797, &_err_kind_171, &_err_LanguageError_172);
-    number_result_891 = hoisted__I64_g691_910;
-    I64 hoisted__I64_g692_911 = 5;
-    Bool hoisted__Bool_g693_912 = (_err_kind_171 == hoisted__I64_g692_911);
-    if (hoisted__Bool_g693_912) {
-        I64 hoisted__I64_g348_913 = 0;
-        _err_kind_171 = hoisted__I64_g348_913;
-        U64 hoisted__U64_g349_914 = 1;
-        TilStrArray _va_Array_g54_915;
-        TilStrArrayNew(&_va_Array_g54_915, hoisted__U64_g349_914);
-        I64 _va_Array_g54_ek_916 = 0;
-        U64 hoisted__U64_g350_917 = 0;
-        TilStr hoisted__Str_g351_918;
-        TilStrClone(&hoisted__Str_g351_918, &_err_LanguageError_172.msg);
-        TilStrArraySet(&_va_Array_g54_915, hoisted__U64_g350_917, &hoisted__Str_g351_918);
-        TilPrintln(&_va_Array_g54_915);
+    I64 hoisted__I64_g690_907 = -1;
+    I64 hoisted__I64_g691_908 = language_number(hoisted__I64_g690_907, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+    number_result_889 = hoisted__I64_g691_908;
+    I64 hoisted__I64_g692_909 = 5;
+    Bool hoisted__Bool_g693_910 = (_err_kind_171 == hoisted__I64_g692_909);
+    if (hoisted__Bool_g693_910) {
+        I64 hoisted__I64_g348_911 = 0;
+        _err_kind_171 = hoisted__I64_g348_911;
+        U64 hoisted__U64_g349_912 = 1;
+        TilStrArray _va_Array_g54_913;
+        TilStrArrayNew(&_va_Array_g54_913, hoisted__U64_g349_912);
+        I64 _va_Array_g54_ek_914 = 0;
+        U64 hoisted__U64_g350_915 = 0;
+        TilStr hoisted__Str_g351_916;
+        TilStrClone(&hoisted__Str_g351_916, &_err_LanguageError_172.msg);
+        TilStrArraySet(&_va_Array_g54_913, hoisted__U64_g350_915, &hoisted__Str_g351_916);
+        TilPrintln(&_va_Array_g54_913);
     }
-    U64 hoisted__U64_g694_919 = 4;
-    TilStrArray _va_Array_g91_920;
-    TilStrArrayNew(&_va_Array_g91_920, hoisted__U64_g694_919);
-    I64 _va_Array_g91_ek_921 = 0;
-    U64 hoisted__U64_g695_922 = 0;
-    TilStr hoisted__Str_g696_923;
-    TilStrInitLit(&hoisted__Str_g696_923, "scalar throw:", 13);
-    TilStrArraySet(&_va_Array_g91_920, hoisted__U64_g695_922, &hoisted__Str_g696_923);
-    U64 hoisted__U64_g697_924 = 1;
-    TilStr hoisted__Str_g698_925;
-    TilStrFromI64(&hoisted__Str_g698_925, number_result_891);
-    TilStrArraySet(&_va_Array_g91_920, hoisted__U64_g697_924, &hoisted__Str_g698_925);
-    U64 hoisted__U64_g699_926 = 2;
-    TilStr hoisted__Str_g700_927;
-    TilStrInitLit(&hoisted__Str_g700_927, ":", 1);
-    TilStrArraySet(&_va_Array_g91_920, hoisted__U64_g699_926, &hoisted__Str_g700_927);
-    U64 hoisted__U64_g701_928 = 3;
-    TilStr hoisted__Str_g702_929;
-    TilStrFromI64(&hoisted__Str_g702_929, language_closes_797.closed);
-    TilStrArraySet(&_va_Array_g91_920, hoisted__U64_g701_928, &hoisted__Str_g702_929);
-    TilPrintln(&_va_Array_g91_920);
-    I64 hoisted__I64_g703_930 = 1;
-    LanguageCounts *ref_value_932 = language_borrow(&language_closes_797, &hoisted__I64_g703_930, &_err_kind_171, &_err_LanguageError_172);
-    I64 hoisted__I64_g704_933 = 5;
-    Bool hoisted__Bool_g705_934 = (_err_kind_171 == hoisted__I64_g704_933);
-    if (hoisted__Bool_g705_934) {
-        I64 hoisted__I64_g352_935 = 0;
-        _err_kind_171 = hoisted__I64_g352_935;
-        U64 hoisted__U64_g353_936 = 1;
-        TilStrArray _va_Array_g55_937;
-        TilStrArrayNew(&_va_Array_g55_937, hoisted__U64_g353_936);
-        I64 _va_Array_g55_ek_938 = 0;
-        U64 hoisted__U64_g354_939 = 0;
-        TilStr hoisted__Str_g355_940;
-        TilStrInitLit(&hoisted__Str_g355_940, "uncaught throw 'LanguageError'", 30);
-        TilStrArraySet(&_va_Array_g55_937, hoisted__U64_g354_939, &hoisted__Str_g355_940);
-        TilStr hoisted__Str_g356_941;
-        TilStrInitLit(&hoisted__Str_g356_941, "test/script_str_runtime.til:315:5", 33);
-        TilPanicParts(&_va_Array_g55_937, &hoisted__Str_g356_941);
+    U64 hoisted__U64_g694_917 = 4;
+    TilStrArray _va_Array_g91_918;
+    TilStrArrayNew(&_va_Array_g91_918, hoisted__U64_g694_917);
+    I64 _va_Array_g91_ek_919 = 0;
+    U64 hoisted__U64_g695_920 = 0;
+    TilStr hoisted__Str_g696_921;
+    TilStrInitLit(&hoisted__Str_g696_921, "scalar throw:", 13);
+    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g695_920, &hoisted__Str_g696_921);
+    U64 hoisted__U64_g697_922 = 1;
+    TilStr hoisted__Str_g698_923;
+    TilStrFromI64(&hoisted__Str_g698_923, number_result_889);
+    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g697_922, &hoisted__Str_g698_923);
+    U64 hoisted__U64_g699_924 = 2;
+    TilStr hoisted__Str_g700_925;
+    TilStrInitLit(&hoisted__Str_g700_925, ":", 1);
+    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g699_924, &hoisted__Str_g700_925);
+    U64 hoisted__U64_g701_926 = 3;
+    TilStr hoisted__Str_g702_927;
+    TilStrFromI64(&hoisted__Str_g702_927, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g701_926, &hoisted__Str_g702_927);
+    TilPrintln(&_va_Array_g91_918);
+    I64 hoisted__I64_g703_928 = 1;
+    LanguageCounts *ref_value_930 = language_borrow(&language_closes_795, &hoisted__I64_g703_928, &_err_kind_171, &_err_LanguageError_172);
+    I64 hoisted__I64_g704_931 = 5;
+    Bool hoisted__Bool_g705_932 = (_err_kind_171 == hoisted__I64_g704_931);
+    if (hoisted__Bool_g705_932) {
+        I64 hoisted__I64_g352_933 = 0;
+        _err_kind_171 = hoisted__I64_g352_933;
+        U64 hoisted__U64_g353_934 = 1;
+        TilStrArray _va_Array_g55_935;
+        TilStrArrayNew(&_va_Array_g55_935, hoisted__U64_g353_934);
+        I64 _va_Array_g55_ek_936 = 0;
+        U64 hoisted__U64_g354_937 = 0;
+        TilStr hoisted__Str_g355_938;
+        TilStrInitLit(&hoisted__Str_g355_938, "uncaught throw 'LanguageError'", 30);
+        TilStrArraySet(&_va_Array_g55_935, hoisted__U64_g354_937, &hoisted__Str_g355_938);
+        TilStr hoisted__Str_g356_939;
+        TilStrInitLit(&hoisted__Str_g356_939, "test/script_str_runtime.til:315:5", 33);
+        TilPanicParts(&_va_Array_g55_935, &hoisted__Str_g356_939);
     }
-    Bool _m_Bool_g357_942 = FALSE;
+    Bool _m_Bool_g357_940 = FALSE;
     {
-        I64 hoisted__I64_g362_943 = 18;
-        Bool _sw_Bool_g358_944 = (ref_value_932->closed == hoisted__I64_g362_943);
-        Bool hoisted__Bool_g363_945 = TRUE;
-        Bool hoisted__Bool_g364_946 = (_sw_Bool_g358_944 == hoisted__Bool_g363_945);
-        if (hoisted__Bool_g364_946) {
-            I64 hoisted__I64_g359_947 = 7;
-            Bool hoisted__Bool_g360_948 = (ref_value_932->entered == hoisted__I64_g359_947);
-            _m_Bool_g357_942 = hoisted__Bool_g360_948;
+        I64 hoisted__I64_g362_941 = 18;
+        Bool _sw_Bool_g358_942 = (ref_value_930->closed == hoisted__I64_g362_941);
+        Bool hoisted__Bool_g363_943 = TRUE;
+        Bool hoisted__Bool_g364_944 = (_sw_Bool_g358_942 == hoisted__Bool_g363_943);
+        if (hoisted__Bool_g364_944) {
+            I64 hoisted__I64_g359_945 = 7;
+            Bool hoisted__Bool_g360_946 = (ref_value_930->entered == hoisted__I64_g359_945);
+            _m_Bool_g357_940 = hoisted__Bool_g360_946;
         } else {
-            Bool hoisted__Bool_g361_949 = FALSE;
-            _m_Bool_g357_942 = hoisted__Bool_g361_949;
+            Bool hoisted__Bool_g361_947 = FALSE;
+            _m_Bool_g357_940 = hoisted__Bool_g361_947;
         }
     }
-    if (_m_Bool_g357_942) {
-        U64 hoisted__U64_g365_950 = 1;
-        TilStrArray _va_Array_g56_951;
-        TilStrArrayNew(&_va_Array_g56_951, hoisted__U64_g365_950);
-        I64 _va_Array_g56_ek_952 = 0;
-        U64 hoisted__U64_g366_953 = 0;
-        TilStr hoisted__Str_g367_954;
-        TilStrInitLit(&hoisted__Str_g367_954, "throwing reference", 18);
-        TilStrArraySet(&_va_Array_g56_951, hoisted__U64_g366_953, &hoisted__Str_g367_954);
-        TilPrintln(&_va_Array_g56_951);
+    if (_m_Bool_g357_940) {
+        U64 hoisted__U64_g365_948 = 1;
+        TilStrArray _va_Array_g56_949;
+        TilStrArrayNew(&_va_Array_g56_949, hoisted__U64_g365_948);
+        I64 _va_Array_g56_ek_950 = 0;
+        U64 hoisted__U64_g366_951 = 0;
+        TilStr hoisted__Str_g367_952;
+        TilStrInitLit(&hoisted__Str_g367_952, "throwing reference", 18);
+        TilStrArraySet(&_va_Array_g56_949, hoisted__U64_g366_951, &hoisted__Str_g367_952);
+        TilPrintln(&_va_Array_g56_949);
     }
-    U64 hoisted__U64_g706_955 = 3;
-    Array__I64 _va_Array_g92_956;
-    Array__I64_New(&_va_Array_g92_956, hoisted__U64_g706_955);
-    I64 _va_Array_g92_ek_957 = 0;
-    U64 hoisted__U64_g707_958 = 0;
-    I64 hoisted__I64_g708_959 = 1;
-    Array__I64_Set(&_va_Array_g92_956, hoisted__U64_g707_958, hoisted__I64_g708_959, &_va_Array_g92_ek_957);
-    U64 hoisted__U64_g709_960 = 1;
-    I64 hoisted__I64_g710_961 = 2;
-    Array__I64_Set(&_va_Array_g92_956, hoisted__U64_g709_960, hoisted__I64_g710_961, &_va_Array_g92_ek_957);
-    U64 hoisted__U64_g711_962 = 2;
-    I64 hoisted__I64_g712_963 = 3;
-    Array__I64_Set(&_va_Array_g92_956, hoisted__U64_g711_962, hoisted__I64_g712_963, &_va_Array_g92_ek_957);
-    U64 hoisted__U64_g713_964 = 0;
-    Array__I64 _va_Array_g93_965;
-    Array__I64_New(&_va_Array_g93_965, hoisted__U64_g713_964);
-    U64 hoisted__U64_g714_966 = 4;
-    TilStrArray _va_Array_g94_967;
-    TilStrArrayNew(&_va_Array_g94_967, hoisted__U64_g714_966);
-    I64 _va_Array_g94_ek_968 = 0;
-    U64 hoisted__U64_g715_969 = 0;
-    TilStr hoisted__Str_g716_970;
-    TilStrInitLit(&hoisted__Str_g716_970, "variadic:", 9);
-    TilStrArraySet(&_va_Array_g94_967, hoisted__U64_g715_969, &hoisted__Str_g716_970);
-    I64 hoisted__I64_g717_971 = 10;
-    I64 hoisted__I64_g718_972 = language_sum(hoisted__I64_g717_971, &_va_Array_g92_956);
-    U64 hoisted__U64_g719_973 = 1;
-    TilStr hoisted__Str_g720_974;
-    TilStrFromI64(&hoisted__Str_g720_974, hoisted__I64_g718_972);
-    TilStrArraySet(&_va_Array_g94_967, hoisted__U64_g719_973, &hoisted__Str_g720_974);
-    U64 hoisted__U64_g721_975 = 2;
-    TilStr hoisted__Str_g722_976;
-    TilStrInitLit(&hoisted__Str_g722_976, ":", 1);
-    TilStrArraySet(&_va_Array_g94_967, hoisted__U64_g721_975, &hoisted__Str_g722_976);
-    I64 hoisted__I64_g723_977 = 10;
-    I64 hoisted__I64_g724_978 = language_sum(hoisted__I64_g723_977, &_va_Array_g93_965);
-    U64 hoisted__U64_g725_979 = 3;
-    TilStr hoisted__Str_g726_980;
-    TilStrFromI64(&hoisted__Str_g726_980, hoisted__I64_g724_978);
-    TilStrArraySet(&_va_Array_g94_967, hoisted__U64_g725_979, &hoisted__Str_g726_980);
-    TilPrintln(&_va_Array_g94_967);
-    I64 swap_left_981 = 3;
-    I64 swap_right_982 = 7;
-    U64 hoisted__U64_g728_983 = 8;
+    U64 hoisted__U64_g706_953 = 3;
+    Array__I64 _va_Array_g92_954;
+    Array__I64_New(&_va_Array_g92_954, hoisted__U64_g706_953);
+    I64 _va_Array_g92_ek_955 = 0;
+    U64 hoisted__U64_g707_956 = 0;
+    I64 hoisted__I64_g708_957 = 1;
+    Array__I64_Set(&_va_Array_g92_954, hoisted__U64_g707_956, hoisted__I64_g708_957, &_va_Array_g92_ek_955);
+    U64 hoisted__U64_g709_958 = 1;
+    I64 hoisted__I64_g710_959 = 2;
+    Array__I64_Set(&_va_Array_g92_954, hoisted__U64_g709_958, hoisted__I64_g710_959, &_va_Array_g92_ek_955);
+    U64 hoisted__U64_g711_960 = 2;
+    I64 hoisted__I64_g712_961 = 3;
+    Array__I64_Set(&_va_Array_g92_954, hoisted__U64_g711_960, hoisted__I64_g712_961, &_va_Array_g92_ek_955);
+    U64 hoisted__U64_g713_962 = 0;
+    Array__I64 _va_Array_g93_963;
+    Array__I64_New(&_va_Array_g93_963, hoisted__U64_g713_962);
+    U64 hoisted__U64_g714_964 = 4;
+    TilStrArray _va_Array_g94_965;
+    TilStrArrayNew(&_va_Array_g94_965, hoisted__U64_g714_964);
+    I64 _va_Array_g94_ek_966 = 0;
+    U64 hoisted__U64_g715_967 = 0;
+    TilStr hoisted__Str_g716_968;
+    TilStrInitLit(&hoisted__Str_g716_968, "variadic:", 9);
+    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g715_967, &hoisted__Str_g716_968);
+    I64 hoisted__I64_g717_969 = 10;
+    I64 hoisted__I64_g718_970 = language_sum(hoisted__I64_g717_969, &_va_Array_g92_954);
+    U64 hoisted__U64_g719_971 = 1;
+    TilStr hoisted__Str_g720_972;
+    TilStrFromI64(&hoisted__Str_g720_972, hoisted__I64_g718_970);
+    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g719_971, &hoisted__Str_g720_972);
+    U64 hoisted__U64_g721_973 = 2;
+    TilStr hoisted__Str_g722_974;
+    TilStrInitLit(&hoisted__Str_g722_974, ":", 1);
+    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g721_973, &hoisted__Str_g722_974);
+    I64 hoisted__I64_g723_975 = 10;
+    I64 hoisted__I64_g724_976 = language_sum(hoisted__I64_g723_975, &_va_Array_g93_963);
+    U64 hoisted__U64_g725_977 = 3;
+    TilStr hoisted__Str_g726_978;
+    TilStrFromI64(&hoisted__Str_g726_978, hoisted__I64_g724_976);
+    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g725_977, &hoisted__Str_g726_978);
+    TilPrintln(&_va_Array_g94_965);
+    I64 swap_left_979 = 3;
+    I64 swap_right_980 = 7;
+    U64 hoisted__U64_g728_981 = 8;
     {
-        if (hoisted__U64_g728_983 != sizeof(I64)) TilPanicZ("partial value swap is not supported");
-        I64 swap_value_984;
-        TilMemCpy(&swap_value_984, &swap_left_981, sizeof(I64));
-        TilMemCpy(&swap_left_981, &swap_right_982, sizeof(I64));
-        TilMemCpy(&swap_right_982, &swap_value_984, sizeof(I64));
+        if (hoisted__U64_g728_981 != sizeof(I64)) TilPanicZ("partial value swap is not supported");
+        I64 swap_value_982;
+        TilMemCpy(&swap_value_982, &swap_left_979, sizeof(I64));
+        TilMemCpy(&swap_left_979, &swap_right_980, sizeof(I64));
+        TilMemCpy(&swap_right_980, &swap_value_982, sizeof(I64));
     }
-    Bool _m_Bool_g368_985 = FALSE;
+    Bool _m_Bool_g368_983 = FALSE;
     {
-        I64 hoisted__I64_g373_986 = 7;
-        Bool _sw_Bool_g369_987 = (swap_left_981 == hoisted__I64_g373_986);
-        Bool hoisted__Bool_g374_988 = TRUE;
-        Bool hoisted__Bool_g375_989 = (_sw_Bool_g369_987 == hoisted__Bool_g374_988);
-        if (hoisted__Bool_g375_989) {
-            I64 hoisted__I64_g370_990 = 3;
-            Bool hoisted__Bool_g371_991 = (swap_right_982 == hoisted__I64_g370_990);
-            _m_Bool_g368_985 = hoisted__Bool_g371_991;
+        I64 hoisted__I64_g373_984 = 7;
+        Bool _sw_Bool_g369_985 = (swap_left_979 == hoisted__I64_g373_984);
+        Bool hoisted__Bool_g374_986 = TRUE;
+        Bool hoisted__Bool_g375_987 = (_sw_Bool_g369_985 == hoisted__Bool_g374_986);
+        if (hoisted__Bool_g375_987) {
+            I64 hoisted__I64_g370_988 = 3;
+            Bool hoisted__Bool_g371_989 = (swap_right_980 == hoisted__I64_g370_988);
+            _m_Bool_g368_983 = hoisted__Bool_g371_989;
         } else {
-            Bool hoisted__Bool_g372_992 = FALSE;
-            _m_Bool_g368_985 = hoisted__Bool_g372_992;
+            Bool hoisted__Bool_g372_990 = FALSE;
+            _m_Bool_g368_983 = hoisted__Bool_g372_990;
         }
     }
-    if (_m_Bool_g368_985) {
-        U64 hoisted__U64_g376_993 = 1;
-        TilStrArray _va_Array_g57_994;
-        TilStrArrayNew(&_va_Array_g57_994, hoisted__U64_g376_993);
-        I64 _va_Array_g57_ek_995 = 0;
-        U64 hoisted__U64_g377_996 = 0;
-        TilStr hoisted__Str_g378_997;
-        TilStrInitLit(&hoisted__Str_g378_997, "scalar swap", 11);
-        TilStrArraySet(&_va_Array_g57_994, hoisted__U64_g377_996, &hoisted__Str_g378_997);
-        TilPrintln(&_va_Array_g57_994);
+    if (_m_Bool_g368_983) {
+        U64 hoisted__U64_g376_991 = 1;
+        TilStrArray _va_Array_g57_992;
+        TilStrArrayNew(&_va_Array_g57_992, hoisted__U64_g376_991);
+        I64 _va_Array_g57_ek_993 = 0;
+        U64 hoisted__U64_g377_994 = 0;
+        TilStr hoisted__Str_g378_995;
+        TilStrInitLit(&hoisted__Str_g378_995, "scalar swap", 11);
+        TilStrArraySet(&_va_Array_g57_992, hoisted__U64_g377_994, &hoisted__Str_g378_995);
+        TilPrintln(&_va_Array_g57_992);
     }
     if (TRUE) {
-        Bool hoisted__Bool_g379_998 = TRUE;
-        File formatted_file_999;
-        File_new(&formatted_file_999, &write_path_454, &hoisted__Bool_g379_998);
-        U64 hoisted__U64_g380_1000 = 3;
-        TilStrArray _va_Array_g58_1001;
-        TilStrArrayNew(&_va_Array_g58_1001, hoisted__U64_g380_1000);
-        I64 _va_Array_g58_ek_1002 = 0;
-        U64 hoisted__U64_g381_1003 = 0;
-        TilStr hoisted__Str_g382_1004;
-        TilStrInitLit(&hoisted__Str_g382_1004, "var", 3);
-        TilStrArraySet(&_va_Array_g58_1001, hoisted__U64_g381_1003, &hoisted__Str_g382_1004);
-        U64 hoisted__U64_g383_1005 = 1;
-        TilStr hoisted__Str_g384_1006;
-        TilStrInitLit(&hoisted__Str_g384_1006, "-", 1);
-        TilStrArraySet(&_va_Array_g58_1001, hoisted__U64_g383_1005, &hoisted__Str_g384_1006);
-        U64 hoisted__U64_g385_1007 = 2;
-        TilStr hoisted__Str_g386_1008;
-        TilStrInitLit(&hoisted__Str_g386_1008, "args", 4);
-        TilStrArraySet(&_va_Array_g58_1001, hoisted__U64_g385_1007, &hoisted__Str_g386_1008);
-        File_fwrite(&formatted_file_999, &_va_Array_g58_1001);
-        File_Delete(&formatted_file_999, FALSE);
+        Bool hoisted__Bool_g379_996 = TRUE;
+        File formatted_file_997;
+        File_new(&formatted_file_997, &write_path_454, &hoisted__Bool_g379_996);
+        U64 hoisted__U64_g380_998 = 3;
+        TilStrArray _va_Array_g58_999;
+        TilStrArrayNew(&_va_Array_g58_999, hoisted__U64_g380_998);
+        I64 _va_Array_g58_ek_1000 = 0;
+        U64 hoisted__U64_g381_1001 = 0;
+        TilStr hoisted__Str_g382_1002;
+        TilStrInitLit(&hoisted__Str_g382_1002, "var", 3);
+        TilStrArraySet(&_va_Array_g58_999, hoisted__U64_g381_1001, &hoisted__Str_g382_1002);
+        U64 hoisted__U64_g383_1003 = 1;
+        TilStr hoisted__Str_g384_1004;
+        TilStrInitLit(&hoisted__Str_g384_1004, "-", 1);
+        TilStrArraySet(&_va_Array_g58_999, hoisted__U64_g383_1003, &hoisted__Str_g384_1004);
+        U64 hoisted__U64_g385_1005 = 2;
+        TilStr hoisted__Str_g386_1006;
+        TilStrInitLit(&hoisted__Str_g386_1006, "args", 4);
+        TilStrArraySet(&_va_Array_g58_999, hoisted__U64_g385_1005, &hoisted__Str_g386_1006);
+        File_fwrite(&formatted_file_997, &_va_Array_g58_999);
+        File_Delete(&formatted_file_997, FALSE);
     }
-    U64 hoisted__U64_g729_1009 = 1;
-    TilStrArray _va_Array_g95_1010;
-    TilStrArrayNew(&_va_Array_g95_1010, hoisted__U64_g729_1009);
-    I64 _va_Array_g95_ek_1011 = 0;
-    U64 hoisted__U64_g730_1012 = 0;
-    TilStr hoisted__Str_g731_1013;
-    TilFileRead(&hoisted__Str_g731_1013, &write_path_454);
-    TilStrArraySet(&_va_Array_g95_1010, hoisted__U64_g730_1012, &hoisted__Str_g731_1013);
-    TilPrintln(&_va_Array_g95_1010);
+    U64 hoisted__U64_g729_1007 = 1;
+    TilStrArray _va_Array_g95_1008;
+    TilStrArrayNew(&_va_Array_g95_1008, hoisted__U64_g729_1007);
+    I64 _va_Array_g95_ek_1009 = 0;
+    U64 hoisted__U64_g730_1010 = 0;
+    TilStr hoisted__Str_g731_1011;
+    TilFileRead(&hoisted__Str_g731_1011, &write_path_454);
+    TilStrArraySet(&_va_Array_g95_1008, hoisted__U64_g730_1010, &hoisted__Str_g731_1011);
+    TilPrintln(&_va_Array_g95_1008);
     File_remove(&write_path_454);
-    F32 float_small_1014 = 1266679808;
-    F64 float_large_1015 = TilF64Bits(4715268809856909312);
-    F32 hoisted__F32_g732_1016 = 1065353216;
-    F32 hoisted__F32_g733_1017 = TilF32Math(float_small_1014, hoisted__F32_g732_1016, 0);
-    float_small_1014 = hoisted__F32_g733_1017;
-    F64 hoisted__F64_g734_1018 = TilF64Bits(4607182418800017408);
-    F64 hoisted__F64_g735_1019 = (float_large_1015 + hoisted__F64_g734_1018);
-    float_large_1015 = hoisted__F64_g735_1019;
-    Bool _m_Bool_g387_1020 = FALSE;
+    F32 float_small_1012 = 1266679808;
+    F64 float_large_1013 = TilF64Bits(4715268809856909312);
+    F32 hoisted__F32_g732_1014 = 1065353216;
+    F32 hoisted__F32_g733_1015 = TilF32Math(float_small_1012, hoisted__F32_g732_1014, 0);
+    float_small_1012 = hoisted__F32_g733_1015;
+    F64 hoisted__F64_g734_1016 = TilF64Bits(4607182418800017408);
+    F64 hoisted__F64_g735_1017 = (float_large_1013 + hoisted__F64_g734_1016);
+    float_large_1013 = hoisted__F64_g735_1017;
+    Bool _m_Bool_g387_1018 = FALSE;
     {
-        F32 hoisted__F32_g392_1021 = 1266679808;
-        Bool _sw_Bool_g388_1022 = TilF64Compare(TilF32Load(float_small_1014), TilF32Load(hoisted__F32_g392_1021), 0);
-        Bool hoisted__Bool_g393_1023 = TRUE;
-        Bool hoisted__Bool_g394_1024 = (_sw_Bool_g388_1022 == hoisted__Bool_g393_1023);
-        if (hoisted__Bool_g394_1024) {
-            F64 hoisted__F64_g389_1025 = TilF64Bits(4715268810125344768);
-            Bool hoisted__Bool_g390_1026 = TilF64Compare(float_large_1015, hoisted__F64_g389_1025, 0);
-            _m_Bool_g387_1020 = hoisted__Bool_g390_1026;
+        F32 hoisted__F32_g392_1019 = 1266679808;
+        Bool _sw_Bool_g388_1020 = TilF64Compare(TilF32Load(float_small_1012), TilF32Load(hoisted__F32_g392_1019), 0);
+        Bool hoisted__Bool_g393_1021 = TRUE;
+        Bool hoisted__Bool_g394_1022 = (_sw_Bool_g388_1020 == hoisted__Bool_g393_1021);
+        if (hoisted__Bool_g394_1022) {
+            F64 hoisted__F64_g389_1023 = TilF64Bits(4715268810125344768);
+            Bool hoisted__Bool_g390_1024 = TilF64Compare(float_large_1013, hoisted__F64_g389_1023, 0);
+            _m_Bool_g387_1018 = hoisted__Bool_g390_1024;
         } else {
-            Bool hoisted__Bool_g391_1027 = FALSE;
-            _m_Bool_g387_1020 = hoisted__Bool_g391_1027;
+            Bool hoisted__Bool_g391_1025 = FALSE;
+            _m_Bool_g387_1018 = hoisted__Bool_g391_1025;
         }
     }
-    if (_m_Bool_g387_1020) {
-        U64 hoisted__U64_g395_1028 = 1;
-        TilStrArray _va_Array_g59_1029;
-        TilStrArrayNew(&_va_Array_g59_1029, hoisted__U64_g395_1028);
-        I64 _va_Array_g59_ek_1030 = 0;
-        U64 hoisted__U64_g396_1031 = 0;
-        TilStr hoisted__Str_g397_1032;
-        TilStrInitLit(&hoisted__Str_g397_1032, "float widths", 12);
-        TilStrArraySet(&_va_Array_g59_1029, hoisted__U64_g396_1031, &hoisted__Str_g397_1032);
-        TilPrintln(&_va_Array_g59_1029);
+    if (_m_Bool_g387_1018) {
+        U64 hoisted__U64_g395_1026 = 1;
+        TilStrArray _va_Array_g59_1027;
+        TilStrArrayNew(&_va_Array_g59_1027, hoisted__U64_g395_1026);
+        I64 _va_Array_g59_ek_1028 = 0;
+        U64 hoisted__U64_g396_1029 = 0;
+        TilStr hoisted__Str_g397_1030;
+        TilStrInitLit(&hoisted__Str_g397_1030, "float widths", 12);
+        TilStrArraySet(&_va_Array_g59_1027, hoisted__U64_g396_1029, &hoisted__Str_g397_1030);
+        TilPrintln(&_va_Array_g59_1027);
     }
-    F64 float_zero_1033 = TilF64Bits(0);
-    F64 float_nan_1034 = TilF64Div(float_zero_1033, float_zero_1033);
-    F64 hoisted__F64_g736_1035 = TilF64Bits(4607182418800017408);
-    F64 float_inf_1036 = TilF64Div(hoisted__F64_g736_1035, float_zero_1033);
-    Bool _m_Bool_g398_1037 = FALSE;
+    F64 float_zero_1031 = TilF64Bits(0);
+    F64 float_nan_1032 = TilF64Div(float_zero_1031, float_zero_1031);
+    F64 hoisted__F64_g736_1033 = TilF64Bits(4607182418800017408);
+    F64 float_inf_1034 = TilF64Div(hoisted__F64_g736_1033, float_zero_1031);
+    Bool _m_Bool_g398_1035 = FALSE;
     {
-        Bool hoisted__Bool_g402_1038 = TilF64Compare(float_nan_1034, float_nan_1034, 0);
-        Bool _sw_Bool_g399_1039 = (!hoisted__Bool_g402_1038);
-        Bool hoisted__Bool_g403_1040 = TRUE;
-        Bool hoisted__Bool_g404_1041 = (_sw_Bool_g399_1039 == hoisted__Bool_g403_1040);
-        if (hoisted__Bool_g404_1041) {
-            Bool hoisted__Bool_g400_1042 = TilF64Compare(float_nan_1034, float_nan_1034, 1);
-            _m_Bool_g398_1037 = hoisted__Bool_g400_1042;
+        Bool hoisted__Bool_g402_1036 = TilF64Compare(float_nan_1032, float_nan_1032, 0);
+        Bool _sw_Bool_g399_1037 = (!hoisted__Bool_g402_1036);
+        Bool hoisted__Bool_g403_1038 = TRUE;
+        Bool hoisted__Bool_g404_1039 = (_sw_Bool_g399_1037 == hoisted__Bool_g403_1038);
+        if (hoisted__Bool_g404_1039) {
+            Bool hoisted__Bool_g400_1040 = TilF64Compare(float_nan_1032, float_nan_1032, 1);
+            _m_Bool_g398_1035 = hoisted__Bool_g400_1040;
         } else {
-            Bool hoisted__Bool_g401_1043 = FALSE;
-            _m_Bool_g398_1037 = hoisted__Bool_g401_1043;
+            Bool hoisted__Bool_g401_1041 = FALSE;
+            _m_Bool_g398_1035 = hoisted__Bool_g401_1041;
         }
     }
-    if (_m_Bool_g398_1037) {
-        U64 hoisted__U64_g405_1044 = 1;
-        TilStrArray _va_Array_g60_1045;
-        TilStrArrayNew(&_va_Array_g60_1045, hoisted__U64_g405_1044);
-        I64 _va_Array_g60_ek_1046 = 0;
-        U64 hoisted__U64_g406_1047 = 0;
-        TilStr hoisted__Str_g407_1048;
-        TilStrInitLit(&hoisted__Str_g407_1048, "nan comparisons", 15);
-        TilStrArraySet(&_va_Array_g60_1045, hoisted__U64_g406_1047, &hoisted__Str_g407_1048);
-        TilPrintln(&_va_Array_g60_1045);
+    if (_m_Bool_g398_1035) {
+        U64 hoisted__U64_g405_1042 = 1;
+        TilStrArray _va_Array_g60_1043;
+        TilStrArrayNew(&_va_Array_g60_1043, hoisted__U64_g405_1042);
+        I64 _va_Array_g60_ek_1044 = 0;
+        U64 hoisted__U64_g406_1045 = 0;
+        TilStr hoisted__Str_g407_1046;
+        TilStrInitLit(&hoisted__Str_g407_1046, "nan comparisons", 15);
+        TilStrArraySet(&_va_Array_g60_1043, hoisted__U64_g406_1045, &hoisted__Str_g407_1046);
+        TilPrintln(&_va_Array_g60_1043);
     }
-    Bool _m_Bool_g408_1049 = FALSE;
+    Bool _m_Bool_g408_1047 = FALSE;
     {
-        F64 hoisted__F64_g420_1050 = TilF64Bits(4607182418800017408);
-        Bool _sw_Bool_g409_1051 = TilF64Compare(float_inf_1036, hoisted__F64_g420_1050, 3);
-        Bool hoisted__Bool_g421_1052 = TRUE;
-        Bool hoisted__Bool_g422_1053 = (_sw_Bool_g409_1051 == hoisted__Bool_g421_1052);
-        if (hoisted__Bool_g422_1053) {
-            Bool _m_Bool_g410_1054 = FALSE;
+        F64 hoisted__F64_g420_1048 = TilF64Bits(4607182418800017408);
+        Bool _sw_Bool_g409_1049 = TilF64Compare(float_inf_1034, hoisted__F64_g420_1048, 3);
+        Bool hoisted__Bool_g421_1050 = TRUE;
+        Bool hoisted__Bool_g422_1051 = (_sw_Bool_g409_1049 == hoisted__Bool_g421_1050);
+        if (hoisted__Bool_g422_1051) {
+            Bool _m_Bool_g410_1052 = FALSE;
             {
-                F64 hoisted__F64_g415_1055 = TilF64Bits(4607182418800017408);
-                Bool _sw_Bool_g411_1056 = TilF64Compare(float_nan_1034, hoisted__F64_g415_1055, 2);
-                Bool hoisted__Bool_g416_1057 = TRUE;
-                Bool hoisted__Bool_g417_1058 = (_sw_Bool_g411_1056 == hoisted__Bool_g416_1057);
-                if (hoisted__Bool_g417_1058) {
-                    Bool hoisted__Bool_g412_1059 = TRUE;
-                    _m_Bool_g410_1054 = hoisted__Bool_g412_1059;
+                F64 hoisted__F64_g415_1053 = TilF64Bits(4607182418800017408);
+                Bool _sw_Bool_g411_1054 = TilF64Compare(float_nan_1032, hoisted__F64_g415_1053, 2);
+                Bool hoisted__Bool_g416_1055 = TRUE;
+                Bool hoisted__Bool_g417_1056 = (_sw_Bool_g411_1054 == hoisted__Bool_g416_1055);
+                if (hoisted__Bool_g417_1056) {
+                    Bool hoisted__Bool_g412_1057 = TRUE;
+                    _m_Bool_g410_1052 = hoisted__Bool_g412_1057;
                 } else {
-                    F64 hoisted__F64_g413_1060 = TilF64Bits(4607182418800017408);
-                    Bool hoisted__Bool_g414_1061 = TilF64Compare(float_nan_1034, hoisted__F64_g413_1060, 5);
-                    _m_Bool_g410_1054 = hoisted__Bool_g414_1061;
+                    F64 hoisted__F64_g413_1058 = TilF64Bits(4607182418800017408);
+                    Bool hoisted__Bool_g414_1059 = TilF64Compare(float_nan_1032, hoisted__F64_g413_1058, 5);
+                    _m_Bool_g410_1052 = hoisted__Bool_g414_1059;
                 }
             }
-            Bool hoisted__Bool_g418_1062 = (!_m_Bool_g410_1054);
-            _m_Bool_g408_1049 = hoisted__Bool_g418_1062;
+            Bool hoisted__Bool_g418_1060 = (!_m_Bool_g410_1052);
+            _m_Bool_g408_1047 = hoisted__Bool_g418_1060;
         } else {
-            Bool hoisted__Bool_g419_1063 = FALSE;
-            _m_Bool_g408_1049 = hoisted__Bool_g419_1063;
+            Bool hoisted__Bool_g419_1061 = FALSE;
+            _m_Bool_g408_1047 = hoisted__Bool_g419_1061;
         }
     }
-    if (_m_Bool_g408_1049) {
-        U64 hoisted__U64_g423_1064 = 1;
-        TilStrArray _va_Array_g61_1065;
-        TilStrArrayNew(&_va_Array_g61_1065, hoisted__U64_g423_1064);
-        I64 _va_Array_g61_ek_1066 = 0;
-        U64 hoisted__U64_g424_1067 = 0;
-        TilStr hoisted__Str_g425_1068;
-        TilStrInitLit(&hoisted__Str_g425_1068, "infinity and unordered", 22);
-        TilStrArraySet(&_va_Array_g61_1065, hoisted__U64_g424_1067, &hoisted__Str_g425_1068);
-        TilPrintln(&_va_Array_g61_1065);
+    if (_m_Bool_g408_1047) {
+        U64 hoisted__U64_g423_1062 = 1;
+        TilStrArray _va_Array_g61_1063;
+        TilStrArrayNew(&_va_Array_g61_1063, hoisted__U64_g423_1062);
+        I64 _va_Array_g61_ek_1064 = 0;
+        U64 hoisted__U64_g424_1065 = 0;
+        TilStr hoisted__Str_g425_1066;
+        TilStrInitLit(&hoisted__Str_g425_1066, "infinity and unordered", 22);
+        TilStrArraySet(&_va_Array_g61_1063, hoisted__U64_g424_1065, &hoisted__Str_g425_1066);
+        TilPrintln(&_va_Array_g61_1063);
     }
-    F32 small_zero_1069 = 0;
-    F32 small_nan_1070 = TilF32Math(small_zero_1069, small_zero_1069, 3);
-    Bool hoisted__Bool_g737_1071 = TilF64Compare(TilF32Load(small_nan_1070), TilF32Load(small_nan_1070), 0);
-    Bool hoisted__Bool_g738_1072 = (!hoisted__Bool_g737_1071);
-    if (hoisted__Bool_g738_1072) {
-        U64 hoisted__U64_g426_1073 = 1;
-        TilStrArray _va_Array_g62_1074;
-        TilStrArrayNew(&_va_Array_g62_1074, hoisted__U64_g426_1073);
-        I64 _va_Array_g62_ek_1075 = 0;
-        U64 hoisted__U64_g427_1076 = 0;
-        TilStr hoisted__Str_g428_1077;
-        TilStrInitLit(&hoisted__Str_g428_1077, "f32 nan", 7);
-        TilStrArraySet(&_va_Array_g62_1074, hoisted__U64_g427_1076, &hoisted__Str_g428_1077);
-        TilPrintln(&_va_Array_g62_1074);
+    F32 small_zero_1067 = 0;
+    F32 small_nan_1068 = TilF32Math(small_zero_1067, small_zero_1067, 3);
+    Bool hoisted__Bool_g737_1069 = TilF64Compare(TilF32Load(small_nan_1068), TilF32Load(small_nan_1068), 0);
+    Bool hoisted__Bool_g738_1070 = (!hoisted__Bool_g737_1069);
+    if (hoisted__Bool_g738_1070) {
+        U64 hoisted__U64_g426_1071 = 1;
+        TilStrArray _va_Array_g62_1072;
+        TilStrArrayNew(&_va_Array_g62_1072, hoisted__U64_g426_1071);
+        I64 _va_Array_g62_ek_1073 = 0;
+        U64 hoisted__U64_g427_1074 = 0;
+        TilStr hoisted__Str_g428_1075;
+        TilStrInitLit(&hoisted__Str_g428_1075, "f32 nan", 7);
+        TilStrArraySet(&_va_Array_g62_1072, hoisted__U64_g427_1074, &hoisted__Str_g428_1075);
+        TilPrintln(&_va_Array_g62_1072);
     }
-    I64 float_as_i64_1078 = ToI64(float_large_1015);
-    U64 hoisted__U64_g739_1079 = 1;
-    TilStrArray _va_Array_g96_1080;
-    TilStrArrayNew(&_va_Array_g96_1080, hoisted__U64_g739_1079);
-    I64 _va_Array_g96_ek_1081 = 0;
-    U64 hoisted__U64_g740_1082 = 0;
-    TilStr hoisted__Str_g741_1083;
-    TilStrFromI64(&hoisted__Str_g741_1083, float_as_i64_1078);
-    TilStrArraySet(&_va_Array_g96_1080, hoisted__U64_g740_1082, &hoisted__Str_g741_1083);
-    TilPrintln(&_va_Array_g96_1080);
-    I64 hoisted__I64_g742_1084 = -1;
-    I64 conversion_number_1085 = (language_closes_797.closed * hoisted__I64_g742_1084);
-    F32 converted_small_1086 = TilF32FromI64(conversion_number_1085);
-    F64 converted_large_1087 = ToF64(conversion_number_1085);
-    Bool _m_Bool_g429_1088 = FALSE;
+    I64 float_as_i64_1076 = ToI64(float_large_1013);
+    U64 hoisted__U64_g739_1077 = 1;
+    TilStrArray _va_Array_g96_1078;
+    TilStrArrayNew(&_va_Array_g96_1078, hoisted__U64_g739_1077);
+    I64 _va_Array_g96_ek_1079 = 0;
+    U64 hoisted__U64_g740_1080 = 0;
+    TilStr hoisted__Str_g741_1081;
+    TilStrFromI64(&hoisted__Str_g741_1081, float_as_i64_1076);
+    TilStrArraySet(&_va_Array_g96_1078, hoisted__U64_g740_1080, &hoisted__Str_g741_1081);
+    TilPrintln(&_va_Array_g96_1078);
+    I64 hoisted__I64_g742_1082 = -1;
+    I64 conversion_number_1083 = (language_closes_795.closed * hoisted__I64_g742_1082);
+    F32 converted_small_1084 = TilF32FromI64(conversion_number_1083);
+    F64 converted_large_1085 = ToF64(conversion_number_1083);
+    Bool _m_Bool_g429_1086 = FALSE;
     {
-        F64 hoisted__F64_g435_1089 = TilF32Load(converted_small_1086);
-        Bool _sw_Bool_g430_1090 = TilF64Compare(hoisted__F64_g435_1089, converted_large_1087, 0);
-        Bool hoisted__Bool_g436_1091 = TRUE;
-        Bool hoisted__Bool_g437_1092 = (_sw_Bool_g430_1090 == hoisted__Bool_g436_1091);
-        if (hoisted__Bool_g437_1092) {
-            F32 hoisted__F32_g431_1093 = TilF32Round(converted_large_1087);
-            I64 hoisted__I64_g432_1094 = ToI64(TilF32Load(hoisted__F32_g431_1093));
-            Bool hoisted__Bool_g433_1095 = (hoisted__I64_g432_1094 == conversion_number_1085);
-            _m_Bool_g429_1088 = hoisted__Bool_g433_1095;
+        F64 hoisted__F64_g435_1087 = TilF32Load(converted_small_1084);
+        Bool _sw_Bool_g430_1088 = TilF64Compare(hoisted__F64_g435_1087, converted_large_1085, 0);
+        Bool hoisted__Bool_g436_1089 = TRUE;
+        Bool hoisted__Bool_g437_1090 = (_sw_Bool_g430_1088 == hoisted__Bool_g436_1089);
+        if (hoisted__Bool_g437_1090) {
+            F32 hoisted__F32_g431_1091 = TilF32Round(converted_large_1085);
+            I64 hoisted__I64_g432_1092 = ToI64(TilF32Load(hoisted__F32_g431_1091));
+            Bool hoisted__Bool_g433_1093 = (hoisted__I64_g432_1092 == conversion_number_1083);
+            _m_Bool_g429_1086 = hoisted__Bool_g433_1093;
         } else {
-            Bool hoisted__Bool_g434_1096 = FALSE;
-            _m_Bool_g429_1088 = hoisted__Bool_g434_1096;
+            Bool hoisted__Bool_g434_1094 = FALSE;
+            _m_Bool_g429_1086 = hoisted__Bool_g434_1094;
         }
     }
-    if (_m_Bool_g429_1088) {
-        U64 hoisted__U64_g438_1097 = 1;
-        TilStrArray _va_Array_g63_1098;
-        TilStrArrayNew(&_va_Array_g63_1098, hoisted__U64_g438_1097);
-        I64 _va_Array_g63_ek_1099 = 0;
-        U64 hoisted__U64_g439_1100 = 0;
-        TilStr hoisted__Str_g440_1101;
-        TilStrInitLit(&hoisted__Str_g440_1101, "float conversions", 17);
-        TilStrArraySet(&_va_Array_g63_1098, hoisted__U64_g439_1100, &hoisted__Str_g440_1101);
-        TilPrintln(&_va_Array_g63_1098);
+    if (_m_Bool_g429_1086) {
+        U64 hoisted__U64_g438_1095 = 1;
+        TilStrArray _va_Array_g63_1096;
+        TilStrArrayNew(&_va_Array_g63_1096, hoisted__U64_g438_1095);
+        I64 _va_Array_g63_ek_1097 = 0;
+        U64 hoisted__U64_g439_1098 = 0;
+        TilStr hoisted__Str_g440_1099;
+        TilStrInitLit(&hoisted__Str_g440_1099, "float conversions", 17);
+        TilStrArraySet(&_va_Array_g63_1096, hoisted__U64_g439_1098, &hoisted__Str_g440_1099);
+        TilPrintln(&_va_Array_g63_1096);
     }
-    I64 wide_conversion_1102 = 4611686293305294848;
-    (++wide_conversion_1102);
-    U64 unsigned_conversion_1103 = 0;
-    (--unsigned_conversion_1103);
-    Bool _m_Bool_g441_1104 = FALSE;
-    {
-        {
-            F32 hoisted__F32_g447_1105 = TilF32FromI64(wide_conversion_1102);
-            F32 hoisted__F32_g448_1106 = 1585446913;
-            Bool _sw_Bool_g442_1107 = TilF64Compare(TilF32Load(hoisted__F32_g447_1105), TilF32Load(hoisted__F32_g448_1106), 0);
-            Bool hoisted__Bool_g449_1108 = TRUE;
-            Bool hoisted__Bool_g450_1109 = (_sw_Bool_g442_1107 == hoisted__Bool_g449_1108);
-            if (hoisted__Bool_g450_1109) {
-                F64 hoisted__F64_g443_1110 = TilF64FromU64(unsigned_conversion_1103);
-                F64 hoisted__F64_g444_1111 = TilF64Bits(4895412794951729152);
-                Bool hoisted__Bool_g445_1112 = TilF64Compare(hoisted__F64_g443_1110, hoisted__F64_g444_1111, 0);
-                _m_Bool_g441_1104 = hoisted__Bool_g445_1112;
-            } else {
-                Bool hoisted__Bool_g446_1113 = FALSE;
-                _m_Bool_g441_1104 = hoisted__Bool_g446_1113;
-            }
-        }
-        Bool hoisted__Bool_g456_1114 = TRUE;
-        Bool hoisted__Bool_g457_1115 = (_m_Bool_g441_1104 == hoisted__Bool_g456_1114);
-        if (hoisted__Bool_g457_1115) {
-            F32 hoisted__F32_g451_1116 = TilF32FromU64(unsigned_conversion_1103);
-            F64 hoisted__F64_g452_1117 = TilF32Load(hoisted__F32_g451_1116);
-            F64 hoisted__F64_g453_1118 = TilF64Bits(4895412794951729152);
-            Bool hoisted__Bool_g454_1119 = TilF64Compare(hoisted__F64_g452_1117, hoisted__F64_g453_1118, 0);
-            _m_Bool_g441_1104 = hoisted__Bool_g454_1119;
-        } else {
-            Bool hoisted__Bool_g455_1120 = FALSE;
-            _m_Bool_g441_1104 = hoisted__Bool_g455_1120;
-        }
-    }
-    if (_m_Bool_g441_1104) {
-        U64 hoisted__U64_g458_1121 = 1;
-        TilStrArray _va_Array_g64_1122;
-        TilStrArrayNew(&_va_Array_g64_1122, hoisted__U64_g458_1121);
-        I64 _va_Array_g64_ek_1123 = 0;
-        U64 hoisted__U64_g459_1124 = 0;
-        TilStr hoisted__Str_g460_1125;
-        TilStrInitLit(&hoisted__Str_g460_1125, "wide float conversions", 22);
-        TilStrArraySet(&_va_Array_g64_1122, hoisted__U64_g459_1124, &hoisted__Str_g460_1125);
-        TilPrintln(&_va_Array_g64_1122);
-    }
-    F32 hoisted__F32_g743_1126 = 3217031168;
-    F64 hoisted__F64_g744_1127 = TilF64Bits(4612811918334230528);
-    FloatPair float_pair_1128;
-    float_pair_1128.small = hoisted__F32_g743_1126;
-    float_pair_1128.large = hoisted__F64_g744_1127;
-    FloatPair float_pair_copy_1129;
-    FloatPair_Clone(&float_pair_copy_1129, &float_pair_1128);
-    Bool _m_Bool_g461_1130 = FALSE;
-    {
-        Bool _sw_Bool_g462_1131 = FloatPair_Eq(&float_pair_1128, &float_pair_copy_1129);
-        Bool hoisted__Bool_g469_1132 = TRUE;
-        Bool hoisted__Bool_g470_1133 = (_sw_Bool_g462_1131 == hoisted__Bool_g469_1132);
-        if (hoisted__Bool_g470_1133) {
-            F32 hoisted__F32_g463_1134 = 1073741824;
-            F32 hoisted__F32_g464_1135 = TilF32Math(float_pair_1128.small, hoisted__F32_g463_1134, 2);
-            I64 hoisted__I64_g465_1136 = ToI64(TilF32Load(hoisted__F32_g464_1135));
-            I64 hoisted__I64_g466_1137 = -3;
-            Bool hoisted__Bool_g467_1138 = (hoisted__I64_g465_1136 == hoisted__I64_g466_1137);
-            _m_Bool_g461_1130 = hoisted__Bool_g467_1138;
-        } else {
-            Bool hoisted__Bool_g468_1139 = FALSE;
-            _m_Bool_g461_1130 = hoisted__Bool_g468_1139;
-        }
-    }
-    if (_m_Bool_g461_1130) {
-        U64 hoisted__U64_g471_1140 = 1;
-        TilStrArray _va_Array_g65_1141;
-        TilStrArrayNew(&_va_Array_g65_1141, hoisted__U64_g471_1140);
-        I64 _va_Array_g65_ek_1142 = 0;
-        U64 hoisted__U64_g472_1143 = 0;
-        TilStr hoisted__Str_g473_1144;
-        TilStrInitLit(&hoisted__Str_g473_1144, "float aggregates", 16);
-        TilStrArraySet(&_va_Array_g65_1141, hoisted__U64_g472_1143, &hoisted__Str_g473_1144);
-        TilPrintln(&_va_Array_g65_1141);
-    }
-    F64 signed_float_1145 = TilF64Bits(13832806255468478464);
-    Bool _m_Bool_g474_1146 = FALSE;
+    I64 wide_conversion_1100 = 4611686293305294848;
+    (++wide_conversion_1100);
+    U64 unsigned_conversion_1101 = 0;
+    (--unsigned_conversion_1101);
+    Bool _m_Bool_g441_1102 = FALSE;
     {
         {
-            F64 hoisted__F64_g483_1147 = TilF64Bits(4602678819172646912);
-            F64 hoisted__F64_g484_1148 = (signed_float_1145 - hoisted__F64_g483_1147);
-            F64 hoisted__F64_g485_1149 = TilF64Bits(4616189618054758400);
-            F64 hoisted__F64_g486_1150 = (hoisted__F64_g484_1148 * hoisted__F64_g485_1149);
-            F64 hoisted__F64_g487_1151 = TilF64Bits(4611686018427387904);
-            F64 hoisted__F64_g488_1152 = TilF64Div(hoisted__F64_g486_1150, hoisted__F64_g487_1151);
-            F64 hoisted__F64_g489_1153 = TilF64Bits(13839561654909534208);
-            Bool _sw_Bool_g475_1154 = TilF64Compare(hoisted__F64_g488_1152, hoisted__F64_g489_1153, 0);
-            Bool hoisted__Bool_g490_1155 = TRUE;
-            Bool hoisted__Bool_g491_1156 = (_sw_Bool_g475_1154 == hoisted__Bool_g490_1155);
-            if (hoisted__Bool_g491_1156) {
-                F32 hoisted__F32_g476_1157 = 1056964608;
-                F32 hoisted__F32_g477_1158 = TilF32Math(float_pair_1128.small, hoisted__F32_g476_1157, 1);
-                F32 hoisted__F32_g478_1159 = 1073741824;
-                F32 hoisted__F32_g479_1160 = TilF32Math(hoisted__F32_g477_1158, hoisted__F32_g478_1159, 3);
-                F32 hoisted__F32_g480_1161 = 3212836864;
-                Bool hoisted__Bool_g481_1162 = TilF64Compare(TilF32Load(hoisted__F32_g479_1160), TilF32Load(hoisted__F32_g480_1161), 0);
-                _m_Bool_g474_1146 = hoisted__Bool_g481_1162;
+            F32 hoisted__F32_g447_1103 = TilF32FromI64(wide_conversion_1100);
+            F32 hoisted__F32_g448_1104 = 1585446913;
+            Bool _sw_Bool_g442_1105 = TilF64Compare(TilF32Load(hoisted__F32_g447_1103), TilF32Load(hoisted__F32_g448_1104), 0);
+            Bool hoisted__Bool_g449_1106 = TRUE;
+            Bool hoisted__Bool_g450_1107 = (_sw_Bool_g442_1105 == hoisted__Bool_g449_1106);
+            if (hoisted__Bool_g450_1107) {
+                F64 hoisted__F64_g443_1108 = TilF64FromU64(unsigned_conversion_1101);
+                F64 hoisted__F64_g444_1109 = TilF64Bits(4895412794951729152);
+                Bool hoisted__Bool_g445_1110 = TilF64Compare(hoisted__F64_g443_1108, hoisted__F64_g444_1109, 0);
+                _m_Bool_g441_1102 = hoisted__Bool_g445_1110;
             } else {
-                Bool hoisted__Bool_g482_1163 = FALSE;
-                _m_Bool_g474_1146 = hoisted__Bool_g482_1163;
+                Bool hoisted__Bool_g446_1111 = FALSE;
+                _m_Bool_g441_1102 = hoisted__Bool_g446_1111;
             }
         }
-        Bool hoisted__Bool_g496_1164 = TRUE;
-        Bool hoisted__Bool_g497_1165 = (_m_Bool_g474_1146 == hoisted__Bool_g496_1164);
-        if (hoisted__Bool_g497_1165) {
-            I64 hoisted__I64_g492_1166 = ToI64(signed_float_1145);
-            I64 hoisted__I64_g493_1167 = -1;
-            Bool hoisted__Bool_g494_1168 = (hoisted__I64_g492_1166 == hoisted__I64_g493_1167);
-            _m_Bool_g474_1146 = hoisted__Bool_g494_1168;
+        Bool hoisted__Bool_g456_1112 = TRUE;
+        Bool hoisted__Bool_g457_1113 = (_m_Bool_g441_1102 == hoisted__Bool_g456_1112);
+        if (hoisted__Bool_g457_1113) {
+            F32 hoisted__F32_g451_1114 = TilF32FromU64(unsigned_conversion_1101);
+            F64 hoisted__F64_g452_1115 = TilF32Load(hoisted__F32_g451_1114);
+            F64 hoisted__F64_g453_1116 = TilF64Bits(4895412794951729152);
+            Bool hoisted__Bool_g454_1117 = TilF64Compare(hoisted__F64_g452_1115, hoisted__F64_g453_1116, 0);
+            _m_Bool_g441_1102 = hoisted__Bool_g454_1117;
         } else {
-            Bool hoisted__Bool_g495_1169 = FALSE;
-            _m_Bool_g474_1146 = hoisted__Bool_g495_1169;
+            Bool hoisted__Bool_g455_1118 = FALSE;
+            _m_Bool_g441_1102 = hoisted__Bool_g455_1118;
         }
     }
-    if (_m_Bool_g474_1146) {
-        U64 hoisted__U64_g498_1170 = 1;
-        TilStrArray _va_Array_g66_1171;
-        TilStrArrayNew(&_va_Array_g66_1171, hoisted__U64_g498_1170);
-        I64 _va_Array_g66_ek_1172 = 0;
-        U64 hoisted__U64_g499_1173 = 0;
-        TilStr hoisted__Str_g500_1174;
-        TilStrInitLit(&hoisted__Str_g500_1174, "float arithmetic", 16);
-        TilStrArraySet(&_va_Array_g66_1171, hoisted__U64_g499_1173, &hoisted__Str_g500_1174);
-        TilPrintln(&_va_Array_g66_1171);
+    if (_m_Bool_g441_1102) {
+        U64 hoisted__U64_g458_1119 = 1;
+        TilStrArray _va_Array_g64_1120;
+        TilStrArrayNew(&_va_Array_g64_1120, hoisted__U64_g458_1119);
+        I64 _va_Array_g64_ek_1121 = 0;
+        U64 hoisted__U64_g459_1122 = 0;
+        TilStr hoisted__Str_g460_1123;
+        TilStrInitLit(&hoisted__Str_g460_1123, "wide float conversions", 22);
+        TilStrArraySet(&_va_Array_g64_1120, hoisted__U64_g459_1122, &hoisted__Str_g460_1123);
+        TilPrintln(&_va_Array_g64_1120);
     }
-    F32 *heap_float_1175 = TilMAlloc(4);
-    U64 hoisted__U64_g747_1176 = 4;
-    TilMemCpy(heap_float_1175, &float_pair_1128.small, hoisted__U64_g747_1176);
-    F32 hoisted__F32_g748_1177 = 3217031168;
-    Bool hoisted__Bool_g749_1178 = TilF64Compare(TilF32Load((*((TilCheckPtr(heap_float_1175))(F32 *)))), TilF32Load(hoisted__F32_g748_1177), 0);
-    if (hoisted__Bool_g749_1178) {
-        U64 hoisted__U64_g501_1179 = 1;
-        TilStrArray _va_Array_g67_1180;
-        TilStrArrayNew(&_va_Array_g67_1180, hoisted__U64_g501_1179);
-        I64 _va_Array_g67_ek_1181 = 0;
-        U64 hoisted__U64_g502_1182 = 0;
-        TilStr hoisted__Str_g503_1183;
-        TilStrInitLit(&hoisted__Str_g503_1183, "float pointer", 13);
-        TilStrArraySet(&_va_Array_g67_1180, hoisted__U64_g502_1182, &hoisted__Str_g503_1183);
-        TilPrintln(&_va_Array_g67_1180);
-    }
-    TilFloatDelete(heap_float_1175, TRUE);
-    Set__F32 float_keys_1184;
-    Set__F32_New(&float_keys_1184);
-    F32 hoisted__F32_g751_1185 = 1073741824;
-    Set__F32_Add(&float_keys_1184, hoisted__F32_g751_1185);
-    F32 hoisted__F32_g753_1186 = 3212836864;
-    Set__F32_Add(&float_keys_1184, hoisted__F32_g753_1186);
-    Bool _m_Bool_g504_1187 = FALSE;
+    F32 hoisted__F32_g743_1124 = 3217031168;
+    F64 hoisted__F64_g744_1125 = TilF64Bits(4612811918334230528);
+    FloatPair float_pair_1126;
+    float_pair_1126.small = hoisted__F32_g743_1124;
+    float_pair_1126.large = hoisted__F64_g744_1125;
+    FloatPair float_pair_copy_1127;
+    FloatPair_Clone(&float_pair_copy_1127, &float_pair_1126);
+    Bool _m_Bool_g461_1128 = FALSE;
     {
-        F32 hoisted__F32_g511_1188 = 3212836864;
-        Bool _sw_Bool_g505_1189 = Set__F32_Has(&float_keys_1184, hoisted__F32_g511_1188);
-        Bool hoisted__Bool_g512_1190 = TRUE;
-        Bool hoisted__Bool_g513_1191 = (_sw_Bool_g505_1189 == hoisted__Bool_g512_1190);
-        if (hoisted__Bool_g513_1191) {
-            U64 hoisted__U64_g506_1192 = (&float_keys_1184)->count;
-            U64 hoisted__U64_g507_1193 = 2;
-            Bool hoisted__Bool_g508_1194 = (hoisted__U64_g506_1192 == hoisted__U64_g507_1193);
-            _m_Bool_g504_1187 = hoisted__Bool_g508_1194;
+        Bool _sw_Bool_g462_1129 = FloatPair_Eq(&float_pair_1126, &float_pair_copy_1127);
+        Bool hoisted__Bool_g469_1130 = TRUE;
+        Bool hoisted__Bool_g470_1131 = (_sw_Bool_g462_1129 == hoisted__Bool_g469_1130);
+        if (hoisted__Bool_g470_1131) {
+            F32 hoisted__F32_g463_1132 = 1073741824;
+            F32 hoisted__F32_g464_1133 = TilF32Math(float_pair_1126.small, hoisted__F32_g463_1132, 2);
+            I64 hoisted__I64_g465_1134 = ToI64(TilF32Load(hoisted__F32_g464_1133));
+            I64 hoisted__I64_g466_1135 = -3;
+            Bool hoisted__Bool_g467_1136 = (hoisted__I64_g465_1134 == hoisted__I64_g466_1135);
+            _m_Bool_g461_1128 = hoisted__Bool_g467_1136;
         } else {
-            Bool hoisted__Bool_g509_1195 = FALSE;
-            _m_Bool_g504_1187 = hoisted__Bool_g509_1195;
+            Bool hoisted__Bool_g468_1137 = FALSE;
+            _m_Bool_g461_1128 = hoisted__Bool_g468_1137;
         }
     }
-    if (_m_Bool_g504_1187) {
-        U64 hoisted__U64_g514_1196 = 1;
-        TilStrArray _va_Array_g68_1197;
-        TilStrArrayNew(&_va_Array_g68_1197, hoisted__U64_g514_1196);
-        I64 _va_Array_g68_ek_1198 = 0;
-        U64 hoisted__U64_g515_1199 = 0;
-        TilStr hoisted__Str_g516_1200;
-        TilStrInitLit(&hoisted__Str_g516_1200, "float ordering", 14);
-        TilStrArraySet(&_va_Array_g68_1197, hoisted__U64_g515_1199, &hoisted__Str_g516_1200);
-        TilPrintln(&_va_Array_g68_1197);
+    if (_m_Bool_g461_1128) {
+        U64 hoisted__U64_g471_1138 = 1;
+        TilStrArray _va_Array_g65_1139;
+        TilStrArrayNew(&_va_Array_g65_1139, hoisted__U64_g471_1138);
+        I64 _va_Array_g65_ek_1140 = 0;
+        U64 hoisted__U64_g472_1141 = 0;
+        TilStr hoisted__Str_g473_1142;
+        TilStrInitLit(&hoisted__Str_g473_1142, "float aggregates", 16);
+        TilStrArraySet(&_va_Array_g65_1139, hoisted__U64_g472_1141, &hoisted__Str_g473_1142);
+        TilPrintln(&_va_Array_g65_1139);
     }
-    FloatPayload float_payload_low_1201;
-    float_payload_low_1201.tag = 0;
-    float_payload_low_1201.payload_Small = converted_small_1086;
-    FloatPayload float_payload_high_1202;
-    float_payload_high_1202.tag = 0;
-    float_payload_high_1202.payload_Small = float_small_1014;
-    I64 hoisted__I64_g754_1203 = FloatPayload_Cmp(&float_payload_low_1201, &float_payload_high_1202);
-    I64 hoisted__I64_g755_1204 = 0;
-    Bool hoisted__Bool_g756_1205 = (hoisted__I64_g754_1203 < hoisted__I64_g755_1204);
-    if (hoisted__Bool_g756_1205) {
-        U64 hoisted__U64_g517_1206 = 1;
-        TilStrArray _va_Array_g69_1207;
-        TilStrArrayNew(&_va_Array_g69_1207, hoisted__U64_g517_1206);
-        I64 _va_Array_g69_ek_1208 = 0;
-        U64 hoisted__U64_g518_1209 = 0;
-        TilStr hoisted__Str_g519_1210;
-        TilStrInitLit(&hoisted__Str_g519_1210, "float enum ordering", 19);
-        TilStrArraySet(&_va_Array_g69_1207, hoisted__U64_g518_1209, &hoisted__Str_g519_1210);
-        TilPrintln(&_va_Array_g69_1207);
+    F64 signed_float_1143 = TilF64Bits(13832806255468478464);
+    Bool _m_Bool_g474_1144 = FALSE;
+    {
+        {
+            F64 hoisted__F64_g483_1145 = TilF64Bits(4602678819172646912);
+            F64 hoisted__F64_g484_1146 = (signed_float_1143 - hoisted__F64_g483_1145);
+            F64 hoisted__F64_g485_1147 = TilF64Bits(4616189618054758400);
+            F64 hoisted__F64_g486_1148 = (hoisted__F64_g484_1146 * hoisted__F64_g485_1147);
+            F64 hoisted__F64_g487_1149 = TilF64Bits(4611686018427387904);
+            F64 hoisted__F64_g488_1150 = TilF64Div(hoisted__F64_g486_1148, hoisted__F64_g487_1149);
+            F64 hoisted__F64_g489_1151 = TilF64Bits(13839561654909534208);
+            Bool _sw_Bool_g475_1152 = TilF64Compare(hoisted__F64_g488_1150, hoisted__F64_g489_1151, 0);
+            Bool hoisted__Bool_g490_1153 = TRUE;
+            Bool hoisted__Bool_g491_1154 = (_sw_Bool_g475_1152 == hoisted__Bool_g490_1153);
+            if (hoisted__Bool_g491_1154) {
+                F32 hoisted__F32_g476_1155 = 1056964608;
+                F32 hoisted__F32_g477_1156 = TilF32Math(float_pair_1126.small, hoisted__F32_g476_1155, 1);
+                F32 hoisted__F32_g478_1157 = 1073741824;
+                F32 hoisted__F32_g479_1158 = TilF32Math(hoisted__F32_g477_1156, hoisted__F32_g478_1157, 3);
+                F32 hoisted__F32_g480_1159 = 3212836864;
+                Bool hoisted__Bool_g481_1160 = TilF64Compare(TilF32Load(hoisted__F32_g479_1158), TilF32Load(hoisted__F32_g480_1159), 0);
+                _m_Bool_g474_1144 = hoisted__Bool_g481_1160;
+            } else {
+                Bool hoisted__Bool_g482_1161 = FALSE;
+                _m_Bool_g474_1144 = hoisted__Bool_g482_1161;
+            }
+        }
+        Bool hoisted__Bool_g496_1162 = TRUE;
+        Bool hoisted__Bool_g497_1163 = (_m_Bool_g474_1144 == hoisted__Bool_g496_1162);
+        if (hoisted__Bool_g497_1163) {
+            I64 hoisted__I64_g492_1164 = ToI64(signed_float_1143);
+            I64 hoisted__I64_g493_1165 = -1;
+            Bool hoisted__Bool_g494_1166 = (hoisted__I64_g492_1164 == hoisted__I64_g493_1165);
+            _m_Bool_g474_1144 = hoisted__Bool_g494_1166;
+        } else {
+            Bool hoisted__Bool_g495_1167 = FALSE;
+            _m_Bool_g474_1144 = hoisted__Bool_g495_1167;
+        }
     }
-    I64 started_1211 = TilClockMs();
-    I64 hoisted__I64_g757_1212 = 20;
-    TilSleepMs(hoisted__I64_g757_1212);
-    I64 hoisted__I64_g758_1213 = TilClockMs();
-    I64 elapsed_1214 = (hoisted__I64_g758_1213 - started_1211);
-    I64 hoisted__I64_g759_1215 = 10;
-    Bool hoisted__Bool_g760_1216 = (elapsed_1214 >= hoisted__I64_g759_1215);
-    if (hoisted__Bool_g760_1216) {
-        U64 hoisted__U64_g520_1217 = 1;
-        TilStrArray _va_Array_g70_1218;
-        TilStrArrayNew(&_va_Array_g70_1218, hoisted__U64_g520_1217);
-        I64 _va_Array_g70_ek_1219 = 0;
-        U64 hoisted__U64_g521_1220 = 0;
-        TilStr hoisted__Str_g522_1221;
-        TilStrInitLit(&hoisted__Str_g522_1221, "clock and sleep", 15);
-        TilStrArraySet(&_va_Array_g70_1218, hoisted__U64_g521_1220, &hoisted__Str_g522_1221);
-        TilPrintln(&_va_Array_g70_1218);
+    if (_m_Bool_g474_1144) {
+        U64 hoisted__U64_g498_1168 = 1;
+        TilStrArray _va_Array_g66_1169;
+        TilStrArrayNew(&_va_Array_g66_1169, hoisted__U64_g498_1168);
+        I64 _va_Array_g66_ek_1170 = 0;
+        U64 hoisted__U64_g499_1171 = 0;
+        TilStr hoisted__Str_g500_1172;
+        TilStrInitLit(&hoisted__Str_g500_1172, "float arithmetic", 16);
+        TilStrArraySet(&_va_Array_g66_1169, hoisted__U64_g499_1171, &hoisted__Str_g500_1172);
+        TilPrintln(&_va_Array_g66_1169);
+    }
+    F32 *heap_float_1173 = TilMAlloc(4);
+    U64 hoisted__U64_g747_1174 = 4;
+    TilMemCpy(heap_float_1173, &float_pair_1126.small, hoisted__U64_g747_1174);
+    F32 hoisted__F32_g748_1175 = 3217031168;
+    Bool hoisted__Bool_g749_1176 = TilF64Compare(TilF32Load((*((TilCheckPtr(heap_float_1173))(F32 *)))), TilF32Load(hoisted__F32_g748_1175), 0);
+    if (hoisted__Bool_g749_1176) {
+        U64 hoisted__U64_g501_1177 = 1;
+        TilStrArray _va_Array_g67_1178;
+        TilStrArrayNew(&_va_Array_g67_1178, hoisted__U64_g501_1177);
+        I64 _va_Array_g67_ek_1179 = 0;
+        U64 hoisted__U64_g502_1180 = 0;
+        TilStr hoisted__Str_g503_1181;
+        TilStrInitLit(&hoisted__Str_g503_1181, "float pointer", 13);
+        TilStrArraySet(&_va_Array_g67_1178, hoisted__U64_g502_1180, &hoisted__Str_g503_1181);
+        TilPrintln(&_va_Array_g67_1178);
+    }
+    TilFloatDelete(heap_float_1173, TRUE);
+    Set__F32 float_keys_1182;
+    Set__F32_New(&float_keys_1182);
+    F32 hoisted__F32_g751_1183 = 1073741824;
+    Set__F32_Add(&float_keys_1182, hoisted__F32_g751_1183);
+    F32 hoisted__F32_g753_1184 = 3212836864;
+    Set__F32_Add(&float_keys_1182, hoisted__F32_g753_1184);
+    Bool _m_Bool_g504_1185 = FALSE;
+    {
+        F32 hoisted__F32_g511_1186 = 3212836864;
+        Bool _sw_Bool_g505_1187 = Set__F32_Has(&float_keys_1182, hoisted__F32_g511_1186);
+        Bool hoisted__Bool_g512_1188 = TRUE;
+        Bool hoisted__Bool_g513_1189 = (_sw_Bool_g505_1187 == hoisted__Bool_g512_1188);
+        if (hoisted__Bool_g513_1189) {
+            U64 hoisted__U64_g506_1190 = (&float_keys_1182)->count;
+            U64 hoisted__U64_g507_1191 = 2;
+            Bool hoisted__Bool_g508_1192 = (hoisted__U64_g506_1190 == hoisted__U64_g507_1191);
+            _m_Bool_g504_1185 = hoisted__Bool_g508_1192;
+        } else {
+            Bool hoisted__Bool_g509_1193 = FALSE;
+            _m_Bool_g504_1185 = hoisted__Bool_g509_1193;
+        }
+    }
+    if (_m_Bool_g504_1185) {
+        U64 hoisted__U64_g514_1194 = 1;
+        TilStrArray _va_Array_g68_1195;
+        TilStrArrayNew(&_va_Array_g68_1195, hoisted__U64_g514_1194);
+        I64 _va_Array_g68_ek_1196 = 0;
+        U64 hoisted__U64_g515_1197 = 0;
+        TilStr hoisted__Str_g516_1198;
+        TilStrInitLit(&hoisted__Str_g516_1198, "float ordering", 14);
+        TilStrArraySet(&_va_Array_g68_1195, hoisted__U64_g515_1197, &hoisted__Str_g516_1198);
+        TilPrintln(&_va_Array_g68_1195);
+    }
+    FloatPayload float_payload_low_1199;
+    float_payload_low_1199.tag = 0;
+    float_payload_low_1199.payload_Small = converted_small_1084;
+    FloatPayload float_payload_high_1200;
+    float_payload_high_1200.tag = 0;
+    float_payload_high_1200.payload_Small = float_small_1012;
+    I64 hoisted__I64_g754_1201 = FloatPayload_Cmp(&float_payload_low_1199, &float_payload_high_1200);
+    I64 hoisted__I64_g755_1202 = 0;
+    Bool hoisted__Bool_g756_1203 = (hoisted__I64_g754_1201 < hoisted__I64_g755_1202);
+    if (hoisted__Bool_g756_1203) {
+        U64 hoisted__U64_g517_1204 = 1;
+        TilStrArray _va_Array_g69_1205;
+        TilStrArrayNew(&_va_Array_g69_1205, hoisted__U64_g517_1204);
+        I64 _va_Array_g69_ek_1206 = 0;
+        U64 hoisted__U64_g518_1207 = 0;
+        TilStr hoisted__Str_g519_1208;
+        TilStrInitLit(&hoisted__Str_g519_1208, "float enum ordering", 19);
+        TilStrArraySet(&_va_Array_g69_1205, hoisted__U64_g518_1207, &hoisted__Str_g519_1208);
+        TilPrintln(&_va_Array_g69_1205);
+    }
+    I64 started_1209 = TilClockMs();
+    I64 hoisted__I64_g757_1210 = 20;
+    TilSleepMs(hoisted__I64_g757_1210);
+    I64 hoisted__I64_g758_1211 = TilClockMs();
+    I64 elapsed_1212 = (hoisted__I64_g758_1211 - started_1209);
+    I64 hoisted__I64_g759_1213 = 10;
+    Bool hoisted__Bool_g760_1214 = (elapsed_1212 >= hoisted__I64_g759_1213);
+    if (hoisted__Bool_g760_1214) {
+        U64 hoisted__U64_g520_1215 = 1;
+        TilStrArray _va_Array_g70_1216;
+        TilStrArrayNew(&_va_Array_g70_1216, hoisted__U64_g520_1215);
+        I64 _va_Array_g70_ek_1217 = 0;
+        U64 hoisted__U64_g521_1218 = 0;
+        TilStr hoisted__Str_g522_1219;
+        TilStrInitLit(&hoisted__Str_g522_1219, "clock and sleep", 15);
+        TilStrArraySet(&_va_Array_g70_1216, hoisted__U64_g521_1218, &hoisted__Str_g522_1219);
+        TilPrintln(&_va_Array_g70_1216);
     }
     return 0;
 }

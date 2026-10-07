@@ -4991,22 +4991,6 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
     return true
 }
 
-priv postfold_arg_is_struct_ctor := func(arg: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if arg.node_type.is(NodeType.FCall).not().or(arg.children.len() == 0) { return false }
-    type_name_o := expr_type_name_ref(arg, symbols)
-    if type_name_o.is_none() { return false }
-    ref type_name : Str = type_name_o.unwrap()
-    switch arg.children[0].node_type {
-    case .Ident(callee):
-        if callee.ident_name(symbols.names) != type_name { return false }
-    case:
-        return false
-    }
-    sdef_o := scope.get_struct(type_name, symbols)
-    if sdef_o.is_none() { return false }
-    return sdef_o.unwrap().node_type.is(NodeType.StructDef)
-}
-
 // Constfolding runs after body_pre_passes and can replace a pure helper call
 // with a fresh struct constructor. When that constructor is an owned argument
 // whose C ABI borrows a stack outer, name it in the AST just like the ordinary
@@ -5051,7 +5035,7 @@ priv hoist_postfold_stack_ctor_expr := proc(mut ctx: Context, mut expr: Expr,
     case .FuncDef(fd):
         for i in 1..expr.children.len() {
             if func_param_has_stack_outer(fd, i - 1, ctx.param_value_abi_ok, scope, ctx.symbols)
-            .and(postfold_arg_is_struct_ctor(expr.children[i], scope, ctx.symbols)) {
+            .and(fcall_is_struct_ctor(expr.children[i], scope, ctx.symbols)) {
                 expr.children[i] = hoist_postfold_stack_ctor_slot(ctx, expr.children, i, hoisted)
             }
         }
@@ -5366,7 +5350,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         }
         // #326: is_n's tag-width operand is read BY VALUE by both backends
         // -- the C builder does not read it at all (it inlines a
-        // width-correct `((E*)a)->tag == ((E*)b)->tag`, see builder.til)
+        // width-correct `((E*)a)->tag == ((E*)b)->tag`, see c_codegen.til)
         // and the interpreter's h_is_n evaluates the literal directly.
         // Hoisting it produced a `hoisted__U32_N := <width>` temp that no
         // emitted C statement ever read -- 946 dead bindings in til's own
