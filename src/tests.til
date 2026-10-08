@@ -1945,10 +1945,11 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/enums_sr.c test/enums.til '&&' cat gen/c/enums_sr.c"))
     // ...and for an effectful call's result: the call stays, as a bare
     // statement, with no holder whose only job was a delete that does
-    // nothing.
+    // nothing. The (void) is what keeps clang's -Wunused-value quiet when
+    // the discarded call is a statement expression (the SIMD load path).
     add_counts(tests, "errors_no_sole_reader_delete", "build",
         format(til_bin, " translate -c gen/c/errors_sr.c test/errors.til '&&' cat gen/c/errors_sr.c"),
-        CountCheck(needle = "    make_fieldless_error(&calls);", expected_count = 1),
+        CountCheck(needle = "    (void)make_fieldless_error(&calls);", expected_count = 1),
         CountCheck(needle = "_disc", expected_count = 0))
     // Issue #326: a `_` binding the C never reads is dead weight, not a
     // place for an unused cast. A `_ := x.safe_add(y)` keeps only its call

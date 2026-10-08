@@ -3101,7 +3101,14 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         // discards the call's value by itself. The same
                         // question body DCE asked before making this call
                         // a bare statement, so the two cannot disagree.
+                        // The (void) is for the calls this path emits as a
+                        // GNU statement expression rather than a plain call
+                        // (an oversized SIMD load, emit_inline_simd_memory):
+                        // clang's -Wunused-value flags a discarded
+                        // `({ ...; value; })` where gcc stays quiet, and the
+                        // macos cross corpus builds with clang -Werror.
                         if init_delete_is_noop(tname, ctx.scope, ctx.symbols) {
+                            f.write("(void)")
                             emit_expr(f, e, depth, ctx)
                             f.write(";\n")
                             return
