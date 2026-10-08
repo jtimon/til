@@ -8872,12 +8872,12 @@ static Str hoisted__Str_Declaration_default_expr_7 = (Str){.c_str = (void *)"./s
 static Str hoisted__Str_Declaration_type_name_6 = (Str){.c_str = (void *)"./src/core/ast.til:343:19", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Declaration_type_name_9 = (Str){.c_str = (void *)"./src/core/ast.til:343:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_EvalHeap_heap_alloc_4 = (Str){.c_str = (void *)"./src/self/eval_heap.til:82:26", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_set_til_type_5 = (Str){.c_str = (void *)"./src/core/ast.til:1337:30", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_19 = (Str){.c_str = (void *)"./src/core/ast.til:1287:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_31 = (Str){.c_str = (void *)"./src/core/ast.til:1297:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_43 = (Str){.c_str = (void *)"./src/core/ast.til:1309:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_til_type_7 = (Str){.c_str = (void *)"./src/core/ast.til:1282:33", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Expr_to_str_3 = (Str){.c_str = (void *)"./src/core/ast.til:1368:9", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_set_til_type_4 = (Str){.c_str = (void *)"./src/core/ast.til:1349:30", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_18 = (Str){.c_str = (void *)"./src/core/ast.til:1295:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_30 = (Str){.c_str = (void *)"./src/core/ast.til:1305:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_42 = (Str){.c_str = (void *)"./src/core/ast.til:1317:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_til_type_6 = (Str){.c_str = (void *)"./src/core/ast.til:1292:33", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Expr_to_str_3 = (Str){.c_str = (void *)"./src/core/ast.til:1380:9", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_File_read_all_3 = (Str){.c_str = (void *)"./src/std/file.til:199:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_File_remove_tree_7 = (Str){.c_str = (void *)"./src/std/file.til:144:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_File_rename_11 = (Str){.c_str = (void *)"./src/std/file.til:155:13", .count = 25ULL, .cap = TIL_CAP_LIT};
@@ -8963,7 +8963,7 @@ static Str hoisted__Str_builder_prepare_emit_41 = (Str){.c_str = (void *)"./src/
 static Str hoisted__Str_builder_prepare_emit_6 = (Str){.c_str = (void *)"./src/self/c_codegen.til:10537:55", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_builder_prepare_emit_66 = (Str){.c_str = (void *)"./src/self/c_codegen.til:10578:48", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_builder_prepare_emit_71 = (Str){.c_str = (void *)"./src/self/c_codegen.til:10579:50", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_case_pattern_count_0 = (Str){.c_str = (void *)"./src/core/ast.til:1473:12", .count = 26ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_case_pattern_count_0 = (Str){.c_str = (void *)"./src/core/ast.til:1485:12", .count = 26ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_check_unused_priv_members_in_program_6 = (Str){.c_str = (void *)"./src/self/typer.til:6091:13", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_check_unused_priv_members_in_program_77 = (Str){.c_str = (void *)"./src/self/typer.til:6095:37", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_cmd_ast_6 = (Str){.c_str = (void *)"./src/self/loader.til:4413:13", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -14624,8 +14624,8 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-873a397a7", .count = 15ULL, .cap = TIL_CAP_LIT};
-static Str COMPILER_REVISION = {.c_str = (I8 *)"873a397a727828187ee419a53484c314b947808d", .count = 40ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-8925e0f4a", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str COMPILER_REVISION = {.c_str = (I8 *)"8925e0f4a394dfdcd041b492fa907ec287bfa5a5", .count = 40ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -19336,390 +19336,308 @@ static Expr Expr_new(NodeType * data, U32 line, U32 col) {
 
 static Type * Expr_til_type(Expr * self) {
     I64 _err_kind = 0;
-    {
-        Bool hoisted__Bool_107 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Body));
-        if (hoisted__Bool_107) {
-            return &TYPE_NONE;
-        } else {
-            I64 *hoisted__Literal_103 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-            Bool hoisted__Bool_104 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-            Bool hoisted__Bool_105 = ((Bool)((((Literal *)(hoisted__Literal_103))->tag) == Literal_TAG_Str));
-            Bool hoisted__Bool_106 = ((Bool)((hoisted__Bool_104) && (hoisted__Bool_105)));
-            if (hoisted__Bool_106) {
-                return &TYPE_STR;
-            } else {
-                I64 *hoisted__Literal_99 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                Bool hoisted__Bool_100 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-                Bool hoisted__Bool_101 = ((Bool)((((Literal *)(hoisted__Literal_99))->tag) == Literal_TAG_Num));
-                Bool hoisted__Bool_102 = ((Bool)((hoisted__Bool_100) && (hoisted__Bool_101)));
-                if (hoisted__Bool_102) {
-                    I64 *hoisted__Literal_1 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                    LiteralNumData *nd = ((void *)((U8 *)(hoisted__Literal_1) + offsetof(Literal, data)));
-                    Bool hoisted__Bool_2 = ((Bool)((((Type *)(&nd->til_type))->tag) == Type_TAG_Unknown));
-                    if (hoisted__Bool_2) {
-                        Bool hoisted__Bool_0 = LiteralNumData_is_float(nd);
-                        if (hoisted__Bool_0) {
-                            return &TYPE_F64;
-                        }
-                        return &TYPE_I64;
-                    }
-                    return &nd->til_type;
-                } else {
-                    I64 *hoisted__Literal_95 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                    Bool hoisted__Bool_96 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-                    Bool hoisted__Bool_97 = ((Bool)((((Literal *)(hoisted__Literal_95))->tag) == Literal_TAG_Bool));
-                    Bool hoisted__Bool_98 = ((Bool)((hoisted__Bool_96) && (hoisted__Bool_97)));
-                    if (hoisted__Bool_98) {
-                        return &TYPE_BOOL;
-                    } else {
-                        I64 *hoisted__Literal_91 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                        Bool hoisted__Bool_92 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-                        Bool hoisted__Bool_93 = ((Bool)((((Literal *)(hoisted__Literal_91))->tag) == Literal_TAG_Null));
-                        Bool hoisted__Bool_94 = ((Bool)((hoisted__Bool_92) && (hoisted__Bool_93)));
-                        if (hoisted__Bool_94) {
-                            return &TYPE_DYNAMIC;
-                        } else {
-                            Bool hoisted__Bool_90 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Ident));
-                            if (hoisted__Bool_90) {
-                                IdentData *id = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                return &id->til_type;
-                            } else {
-                                Bool hoisted__Bool_89 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Decl));
-                                if (hoisted__Bool_89) {
-                                    Declaration *dd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                    return &dd->til_type;
-                                } else {
-                                    Bool hoisted__Bool_88 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Assign));
-                                    if (hoisted__Bool_88) {
-                                        U32 hoisted__U32_8 = (self->children.count);
-                                        U32 hoisted__U32_9 = 0;
-                                        Bool hoisted__Bool_10 = ((Bool)(hoisted__U32_8 == hoisted__U32_9));
-                                        if (hoisted__Bool_10) {
-                                            return &TYPE_UNKNOWN;
-                                        }
-                                        U32 hoisted__U32_11 = 0;
-                                        Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_11) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_11))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                        I64 hoisted__I64_12 = 1;
-                                        Bool hoisted__Bool_13 = ((Bool)(_err_kind == hoisted__I64_12));
-                                        if (hoisted__Bool_13) {
-                                            I64 hoisted__I64_3 = 0;
-                                            _err_kind = hoisted__I64_3;
-                                            U32 hoisted__U32_4 = 1;
-                                            Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_4);
-                                            I64 _va_Array_0_ek = 0;
-                                            U32 hoisted__U32_5 = 0;
-                                            Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
-                                            panic(&_va_Array_0, &hoisted__Str_Expr_til_type_7);
-                                        }
-                                        Type *hoisted__Type_14 = Expr_til_type(_bang_ret_0);
-                                        return hoisted__Type_14;
-                                    } else {
-                                        I64 *hoisted__Literal_84 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                        Bool hoisted__Bool_85 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-                                        Bool hoisted__Bool_86 = ((Bool)((((Literal *)(hoisted__Literal_84))->tag) == Literal_TAG_MapLit));
-                                        Bool hoisted__Bool_87 = ((Bool)((hoisted__Bool_85) && (hoisted__Bool_86)));
-                                        if (hoisted__Bool_87) {
-                                            return &TYPE_MAP;
-                                        } else {
-                                            I64 *hoisted__Literal_80 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                            Bool hoisted__Bool_81 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-                                            Bool hoisted__Bool_82 = ((Bool)((((Literal *)(hoisted__Literal_80))->tag) == Literal_TAG_SetLit));
-                                            Bool hoisted__Bool_83 = ((Bool)((hoisted__Bool_81) && (hoisted__Bool_82)));
-                                            if (hoisted__Bool_83) {
-                                                return &TYPE_SET;
-                                            } else {
-                                                Bool hoisted__Bool_79 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_NamedArg));
-                                                if (hoisted__Bool_79) {
-                                                    U32 hoisted__U32_20 = (self->children.count);
-                                                    U32 hoisted__U32_21 = 0;
-                                                    Bool hoisted__Bool_22 = ((Bool)(hoisted__U32_20 == hoisted__U32_21));
-                                                    if (hoisted__Bool_22) {
-                                                        return &TYPE_UNKNOWN;
-                                                    }
-                                                    U32 hoisted__U32_23 = 0;
-                                                    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_23) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_23))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                                    I64 hoisted__I64_24 = 1;
-                                                    Bool hoisted__Bool_25 = ((Bool)(_err_kind == hoisted__I64_24));
-                                                    if (hoisted__Bool_25) {
-                                                        I64 hoisted__I64_15 = 0;
-                                                        _err_kind = hoisted__I64_15;
-                                                        U32 hoisted__U32_16 = 1;
-                                                        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_16);
-                                                        I64 _va_Array_1_ek = 0;
-                                                        U32 hoisted__U32_17 = 0;
-                                                        Array__Str_set(&_va_Array_1, hoisted__U32_17, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
-                                                        panic(&_va_Array_1, &hoisted__Str_Expr_til_type_19);
-                                                    }
-                                                    Type *hoisted__Type_26 = Expr_til_type(_bang_ret_1);
-                                                    return hoisted__Type_26;
-                                                } else {
-                                                    Bool hoisted__Bool_78 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_FCall));
-                                                    if (hoisted__Bool_78) {
-                                                        FCallData *fcd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                                        return &fcd->til_type;
-                                                    } else {
-                                                        Bool hoisted__Bool_77 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_FuncDef));
-                                                        if (hoisted__Bool_77) {
-                                                            return &TYPE_FUNCPTR;
-                                                        } else {
-                                                            Bool hoisted__Bool_76 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_BodyValue));
-                                                            if (hoisted__Bool_76) {
-                                                                return &TYPE_BODY;
-                                                            } else {
-                                                                Bool hoisted__Bool_75 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_StructDef));
-                                                                if (hoisted__Bool_75) {
-                                                                    return &TYPE_STRUCTDEF;
-                                                                } else {
-                                                                    Bool hoisted__Bool_74 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_EnumDef));
-                                                                    if (hoisted__Bool_74) {
-                                                                        return &TYPE_ENUMDEF;
-                                                                    } else {
-                                                                        Bool hoisted__Bool_73 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_FieldAccess));
-                                                                        if (hoisted__Bool_73) {
-                                                                            FieldAccessData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                                                            return &fd->til_type;
-                                                                        } else {
-                                                                            Bool hoisted__Bool_72 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_FieldAssign));
-                                                                            if (hoisted__Bool_72) {
-                                                                                return &TYPE_NONE;
-                                                                            } else {
-                                                                                Bool hoisted__Bool_71 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Return));
-                                                                                if (hoisted__Bool_71) {
-                                                                                    U32 hoisted__U32_32 = (self->children.count);
-                                                                                    U32 hoisted__U32_33 = 0;
-                                                                                    Bool hoisted__Bool_34 = ((Bool)(hoisted__U32_32 == hoisted__U32_33));
-                                                                                    if (hoisted__Bool_34) {
-                                                                                        return &TYPE_NONE;
-                                                                                    }
-                                                                                    U32 hoisted__U32_35 = 0;
-                                                                                    Expr *_bang_ret_2 = (((Bool)((U32)(hoisted__U32_35) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_35))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                                                                    I64 hoisted__I64_36 = 1;
-                                                                                    Bool hoisted__Bool_37 = ((Bool)(_err_kind == hoisted__I64_36));
-                                                                                    if (hoisted__Bool_37) {
-                                                                                        I64 hoisted__I64_27 = 0;
-                                                                                        _err_kind = hoisted__I64_27;
-                                                                                        U32 hoisted__U32_28 = 1;
-                                                                                        Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_28);
-                                                                                        I64 _va_Array_2_ek = 0;
-                                                                                        U32 hoisted__U32_29 = 0;
-                                                                                        Array__Str_set(&_va_Array_2, hoisted__U32_29, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
-                                                                                        panic(&_va_Array_2, &hoisted__Str_Expr_til_type_31);
-                                                                                    }
-                                                                                    Type *hoisted__Type_38 = Expr_til_type(_bang_ret_2);
-                                                                                    return hoisted__Type_38;
-                                                                                } else {
-                                                                                    Bool hoisted__Bool_68 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_If));
-                                                                                    Bool hoisted__Bool_69 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_While));
-                                                                                    Bool hoisted__Bool_70 = ((Bool)((hoisted__Bool_68) || (hoisted__Bool_69)));
-                                                                                    if (hoisted__Bool_70) {
-                                                                                        return &TYPE_NONE;
-                                                                                    } else {
-                                                                                        Bool hoisted__Bool_67 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_ForIn));
-                                                                                        if (hoisted__Bool_67) {
-                                                                                            ForInData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                                                                            return &fd->til_type;
-                                                                                        } else {
-                                                                                            Bool hoisted__Bool_62 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Break));
-                                                                                            Bool hoisted__Bool_63 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Continue));
-                                                                                            Bool hoisted__Bool_64 = ((Bool)((hoisted__Bool_62) || (hoisted__Bool_63)));
-                                                                                            Bool hoisted__Bool_65 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Switch));
-                                                                                            Bool hoisted__Bool_66 = ((Bool)((hoisted__Bool_64) || (hoisted__Bool_65)));
-                                                                                            if (hoisted__Bool_66) {
-                                                                                                return &TYPE_NONE;
-                                                                                            } else {
-                                                                                                Bool hoisted__Bool_61 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Match));
-                                                                                                if (hoisted__Bool_61) {
-                                                                                                    MatchData *md = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                                                                                    return &md->til_type;
-                                                                                                } else {
-                                                                                                    Bool hoisted__Bool_60 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Case));
-                                                                                                    if (hoisted__Bool_60) {
-                                                                                                        return &TYPE_NONE;
-                                                                                                    } else {
-                                                                                                        Bool hoisted__Bool_59 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_NoDefaultArg));
-                                                                                                        if (hoisted__Bool_59) {
-                                                                                                            return &TYPE_UNKNOWN;
-                                                                                                        } else {
-                                                                                                            Bool hoisted__Bool_58 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Loc));
-                                                                                                            if (hoisted__Bool_58) {
-                                                                                                                return &TYPE_STR;
-                                                                                                            } else {
-                                                                                                                Bool hoisted__Bool_57 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Throw));
-                                                                                                                if (hoisted__Bool_57) {
-                                                                                                                    U32 hoisted__U32_44 = (self->children.count);
-                                                                                                                    U32 hoisted__U32_45 = 0;
-                                                                                                                    Bool hoisted__Bool_46 = ((Bool)(hoisted__U32_44 == hoisted__U32_45));
-                                                                                                                    if (hoisted__Bool_46) {
-                                                                                                                        return &TYPE_NONE;
-                                                                                                                    }
-                                                                                                                    U32 hoisted__U32_47 = 0;
-                                                                                                                    Expr *_bang_ret_3 = (((Bool)((U32)(hoisted__U32_47) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_47))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                                                                                                    I64 hoisted__I64_48 = 1;
-                                                                                                                    Bool hoisted__Bool_49 = ((Bool)(_err_kind == hoisted__I64_48));
-                                                                                                                    if (hoisted__Bool_49) {
-                                                                                                                        I64 hoisted__I64_39 = 0;
-                                                                                                                        _err_kind = hoisted__I64_39;
-                                                                                                                        U32 hoisted__U32_40 = 1;
-                                                                                                                        Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_40);
-                                                                                                                        I64 _va_Array_3_ek = 0;
-                                                                                                                        U32 hoisted__U32_41 = 0;
-                                                                                                                        Array__Str_set(&_va_Array_3, hoisted__U32_41, &_til_str_lits.h4d3ab87300de, &_va_Array_3_ek);
-                                                                                                                        panic(&_va_Array_3, &hoisted__Str_Expr_til_type_43);
-                                                                                                                    }
-                                                                                                                    Type *hoisted__Type_50 = Expr_til_type(_bang_ret_3);
-                                                                                                                    return hoisted__Type_50;
-                                                                                                                } else {
-                                                                                                                    Bool hoisted__Bool_56 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Catch));
-                                                                                                                    if (hoisted__Bool_56) {
-                                                                                                                        return &TYPE_NONE;
-                                                                                                                    } else {
-                                                                                                                        Bool hoisted__Bool_53 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_RestPattern));
-                                                                                                                        Bool hoisted__Bool_54 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_ListPattern));
-                                                                                                                        Bool hoisted__Bool_55 = ((Bool)((hoisted__Bool_53) || (hoisted__Bool_54)));
-                                                                                                                        if (hoisted__Bool_55) {
-                                                                                                                            return &TYPE_UNKNOWN;
-                                                                                                                        } else {
-                                                                                                                            Bool hoisted__Bool_52 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_CaptureBlock));
-                                                                                                                            if (hoisted__Bool_52) {
-                                                                                                                                return &TYPE_NONE;
-                                                                                                                            } else {
-                                                                                                                                Bool hoisted__Bool_51 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_PrecomputedSequence));
-                                                                                                                                if (hoisted__Bool_51) {
-                                                                                                                                    PrecomputedSequenceData *sd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                                                                                                                    return &sd->til_type;
-                                                                                                                                } else {
-                                                                                                                                    PrecomputedSequenceData *sd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                                                                                                                    return &sd->til_type;
-                                                                                                                                }
-                                                                                                                            }
-                                                                                                                        }
-                                                                                                                    }
-                                                                                                                }
-                                                                                                            }
-                                                                                                        }
-                                                                                                    }
-                                                                                                }
-                                                                                            }
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    switch ((self->node_type).tag) {
+    case NodeType_TAG_Body: {
+        return &TYPE_NONE;
+    }
+    case NodeType_TAG_Literal: {
+        Literal *lit = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        switch ((DEREF(lit)).tag) {
+        case Literal_TAG_Str: {
+            return &TYPE_STR;
         }
+        case Literal_TAG_Num: {
+            LiteralNumData *nd = ((void *)((U8 *)(lit) + offsetof(Literal, data)));
+            Bool hoisted__Bool_1 = ((Bool)((((Type *)(&nd->til_type))->tag) == Type_TAG_Unknown));
+            if (hoisted__Bool_1) {
+                Bool hoisted__Bool_0 = LiteralNumData_is_float(nd);
+                if (hoisted__Bool_0) {
+                    return &TYPE_F64;
+                }
+                return &TYPE_I64;
+            }
+            return &nd->til_type;
+        }
+        case Literal_TAG_Bool: {
+            return &TYPE_BOOL;
+        }
+        case Literal_TAG_Null: {
+            return &TYPE_DYNAMIC;
+        }
+        case Literal_TAG_MapLit: {
+            return &TYPE_MAP;
+        }
+        default: {
+            return &TYPE_SET;
+        }
+        }
+        break;
+    }
+    case NodeType_TAG_Ident: {
+        IdentData *id = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &id->til_type;
+    }
+    case NodeType_TAG_Decl: {
+        Declaration *dd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &dd->til_type;
+    }
+    case NodeType_TAG_Assign: {
+        U32 hoisted__U32_7 = (self->children.count);
+        U32 hoisted__U32_8 = 0;
+        Bool hoisted__Bool_9 = ((Bool)(hoisted__U32_7 == hoisted__U32_8));
+        if (hoisted__Bool_9) {
+            return &TYPE_UNKNOWN;
+        }
+        U32 hoisted__U32_10 = 0;
+        Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_10) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_10))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_11 = 1;
+        Bool hoisted__Bool_12 = ((Bool)(_err_kind == hoisted__I64_11));
+        if (hoisted__Bool_12) {
+            I64 hoisted__I64_2 = 0;
+            _err_kind = hoisted__I64_2;
+            U32 hoisted__U32_3 = 1;
+            Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_3);
+            I64 _va_Array_0_ek = 0;
+            U32 hoisted__U32_4 = 0;
+            Array__Str_set(&_va_Array_0, hoisted__U32_4, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+            panic(&_va_Array_0, &hoisted__Str_Expr_til_type_6);
+        }
+        Type *hoisted__Type_13 = Expr_til_type(_bang_ret_0);
+        return hoisted__Type_13;
+    }
+    case NodeType_TAG_NamedArg: {
+        U32 hoisted__U32_19 = (self->children.count);
+        U32 hoisted__U32_20 = 0;
+        Bool hoisted__Bool_21 = ((Bool)(hoisted__U32_19 == hoisted__U32_20));
+        if (hoisted__Bool_21) {
+            return &TYPE_UNKNOWN;
+        }
+        U32 hoisted__U32_22 = 0;
+        Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_22) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_22))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_23 = 1;
+        Bool hoisted__Bool_24 = ((Bool)(_err_kind == hoisted__I64_23));
+        if (hoisted__Bool_24) {
+            I64 hoisted__I64_14 = 0;
+            _err_kind = hoisted__I64_14;
+            U32 hoisted__U32_15 = 1;
+            Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_15);
+            I64 _va_Array_1_ek = 0;
+            U32 hoisted__U32_16 = 0;
+            Array__Str_set(&_va_Array_1, hoisted__U32_16, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
+            panic(&_va_Array_1, &hoisted__Str_Expr_til_type_18);
+        }
+        Type *hoisted__Type_25 = Expr_til_type(_bang_ret_1);
+        return hoisted__Type_25;
+    }
+    case NodeType_TAG_FCall: {
+        FCallData *fcd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &fcd->til_type;
+    }
+    case NodeType_TAG_FuncDef: {
+        return &TYPE_FUNCPTR;
+    }
+    case NodeType_TAG_BodyValue: {
+        return &TYPE_BODY;
+    }
+    case NodeType_TAG_StructDef: {
+        return &TYPE_STRUCTDEF;
+    }
+    case NodeType_TAG_EnumDef: {
+        return &TYPE_ENUMDEF;
+    }
+    case NodeType_TAG_FieldAccess: {
+        FieldAccessData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &fd->til_type;
+    }
+    case NodeType_TAG_FieldAssign: {
+        return &TYPE_NONE;
+    }
+    case NodeType_TAG_Return: {
+        U32 hoisted__U32_31 = (self->children.count);
+        U32 hoisted__U32_32 = 0;
+        Bool hoisted__Bool_33 = ((Bool)(hoisted__U32_31 == hoisted__U32_32));
+        if (hoisted__Bool_33) {
+            return &TYPE_NONE;
+        }
+        U32 hoisted__U32_34 = 0;
+        Expr *_bang_ret_2 = (((Bool)((U32)(hoisted__U32_34) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_34))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_35 = 1;
+        Bool hoisted__Bool_36 = ((Bool)(_err_kind == hoisted__I64_35));
+        if (hoisted__Bool_36) {
+            I64 hoisted__I64_26 = 0;
+            _err_kind = hoisted__I64_26;
+            U32 hoisted__U32_27 = 1;
+            Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_27);
+            I64 _va_Array_2_ek = 0;
+            U32 hoisted__U32_28 = 0;
+            Array__Str_set(&_va_Array_2, hoisted__U32_28, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
+            panic(&_va_Array_2, &hoisted__Str_Expr_til_type_30);
+        }
+        Type *hoisted__Type_37 = Expr_til_type(_bang_ret_2);
+        return hoisted__Type_37;
+    }
+    case NodeType_TAG_If:
+    case NodeType_TAG_While: {
+        return &TYPE_NONE;
+    }
+    case NodeType_TAG_ForIn: {
+        ForInData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &fd->til_type;
+    }
+    case NodeType_TAG_Break:
+    case NodeType_TAG_Continue:
+    case NodeType_TAG_Switch: {
+        return &TYPE_NONE;
+    }
+    case NodeType_TAG_Match: {
+        MatchData *md = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &md->til_type;
+    }
+    case NodeType_TAG_Case: {
+        return &TYPE_NONE;
+    }
+    case NodeType_TAG_NoDefaultArg: {
+        return &TYPE_UNKNOWN;
+    }
+    case NodeType_TAG_Loc: {
+        return &TYPE_STR;
+    }
+    case NodeType_TAG_Throw: {
+        U32 hoisted__U32_43 = (self->children.count);
+        U32 hoisted__U32_44 = 0;
+        Bool hoisted__Bool_45 = ((Bool)(hoisted__U32_43 == hoisted__U32_44));
+        if (hoisted__Bool_45) {
+            return &TYPE_NONE;
+        }
+        U32 hoisted__U32_46 = 0;
+        Expr *_bang_ret_3 = (((Bool)((U32)(hoisted__U32_46) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_46))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_47 = 1;
+        Bool hoisted__Bool_48 = ((Bool)(_err_kind == hoisted__I64_47));
+        if (hoisted__Bool_48) {
+            I64 hoisted__I64_38 = 0;
+            _err_kind = hoisted__I64_38;
+            U32 hoisted__U32_39 = 1;
+            Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_39);
+            I64 _va_Array_3_ek = 0;
+            U32 hoisted__U32_40 = 0;
+            Array__Str_set(&_va_Array_3, hoisted__U32_40, &_til_str_lits.h4d3ab87300de, &_va_Array_3_ek);
+            panic(&_va_Array_3, &hoisted__Str_Expr_til_type_42);
+        }
+        Type *hoisted__Type_49 = Expr_til_type(_bang_ret_3);
+        return hoisted__Type_49;
+    }
+    case NodeType_TAG_Catch: {
+        return &TYPE_NONE;
+    }
+    case NodeType_TAG_RestPattern:
+    case NodeType_TAG_ListPattern: {
+        return &TYPE_UNKNOWN;
+    }
+    case NodeType_TAG_CaptureBlock: {
+        return &TYPE_NONE;
+    }
+    default: {
+        PrecomputedSequenceData *sd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        return &sd->til_type;
+    }
     }
     __builtin_unreachable();
 }
 
 static void Expr_set_til_type(Expr * self, Type t) {
     I64 _err_kind = 0;
-    {
-        I64 *hoisted__Literal_20 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-        Bool hoisted__Bool_21 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Literal));
-        Bool hoisted__Bool_22 = ((Bool)((((Literal *)(hoisted__Literal_20))->tag) == Literal_TAG_Num));
-        Bool hoisted__Bool_23 = ((Bool)((hoisted__Bool_21) && (hoisted__Bool_22)));
-        if (hoisted__Bool_23) {
-            I64 *hoisted__Literal_0 = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-            LiteralNumData *nd = ((void *)((U8 *)(hoisted__Literal_0) + offsetof(Literal, data)));
+    switch ((self->node_type).tag) {
+    case NodeType_TAG_Literal: {
+        Literal *lit = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        switch ((DEREF(lit)).tag) {
+        case Literal_TAG_Num: {
+            LiteralNumData *nd = ((void *)((U8 *)(lit) + offsetof(Literal, data)));
             { Type _old = nd->til_type;
             nd->til_type = Type_clone(&t);
             Type_delete(&_old, (Bool){0}); }
-        } else {
-            Bool hoisted__Bool_19 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Ident));
-            if (hoisted__Bool_19) {
-                IdentData *id = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                { Type _old = id->til_type;
-                id->til_type = Type_clone(&t);
-                Type_delete(&_old, (Bool){0}); }
-            } else {
-                Bool hoisted__Bool_18 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Decl));
-                if (hoisted__Bool_18) {
-                    Declaration *dd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                    { Type _old = dd->til_type;
-                    dd->til_type = Type_clone(&t);
-                    Type_delete(&_old, (Bool){0}); }
-                } else {
-                    Bool hoisted__Bool_17 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_FCall));
-                    if (hoisted__Bool_17) {
-                        FCallData *fcd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                        { Type _old = fcd->til_type;
-                        fcd->til_type = Type_clone(&t);
-                        Type_delete(&_old, (Bool){0}); }
-                    } else {
-                        Bool hoisted__Bool_16 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_FieldAccess));
-                        if (hoisted__Bool_16) {
-                            FieldAccessData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                            { Type _old = fd->til_type;
-                            fd->til_type = Type_clone(&t);
-                            Type_delete(&_old, (Bool){0}); }
-                        } else {
-                            Bool hoisted__Bool_15 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_ForIn));
-                            if (hoisted__Bool_15) {
-                                ForInData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                { Type _old = fd->til_type;
-                                fd->til_type = Type_clone(&t);
-                                Type_delete(&_old, (Bool){0}); }
-                            } else {
-                                Bool hoisted__Bool_14 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Match));
-                                if (hoisted__Bool_14) {
-                                    MatchData *md = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                    { Type _old = md->til_type;
-                                    md->til_type = Type_clone(&t);
-                                    Type_delete(&_old, (Bool){0}); }
-                                } else {
-                                    Bool hoisted__Bool_13 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_PrecomputedSequence));
-                                    if (hoisted__Bool_13) {
-                                        PrecomputedSequenceData *sd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
-                                        { Type _old = sd->til_type;
-                                        sd->til_type = Type_clone(&t);
-                                        Type_delete(&_old, (Bool){0}); }
-                                    } else {
-                                        Bool hoisted__Bool_12 = ((Bool)((((NodeType *)(&self->node_type))->tag) == NodeType_TAG_Throw));
-                                        if (hoisted__Bool_12) {
-                                            U32 hoisted__U32_9 = (self->children.count);
-                                            U32 hoisted__U32_10 = 0;
-                                            Bool hoisted__Bool_11 = ((Bool)(hoisted__U32_9 > hoisted__U32_10));
-                                            if (hoisted__Bool_11) {
-                                                U32 hoisted__U32_6 = 0;
-                                                Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_6) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_6))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                                I64 hoisted__I64_7 = 1;
-                                                Bool hoisted__Bool_8 = ((Bool)(_err_kind == hoisted__I64_7));
-                                                if (hoisted__Bool_8) {
-                                                    I64 hoisted__I64_1 = 0;
-                                                    _err_kind = hoisted__I64_1;
-                                                    U32 hoisted__U32_2 = 1;
-                                                    Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
-                                                    I64 _va_Array_0_ek = 0;
-                                                    U32 hoisted__U32_3 = 0;
-                                                    Array__Str_set(&_va_Array_0, hoisted__U32_3, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
-                                                    panic(&_va_Array_0, &hoisted__Str_Expr_set_til_type_5);
-                                                }
-                                                Expr_set_til_type(_bang_ret_0, t);
-                                            }
-                                        } else {
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            break;
         }
+        default: {
+            break;
+        }
+        }
+        break;
+    }
+    case NodeType_TAG_Ident: {
+        IdentData *id = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = id->til_type;
+        id->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_Decl: {
+        Declaration *dd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = dd->til_type;
+        dd->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_FCall: {
+        FCallData *fcd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = fcd->til_type;
+        fcd->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_FieldAccess: {
+        FieldAccessData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = fd->til_type;
+        fd->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_ForIn: {
+        ForInData *fd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = fd->til_type;
+        fd->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_Match: {
+        MatchData *md = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = md->til_type;
+        md->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_PrecomputedSequence: {
+        PrecomputedSequenceData *sd = ((void *)((U8 *)(&self->node_type) + offsetof(NodeType, data)));
+        { Type _old = sd->til_type;
+        sd->til_type = Type_clone(&t);
+        Type_delete(&_old, (Bool){0}); }
+        break;
+    }
+    case NodeType_TAG_Throw: {
+        U32 hoisted__U32_8 = (self->children.count);
+        U32 hoisted__U32_9 = 0;
+        Bool hoisted__Bool_10 = ((Bool)(hoisted__U32_8 > hoisted__U32_9));
+        if (hoisted__Bool_10) {
+            U32 hoisted__U32_5 = 0;
+            Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_5) < self->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(self->children.data) + (((U64)(((U64)((U32)(hoisted__U32_5))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+            I64 hoisted__I64_6 = 1;
+            Bool hoisted__Bool_7 = ((Bool)(_err_kind == hoisted__I64_6));
+            if (hoisted__Bool_7) {
+                I64 hoisted__I64_0 = 0;
+                _err_kind = hoisted__I64_0;
+                U32 hoisted__U32_1 = 1;
+                Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_1);
+                I64 _va_Array_0_ek = 0;
+                U32 hoisted__U32_2 = 0;
+                Array__Str_set(&_va_Array_0, hoisted__U32_2, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+                panic(&_va_Array_0, &hoisted__Str_Expr_set_til_type_4);
+            }
+            Expr_set_til_type(_bang_ret_0, t);
+        }
+        break;
+    }
+    default: {
+        break;
+    }
     }
 }
 

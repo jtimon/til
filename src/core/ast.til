@@ -1257,31 +1257,39 @@ namespace:
     // TYPE_* constants for kinds whose type never varies); later phases
     // only read. Callers that store the result clone at their site.
     til_type := func(self: Expr) returns ref Type {
+        // The Literal kinds are a nested switch, not `.Literal(Literal.X)`
+        // arms: a sub-pattern makes the builder lower the WHOLE switch to a
+        // sequential if/else chain, and with FCall about fourteen tests deep
+        // this accessor cost ~143 instructions a call (1.24M calls per
+        // first_class translate). Plain tag arms lower to a C switch.
         switch self.node_type {
         case .Body:        return TYPE_NONE
-        case .Literal(Literal.Str):  return TYPE_STR
-        case .Literal(Literal.Num(nd)):
-            // An un-narrowed numeric literal reports its DEFAULT type. That
-            // default follows the text: a fractional or exponent literal is a
-            // float, everything else an integer. Answering I64 for `1.5` made
-            // every consumer treat it as an integer -- the constfolder then
-            // converted the literal's own text and died with
-            // "Str.to_i64: invalid char in '1.5'", pointing into src/core with
-            // no user file or line. The unconstrained float default is F64.
-            if nd.til_type.is(Type.Unknown) {
-                if nd.is_float() { return TYPE_F64 }
-                return TYPE_I64
+        case .Literal(lit):
+            switch lit {
+            case .Str:  return TYPE_STR
+            case .Num(nd):
+                // An un-narrowed numeric literal reports its DEFAULT type. That
+                // default follows the text: a fractional or exponent literal is a
+                // float, everything else an integer. Answering I64 for `1.5` made
+                // every consumer treat it as an integer -- the constfolder then
+                // converted the literal's own text and died with
+                // "Str.to_i64: invalid char in '1.5'", pointing into src/core with
+                // no user file or line. The unconstrained float default is F64.
+                if nd.til_type.is(Type.Unknown) {
+                    if nd.is_float() { return TYPE_F64 }
+                    return TYPE_I64
+                }
+                return nd.til_type
+            case .Bool: return TYPE_BOOL
+            case .Null: return TYPE_DYNAMIC
+            case .MapLit: return TYPE_MAP
+            case .SetLit: return TYPE_SET
             }
-            return nd.til_type
-        case .Literal(Literal.Bool): return TYPE_BOOL
-        case .Literal(Literal.Null): return TYPE_DYNAMIC
         case .Ident(id):   return id.til_type
         case .Decl(dd):    return dd.til_type
         case .Assign:
             if self.children.len() == 0 { return TYPE_UNKNOWN }
             return self.children[0].til_type()
-        case .Literal(Literal.MapLit):      return TYPE_MAP
-        case .Literal(Literal.SetLit):      return TYPE_SET
         case .NamedArg:
             if self.children.len() == 0 { return TYPE_UNKNOWN }
             return self.children[0].til_type()
@@ -1315,9 +1323,13 @@ namespace:
         return TYPE_UNKNOWN
     }
     set_til_type := func(mut self: Expr, shallow t: Type) {
+        // Nested Literal switch for the same reason as til_type above.
         switch self.node_type {
-        case .Literal(Literal.Num(nd)):
-            nd.til_type = t
+        case .Literal(lit):
+            switch lit {
+            case .Num(nd): nd.til_type = t
+            case:
+            }
         case .Ident(id):
             id.til_type = t
         case .Decl(dd):
