@@ -44,11 +44,8 @@ priv register_struct_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scop
     case .Found(existing):
         if scope.struct_def_of_name(existing.name, ctx.symbols).is_some() {
             if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
-                println(
-                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                    ": error: struct '", sname, "' already declared at ",
-                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-                )
+                context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, ctx.path, stmt.line, stmt.col,
+                    format("struct '", sname, "' already declared at ", existing.path, ":", existing.line.to_str(), ":", existing.col.to_str()))
                 return 1
             }
         }
@@ -672,11 +669,8 @@ priv register_enum_definition := proc(mut ctx: Context, stmt: Expr, mut scope: T
     case .Found(existing):
         if scope.struct_def_of_name(existing.name, ctx.symbols).is_some() {
             if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
-                println(
-                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                    ": error: enum '", ename, "' already declared at ",
-                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-                )
+                context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, ctx.path, stmt.line, stmt.col,
+                    format("enum '", ename, "' already declared at ", existing.path, ":", existing.line.to_str(), ":", existing.col.to_str()))
                 return 1
             }
         }

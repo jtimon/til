@@ -37,6 +37,7 @@ main := proc(root: Str) returns I64 {
     expect_failure(vm, "mode cli\n", "load", "mode lib", 1)
     expect_failure(vm, "mode lib\nexit(0)\n", "eval", "status 0", 2)
     expect_failure(vm, "mode lib\nexit(1)\n", "eval", "status 1", 2)
+    expect_failure(vm, "mode lib\ncode := proc() returns I64 { noop_proc(); exit(13); return 0 }\nexit(code())\n", "eval", "status 13", 2)
     expect_failure(vm, "mode lib\npanic(\"vm panic detail\")\n", "eval", "vm panic detail", 2)
     expect_failure(vm, "mode lib\nvalues := vec(I64, 1)\nprintln(values[5].to_str())\n", "eval", "OutOfBounds", 3)
     expect_failure(vm, "mode lib\nfail := proc(own a: Str, own b: Str) { noop_proc(); panic(a, b) }\nfail(own format(\"first\", \" argument\"), own format(\"second\", \" argument\"))\n", "eval", "first argument", 2)

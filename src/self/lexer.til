@@ -2,16 +2,30 @@ mode lib
 
 // Owned diagnostics cross the compiler/embedding boundary without borrowing
 // tokens, source text or ASTs from a program that may have failed to load.
+DiagnosticPhase := enum { Unknown, Load, Lex, Parse, Type, Ownership, Runtime }
+DiagnosticSeverity := enum { Error, Note, Help }
 SourceDiagnostic := struct {
+    phase := DiagnosticPhase.Unknown
+    severity := DiagnosticSeverity.Error
     path := ""
     line : U32 = 0
     col : U32 = 0
     message := ""
+    located := true
+namespace:
+    render := func(d: SourceDiagnostic) returns Str {
+        label := match d.severity { case .Error: "error" case .Note: "note" case .Help: "help" }
+        if d.located { return format(d.path, ":", d.line.to_str(), ":", d.col.to_str(), ": ", label, ": ", d.message) }
+        if d.severity.is(DiagnosticSeverity.Error) { return format(label, ": ", d.message) }
+        return format("  ", label, ": ", d.message)
+    }
+    print := proc(d: SourceDiagnostic) { println(d.render()) }
 }
 
 priv lex_error := proc(path: Str, line: U32, col: U32, message: Str, quiet: Bool, mut diagnostics: Vec(SourceDiagnostic)) {
-    diagnostics.push(own SourceDiagnostic(path = path.clone(), line = line, col = col, message = message.clone()))
-    if quiet.not() { println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", message) }
+    diagnostic := SourceDiagnostic(phase = DiagnosticPhase.Lex, path = path.clone(), line = line, col = col, message = message.clone())
+    if quiet.not() { diagnostic.print() }
+    diagnostics.push(own diagnostic)
 }
 
 // --- TokenType enum ---

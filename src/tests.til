@@ -1146,6 +1146,11 @@ main := proc(args: ..Str) {
     add_single(tests, "repl_ownership", "cli", 0, "",
         format(TIL, " interpret test/repl_ownership.til ", til_bin))
 
+    // #370: the host and guest run in ONE process. The golden also rejects
+    // frontend diagnostics or captured guest output leaking to host stdio.
+    add_single(tests, "interp_session", "build", 0, "test/interp_session.expected",
+        format(til_bin, " run", asan_flag, " -o bin/c/interp_session -c gen/c/interp_session.c test/interp_session.til"))
+
     // #332: the REPL line editor's real-terminal half. Drives bin/til
     // through a pseudo-terminal with actual escape/control bytes and an
     // isolated XDG_STATE_HOME, and self-checks like repl_help does. The

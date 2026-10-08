@@ -275,17 +275,13 @@ priv CtorArg := enum {
 // type_error_at and every caller.
 // Non-priv so the garbager module can report use-after-ownership-transfer
 // against the same diagnostic counter.
-type_error := proc(e: Expr, msg: Str, mut ctx: Context) {
-    type_error_at(ctx.path, e.line, e.col, msg, ctx)
+type_error := proc(e: Expr, msg: Str, mut ctx: Context, phase: DiagnosticPhase = DiagnosticPhase.Type) {
+    context_diagnostic(ctx, phase, DiagnosticSeverity.Error, ctx.path, e.line, e.col, msg)
+    ctx.errors++
 }
 
 type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, mut ctx: Context) {
-    if ctx.collect_diagnostics {
-        ctx.diagnostics.push(own SourceDiagnostic(path = path.clone(), line = line,
-            col = col, message = msg.clone()))
-    } else {
-        println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
-    }
+    context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, path, line, col, msg)
     ctx.errors++
 }
 
@@ -9116,9 +9112,9 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         switch sf {
         case .Found(b):
             if b.is_param {
-                println(ctx.path, ":", b.line.to_str(), ":", b.col.to_str(), ": note: '", aname, "' is a function parameter")
+                context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Note, ctx.path, b.line, b.col, format("'", aname, "' is a function parameter"))
             } else {
-                println(ctx.path, ":", b.line.to_str(), ":", b.col.to_str(), ": note: '", aname, "' declared here, consider adding 'mut'")
+                context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Note, ctx.path, b.line, b.col, format("'", aname, "' declared here, consider adding 'mut'"))
             }
         case:
         }
@@ -11744,8 +11740,8 @@ priv check_write_roots_mut := proc(mut scope: TypeScope, site: Expr, obj: Expr, 
         if root_is_writable(scope, rb, r, ctx.symbols) { continue }
         site.type_error(format("cannot ", what, ": '", r.name,
             "' is an immutable binding; declare it 'mut'"), ctx)
-        println(r.path, ":", r.line.to_str(), ":", r.col.to_str(),
-            ": note: '", r.name, "' declared here")
+        context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Note, r.path, r.line, r.col,
+            format("'", r.name, "' declared here"))
         reported.push(own r.clone())
     }
 }

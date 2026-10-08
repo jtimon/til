@@ -11602,6 +11602,11 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         ref bvs_seq_name : Str = type_name_ref(bvs_seq.til_type, ctx.symbols)
         if bvs_seq_name.len() == 0 { panic("precomputed sequence has unnamed type") }
         sites.add(own bvs_seq_name.concat3(".", "clone"))
+        // Children describe the static template, not runtime expressions.
+        // emit_c_static_initializer steps through their enum clones; walking
+        // them here invents callers and leaves unused clone definitions.
+        // The real element clones are reached through the sequence clone.
+        return
     case:
     }
 

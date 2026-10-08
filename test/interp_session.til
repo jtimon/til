@@ -1,0 +1,158 @@
+mode cli
+
+import("std/file")
+import("../src/self/lexer")
+import("../src/self/parser")
+import("../src/self/loader")
+import("../src/self/interpreter")
+
+get_bin_dir := ext_proc() returns Str {}
+get_cwd_str := ext_proc() returns Str {}
+
+// These diagnostics must own their path/message after parser/source teardown.
+lex_failure := proc() returns Vec(SourceDiagnostic) {
+    source := format("\"", "unterminated")
+    mut diagnostics := Vec(SourceDiagnostic).new()
+    tokens := tokenize(source, "config.til", true, diagnostics)
+    assert(tokens.len() > 0)
+    return diagnostics
+}
+
+parse_failure := proc() returns Vec(SourceDiagnostic) {
+    source := format("mode lib\n", "value := (1 + )\n")
+    mut diagnostics := Vec(SourceDiagnostic).new()
+    tokens := tokenize(source, "config.til", true, diagnostics)
+    mut mode := ""
+    mut counter : I64 = 0
+    symbols := SymbolPool()
+    mut errors : I32 = 0
+    ast := parse(tokens, source, "config.til", mode, counter, symbols, errors, true, diagnostics)
+    assert(ast.line == 1)
+    assert(errors > 0)
+    return diagnostics
+}
+
+// Static templates contain data, not callers of the enum clone methods.
+folded_diagnostics := func() returns Vec(SourceDiagnostic) {
+    mut out := Vec(SourceDiagnostic).new()
+    out.push(own SourceDiagnostic(phase = DiagnosticPhase.Lex, message = "folded"))
+    return out
+}
+
+collected_text := func(result: InterpRunResult, stream: InterpOutputStream) returns Str {
+    mut out := ""
+    for event in result.output {
+        if event.stream == stream { out = format(out, event.text) }
+    }
+    return out
+}
+
+run_guest := proc(root: Str, cwd: Str, name: Str, source: Str) returns InterpRunResult {
+    path := format("tmp/interp_session_", name, ".til")
+    File.writefile(path, source)
+    mut lp := load_program(path, root, cwd, format(root, "/src/c/ext.c"), Vec(Str).new(), "", true)
+    assert(lp.load_errors == 0)
+    assert(init_and_type_program_errors(lp, false) == 0)
+    mut raw : Dynamic = interp_program_to_heap(own lp)
+    ref mut program : LoadedProgram = to_ptr(raw)
+    mut session := InterpSession(capture_output = true)
+    interp_session_start(session, Vec(Str).new())
+    interp_session_retain_program(session, raw)
+    assert(interp_session_prepare_context(session, program, "") == 0)
+    interp_session_eval_core_once(session, program)
+    assert(program.ctx.eval.eval_aborted.not())
+    interp_session_eval_user_units(session, program)
+    result := interp_session_result(program.ctx)
+    // Result extraction must leave the abort state for TilVm.load_file.
+    assert(program.ctx.eval.eval_aborted == result.aborted)
+    assert(program.ctx.eval.exit_status == result.exit_code)
+    assert(program.ctx.eval.output.len() == 0)
+    interp_session_free(session)
+    return result
+}
+
+main := proc() {
+    folded := folded_diagnostics()
+    assert(folded[0].phase.is(DiagnosticPhase.Lex) && folded[0].message == "folded")
+    lex := lex_failure()
+    assert(lex.len() == 1)
+    assert(lex[0].phase.is(DiagnosticPhase.Lex))
+    assert(lex[0].severity.is(DiagnosticSeverity.Error))
+    assert(lex[0].line == 1 && lex[0].col == 1)
+    assert(lex[0].render() == "config.til:1:1: error: unterminated string")
+    parsed := parse_failure()
+    assert(parsed.len() == 1)
+    assert(parsed[0].phase.is(DiagnosticPhase.Parse))
+    assert(parsed[0].path == "config.til" && parsed[0].line == 2)
+    assert(parsed[0].message.len() > 0)
+
+    root := get_bin_dir()
+    cwd := get_cwd_str()
+    // File input cannot be folded: exercise the collector itself as well
+    // as the precomputed diagnostic-vector return above.
+    File.writefile("tmp/interp_session_lex.til", "\"unterminated")
+    runtime_source := File.readfile("tmp/interp_session_lex.til")
+    mut runtime_diagnostics := Vec(SourceDiagnostic).new()
+    runtime_tokens := tokenize(runtime_source, "runtime.til", true, runtime_diagnostics)
+    assert(runtime_tokens.len() > 0 && runtime_diagnostics.len() == 1)
+    assert(runtime_diagnostics[0].render() == "runtime.til:1:1: error: unterminated string")
+    File.writefile("tmp/interp_session_type_error.til", "mode lib\nvalue: I64 = \"wrong\"\n")
+    mut bad := load_program("tmp/interp_session_type_error.til", root, cwd, format(root, "/src/c/ext.c"), Vec(Str).new())
+    bad.ctx.collect_diagnostics = true
+    assert(type_program_errors(bad, false) > 0)
+    assert(bad.ctx.diagnostics.len() > 0)
+    assert(bad.ctx.diagnostics[0].phase.is(DiagnosticPhase.Type))
+    assert(bad.ctx.diagnostics[0].path.ends_with("interp_session_type_error.til"))
+    assert(bad.ctx.diagnostics[0].line == 2)
+
+    normal := run_guest(root, cwd, "normal", "mode lib\nprint_single(\"a\")\neprint_single(\"b\")\nprint_single(\"c\")\n")
+    assert(normal.aborted.not() && normal.exit_code.is_none())
+    assert(normal.output.len() == 3)
+    assert(normal.output[0].stream.is(InterpOutputStream.Stdout))
+    assert(normal.output[1].stream.is(InterpOutputStream.Stderr))
+    assert(normal.output[2].text == "c")
+    assert(collected_text(normal, InterpOutputStream.Stdout) == "ac")
+    assert(collected_text(normal, InterpOutputStream.Stderr) == "b")
+
+    zero := run_guest(root, cwd, "zero", format(
+        "mode lib\n",
+        "stop := proc(leave: Bool) returns Str {\n",
+        "    mut values := Vec(Str).new()\n",
+        "    values.push(own format(\"owned\", \" payload\"))\n",
+        "    print_single(\"before\")\n",
+        "    if leave { exit(0) }\n",
+        "    return values[0].clone()\n}\n",
+        "print_single(stop(true))\nprint_single(\"unreachable\")\n"))
+    assert(zero.aborted && zero.exit_code.unwrap() == 0)
+    assert(collected_text(zero, InterpOutputStream.Stdout) == "before")
+
+    nonzero := run_guest(root, cwd, "nonzero", "mode lib\nexit(7)\nprint_single(\"unreachable\")\n")
+    assert(nonzero.aborted && nonzero.exit_code.unwrap() == 7)
+    assert(nonzero.output.len() == 0)
+
+    nested := run_guest(root, cwd, "nested_exit", format("mode lib\n",
+        "code := proc() returns I64 { print_single(\"inner\"); exit(13); return 0 }\n",
+        "exit(code())\n"))
+    assert(nested.aborted && nested.exit_code.unwrap() == 13)
+    assert(collected_text(nested, InterpOutputStream.Stdout) == "inner")
+
+    panicked := run_guest(root, cwd, "panic", "mode lib\npanic(\"guest failure\")\nprint_single(\"unreachable\")\n")
+    assert(panicked.aborted && panicked.exit_code.unwrap() == 1)
+    panic_text := collected_text(panicked, InterpOutputStream.Stdout)
+    assert(panic_text.contains("guest failure"))
+    assert(panic_text.contains("unreachable").not())
+
+    // An import's exit must stop the remaining units, not just its own body.
+    File.writefile("tmp/interp_session_import.til", "mode lib\nexit(9)\n")
+    imported := run_guest(root, cwd, "import_exit",
+        "mode lib\nimport(\"interp_session_import\")\nprint_single(\"unreachable\")\n")
+    assert(imported.aborted && imported.exit_code.unwrap() == 9)
+    assert(imported.output.len() == 0)
+
+    alive := run_guest(root, cwd, "alive", "mode lib\nprint_single(\"still alive\")\n")
+    assert(alive.aborted.not())
+    assert(collected_text(alive, InterpOutputStream.Stdout) == "still alive")
+    // The golden output also proves the collected frontend/guest messages
+    // never leaked onto the host's stdout/stderr.
+    println("interp session OK")
+}

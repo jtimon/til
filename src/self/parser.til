@@ -2882,7 +2882,7 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
     anon_type_counter = p.anon_type_counter
     parse_errors = p.error_count
     if p.error_count > 0 {
-        diagnostics.push(own SourceDiagnostic(path = path.clone(), line = p.error_line,
+        diagnostics.push(own SourceDiagnostic(phase = DiagnosticPhase.Parse, path = path.clone(), line = p.error_line,
             col = p.error_col, message = p.error_detail.clone()))
     }
     if p.error_count.gt(0).and(quiet.not()) { println(p.error_msg) }

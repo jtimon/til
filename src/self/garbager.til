@@ -2313,10 +2313,11 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
                 }
             } else {
                 ref stmt : Expr = body.children[local.last_use.to_usize()]
-                stmt.type_error(format("use of '", local.name, "' after ownership transfer"), ctx)
+                stmt.type_error(format("use of '", local.name, "' after ownership transfer"), ctx, DiagnosticPhase.Ownership)
                 ref xfer : Expr = body.children[local.own_transfer.to_usize()]
-                println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
-                println("  help: pass a clone instead: own ", local.name, ".clone()")
+                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Note, ctx.path, xfer.line, xfer.col, "ownership transferred here")
+                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Help, ctx.path, stmt.line, stmt.col,
+                    format("pass a clone instead: own ", local.name, ".clone()"), false)
             }
         }
         // #302: a transfer inside a loop, of a binding declared outside the
@@ -2343,8 +2344,9 @@ priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalI
             ref xstmt : Expr = body.children[local.own_transfer.to_usize()]
             if transfer_inside_loop(xstmt, local.name, scope, ctx) {
                 xstmt.type_error(format("ownership of '", local.name,
-                    "' transferred inside a loop; a second iteration would use a moved value"), ctx)
-                println("  help: declare '", local.name, "' inside the loop, or pass a clone: own ", local.name, ".clone()")
+                    "' transferred inside a loop; a second iteration would use a moved value"), ctx, DiagnosticPhase.Ownership)
+                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Help, ctx.path, xstmt.line, xstmt.col,
+                    format("declare '", local.name, "' inside the loop, or pass a clone: own ", local.name, ".clone()"), false)
             }
         }
     }

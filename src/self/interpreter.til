@@ -378,6 +378,8 @@ InterpSession := struct {
     // interp_session_prepare_context so h_exit can unwind a failing turn
     // instead of terminating the session.
     is_repl := false
+    // Optional internal output capture; embedding policy lives on Context.
+    capture_output := false
     // Display paths of imported (non-entry) units whose top-level globals
     // have already been evaluated into `global`. The REPL evaluates the
     // entry root incrementally but must run an imported unit's global
@@ -385,6 +387,12 @@ InterpSession := struct {
     // core_evaluated plays for core_units. Keyed by path so a mid-session
     // import (added via the full-load path) is picked up on its first turn.
     evaluated_units := Set(Str).new()
+}
+
+InterpRunResult := struct {
+    aborted := false
+    exit_code := Option(I64).None
+    output := Vec(InterpOutputEvent).new()
 }
 
 // Return-value / control-flow state, namespace fields, and the canonical Str
@@ -5284,7 +5292,7 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, ow
 scope_free := func(own s: Scope) {
     // Runtime slots represent compiled stack storage. Normally the AST's
     // delete/free calls own payload destruction; this teardown frees the slots.
-    // Recovered constfold/REPL aborts skip the remaining AST cleanup, so their
+    // Recovered constfold/REPL/host aborts skip the remaining AST cleanup, so their
     // exiting scopes also drop payloads they still own. Borrowed/moved/raw and
     // already-released values keep their existing ownership rules below.
     for _, hb in s.heap_bindings {
@@ -6235,10 +6243,19 @@ priv interp_reset_control_flow := func(mut ctx: Context) {
     ctx.eval.eval_aborted = false
 }
 
+// Capture is consumed independently of control state: TilVm.load_file must
+// still see eval_aborted/exit_status in order to discard a failed candidate.
+interp_session_result := func(mut ctx: Context) returns InterpRunResult {
+    mut result := InterpRunResult(aborted = ctx.eval.eval_aborted, exit_code = ctx.eval.exit_status.clone())
+    swap(Vec(InterpOutputEvent), result.output, ctx.eval.output)
+    return result
+}
+
 interp_session_prepare_context := proc(mut session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
     // Every REPL turn interprets a freshly loaded/cloned program, so the flag
     // has to be restamped on each turn's Context.
     lp.ctx.eval.repl_session = session.is_repl
+    lp.ctx.eval.capture_output = session.capture_output
     // Ensure builtin dispatch table is initialized deterministically.
     if lp.ctx.ffi.dispatch_inited.not() { dispatch_init(lp.ctx) }
 
@@ -7306,17 +7323,32 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
 
 priv h_print_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
-    if ctx.eval.embedded.and(ctx.eval.constfold_active.not()) { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
     // A const-fold eval is speculative and must emit no program output: if a
     // fold candidate reaches a print (e.g. through panic's message on a
     // failure branch the comptime inputs hit), swallow it. The fold itself is
     // abandoned via the abort in h_exit and the call is left for runtime.
-    if ctx.eval.constfold_active.not() { print_single(arg) }
+    if ctx.eval.constfold_active.or(ctx.eval.eval_aborted).not() {
+        if ctx.eval.embedded { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
+        if ctx.eval.capture_output {
+            ctx.eval.output.push(own InterpOutputEvent(text = arg))
+        } else { print_single(arg) }
+    }
+    return true
+}
+
+priv h_eprint_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
+    arg := eval_str_owned(s, e.children[1], ctx)
+    if ctx.eval.constfold_active.or(ctx.eval.eval_aborted).not() {
+        if ctx.eval.embedded { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
+        if ctx.eval.capture_output {
+            ctx.eval.output.push(own InterpOutputEvent(stream = InterpOutputStream.Stderr, text = arg))
+        } else { eprint_single(arg) }
+    }
     return true
 }
 
 priv h_print_flush := proc(_s: Scope, _e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    if ctx.eval.constfold_active.not() { print_flush() }
+    if ctx.eval.constfold_active.or(ctx.eval.capture_output).not() { print_flush() }
     return true
 }
 
@@ -7332,6 +7364,8 @@ priv h_exit := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) re
         return true
     }
     code := eval_i64_arg(s, e.children[1], ctx)
+    // An argument can itself exit. Preserve that first status and diagnostic.
+    if ctx.eval.eval_aborted { return true }
     if ctx.eval.embedded {
         ctx.eval.exit_status = Option(I64).Some(code)
         mut site := ctx.eval.failure_site.clone()
@@ -8682,6 +8716,7 @@ priv reg_dispatch := func(name: Str, handler: DispatchFn, mut ctx: Context) {
 priv dispatch_init := func(mut ctx: Context) {
     ctx.ffi.dispatch_map = Map(Str, Dynamic).new()
     reg_dispatch("print_single", h_print_single, ctx)
+    reg_dispatch("eprint_single", h_eprint_single, ctx)
     reg_dispatch("print_flush", h_print_flush, ctx)
     reg_dispatch("and", h_Bool_and, ctx)
     reg_dispatch("or", h_Bool_or, ctx)

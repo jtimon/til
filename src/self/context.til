@@ -9,6 +9,14 @@ import("../std/file")
 // per-file phase walks that resolve import calls directly from each AST.
 realpath_str := ext_proc(path: Str) returns Str {}
 
+context_diagnostic := proc(mut ctx: Context, phase: DiagnosticPhase, severity: DiagnosticSeverity,
+    path: Str, line: U32, col: U32, message: Str, located: Bool = true) {
+    diagnostic := SourceDiagnostic(phase = phase, severity = severity, path = path.clone(),
+        line = line, col = col, message = message.clone(), located = located)
+    if ctx.collect_diagnostics { ctx.diagnostics.push(own diagnostic) }
+    else { diagnostic.print() }
+}
+
 simd_instance_name := func(elem: Str, width: USize) returns Str {
     text := width.to_str()
     return format("Simd__", elem, "_n", text.len().to_str(), "_", text)
@@ -1275,6 +1283,12 @@ namespace:
     }
 }
 
+InterpOutputStream := enum { Stdout, Stderr }
+InterpOutputEvent := struct {
+    stream := InterpOutputStream.Stdout
+    text := ""
+}
+
 EvalState := struct {
     has_return := false
     has_break := false
@@ -1324,6 +1338,9 @@ EvalState := struct {
     failure_site := SourceDiagnostic()
     guest_output := ""
     function_paths := Map(UPtr, Str).new()
+    // Optional internal capture; TilVm's default still uses host stdio.
+    capture_output := false
+    output := Vec(InterpOutputEvent).new()
     // #321/#324: the namespace-fields table, OWNED. It was `ref ... = NULL`
     // -- an owned pointer wearing a borrow label, freed through the #324
     // hole -- with a separate ns_inited Bool as a second source of truth

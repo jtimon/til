@@ -150,6 +150,22 @@ typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__USize Vec__USize;
 typedef struct File File;
 typedef struct Cmd Cmd;
+enum {
+    DiagnosticPhase_TAG_Unknown,
+    DiagnosticPhase_TAG_Load,
+    DiagnosticPhase_TAG_Lex,
+    DiagnosticPhase_TAG_Parse,
+    DiagnosticPhase_TAG_Type,
+    DiagnosticPhase_TAG_Ownership,
+    DiagnosticPhase_TAG_Runtime
+};
+typedef struct DiagnosticPhase DiagnosticPhase;
+enum {
+    DiagnosticSeverity_TAG_Error,
+    DiagnosticSeverity_TAG_Note,
+    DiagnosticSeverity_TAG_Help
+};
+typedef struct DiagnosticSeverity DiagnosticSeverity;
 typedef struct SourceDiagnostic SourceDiagnostic;
 enum {
     TokenType_TAG_Eof,
@@ -266,6 +282,12 @@ typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct FfiState FfiState;
 typedef struct InternedTypes InternedTypes;
 typedef struct ForeignPlace ForeignPlace;
+enum {
+    InterpOutputStream_TAG_Stdout,
+    InterpOutputStream_TAG_Stderr
+};
+typedef struct InterpOutputStream InterpOutputStream;
+typedef struct InterpOutputEvent InterpOutputEvent;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
@@ -284,6 +306,7 @@ enum {
 };
 typedef struct Option__I64 Option__I64;
 typedef struct Map__UPtr_Str Map__UPtr_Str;
+typedef struct Vec__InterpOutputEvent Vec__InterpOutputEvent;
 typedef struct Map__UPtr_ForeignPlace Map__UPtr_ForeignPlace;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
@@ -714,11 +737,22 @@ typedef struct Cmd {
 } Cmd;
 
 
+struct DiagnosticPhase {
+    U8 tag;
+};
+
+struct DiagnosticSeverity {
+    U8 tag;
+};
+
 typedef struct SourceDiagnostic {
+    DiagnosticPhase phase;
+    DiagnosticSeverity severity;
     Str path;
     U32 line;
     U32 col;
     Str message;
+    Bool located;
 } SourceDiagnostic;
 
 
@@ -844,6 +878,16 @@ typedef struct GenericFuncSource {
 } GenericFuncSource;
 
 
+struct InterpOutputStream {
+    U8 tag;
+};
+
+typedef struct InterpOutputEvent {
+    InterpOutputStream stream;
+    Str text;
+} InterpOutputEvent;
+
+
 typedef struct Vec__BorrowRoot {
     U8 *data;
     USize count;
@@ -891,6 +935,13 @@ typedef struct Map__UPtr_Str {
     Vec__UPtr keys;
     Vec__Str values;
 } Map__UPtr_Str;
+
+
+typedef struct Vec__InterpOutputEvent {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__InterpOutputEvent;
 
 
 struct Option__Scope {
@@ -2029,6 +2080,7 @@ typedef struct InterpSession {
     USize user_argc;
     Vec__priv___src_self_interpreter_til__DynPtrBox retained_programs;
     Bool is_repl;
+    Bool capture_output;
     Set__Str evaluated_units;
 } InterpSession;
 
@@ -2088,6 +2140,8 @@ typedef struct EvalState {
     SourceDiagnostic failure_site;
     Str guest_output;
     Map__UPtr_Str function_paths;
+    Bool capture_output;
+    Vec__InterpOutputEvent output;
     Option__Scope ns_fields;
     Map__UPtr_ForeignPlace foreign_places;
     U8 *foreign_cleanup_dirty;

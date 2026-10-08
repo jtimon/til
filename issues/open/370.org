@@ -49,6 +49,22 @@ Open questions:
   - Sandboxing: init.til probably runs trusted, but a buffer-local
     script should not get free rein over the process.
 
+*** Additional diagnostic and output coverage
+
+- Source diagnostics carry phase/severity metadata, including semantic
+  notes and ownership help, through the existing collection policy.
+- Internal sessions can optionally collect ordered stdout/stderr events.
+  ~interp_session_result~ extracts those events without clearing abort
+  state or exit status that ~TilVm.load_file~ still needs. The installed
+  TilVm API and its default use of host stdio remain the authority.
+- An exit while computing another exit's argument preserves the first
+  exit status and diagnostic. The existing embedded policy and teardown
+  handle recovery; there is no second embedding-policy flag.
+- ~test/interp_session.til~ covers owned diagnostics, ordered output,
+  nested exits and result lifetime after session teardown. Its static
+  diagnostic-vector case also covers the C call inventory: children of
+  a PrecomputedSequence describe static data, not runtime clone calls.
+
 *** Findings from Tiled's startup implementation
 
 The separate [[https://github.com/jtimon/tiled][tiled repository]] now exercises this exact use case with
