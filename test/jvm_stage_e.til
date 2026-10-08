@@ -39,7 +39,25 @@ JvmBoxHolder := struct {
     box := JvmBox.Nothing
 }
 
+// #416: an owned Str payload, written through its binding.
+JvmNote := enum { Text: Str, Empty }
+
 bump_jvm_field := func(mut n: I64) { n.inc() }
+
+// #416: assigning to a payload binding writes the enum's payload.
+retitle_jvm_note := func(mut n: JvmNote) {
+    switch n {
+    case .Text(t): t = "changed"
+    case .Empty:
+    }
+}
+
+replace_jvm_box := func(mut b: JvmBox) {
+    switch b {
+    case .Pt(p): p = JvmPoint(x = 6)
+    case .Nothing:
+    }
+}
 
 bump_jvm_box := func(mut b: JvmBox) {
     switch b {
@@ -137,4 +155,20 @@ main := proc() {
     bump_jvm_box(holder.box)
     show_jvm_box(holder.box)
     show_jvm_box(holder_copy.box)
+
+    mut note := JvmNote.Text("orig")
+    retitle_jvm_note(note)
+    switch note {
+    case .Text(t): println("note ", t)
+    case .Empty:
+    }
+    replace_jvm_box(box)
+    show_jvm_box(box)
+    // A borrowed payload's binding is the lent value itself.
+    mut lent := JvmRefTag.Borrowed(point)
+    switch lent {
+    case .Borrowed(q): q = JvmPoint(x = 11)
+    case .Number(_):
+    }
+    println("lent ", point.x.to_str())
 }

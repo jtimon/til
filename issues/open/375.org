@@ -579,7 +579,8 @@ as POD for struct clone (~is_pod_type_for_clone~), so the clone shared its
 heap box; fixed, regression test_struct_clone_owned_niche_field in
 test/structs.til. Still open, loud: assigning to a ~ref Str~ payload
 binding rebinds the Java local instead of writing the enum (use after
-~Str.delete~ at runtime) -- [[./416.org][#416]]. structs and script_struct_runtime now get past
+~Str.delete~ at runtime) -- [[../fixed/416.org][#416]], since fixed: the
+binding's object takes the new contents in place (~assignStr~/~assignFrom~). structs and script_struct_runtime now get past
 translation and fail in javac (struct namespace variables; a ~returns ref~
 struct field where a raw ~Ptr~ is expected; ~adopt~ of objects; missing
 ~cmpBool~); enums stops at a ~?~ call's error kind in a switch guard.

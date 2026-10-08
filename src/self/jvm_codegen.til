@@ -2224,6 +2224,31 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
         case .Assign(ad):
             value := jvm_emit_expr(e.children[0], state, lp)
             target := jvm_var_name(ad.name)
+            // #416: a payload binding is a ref into the enum's payload (or,
+            // for a `ref` payload, into the borrowed referent), and C writes
+            // through it (`*t = _new`). A scalar one already does, as a
+            // PayloadSlot cell; an aggregate one is a Java reference, so its
+            // object takes the new contents in place. The value is
+            // evaluated before the old one is deleted, as in C.
+            if ad.is_payload_alias.and(jvm_is_scalar(e.children[0].til_type(), lp).not()) {
+                ref at : Type = e.children[0].til_type()
+                mut write := ""
+                if jvm_is_runtime_str(at, lp) { write = format("TilRuntime.assignStr(", target, ", assignNew)") }
+                else if is_struct_type(at).or(is_enum_type(at)) { write = format(target, ".assignFrom(assignNew)") }
+                else { return jvm_fail_expr(e, "write through a payload binding of this type", state, lp.ctx.symbols.names) }
+                mut old_delete := ""
+                if ad.save_old_delete { old_delete = format(jvm_delete_value(at, target, lp), "; ") }
+                mut moved_clear := ""
+                if ad.is_move {
+                    switch e.children[0].node_type {
+                    case .Ident(mid): moved_clear = format(" ", jvm_var_name(mid.ident_name(lp.ctx.symbols.names)), " = null;")
+                    case: return jvm_fail_expr(e, "non-identifier aggregate move source", state, lp.ctx.symbols.names)
+                    }
+                }
+                return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+                    "{ ", jvm_type_lp(at, lp), " assignNew = ", value, "; ", old_delete, write, ";",
+                    moved_clear, " }\n")
+            }
             is_cell := jvm_is_cell(state, ad.name, e.children[0].til_type(), lp)
             mut prefix := ""
             if ad.save_old_delete { prefix = format(jvm_indent(depth), jvm_delete_value(e.children[0].til_type(), target, lp), ";\n") }
@@ -2525,6 +2550,7 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
         mut clones := ""
         mut deletes := ""
         mut swaps := ""
+        mut assigns := ""
         jvm_add_member(out, "checkLive", format("    private void checkLive() {\n",
             "        if (deleted) { throw new IllegalStateException(\"use after aggregate delete\"); }\n",
             "    }\n\n"))
@@ -2573,9 +2599,12 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
                     jvm_cell_write(field.til_type, format("this.", jname),
                         jvm_cell_read(field.til_type, format("other.", jname), lp), lp), "; ",
                     jvm_cell_write(field.til_type, format("other.", jname), "t", lp), "; }\n")
+                assigns = format(assigns, "        ", jvm_cell_write(field.til_type, format("this.", jname),
+                    jvm_cell_read(field.til_type, format("other.", jname), lp), lp), ";\n")
             } else {
                 swaps = format(swaps, "        { ", field_type, " t = this.", jname, "; this.", jname,
                     " = other.", jname, "; other.", jname, " = t; }\n")
+                assigns = format(assigns, "        this.", jname, " = other.", jname, ";\n")
             }
             if is_cell.and(field.own_type.is(OwnType.Ref).not()) {
                 init = format(init, "        this.", jname, " = ",
@@ -2633,6 +2662,13 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
             " cloneValue() { checkLive(); return new ", cls, "(", clones, "); }\n"))
         jvm_add_member(out, "swapContents", format("    void swapContents(", cls, " other) {\n",
             "        checkLive();\n        other.checkLive();\n", swaps, "    }\n"))
+        // assignFrom: a write through a ref binding (`case .V(p): p = q`,
+        // C's `*p = q`) -- this object takes the new value's contents in place,
+        // so the enum or borrowed referent it is sees them. The old contents
+        // were already settled by the assignment's save_old_delete, so this
+        // may be a deleted object coming back to life.
+        jvm_add_member(out, "assignFrom", format("    void assignFrom(", cls, " other) {\n",
+            "        other.checkLive();\n", assigns, "        deleted = false;\n    }\n"))
         jvm_add_member(out, "delete", format("    void delete() {\n",
             "        checkLive();\n", deletes,
             "        deleted = true;\n",
@@ -2727,6 +2763,17 @@ priv jvm_emit_enum := func(decl: Expr, package_name: Str, lp: LoadedProgram) ret
         "        other.checkLive();\n",
         "        long t = tag; tag = other.tag; other.tag = t;\n",
         "        Object p = payload; payload = other.payload; other.payload = p;\n",
+        "    }\n"))
+    // assignFrom: a write through a ref binding (`case .V(p): p = q`,
+    // C's `*p = q`) -- this object takes the new value's contents in place,
+    // so the enum or borrowed referent it is sees them. The old contents
+    // were already settled by the assignment's save_old_delete, so this
+    // may be a deleted object coming back to life.
+    jvm_add_member(out, "assignFrom", format("    void assignFrom(", cls, " other) {\n",
+        "        other.checkLive();\n",
+        "        tag = other.tag;\n",
+        "        payload = other.payload;\n",
+        "        deleted = false;\n",
         "    }\n"))
     jvm_add_member(out, "sameTag", format("    boolean sameTag(", cls, " other) {\n",
         "        checkLive();\n",

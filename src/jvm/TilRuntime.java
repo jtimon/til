@@ -658,6 +658,19 @@ public final class TilRuntime {
         return cloneStr(value);
     }
 
+    // A write through a ref binding (`case .Text(t): t = s`, C's `*t = s`):
+    // the bound Str takes the new value's contents in place, so the enum or
+    // borrowed referent it is sees them. The old contents were already
+    // settled by the assignment's save_old_delete, so the target may be a
+    // deleted Str coming back to life.
+    public static void assignStr(Str target, Str value) {
+        if (value.deleted) { throw new IllegalStateException("assign from deleted Str"); }
+        target.data = value.data;
+        target.count = value.count;
+        target.capacity = value.capacity;
+        target.deleted = false;
+    }
+
     public static void deleteStr(Str value) {
         if (value.deleted) { throw new IllegalStateException("double Str.delete"); }
         if (Integer.compareUnsigned(value.capacity, CAP_VIEW) < 0) { free(value.data); }

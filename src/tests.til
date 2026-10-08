@@ -1329,7 +1329,10 @@ main := proc(args: ..Str) {
         CountCheck(needle = "final class S_p_JvmPoint", expected_count = 1),
         CountCheck(needle = "new (", expected_count = 0),
         CountCheck(needle = "TilRuntime.widenLength(", expected_count = 16),
-        CountCheck(needle = "TilRuntime.payloadSlot(", expected_count = 4),
+        CountCheck(needle = "TilRuntime.payloadSlot(", expected_count = 5),
+        // #416: an aggregate payload binding is written in place.
+        CountCheck(needle = "TilRuntime.assignStr(", expected_count = 1),
+        CountCheck(needle = ".assignFrom(assignNew)", expected_count = 2),
         // Enum switches go through the variant ordinal: an enum(U64) tag
         // does not fit the int a Java switch takes.
         CountCheck(needle = "if (tag == 4294967303L) return", expected_count = 2),

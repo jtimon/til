@@ -1,6 +1,29 @@
 # priority: medium
 # category: backends
-** OPEN #416 JVM: assigning to a ref aggregate payload binding rebinds the local
+** FIXED #416 JVM: assigning to a ref aggregate payload binding rebinds the local
+
+*** Post-mortem
+
+Root cause: the JVM backend emitted every assignment to a name as a Java
+local assignment. For a payload binding the AST already says otherwise
+(~AssignData.is_payload_alias~, which the C backend turns into
+~*t = _new~), but the JVM ignored the flag; scalar bindings only worked
+because they are ~PayloadSlot~ cells.
+
+Fix: an ~is_payload_alias~ assignment of an aggregate evaluates the new
+value into a temporary, applies ~save_old_delete~, then makes the bound
+object take the new contents in place -- ~TilRuntime.assignStr~ for a
+runtime Str, a generated ~assignFrom~ member for struct and enum classes
+(owned cell fields keep their identity and take the value, as in
+~swapContents~). The enum's payload, or for a ~ref~ payload the borrowed
+referent, is that object, so it sees the write. Any other payload type is
+refused loudly.
+
+Regression: test/jvm_stage_e.til (~retitle_jvm_note~ for a Str payload,
+~replace_jvm_box~ for a struct payload, and a write through a borrowed
+~ref JvmPoint~ payload), checked against the interpreter by ~make
+test_jvm~, against test/jvm_stage_e.expected for C, and pinned in
+src/tests.til (~TilRuntime.assignStr(~, ~.assignFrom(assignNew)~).
 
 Found while burning down the [[./375.org][#375]] JVM corpus. A payload
 binding (~case .Text(t):~) is a ~ref~ into the enum: assigning to it must

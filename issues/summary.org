@@ -41,7 +41,6 @@
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
-*** [[./open/416.org][#416]] JVM: assigning to a ref aggregate payload binding rebinds the local
 ** Low
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/317.org][#317]] MLIR backend alongside the C backend
