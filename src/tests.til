@@ -1328,8 +1328,12 @@ main := proc(args: ..Str) {
         format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/test/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/*.java ')'"),
         CountCheck(needle = "final class S_p_JvmPoint", expected_count = 1),
         CountCheck(needle = "new (", expected_count = 0),
-        CountCheck(needle = "TilRuntime.widenLength(", expected_count = 8),
-        CountCheck(needle = "TilRuntime.payloadSlot(", expected_count = 2))
+        CountCheck(needle = "TilRuntime.widenLength(", expected_count = 16),
+        CountCheck(needle = "TilRuntime.payloadSlot(", expected_count = 4),
+        // Enum switches go through the variant ordinal: an enum(U64) tag
+        // does not fit the int a Java switch takes.
+        CountCheck(needle = "if (tag == 4294967303L) return", expected_count = 2),
+        CountCheck(needle = ".sameValue(", expected_count = 0))
     add_count(tests, "jvm_stage_e_heap_source", "build", "TilRuntime.ptrAdd", 3,
         format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/test/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
     add_cli_pair(tests, "jvm_stage_f", "test/jvm_stage_f.til", "", 0,

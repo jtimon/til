@@ -31,16 +31,19 @@ CORPUS := array(Str,
     "test/loops.til",
     "test/closures.til")
 
-// Not yet: each is refused at translation with the diagnostic shown --
-// a loud translation error, never a silently wrong program (#375's
-// acceptance). Kept here so the gap is a list, not a guess:
+// Not yet: each fails loudly with the first diagnostic shown -- refused
+// at translation, or rejected by javac -- never a silently wrong program
+// (#375's acceptance). Kept here so the gap is a list, not a guess:
 //   test/script_str_runtime.til     parameter type for 'parts' (FuncDef Func)
-//   test/script_struct_runtime.til  runtime function 'to_ptr'
+//   test/script_struct_runtime.til  javac: a `returns ref` struct field
+//                                   returned where a raw Ptr is expected
 //   test/strings.til                swap of a runtime Str
 //   test/arrays.til                 runtime function 'noop_proc'
 //   test/vecs.til                   runtime function 'dyn_size_of'
-//   test/enums.til                  type 'InnerE' (a hoisted local enum)
-//   test/structs.til                runtime function 'to_ptr'
+//   test/enums.til                  non-addressable scalar ref (the error
+//                                   kind of a `?` call in a switch guard)
+//   test/structs.til                javac: struct namespace variables
+//                                   (`Counter.instance_count`)
 
 // What one run left: stdout, stderr and exit status.
 priv Outcome := struct {

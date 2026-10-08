@@ -565,6 +565,25 @@ test_struct_as_map_key := test() {
     assert_eq(Str, m[CmpPoint(x = 2, y = 2)], "two")
 }
 
+// An owned-payload NICHE enum (one payload variant, one empty) keeps its
+// payload in a heap box it owns, so it is not plain data even when the
+// payload is: a struct clone that byte-copied the field shared the box and
+// the two deletes double-freed it.
+NicheBoxPoint := enum { Pt: CmpPoint, Nothing }
+
+NicheBoxHolder := struct {
+    box := NicheBoxPoint.Nothing
+}
+
+test_struct_clone_owned_niche_field := test() {
+    holder := NicheBoxHolder(box = NicheBoxPoint.Pt(CmpPoint(x = 2, y = 3)))
+    copy := holder.clone()
+    switch copy.box {
+    case .Pt(p): assert_eq(I64, p.x, 2)
+    case .Nothing: panic("clone lost the payload")
+    }
+}
+
 // A user type named after a template FORMAL param is still a real type:
 // `Map(K, I64)` where K is the user's struct is a genuine instantiation,
 // not map.til's own `Map(K, V)` placeholder. The placeholder dropper used

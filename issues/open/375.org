@@ -555,6 +555,35 @@ script_struct_runtime and structs (~to_ptr~), strings (swap of a runtime
 Str), arrays (~noop_proc~), vecs (~dyn_size_of~), enums (hoisted local enum
 type ~InnerE~).
 
+~to_ptr~ follow-up 2026-10-08: ~to_ptr~ of an aggregate is its Java
+reference (the generated delete's ~to_ptr(self.f).is_null()~ probe of an
+owned field); of a scalar or raw address it is refused. Behind it, all
+pinned by jvm_stage_e: a type alias decl (~Point2 := Point~) emits nothing
+(it came out as a ~void~ local); every ~Custom~ type name resolves through
+the scope, not only USize/UPtr (~ref StructPoint~ payloads, ~InnerE~); cells
+are by name per function, so a cell read/write/ref now also requires the
+binding at hand to be scalar (generated enum ~eq~ binds ~_sp~ as an I64 ref
+in one arm and a struct ref in another); enum switches use a generated
+~tilOrdinal()~ and tag lookups compare longs (~enum(U64)~ tags past
+~int~); ~deref~ of a typed, non-raw aggregate slot is the identity (a
+borrowed payload's binding) and of a typed scalar slot refused, as is a
+~ref~ scalar payload. Two silent wrong results fixed on the way: enum
+~eq~ was intercepted to ~Objects.equals~ on payloads (struct payloads
+compared by identity, user ~eq~ bypassed) -- it now calls the til ~eq~ --
+and enum ~clone~ shared owned aggregate payloads -- it now calls the til
+~clone~, and the Java-side ~cloneValue~ a struct uses for its enum fields
+clones owned payloads per variant. A non-void function ending in a
+noreturn call (~UNREACHABLE()~) gets a ~throw~ terminator for javac.
+The same test exposed a C double free: an owned-payload NICHE enum counted
+as POD for struct clone (~is_pod_type_for_clone~), so the clone shared its
+heap box; fixed, regression test_struct_clone_owned_niche_field in
+test/structs.til. Still open, loud: assigning to a ~ref Str~ payload
+binding rebinds the Java local instead of writing the enum (use after
+~Str.delete~ at runtime) -- [[./416.org][#416]]. structs and script_struct_runtime now get past
+translation and fail in javac (struct namespace variables; a ~returns ref~
+struct field where a raw ~Ptr~ is expected; ~adopt~ of objects; missing
+~cmpBool~); enums stops at a ~?~ call's error kind in a switch guard.
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.

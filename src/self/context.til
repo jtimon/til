@@ -2670,6 +2670,10 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope, symbols: SymbolP
             ref pt : Str = vd.payload_type
             if vd.payload_ref { continue }
             if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope, symbols).not()) { return false }
+            // #321: an owned NICHE payload lives in a heap box the enum owns,
+            // so a byte copy shares the box and both deletes free it, however
+            // plain the payload itself is.
+            if pt.len().gt(0).and(enum_is_niche(sdef)) { return false }
         }
         return true
     case:

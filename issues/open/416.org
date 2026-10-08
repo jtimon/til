@@ -1,0 +1,69 @@
+# priority: medium
+# category: backends
+** OPEN #416 JVM: assigning to a ref aggregate payload binding rebinds the local
+
+Found while burning down the [[./375.org][#375]] JVM corpus. A payload
+binding (~case .Text(t):~) is a ~ref~ into the enum: assigning to it must
+replace the enum's payload, as the interpreter and the C backend do. The JVM
+backend assigns the Java local instead. The old payload is deleted through
+the binding, the new value lands only in the local, and the enum keeps the
+deleted Str.
+
+*** Reproducer
+
+#+begin_src til
+mode cli
+
+Note := enum { Text: Str, Empty }
+
+retitle := func(mut n: Note) {
+    switch n {
+    case .Text(t): t = "changed"
+    case .Empty:
+    }
+}
+
+main := proc() {
+    mut note := Note.Text("orig")
+    retitle(note)
+    switch note {
+    case .Text(t): println("text ", t)
+    case .Empty: println("empty")
+    }
+}
+#+end_src
+
+~til interpret~ and ~til run~ (C) print ~text changed~. ~til run
+--target=jvm~ fails loudly:
+
+#+begin_example
+Exception in thread "main" java.lang.IllegalStateException: use after Str.delete
+	at til.runtime.TilRuntime$Str.bytes(TilRuntime.java:50)
+	at til.runtime.TilRuntime.cloneStr(TilRuntime.java:648)
+#+end_example
+
+*** Cause
+
+The binding is emitted as a plain Java local holding the payload's
+reference, and the assignment is an ordinary local assignment:
+
+#+begin_src java
+TilRuntime.Str v_p_t = (TilRuntime.Str) TilRuntime.enumPayload(v_p_n);
+TilRuntime.deleteStr(v_p_t);              // save_old_delete: frees the payload
+v_p_t = TilRuntime.literalStr(...);       // rebinds the local only
+#+end_src
+
+Scalar payload bindings already write through the enum
+(~TilRuntime.PayloadSlot~, via ~tilSetPayload~). An aggregate payload
+binding that is assigned needs the same: write the new value back with
+~tilSetPayload~ (or replace the referent in place, as ~swapContents~ does
+for structs). The same question applies to any other ~ref~ aggregate binding
+the JVM emits as a local (a ~ref~ struct field, a ~ref~ decl of an
+aggregate): an assignment to it must reach the referent.
+
+*** Acceptance
+
+- The reproducer prints ~text changed~ on the JVM, at ~--usize=32~ and
+  ~--usize=64~.
+- A struct payload case (~case .Pt(p): p = Point(x = 9)~) is covered too.
+- Pinned in the JVM corpus (~make test_jvm~), e.g. in test/jvm_stage_e.til.
