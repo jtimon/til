@@ -40,6 +40,114 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Aggregate-store and native-512 follow-up (base f930e58b0)
+
+GCC's SRA dump identified the remaining copies: the whole-struct memcpy
+destination was marked "needs to live in memory", and the GNU statement
+expression introduced another aggregate copy. The baseline eight-lane
+one-accumulator hot loop still wrote four XMM chunks to the stack even
+though its arithmetic used registers. Removing no-op destructor calls or
+using ~__builtin_memcpy~ instead of ~memcpy~ did not change that loop.
+
+Optimized GCC memory lowering now exposes one constant-sized byte copy per
+lane after the single whole-range check. GCC can scalar-replace the result
+and combine adjacent accesses into vector moves; the measured hot-loop
+stack stores disappear. Copies remain byte copies, not floating-point
+assignments, preserving signaling/quiet NaN payloads and signed zero.
+
+The selection remains narrow:
+
+- Oversized vectors keep their direct memory lowering. It now also covers
+  64-byte and larger values, removing GCC's missed native AVX-512 wrapper
+  inlining. Native 128/256-bit memory methods retain the established calls.
+- The lane-copy form is selected by optimized GCC's predefined macros.
+  O0 and Clang retain contiguous memcpy: O0 lane expansion regressed an
+  eight-lane reduction from about 1.77 to 2.10 ns/element, while Clang
+  already handled the bulk form well. No compiler option was added.
+- GCC's 64-byte arithmetic vectors are constructed/extracted as values,
+  rather than exposing vector-local addresses. Smaller vectors and Clang
+  retain their previous byte-copy form. Applying lane construction to all
+  Clang widths regressed width-4/four from about 0.058 to 0.131 ns/element;
+  restoring its established form removed that regression.
+
+**** ASAN alignment and discarded results
+
+Optimized GCC AVX-512 validation caught ~vmovdqa64~ on a 32-byte-aligned
+ASAN fake-stack address, first in a vector comparison and then in aggregate
+zeroing. Reducing the GNU vector typedef alignment alone did not fix it.
+Value-form arithmetic avoids addressable 64-byte vector locals; explicit
+register-width alignment on the LOCAL memory scratch object makes aggregate
+zeroing safe too. The public SIMD struct and Array storage keep scalar
+alignment and their existing ABI.
+
+A discarded POD result now explicitly casts its expression to void. It can
+be a statement expression after inline lowering, which Clang otherwise
+diagnosed as an unused value. Its effects and bounds checks still execute,
+without adding a holder or a no-op destructor.
+
+**** Measured results
+
+Same Ryzen 9950X3D and CPU-0 affinity, GCC 13.3 and Clang 18.1.3, O2,
+baseline/v3/v4, no LTO or fast-math. Used the two existing harnesses below,
+with til supplying ~--cpu~ / ~--opt~ flags through the scratch compiler
+adapter. Medians of five rotated, calibrated >=50 ms batches; correctness
+checks include tails, offsets and wraparound patterns. Initial contended
+baseline runs were repeated; numbers below use those repeats and the final
+~stores-finish~ runs, not intermediate experiments.
+
+Reduction ns/element, N=4096/start=1:
+
+| Compiler/profile | Algorithm | Width | Before | After |
+|------------------+-----------+-------+--------+-------|
+| GCC baseline     | one       |     8 | 0.0615 | 0.0485 |
+| GCC baseline     | four      |     8 | 0.0541 | 0.0349 |
+| GCC baseline     | four      |    16 | 0.0565 | 0.0413 |
+| GCC v3           | four      |    16 | 0.0356 | 0.0189 |
+| GCC v4           | one       |    16 | 0.0545 | 0.0252 |
+| GCC v4           | four      |    16 | 0.0541 | 0.0163 |
+| Clang baseline   | four      |     4 | 0.0574 | 0.0584 |
+| Clang v3         | four      |    16 | 0.0178 | 0.0176 |
+| Clang v4         | four      |    16 | 0.0165 | 0.0166 |
+
+The targeted GCC baseline width-8/four case gains 1.55x; native v4
+width-16/four gains 3.33x. At N=33554432/start=1 those improvements are
+smaller: 0.0752 -> 0.0608 and 0.0956 -> 0.0877 ns/element. Wider ISA is
+still not automatically faster on large inputs.
+
+F32 addition at N=4096/start=1 improves from 0.2104 -> 0.1193 ns/element
+for GCC baseline width 8, and 0.1729 -> 0.0705 for GCC v4 width 16. The
+latter's selection loop improves 0.5602 -> 0.2525. GCC baseline width-4
+addition stays near its prior value (0.1956 -> 0.1969).
+
+Timing differences are not uniformly positive. The already-fast GCC v3
+width-8/one case measured 0.0308 -> 0.0369 in the final run. Its disassembly
+has the same instructions and relative branch structure, with the function
+and loop moved by 32 bytes; the native form was not rewritten. This is a
+layout-sensitive timing regression, not a universal speedup claim. O0
+baseline width-8/one is retained (1.7726 -> 1.7649), and Clang's established
+paths remain close to their prior timings.
+
+**** Verification and reproduction
+
+Clean two-pass Linux ASAN suite: 508/508. All 25 SIMD tests pass interpreted
+and compiled with GCC/Clang ASAN, O2/O3, on all three x86-64 profiles. Final
+AArch64, RISC-V64 and 32-bit x86 O2 binaries pass 25/25 under QEMU, including
+signaling-NaN bit preservation. These remain correctness checks, not native
+ARM performance measurements. The added native-512 codegen check pins the
+direct-copy path and local scratch alignment; the existing wide check now
+preprocesses the optimized GCC branch before inspecting it.
+
+Re-use ~reduce409.til~, ~reduce409_harness.c~, ~simd409.til~ and
+~simd409_harness.c~ below. The adapter now defines both harness include
+selectors, so the same command shape works for either source/harness pair.
+Baseline logs are ~tmp/reduce409-stores-before-*.repeat.log~ and
+~tmp/simd409-stores-before-*.log~; final logs/C/binaries are
+~tmp/reduce409-stores-finish-*~ and ~tmp/simd409-stores-finish-*~. The O0
+comparison uses ~reduce409-stores-before-O0.repeat.log~ and
+~reduce409-stores-finish-O0.log~. No new installed tool or persistent cache
+was introduced. Native AArch64 timing and workload-specific tuning remain
+open; the measured dead-store/native-512 causes are addressed.
+
 *** Oversized-vector C lowering (base 7b20f9811)
 
 Reproduced the wide U32 reduction cost with the approved ~--cpu~ / ~--opt~
@@ -131,6 +239,7 @@ import sys
 compiler, source, harness, *args = sys.argv[1:]
 args[args.index(source)] = harness
 args.append('-DREDUCE409_SOURCE="' + os.path.abspath(source) + '"')
+args.append('-DSIMD409_SOURCE="' + os.path.abspath(source) + '"')
 print("benchmark cc:", compiler, *args, flush=True)
 os.execvp(compiler, [compiler, *args])
 #+end_src

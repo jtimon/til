@@ -2224,12 +2224,21 @@ main := proc(args: ..Str) {
     add_both(tests, "test/simd.til", flags)
     // #409: wide values keep their scalar storage but use register-sized
     // arithmetic and direct checked copies, not aggregate-return load calls.
+    // Preprocess the GCC-oriented optimized form even when host cc is Clang;
+    // execution tests separately exercise the host compiler's normal branch.
     add_counts(tests, "simd_wide_codegen", "build",
-        format(til_bin, " translate --target=linux-x64 --cpu=baseline -c gen/c/simd_wide_codegen.c test/simd.til '&&' cat gen/c/simd_wide_codegen.c"),
+        format(til_bin, " translate --target=linux-x64 --cpu=baseline -c gen/c/simd_wide_codegen.c test/simd.til '&&' cc -E -P -O2 -U__clang__ -Isrc/c -DTIL_USIZE64 gen/c/simd_wide_codegen.c"),
         CountCheck(needle = "Simd__I32_n2_32_load(", expected_count = 0),
         CountCheck(needle = "Simd__I32_n2_32_store(", expected_count = 0),
+        CountCheck(needle = "memcpy(&_t_simd_mem_value,", expected_count = 0),
         CountCheck(needle = "vector_size(sizeof(U32) * 32)", expected_count = 0),
         CountCheck(needle = "vector_size(sizeof(F64) * 16)", expected_count = 0))
+    add_counts(tests, "simd_native512_codegen", "build",
+        format(til_bin, " translate --target=linux-x64 --cpu=x86-64-v4 -c gen/c/simd_native512_codegen.c test/simd.til '&&' cc -E -P -O2 -U__clang__ -Isrc/c -DTIL_USIZE64 gen/c/simd_native512_codegen.c"),
+        CountCheck(needle = "Simd__U32_n2_16_load(", expected_count = 0),
+        CountCheck(needle = "Simd__U32_n2_16_store(", expected_count = 0),
+        CountCheck(needle = "Simd__U32_n2_16 _t_simd_mem_value __attribute__((aligned(64)))", expected_count = 2),
+        CountCheck(needle = "memcpy(&_t_simd_mem_value,", expected_count = 0))
     add_count(tests, "simd_java_unsupported", "typer",
         "SIMD is not supported by this backend", 1,
         format(til_bin, " translate --target=jvm test/simd.til"))

@@ -3097,8 +3097,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                     tname := type_to_name(e.til_type(), ctx.symbols)
                     if tname.len() > 0 {
                         // #326: the holder exists only to be deleted, and a
-                        // type whose delete does nothing needs none -- C
-                        // discards the call's value by itself. The same
+                        // type whose delete does nothing needs none. Discard
+                        // explicitly: inline lowering may yield a statement
+                        // expression rather than an ordinary C call. The same
                         // question body DCE asked before making this call
                         // a bare statement, so the two cannot disagree.
                         // The (void) is for the calls this path emits as a
@@ -3808,15 +3809,19 @@ priv emit_precomputed_sequence_templates := proc(f: File, mut lp: LoadedProgram)
     if emitted.len() > 0 { f.write("\n") }
 }
 
-priv builder_simd_chunk_lanes := func(simd: StructDef, ctx: Context) returns USize {
+priv builder_simd_lane_bytes := func(simd: StructDef, ctx: Context) returns USize {
     mut lane_bytes : USize = 0
     mut lane_align : USize = 0
     switch declaration_resolved_type(simd.fields[0], ctx.scope, ctx.symbols) {
     case .Primitive(prim): builtin_primitive_size_align(prim, lane_bytes, lane_align)
     case: panic("SIMD field is not a scalar primitive")
     }
+    return lane_bytes
+}
+
+priv builder_simd_chunk_lanes := func(simd: StructDef, ctx: Context) returns USize {
     // A target with no baseline SIMD uses single-lane operations.
-    mut lanes := ctx.target_simd_bits / (lane_bytes * 8)
+    mut lanes := ctx.target_simd_bits / (builder_simd_lane_bytes(simd, ctx) * 8)
     if lanes == 0 { lanes = 1 }
     if lanes > simd.simd_width { lanes = simd.simd_width }
     return lanes
@@ -3892,37 +3897,65 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
     emit_deref(f, e.children[1], depth, ctx)
     f.write("; ").write(sname).write(" til_simd_b = ")
     emit_deref(f, e.children[2], depth, ctx)
+    // GCC's ASAN fake stack can misalign addressable 64-byte vectors, causing
+    // vmovdqa64 faults even though the public lane structs need only scalar
+    // alignment. Use value construction for that width below; keep the
+    // established smaller-vector form, which already optimizes well.
     f.write("; typedef ").write(lane_c).write(" til_simd_v __attribute__((vector_size(sizeof(").write(lane_c).write(") * ").write(chunk_lanes.to_str()).write("))); ")
-    // Preserve the existing single-register form. Splitting is useful for
-    // oversized values; rewriting native-width operations can hurt GCC's SRA.
+    f.write(result_c).write(" til_simd_result; ")
+    // Clang already scalarizes the byte-copy representation. Retain that
+    // form there: lane construction regressed its four-lane reductions.
+    value_vectors := chunk_lanes * builder_simd_lane_bytes(simd, ctx) >= 64
+    if value_vectors { f.write("\n#if defined(__clang__)\n") }
     if chunk_lanes == simd.simd_width {
         f.write("til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, &til_simd_a, sizeof(til_simd_x)); memcpy(&til_simd_y, &til_simd_b, sizeof(til_simd_y)); ")
         f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
-        f.write(result_c).write(" til_simd_result; ")
         if comparison {
             for i in 0..simd.simd_width {
                 f.write("til_simd_result.lane").write(i.to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
             }
-        } else {
-            f.write("memcpy(&til_simd_result, &til_simd_z, sizeof(til_simd_result)); ")
+        } else { f.write("memcpy(&til_simd_result, &til_simd_z, sizeof(til_simd_result)); ") }
+    } else {
+        for chunk in 0..(simd.simd_width / chunk_lanes) {
+            first := chunk * chunk_lanes
+            offset := format("sizeof(", lane_c, ") * ", first.to_str())
+            f.write("{ til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, (const U8 *)&til_simd_a + ").write(offset).write(", sizeof(til_simd_x)); memcpy(&til_simd_y, (const U8 *)&til_simd_b + ").write(offset).write(", sizeof(til_simd_y)); ")
+            f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+            if comparison {
+                for i in 0..chunk_lanes {
+                    f.write("til_simd_result.lane").write((first + i).to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
+                }
+            } else { f.write("memcpy((U8 *)&til_simd_result + ").write(offset).write(", &til_simd_z, sizeof(til_simd_z)); ") }
+            f.write("} ")
         }
-        f.write("til_simd_result; })")
-        return true
     }
-    f.write(result_c).write(" til_simd_result; ")
-    for chunk in 0..(simd.simd_width / chunk_lanes) {
-        first := chunk * chunk_lanes
-        offset := format("sizeof(", lane_c, ") * ", first.to_str())
-        f.write("{ til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, (const U8 *)&til_simd_a + ").write(offset).write(", sizeof(til_simd_x)); memcpy(&til_simd_y, (const U8 *)&til_simd_b + ").write(offset).write(", sizeof(til_simd_y)); ")
-        f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
-        if comparison {
+    if value_vectors {
+        f.write("\n#else\n")
+        for chunk in 0..(simd.simd_width / chunk_lanes) {
+            first := chunk * chunk_lanes
+            f.write("{ til_simd_v til_simd_x = {")
             for i in 0..chunk_lanes {
-                f.write("til_simd_result.lane").write((first + i).to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
+                if i > 0 { f.write(", ") }
+                f.write("til_simd_a.lane").write((first + i).to_str())
             }
-        } else {
-            f.write("memcpy((U8 *)&til_simd_result + ").write(offset).write(", &til_simd_z, sizeof(til_simd_z)); ")
+            f.write("}, til_simd_y = {")
+            for i in 0..chunk_lanes {
+                if i > 0 { f.write(", ") }
+                f.write("til_simd_b.lane").write((first + i).to_str())
+            }
+            f.write("}; __typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+            for i in 0..chunk_lanes {
+                f.write("til_simd_result.lane").write((first + i).to_str()).write(" = ")
+                if comparison.not() {
+                    f.write("(").write(decl_type_name(simd.fields[0], ctx.symbols)).write(")")
+                }
+                f.write("til_simd_z[").write(i.to_str()).write("]")
+                if comparison { f.write(" != 0") }
+                f.write("; ")
+            }
+            f.write("} ")
         }
-        f.write("} ")
+        f.write("\n#endif\n")
     }
     f.write("til_simd_result; })")
     return true
@@ -11155,14 +11188,21 @@ priv builder_is_inline_simd_memory := func(owner: Str, member: Str, ctx: Context
     switch def.unwrap().node_type {
     case .StructDef(sd):
         if sd.simd_width == 0 { return false }
-        return sd.simd_width > builder_simd_chunk_lanes(sd, ctx)
+        // Native 128/256-bit memory methods already optimize well as calls.
+        // The measured missed-inlining case also includes native 512-bit
+        // aggregate returns; expose those as well as oversized vectors.
+        return (sd.simd_width > builder_simd_chunk_lanes(sd, ctx))
+            .or(sd.simd_width * builder_simd_lane_bytes(sd, ctx) >= 64)
     case: return false
     }
 }
 
-// Oversized SIMD memory methods are a checked contiguous copy. Emit that
-// primitive at its direct call site, before GCC's late aggregate-return
-// inlining can leave a stack round-trip (or reject the wrapper altogether).
+// SIMD memory methods are a checked contiguous copy. Expose scalar-sized
+// byte copies at the direct call site: copying through the address of the
+// whole result aggregate prevents GCC's early scalar replacement, leaving
+// dead stack stores even when it later vectorizes the arithmetic. Per-lane
+// memcpy preserves exact bits (including floating NaNs) and scalar alignment;
+// the C optimizer can combine the adjacent copies into native vector moves.
 // Keep each argument's evaluation and store's value snapshot in source order.
 // The ordinary bodies remain available to exports and reflective dispatch.
 priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, flat: Str, depth: I32, mut ctx: Context) {
@@ -11171,7 +11211,11 @@ priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, 
     ref fd : FunctionDef = funcdef_of(find_callee_fdef(flat, ctx).unwrap())
     store := member == "store"
     mut array_arg : USize = 1
-    f.write("({ ").write(owner).write(" _t_simd_mem_value = ")
+    // Explicit alignment also keeps GCC/ASAN aggregate zeroing honest when
+    // AVX-512 combines lane stores. This is local scratch storage only; the
+    // SIMD type and Array storage retain their scalar alignment and ABI.
+    temporary_align := builder_simd_chunk_lanes(sd, ctx) * builder_simd_lane_bytes(sd, ctx)
+    f.write("({ ").write(owner).write(" _t_simd_mem_value __attribute__((aligned(").write(temporary_align.to_str()).write("))) = ")
     if store {
         emit_deref(f, e.children[1], depth, ctx)
         array_arg = 2
@@ -11185,13 +11229,27 @@ priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, 
     f.write("; I64 *_t_simd_mem_error = ")
     emit_as_ptr(f, e.children[array_arg + 2], depth, false, ctx)
     f.write("; USize _t_simd_mem_count = _t_simd_mem_values->cap; if (_t_simd_mem_start <= _t_simd_mem_count && _t_simd_mem_count - _t_simd_mem_start >= ")
-        .write(sd.simd_width.to_str()).write(") { memcpy(")
+        .write(sd.simd_width.to_str()).write(") {\n#if defined(__OPTIMIZE__) && defined(__GNUC__) && !defined(__clang__)\nU8 *_t_simd_mem_address = (U8 *)_t_simd_mem_values->data + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0); ")
+    for i in 0..sd.simd_width {
+        lane := format("_t_simd_mem_value.lane", i.to_str())
+        address := format("_t_simd_mem_address + ", i.to_str(), " * sizeof(", lane, ")")
+        f.write("memcpy(")
+        if store { f.write(address).write(", &").write(lane) }
+        else { f.write("&").write(lane).write(", ").write(address) }
+        f.write(", sizeof(").write(lane).write(")); ")
+    }
+    // Without scalar replacement, the expanded copies cost more than the
+    // contiguous copy. Keep that path for -O0 and for Clang, which already
+    // scalarizes the bulk form well. This also works for externally compiled
+    // translations: the C compiler's own mode selects the representation.
+    f.write("\n#else\nmemcpy(")
     address := "(U8 *)_t_simd_mem_values->data + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0)"
     if store { f.write(address).write(", &_t_simd_mem_value") }
     else { f.write("&_t_simd_mem_value, ").write(address) }
+    f.write(", sizeof(_t_simd_mem_value));\n#endif\n")
     // init_expand_simd declares exactly one payload-less exception:
     // OutOfBounds, whose callee-local tag is 1. Success leaves the slot alone.
-    f.write(", sizeof(_t_simd_mem_value)); } else { *_t_simd_mem_error = 1; } ")
+    f.write("} else { *_t_simd_mem_error = 1; } ")
     if store { f.write("(void)0; })") }
     else { f.write("_t_simd_mem_value; })") }
 }
