@@ -388,3 +388,29 @@ started := clock_ms()
 sleep_ms(20)
 elapsed := clock_ms() - started
 if elapsed >= 10 { println("clock and sleep") }
+
+// Runtime loop inputs keep parsing and formatting out of constant folding.
+for text : Str in array(Str, "0", "-0", "0.1", "-1.5", "1.2345678901234567",
+    "999999.5", "128.0625", "128.1875", "1e-5", "1e-4", "1e6", "1e-100", "1e308",
+    "4.9406564584124654e-324", "2.2250738585072014e-308",
+    "1.40129846e-45", "1.17549435e-38", "3.4028234663852886e38",
+    "1.7976931348623157e308", "1e309", "1e-9999", "inf", "-infinity", "nan", "-nan",
+    "  +1_2.5_0e-1tail", "0x1.8p+1", "-0x1p-1074", "0x1.000001p0",
+    "0x1.000003p0", "0x1p-150",
+    "1.000000059604644775390625", "1.000000178813934326171875",
+    "1.00000000000000011102230246251565404236316680908203125",
+    "1.00000000000000011102230246251565404236316680908203126",
+    "2e+", "not a float", "+.5tail", "") {
+    small := text.to_f32()
+    large := text.to_f64()
+    small_repr := small.to_repr()
+    large_repr := large.to_repr()
+    println("float text:", small.to_str(), "/", small_repr, ":", large.to_str(), "/", large_repr)
+    if small.eq(small).and(small.neq(small_repr.to_f32())) { panic("F32 repr did not round-trip") }
+    if large.eq(large).and(large.neq(large_repr.to_f64())) { panic("F64 repr did not round-trip") }
+}
+mut float_text_source := "prefix-12.59"
+float_text_view := float_text_source.substr(6, 5)
+if float_text_view.to_f64().eq(-12.5) { println("float text view") }
+mut float_text_nul := "3\x00ignored"
+if float_text_nul.to_f32().eq(3.0) { println("float text NUL") }

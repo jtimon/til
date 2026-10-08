@@ -1259,153 +1259,153 @@ I64 TilMain()
     TilStrInitLit(&literal_173, "  1234  ", 8);
     TilStr copy_174;
     TilStrClone(&copy_174, &literal_173);
-    U64 hoisted__U64_g523_175 = 2;
-    U64 hoisted__U64_g524_176 = 4;
+    U64 hoisted__U64_g652_175 = 2;
+    U64 hoisted__U64_g653_176 = 4;
     TilStr view_177;
-    TilStrSubstr(&view_177, &copy_174, hoisted__U64_g523_175, hoisted__U64_g524_176);
+    TilStrSubstr(&view_177, &copy_174, hoisted__U64_g652_175, hoisted__U64_g653_176);
     TilStr borrowed_178;
     TilStrBorrowedView(&borrowed_178, &view_177);
-    U64 hoisted__U64_g525_179 = 8;
+    U64 hoisted__U64_g654_179 = 8;
     TilStr out_180;
-    TilStrWithCapacity(&out_180, hoisted__U64_g525_179);
-    TilStr hoisted__Str_g526_181;
-    TilStrInitLit(&hoisted__Str_g526_181, "ab", 2);
-    TilStrPush(&out_180, &hoisted__Str_g526_181);
-    TilStrDelete(&hoisted__Str_g526_181, FALSE);
+    TilStrWithCapacity(&out_180, hoisted__U64_g654_179);
+    TilStr hoisted__Str_g655_181;
+    TilStrInitLit(&hoisted__Str_g655_181, "ab", 2);
+    TilStrPush(&out_180, &hoisted__Str_g655_181);
+    TilStrDelete(&hoisted__Str_g655_181, FALSE);
     TilStrPush(&out_180, &borrowed_178);
-    U64 hoisted__U64_g527_182 = 1;
-    TilStrArray _va_Array_g71_183;
-    TilStrArrayNew(&_va_Array_g71_183, hoisted__U64_g527_182);
-    I64 _va_Array_g71_ek_184 = 0;
-    U64 hoisted__U64_g528_185 = 0;
-    TilStr hoisted__Str_g529_186;
-    TilStrClone(&hoisted__Str_g529_186, &out_180);
-    TilStrArraySet(&_va_Array_g71_183, hoisted__U64_g528_185, &hoisted__Str_g529_186);
-    TilPrintln(&_va_Array_g71_183);
-    TilStr hoisted__Str_g530_187;
-    TilStrInitLit(&hoisted__Str_g530_187, "1234", 4);
-    I64 number_188 = TilStrToI64(&hoisted__Str_g530_187);
-    TilStrDelete(&hoisted__Str_g530_187, FALSE);
-    U64 hoisted__U64_g531_189 = 1;
-    TilStrArray _va_Array_g72_190;
-    TilStrArrayNew(&_va_Array_g72_190, hoisted__U64_g531_189);
-    I64 _va_Array_g72_ek_191 = 0;
-    U64 hoisted__U64_g532_192 = 0;
-    TilStr hoisted__Str_g533_193;
-    TilStrFromI64(&hoisted__Str_g533_193, number_188);
-    TilStrArraySet(&_va_Array_g72_190, hoisted__U64_g532_192, &hoisted__Str_g533_193);
-    TilPrintln(&_va_Array_g72_190);
-    U64 hoisted__U64_g534_194 = 1;
-    TilStrArray _va_Array_g73_195;
-    TilStrArrayNew(&_va_Array_g73_195, hoisted__U64_g534_194);
-    I64 _va_Array_g73_ek_196 = 0;
-    U64 hoisted__U64_g535_197 = (&out_180)->count;
-    I64 hoisted__I64_g536_198 = ((hoisted__U64_g535_197) + 0)(I64);
-    U64 hoisted__U64_g537_199 = 0;
-    TilStr hoisted__Str_g538_200;
-    TilStrFromI64(&hoisted__Str_g538_200, hoisted__I64_g536_198);
-    TilStrArraySet(&_va_Array_g73_195, hoisted__U64_g537_199, &hoisted__Str_g538_200);
-    TilPrintln(&_va_Array_g73_195);
-    U64 hoisted__U64_g539_201 = 8;
+    U64 hoisted__U64_g656_182 = 1;
+    TilStrArray _va_Array_g76_183;
+    TilStrArrayNew(&_va_Array_g76_183, hoisted__U64_g656_182);
+    I64 _va_Array_g76_ek_184 = 0;
+    U64 hoisted__U64_g657_185 = 0;
+    TilStr hoisted__Str_g658_186;
+    TilStrClone(&hoisted__Str_g658_186, &out_180);
+    TilStrArraySet(&_va_Array_g76_183, hoisted__U64_g657_185, &hoisted__Str_g658_186);
+    TilPrintln(&_va_Array_g76_183);
+    TilStr hoisted__Str_g659_187;
+    TilStrInitLit(&hoisted__Str_g659_187, "1234", 4);
+    I64 number_188 = TilStrToI64(&hoisted__Str_g659_187);
+    TilStrDelete(&hoisted__Str_g659_187, FALSE);
+    U64 hoisted__U64_g660_189 = 1;
+    TilStrArray _va_Array_g77_190;
+    TilStrArrayNew(&_va_Array_g77_190, hoisted__U64_g660_189);
+    I64 _va_Array_g77_ek_191 = 0;
+    U64 hoisted__U64_g661_192 = 0;
+    TilStr hoisted__Str_g662_193;
+    TilStrFromI64(&hoisted__Str_g662_193, number_188);
+    TilStrArraySet(&_va_Array_g77_190, hoisted__U64_g661_192, &hoisted__Str_g662_193);
+    TilPrintln(&_va_Array_g77_190);
+    U64 hoisted__U64_g663_194 = 1;
+    TilStrArray _va_Array_g78_195;
+    TilStrArrayNew(&_va_Array_g78_195, hoisted__U64_g663_194);
+    I64 _va_Array_g78_ek_196 = 0;
+    U64 hoisted__U64_g664_197 = (&out_180)->count;
+    I64 hoisted__I64_g665_198 = ((hoisted__U64_g664_197) + 0)(I64);
+    U64 hoisted__U64_g666_199 = 0;
+    TilStr hoisted__Str_g667_200;
+    TilStrFromI64(&hoisted__Str_g667_200, hoisted__I64_g665_198);
+    TilStrArraySet(&_va_Array_g78_195, hoisted__U64_g666_199, &hoisted__Str_g667_200);
+    TilPrintln(&_va_Array_g78_195);
+    U64 hoisted__U64_g668_201 = 8;
     TilStr reassigned_202;
-    TilStrWithCapacity(&reassigned_202, hoisted__U64_g539_201);
-    TilStr hoisted__Str_g540_203;
-    TilStrInitLit(&hoisted__Str_g540_203, "abcdef", 6);
-    TilStrPush(&reassigned_202, &hoisted__Str_g540_203);
-    TilStrDelete(&hoisted__Str_g540_203, FALSE);
-    U64 hoisted__U64_g541_204 = 1;
-    U64 hoisted__U64_g542_205 = 4;
-    TilStr hoisted__Str_g543_206;
-    TilStrSubstr(&hoisted__Str_g543_206, &reassigned_202, hoisted__U64_g541_204, hoisted__U64_g542_205);
+    TilStrWithCapacity(&reassigned_202, hoisted__U64_g668_201);
+    TilStr hoisted__Str_g669_203;
+    TilStrInitLit(&hoisted__Str_g669_203, "abcdef", 6);
+    TilStrPush(&reassigned_202, &hoisted__Str_g669_203);
+    TilStrDelete(&hoisted__Str_g669_203, FALSE);
+    U64 hoisted__U64_g670_204 = 1;
+    U64 hoisted__U64_g671_205 = 4;
+    TilStr hoisted__Str_g672_206;
+    TilStrSubstr(&hoisted__Str_g672_206, &reassigned_202, hoisted__U64_g670_204, hoisted__U64_g671_205);
     {
         TilStr replacement_207;
-        TilStrClone(&replacement_207, &hoisted__Str_g543_206);
+        TilStrClone(&replacement_207, &hoisted__Str_g672_206);
         TilStrDelete(&reassigned_202, FALSE);
         TilStrCopyValue(&reassigned_202, &replacement_207);
     }
-    TilStrDelete(&hoisted__Str_g543_206, FALSE);
+    TilStrDelete(&hoisted__Str_g672_206, FALSE);
     TilStr returned_208;
     str_runtime_middle(&returned_208, &reassigned_202);
-    U64 hoisted__U64_g544_209 = 1;
-    TilStrArray _va_Array_g74_210;
-    TilStrArrayNew(&_va_Array_g74_210, hoisted__U64_g544_209);
-    I64 _va_Array_g74_ek_211 = 0;
-    U64 hoisted__U64_g545_212 = 0;
-    TilStr hoisted__Str_g546_213;
-    TilStrClone(&hoisted__Str_g546_213, &returned_208);
-    TilStrArraySet(&_va_Array_g74_210, hoisted__U64_g545_212, &hoisted__Str_g546_213);
-    TilPrintln(&_va_Array_g74_210);
-    U64 hoisted__U64_g547_214 = 1;
-    TilStrArray _va_Array_g75_215;
-    TilStrArrayNew(&_va_Array_g75_215, hoisted__U64_g547_214);
-    I64 _va_Array_g75_ek_216 = 0;
-    I64 hoisted__I64_g548_217 = str_runtime_len(&returned_208);
-    U64 hoisted__U64_g549_218 = 0;
-    TilStr hoisted__Str_g550_219;
-    TilStrFromI64(&hoisted__Str_g550_219, hoisted__I64_g548_217);
-    TilStrArraySet(&_va_Array_g75_215, hoisted__U64_g549_218, &hoisted__Str_g550_219);
-    TilPrintln(&_va_Array_g75_215);
-    U64 hoisted__U64_g551_220 = 4;
-    TilStrArray _va_Array_g76_221;
-    TilStrArrayNew(&_va_Array_g76_221, hoisted__U64_g551_220);
-    I64 _va_Array_g76_ek_222 = 0;
-    U64 hoisted__U64_g552_223 = 0;
-    TilStr hoisted__Str_g553_224;
-    TilStrInitLit(&hoisted__Str_g553_224, "multi:", 6);
-    TilStrArraySet(&_va_Array_g76_221, hoisted__U64_g552_223, &hoisted__Str_g553_224);
-    U64 hoisted__U64_g554_225 = 1;
-    TilStr hoisted__Str_g555_226;
-    TilStrClone(&hoisted__Str_g555_226, &returned_208);
-    TilStrArraySet(&_va_Array_g76_221, hoisted__U64_g554_225, &hoisted__Str_g555_226);
-    U64 hoisted__U64_g556_227 = 2;
-    TilStr hoisted__Str_g557_228;
-    TilStrInitLit(&hoisted__Str_g557_228, ":", 1);
-    TilStrArraySet(&_va_Array_g76_221, hoisted__U64_g556_227, &hoisted__Str_g557_228);
-    I64 hoisted__I64_g558_229 = str_runtime_len(&returned_208);
-    U64 hoisted__U64_g559_230 = 3;
-    TilStr hoisted__Str_g560_231;
-    TilStrFromI64(&hoisted__Str_g560_231, hoisted__I64_g558_229);
-    TilStrArraySet(&_va_Array_g76_221, hoisted__U64_g559_230, &hoisted__Str_g560_231);
-    TilPrintln(&_va_Array_g76_221);
-    U64 hoisted__U64_g561_232 = 4;
+    U64 hoisted__U64_g673_209 = 1;
+    TilStrArray _va_Array_g79_210;
+    TilStrArrayNew(&_va_Array_g79_210, hoisted__U64_g673_209);
+    I64 _va_Array_g79_ek_211 = 0;
+    U64 hoisted__U64_g674_212 = 0;
+    TilStr hoisted__Str_g675_213;
+    TilStrClone(&hoisted__Str_g675_213, &returned_208);
+    TilStrArraySet(&_va_Array_g79_210, hoisted__U64_g674_212, &hoisted__Str_g675_213);
+    TilPrintln(&_va_Array_g79_210);
+    U64 hoisted__U64_g676_214 = 1;
+    TilStrArray _va_Array_g80_215;
+    TilStrArrayNew(&_va_Array_g80_215, hoisted__U64_g676_214);
+    I64 _va_Array_g80_ek_216 = 0;
+    I64 hoisted__I64_g677_217 = str_runtime_len(&returned_208);
+    U64 hoisted__U64_g678_218 = 0;
+    TilStr hoisted__Str_g679_219;
+    TilStrFromI64(&hoisted__Str_g679_219, hoisted__I64_g677_217);
+    TilStrArraySet(&_va_Array_g80_215, hoisted__U64_g678_218, &hoisted__Str_g679_219);
+    TilPrintln(&_va_Array_g80_215);
+    U64 hoisted__U64_g680_220 = 4;
+    TilStrArray _va_Array_g81_221;
+    TilStrArrayNew(&_va_Array_g81_221, hoisted__U64_g680_220);
+    I64 _va_Array_g81_ek_222 = 0;
+    U64 hoisted__U64_g681_223 = 0;
+    TilStr hoisted__Str_g682_224;
+    TilStrInitLit(&hoisted__Str_g682_224, "multi:", 6);
+    TilStrArraySet(&_va_Array_g81_221, hoisted__U64_g681_223, &hoisted__Str_g682_224);
+    U64 hoisted__U64_g683_225 = 1;
+    TilStr hoisted__Str_g684_226;
+    TilStrClone(&hoisted__Str_g684_226, &returned_208);
+    TilStrArraySet(&_va_Array_g81_221, hoisted__U64_g683_225, &hoisted__Str_g684_226);
+    U64 hoisted__U64_g685_227 = 2;
+    TilStr hoisted__Str_g686_228;
+    TilStrInitLit(&hoisted__Str_g686_228, ":", 1);
+    TilStrArraySet(&_va_Array_g81_221, hoisted__U64_g685_227, &hoisted__Str_g686_228);
+    I64 hoisted__I64_g687_229 = str_runtime_len(&returned_208);
+    U64 hoisted__U64_g688_230 = 3;
+    TilStr hoisted__Str_g689_231;
+    TilStrFromI64(&hoisted__Str_g689_231, hoisted__I64_g687_229);
+    TilStrArraySet(&_va_Array_g81_221, hoisted__U64_g688_230, &hoisted__Str_g689_231);
+    TilPrintln(&_va_Array_g81_221);
+    U64 hoisted__U64_g690_232 = 4;
     TilStr mutable_233;
-    TilStrWithCapacity(&mutable_233, hoisted__U64_g561_232);
-    TilStr hoisted__Str_g562_234;
-    TilStrInitLit(&hoisted__Str_g562_234, "xy", 2);
-    TilStrPush(&mutable_233, &hoisted__Str_g562_234);
-    TilStrDelete(&hoisted__Str_g562_234, FALSE);
+    TilStrWithCapacity(&mutable_233, hoisted__U64_g690_232);
+    TilStr hoisted__Str_g691_234;
+    TilStrInitLit(&hoisted__Str_g691_234, "xy", 2);
+    TilStrPush(&mutable_233, &hoisted__Str_g691_234);
+    TilStrDelete(&hoisted__Str_g691_234, FALSE);
     str_runtime_push(&mutable_233);
-    U64 hoisted__U64_g563_235 = 1;
-    TilStrArray _va_Array_g77_236;
-    TilStrArrayNew(&_va_Array_g77_236, hoisted__U64_g563_235);
-    I64 _va_Array_g77_ek_237 = 0;
-    U64 hoisted__U64_g564_238 = 0;
-    TilStr hoisted__Str_g565_239;
-    TilStrClone(&hoisted__Str_g565_239, &mutable_233);
-    TilStrArraySet(&_va_Array_g77_236, hoisted__U64_g564_238, &hoisted__Str_g565_239);
-    TilPrintln(&_va_Array_g77_236);
+    U64 hoisted__U64_g692_235 = 1;
+    TilStrArray _va_Array_g82_236;
+    TilStrArrayNew(&_va_Array_g82_236, hoisted__U64_g692_235);
+    I64 _va_Array_g82_ek_237 = 0;
+    U64 hoisted__U64_g693_238 = 0;
+    TilStr hoisted__Str_g694_239;
+    TilStrClone(&hoisted__Str_g694_239, &mutable_233);
+    TilStrArraySet(&_va_Array_g82_236, hoisted__U64_g693_238, &hoisted__Str_g694_239);
+    TilPrintln(&_va_Array_g82_236);
     TilStr owned_240;
     TilStrClone(&owned_240, &mutable_233);
-    U64 hoisted__U64_g566_241 = 1;
-    TilStrArray _va_Array_g78_242;
-    TilStrArrayNew(&_va_Array_g78_242, hoisted__U64_g566_241);
-    I64 _va_Array_g78_ek_243 = 0;
-    I64 hoisted__I64_g567_244 = str_runtime_consume(&owned_240);
-    U64 hoisted__U64_g568_245 = 0;
-    TilStr hoisted__Str_g569_246;
-    TilStrFromI64(&hoisted__Str_g569_246, hoisted__I64_g567_244);
-    TilStrArraySet(&_va_Array_g78_242, hoisted__U64_g568_245, &hoisted__Str_g569_246);
-    TilPrintln(&_va_Array_g78_242);
+    U64 hoisted__U64_g695_241 = 1;
+    TilStrArray _va_Array_g83_242;
+    TilStrArrayNew(&_va_Array_g83_242, hoisted__U64_g695_241);
+    I64 _va_Array_g83_ek_243 = 0;
+    I64 hoisted__I64_g696_244 = str_runtime_consume(&owned_240);
+    U64 hoisted__U64_g697_245 = 0;
+    TilStr hoisted__Str_g698_246;
+    TilStrFromI64(&hoisted__Str_g698_246, hoisted__I64_g696_244);
+    TilStrArraySet(&_va_Array_g83_242, hoisted__U64_g697_245, &hoisted__Str_g698_246);
+    TilPrintln(&_va_Array_g83_242);
     TilStrDelete(&out_180, FALSE);
     TilStrDelete(&copy_174, FALSE);
     TilStrDelete(&reassigned_202, FALSE);
     TilStrDelete(&returned_208, FALSE);
     TilStrDelete(&mutable_233, FALSE);
-    TilStr hoisted__Str_g570_247;
-    TilStrInitLit(&hoisted__Str_g570_247, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g571_248 = TilFileExists(&hoisted__Str_g570_247);
-    TilStrDelete(&hoisted__Str_g570_247, FALSE);
-    if (hoisted__Bool_g571_248) {
+    TilStr hoisted__Str_g699_247;
+    TilStrInitLit(&hoisted__Str_g699_247, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g700_248 = TilFileExists(&hoisted__Str_g699_247);
+    TilStrDelete(&hoisted__Str_g699_247, FALSE);
+    if (hoisted__Bool_g700_248) {
         U64 hoisted__U64_g44_249 = 1;
         TilStrArray _va_Array_g7_250;
         TilStrArrayNew(&_va_Array_g7_250, hoisted__U64_g44_249);
@@ -1724,12 +1724,12 @@ I64 TilMain()
         TilStrDelete(&guest_read_389, FALSE);
         TilStrDelete(&guest_fs_view_343, FALSE);
     }
-    TilStr hoisted__Str_g572_405;
-    TilStrInitLit(&hoisted__Str_g572_405, "missing.HC", 10);
-    Bool hoisted__Bool_g573_406 = TilFileExists(&hoisted__Str_g572_405);
-    TilStrDelete(&hoisted__Str_g572_405, FALSE);
-    Bool hoisted__Bool_g574_407 = (!hoisted__Bool_g573_406);
-    if (hoisted__Bool_g574_407) {
+    TilStr hoisted__Str_g701_405;
+    TilStrInitLit(&hoisted__Str_g701_405, "missing.HC", 10);
+    Bool hoisted__Bool_g702_406 = TilFileExists(&hoisted__Str_g701_405);
+    TilStrDelete(&hoisted__Str_g701_405, FALSE);
+    Bool hoisted__Bool_g703_407 = (!hoisted__Bool_g702_406);
+    if (hoisted__Bool_g703_407) {
         U64 hoisted__U64_g123_408 = 1;
         TilStrArray _va_Array_g18_409;
         TilStrArrayNew(&_va_Array_g18_409, hoisted__U64_g123_408);
@@ -1740,12 +1740,12 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g18_409, hoisted__U64_g124_411, &hoisted__Str_g125_412);
         TilPrintln(&_va_Array_g18_409);
     }
-    TilStr hoisted__Str_g575_413;
-    TilStrInitLit(&hoisted__Str_g575_413, "missing.HC", 10);
-    Bool hoisted__Bool_g576_414 = TilFileExists(&hoisted__Str_g575_413);
-    TilStrDelete(&hoisted__Str_g575_413, FALSE);
-    Bool hoisted__Bool_g577_415 = (!hoisted__Bool_g576_414);
-    if (hoisted__Bool_g577_415) {
+    TilStr hoisted__Str_g704_413;
+    TilStrInitLit(&hoisted__Str_g704_413, "missing.HC", 10);
+    Bool hoisted__Bool_g705_414 = TilFileExists(&hoisted__Str_g704_413);
+    TilStrDelete(&hoisted__Str_g704_413, FALSE);
+    Bool hoisted__Bool_g706_415 = (!hoisted__Bool_g705_414);
+    if (hoisted__Bool_g706_415) {
         U64 hoisted__U64_g126_416 = 1;
         TilStrArray _va_Array_g19_417;
         TilStrArrayNew(&_va_Array_g19_417, hoisted__U64_g126_416);
@@ -1820,18 +1820,18 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g21_447, hoisted__U64_g153_449, &hoisted__Str_g154_450);
         TilPrintln(&_va_Array_g21_447);
     }
-    TilStr hoisted__Str_g578_451;
-    TilStrInitLit(&hoisted__Str_g578_451, "TILWRITE.HC.trailing", 20);
-    U64 hoisted__U64_g579_452 = 0;
-    U64 hoisted__U64_g580_453 = 11;
+    TilStr hoisted__Str_g707_451;
+    TilStrInitLit(&hoisted__Str_g707_451, "TILWRITE.HC.trailing", 20);
+    U64 hoisted__U64_g708_452 = 0;
+    U64 hoisted__U64_g709_453 = 11;
     TilStr write_path_454;
-    TilStrSubstr(&write_path_454, &hoisted__Str_g578_451, hoisted__U64_g579_452, hoisted__U64_g580_453);
-    TilStrDelete(&hoisted__Str_g578_451, FALSE);
-    TilStr hoisted__Str_g581_455;
-    TilStrInitLit(&hoisted__Str_g581_455, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g582_456 = TilFileExists(&hoisted__Str_g581_455);
-    TilStrDelete(&hoisted__Str_g581_455, FALSE);
-    if (hoisted__Bool_g582_456) {
+    TilStrSubstr(&write_path_454, &hoisted__Str_g707_451, hoisted__U64_g708_452, hoisted__U64_g709_453);
+    TilStrDelete(&hoisted__Str_g707_451, FALSE);
+    TilStr hoisted__Str_g710_455;
+    TilStrInitLit(&hoisted__Str_g710_455, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g711_456 = TilFileExists(&hoisted__Str_g710_455);
+    TilStrDelete(&hoisted__Str_g710_455, FALSE);
+    if (hoisted__Bool_g711_456) {
         TilStr hoisted__Str_g155_457;
         TilStrInitLit(&hoisted__Str_g155_457, "tmp/TILWRITE.HC.trailing", 24);
         U64 hoisted__U64_g156_458 = 0;
@@ -1844,21 +1844,21 @@ I64 TilMain()
         }
         TilStrDelete(&hoisted__Str_g155_457, FALSE);
     }
-    TilStr hoisted__Str_g583_461;
-    TilStrInitLit(&hoisted__Str_g583_461, "longer content", 14);
-    TilFileWrite(&write_path_454, &hoisted__Str_g583_461);
-    TilStrDelete(&hoisted__Str_g583_461, FALSE);
-    TilStr hoisted__Str_g584_462;
-    TilStrInitLit(&hoisted__Str_g584_462, "A\x00Z", 3);
-    TilFileWrite(&write_path_454, &hoisted__Str_g584_462);
-    TilStrDelete(&hoisted__Str_g584_462, FALSE);
+    TilStr hoisted__Str_g712_461;
+    TilStrInitLit(&hoisted__Str_g712_461, "longer content", 14);
+    TilFileWrite(&write_path_454, &hoisted__Str_g712_461);
+    TilStrDelete(&hoisted__Str_g712_461, FALSE);
+    TilStr hoisted__Str_g713_462;
+    TilStrInitLit(&hoisted__Str_g713_462, "A\x00Z", 3);
+    TilFileWrite(&write_path_454, &hoisted__Str_g713_462);
+    TilStrDelete(&hoisted__Str_g713_462, FALSE);
     TilStr written_463;
     TilFileRead(&written_463, &write_path_454);
-    TilStr hoisted__Str_g585_464;
-    TilStrInitLit(&hoisted__Str_g585_464, "A\x00Z", 3);
-    Bool hoisted__Bool_g586_465 = TilStrEq(&written_463, &hoisted__Str_g585_464);
-    TilStrDelete(&hoisted__Str_g585_464, FALSE);
-    if (hoisted__Bool_g586_465) {
+    TilStr hoisted__Str_g714_464;
+    TilStrInitLit(&hoisted__Str_g714_464, "A\x00Z", 3);
+    Bool hoisted__Bool_g715_465 = TilStrEq(&written_463, &hoisted__Str_g714_464);
+    TilStrDelete(&hoisted__Str_g714_464, FALSE);
+    if (hoisted__Bool_g715_465) {
         U64 hoisted__U64_g158_466 = 1;
         TilStrArray _va_Array_g22_467;
         TilStrArrayNew(&_va_Array_g22_467, hoisted__U64_g158_466);
@@ -1869,26 +1869,26 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g22_467, hoisted__U64_g159_469, &hoisted__Str_g160_470);
         TilPrintln(&_va_Array_g22_467);
     }
-    U64 hoisted__U64_g587_471 = 1;
-    TilStrArray _va_Array_g79_472;
-    TilStrArrayNew(&_va_Array_g79_472, hoisted__U64_g587_471);
-    I64 _va_Array_g79_ek_473 = 0;
-    U64 hoisted__U64_g588_474 = (&written_463)->count;
-    I64 hoisted__I64_g589_475 = ((hoisted__U64_g588_474) + 0)(I64);
-    U64 hoisted__U64_g590_476 = 0;
-    TilStr hoisted__Str_g591_477;
-    TilStrFromI64(&hoisted__Str_g591_477, hoisted__I64_g589_475);
-    TilStrArraySet(&_va_Array_g79_472, hoisted__U64_g590_476, &hoisted__Str_g591_477);
-    TilPrintln(&_va_Array_g79_472);
+    U64 hoisted__U64_g716_471 = 1;
+    TilStrArray _va_Array_g84_472;
+    TilStrArrayNew(&_va_Array_g84_472, hoisted__U64_g716_471);
+    I64 _va_Array_g84_ek_473 = 0;
+    U64 hoisted__U64_g717_474 = (&written_463)->count;
+    I64 hoisted__I64_g718_475 = ((hoisted__U64_g717_474) + 0)(I64);
+    U64 hoisted__U64_g719_476 = 0;
+    TilStr hoisted__Str_g720_477;
+    TilStrFromI64(&hoisted__Str_g720_477, hoisted__I64_g718_475);
+    TilStrArraySet(&_va_Array_g84_472, hoisted__U64_g719_476, &hoisted__Str_g720_477);
+    TilPrintln(&_va_Array_g84_472);
     TilStrDelete(&written_463, FALSE);
-    TilStr hoisted__Str_g592_478;
-    TilStrInitLit(&hoisted__Str_g592_478, "", 0);
-    TilFileWrite(&write_path_454, &hoisted__Str_g592_478);
-    TilStrDelete(&hoisted__Str_g592_478, FALSE);
+    TilStr hoisted__Str_g721_478;
+    TilStrInitLit(&hoisted__Str_g721_478, "", 0);
+    TilFileWrite(&write_path_454, &hoisted__Str_g721_478);
+    TilStrDelete(&hoisted__Str_g721_478, FALSE);
     TilStr empty_written_479;
     TilFileRead(&empty_written_479, &write_path_454);
-    Bool hoisted__Bool_g593_480 = ((&empty_written_479)->count == 0);
-    if (hoisted__Bool_g593_480) {
+    Bool hoisted__Bool_g722_480 = ((&empty_written_479)->count == 0);
+    if (hoisted__Bool_g722_480) {
         U64 hoisted__U64_g161_481 = 1;
         TilStrArray _va_Array_g23_482;
         TilStrArrayNew(&_va_Array_g23_482, hoisted__U64_g161_481);
@@ -1906,11 +1906,11 @@ I64 TilMain()
     TilStrInitLit(&fs_data_487, "TILFS/DATA.HC", 13);
     TilStr fs_moved_488;
     TilStrInitLit(&fs_moved_488, "TILFS/MOVED.HC", 14);
-    TilStr hoisted__Str_g594_489;
-    TilStrInitLit(&hoisted__Str_g594_489, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g595_490 = TilFileExists(&hoisted__Str_g594_489);
-    TilStrDelete(&hoisted__Str_g594_489, FALSE);
-    if (hoisted__Bool_g595_490) {
+    TilStr hoisted__Str_g723_489;
+    TilStrInitLit(&hoisted__Str_g723_489, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g724_490 = TilFileExists(&hoisted__Str_g723_489);
+    TilStrDelete(&hoisted__Str_g723_489, FALSE);
+    if (hoisted__Bool_g724_490) {
         {
             TilStr replacement_491;
             TilStrInitLit(&replacement_491, "tmp/TILFS", 9);
@@ -1931,10 +1931,10 @@ I64 TilMain()
         }
     }
     File_remove_tree(&fs_dir_486);
-    I32 hoisted__I32_g596_494 = TilMakeDirs(&fs_dir_486);
-    I32 hoisted__I32_g597_495 = 0;
-    Bool hoisted__Bool_g598_496 = (hoisted__I32_g596_494 != hoisted__I32_g597_495);
-    if (hoisted__Bool_g598_496) {
+    I32 hoisted__I32_g725_494 = TilMakeDirs(&fs_dir_486);
+    I32 hoisted__I32_g726_495 = 0;
+    Bool hoisted__Bool_g727_496 = (hoisted__I32_g725_494 != hoisted__I32_g726_495);
+    if (hoisted__Bool_g727_496) {
         U64 hoisted__U64_g164_497 = 1;
         TilStrArray _va_Array_g24_498;
         TilStrArrayNew(&_va_Array_g24_498, hoisted__U64_g164_497);
@@ -2096,27 +2096,27 @@ I64 TilMain()
     }
     TilStr updated_579;
     TilFileRead(&updated_579, &fs_data_487);
-    U64 hoisted__U64_g599_580 = 1;
-    TilStrArray _va_Array_g80_581;
-    TilStrArrayNew(&_va_Array_g80_581, hoisted__U64_g599_580);
-    I64 _va_Array_g80_ek_582 = 0;
-    U64 hoisted__U64_g600_583 = 0;
-    U64 hoisted__U64_g601_584 = 11;
-    U64 hoisted__U64_g602_585 = 0;
-    TilStr hoisted__Str_g603_586;
-    TilStrSubstr(&hoisted__Str_g603_586, &updated_579, hoisted__U64_g600_583, hoisted__U64_g601_584);
-    TilStrArraySet(&_va_Array_g80_581, hoisted__U64_g602_585, &hoisted__Str_g603_586);
-    TilPrintln(&_va_Array_g80_581);
-    U64 hoisted__U64_g604_587 = 11;
-    U64 hoisted__U64_g605_588 = 3;
-    TilStr hoisted__Str_g606_589;
-    TilStrSubstr(&hoisted__Str_g606_589, &updated_579, hoisted__U64_g604_587, hoisted__U64_g605_588);
-    TilStr hoisted__Str_g607_590;
-    TilStrInitLit(&hoisted__Str_g607_590, "\x00\x00!", 3);
-    Bool hoisted__Bool_g608_591 = TilStrEq(&hoisted__Str_g606_589, &hoisted__Str_g607_590);
-    TilStrDelete(&hoisted__Str_g606_589, FALSE);
-    TilStrDelete(&hoisted__Str_g607_590, FALSE);
-    if (hoisted__Bool_g608_591) {
+    U64 hoisted__U64_g728_580 = 1;
+    TilStrArray _va_Array_g85_581;
+    TilStrArrayNew(&_va_Array_g85_581, hoisted__U64_g728_580);
+    I64 _va_Array_g85_ek_582 = 0;
+    U64 hoisted__U64_g729_583 = 0;
+    U64 hoisted__U64_g730_584 = 11;
+    U64 hoisted__U64_g731_585 = 0;
+    TilStr hoisted__Str_g732_586;
+    TilStrSubstr(&hoisted__Str_g732_586, &updated_579, hoisted__U64_g729_583, hoisted__U64_g730_584);
+    TilStrArraySet(&_va_Array_g85_581, hoisted__U64_g731_585, &hoisted__Str_g732_586);
+    TilPrintln(&_va_Array_g85_581);
+    U64 hoisted__U64_g733_587 = 11;
+    U64 hoisted__U64_g734_588 = 3;
+    TilStr hoisted__Str_g735_589;
+    TilStrSubstr(&hoisted__Str_g735_589, &updated_579, hoisted__U64_g733_587, hoisted__U64_g734_588);
+    TilStr hoisted__Str_g736_590;
+    TilStrInitLit(&hoisted__Str_g736_590, "\x00\x00!", 3);
+    Bool hoisted__Bool_g737_591 = TilStrEq(&hoisted__Str_g735_589, &hoisted__Str_g736_590);
+    TilStrDelete(&hoisted__Str_g735_589, FALSE);
+    TilStrDelete(&hoisted__Str_g736_590, FALSE);
+    if (hoisted__Bool_g737_591) {
         U64 hoisted__U64_g220_592 = 1;
         TilStrArray _va_Array_g34_593;
         TilStrArrayNew(&_va_Array_g34_593, hoisted__U64_g220_592);
@@ -2149,14 +2149,14 @@ I64 TilMain()
         TilPrintln(&_va_Array_g35_603);
         File_Delete(&appender_597, FALSE);
     }
-    TilStr hoisted__Str_g609_608;
-    TilStrInitLit(&hoisted__Str_g609_608, "+", 1);
-    File_appendfile(&fs_data_487, &hoisted__Str_g609_608);
-    TilStrDelete(&hoisted__Str_g609_608, FALSE);
-    TilStr hoisted__Str_g610_609;
-    TilStrInitLit(&hoisted__Str_g610_609, "replaced", 8);
-    TilFileWrite(&fs_moved_488, &hoisted__Str_g610_609);
-    TilStrDelete(&hoisted__Str_g610_609, FALSE);
+    TilStr hoisted__Str_g738_608;
+    TilStrInitLit(&hoisted__Str_g738_608, "+", 1);
+    File_appendfile(&fs_data_487, &hoisted__Str_g738_608);
+    TilStrDelete(&hoisted__Str_g738_608, FALSE);
+    TilStr hoisted__Str_g739_609;
+    TilStrInitLit(&hoisted__Str_g739_609, "replaced", 8);
+    TilFileWrite(&fs_moved_488, &hoisted__Str_g739_609);
+    TilStrDelete(&hoisted__Str_g739_609, FALSE);
     File_rename(&fs_data_487, &fs_moved_488);
     Bool _m_Bool_g230_610 = FALSE;
     {
@@ -2185,16 +2185,16 @@ I64 TilMain()
     }
     TilStr moved_622;
     TilFileRead(&moved_622, &fs_moved_488);
-    U64 hoisted__U64_g611_623 = 14;
-    U64 hoisted__U64_g612_624 = 5;
-    TilStr hoisted__Str_g613_625;
-    TilStrSubstr(&hoisted__Str_g613_625, &moved_622, hoisted__U64_g611_623, hoisted__U64_g612_624);
-    TilStr hoisted__Str_g614_626;
-    TilStrInitLit(&hoisted__Str_g614_626, "tail+", 5);
-    Bool hoisted__Bool_g615_627 = TilStrEq(&hoisted__Str_g613_625, &hoisted__Str_g614_626);
-    TilStrDelete(&hoisted__Str_g613_625, FALSE);
-    TilStrDelete(&hoisted__Str_g614_626, FALSE);
-    if (hoisted__Bool_g615_627) {
+    U64 hoisted__U64_g740_623 = 14;
+    U64 hoisted__U64_g741_624 = 5;
+    TilStr hoisted__Str_g742_625;
+    TilStrSubstr(&hoisted__Str_g742_625, &moved_622, hoisted__U64_g740_623, hoisted__U64_g741_624);
+    TilStr hoisted__Str_g743_626;
+    TilStrInitLit(&hoisted__Str_g743_626, "tail+", 5);
+    Bool hoisted__Bool_g744_627 = TilStrEq(&hoisted__Str_g742_625, &hoisted__Str_g743_626);
+    TilStrDelete(&hoisted__Str_g742_625, FALSE);
+    TilStrDelete(&hoisted__Str_g743_626, FALSE);
+    if (hoisted__Bool_g744_627) {
         U64 hoisted__U64_g240_628 = 1;
         TilStrArray _va_Array_g37_629;
         TilStrArrayNew(&_va_Array_g37_629, hoisted__U64_g240_628);
@@ -2205,17 +2205,17 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g37_629, hoisted__U64_g241_631, &hoisted__Str_g242_632);
         TilPrintln(&_va_Array_g37_629);
     }
-    U64 hoisted__U64_g616_633 = 1;
-    TilStrArray _va_Array_g81_634;
-    TilStrArrayNew(&_va_Array_g81_634, hoisted__U64_g616_633);
-    I64 _va_Array_g81_ek_635 = 0;
-    U64 hoisted__U64_g617_636 = (&moved_622)->count;
-    I64 hoisted__I64_g618_637 = ((hoisted__U64_g617_636) + 0)(I64);
-    U64 hoisted__U64_g619_638 = 0;
-    TilStr hoisted__Str_g620_639;
-    TilStrFromI64(&hoisted__Str_g620_639, hoisted__I64_g618_637);
-    TilStrArraySet(&_va_Array_g81_634, hoisted__U64_g619_638, &hoisted__Str_g620_639);
-    TilPrintln(&_va_Array_g81_634);
+    U64 hoisted__U64_g745_633 = 1;
+    TilStrArray _va_Array_g86_634;
+    TilStrArrayNew(&_va_Array_g86_634, hoisted__U64_g745_633);
+    I64 _va_Array_g86_ek_635 = 0;
+    U64 hoisted__U64_g746_636 = (&moved_622)->count;
+    I64 hoisted__I64_g747_637 = ((hoisted__U64_g746_636) + 0)(I64);
+    U64 hoisted__U64_g748_638 = 0;
+    TilStr hoisted__Str_g749_639;
+    TilStrFromI64(&hoisted__Str_g749_639, hoisted__I64_g747_637);
+    TilStrArraySet(&_va_Array_g86_634, hoisted__U64_g748_638, &hoisted__Str_g749_639);
+    TilPrintln(&_va_Array_g86_634);
     TilStrDelete(&moved_622, FALSE);
     if (TRUE) {
         Dir directory_640;
@@ -2262,23 +2262,23 @@ I64 TilMain()
     }
     Vec__Str names_657;
     Dir_list(&names_657, &fs_dir_486);
-    U64 hoisted__U64_g621_658 = 1;
-    TilStrArray _va_Array_g82_659;
-    TilStrArrayNew(&_va_Array_g82_659, hoisted__U64_g621_658);
-    I64 _va_Array_g82_ek_660 = 0;
-    U64 hoisted__U64_g622_661 = (&names_657)->count;
-    I64 hoisted__I64_g623_662 = ((hoisted__U64_g622_661) + 0)(I64);
-    U64 hoisted__U64_g624_663 = 0;
-    TilStr hoisted__Str_g625_664;
-    TilStrFromI64(&hoisted__Str_g625_664, hoisted__I64_g623_662);
-    TilStrArraySet(&_va_Array_g82_659, hoisted__U64_g624_663, &hoisted__Str_g625_664);
-    TilPrintln(&_va_Array_g82_659);
+    U64 hoisted__U64_g750_658 = 1;
+    TilStrArray _va_Array_g87_659;
+    TilStrArrayNew(&_va_Array_g87_659, hoisted__U64_g750_658);
+    I64 _va_Array_g87_ek_660 = 0;
+    U64 hoisted__U64_g751_661 = (&names_657)->count;
+    I64 hoisted__I64_g752_662 = ((hoisted__U64_g751_661) + 0)(I64);
+    U64 hoisted__U64_g753_663 = 0;
+    TilStr hoisted__Str_g754_664;
+    TilStrFromI64(&hoisted__Str_g754_664, hoisted__I64_g752_662);
+    TilStrArraySet(&_va_Array_g87_659, hoisted__U64_g753_663, &hoisted__Str_g754_664);
+    TilPrintln(&_va_Array_g87_659);
     Vec__Str_Delete(&names_657, FALSE);
     File_remove(&fs_moved_488);
     File_remove(&fs_moved_488);
-    Bool hoisted__Bool_g626_665 = TilFileExists(&fs_moved_488);
-    Bool hoisted__Bool_g627_666 = (!hoisted__Bool_g626_665);
-    if (hoisted__Bool_g627_666) {
+    Bool hoisted__Bool_g755_665 = TilFileExists(&fs_moved_488);
+    Bool hoisted__Bool_g756_666 = (!hoisted__Bool_g755_665);
+    if (hoisted__Bool_g756_666) {
         U64 hoisted__U64_g252_667 = 1;
         TilStrArray _va_Array_g40_668;
         TilStrArrayNew(&_va_Array_g40_668, hoisted__U64_g252_667);
@@ -2297,11 +2297,11 @@ I64 TilMain()
     TilStrInitLit(&tree_leaf_674, "TILFS/TREE/LEAF.HC", 18);
     TilStr moved_leaf_675;
     TilStrInitLit(&moved_leaf_675, "TILFS/NEW/LEAF.HC", 17);
-    TilStr hoisted__Str_g628_676;
-    TilStrInitLit(&hoisted__Str_g628_676, "src/holyc/ext.HC", 16);
-    Bool hoisted__Bool_g629_677 = TilFileExists(&hoisted__Str_g628_676);
-    TilStrDelete(&hoisted__Str_g628_676, FALSE);
-    if (hoisted__Bool_g629_677) {
+    TilStr hoisted__Str_g757_676;
+    TilStrInitLit(&hoisted__Str_g757_676, "src/holyc/ext.HC", 16);
+    Bool hoisted__Bool_g758_677 = TilFileExists(&hoisted__Str_g757_676);
+    TilStrDelete(&hoisted__Str_g757_676, FALSE);
+    if (hoisted__Bool_g758_677) {
         {
             TilStr replacement_678;
             TilStrInitLit(&replacement_678, "tmp/TILFS/TREE", 14);
@@ -2327,10 +2327,10 @@ I64 TilMain()
             TilStrCopyValue(&moved_leaf_675, &replacement_681);
         }
     }
-    I32 hoisted__I32_g630_682 = TilMakeDirs(&tree_src_672);
-    I32 hoisted__I32_g631_683 = 0;
-    Bool hoisted__Bool_g632_684 = (hoisted__I32_g630_682 != hoisted__I32_g631_683);
-    if (hoisted__Bool_g632_684) {
+    I32 hoisted__I32_g759_682 = TilMakeDirs(&tree_src_672);
+    I32 hoisted__I32_g760_683 = 0;
+    Bool hoisted__Bool_g761_684 = (hoisted__I32_g759_682 != hoisted__I32_g760_683);
+    if (hoisted__Bool_g761_684) {
         U64 hoisted__U64_g255_685 = 1;
         TilStrArray _va_Array_g41_686;
         TilStrArrayNew(&_va_Array_g41_686, hoisted__U64_g255_685);
@@ -2343,10 +2343,10 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g258_690, "test/script_str_runtime.til:203:29", 34);
         TilPanicParts(&_va_Array_g41_686, &hoisted__Str_g258_690);
     }
-    I32 hoisted__I32_g633_691 = TilMakeDirs(&tree_dst_673);
-    I32 hoisted__I32_g634_692 = 0;
-    Bool hoisted__Bool_g635_693 = (hoisted__I32_g633_691 != hoisted__I32_g634_692);
-    if (hoisted__Bool_g635_693) {
+    I32 hoisted__I32_g762_691 = TilMakeDirs(&tree_dst_673);
+    I32 hoisted__I32_g763_692 = 0;
+    Bool hoisted__Bool_g764_693 = (hoisted__I32_g762_691 != hoisted__I32_g763_692);
+    if (hoisted__Bool_g764_693) {
         U64 hoisted__U64_g259_694 = 1;
         TilStrArray _va_Array_g42_695;
         TilStrArrayNew(&_va_Array_g42_695, hoisted__U64_g259_694);
@@ -2359,10 +2359,10 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g262_699, "test/script_str_runtime.til:204:29", 34);
         TilPanicParts(&_va_Array_g42_695, &hoisted__Str_g262_699);
     }
-    TilStr hoisted__Str_g636_700;
-    TilStrInitLit(&hoisted__Str_g636_700, "leaf", 4);
-    TilFileWrite(&tree_leaf_674, &hoisted__Str_g636_700);
-    TilStrDelete(&hoisted__Str_g636_700, FALSE);
+    TilStr hoisted__Str_g765_700;
+    TilStrInitLit(&hoisted__Str_g765_700, "leaf", 4);
+    TilFileWrite(&tree_leaf_674, &hoisted__Str_g765_700);
+    TilStrDelete(&hoisted__Str_g765_700, FALSE);
     File_rename(&tree_src_672, &tree_dst_673);
     Bool _m_Bool_g263_701 = FALSE;
     {
@@ -2389,19 +2389,19 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g43_709, hoisted__U64_g271_711, &hoisted__Str_g272_712);
         TilPrintln(&_va_Array_g43_709);
     }
-    U64 hoisted__U64_g637_713 = 1;
-    TilStrArray _va_Array_g83_714;
-    TilStrArrayNew(&_va_Array_g83_714, hoisted__U64_g637_713);
-    I64 _va_Array_g83_ek_715 = 0;
-    U64 hoisted__U64_g638_716 = 0;
-    TilStr hoisted__Str_g639_717;
-    TilFileRead(&hoisted__Str_g639_717, &moved_leaf_675);
-    TilStrArraySet(&_va_Array_g83_714, hoisted__U64_g638_716, &hoisted__Str_g639_717);
-    TilPrintln(&_va_Array_g83_714);
+    U64 hoisted__U64_g766_713 = 1;
+    TilStrArray _va_Array_g88_714;
+    TilStrArrayNew(&_va_Array_g88_714, hoisted__U64_g766_713);
+    I64 _va_Array_g88_ek_715 = 0;
+    U64 hoisted__U64_g767_716 = 0;
+    TilStr hoisted__Str_g768_717;
+    TilFileRead(&hoisted__Str_g768_717, &moved_leaf_675);
+    TilStrArraySet(&_va_Array_g88_714, hoisted__U64_g767_716, &hoisted__Str_g768_717);
+    TilPrintln(&_va_Array_g88_714);
     File_remove_tree(&fs_dir_486);
-    Bool hoisted__Bool_g640_718 = TilFileExists(&fs_dir_486);
-    Bool hoisted__Bool_g641_719 = (!hoisted__Bool_g640_718);
-    if (hoisted__Bool_g641_719) {
+    Bool hoisted__Bool_g769_718 = TilFileExists(&fs_dir_486);
+    Bool hoisted__Bool_g770_719 = (!hoisted__Bool_g769_718);
+    if (hoisted__Bool_g770_719) {
         U64 hoisted__U64_g273_720 = 1;
         TilStrArray _va_Array_g44_721;
         TilStrArrayNew(&_va_Array_g44_721, hoisted__U64_g273_720);
@@ -2412,9 +2412,9 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g44_721, hoisted__U64_g274_723, &hoisted__Str_g275_724);
         TilPrintln(&_va_Array_g44_721);
     }
-    U64 hoisted__U64_g642_725 = 1030;
+    U64 hoisted__U64_g771_725 = 1030;
     TilStr sector_content_726;
-    TilStrWithCapacity(&sector_content_726, hoisted__U64_g642_725);
+    TilStrWithCapacity(&sector_content_726, hoisted__U64_g771_725);
     {
         I64 _re_I64_g276_727 = 1030;
         I64 _rc_I64_g276_728 = 0;
@@ -2505,9 +2505,9 @@ I64 TilMain()
     }
     TilStr sparse_bytes_768;
     TilFileRead(&sparse_bytes_768, &write_path_454);
-    U64 hoisted__U64_g643_769 = 770;
+    U64 hoisted__U64_g772_769 = 770;
     TilStr zero_span_770;
-    TilStrWithCapacity(&zero_span_770, hoisted__U64_g643_769);
+    TilStrWithCapacity(&zero_span_770, hoisted__U64_g772_769);
     {
         I64 _re_I64_g304_771 = 770;
         I64 _rc_I64_g304_772 = 0;
@@ -2526,13 +2526,13 @@ I64 TilMain()
             ;
         }
     }
-    U64 hoisted__U64_g644_776 = 1030;
-    U64 hoisted__U64_g645_777 = 770;
-    TilStr hoisted__Str_g646_778;
-    TilStrSubstr(&hoisted__Str_g646_778, &sparse_bytes_768, hoisted__U64_g644_776, hoisted__U64_g645_777);
-    Bool hoisted__Bool_g647_779 = TilStrEq(&hoisted__Str_g646_778, &zero_span_770);
-    TilStrDelete(&hoisted__Str_g646_778, FALSE);
-    if (hoisted__Bool_g647_779) {
+    U64 hoisted__U64_g773_776 = 1030;
+    U64 hoisted__U64_g774_777 = 770;
+    TilStr hoisted__Str_g775_778;
+    TilStrSubstr(&hoisted__Str_g775_778, &sparse_bytes_768, hoisted__U64_g773_776, hoisted__U64_g774_777);
+    Bool hoisted__Bool_g776_779 = TilStrEq(&hoisted__Str_g775_778, &zero_span_770);
+    TilStrDelete(&hoisted__Str_g775_778, FALSE);
+    if (hoisted__Bool_g776_779) {
         U64 hoisted__U64_g307_780 = 1;
         TilStrArray _va_Array_g48_781;
         TilStrArrayNew(&_va_Array_g48_781, hoisted__U64_g307_780);
@@ -2543,39 +2543,39 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g48_781, hoisted__U64_g308_783, &hoisted__Str_g309_784);
         TilPrintln(&_va_Array_g48_781);
     }
-    U64 hoisted__U64_g648_785 = 1;
-    TilStrArray _va_Array_g84_786;
-    TilStrArrayNew(&_va_Array_g84_786, hoisted__U64_g648_785);
-    I64 _va_Array_g84_ek_787 = 0;
-    U64 hoisted__U64_g649_788 = (&sparse_bytes_768)->count;
-    I64 hoisted__I64_g650_789 = ((hoisted__U64_g649_788) + 0)(I64);
-    U64 hoisted__U64_g651_790 = 0;
-    TilStr hoisted__Str_g652_791;
-    TilStrFromI64(&hoisted__Str_g652_791, hoisted__I64_g650_789);
-    TilStrArraySet(&_va_Array_g84_786, hoisted__U64_g651_790, &hoisted__Str_g652_791);
-    TilPrintln(&_va_Array_g84_786);
+    U64 hoisted__U64_g777_785 = 1;
+    TilStrArray _va_Array_g89_786;
+    TilStrArrayNew(&_va_Array_g89_786, hoisted__U64_g777_785);
+    I64 _va_Array_g89_ek_787 = 0;
+    U64 hoisted__U64_g778_788 = (&sparse_bytes_768)->count;
+    I64 hoisted__I64_g779_789 = ((hoisted__U64_g778_788) + 0)(I64);
+    U64 hoisted__U64_g780_790 = 0;
+    TilStr hoisted__Str_g781_791;
+    TilStrFromI64(&hoisted__Str_g781_791, hoisted__I64_g779_789);
+    TilStrArraySet(&_va_Array_g89_786, hoisted__U64_g780_790, &hoisted__Str_g781_791);
+    TilPrintln(&_va_Array_g89_786);
     TilStrDelete(&sparse_bytes_768, FALSE);
     TilStrDelete(&zero_span_770, FALSE);
     TilStrDelete(&sector_content_726, FALSE);
     File_remove(&write_path_454);
     TilStr language_result_792;
     TilStrInitLit(&language_result_792, "", 0);
-    I64 hoisted__I64_g653_793 = 0;
-    I64 hoisted__I64_g654_794 = 0;
+    I64 hoisted__I64_g782_793 = 0;
+    I64 hoisted__I64_g783_794 = 0;
     LanguageCounts language_closes_795;
-    language_closes_795.closed = hoisted__I64_g653_793;
-    language_closes_795.entered = hoisted__I64_g654_794;
-    I64 hoisted__I64_g655_796 = -1;
+    language_closes_795.closed = hoisted__I64_g782_793;
+    language_closes_795.entered = hoisted__I64_g783_794;
+    I64 hoisted__I64_g784_796 = -1;
     TilStrDelete(&language_result_792, FALSE);
     {
         TilStr replacement_797;
-        language_forward(&replacement_797, hoisted__I64_g655_796, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+        language_forward(&replacement_797, hoisted__I64_g784_796, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
         TilStrDelete(&language_result_792, FALSE);
         TilStrCopyValue(&language_result_792, &replacement_797);
     }
-    I64 hoisted__I64_g656_798 = 5;
-    Bool hoisted__Bool_g657_799 = (_err_kind_171 == hoisted__I64_g656_798);
-    if (hoisted__Bool_g657_799) {
+    I64 hoisted__I64_g785_798 = 5;
+    Bool hoisted__Bool_g786_799 = (_err_kind_171 == hoisted__I64_g785_798);
+    if (hoisted__Bool_g786_799) {
         I64 hoisted__I64_g310_800 = 0;
         _err_kind_171 = hoisted__I64_g310_800;
         U64 hoisted__U64_g311_801 = 1;
@@ -2594,35 +2594,35 @@ I64 TilMain()
             TilStrCopyValue(&language_result_792, &replacement_806);
         }
     }
-    U64 hoisted__U64_g658_807 = 1;
-    TilStrArray _va_Array_g85_808;
-    TilStrArrayNew(&_va_Array_g85_808, hoisted__U64_g658_807);
-    I64 _va_Array_g85_ek_809 = 0;
-    U64 hoisted__U64_g659_810 = 0;
-    TilStr hoisted__Str_g660_811;
-    TilStrClone(&hoisted__Str_g660_811, &language_result_792);
-    TilStrArraySet(&_va_Array_g85_808, hoisted__U64_g659_810, &hoisted__Str_g660_811);
-    TilPrintln(&_va_Array_g85_808);
-    U64 hoisted__U64_g661_812 = 1;
-    TilStrArray _va_Array_g86_813;
-    TilStrArrayNew(&_va_Array_g86_813, hoisted__U64_g661_812);
-    I64 _va_Array_g86_ek_814 = 0;
-    U64 hoisted__U64_g662_815 = 0;
-    TilStr hoisted__Str_g663_816;
-    TilStrFromI64(&hoisted__Str_g663_816, language_closes_795.closed);
-    TilStrArraySet(&_va_Array_g86_813, hoisted__U64_g662_815, &hoisted__Str_g663_816);
-    TilPrintln(&_va_Array_g86_813);
-    I64 hoisted__I64_g664_817 = 1;
+    U64 hoisted__U64_g787_807 = 1;
+    TilStrArray _va_Array_g90_808;
+    TilStrArrayNew(&_va_Array_g90_808, hoisted__U64_g787_807);
+    I64 _va_Array_g90_ek_809 = 0;
+    U64 hoisted__U64_g788_810 = 0;
+    TilStr hoisted__Str_g789_811;
+    TilStrClone(&hoisted__Str_g789_811, &language_result_792);
+    TilStrArraySet(&_va_Array_g90_808, hoisted__U64_g788_810, &hoisted__Str_g789_811);
+    TilPrintln(&_va_Array_g90_808);
+    U64 hoisted__U64_g790_812 = 1;
+    TilStrArray _va_Array_g91_813;
+    TilStrArrayNew(&_va_Array_g91_813, hoisted__U64_g790_812);
+    I64 _va_Array_g91_ek_814 = 0;
+    U64 hoisted__U64_g791_815 = 0;
+    TilStr hoisted__Str_g792_816;
+    TilStrFromI64(&hoisted__Str_g792_816, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g91_813, hoisted__U64_g791_815, &hoisted__Str_g792_816);
+    TilPrintln(&_va_Array_g91_813);
+    I64 hoisted__I64_g793_817 = 1;
     TilStrDelete(&language_result_792, FALSE);
     {
         TilStr replacement_818;
-        language_forward(&replacement_818, hoisted__I64_g664_817, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+        language_forward(&replacement_818, hoisted__I64_g793_817, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
         TilStrDelete(&language_result_792, FALSE);
         TilStrCopyValue(&language_result_792, &replacement_818);
     }
-    I64 hoisted__I64_g665_819 = 5;
-    Bool hoisted__Bool_g666_820 = (_err_kind_171 == hoisted__I64_g665_819);
-    if (hoisted__Bool_g666_820) {
+    I64 hoisted__I64_g794_819 = 5;
+    Bool hoisted__Bool_g795_820 = (_err_kind_171 == hoisted__I64_g794_819);
+    if (hoisted__Bool_g795_820) {
         I64 hoisted__I64_g314_821 = 0;
         _err_kind_171 = hoisted__I64_g314_821;
         U64 hoisted__U64_g315_822 = 1;
@@ -2637,24 +2637,24 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g318_827, "test/script_str_runtime.til:277:1", 33);
         TilPanicParts(&_va_Array_g50_823, &hoisted__Str_g318_827);
     }
-    U64 hoisted__U64_g667_828 = 1;
-    TilStrArray _va_Array_g87_829;
-    TilStrArrayNew(&_va_Array_g87_829, hoisted__U64_g667_828);
-    I64 _va_Array_g87_ek_830 = 0;
-    U64 hoisted__U64_g668_831 = 0;
-    TilStr hoisted__Str_g669_832;
-    TilStrClone(&hoisted__Str_g669_832, &language_result_792);
-    TilStrArraySet(&_va_Array_g87_829, hoisted__U64_g668_831, &hoisted__Str_g669_832);
-    TilPrintln(&_va_Array_g87_829);
-    U64 hoisted__U64_g670_833 = 1;
-    TilStrArray _va_Array_g88_834;
-    TilStrArrayNew(&_va_Array_g88_834, hoisted__U64_g670_833);
-    I64 _va_Array_g88_ek_835 = 0;
-    U64 hoisted__U64_g671_836 = 0;
-    TilStr hoisted__Str_g672_837;
-    TilStrFromI64(&hoisted__Str_g672_837, language_closes_795.closed);
-    TilStrArraySet(&_va_Array_g88_834, hoisted__U64_g671_836, &hoisted__Str_g672_837);
-    TilPrintln(&_va_Array_g88_834);
+    U64 hoisted__U64_g796_828 = 1;
+    TilStrArray _va_Array_g92_829;
+    TilStrArrayNew(&_va_Array_g92_829, hoisted__U64_g796_828);
+    I64 _va_Array_g92_ek_830 = 0;
+    U64 hoisted__U64_g797_831 = 0;
+    TilStr hoisted__Str_g798_832;
+    TilStrClone(&hoisted__Str_g798_832, &language_result_792);
+    TilStrArraySet(&_va_Array_g92_829, hoisted__U64_g797_831, &hoisted__Str_g798_832);
+    TilPrintln(&_va_Array_g92_829);
+    U64 hoisted__U64_g799_833 = 1;
+    TilStrArray _va_Array_g93_834;
+    TilStrArrayNew(&_va_Array_g93_834, hoisted__U64_g799_833);
+    I64 _va_Array_g93_ek_835 = 0;
+    U64 hoisted__U64_g800_836 = 0;
+    TilStr hoisted__Str_g801_837;
+    TilStrFromI64(&hoisted__Str_g801_837, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g93_834, hoisted__U64_g800_836, &hoisted__Str_g801_837);
+    TilPrintln(&_va_Array_g93_834);
     TilStrDelete(&language_result_792, FALSE);
     I64 continue_total_838 = 0;
     {
@@ -2679,15 +2679,15 @@ I64 TilMain()
             ;
         }
     }
-    U64 hoisted__U64_g673_847 = 1;
-    TilStrArray _va_Array_g89_848;
-    TilStrArrayNew(&_va_Array_g89_848, hoisted__U64_g673_847);
-    I64 _va_Array_g89_ek_849 = 0;
-    U64 hoisted__U64_g674_850 = 0;
-    TilStr hoisted__Str_g675_851;
-    TilStrFromI64(&hoisted__Str_g675_851, continue_total_838);
-    TilStrArraySet(&_va_Array_g89_848, hoisted__U64_g674_850, &hoisted__Str_g675_851);
-    TilPrintln(&_va_Array_g89_848);
+    U64 hoisted__U64_g802_847 = 1;
+    TilStrArray _va_Array_g94_848;
+    TilStrArrayNew(&_va_Array_g94_848, hoisted__U64_g802_847);
+    I64 _va_Array_g94_ek_849 = 0;
+    U64 hoisted__U64_g803_850 = 0;
+    TilStr hoisted__Str_g804_851;
+    TilStrFromI64(&hoisted__Str_g804_851, continue_total_838);
+    TilStrArraySet(&_va_Array_g94_848, hoisted__U64_g803_850, &hoisted__Str_g804_851);
+    TilPrintln(&_va_Array_g94_848);
     I64 nested_total_852 = 0;
     {
         I64 _re_I64_g324_853 = 3;
@@ -2752,32 +2752,32 @@ I64 TilMain()
             ;
         }
     }
-    U64 hoisted__U64_g676_877 = 4;
-    TilStrArray _va_Array_g90_878;
-    TilStrArrayNew(&_va_Array_g90_878, hoisted__U64_g676_877);
-    I64 _va_Array_g90_ek_879 = 0;
-    U64 hoisted__U64_g677_880 = 0;
-    TilStr hoisted__Str_g678_881;
-    TilStrInitLit(&hoisted__Str_g678_881, "nested continue:", 16);
-    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g677_880, &hoisted__Str_g678_881);
-    U64 hoisted__U64_g679_882 = 1;
-    TilStr hoisted__Str_g680_883;
-    TilStrFromI64(&hoisted__Str_g680_883, nested_total_852);
-    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g679_882, &hoisted__Str_g680_883);
-    U64 hoisted__U64_g681_884 = 2;
-    TilStr hoisted__Str_g682_885;
-    TilStrInitLit(&hoisted__Str_g682_885, ":", 1);
-    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g681_884, &hoisted__Str_g682_885);
-    U64 hoisted__U64_g683_886 = 3;
-    TilStr hoisted__Str_g684_887;
-    TilStrFromI64(&hoisted__Str_g684_887, language_closes_795.closed);
-    TilStrArraySet(&_va_Array_g90_878, hoisted__U64_g683_886, &hoisted__Str_g684_887);
-    TilPrintln(&_va_Array_g90_878);
-    I64 hoisted__I64_g685_888 = 6;
-    I64 number_result_889 = language_number(hoisted__I64_g685_888, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
-    I64 hoisted__I64_g686_890 = 5;
-    Bool hoisted__Bool_g687_891 = (_err_kind_171 == hoisted__I64_g686_890);
-    if (hoisted__Bool_g687_891) {
+    U64 hoisted__U64_g805_877 = 4;
+    TilStrArray _va_Array_g95_878;
+    TilStrArrayNew(&_va_Array_g95_878, hoisted__U64_g805_877);
+    I64 _va_Array_g95_ek_879 = 0;
+    U64 hoisted__U64_g806_880 = 0;
+    TilStr hoisted__Str_g807_881;
+    TilStrInitLit(&hoisted__Str_g807_881, "nested continue:", 16);
+    TilStrArraySet(&_va_Array_g95_878, hoisted__U64_g806_880, &hoisted__Str_g807_881);
+    U64 hoisted__U64_g808_882 = 1;
+    TilStr hoisted__Str_g809_883;
+    TilStrFromI64(&hoisted__Str_g809_883, nested_total_852);
+    TilStrArraySet(&_va_Array_g95_878, hoisted__U64_g808_882, &hoisted__Str_g809_883);
+    U64 hoisted__U64_g810_884 = 2;
+    TilStr hoisted__Str_g811_885;
+    TilStrInitLit(&hoisted__Str_g811_885, ":", 1);
+    TilStrArraySet(&_va_Array_g95_878, hoisted__U64_g810_884, &hoisted__Str_g811_885);
+    U64 hoisted__U64_g812_886 = 3;
+    TilStr hoisted__Str_g813_887;
+    TilStrFromI64(&hoisted__Str_g813_887, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g95_878, hoisted__U64_g812_886, &hoisted__Str_g813_887);
+    TilPrintln(&_va_Array_g95_878);
+    I64 hoisted__I64_g814_888 = 6;
+    I64 number_result_889 = language_number(hoisted__I64_g814_888, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+    I64 hoisted__I64_g815_890 = 5;
+    Bool hoisted__Bool_g816_891 = (_err_kind_171 == hoisted__I64_g815_890);
+    if (hoisted__Bool_g816_891) {
         I64 hoisted__I64_g339_892 = 0;
         _err_kind_171 = hoisted__I64_g339_892;
         U64 hoisted__U64_g340_893 = 1;
@@ -2792,9 +2792,9 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g343_898, "test/script_str_runtime.til:304:5", 33);
         TilPanicParts(&_va_Array_g52_894, &hoisted__Str_g343_898);
     }
-    I64 hoisted__I64_g688_899 = 7;
-    Bool hoisted__Bool_g689_900 = (number_result_889 != hoisted__I64_g688_899);
-    if (hoisted__Bool_g689_900) {
+    I64 hoisted__I64_g817_899 = 7;
+    Bool hoisted__Bool_g818_900 = (number_result_889 != hoisted__I64_g817_899);
+    if (hoisted__Bool_g818_900) {
         U64 hoisted__U64_g344_901 = 1;
         TilStrArray _va_Array_g53_902;
         TilStrArrayNew(&_va_Array_g53_902, hoisted__U64_g344_901);
@@ -2807,12 +2807,12 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g347_906, "test/script_str_runtime.til:305:25", 34);
         TilPanicParts(&_va_Array_g53_902, &hoisted__Str_g347_906);
     }
-    I64 hoisted__I64_g690_907 = -1;
-    I64 hoisted__I64_g691_908 = language_number(hoisted__I64_g690_907, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
-    number_result_889 = hoisted__I64_g691_908;
-    I64 hoisted__I64_g692_909 = 5;
-    Bool hoisted__Bool_g693_910 = (_err_kind_171 == hoisted__I64_g692_909);
-    if (hoisted__Bool_g693_910) {
+    I64 hoisted__I64_g819_907 = -1;
+    I64 hoisted__I64_g820_908 = language_number(hoisted__I64_g819_907, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
+    number_result_889 = hoisted__I64_g820_908;
+    I64 hoisted__I64_g821_909 = 5;
+    Bool hoisted__Bool_g822_910 = (_err_kind_171 == hoisted__I64_g821_909);
+    if (hoisted__Bool_g822_910) {
         I64 hoisted__I64_g348_911 = 0;
         _err_kind_171 = hoisted__I64_g348_911;
         U64 hoisted__U64_g349_912 = 1;
@@ -2825,32 +2825,32 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g54_913, hoisted__U64_g350_915, &hoisted__Str_g351_916);
         TilPrintln(&_va_Array_g54_913);
     }
-    U64 hoisted__U64_g694_917 = 4;
-    TilStrArray _va_Array_g91_918;
-    TilStrArrayNew(&_va_Array_g91_918, hoisted__U64_g694_917);
-    I64 _va_Array_g91_ek_919 = 0;
-    U64 hoisted__U64_g695_920 = 0;
-    TilStr hoisted__Str_g696_921;
-    TilStrInitLit(&hoisted__Str_g696_921, "scalar throw:", 13);
-    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g695_920, &hoisted__Str_g696_921);
-    U64 hoisted__U64_g697_922 = 1;
-    TilStr hoisted__Str_g698_923;
-    TilStrFromI64(&hoisted__Str_g698_923, number_result_889);
-    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g697_922, &hoisted__Str_g698_923);
-    U64 hoisted__U64_g699_924 = 2;
-    TilStr hoisted__Str_g700_925;
-    TilStrInitLit(&hoisted__Str_g700_925, ":", 1);
-    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g699_924, &hoisted__Str_g700_925);
-    U64 hoisted__U64_g701_926 = 3;
-    TilStr hoisted__Str_g702_927;
-    TilStrFromI64(&hoisted__Str_g702_927, language_closes_795.closed);
-    TilStrArraySet(&_va_Array_g91_918, hoisted__U64_g701_926, &hoisted__Str_g702_927);
-    TilPrintln(&_va_Array_g91_918);
-    I64 hoisted__I64_g703_928 = 1;
-    LanguageCounts *ref_value_930 = language_borrow(&language_closes_795, &hoisted__I64_g703_928, &_err_kind_171, &_err_LanguageError_172);
-    I64 hoisted__I64_g704_931 = 5;
-    Bool hoisted__Bool_g705_932 = (_err_kind_171 == hoisted__I64_g704_931);
-    if (hoisted__Bool_g705_932) {
+    U64 hoisted__U64_g823_917 = 4;
+    TilStrArray _va_Array_g96_918;
+    TilStrArrayNew(&_va_Array_g96_918, hoisted__U64_g823_917);
+    I64 _va_Array_g96_ek_919 = 0;
+    U64 hoisted__U64_g824_920 = 0;
+    TilStr hoisted__Str_g825_921;
+    TilStrInitLit(&hoisted__Str_g825_921, "scalar throw:", 13);
+    TilStrArraySet(&_va_Array_g96_918, hoisted__U64_g824_920, &hoisted__Str_g825_921);
+    U64 hoisted__U64_g826_922 = 1;
+    TilStr hoisted__Str_g827_923;
+    TilStrFromI64(&hoisted__Str_g827_923, number_result_889);
+    TilStrArraySet(&_va_Array_g96_918, hoisted__U64_g826_922, &hoisted__Str_g827_923);
+    U64 hoisted__U64_g828_924 = 2;
+    TilStr hoisted__Str_g829_925;
+    TilStrInitLit(&hoisted__Str_g829_925, ":", 1);
+    TilStrArraySet(&_va_Array_g96_918, hoisted__U64_g828_924, &hoisted__Str_g829_925);
+    U64 hoisted__U64_g830_926 = 3;
+    TilStr hoisted__Str_g831_927;
+    TilStrFromI64(&hoisted__Str_g831_927, language_closes_795.closed);
+    TilStrArraySet(&_va_Array_g96_918, hoisted__U64_g830_926, &hoisted__Str_g831_927);
+    TilPrintln(&_va_Array_g96_918);
+    I64 hoisted__I64_g832_928 = 1;
+    LanguageCounts *ref_value_930 = language_borrow(&language_closes_795, &hoisted__I64_g832_928, &_err_kind_171, &_err_LanguageError_172);
+    I64 hoisted__I64_g833_931 = 5;
+    Bool hoisted__Bool_g834_932 = (_err_kind_171 == hoisted__I64_g833_931);
+    if (hoisted__Bool_g834_932) {
         I64 hoisted__I64_g352_933 = 0;
         _err_kind_171 = hoisted__I64_g352_933;
         U64 hoisted__U64_g353_934 = 1;
@@ -2891,52 +2891,52 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g56_949, hoisted__U64_g366_951, &hoisted__Str_g367_952);
         TilPrintln(&_va_Array_g56_949);
     }
-    U64 hoisted__U64_g706_953 = 3;
-    Array__I64 _va_Array_g92_954;
-    Array__I64_New(&_va_Array_g92_954, hoisted__U64_g706_953);
-    I64 _va_Array_g92_ek_955 = 0;
-    U64 hoisted__U64_g707_956 = 0;
-    I64 hoisted__I64_g708_957 = 1;
-    Array__I64_Set(&_va_Array_g92_954, hoisted__U64_g707_956, hoisted__I64_g708_957, &_va_Array_g92_ek_955);
-    U64 hoisted__U64_g709_958 = 1;
-    I64 hoisted__I64_g710_959 = 2;
-    Array__I64_Set(&_va_Array_g92_954, hoisted__U64_g709_958, hoisted__I64_g710_959, &_va_Array_g92_ek_955);
-    U64 hoisted__U64_g711_960 = 2;
-    I64 hoisted__I64_g712_961 = 3;
-    Array__I64_Set(&_va_Array_g92_954, hoisted__U64_g711_960, hoisted__I64_g712_961, &_va_Array_g92_ek_955);
-    U64 hoisted__U64_g713_962 = 0;
-    Array__I64 _va_Array_g93_963;
-    Array__I64_New(&_va_Array_g93_963, hoisted__U64_g713_962);
-    U64 hoisted__U64_g714_964 = 4;
-    TilStrArray _va_Array_g94_965;
-    TilStrArrayNew(&_va_Array_g94_965, hoisted__U64_g714_964);
-    I64 _va_Array_g94_ek_966 = 0;
-    U64 hoisted__U64_g715_967 = 0;
-    TilStr hoisted__Str_g716_968;
-    TilStrInitLit(&hoisted__Str_g716_968, "variadic:", 9);
-    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g715_967, &hoisted__Str_g716_968);
-    I64 hoisted__I64_g717_969 = 10;
-    I64 hoisted__I64_g718_970 = language_sum(hoisted__I64_g717_969, &_va_Array_g92_954);
-    U64 hoisted__U64_g719_971 = 1;
-    TilStr hoisted__Str_g720_972;
-    TilStrFromI64(&hoisted__Str_g720_972, hoisted__I64_g718_970);
-    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g719_971, &hoisted__Str_g720_972);
-    U64 hoisted__U64_g721_973 = 2;
-    TilStr hoisted__Str_g722_974;
-    TilStrInitLit(&hoisted__Str_g722_974, ":", 1);
-    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g721_973, &hoisted__Str_g722_974);
-    I64 hoisted__I64_g723_975 = 10;
-    I64 hoisted__I64_g724_976 = language_sum(hoisted__I64_g723_975, &_va_Array_g93_963);
-    U64 hoisted__U64_g725_977 = 3;
-    TilStr hoisted__Str_g726_978;
-    TilStrFromI64(&hoisted__Str_g726_978, hoisted__I64_g724_976);
-    TilStrArraySet(&_va_Array_g94_965, hoisted__U64_g725_977, &hoisted__Str_g726_978);
-    TilPrintln(&_va_Array_g94_965);
+    U64 hoisted__U64_g835_953 = 3;
+    Array__I64 _va_Array_g97_954;
+    Array__I64_New(&_va_Array_g97_954, hoisted__U64_g835_953);
+    I64 _va_Array_g97_ek_955 = 0;
+    U64 hoisted__U64_g836_956 = 0;
+    I64 hoisted__I64_g837_957 = 1;
+    Array__I64_Set(&_va_Array_g97_954, hoisted__U64_g836_956, hoisted__I64_g837_957, &_va_Array_g97_ek_955);
+    U64 hoisted__U64_g838_958 = 1;
+    I64 hoisted__I64_g839_959 = 2;
+    Array__I64_Set(&_va_Array_g97_954, hoisted__U64_g838_958, hoisted__I64_g839_959, &_va_Array_g97_ek_955);
+    U64 hoisted__U64_g840_960 = 2;
+    I64 hoisted__I64_g841_961 = 3;
+    Array__I64_Set(&_va_Array_g97_954, hoisted__U64_g840_960, hoisted__I64_g841_961, &_va_Array_g97_ek_955);
+    U64 hoisted__U64_g842_962 = 0;
+    Array__I64 _va_Array_g98_963;
+    Array__I64_New(&_va_Array_g98_963, hoisted__U64_g842_962);
+    U64 hoisted__U64_g843_964 = 4;
+    TilStrArray _va_Array_g99_965;
+    TilStrArrayNew(&_va_Array_g99_965, hoisted__U64_g843_964);
+    I64 _va_Array_g99_ek_966 = 0;
+    U64 hoisted__U64_g844_967 = 0;
+    TilStr hoisted__Str_g845_968;
+    TilStrInitLit(&hoisted__Str_g845_968, "variadic:", 9);
+    TilStrArraySet(&_va_Array_g99_965, hoisted__U64_g844_967, &hoisted__Str_g845_968);
+    I64 hoisted__I64_g846_969 = 10;
+    I64 hoisted__I64_g847_970 = language_sum(hoisted__I64_g846_969, &_va_Array_g97_954);
+    U64 hoisted__U64_g848_971 = 1;
+    TilStr hoisted__Str_g849_972;
+    TilStrFromI64(&hoisted__Str_g849_972, hoisted__I64_g847_970);
+    TilStrArraySet(&_va_Array_g99_965, hoisted__U64_g848_971, &hoisted__Str_g849_972);
+    U64 hoisted__U64_g850_973 = 2;
+    TilStr hoisted__Str_g851_974;
+    TilStrInitLit(&hoisted__Str_g851_974, ":", 1);
+    TilStrArraySet(&_va_Array_g99_965, hoisted__U64_g850_973, &hoisted__Str_g851_974);
+    I64 hoisted__I64_g852_975 = 10;
+    I64 hoisted__I64_g853_976 = language_sum(hoisted__I64_g852_975, &_va_Array_g98_963);
+    U64 hoisted__U64_g854_977 = 3;
+    TilStr hoisted__Str_g855_978;
+    TilStrFromI64(&hoisted__Str_g855_978, hoisted__I64_g853_976);
+    TilStrArraySet(&_va_Array_g99_965, hoisted__U64_g854_977, &hoisted__Str_g855_978);
+    TilPrintln(&_va_Array_g99_965);
     I64 swap_left_979 = 3;
     I64 swap_right_980 = 7;
-    U64 hoisted__U64_g728_981 = 8;
+    U64 hoisted__U64_g857_981 = 8;
     {
-        if (hoisted__U64_g728_981 != sizeof(I64)) TilPanicZ("partial value swap is not supported");
+        if (hoisted__U64_g857_981 != sizeof(I64)) TilPanicZ("partial value swap is not supported");
         I64 swap_value_982;
         TilMemCpy(&swap_value_982, &swap_left_979, sizeof(I64));
         TilMemCpy(&swap_left_979, &swap_right_980, sizeof(I64));
@@ -2991,24 +2991,24 @@ I64 TilMain()
         File_fwrite(&formatted_file_997, &_va_Array_g58_999);
         File_Delete(&formatted_file_997, FALSE);
     }
-    U64 hoisted__U64_g729_1007 = 1;
-    TilStrArray _va_Array_g95_1008;
-    TilStrArrayNew(&_va_Array_g95_1008, hoisted__U64_g729_1007);
-    I64 _va_Array_g95_ek_1009 = 0;
-    U64 hoisted__U64_g730_1010 = 0;
-    TilStr hoisted__Str_g731_1011;
-    TilFileRead(&hoisted__Str_g731_1011, &write_path_454);
-    TilStrArraySet(&_va_Array_g95_1008, hoisted__U64_g730_1010, &hoisted__Str_g731_1011);
-    TilPrintln(&_va_Array_g95_1008);
+    U64 hoisted__U64_g858_1007 = 1;
+    TilStrArray _va_Array_g100_1008;
+    TilStrArrayNew(&_va_Array_g100_1008, hoisted__U64_g858_1007);
+    I64 _va_Array_g100_ek_1009 = 0;
+    U64 hoisted__U64_g859_1010 = 0;
+    TilStr hoisted__Str_g860_1011;
+    TilFileRead(&hoisted__Str_g860_1011, &write_path_454);
+    TilStrArraySet(&_va_Array_g100_1008, hoisted__U64_g859_1010, &hoisted__Str_g860_1011);
+    TilPrintln(&_va_Array_g100_1008);
     File_remove(&write_path_454);
     F32 float_small_1012 = 1266679808;
     F64 float_large_1013 = TilF64Bits(4715268809856909312);
-    F32 hoisted__F32_g732_1014 = 1065353216;
-    F32 hoisted__F32_g733_1015 = TilF32Math(float_small_1012, hoisted__F32_g732_1014, 0);
-    float_small_1012 = hoisted__F32_g733_1015;
-    F64 hoisted__F64_g734_1016 = TilF64Bits(4607182418800017408);
-    F64 hoisted__F64_g735_1017 = (float_large_1013 + hoisted__F64_g734_1016);
-    float_large_1013 = hoisted__F64_g735_1017;
+    F32 hoisted__F32_g861_1014 = 1065353216;
+    F32 hoisted__F32_g862_1015 = TilF32Math(float_small_1012, hoisted__F32_g861_1014, 0);
+    float_small_1012 = hoisted__F32_g862_1015;
+    F64 hoisted__F64_g863_1016 = TilF64Bits(4607182418800017408);
+    F64 hoisted__F64_g864_1017 = (float_large_1013 + hoisted__F64_g863_1016);
+    float_large_1013 = hoisted__F64_g864_1017;
     Bool _m_Bool_g387_1018 = FALSE;
     {
         F32 hoisted__F32_g392_1019 = 1266679808;
@@ -3037,8 +3037,8 @@ I64 TilMain()
     }
     F64 float_zero_1031 = TilF64Bits(0);
     F64 float_nan_1032 = TilF64Div(float_zero_1031, float_zero_1031);
-    F64 hoisted__F64_g736_1033 = TilF64Bits(4607182418800017408);
-    F64 float_inf_1034 = TilF64Div(hoisted__F64_g736_1033, float_zero_1031);
+    F64 hoisted__F64_g865_1033 = TilF64Bits(4607182418800017408);
+    F64 float_inf_1034 = TilF64Div(hoisted__F64_g865_1033, float_zero_1031);
     Bool _m_Bool_g398_1035 = FALSE;
     {
         Bool hoisted__Bool_g402_1036 = TilF64Compare(float_nan_1032, float_nan_1032, 0);
@@ -3106,9 +3106,9 @@ I64 TilMain()
     }
     F32 small_zero_1067 = 0;
     F32 small_nan_1068 = TilF32Math(small_zero_1067, small_zero_1067, 3);
-    Bool hoisted__Bool_g737_1069 = TilF64Compare(TilF32Load(small_nan_1068), TilF32Load(small_nan_1068), 0);
-    Bool hoisted__Bool_g738_1070 = (!hoisted__Bool_g737_1069);
-    if (hoisted__Bool_g738_1070) {
+    Bool hoisted__Bool_g866_1069 = TilF64Compare(TilF32Load(small_nan_1068), TilF32Load(small_nan_1068), 0);
+    Bool hoisted__Bool_g867_1070 = (!hoisted__Bool_g866_1069);
+    if (hoisted__Bool_g867_1070) {
         U64 hoisted__U64_g426_1071 = 1;
         TilStrArray _va_Array_g62_1072;
         TilStrArrayNew(&_va_Array_g62_1072, hoisted__U64_g426_1071);
@@ -3120,17 +3120,17 @@ I64 TilMain()
         TilPrintln(&_va_Array_g62_1072);
     }
     I64 float_as_i64_1076 = ToI64(float_large_1013);
-    U64 hoisted__U64_g739_1077 = 1;
-    TilStrArray _va_Array_g96_1078;
-    TilStrArrayNew(&_va_Array_g96_1078, hoisted__U64_g739_1077);
-    I64 _va_Array_g96_ek_1079 = 0;
-    U64 hoisted__U64_g740_1080 = 0;
-    TilStr hoisted__Str_g741_1081;
-    TilStrFromI64(&hoisted__Str_g741_1081, float_as_i64_1076);
-    TilStrArraySet(&_va_Array_g96_1078, hoisted__U64_g740_1080, &hoisted__Str_g741_1081);
-    TilPrintln(&_va_Array_g96_1078);
-    I64 hoisted__I64_g742_1082 = -1;
-    I64 conversion_number_1083 = (language_closes_795.closed * hoisted__I64_g742_1082);
+    U64 hoisted__U64_g868_1077 = 1;
+    TilStrArray _va_Array_g101_1078;
+    TilStrArrayNew(&_va_Array_g101_1078, hoisted__U64_g868_1077);
+    I64 _va_Array_g101_ek_1079 = 0;
+    U64 hoisted__U64_g869_1080 = 0;
+    TilStr hoisted__Str_g870_1081;
+    TilStrFromI64(&hoisted__Str_g870_1081, float_as_i64_1076);
+    TilStrArraySet(&_va_Array_g101_1078, hoisted__U64_g869_1080, &hoisted__Str_g870_1081);
+    TilPrintln(&_va_Array_g101_1078);
+    I64 hoisted__I64_g871_1082 = -1;
+    I64 conversion_number_1083 = (language_closes_795.closed * hoisted__I64_g871_1082);
     F32 converted_small_1084 = TilF32FromI64(conversion_number_1083);
     F64 converted_large_1085 = ToF64(conversion_number_1083);
     Bool _m_Bool_g429_1086 = FALSE;
@@ -3206,11 +3206,11 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g64_1120, hoisted__U64_g459_1122, &hoisted__Str_g460_1123);
         TilPrintln(&_va_Array_g64_1120);
     }
-    F32 hoisted__F32_g743_1124 = 3217031168;
-    F64 hoisted__F64_g744_1125 = TilF64Bits(4612811918334230528);
+    F32 hoisted__F32_g872_1124 = 3217031168;
+    F64 hoisted__F64_g873_1125 = TilF64Bits(4612811918334230528);
     FloatPair float_pair_1126;
-    float_pair_1126.small = hoisted__F32_g743_1124;
-    float_pair_1126.large = hoisted__F64_g744_1125;
+    float_pair_1126.small = hoisted__F32_g872_1124;
+    float_pair_1126.large = hoisted__F64_g873_1125;
     FloatPair float_pair_copy_1127;
     FloatPair_Clone(&float_pair_copy_1127, &float_pair_1126);
     Bool _m_Bool_g461_1128 = FALSE;
@@ -3292,11 +3292,11 @@ I64 TilMain()
         TilPrintln(&_va_Array_g66_1169);
     }
     F32 *heap_float_1173 = TilMAlloc(4);
-    U64 hoisted__U64_g747_1174 = 4;
-    TilMemCpy(heap_float_1173, &float_pair_1126.small, hoisted__U64_g747_1174);
-    F32 hoisted__F32_g748_1175 = 3217031168;
-    Bool hoisted__Bool_g749_1176 = TilF64Compare(TilF32Load((*((TilCheckPtr(heap_float_1173))(F32 *)))), TilF32Load(hoisted__F32_g748_1175), 0);
-    if (hoisted__Bool_g749_1176) {
+    U64 hoisted__U64_g876_1174 = 4;
+    TilMemCpy(heap_float_1173, &float_pair_1126.small, hoisted__U64_g876_1174);
+    F32 hoisted__F32_g877_1175 = 3217031168;
+    Bool hoisted__Bool_g878_1176 = TilF64Compare(TilF32Load((*((TilCheckPtr(heap_float_1173))(F32 *)))), TilF32Load(hoisted__F32_g877_1175), 0);
+    if (hoisted__Bool_g878_1176) {
         U64 hoisted__U64_g501_1177 = 1;
         TilStrArray _va_Array_g67_1178;
         TilStrArrayNew(&_va_Array_g67_1178, hoisted__U64_g501_1177);
@@ -3310,10 +3310,10 @@ I64 TilMain()
     TilFloatDelete(heap_float_1173, TRUE);
     Set__F32 float_keys_1182;
     Set__F32_New(&float_keys_1182);
-    F32 hoisted__F32_g751_1183 = 1073741824;
-    Set__F32_Add(&float_keys_1182, hoisted__F32_g751_1183);
-    F32 hoisted__F32_g753_1184 = 3212836864;
-    Set__F32_Add(&float_keys_1182, hoisted__F32_g753_1184);
+    F32 hoisted__F32_g880_1183 = 1073741824;
+    Set__F32_Add(&float_keys_1182, hoisted__F32_g880_1183);
+    F32 hoisted__F32_g882_1184 = 3212836864;
+    Set__F32_Add(&float_keys_1182, hoisted__F32_g882_1184);
     Bool _m_Bool_g504_1185 = FALSE;
     {
         F32 hoisted__F32_g511_1186 = 3212836864;
@@ -3347,10 +3347,10 @@ I64 TilMain()
     FloatPayload float_payload_high_1200;
     float_payload_high_1200.tag = 0;
     float_payload_high_1200.payload_Small = float_small_1012;
-    I64 hoisted__I64_g754_1201 = FloatPayload_Cmp(&float_payload_low_1199, &float_payload_high_1200);
-    I64 hoisted__I64_g755_1202 = 0;
-    Bool hoisted__Bool_g756_1203 = (hoisted__I64_g754_1201 < hoisted__I64_g755_1202);
-    if (hoisted__Bool_g756_1203) {
+    I64 hoisted__I64_g883_1201 = FloatPayload_Cmp(&float_payload_low_1199, &float_payload_high_1200);
+    I64 hoisted__I64_g884_1202 = 0;
+    Bool hoisted__Bool_g885_1203 = (hoisted__I64_g883_1201 < hoisted__I64_g884_1202);
+    if (hoisted__Bool_g885_1203) {
         U64 hoisted__U64_g517_1204 = 1;
         TilStrArray _va_Array_g69_1205;
         TilStrArrayNew(&_va_Array_g69_1205, hoisted__U64_g517_1204);
@@ -3362,13 +3362,13 @@ I64 TilMain()
         TilPrintln(&_va_Array_g69_1205);
     }
     I64 started_1209 = TilClockMs();
-    I64 hoisted__I64_g757_1210 = 20;
-    TilSleepMs(hoisted__I64_g757_1210);
-    I64 hoisted__I64_g758_1211 = TilClockMs();
-    I64 elapsed_1212 = (hoisted__I64_g758_1211 - started_1209);
-    I64 hoisted__I64_g759_1213 = 10;
-    Bool hoisted__Bool_g760_1214 = (elapsed_1212 >= hoisted__I64_g759_1213);
-    if (hoisted__Bool_g760_1214) {
+    I64 hoisted__I64_g886_1210 = 20;
+    TilSleepMs(hoisted__I64_g886_1210);
+    I64 hoisted__I64_g887_1211 = TilClockMs();
+    I64 elapsed_1212 = (hoisted__I64_g887_1211 - started_1209);
+    I64 hoisted__I64_g888_1213 = 10;
+    Bool hoisted__Bool_g889_1214 = (elapsed_1212 >= hoisted__I64_g888_1213);
+    if (hoisted__Bool_g889_1214) {
         U64 hoisted__U64_g520_1215 = 1;
         TilStrArray _va_Array_g70_1216;
         TilStrArrayNew(&_va_Array_g70_1216, hoisted__U64_g520_1215);
@@ -3378,6 +3378,319 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g522_1219, "clock and sleep", 15);
         TilStrArraySet(&_va_Array_g70_1216, hoisted__U64_g521_1218, &hoisted__Str_g522_1219);
         TilPrintln(&_va_Array_g70_1216);
+    }
+    {
+        U64 hoisted__U64_g567_1220 = 39;
+        TilStrArray _fc_Array__Str_g523_1221;
+        TilStrArrayNew(&_fc_Array__Str_g523_1221, hoisted__U64_g567_1220);
+        I64 _fc_Array__Str_g523_ek_1222 = 0;
+        U64 hoisted__U64_g568_1223 = 0;
+        TilStr hoisted__Str_g569_1224;
+        TilStrInitLit(&hoisted__Str_g569_1224, "0", 1);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g568_1223, &hoisted__Str_g569_1224);
+        U64 hoisted__U64_g570_1225 = 1;
+        TilStr hoisted__Str_g571_1226;
+        TilStrInitLit(&hoisted__Str_g571_1226, "-0", 2);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g570_1225, &hoisted__Str_g571_1226);
+        U64 hoisted__U64_g572_1227 = 2;
+        TilStr hoisted__Str_g573_1228;
+        TilStrInitLit(&hoisted__Str_g573_1228, "0.1", 3);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g572_1227, &hoisted__Str_g573_1228);
+        U64 hoisted__U64_g574_1229 = 3;
+        TilStr hoisted__Str_g575_1230;
+        TilStrInitLit(&hoisted__Str_g575_1230, "-1.5", 4);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g574_1229, &hoisted__Str_g575_1230);
+        U64 hoisted__U64_g576_1231 = 4;
+        TilStr hoisted__Str_g577_1232;
+        TilStrInitLit(&hoisted__Str_g577_1232, "1.2345678901234567", 18);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g576_1231, &hoisted__Str_g577_1232);
+        U64 hoisted__U64_g578_1233 = 5;
+        TilStr hoisted__Str_g579_1234;
+        TilStrInitLit(&hoisted__Str_g579_1234, "999999.5", 8);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g578_1233, &hoisted__Str_g579_1234);
+        U64 hoisted__U64_g580_1235 = 6;
+        TilStr hoisted__Str_g581_1236;
+        TilStrInitLit(&hoisted__Str_g581_1236, "128.0625", 8);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g580_1235, &hoisted__Str_g581_1236);
+        U64 hoisted__U64_g582_1237 = 7;
+        TilStr hoisted__Str_g583_1238;
+        TilStrInitLit(&hoisted__Str_g583_1238, "128.1875", 8);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g582_1237, &hoisted__Str_g583_1238);
+        U64 hoisted__U64_g584_1239 = 8;
+        TilStr hoisted__Str_g585_1240;
+        TilStrInitLit(&hoisted__Str_g585_1240, "1e-5", 4);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g584_1239, &hoisted__Str_g585_1240);
+        U64 hoisted__U64_g586_1241 = 9;
+        TilStr hoisted__Str_g587_1242;
+        TilStrInitLit(&hoisted__Str_g587_1242, "1e-4", 4);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g586_1241, &hoisted__Str_g587_1242);
+        U64 hoisted__U64_g588_1243 = 10;
+        TilStr hoisted__Str_g589_1244;
+        TilStrInitLit(&hoisted__Str_g589_1244, "1e6", 3);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g588_1243, &hoisted__Str_g589_1244);
+        U64 hoisted__U64_g590_1245 = 11;
+        TilStr hoisted__Str_g591_1246;
+        TilStrInitLit(&hoisted__Str_g591_1246, "1e-100", 6);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g590_1245, &hoisted__Str_g591_1246);
+        U64 hoisted__U64_g592_1247 = 12;
+        TilStr hoisted__Str_g593_1248;
+        TilStrInitLit(&hoisted__Str_g593_1248, "1e308", 5);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g592_1247, &hoisted__Str_g593_1248);
+        U64 hoisted__U64_g594_1249 = 13;
+        TilStr hoisted__Str_g595_1250;
+        TilStrInitLit(&hoisted__Str_g595_1250, "4.9406564584124654e-324", 23);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g594_1249, &hoisted__Str_g595_1250);
+        U64 hoisted__U64_g596_1251 = 14;
+        TilStr hoisted__Str_g597_1252;
+        TilStrInitLit(&hoisted__Str_g597_1252, "2.2250738585072014e-308", 23);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g596_1251, &hoisted__Str_g597_1252);
+        U64 hoisted__U64_g598_1253 = 15;
+        TilStr hoisted__Str_g599_1254;
+        TilStrInitLit(&hoisted__Str_g599_1254, "1.40129846e-45", 14);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g598_1253, &hoisted__Str_g599_1254);
+        U64 hoisted__U64_g600_1255 = 16;
+        TilStr hoisted__Str_g601_1256;
+        TilStrInitLit(&hoisted__Str_g601_1256, "1.17549435e-38", 14);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g600_1255, &hoisted__Str_g601_1256);
+        U64 hoisted__U64_g602_1257 = 17;
+        TilStr hoisted__Str_g603_1258;
+        TilStrInitLit(&hoisted__Str_g603_1258, "3.4028234663852886e38", 21);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g602_1257, &hoisted__Str_g603_1258);
+        U64 hoisted__U64_g604_1259 = 18;
+        TilStr hoisted__Str_g605_1260;
+        TilStrInitLit(&hoisted__Str_g605_1260, "1.7976931348623157e308", 22);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g604_1259, &hoisted__Str_g605_1260);
+        U64 hoisted__U64_g606_1261 = 19;
+        TilStr hoisted__Str_g607_1262;
+        TilStrInitLit(&hoisted__Str_g607_1262, "1e309", 5);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g606_1261, &hoisted__Str_g607_1262);
+        U64 hoisted__U64_g608_1263 = 20;
+        TilStr hoisted__Str_g609_1264;
+        TilStrInitLit(&hoisted__Str_g609_1264, "1e-9999", 7);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g608_1263, &hoisted__Str_g609_1264);
+        U64 hoisted__U64_g610_1265 = 21;
+        TilStr hoisted__Str_g611_1266;
+        TilStrInitLit(&hoisted__Str_g611_1266, "inf", 3);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g610_1265, &hoisted__Str_g611_1266);
+        U64 hoisted__U64_g612_1267 = 22;
+        TilStr hoisted__Str_g613_1268;
+        TilStrInitLit(&hoisted__Str_g613_1268, "-infinity", 9);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g612_1267, &hoisted__Str_g613_1268);
+        U64 hoisted__U64_g614_1269 = 23;
+        TilStr hoisted__Str_g615_1270;
+        TilStrInitLit(&hoisted__Str_g615_1270, "nan", 3);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g614_1269, &hoisted__Str_g615_1270);
+        U64 hoisted__U64_g616_1271 = 24;
+        TilStr hoisted__Str_g617_1272;
+        TilStrInitLit(&hoisted__Str_g617_1272, "-nan", 4);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g616_1271, &hoisted__Str_g617_1272);
+        U64 hoisted__U64_g618_1273 = 25;
+        TilStr hoisted__Str_g619_1274;
+        TilStrInitLit(&hoisted__Str_g619_1274, "  +1_2.5_0e-1tail", 17);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g618_1273, &hoisted__Str_g619_1274);
+        U64 hoisted__U64_g620_1275 = 26;
+        TilStr hoisted__Str_g621_1276;
+        TilStrInitLit(&hoisted__Str_g621_1276, "0x1.8p+1", 8);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g620_1275, &hoisted__Str_g621_1276);
+        U64 hoisted__U64_g622_1277 = 27;
+        TilStr hoisted__Str_g623_1278;
+        TilStrInitLit(&hoisted__Str_g623_1278, "-0x1p-1074", 10);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g622_1277, &hoisted__Str_g623_1278);
+        U64 hoisted__U64_g624_1279 = 28;
+        TilStr hoisted__Str_g625_1280;
+        TilStrInitLit(&hoisted__Str_g625_1280, "0x1.000001p0", 12);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g624_1279, &hoisted__Str_g625_1280);
+        U64 hoisted__U64_g626_1281 = 29;
+        TilStr hoisted__Str_g627_1282;
+        TilStrInitLit(&hoisted__Str_g627_1282, "0x1.000003p0", 12);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g626_1281, &hoisted__Str_g627_1282);
+        U64 hoisted__U64_g628_1283 = 30;
+        TilStr hoisted__Str_g629_1284;
+        TilStrInitLit(&hoisted__Str_g629_1284, "0x1p-150", 8);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g628_1283, &hoisted__Str_g629_1284);
+        U64 hoisted__U64_g630_1285 = 31;
+        TilStr hoisted__Str_g631_1286;
+        TilStrInitLit(&hoisted__Str_g631_1286, "1.000000059604644775390625", 26);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g630_1285, &hoisted__Str_g631_1286);
+        U64 hoisted__U64_g632_1287 = 32;
+        TilStr hoisted__Str_g633_1288;
+        TilStrInitLit(&hoisted__Str_g633_1288, "1.000000178813934326171875", 26);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g632_1287, &hoisted__Str_g633_1288);
+        U64 hoisted__U64_g634_1289 = 33;
+        TilStr hoisted__Str_g635_1290;
+        TilStrInitLit(&hoisted__Str_g635_1290, "1.00000000000000011102230246251565404236316680908203125", 55);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g634_1289, &hoisted__Str_g635_1290);
+        U64 hoisted__U64_g636_1291 = 34;
+        TilStr hoisted__Str_g637_1292;
+        TilStrInitLit(&hoisted__Str_g637_1292, "1.00000000000000011102230246251565404236316680908203126", 55);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g636_1291, &hoisted__Str_g637_1292);
+        U64 hoisted__U64_g638_1293 = 35;
+        TilStr hoisted__Str_g639_1294;
+        TilStrInitLit(&hoisted__Str_g639_1294, "2e+", 3);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g638_1293, &hoisted__Str_g639_1294);
+        U64 hoisted__U64_g640_1295 = 36;
+        TilStr hoisted__Str_g641_1296;
+        TilStrInitLit(&hoisted__Str_g641_1296, "not a float", 11);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g640_1295, &hoisted__Str_g641_1296);
+        U64 hoisted__U64_g642_1297 = 37;
+        TilStr hoisted__Str_g643_1298;
+        TilStrInitLit(&hoisted__Str_g643_1298, "+.5tail", 7);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g642_1297, &hoisted__Str_g643_1298);
+        U64 hoisted__U64_g644_1299 = 38;
+        TilStr hoisted__Str_g645_1300;
+        TilStrInitLit(&hoisted__Str_g645_1300, "", 0);
+        TilStrArraySet(&_fc_Array__Str_g523_1221, hoisted__U64_g644_1299, &hoisted__Str_g645_1300);
+        U64 _fi_USize_g523_1301 = 0;
+        while (TRUE) {
+            U64 hoisted__U64_g547_1303 = (&_fc_Array__Str_g523_1221)->cap;
+            Bool _wcond_Bool_g524_1304 = (_fi_USize_g523_1301 < hoisted__U64_g547_1303);
+            if (_wcond_Bool_g524_1304) {
+            } else {
+                break;
+            }
+            TilStr *ref_value_1306 = &(&_fc_Array__Str_g523_1221)->data[_fi_USize_g523_1301];
+            U64 hoisted__U64_g548_1307 = 1;
+            U64 hoisted__U64_g549_1308 = (_fi_USize_g523_1301 + hoisted__U64_g548_1307);
+            _fi_USize_g523_1301 = hoisted__U64_g549_1308;
+            F32 small_1309 = TilFloatParse(ref_value_1306, 32, TRUE);
+            F64 large_1310 = TilF64Bits(TilFloatParse(ref_value_1306, 64, TRUE));
+            TilStr small_repr_1311;
+            TilStrFromFloat(&small_repr_1311, small_1309, 32, 9);
+            TilStr large_repr_1312;
+            TilStrFromFloat(&large_repr_1312, TilF64Word(large_1310), 64, 17);
+            U64 hoisted__U64_g550_1313 = 8;
+            TilStrArray _va_Array_g73_1314;
+            TilStrArrayNew(&_va_Array_g73_1314, hoisted__U64_g550_1313);
+            I64 _va_Array_g73_ek_1315 = 0;
+            U64 hoisted__U64_g551_1316 = 0;
+            TilStr hoisted__Str_g552_1317;
+            TilStrInitLit(&hoisted__Str_g552_1317, "float text:", 11);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g551_1316, &hoisted__Str_g552_1317);
+            U64 hoisted__U64_g553_1318 = 1;
+            TilStr hoisted__Str_g554_1319;
+            TilStrFromFloat(&hoisted__Str_g554_1319, small_1309, 32, 6);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g553_1318, &hoisted__Str_g554_1319);
+            U64 hoisted__U64_g555_1320 = 2;
+            TilStr hoisted__Str_g556_1321;
+            TilStrInitLit(&hoisted__Str_g556_1321, "/", 1);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g555_1320, &hoisted__Str_g556_1321);
+            U64 hoisted__U64_g557_1322 = 3;
+            TilStr hoisted__Str_g558_1323;
+            TilStrClone(&hoisted__Str_g558_1323, &small_repr_1311);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g557_1322, &hoisted__Str_g558_1323);
+            U64 hoisted__U64_g559_1324 = 4;
+            TilStr hoisted__Str_g560_1325;
+            TilStrInitLit(&hoisted__Str_g560_1325, ":", 1);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g559_1324, &hoisted__Str_g560_1325);
+            U64 hoisted__U64_g561_1326 = 5;
+            TilStr hoisted__Str_g562_1327;
+            TilStrFromFloat(&hoisted__Str_g562_1327, TilF64Word(large_1310), 64, 6);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g561_1326, &hoisted__Str_g562_1327);
+            U64 hoisted__U64_g563_1328 = 6;
+            TilStr hoisted__Str_g564_1329;
+            TilStrInitLit(&hoisted__Str_g564_1329, "/", 1);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g563_1328, &hoisted__Str_g564_1329);
+            U64 hoisted__U64_g565_1330 = 7;
+            TilStr hoisted__Str_g566_1331;
+            TilStrClone(&hoisted__Str_g566_1331, &large_repr_1312);
+            TilStrArraySet(&_va_Array_g73_1314, hoisted__U64_g565_1330, &hoisted__Str_g566_1331);
+            TilPrintln(&_va_Array_g73_1314);
+            Bool _m_Bool_g525_1332 = FALSE;
+            {
+                Bool _sw_Bool_g526_1333 = TilF64Compare(TilF32Load(small_1309), TilF32Load(small_1309), 0);
+                Bool hoisted__Bool_g530_1334 = TRUE;
+                Bool hoisted__Bool_g531_1335 = (_sw_Bool_g526_1333 == hoisted__Bool_g530_1334);
+                if (hoisted__Bool_g531_1335) {
+                    F32 hoisted__F32_g527_1336 = TilFloatParse(&small_repr_1311, 32, TRUE);
+                    Bool hoisted__Bool_g528_1337 = TilF64Compare(TilF32Load(small_1309), TilF32Load(hoisted__F32_g527_1336), 1);
+                    _m_Bool_g525_1332 = hoisted__Bool_g528_1337;
+                } else {
+                    Bool hoisted__Bool_g529_1338 = FALSE;
+                    _m_Bool_g525_1332 = hoisted__Bool_g529_1338;
+                }
+            }
+            TilStrDelete(&small_repr_1311, FALSE);
+            if (_m_Bool_g525_1332) {
+                U64 hoisted__U64_g532_1339 = 1;
+                TilStrArray _va_Array_g71_1340;
+                TilStrArrayNew(&_va_Array_g71_1340, hoisted__U64_g532_1339);
+                I64 _va_Array_g71_ek_1341 = 0;
+                U64 hoisted__U64_g533_1342 = 0;
+                TilStr hoisted__Str_g534_1343;
+                TilStrInitLit(&hoisted__Str_g534_1343, "F32 repr did not round-trip", 27);
+                TilStrArraySet(&_va_Array_g71_1340, hoisted__U64_g533_1342, &hoisted__Str_g534_1343);
+                TilStr hoisted__Str_g535_1344;
+                TilStrInitLit(&hoisted__Str_g535_1344, "test/script_str_runtime.til:409:62", 34);
+                TilPanicParts(&_va_Array_g71_1340, &hoisted__Str_g535_1344);
+            }
+            Bool _m_Bool_g536_1345 = FALSE;
+            {
+                Bool _sw_Bool_g537_1346 = TilF64Compare(large_1310, large_1310, 0);
+                Bool hoisted__Bool_g541_1347 = TRUE;
+                Bool hoisted__Bool_g542_1348 = (_sw_Bool_g537_1346 == hoisted__Bool_g541_1347);
+                if (hoisted__Bool_g542_1348) {
+                    F64 hoisted__F64_g538_1349 = TilF64Bits(TilFloatParse(&large_repr_1312, 64, TRUE));
+                    Bool hoisted__Bool_g539_1350 = TilF64Compare(large_1310, hoisted__F64_g538_1349, 1);
+                    _m_Bool_g536_1345 = hoisted__Bool_g539_1350;
+                } else {
+                    Bool hoisted__Bool_g540_1351 = FALSE;
+                    _m_Bool_g536_1345 = hoisted__Bool_g540_1351;
+                }
+            }
+            TilStrDelete(&large_repr_1312, FALSE);
+            if (_m_Bool_g536_1345) {
+                U64 hoisted__U64_g543_1352 = 1;
+                TilStrArray _va_Array_g72_1353;
+                TilStrArrayNew(&_va_Array_g72_1353, hoisted__U64_g543_1352);
+                I64 _va_Array_g72_ek_1354 = 0;
+                U64 hoisted__U64_g544_1355 = 0;
+                TilStr hoisted__Str_g545_1356;
+                TilStrInitLit(&hoisted__Str_g545_1356, "F64 repr did not round-trip", 27);
+                TilStrArraySet(&_va_Array_g72_1353, hoisted__U64_g544_1355, &hoisted__Str_g545_1356);
+                TilStr hoisted__Str_g546_1357;
+                TilStrInitLit(&hoisted__Str_g546_1357, "test/script_str_runtime.til:410:62", 34);
+                TilPanicParts(&_va_Array_g72_1353, &hoisted__Str_g546_1357);
+            }
+        loop_continue_1302:
+            ;
+        }
+        TilStrArrayDelete(&_fc_Array__Str_g523_1221);
+    }
+    TilStr float_text_source_1358;
+    TilStrInitLit(&float_text_source_1358, "prefix-12.59", 12);
+    U64 hoisted__U64_g890_1359 = 6;
+    U64 hoisted__U64_g891_1360 = 5;
+    TilStr float_text_view_1361;
+    TilStrSubstr(&float_text_view_1361, &float_text_source_1358, hoisted__U64_g890_1359, hoisted__U64_g891_1360);
+    F64 hoisted__F64_g892_1362 = TilF64Bits(TilFloatParse(&float_text_view_1361, 64, TRUE));
+    F64 hoisted__F64_g893_1363 = TilF64Bits(13846598529327300608);
+    Bool hoisted__Bool_g894_1364 = TilF64Compare(hoisted__F64_g892_1362, hoisted__F64_g893_1363, 0);
+    if (hoisted__Bool_g894_1364) {
+        U64 hoisted__U64_g646_1365 = 1;
+        TilStrArray _va_Array_g74_1366;
+        TilStrArrayNew(&_va_Array_g74_1366, hoisted__U64_g646_1365);
+        I64 _va_Array_g74_ek_1367 = 0;
+        U64 hoisted__U64_g647_1368 = 0;
+        TilStr hoisted__Str_g648_1369;
+        TilStrInitLit(&hoisted__Str_g648_1369, "float text view", 15);
+        TilStrArraySet(&_va_Array_g74_1366, hoisted__U64_g647_1368, &hoisted__Str_g648_1369);
+        TilPrintln(&_va_Array_g74_1366);
+    }
+    TilStr float_text_nul_1370;
+    TilStrInitLit(&float_text_nul_1370, "3\x00ignored", 9);
+    F32 hoisted__F32_g895_1371 = TilFloatParse(&float_text_nul_1370, 32, TRUE);
+    F32 hoisted__F32_g896_1372 = 1077936128;
+    Bool hoisted__Bool_g897_1373 = TilF64Compare(TilF32Load(hoisted__F32_g895_1371), TilF32Load(hoisted__F32_g896_1372), 0);
+    if (hoisted__Bool_g897_1373) {
+        U64 hoisted__U64_g649_1374 = 1;
+        TilStrArray _va_Array_g75_1375;
+        TilStrArrayNew(&_va_Array_g75_1375, hoisted__U64_g649_1374);
+        I64 _va_Array_g75_ek_1376 = 0;
+        U64 hoisted__U64_g650_1377 = 0;
+        TilStr hoisted__Str_g651_1378;
+        TilStrInitLit(&hoisted__Str_g651_1378, "float text NUL", 14);
+        TilStrArraySet(&_va_Array_g75_1375, hoisted__U64_g650_1377, &hoisted__Str_g651_1378);
+        TilPrintln(&_va_Array_g75_1375);
     }
     return 0;
 }

@@ -2724,15 +2724,20 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     new_raw = raw_coerce_value(new_raw, raw_result_source_type(new_info), hb_type(assign_hb), ctx, assign_hb.own_type)
                 }
             }
-            if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.is_raw_alloc.or(stmt.til_type().is(Type.Dynamic)).not()) {
+            if raw_type_is_prim(hb_type(assign_hb), ctx).and(stmt.til_type().is(Type.Dynamic).not()) {
                 // Primitive assignment writes the scalar into the existing
                 // block in place (C's x = v) -- for a ref/borrowed binding
                 // or an owned closure capture the block IS the target storage,
                 // so this is write-through. No drop, no allocation. Only
-                // #302 raw-allocation pointers keep the transfer path below. A
-                // consumed raw-alloc binding (own-arg freed + reassigned)
-                // has no block left -- give it a fresh one.
-                if assign_hb.ptr.is_null() {
+                // Dynamic pointer assignments keep the transfer path below.
+                // A typed raw allocation is still a scalar assignment target:
+                // write its pointee, never replace its pointer with value bits.
+                // A consumed ordinary primitive owner has no block
+                // left -- give it a fresh one. Raw write-through needs its
+                // existing allocation, just like the compiled dereference.
+                if assign_hb.is_raw_alloc {
+                    scalar_word_store(hb_type(assign_hb), to_ptr(assign_hb.ptr), new_raw, ctx)
+                } else if assign_hb.ptr.is_null() {
                     fresh_block : Dynamic = scalar_block_from_word(hb_type(assign_hb), new_raw, ctx)
                     assign_hb.ptr = to_ptr(fresh_block)
                 }

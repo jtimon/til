@@ -78,3 +78,44 @@ float pointer
 float ordering
 float enum ordering
 clock and sleep
+float text:0/0:0/0
+float text:-0/-0:-0/-0
+float text:0.1/0.100000001:0.1/0.10000000000000001
+float text:-1.5/-1.5:-1.5/-1.5
+float text:1.23457/1.23456788:1.23457/1.2345678901234567
+float text:1e+06/999999.5:1e+06/999999.5
+float text:128.062/128.0625:128.062/128.0625
+float text:128.188/128.1875:128.188/128.1875
+float text:1e-05/9.99999975e-06:1e-05/1.0000000000000001e-05
+float text:0.0001/9.99999975e-05:0.0001/0.0001
+float text:1e+06/1000000:1e+06/1000000
+float text:0/0:1e-100/1e-100
+float text:inf/inf:1e+308/1e+308
+float text:0/0:4.94066e-324/4.9406564584124654e-324
+float text:0/0:2.22507e-308/2.2250738585072014e-308
+float text:1.4013e-45/1.40129846e-45:1.4013e-45/1.4012984600000001e-45
+float text:1.17549e-38/1.17549435e-38:1.17549e-38/1.17549435e-38
+float text:3.40282e+38/3.40282347e+38:3.40282e+38/3.4028234663852886e+38
+float text:inf/inf:1.79769e+308/1.7976931348623157e+308
+float text:inf/inf:inf/inf
+float text:0/0:0/0
+float text:inf/inf:inf/inf
+float text:-inf/-inf:-inf/-inf
+float text:nan/nan:nan/nan
+float text:-nan/-nan:-nan/-nan
+float text:1.25/1.25:1.25/1.25
+float text:3/3:3/3
+float text:-0/-0:-4.94066e-324/-4.9406564584124654e-324
+float text:1/1:1/1.0000000596046448
+float text:1/1.00000024:1/1.0000001788139343
+float text:0/0:7.00649e-46/7.0064923216240854e-46
+float text:1/1:1/1.0000000596046448
+float text:1/1.00000024:1/1.0000001788139343
+float text:1/1:1/1
+float text:1/1:1/1.0000000000000002
+float text:2/2:2/2
+float text:0/0:0/0
+float text:0.5/0.5:0.5/0.5
+float text:0/0:0/0
+float text view
+float text NUL

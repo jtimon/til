@@ -20,3 +20,30 @@ ref b : U8 = ptr_add(buf, off)
 println(a.to_i64().to_str())
 println(b.to_i64().to_str())
 free(own buf)
+
+// A scalar RHS writes a typed allocation's pointee; its bit pattern is
+// never an allocation address. Cover words, borrowed RHSs, and call results.
+mut assigned_f32 : F32 = malloc(4)
+assigned_f32 = -1.5
+assigned_f32 = assigned_f32.add(0.25)
+if assigned_f32.eq(-1.25) { println("raw f32 assignment") }
+free(own assigned_f32)
+mut assigned_f64 : F64 = malloc(8)
+mut source_f64 : F64 = -2.5
+assigned_f64 = source_f64
+assigned_f64 = assigned_f64.mul(2.0)
+if assigned_f64.eq(-5.0) { println("raw f64 assignment") }
+free(own assigned_f64)
+mut assigned_i64 : I64 = malloc(8)
+assigned_i64 = 123
+println(assigned_i64.to_str())
+free(own assigned_i64)
+
+raw_alloc_local := func() returns Bool {
+    mut local : F32 = malloc(4)
+    local = -1.5
+    result := local.eq(-1.5)
+    free(own local)
+    return result
+}
+if raw_alloc_local() { println("raw local assignment") }

@@ -600,6 +600,19 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
             value := holyc_expr(e.children[1], ctx, state, locals, error)
             return format("TilStrFromI64(&", dest, ", ", value, ")")
         }
+        if owner.eq("F32").or(owner.eq("F64"))
+            .and(method.eq("to_str").or(method.eq("to_repr"))) {
+            if e.children.len() != 2 { error = "invalid float formatting call"; return "" }
+            mut bits := holyc_expr(e.children[1], ctx, state, locals, error)
+            mut width := "32"
+            mut precision := "6"
+            if owner == "F64" { width = "64"; bits = format("TilF64Word(", bits, ")") }
+            if method == "to_repr" {
+                if owner == "F32" { precision = "9" }
+                else { precision = "17" }
+            }
+            return format("TilStrFromFloat(&", dest, ", ", bits, ", ", width, ", ", precision, ")")
+        }
         error = format("unsupported Str initializer call '", owner, ".", method, "'")
         return ""
     case:
@@ -2043,6 +2056,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                     src := holyc_str_ref(e.children[1], ctx, locals, error)
                     return format("TilStrToI64(", src, ")")
                 }
+                if method.eq("to_f32").or(method.eq("to_f64")) {
+                    if e.children.len() != 2 { error = "invalid float parsing call"; return "" }
+                    src := holyc_str_ref(e.children[1], ctx, locals, error)
+                    if method == "to_f32" { return format("TilFloatParse(", src, ", 32, TRUE)") }
+                    return format("TilF64Bits(TilFloatParse(", src, ", 64, TRUE))")
+                }
                 if method == "is_empty" {
                     if e.children.len() != 2 { error = "invalid Str.is_empty call"; return "" }
                     src := holyc_str_ref(e.children[1], ctx, locals, error)
@@ -2292,6 +2311,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 return format("TilFileExists(", path, ")")
             }
             if name == "clock_ms" { return "TilClockMs()" }
+            if name.eq("str_parse_f32").or(name.eq("str_parse_f64")) {
+                if e.children.len() != 2 { error = "invalid float parser boundary call"; return "" }
+                src := holyc_str_ref(e.children[1], ctx, locals, error)
+                if name == "str_parse_f32" { return format("TilFloatParse(", src, ", 32, FALSE)") }
+                return format("TilF64Bits(TilFloatParse(", src, ", 64, FALSE))")
+            }
             if name == "sleep_ms" {
                 duration := holyc_expr(e.children[1], ctx, state, locals, error)
                 return format("TilSleepMs(", duration, ")")

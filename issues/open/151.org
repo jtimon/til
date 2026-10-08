@@ -561,8 +561,7 @@
   conversion avoids an intermediate F64 double-rounding error, and unsigned
   conversions preserve U64's upper half. NaN comparisons match the core
   contract, including unordered comparisons and cmp returning zero. Float
-  parsing and decimal string/repr formatting are still explicit unsupported
-  operations.
+  text I/O follows in the milestone 3 follow-up below.
 
   clock_ms uses TempleOS uptime in milliseconds, and positive sleep_ms
   durations call the native scheduler. in_read_line replaces the destination's
@@ -581,6 +580,41 @@
   including FAT32/RedSea workflows, line input, expected failures, and the
   hard timeout. The final expanded shared corpus also passed focused native
   reruns at USize 32 and 64.
+
+*** Milestone 3 follow-up: raw scalar assignment and float text I/O
+
+  A typed raw-allocation assignment crashed the interpreter while compiled C
+  executed it correctly. The primitive assignment arm excluded raw allocation
+  bindings and installed the scalar's bits as their pointer. It now writes
+  through the existing allocation, matching C, while Dynamic assignments keep
+  pointer-transfer semantics. Raw write-through requires its live allocation;
+  it does not silently manufacture storage after consumption. The shared
+  ~test/script_raw_alloc.til~ regression covers F32/F64/I64 values, borrowed
+  RHSs, call results, local bindings, and explicit deallocation under ASAN.
+
+  F32/F64 ~to_str~ and ~to_repr~ initialize owned Str values with the same
+  general-format output as C's %g: six significant digits for ordinary text,
+  nine for binary32 repr, seventeen for binary64 repr, round-to-nearest/even,
+  and matching fixed/scientific notation and trailing-zero removal. Special
+  values preserve the signs of zero, infinity, and NaN.
+
+  ~Str.to_f32~ and ~Str.to_f64~ preserve the current core parser contract:
+  separator removal, counted/NUL-bounded input, decimal/scientific and hex
+  input, whitespace/signs, infinities/NaNs, numeric prefixes, and overflow/
+  underflow. Finite decimal conversion compares exact base-10^9 expansions
+  against positive IEEE bit patterns and their adjacent-value midpoint;
+  hexadecimal conversion rounds the significand with guard/sticky bits.
+  Formatting uses the same exact expansions. This provides correctly rounded
+  binary32/binary64 conversion without a TempleOS libc dependency, decimal
+  Pow10 approximation, or an intermediate F64 rounding for F32 parsing.
+
+  The runtime-loop shared corpus produces 121 lines matching interpreter,
+  ASAN-compiled C, and native TempleOS at USize 32/64. It covers decimal and
+  binary halfway cases, precision, notation boundaries, normal/subnormal
+  limits, signed zero, special values, prefix syntax, counted views, embedded
+  NUL, and repr round trips. The expanded raw-assignment corpus also passes
+  natively at both widths. The clean hosted ASAN suite passes 496/496, and
+  the complete TempleOS guest runner passes all 53 cases.
 
 *** QEMU validation
 

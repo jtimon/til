@@ -10,44 +10,123 @@ extern U8 *TilCheckPtr(U8 *ptr);
 #include "/Home/Ext.HC"
 
 
+extern Bool raw_alloc_local();
+
+Bool raw_alloc_local()
+{
+    F32 *local_0 = TilMAlloc(4);
+    F32 hoisted__F32_0_1 = 3217031168;
+    (*((TilCheckPtr(local_0))(F32 *))) = hoisted__F32_0_1;
+    F32 hoisted__F32_1_2 = 3217031168;
+    Bool result_3 = TilF64Compare(TilF32Load((*((TilCheckPtr(local_0))(F32 *)))), TilF32Load(hoisted__F32_1_2), 0);
+    TilFree(local_0);
+    return result_3;
+}
+
 I64 TilMain()
 {
-    U32 n_0 = 4;
-    U8 *buf_1 = TilMAlloc(n_0);
-    I32 hoisted__I32_g7_2 = 0;
-    TilMemSet(buf_1, hoisted__I32_g7_2, n_0);
-    I64 hoisted__I64_g8_3 = 65;
-    U64 hoisted__U64_g9_4 = 1;
-    TilMemCpy(buf_1, &hoisted__I64_g8_3, hoisted__U64_g9_4);
-    U64 off_5 = 1;
-    U8 *ref_value_7 = (buf_1 + off_5);
-    I64 hoisted__I64_g11_8 = 66;
-    U64 hoisted__U64_g12_9 = 1;
-    TilMemCpy(ref_value_7, &hoisted__I64_g11_8, hoisted__U64_g12_9);
-    U64 hoisted__U64_g13_10 = 0;
-    U8 *ref_value_12 = (buf_1 + hoisted__U64_g13_10);
-    U8 *ref_value_14 = (buf_1 + off_5);
-    U64 hoisted__U64_g14_15 = 1;
-    TilStrArray _va_Array_g0_16;
-    TilStrArrayNew(&_va_Array_g0_16, hoisted__U64_g14_15);
-    I64 _va_Array_g0_ek_17 = 0;
-    I64 hoisted__I64_g15_18 = (((*((TilCheckPtr(ref_value_12))(U8 *)))) + 0)(I64);
-    U64 hoisted__U64_g16_19 = 0;
-    TilStr hoisted__Str_g17_20;
-    TilStrFromI64(&hoisted__Str_g17_20, hoisted__I64_g15_18);
-    TilStrArraySet(&_va_Array_g0_16, hoisted__U64_g16_19, &hoisted__Str_g17_20);
-    TilPrintln(&_va_Array_g0_16);
-    U64 hoisted__U64_g18_21 = 1;
-    TilStrArray _va_Array_g1_22;
-    TilStrArrayNew(&_va_Array_g1_22, hoisted__U64_g18_21);
-    I64 _va_Array_g1_ek_23 = 0;
-    I64 hoisted__I64_g19_24 = (((*((TilCheckPtr(ref_value_14))(U8 *)))) + 0)(I64);
-    U64 hoisted__U64_g20_25 = 0;
-    TilStr hoisted__Str_g21_26;
-    TilStrFromI64(&hoisted__Str_g21_26, hoisted__I64_g19_24);
-    TilStrArraySet(&_va_Array_g1_22, hoisted__U64_g20_25, &hoisted__Str_g21_26);
-    TilPrintln(&_va_Array_g1_22);
-    TilFree(buf_1);
+    U32 n_4 = 4;
+    U8 *buf_5 = TilMAlloc(n_4);
+    I32 hoisted__I32_g16_6 = 0;
+    TilMemSet(buf_5, hoisted__I32_g16_6, n_4);
+    I64 hoisted__I64_g17_7 = 65;
+    U64 hoisted__U64_g18_8 = 1;
+    TilMemCpy(buf_5, &hoisted__I64_g17_7, hoisted__U64_g18_8);
+    U64 off_9 = 1;
+    U8 *ref_value_11 = (buf_5 + off_9);
+    I64 hoisted__I64_g20_12 = 66;
+    U64 hoisted__U64_g21_13 = 1;
+    TilMemCpy(ref_value_11, &hoisted__I64_g20_12, hoisted__U64_g21_13);
+    U64 hoisted__U64_g22_14 = 0;
+    U8 *ref_value_16 = (buf_5 + hoisted__U64_g22_14);
+    U8 *ref_value_18 = (buf_5 + off_9);
+    U64 hoisted__U64_g23_19 = 1;
+    TilStrArray _va_Array_g3_20;
+    TilStrArrayNew(&_va_Array_g3_20, hoisted__U64_g23_19);
+    I64 _va_Array_g3_ek_21 = 0;
+    I64 hoisted__I64_g24_22 = (((*((TilCheckPtr(ref_value_16))(U8 *)))) + 0)(I64);
+    U64 hoisted__U64_g25_23 = 0;
+    TilStr hoisted__Str_g26_24;
+    TilStrFromI64(&hoisted__Str_g26_24, hoisted__I64_g24_22);
+    TilStrArraySet(&_va_Array_g3_20, hoisted__U64_g25_23, &hoisted__Str_g26_24);
+    TilPrintln(&_va_Array_g3_20);
+    U64 hoisted__U64_g27_25 = 1;
+    TilStrArray _va_Array_g4_26;
+    TilStrArrayNew(&_va_Array_g4_26, hoisted__U64_g27_25);
+    I64 _va_Array_g4_ek_27 = 0;
+    I64 hoisted__I64_g28_28 = (((*((TilCheckPtr(ref_value_18))(U8 *)))) + 0)(I64);
+    U64 hoisted__U64_g29_29 = 0;
+    TilStr hoisted__Str_g30_30;
+    TilStrFromI64(&hoisted__Str_g30_30, hoisted__I64_g28_28);
+    TilStrArraySet(&_va_Array_g4_26, hoisted__U64_g29_29, &hoisted__Str_g30_30);
+    TilPrintln(&_va_Array_g4_26);
+    TilFree(buf_5);
+    F32 *assigned_f32_31 = TilMAlloc(4);
+    F32 hoisted__F32_g31_32 = 3217031168;
+    (*((TilCheckPtr(assigned_f32_31))(F32 *))) = hoisted__F32_g31_32;
+    F32 hoisted__F32_g32_33 = 1048576000;
+    F32 hoisted__F32_g33_34 = TilF32Math((*((TilCheckPtr(assigned_f32_31))(F32 *))), hoisted__F32_g32_33, 0);
+    (*((TilCheckPtr(assigned_f32_31))(F32 *))) = hoisted__F32_g33_34;
+    F32 hoisted__F32_g34_35 = 3214934016;
+    Bool hoisted__Bool_g35_36 = TilF64Compare(TilF32Load((*((TilCheckPtr(assigned_f32_31))(F32 *)))), TilF32Load(hoisted__F32_g34_35), 0);
+    if (hoisted__Bool_g35_36) {
+        U64 hoisted__U64_g7_37 = 1;
+        TilStrArray _va_Array_g0_38;
+        TilStrArrayNew(&_va_Array_g0_38, hoisted__U64_g7_37);
+        I64 _va_Array_g0_ek_39 = 0;
+        U64 hoisted__U64_g8_40 = 0;
+        TilStr hoisted__Str_g9_41;
+        TilStrInitLit(&hoisted__Str_g9_41, "raw f32 assignment", 18);
+        TilStrArraySet(&_va_Array_g0_38, hoisted__U64_g8_40, &hoisted__Str_g9_41);
+        TilPrintln(&_va_Array_g0_38);
+    }
+    TilFree(assigned_f32_31);
+    F64 *assigned_f64_42 = TilMAlloc(8);
+    F64 source_f64_43 = TilF64Bits(13836183955189006336);
+    F64 hoisted__F64_g36_44 = source_f64_43;
+    (*((TilCheckPtr(assigned_f64_42))(F64 *))) = hoisted__F64_g36_44;
+    F64 hoisted__F64_g37_45 = TilF64Bits(4611686018427387904);
+    F64 hoisted__F64_g38_46 = ((*((TilCheckPtr(assigned_f64_42))(F64 *))) * hoisted__F64_g37_45);
+    (*((TilCheckPtr(assigned_f64_42))(F64 *))) = hoisted__F64_g38_46;
+    F64 hoisted__F64_g39_47 = TilF64Bits(13840687554816376832);
+    Bool hoisted__Bool_g40_48 = TilF64Compare((*((TilCheckPtr(assigned_f64_42))(F64 *))), hoisted__F64_g39_47, 0);
+    if (hoisted__Bool_g40_48) {
+        U64 hoisted__U64_g10_49 = 1;
+        TilStrArray _va_Array_g1_50;
+        TilStrArrayNew(&_va_Array_g1_50, hoisted__U64_g10_49);
+        I64 _va_Array_g1_ek_51 = 0;
+        U64 hoisted__U64_g11_52 = 0;
+        TilStr hoisted__Str_g12_53;
+        TilStrInitLit(&hoisted__Str_g12_53, "raw f64 assignment", 18);
+        TilStrArraySet(&_va_Array_g1_50, hoisted__U64_g11_52, &hoisted__Str_g12_53);
+        TilPrintln(&_va_Array_g1_50);
+    }
+    TilFree(assigned_f64_42);
+    I64 *assigned_i64_54 = TilMAlloc(8);
+    I64 hoisted__I64_g41_55 = 123;
+    (*((TilCheckPtr(assigned_i64_54))(I64 *))) = hoisted__I64_g41_55;
+    U64 hoisted__U64_g42_56 = 1;
+    TilStrArray _va_Array_g5_57;
+    TilStrArrayNew(&_va_Array_g5_57, hoisted__U64_g42_56);
+    I64 _va_Array_g5_ek_58 = 0;
+    U64 hoisted__U64_g43_59 = 0;
+    TilStr hoisted__Str_g44_60;
+    TilStrFromI64(&hoisted__Str_g44_60, (*((TilCheckPtr(assigned_i64_54))(I64 *))));
+    TilStrArraySet(&_va_Array_g5_57, hoisted__U64_g43_59, &hoisted__Str_g44_60);
+    TilPrintln(&_va_Array_g5_57);
+    TilFree(assigned_i64_54);
+    Bool hoisted__Bool_g45_61 = raw_alloc_local();
+    if (hoisted__Bool_g45_61) {
+        U64 hoisted__U64_g13_62 = 1;
+        TilStrArray _va_Array_g2_63;
+        TilStrArrayNew(&_va_Array_g2_63, hoisted__U64_g13_62);
+        I64 _va_Array_g2_ek_64 = 0;
+        U64 hoisted__U64_g14_65 = 0;
+        TilStr hoisted__Str_g15_66;
+        TilStrInitLit(&hoisted__Str_g15_66, "raw local assignment", 20);
+        TilStrArraySet(&_va_Array_g2_63, hoisted__U64_g14_65, &hoisted__Str_g15_66);
+        TilPrintln(&_va_Array_g2_63);
+    }
     return 0;
 }
 

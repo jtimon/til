@@ -1154,6 +1154,360 @@ public U0 TilFormat(TilStr *out,TilStrArray *parts)
   TilStrArrayDelete(parts);
 }
 
+// Exact finite IEEE values are integers times a power of two. Base-10^9
+// limbs keep their decimal expansions small (at most 768 decimal digits,
+// including adjacent-value midpoints). No host libc or approximate Pow10
+// participates in parsing or rounding.
+class TilFloatDecimal {
+  U32 limb[90];
+  I64 count;
+  I64 digits;
+  I64 power;
+};
+
+U64 TilFloatPow10(I64 n)
+{
+  U64 result=1;
+  while (n--) result*=10;
+  return result;
+}
+
+U0 TilFloatDecimalMul(TilFloatDecimal *d,U64 factor)
+{
+  U64 carry=0,value;
+  I64 i=0;
+  while (i<d->count) {
+    value=d->limb[i]*factor+carry;
+    d->limb[i]=value%1000000000;
+    carry=value/1000000000;
+    i++;
+  }
+  while (carry) {
+    d->limb[d->count++]=carry%1000000000;
+    carry/=1000000000;
+  }
+}
+
+U0 TilFloatDecimalMake(TilFloatDecimal *d,U64 mantissa,I64 binary_power)
+{
+  I64 left,shift=0;
+  U64 high;
+  d->count=0;
+  do {
+    d->limb[d->count++]=mantissa%1000000000;
+    mantissa/=1000000000;
+  } while (mantissa);
+  if (binary_power>=0) {
+    left=binary_power;
+    while (left>=29) { TilFloatDecimalMul(d,536870912); left-=29; }
+    if (left) TilFloatDecimalMul(d,1<<left);
+  } else {
+    shift=binary_power;
+    left=-binary_power;
+    while (left>=13) { TilFloatDecimalMul(d,1220703125); left-=13; }
+    high=1;
+    while (left--) high*=5;
+    TilFloatDecimalMul(d,high);
+  }
+  high=d->limb[d->count-1];
+  d->digits=9*(d->count-1)+1;
+  while (high>=10) { high/=10; d->digits++; }
+  d->power=d->digits-1+shift;
+}
+
+U0 TilFloatUnpack(U64 bits,I64 width,U64 *mantissa,I64 *power)
+{
+  U64 exponent;
+  if (width==32) {
+    exponent=(bits>>23)&255;
+    *mantissa=bits&0x7FFFFF;
+    *power=-149;
+    if (exponent) { *mantissa|=0x800000; *power=exponent(I64)-150; }
+  } else {
+    exponent=(bits>>52)&2047;
+    *mantissa=bits&0xFFFFFFFFFFFFF;
+    *power=-1074;
+    if (exponent) { *mantissa|=0x10000000000000; *power=exponent(I64)-1075; }
+  }
+}
+
+I64 TilFloatDecimalDigit(TilFloatDecimal *d,I64 ordinal)
+{
+  // Comparisons pad a shorter significant digit string with trailing zeros.
+  if (ordinal>=d->digits) return 0;
+  I64 place=d->digits-ordinal-1;
+  return (d->limb[place/9]/TilFloatPow10(place%9))%10;
+}
+
+Bool TilFloatDecimalTail(TilFloatDecimal *d,I64 low_digits)
+{
+  I64 whole=low_digits/9,i=0;
+  while (i<whole) { if (d->limb[i++]) return TRUE; }
+  return d->limb[whole]%TilFloatPow10(low_digits%9)!=0;
+}
+
+public U64 TilF64Word(F64 value)
+{
+  return value(U64);
+}
+
+public U0 TilStrFromFloat(TilStr *out,U64 bits,I64 width,I64 precision)
+{
+  U64 magnitude,exponent,fraction,mantissa;
+  I64 binary_power,i,n,keep,next,pos,place;
+  Bool negative,round_up;
+  TilFloatDecimal d;
+  U8 digits[20],*text;
+  if (width==32) {
+    negative=(bits&0x80000000)!=0;
+    magnitude=bits&0x7FFFFFFF;
+    exponent=magnitude>>23;
+    fraction=magnitude&0x7FFFFF;
+  } else {
+    negative=(bits&0x8000000000000000)!=0;
+    magnitude=bits&0x7FFFFFFFFFFFFFFF;
+    exponent=magnitude>>52;
+    fraction=magnitude&0xFFFFFFFFFFFFF;
+  }
+  TilStrWithCapacity(out,64);
+  text=out->c_str;
+  n=0;
+  if (negative) text[n++]='-';
+  if ((width==32 && exponent==255) || (width==64 && exponent==2047)) {
+    if (fraction) { MemCpy(text+n,"nan",3); n+=3; }
+    else { MemCpy(text+n,"inf",3); n+=3; }
+  } else if (!magnitude) {
+    text[n++]='0';
+  } else {
+    TilFloatUnpack(magnitude,width,&mantissa,&binary_power);
+    TilFloatDecimalMake(&d,mantissa,binary_power);
+    keep=d.digits;
+    if (keep>precision) keep=precision;
+    i=0;
+    while (i<keep) { digits[i]=TilFloatDecimalDigit(&d,i); i++; }
+    if (d.digits>keep) {
+      next=TilFloatDecimalDigit(&d,keep);
+      round_up=next>5 || next==5 &&
+        (TilFloatDecimalTail(&d,d.digits-keep-1) || (digits[keep-1]&1));
+      if (round_up) {
+        i=keep-1;
+        while (i>=0 && digits[i]==9) { digits[i]=0; i--; }
+        if (i>=0) digits[i]++;
+        else { digits[0]=1; d.power++; }
+      }
+    }
+    while (keep>1 && !digits[keep-1]) keep--;
+    if (d.power<-4 || d.power>=precision) {
+      text[n++]=digits[0]+'0';
+      if (keep>1) {
+        text[n++]='.';
+        i=1;
+        while (i<keep) text[n++]=digits[i++]+'0';
+      }
+      text[n++]='e';
+      place=d.power;
+      if (place<0) { text[n++]='-'; place=-place; }
+      else text[n++]='+';
+      if (place>=100) { text[n++]=place/100+'0'; place%=100; }
+      text[n++]=place/10+'0';
+      text[n++]=place%10+'0';
+    } else if (d.power<0) {
+      text[n++]='0'; text[n++]='.';
+      pos=-d.power-1;
+      while (pos--) text[n++]='0';
+      i=0;
+      while (i<keep) text[n++]=digits[i++]+'0';
+    } else {
+      i=0;
+      while (i<=d.power) {
+        if (i<keep) text[n++]=digits[i]+'0';
+        else text[n++]='0';
+        i++;
+      }
+      if (i<keep) {
+        text[n++]='.';
+        while (i<keep) text[n++]=digits[i++]+'0';
+      }
+    }
+  }
+  text[n]=0;
+  out->count=n;
+}
+
+I64 TilFloatDecimalCompare(U8 *digits,I64 count,I64 power,TilFloatDecimal *d)
+{
+  I64 i=0,a,b,end=count;
+  if (d->count==1 && !d->limb[0]) return 1;
+  if (power<d->power) return -1;
+  if (power>d->power) return 1;
+  if (d->digits>end) end=d->digits;
+  while (i<end) {
+    a=0;
+    if (i<count) a=digits[i]-'0';
+    b=TilFloatDecimalDigit(d,i);
+    if (a<b) return -1;
+    if (a>b) return 1;
+    i++;
+  }
+  return 0;
+}
+
+I64 TilFloatExponent(U8 *p,I64 limit)
+{
+  Bool negative=FALSE;
+  I64 value=0,digit;
+  if (*p=='+' || *p=='-') { negative=*p=='-'; p++; }
+  while ('0'<=*p<='9') {
+    digit=*p++-'0';
+    // Exponents beyond the complete mantissa length plus IEEE's range
+    // cannot cancel back to a finite value. Saturation retains that sign.
+    if (value>(limit-digit)/10) value=limit;
+    else value=value*10+digit;
+  }
+  if (negative) return -value;
+  return value;
+}
+
+I64 TilFloatHexDigit(U8 ch)
+{
+  if ('0'<=ch<='9') return ch-'0';
+  ch=ToUpper(ch);
+  if ('A'<=ch<='F') return ch-'A'+10;
+  return -1;
+}
+
+U64 TilFloatParseHex(U8 *p,I64 width,I64 length)
+{
+  U8 *start=p,*q;
+  I64 total=0,fraction=0,first=-1,leading=0,digit,exponent,want;
+  I64 precision=53,bias=1023,min_exponent=-1022,max_exponent=1023;
+  I64 seen=0,j,top;
+  U64 mantissa=0,bit,infinity_bits=0x7FF0000000000000;
+  Bool point=FALSE,started=FALSE,guard=FALSE,sticky=FALSE;
+  if (width==32) { precision=24; bias=127; min_exponent=-126; max_exponent=127; infinity_bits=0x7F800000; }
+  while (TRUE) {
+    digit=TilFloatHexDigit(*p);
+    if (digit>=0) {
+      if (digit && first<0) { first=total; leading=digit; }
+      total++;
+      if (point) fraction++;
+      p++;
+    } else if (*p=='.' && !point) { point=TRUE; p++; }
+    else break;
+  }
+  if (first<0) return 0;
+  exponent=0;
+  if (ToUpper(*p)=='P') exponent=TilFloatExponent(p+1,4*length+4096);
+  top=0;
+  while (leading>=2) { leading>>=1; top++; }
+  exponent+=4*(total-first-1-fraction)+top;
+  if (exponent>max_exponent) return infinity_bits;
+  if (exponent<min_exponent-precision) return 0;
+  want=precision;
+  if (exponent<min_exponent) want+=exponent-min_exponent;
+  q=start;
+  while (q<p) {
+    if (*q=='.') q++;
+    else {
+      digit=TilFloatHexDigit(*q++);
+      j=3;
+      while (j>=0) {
+        bit=(digit>>j--)&1;
+        if (bit || started) {
+          started=TRUE;
+          if (seen<want) mantissa=mantissa<<1|bit;
+          else if (seen==want) guard=bit;
+          else if (bit) sticky=TRUE;
+          seen++;
+        }
+      }
+    }
+  }
+  if (seen<want) mantissa<<=want-seen;
+  if (guard && (sticky || (mantissa&1))) mantissa++;
+  if (exponent<min_exponent) return mantissa;
+  if (mantissa==1<<precision) { mantissa>>=1; exponent++; }
+  if (exponent>max_exponent) return infinity_bits;
+  return (exponent+bias)(U64)<<(precision-1) | (mantissa&((1<<(precision-1))-1));
+}
+
+public U64 TilFloatParse(TilStr *source,I64 width,Bool separators)
+{
+  U8 *text,*p,*digits,*q;
+  I64 length=0,i=0,count=0,fraction=0,first,power=0,binary_power,comparison;
+  I64 max_power=308,min_power=-324;
+  U64 sign=0,infinity_bits=0x7FF0000000000000,nan_bits=0x7FF8000000000000;
+  U64 lo=0,hi=0x7FEFFFFFFFFFFFFF,mid,mantissa,result;
+  Bool point=FALSE;
+  TilFloatDecimal d;
+  if (width==32) { infinity_bits=0x7F800000; nan_bits=0x7FC00000; hi=0x7F7FFFFF; max_power=38; min_power=-46; }
+  text=TilMAlloc(source->count+1);
+  while (i<source->count && source->c_str[i]) {
+    if (!separators || source->c_str[i]!='_') text[length++]=source->c_str[i];
+    i++;
+  }
+  text[length]=0;
+  p=text;
+  while (*p==' ' || *p=='\t' || *p=='\r' || *p=='\n' || *p==11 || *p==12) p++;
+  if (*p=='+' || *p=='-') {
+    if (*p=='-') {
+      if (width==32) sign=0x80000000;
+      else sign=0x8000000000000000;
+    }
+    p++;
+  }
+  if (ToUpper(p[0])=='I' && ToUpper(p[1])=='N' && ToUpper(p[2])=='F') {
+    TilFree(text); return sign|infinity_bits;
+  }
+  if (ToUpper(p[0])=='N' && ToUpper(p[1])=='A' && ToUpper(p[2])=='N') {
+    TilFree(text); return sign|nan_bits;
+  }
+  if (p[0]=='0' && ToUpper(p[1])=='X') {
+    q=p+2;
+    if (*q=='.') q++;
+    if (TilFloatHexDigit(*q)>=0) {
+      result=TilFloatParseHex(p+2,width,length);
+      TilFree(text); return sign|result;
+    }
+  }
+  digits=TilMAlloc(length+1);
+  while (TRUE) {
+    if ('0'<=*p<='9') {
+      digits[count++]=*p++;
+      if (point) fraction++;
+    } else if (*p=='.' && !point) { point=TRUE; p++; }
+    else break;
+  }
+  if (!count) { TilFree(digits); TilFree(text); return 0; }
+  if (ToUpper(*p)=='E') power=TilFloatExponent(p+1,length+4096);
+  first=0;
+  while (first<count && digits[first]=='0') first++;
+  if (first==count) { TilFree(digits); TilFree(text); return sign; }
+  power+=count-first-1-fraction;
+  q=digits+first;
+  count-=first;
+  while (count>1 && q[count-1]=='0') count--;
+  if (power>max_power) { TilFree(digits); TilFree(text); return sign|infinity_bits; }
+  if (power<min_power) { TilFree(digits); TilFree(text); return sign; }
+  // Positive IEEE bit patterns are ordered numerically. Find the exact
+  // lower neighbor, then compare with its exact midpoint and round to even.
+  while (lo<hi) {
+    mid=lo+(hi-lo+1)/2;
+    TilFloatUnpack(mid,width,&mantissa,&binary_power);
+    TilFloatDecimalMake(&d,mantissa,binary_power);
+    comparison=TilFloatDecimalCompare(q,count,power,&d);
+    if (comparison>=0) lo=mid;
+    else hi=mid-1;
+  }
+  TilFloatUnpack(lo,width,&mantissa,&binary_power);
+  TilFloatDecimalMake(&d,2*mantissa+1,binary_power-1);
+  comparison=TilFloatDecimalCompare(q,count,power,&d);
+  if (comparison>0 || comparison==0 && (lo&1)) lo++;
+  TilFree(digits);
+  TilFree(text);
+  return sign|lo;
+}
+
 public I64 TilClockMs()
 {
   return ToI64(tS*1000.0);
