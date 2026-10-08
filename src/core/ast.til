@@ -1245,8 +1245,8 @@ namespace:
         other.children.cap = 0
     }
     /// Create a new Expr with the given node_type and source location.
-    new := func(data: NodeType, line: U32, col: U32) returns Expr {
-        return Expr(node_type = data.clone(), line = line, col = col)
+    new := func(own data: NodeType, line: U32, col: U32) returns Expr {
+        return Expr(node_type = data, line = line, col = col)
     }
     eq := func(_self: Expr, _other: Expr) returns Bool {
         TODO("Expr.eq")

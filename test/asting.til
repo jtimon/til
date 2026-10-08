@@ -30,15 +30,15 @@ test_til_type := test() {
 }
 
 test_expr_new := test() {
-    e := Expr.new(NodeType.Body, 1, 5)
+    e := Expr.new(own NodeType.Body, 1, 5)
     assert_eq(U32, e.line, 1)
     assert_eq(U32, e.col, 5)
 }
 
 test_expr_children := test() {
-    mut parent := Expr.new(NodeType.Body, 1, 1)
-    child1 := Expr.new(NodeType.Body, 2, 1)
-    child2 := Expr.new(NodeType.Body, 3, 1)
+    mut parent := Expr.new(own NodeType.Body, 1, 1)
+    child1 := Expr.new(own NodeType.Body, 2, 1)
+    child2 := Expr.new(own NodeType.Body, 3, 1)
     Expr.add_child(parent, own child1)
     Expr.add_child(parent, own child2)
     assert_eq(USize, parent.children.len(), 2)
@@ -47,10 +47,10 @@ test_expr_children := test() {
 test_precomputed_sequence_payload := test() {
     seq_type := Type.Struct("Vec__I64")
     elem_type := Type.Primitive(Primitive.I64)
-    mut seq := Expr.new(NodeType.PrecomputedSequence(PrecomputedSequenceData(
+    mut seq := Expr.new(own NodeType.PrecomputedSequence(PrecomputedSequenceData(
         til_type = seq_type.clone(), element_type = elem_type.clone(),
         capacity = 4, ordinal = 7)), 3, 5)
-    mut element := Expr.new(literal_num_node("11"), 3, 5)
+    mut element := Expr.new(own literal_num_node("11"), 3, 5)
     element.set_til_type(elem_type)
     seq.add_child(own element)
 

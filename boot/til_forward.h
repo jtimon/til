@@ -259,6 +259,7 @@ typedef struct Vec__Token Vec__Token;
 typedef struct Vec__TokenType Vec__TokenType;
 typedef struct SymbolPool SymbolPool;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
+typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__U32 Vec__U32;
 enum {
     Option__U32_TAG_None,
@@ -331,7 +332,6 @@ typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__StructLayout Vec__StructLayout;
-typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
@@ -790,6 +790,13 @@ typedef struct Vec__TokenType {
 } Vec__TokenType;
 
 
+typedef struct Vec__call_Vec_Str {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__call_Vec_Str;
+
+
 typedef struct Vec__U32 {
     U8 *data;
     USize count;
@@ -961,6 +968,12 @@ typedef struct Map__Str_I64 {
 } Map__Str_I64;
 
 
+typedef struct Map__Str_call_Vec_Str {
+    Vec__Str keys;
+    Vec__call_Vec_Str values;
+} Map__Str_call_Vec_Str;
+
+
 typedef struct HashMap__Str_Str {
     Vec__Str keys;
     Vec__Str values;
@@ -1062,13 +1075,6 @@ typedef struct Vec__StructLayout {
     USize count;
     USize cap;
 } Vec__StructLayout;
-
-
-typedef struct Vec__call_Vec_Str {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__call_Vec_Str;
 
 
 struct Option__ref_Mode {
@@ -1809,6 +1815,7 @@ typedef struct Map__Str_TokenType {
 
 typedef struct SymbolPool {
     Vec__Str names;
+    Vec__call_Vec_Str retired_names;
     Vec__U32 buckets;
     U32 next;
 } SymbolPool;
@@ -1968,12 +1975,6 @@ typedef struct Map__Str_StructLayout {
     Vec__Str keys;
     Vec__StructLayout values;
 } Map__Str_StructLayout;
-
-
-typedef struct Map__Str_call_Vec_Str {
-    Vec__Str keys;
-    Vec__call_Vec_Str values;
-} Map__Str_call_Vec_Str;
 
 
 typedef struct Map__Str_GenericFuncSource {
