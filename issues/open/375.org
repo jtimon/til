@@ -531,6 +531,30 @@ its core struct layout (the empty body, 1 byte), so ~UPtr.size()~ allocated
 1 byte for a pointer and script_dynamic_free overran the virtual heap; it
 now asks ~jvm_storage_size~ of the resolved type.
 
+Burn-down 2026-10-08: thirteen programs pass (loops and closures added).
+Three earlier "passes" were vacuous: maps, sets and fn_ptr are ~test()~
+files, the JVM ignored ~run_tests~ and the runner compared stdout only, so
+no test body ran. Fixed: the JVM now emits test mode (each reachable
+top-level ~test()~ is called, with the interpreter's ~pass:~ lines and
+summary on stderr; a ~test()~ inside a namespace is refused), and the
+runner also compares stderr (minus the JVM launcher's ~Picked up~ lines).
+Fixes that made the corpus really pass: scalar ref declarations from a
+plain local cell their source; a scalar payload binding (~ref x :=
+get_payload(e)~) is a ~TilRuntime.PayloadSlot~ that reads and writes
+through the enum (pinned by jvm_stage_e); ~swap_bytes~ on aggregates swaps
+contents via a generated ~swapContents~ (a runtime Str is refused); casts
+and ~assert_eq~ load scalar raw refs; old-value deletes of a runtime Str go
+through ~TilRuntime.deleteStr~; Str literals decode escapes
+(~from_source_form~, shared with the constant folder); a zeroing ~memset~
+drops typed object slots it fully covers (Vec/Set ~remove~); static
+function values are ~TilRuntime.staticClosure~ so retain/release of the
+JVM's shared method-reference instance cannot poison later values; and the
+body DCE drops ~while false~ loops (javac rejects them as unreachable).
+Still refused: script_str_runtime (FuncDef-typed parameter),
+script_struct_runtime and structs (~to_ptr~), strings (swap of a runtime
+Str), arrays (~noop_proc~), vecs (~dyn_size_of~), enums (hoisted local enum
+type ~InnerE~).
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.

@@ -7,8 +7,10 @@ import("../src/std/sys")
 // every JVM fixture failing in javac without anything noticing; this is
 // the leg that runs the JDK. Each program is built by the builder's real
 // path (`til run --target=jvm`: javac --release 17 -Xlint:all -Werror, a
-// verified JAR) at both USize widths, and its stdout and exit status must
-// equal the interpreter's at the same width. A missing JDK fails loudly
+// verified JAR) at both USize widths, and its stdout, stderr and exit
+// status must equal the interpreter's at the same width -- stderr is where
+// a test-mode program reports its tests, so leaving it out let a back end
+// that ran no test at all look like one whose tests passed. A missing JDK fails loudly
 // through the builder's own probe -- this target is opt-in, so a skip
 // would only hide that the corpus did not run.
 
@@ -25,28 +27,40 @@ CORPUS := array(Str,
     "test/script_dynamic_free.til",
     "test/maps.til",
     "test/sets.til",
-    "test/fn_ptr.til")
+    "test/fn_ptr.til",
+    "test/loops.til",
+    "test/closures.til")
 
 // Not yet: each is refused at translation with the diagnostic shown --
 // a loud translation error, never a silently wrong program (#375's
 // acceptance). Kept here so the gap is a list, not a guess:
 //   test/script_str_runtime.til     parameter type for 'parts' (FuncDef Func)
-//   test/script_struct_runtime.til  non-addressable scalar ref (FCall)
-//   test/strings.til                unresolved direct call 'swap_bytes'
+//   test/script_struct_runtime.til  runtime function 'to_ptr'
+//   test/strings.til                swap of a runtime Str
 //   test/arrays.til                 runtime function 'noop_proc'
 //   test/vecs.til                   runtime function 'dyn_size_of'
-//   test/closures.til               non-addressable scalar ref (Ident n)
-//   test/enums.til                  non-addressable scalar ref (FCall)
+//   test/enums.til                  type 'InnerE' (a hoisted local enum)
 //   test/structs.til                runtime function 'to_ptr'
-//   test/loops.til                  non-addressable scalar ref (Ident count)
 
-// stdout and exit status of one run. stderr is not compared: the JVM
-// prints its own notices there (JAVA_TOOL_OPTIONS), and a failure's
-// diagnostic is reported in full below.
+// What one run left: stdout, stderr and exit status.
 priv Outcome := struct {
     out := ""
     err := ""
     status : I64 = 0
+}
+
+// The JVM launcher announces options it picked up from the environment
+// (`Picked up JAVA_TOOL_OPTIONS: ...`) on stderr before the program runs.
+// That line belongs to the host, not to the program, so it is dropped.
+priv program_stderr := func(err: Str) returns Str {
+    mut out := Str.with_capacity(err.len())
+    for line : Str in err.split("\n") {
+        if line.starts_with("Picked up ").not() {
+            if out.len().gt(0) { out.push_str("\n") }
+            out.push_str(line)
+        }
+    }
+    return out
 }
 
 priv run_captured := proc(command: Cmd) returns Outcome {
@@ -62,7 +76,10 @@ main := proc() {
         for source : Str in CORPUS {
             expected := run_captured(Cmd.new("timeout", "300", "bin/til", "interpret", usize, source))
             actual := run_captured(Cmd.new("timeout", "300", "bin/til", "run", "--target=jvm", usize, source))
-            if actual.status.eq(expected.status).and(actual.out.eq(expected.out)) {
+            jvm_err := program_stderr(actual.err)
+            same := actual.status.eq(expected.status).and(actual.out.eq(expected.out))
+                .and(jvm_err.eq(program_stderr(expected.err)))
+            if same {
                 println("jvm ", usize, " ", source, ": ok")
             } else {
                 failures++
@@ -70,6 +87,7 @@ main := proc() {
                     ", interpreter ", expected.status.to_str(), ")")
                 println("--- interpreter stdout\n", expected.out)
                 println("--- jvm stdout\n", actual.out)
+                println("--- interpreter stderr\n", expected.err)
                 println("--- jvm stderr\n", actual.err)
             }
         }

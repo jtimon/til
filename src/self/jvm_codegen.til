@@ -832,7 +832,11 @@ priv jvm_static_function_value := func(name: Str, lp: LoadedProgram) returns Str
     if fdef_o.unwrap().children.len() == 0 { return "" }
     cls := jvm_function_class(name, lp)
     if cls.len() == 0 { return "" }
-    return format(cls, "::", jvm_func_name(name))
+    // A static function's value has no lifetime (TilRuntime.staticClosure).
+    // REM: the explicit type argument gives the method reference a target
+    // even where the call itself has none (eg under a cast).
+    sig_cls := jvm_funcsig_class(funcdef_of(fdef_o.unwrap()), lp.ctx.symbols)
+    return format("TilRuntime.<", sig_cls, ">staticClosure(", cls, "::", jvm_func_name(name), ")")
 }
 
 priv jvm_call_graph_has := func(e: Expr, wanted: Str,
@@ -970,6 +974,20 @@ priv jvm_collect_cells := proc(e: Expr, mut cells: Set(Str),
         } else if jvm_is_scalar(dd.til_type, lp).and(dd.own_type.is(OwnType.Shallow).or(
             cells.has(dd.name)).not()) {
             cells.add(own dd.name.clone())
+        }
+        // #375: a scalar `ref` binding of a plain name shares that name's
+        // storage (jvm_emit_cell_ref of its right-hand side), so the name
+        // must be a cell too. `for i in 0..count` borrows `count` for the
+        // loop's bound this way.
+        if raw_init.not().and(dd.own_type.is(OwnType.Ref)).and(jvm_is_scalar(dd.til_type, lp)) {
+            switch e.children[0].node_type {
+            case .Ident(ref_src):
+                ref ref_src_name : Str = ref_src.ident_name(lp.ctx.symbols.names)
+                if raw_refs.has(ref_src_name).or(cells.has(ref_src_name)).not() {
+                    cells.add(own ref_src_name.clone())
+                }
+            case:
+            }
         }
     case .FCall:
         name := jvm_fcall_name(e, lp)
@@ -1131,6 +1149,9 @@ priv jvm_emit_cell_ref := proc(e: Expr, mut state: JvmEmitState,
             if state.raw_refs.has(name) { return jvm_var_name(name) }
             if state.cells.has(name) { return jvm_var_name(name) }
         case .FCall:
+            if jvm_fcall_name(e, lp) == "get_payload" {
+                return format("TilRuntime.payloadSlot(", jvm_emit_expr(e.children[1], state, lp), ")")
+            }
             if jvm_fcall_returns_cell(e, lp).or(jvm_fcall_returns_raw_ref(e, lp)) {
                 ref callee : Expr = e.children[0]
                 switch callee.node_type {
@@ -1189,15 +1210,10 @@ priv jvm_emit_enum_payload := proc(value: Expr, payload_type: Str,
     mut state: JvmEmitState, lp: LoadedProgram) returns Str {
         out := jvm_emit_expr(value, state, lp)
         pt := type_from_name_init_name(payload_type, lp.ctx.scope, lp.ctx.symbols)
-        if pt.is_funcptr() {
-            mut needs_target := value.node_type.is(NodeType.FuncDef)
-            switch value.node_type {
-            case .Ident(id):
-                needs_target = jvm_static_function_value(
-                    id.ident_name(lp.ctx.symbols.names), lp).len() > 0
-            case:
-            }
-            if needs_target { return format("(", jvm_type_lp(pt, lp), ") ", out) }
+        // REM: static function values are self-typed (jvm_static_function_value);
+        // only lambdas need the payload type as their target.
+        if pt.is_funcptr().and(value.node_type.is(NodeType.FuncDef)) {
+            return format("(", jvm_type_lp(pt, lp), ") ", out)
         }
         return out
 }
@@ -1367,6 +1383,18 @@ priv jvm_emit_typed_args := proc(e: Expr, fd: FunctionDef,
             out = format(out, arg)
         }
         return out
+}
+
+// What assert_eq compares: the value, never a pointer to it. A borrowed
+// scalar (`for i, value in v`: Vec.unsafe_get's `ref I64`) is a raw
+// pointer here, and comparing two pointers to equal elements failed.
+priv jvm_emit_compared := proc(e: Expr, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        if jvm_is_scalar(e.til_type(), lp).and(jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names)) {
+            return format("TilRuntime.load", jvm_scalar_name(e.til_type(), lp), "(",
+                jvm_emit_expr(e, state, lp), ")")
+        }
+        return jvm_emit_value(e, state, lp)
 }
 
 priv jvm_emit_value := proc(e: Expr, mut state: JvmEmitState,
@@ -1591,8 +1619,13 @@ priv jvm_emit_cast := proc(e: Expr, mut state: JvmEmitState,
         if e.children.len() < 3 { return jvm_fail_expr(e, "malformed cast", state, lp.ctx.symbols.names) }
         target := type_from_name_init_name(ident_of(e.children[2]).ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
         if jvm_type_lp(target, lp).len() == 0 { return jvm_fail_expr(e, "cast target", state, lp.ctx.symbols.names) }
-        value := jvm_emit_expr(e.children[1], state, lp)
+        mut value := jvm_emit_expr(e.children[1], state, lp)
         source := jvm_scalar_name(e.children[1].til_type(), lp)
+        // A borrowed scalar (`for c in s`: Str.unsafe_get's `ref I8`) is a
+        // raw pointer here; the cast converts what it points at.
+        if source.len().gt(0).and(jvm_expr_is_raw_ref(e.children[1], state, lp.ctx.symbols.names)) {
+            value = format("TilRuntime.load", source, "(", value, ")")
+        }
         return jvm_emit_conversion(target, source, value, lp)
 }
 
@@ -1612,6 +1645,20 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
             return format("TilRuntime.", name, "(", arg, ")")
         }
         if name == "print_flush" { return "TilRuntime.printFlush()" }
+        // #375: the desugarer lowers `param = rhs` for a `mut` aggregate
+        // parameter to swap_bytes(param, temp, T.size()). Here an aggregate
+        // is an object, not bytes in the virtual heap: the swap exchanges
+        // the two objects' contents (swapContents, generated per class).
+        if name.eq("swap_bytes").and(e.children.len() == 4) {
+            ref sb_a : Expr = e.children[1]
+            if is_struct_type(sb_a.til_type()).or(is_enum_type(sb_a.til_type())) {
+                if jvm_is_runtime_str(sb_a.til_type(), lp) {
+                    return jvm_fail_expr(e, "swap of a runtime Str", state, lp.ctx.symbols.names)
+                }
+                return format(jvm_emit_expr(sb_a, state, lp), ".swapContents(",
+                    jvm_emit_expr(e.children[2], state, lp), ")")
+            }
+        }
         if name == "exit" {
             arg := jvm_emit_expr(e.children[1], state, lp)
             return format("TilRuntime.exit((int) (", arg, "))")
@@ -1629,8 +1676,8 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
                 jvm_emit_expr(e.children[2], state, lp), ", ", jvm_emit_expr(e.children[3], state, lp), ")")
         }
         if name.starts_with("assert_eq__") {
-            return format("TilRuntime.assertEq(", jvm_emit_value(e.children[1], state, lp), ", ",
-                jvm_emit_value(e.children[2], state, lp), ", ", jvm_emit_expr(e.children[3], state, lp), ")")
+            return format("TilRuntime.assertEq(", jvm_emit_compared(e.children[1], state, lp), ", ",
+                jvm_emit_compared(e.children[2], state, lp), ", ", jvm_emit_expr(e.children[3], state, lp), ")")
         }
         if name == "not" {
             arg := jvm_emit_expr(e.children[1], state, lp)
@@ -1934,7 +1981,11 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
             return jvm_fail_expr(e, format("precomputed sequence type '", type_name, "'"),
                 state, lp.ctx.symbols.names)
         case .Literal(Literal.Str(s)):
-            return format("TilRuntime.literalStr(", jvm_byte_array(s), ")")
+            // A literal is stored in source form (C-style escapes, which C
+            // and HolyC hand to their own lexers); Java gets the bytes, so
+            // decode them the way the interpreter does. Writing the source
+            // spelling made "\xc3\xa9x" nine bytes instead of three.
+            return format("TilRuntime.literalStr(", jvm_byte_array(from_source_form(s)), ")")
         case .Literal(Literal.Num(num)):
             return jvm_num_literal(e, num, state, lp)
         case .Literal(Literal.Bool(b)):
@@ -2137,7 +2188,7 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
             target := jvm_var_name(ad.name)
             is_cell := state.cells.has(ad.name)
             mut prefix := ""
-            if ad.save_old_delete { prefix = format(jvm_indent(depth), target, ".delete();\n") }
+            if ad.save_old_delete { prefix = format(jvm_indent(depth), jvm_delete_value(e.children[0].til_type(), target, lp), ";\n") }
             mut clear := ""
             if ad.is_move {
                 switch e.children[0].node_type {
@@ -2161,7 +2212,7 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
             target := format(obj, ".", jvm_field_getter(fad.name))
             is_scalar := jvm_field_is_cell(e.children[0].til_type(), fad.name, lp)
             mut prefix := ""
-            if fad.save_old_delete { prefix = format(jvm_indent(depth), target, ".delete();\n") }
+            if fad.save_old_delete { prefix = format(jvm_indent(depth), jvm_delete_value(e.children[1].til_type(), target, lp), ";\n") }
             if is_scalar.not() {
                 mut set_value := value.clone()
                 if jvm_is_runtime_str(e.children[0].til_type(), lp).and(jvm_is_scalar(e.children[1].til_type(), lp)) {
@@ -2348,6 +2399,14 @@ priv jvm_str_field_write := func(field_t: Type, expr: Str, lp: LoadedProgram) re
     return expr.clone()
 }
 
+// Releasing an aggregate value. The runtime's Str is a hand-written class
+// with no delete() of its own -- the runtime releases it, as the struct
+// destructors' field cleanup already spells it.
+priv jvm_delete_value := func(t: Type, value: Str, lp: LoadedProgram) returns Str {
+    if jvm_is_runtime_str(t, lp) { return format("TilRuntime.deleteStr(", value, ")") }
+    return format(value, ".delete()")
+}
+
 priv jvm_field_is_cell := func(owner_type: Type, field_name: Str,
     lp: LoadedProgram) returns Bool {
         if jvm_is_runtime_str(owner_type, lp) { return false }
@@ -2410,6 +2469,7 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
         mut copies := ""
         mut clones := ""
         mut deletes := ""
+        mut swaps := ""
         jvm_add_member(out, "checkLive", format("    private void checkLive() {\n",
             "        if (deleted) { throw new IllegalStateException(\"use after aggregate delete\"); }\n",
             "    }\n\n"))
@@ -2448,6 +2508,20 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
             }
             pname := format("p", i.to_str())
             params = format(params, param_type, " ", pname)
+            // swapContents: a cell this object owns keeps its identity and
+            // trades its VALUE -- a ref into this.x still points into this
+            // object afterwards, as with C's byte swap; anything else is a
+            // reference, and the references trade.
+            if is_cell.and(field.own_type.is(OwnType.Ref).not()) {
+                swaps = format(swaps, "        { ", jvm_type_lp(field.til_type, lp), " t = ",
+                    jvm_cell_read(field.til_type, format("this.", jname), lp), "; ",
+                    jvm_cell_write(field.til_type, format("this.", jname),
+                        jvm_cell_read(field.til_type, format("other.", jname), lp), lp), "; ",
+                    jvm_cell_write(field.til_type, format("other.", jname), "t", lp), "; }\n")
+            } else {
+                swaps = format(swaps, "        { ", field_type, " t = this.", jname, "; this.", jname,
+                    " = other.", jname, "; other.", jname, " = t; }\n")
+            }
             if is_cell.and(field.own_type.is(OwnType.Ref).not()) {
                 init = format(init, "        this.", jname, " = ",
                     jvm_new_cell(field.til_type, pname, lp), ";\n")
@@ -2502,6 +2576,8 @@ priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitSt
             cls, "(", copies, "); }\n"))
         jvm_add_member(out, "cloneValue", format("    ", cls,
             " cloneValue() { checkLive(); return new ", cls, "(", clones, "); }\n"))
+        jvm_add_member(out, "swapContents", format("    void swapContents(", cls, " other) {\n",
+            "        checkLive();\n        other.checkLive();\n", swaps, "    }\n"))
         jvm_add_member(out, "delete", format("    void delete() {\n",
             "        checkLive();\n", deletes,
             "        deleted = true;\n",
@@ -2550,6 +2626,8 @@ priv jvm_emit_enum := func(decl: Expr, package_name: Str) returns JvmClassOut {
         "    }\n\n")
     jvm_add_member(out, "tilTag", "    public long tilTag() { checkLive(); return tag; }\n")
     jvm_add_member(out, "tilPayload", "    public Object tilPayload() { checkLive(); return payload; }\n")
+    jvm_add_member(out, "tilSetPayload",
+        "    public void tilSetPayload(Object value) { checkLive(); payload = value; }\n")
     jvm_add_member(out, "tilVariantName", format("    public String tilVariantName() {\n",
         variant_names, "    }\n"))
     jvm_add_member(out, "copy", format("    ", cls, " copy() {\n",
@@ -2557,6 +2635,12 @@ priv jvm_emit_enum := func(decl: Expr, package_name: Str) returns JvmClassOut {
         "        return new ", cls, "(tag, payload);\n",
         "    }\n"))
     jvm_add_member(out, "cloneValue", format("    ", cls, " cloneValue() { return copy(); }\n"))
+    jvm_add_member(out, "swapContents", format("    void swapContents(", cls, " other) {\n",
+        "        checkLive();\n",
+        "        other.checkLive();\n",
+        "        long t = tag; tag = other.tag; other.tag = t;\n",
+        "        Object p = payload; payload = other.payload; other.payload = p;\n",
+        "    }\n"))
     jvm_add_member(out, "sameTag", format("    boolean sameTag(", cls, " other) {\n",
         "        checkLive();\n",
         "        other.checkLive();\n",
@@ -2638,6 +2722,56 @@ priv jvm_emit_unit := proc(unit_path: Str, root_path: Str, package_name: Str,
         return out
 }
 
+// #375: mode test (and `til test`) runs the program's tests the way the
+// interpreter and the C back end do: every top-level test() in unit order,
+// a `  pass: <name>` line on stderr after each returns, then the count. A
+// test that panics never reaches its line, and the panic is the exit
+// status. Ignoring run_tests -- what this back end did -- ran no test at
+// all and exited 0, a silent pass. A test() inside a struct or enum
+// namespace is refused at translation until its Java home is settled.
+priv jvm_emit_test_calls := proc(mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+    mut out := ""
+    mut count : I64 = 0
+    for u : ProgramUnit in lp.units {
+        ref tiu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in tiu.ast.children {
+            if jvm_is_test_decl(stmt) {
+                ref tdd : Declaration = decl_of(stmt)
+                count = count + 1
+                out = format(out, "        ", jvm_unit_class(u.path), ".", jvm_func_name(tdd.name), "();\n",
+                    "        System.err.println(\"  pass: ", tdd.name, "\");\n")
+            }
+            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                ref trhs : Expr = stmt.children[0]
+                if trhs.node_type.is(NodeType.StructDef).or(trhs.node_type.is(NodeType.EnumDef)) {
+                    ref tns : Vec(Declaration) = def_ns_decls(trhs)
+                    for nsd : Declaration in tns {
+                        if nsd.default_value.is_some() {
+                            switch nsd.default_expr().node_type {
+                            case .FuncDef(nsfd):
+                                if nsfd.sig.func_type.is(FuncType.Test) {
+                                    jvm_fail_expr(nsd.default_expr(), "test() inside a namespace", state, lp.ctx.symbols.names)
+                                }
+                            case:
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if count == 0 { return format(out, "        System.err.println(\"no tests found\");\n") }
+    return format(out, "        System.err.println(\"", count.to_str(), "/", count.to_str(), " tests passed\");\n")
+}
+
+priv jvm_is_test_decl := func(stmt: Expr) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { return false }
+    switch stmt.children[0].node_type {
+    case .FuncDef(jtd_fd): return jtd_fd.sig.func_type.is(FuncType.Test)
+    case: return false
+    }
+}
+
 priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
     mut state: JvmEmitState, lp: LoadedProgram) returns Str {
         ref iu : ImportUnit = lp.ctx.imported[root.path]
@@ -2667,7 +2801,9 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
             case:
             }
         }
-        if main_fexpr.is_some() {
+        // Under run_tests the tests are the entry points, as in the
+        // interpreter: a mode cli file with test() decls runs only those.
+        if main_fexpr.is_some().and(lp.run_tests.not()) {
             ref fexpr : Expr = main_fexpr.unwrap()
             ref fd : FunctionDef = funcdef_of(fexpr)
             if fd.sig.params.len().gt(0).or(fd.sig.return_type.len().gt(0)) {
@@ -2694,6 +2830,7 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
                     main_body = format(main_body, jvm_emit_stmt(stmt, 2, state, lp))
                 }
             }
+            if lp.run_tests { main_body = format(main_body, jvm_emit_test_calls(state, lp)) }
         }
         out := format("package ", package_name, ";\n\n",
             "import til.runtime.TilRuntime;\n\n",
@@ -2744,6 +2881,23 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
         mut reachable_names := Vec(Str).new()
         mut reachable_seen := Set(Str).new()
         jvm_collect_reachable(root_iu.ast, reachable_names, reachable_seen, lp)
+        if lp.run_tests {
+            // Tests are entry points: emit each one wherever it lives, and
+            // what it calls.
+            for tu : ProgramUnit in lp.units {
+                ref tu_iu : ImportUnit = lp.ctx.imported[tu.path]
+                for tstmt : Expr in tu_iu.ast.children {
+                    if jvm_is_test_decl(tstmt) {
+                        ref tsd : Declaration = decl_of(tstmt)
+                        if reachable_seen.has(tsd.name).not() {
+                            reachable_seen.add(own tsd.name.clone())
+                            reachable_names.push(own tsd.name.clone())
+                        }
+                        jvm_collect_reachable(tstmt, reachable_names, reachable_seen, lp)
+                    }
+                }
+            }
+        }
         for loaded_path : Str in lp.unit_paths() {
             mut unit_out := jvm_emit_unit(loaded_path, root.path, package_name,
                 reachable_seen, state, lp)

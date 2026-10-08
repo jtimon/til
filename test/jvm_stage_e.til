@@ -18,6 +18,14 @@ JvmOwned := struct {
 
 bump_jvm_field := func(mut n: I64) { n.inc() }
 
+// A scalar payload binding is a ref into the enum: the write lands in it.
+bump_jvm_token := func(mut t: JvmToken) {
+    switch t {
+    case .Num(n): n.inc()
+    case .Eof:
+    }
+}
+
 main := proc() {
     mut point := JvmPoint()
     point.x = 7
@@ -27,7 +35,8 @@ main := proc() {
     borrowed := JvmBorrow(point = point, scalar = scalar)
     bump_jvm_field(borrowed.scalar)
 
-    token := JvmToken.Num(42)
+    mut token := JvmToken.Num(41)
+    bump_jvm_token(token)
 
     mut buf : U8 = malloc(JvmPoint.size())
     memset(buf, 0, JvmPoint.size())
@@ -38,6 +47,10 @@ main := proc() {
     println(copy.x.to_str(), " ", borrowed_scalar.to_str(), " ",
         token.is(JvmToken.Num).to_str(), " ", first.to_i64().to_str())
     free(own buf)
+    switch token {
+    case .Num(n): println("token ", n.to_str())
+    case .Eof:
+    }
 
     mut values := Vec(I64).new()
     values.push(own 3)

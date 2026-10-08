@@ -76,12 +76,49 @@ public final class TilRuntime {
     public interface EnumValue {
         long tilTag();
         Object tilPayload();
+        void tilSetPayload(Object payload);
         String tilVariantName();
+    }
+
+    // A ref to an enum's scalar payload (`case .V(x):` binds `ref x :=
+    // get_payload(e)`): reads and writes go through the enum itself, so a
+    // write to the binding lands in the enum like C's in-place payload.
+    public static final class PayloadSlot implements I8Slot, U8Slot, I16Slot,
+            U16Slot, I32Slot, U32Slot, I64Slot, U64Slot, F32Slot, F64Slot, BoolSlot {
+        private final EnumValue owner;
+        PayloadSlot(EnumValue owner) { this.owner = owner; }
+        public byte getI8() { return (Byte) owner.tilPayload(); }
+        public void setI8(byte value) { owner.tilSetPayload(value); }
+        public int getU8() { return (Integer) owner.tilPayload(); }
+        public void setU8(int value) { owner.tilSetPayload(value); }
+        public short getI16() { return (Short) owner.tilPayload(); }
+        public void setI16(short value) { owner.tilSetPayload(value); }
+        public int getU16() { return (Integer) owner.tilPayload(); }
+        public void setU16(int value) { owner.tilSetPayload(value); }
+        public int getI32() { return (Integer) owner.tilPayload(); }
+        public void setI32(int value) { owner.tilSetPayload(value); }
+        public int getU32() { return (Integer) owner.tilPayload(); }
+        public void setU32(int value) { owner.tilSetPayload(value); }
+        public long getI64() { return (Long) owner.tilPayload(); }
+        public void setI64(long value) { owner.tilSetPayload(value); }
+        public long getU64() { return (Long) owner.tilPayload(); }
+        public void setU64(long value) { owner.tilSetPayload(value); }
+        public float getF32() { return (Float) owner.tilPayload(); }
+        public void setF32(float value) { owner.tilSetPayload(value); }
+        public double getF64() { return (Double) owner.tilPayload(); }
+        public void setF64(double value) { owner.tilSetPayload(value); }
+        public boolean getBool() { return (Boolean) owner.tilPayload(); }
+        public void setBool(boolean value) { owner.tilSetPayload(value); }
+    }
+
+    public static PayloadSlot payloadSlot(Object value) {
+        return new PayloadSlot((EnumValue) value);
     }
 
     private static final class ClosureState {
         private int references = 1;
         private boolean deleted;
+        private boolean isStatic;
     }
 
     private static final Map<Closure, ClosureState> CLOSURES = new WeakHashMap<>();
@@ -96,8 +133,19 @@ public final class TilRuntime {
         }
     }
 
+    // A function value naming a static function has no lifetime: nothing is
+    // allocated for it (C's static closure has no drop), and the JVM hands
+    // out one shared instance per non-capturing method reference, so a
+    // release counted against it would poison every later value of the same
+    // function. Retain and release leave it alone.
+    public static <T extends Closure> T staticClosure(T closure) {
+        closureState(closure).isStatic = true;
+        return closure;
+    }
+
     public static <T extends Closure> T retainClosure(T closure) {
         ClosureState state = closureState(closure);
+        if (state.isStatic) { return closure; }
         if (state.deleted) { throw new IllegalStateException("retain of deleted closure"); }
         state.references++;
         return closure;
@@ -105,6 +153,7 @@ public final class TilRuntime {
 
     public static void releaseClosure(Closure closure) {
         ClosureState state = closureState(closure);
+        if (state.isStatic) { return; }
         if (state.deleted) { throw new IllegalStateException("double closure release"); }
         state.references--;
         if (state.references == 0) { state.deleted = true; }
@@ -279,6 +328,17 @@ public final class TilRuntime {
         return count;
     }
 
+    // Zeroing a range that covers object slots WHOLE clears them: C's
+    // memset(p, 0, n) over a vacated element (Vec.remove_at's stale last
+    // slot) leaves no value behind, and the virtual heap's equivalent is no
+    // object there. A slot the range covers only in part still fails in
+    // rejectObjectOverlap -- a partial write through an object is an error.
+    private static void clearWholeObjects(Block block, int offset, int length) {
+        int end = offset + length;
+        block.objects.entrySet().removeIf(entry ->
+            entry.getKey() >= offset && entry.getKey() + entry.getValue().size <= end);
+    }
+
     private static void rejectObjectOverlap(Block block, int offset, int length) {
         int end = offset + length;
         for (Map.Entry<Integer, ObjectSlot> entry : block.objects.entrySet()) {
@@ -428,6 +488,7 @@ public final class TilRuntime {
 
     public static void memset(Ptr dest, int value, long length) {
         int count = checkedRange(dest, length);
+        if (value == 0) { clearWholeObjects(dest.block, dest.offset, count); }
         rejectObjectOverlap(dest.block, dest.offset, count);
         Arrays.fill(dest.block.bytes, dest.offset, dest.offset + count, (byte) value);
     }

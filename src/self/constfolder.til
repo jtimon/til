@@ -184,7 +184,7 @@ priv hex_digit_value := func(b: I8) returns U8 {
     return 0
 }
 
-priv from_source_form := func(s: Str) returns Str {
+from_source_form := func(s: Str) returns Str {
     // Fast path: no backslash means no escape sequence to process,
     // source-form bytes already equal post-escape bytes.
     mut has_bs := false
