@@ -101,6 +101,15 @@ print_captured_err := proc(path: Str) {
     echo_file("captured output", path)
 }
 
+// The stdout capture of a failing interpret/run phase, echoed next to the
+// stderr one: panic (and so assert / assert_eq) prints its reason on
+// STDOUT, so a test that died on an assertion left only an "EMPTY
+// (nothing was written)" stderr in the CI log, and the reason was
+// unreachable from here -- the mac-only process.til failure of run 2678.
+print_captured_out := proc(path: Str) {
+    echo_file("captured stdout", path)
+}
+
 // The capture file must never survive the run that did not write it.
 //
 // What fills it is a shell redirect, and in a chained command -- `a '&&' b`,
@@ -219,6 +228,7 @@ main := proc(args: ..Str) {
             } else {
                 println("FAIL (interp): ", file)
                 print_captured_err(interp_errfile)
+                print_captured_out(interp_outfile)
                 fail = 1
             }
         }
@@ -241,6 +251,7 @@ main := proc(args: ..Str) {
                 } else {
                     println("FAIL (run): ", file)
                     print_captured_err(run_errfile)
+                    print_captured_out(run_outfile)
                     fail = 1
                 }
             } else {

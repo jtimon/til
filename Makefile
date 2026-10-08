@@ -114,9 +114,23 @@ endif
 #
 # This is the one vendored library the bootstrap needs, so it is the one
 # that stays here. The cross-compiled libffi builds are make.til's.
+#
+# On a mac host the archive must be built for the deployment target til
+# links its programs at (targets.til: macos11 on arm64, macos10.12 on
+# x64). configure's default is the SDK's own version, and every link of
+# a program that embeds the interpreter then warns per object -- "was
+# built for newer 'macOS' version (26.0) than being linked (11.0)" --
+# which lands in the output a golden test compares (interp_session).
+ifeq ($(UNAME_S),Darwin)
+ifeq ($(UNAME_M),arm64)
+LIBFFI_ENV := MACOSX_DEPLOYMENT_TARGET=11.0
+else
+LIBFFI_ENV := MACOSX_DEPLOYMENT_TARGET=10.12
+endif
+endif
 $(LIBFFI_DIR)/.built:
-	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
-	$(MAKE) -C $(LIBFFI_DIR)
+	cd $(LIBFFI_DIR) && $(LIBFFI_ENV) ./configure --disable-shared --enable-static --disable-docs --quiet
+	$(LIBFFI_ENV) $(MAKE) -C $(LIBFFI_DIR)
 ifeq ($(UNAME_S),Darwin)
 # configure names its build dir with a version-suffixed triple
 # (aarch64-apple-darwin24.3.0), which targets.til cannot predict; keep a
