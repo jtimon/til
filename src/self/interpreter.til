@@ -6958,9 +6958,18 @@ til_built_with_asan := ext_proc() returns shallow Bool {}
 // dlopen that. Its symbols then resolve globally, exactly like the -lfoo case
 // below. Failing to load one is fatal: the program asked to link it, so
 // carrying on would put us back to silently answering 0 for every call.
+//
+// On a windows HOST (til.exe) the twin is a DLL instead -- the same
+// force-linked archive, built by mingw -shared (make.til's
+// build_secp256k1_win_twin) -- loaded with LoadLibraryA, whose module
+// walk in ffi_global_symbol then finds its exports exactly like dlopen's
+// RTLD_GLOBAL does. A distinct name, not a PE file called .so, so a
+// checkout can hold both hosts' twins side by side.
 priv ffi_load_archive_twin := proc(archive_path: Str) {
     if archive_path.len() == 0 { return }
-    so_path := archive_path.strip_suffix(".a").format(".so")
+    mut twin_ext := ".so"
+    if host_os() == "windows" { twin_ext = ".dll" }
+    so_path := archive_path.strip_suffix(".a").format(twin_ext)
     if ffi_load_global_lib(so_path).not() {
         panic("cannot load '", so_path, "' for interpreted calls into '", archive_path,
               "' (built by the Makefile beside the archive): ", ffi_last_error())

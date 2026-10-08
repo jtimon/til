@@ -50,9 +50,16 @@
   - [ ] The other cross targets (linux-x86, linux-arm32, linux-riscv32,
     macOS): only the native archive is built, so a cross-built program
     importing std/crypto still links the host's archive and fails.
-  - [ ] Interpreting std/crypto on a windows HOST (til.exe): the
-    interpreter dlopens a ~.so~ twin beside each archive, a mechanism
-    that has no windows (DLL) counterpart yet -- the same status as nng.
+  - [X] Interpreting std/crypto on a windows HOST (til.exe): on windows
+    ~ffi_load_archive_twin~ loads a ~.dll~ twin beside the archive instead
+    of a ~.so~, and ~build_win_host~ now also builds
+    ~vendor/secp256k1/libsecp256k1.dll~ (the win64 archive force-linked
+    with mingw ~-shared~; imports only KERNEL32 and msvcrt). CI's
+    windows-host job lays out the win64 archive at the canonical path
+    with the DLL beside it and runs ~til.exe interpret test/crypto.til~;
+    locally the same passes under wine, and fails loudly without the
+    DLL. nng (and the gui archives) would need the same twin to be
+    interpreted on a windows host; not done here.
 
 *** Decision
 

@@ -1,0 +1,68 @@
+# priority: low
+# category: bugs
+** OPEN #417 A function-pointer type template cannot be instantiated with a generic's own type parameter
+
+A type-gen macro returning a bare FuncDef (a function-pointer signature)
+works as a parameter type when instantiated with a concrete type, but
+not with the enclosing generic function's type parameter. The same
+shape with a struct template (~Box(H)~) works.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+FnOf := macro(H: Type) returns FuncDef {
+    return func(Dynamic, USize) returns H
+}
+
+count_bytes := func(_data: Dynamic, n: USize) returns U64 { return n.to_u64() }
+
+// Works: the template instantiated with a concrete type.
+apply_u64 := func(s: Str, f: FnOf(U64)) returns U64 { return f(s.c_str, s.count) }
+
+// Fails: the same template instantiated with the generic's own parameter.
+apply := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+
+println(apply_u64("abc", count_bytes).to_str())
+println(apply(U64, "abc", count_bytes).to_str())
+#+end_src
+
+Output on master d292b77:
+
+#+begin_example
+tmp/bug_funcptr_template.til:13:35: error: missing argument for parameter ''
+1 type error(s) found
+#+end_example
+
+An earlier spelling (the parameter named ~H~ in both places, two calls
+with ~U64~ and ~U256~) reported ~undefined type 'HashFnOf__U64'~ and
+~argument type mismatch for 'hasher': expected HashFnOf__U64, got~ (an
+empty actual type): the concrete instance is never synthesized.
+
+*** Where it goes wrong (from a debugging session for #235)
+
+The parser lifts ~FnOf(G)~ in the signature to a placeholder decl
+~FnOf__G := FnOf(G)~. For struct and enum templates,
+~init_dedup_direct_type_gen_decls~ (src/self/initer.til) records such a
+placeholder as a generic type dependency, and ~generic_instantiate~ ->
+~generic_materialize_type_deps~ synthesizes ~FnOf__U64~ when the
+generic is instantiated. For a FuncDef-returning macro the placeholder
+never gets that far: ~init_macro_call_is_type_application~ accepts a
+function generator's call only when every argument is a registered type
+token -- the guard that keeps value calls like ~gid(7)~ out of type
+expansion -- and ~G~ is not one, so ~init_is_direct_macro_inst_decl~ is
+false for it and no dependency is recorded. The typer's late
+instantiation path (~generic_finish_fcall~) then also registers only
+StructDef/EnumDef dependencies (~register_type_def_for_stmt~), not a
+bodyless FuncDef, which would need ~register_funcsig_alias_for_stmt~.
+
+*** Fix sketch
+
+Treat a parser-lifted placeholder whose argument is the enclosing
+generic's type parameter as a type application for a FuncDef-returning
+macro too (the parser only lifts type positions, so it cannot be a value
+call), and register a materialized bodyless FuncDef dependency as a
+funcsig alias in the late path. Regression: the reproducer above, plus
+the same through ~func<G: Type>~ sugar and an omitted (inferred) type
+argument, on both backends.

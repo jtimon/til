@@ -50,6 +50,7 @@ SECP256K1_LIB := "vendor/secp256k1/libsecp256k1.a"
 SECP256K1_SO := "vendor/secp256k1/libsecp256k1.so"
 SECP256K1_WIN64_LIB := "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
 SECP256K1_WIN32_LIB := "vendor/secp256k1/build-win32/lib/libsecp256k1.a"
+SECP256K1_WIN64_DLL := "vendor/secp256k1/libsecp256k1.dll"
 LIBFFI_DIR := "vendor/libffi"
 LIBFFI_STAMP := "vendor/libffi/.built"
 LIBFFI_WIN64_LIB := "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
@@ -1238,6 +1239,26 @@ build_secp256k1_win := proc(mut b: Build, triple: Str, build_dir: Str, output: S
     run("cmake", "--build", build_dir, "--parallel")
 }
 
+/// The windows-HOST twin of the win64 archive: what til.exe's interpreter
+/// loads for a program importing std/crypto, the way bin/til loads
+/// libsecp256k1.so (see build_ffi_twins and ffi_load_archive_twin). The
+/// archive force-linked into a DLL; the library carries no dllexport
+/// annotations in a static build, so every symbol is exported -- spelled
+/// out with --export-all-symbols rather than left to ld's default.
+/// Named beside the native archive, because the interpreter derives the
+/// twin from the link() path it resolved; on a windows host that path
+/// holds the win64 archive (CI's windows-host job lays the tree out so).
+build_secp256k1_win_twin := proc(mut b: Build) {
+    if b.begin("secp256k1_win_twin").not() { return }
+    secp256k1_win64(b)
+    mut inputs := Vec(Str).new()
+    inputs.push(own SECP256K1_WIN64_LIB.clone())
+    if needs_rebuild(SECP256K1_WIN64_DLL, inputs).not() { return }
+    run("x86_64-w64-mingw32-gcc", "-shared", "-o", SECP256K1_WIN64_DLL,
+        "-Wl,--export-all-symbols",
+        "-Wl,--whole-archive", SECP256K1_WIN64_LIB, "-Wl,--no-whole-archive")
+}
+
 /// The nng custom-mode examples, consumed via --extra-modes and
 /// linking libnng. Shared by the windows and macOS server sweeps.
 server_examples := func() returns Vec(Str) {
@@ -1381,6 +1402,8 @@ build_win_host := proc(mut b: Build) {
     build_til(b)
     build_libffi_cross(b, "x86_64-w64-mingw32", LIBFFI_WIN64_LIB)
     build_nng_win(b)
+    // Not linked into til.exe: the interpreter loads it at run time.
+    build_secp256k1_win_twin(b)
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     inputs.push(own LIBFFI_WIN64_LIB.clone())
@@ -1740,6 +1763,7 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = LIBFFI_WIN32_LIB, alias_of = "build_win32", is_path = true, go = libffi_win32))
     out.push(own Command(name = SECP256K1_WIN64_LIB, is_path = true, go = secp256k1_win64,
         about = "windows-x64 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))
     out.push(own Command(name = SECP256K1_WIN32_LIB, is_path = true, go = secp256k1_win32,
         about = "windows-x86 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/raylib/src/libraylib-win64.a", alias_of = "build_win", is_path = true, go = gui_raylib_win64))

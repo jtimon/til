@@ -1,0 +1,55 @@
+# priority: low
+# category: bugs
+** OPEN #418 Unused-priv check misses a use from a namespace method declared earlier in the file
+
+A file-level ~priv~ value that is used only inside a struct's namespace
+method is reported as unused when the ~priv~ declaration comes AFTER the
+struct. Declaring it before the struct, or using it from an ordinary
+top-level function (before or after), is accepted. Priv FUNCTIONS used
+the same way are accepted too.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+Thing := struct {
+    v := 0
+namespace:
+    show := func(self: Thing) returns Str {
+        mut out := Str.with_capacity(1)
+        out.push_str(DIGITS.substr(self.v.to_usize(), 1))
+        return out
+    }
+}
+
+priv DIGITS := "0123456789abcdef"
+
+println(Thing(v = 10).show())
+#+end_src
+
+Output on master d292b77:
+
+#+begin_example
+tmp/privbug/single.til:13:6: error: unused priv value 'DIGITS'; remove 'priv' to expose it
+1 type error(s) found
+#+end_example
+
+The same happens in a ~mode lib~ module imported by the program, and in
+core: U256's ~to_hex~ (src/core/numbers.til) originally read a
+~priv HEX_LOWER~ declared below the struct and hit exactly this error,
+so the digit table was inlined as a local instead.
+
+Controls that pass: the ~priv~ moved above the struct; ~DIGITS~ used
+from a top-level ~show_digit := func(...)~ declared before it; ~priv~
+dropped from the declaration.
+
+*** Likely cause
+
+The unused-priv bookkeeping sees uses inside namespace methods only when
+the value is already registered by the time those method bodies are
+walked, i.e. it depends on declaration order, while top-level function
+bodies are walked after every file-level decl is known. The check should
+see the whole file's uses regardless of order, like it does for
+functions. Regression: the reproducer above on both backends, and the
+lib-module variant.
