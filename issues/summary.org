@@ -5,7 +5,6 @@
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 ** Low
 *** [[./open/400.org][#400]] Dynamic's width is written down twice, and only one copy follows the target
-*** [[./open/418.org][#418]] Unused-priv check misses a use from a namespace method declared earlier in the file
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core

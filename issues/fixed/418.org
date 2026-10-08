@@ -1,6 +1,28 @@
 # priority: low
 # category: bugs
-** OPEN #418 Unused-priv check misses a use from a namespace method declared earlier in the file
+** FIXED #418 Unused-priv check misses a use from a namespace method declared earlier in the file
+
+*** Post-mortem
+
+Root cause: not the namespace-method walk. A file-level binding is
+pre-registered before typing, and a namespace method is a root
+reference, so mark_binding_referenced set ~used = true~ on it directly.
+When the typer later reached the ~priv DIGITS := ...~ Decl itself,
+finalize_decl_binding re-registered the binding (TypeScope.set keeps the
+existing entry) and then ASSIGNED ~decl_b.used = sdecl.used~ (false),
+wiping the earlier use. Top-level functions were unaffected because
+their uses are recorded as reachability edges and resolved after all
+Decls are typed; a use from a namespace method declared AFTER the value
+ran after the reset and survived.
+
+Fix: src/self/typer.til ORs the Declaration's ~used~ into the binding
+instead of assigning it, both in finalize_decl_binding and in
+bind_ext_global_decl (same clobber for a priv ext_global).
+
+Regression: test/priv.til ~test_priv_value_declared_after_ns_use~
+(LateDigits / LATE_DIGITS, same-file, both backends) and the lib-module
+variant HexDigit / HEX_DIGITS in test/imports/priv_helper.til, reached
+through ~hex_digit~.
 
 A file-level ~priv~ value that is used only inside a struct's namespace
 method is reported as unused when the ~priv~ declaration comes AFTER the

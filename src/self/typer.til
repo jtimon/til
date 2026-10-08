@@ -7080,7 +7080,8 @@ priv bind_ext_global_decl := func(mut scope: TypeScope, decl: Declaration,
     binding.mut_explicit = decl.is_mut
     binding.is_priv = decl.is_priv
     binding.orig_name = decl.orig_name.clone()
-    binding.used = decl.used
+    // #418: keep a use recorded before this Decl was typed.
+    if decl.used { binding.used = true }
     binding.is_external_global = true
 }
 
@@ -7554,7 +7555,11 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             case:
             }
         }
-        decl_b.used = sdecl.used
+        // #418: OR, never assign. A file-level binding is pre-registered,
+        // so a namespace method typed before this Decl (a root reference,
+        // see mark_binding_referenced) may already have marked it used;
+        // assigning would wipe that and report the priv value unused.
+        if sdecl.used { decl_b.used = true }
         if func_state.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
         decl_b.is_priv = sdecl.is_priv
         decl_b.orig_name = sdecl.orig_name.clone()

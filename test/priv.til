@@ -176,3 +176,23 @@ test_priv_enum_with_priv_ns_method := test() {
     assert_eq(Str, a.describe(), "calm")
     assert_eq(Str, b.describe(), "stormy")
 }
+
+// #418: a priv value read only from a namespace method of a struct
+// declared ABOVE it still counts as used (declaration order must not
+// matter). The lib-module variant is HexDigit in imports/priv_helper.
+LateDigits := struct {
+    v := 0
+namespace:
+    show := func(self: LateDigits) returns Str {
+        mut out := Str.with_capacity(1)
+        out.push_str(LATE_DIGITS.substr(self.v.to_usize(), 1))
+        return out
+    }
+}
+
+priv LATE_DIGITS := "0123456789abcdef"
+
+test_priv_value_declared_after_ns_use := test() {
+    assert_eq(Str, LateDigits(v = 10).show(), "a")
+    assert_eq(Str, hex_digit(11), "b")
+}

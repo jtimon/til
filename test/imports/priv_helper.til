@@ -90,3 +90,21 @@ mood_score := func(m: I64) returns I64 {
     }
     return 0
 }
+
+// #418: priv value declared below the struct whose namespace method
+// is its only reader.
+HexDigit := struct {
+    v := 0
+namespace:
+    show := func(self: HexDigit) returns Str {
+        mut out := Str.with_capacity(1)
+        out.push_str(HEX_DIGITS.substr(self.v.to_usize(), 1))
+        return out
+    }
+}
+
+priv HEX_DIGITS := "0123456789abcdef"
+
+hex_digit := func(v: I64) returns Str {
+    return HexDigit(v = v).show()
+}
