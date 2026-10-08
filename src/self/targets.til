@@ -92,7 +92,8 @@ priv target_is_32bit := func(target: Target) returns Bool {
 
 // True for any Windows target (x64 or x86). The builder uses it to gate
 // the mingw-specific link handling (--export-all-symbols, the linux->win
-// link-flag rewrite, the nng swap) on all Windows targets at once.
+// link-flag rewrite, the nng and libsecp256k1 swaps) on all Windows
+// targets at once.
 is_windows_target := func(target: Target) returns Bool {
     return target.is(Target.WindowsX64).or(target.is(Target.WindowsX86))
 }

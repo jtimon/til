@@ -32,6 +32,8 @@ vendor/nng/build-win64/
 vendor/secp256k1/libsecp256k1.a
 vendor/secp256k1/libsecp256k1.so
 vendor/secp256k1/build/
+vendor/secp256k1/build-win64/
+vendor/secp256k1/build-win32/
 vendor/emscripten/.emscripten
 vendor/emscripten/.emscripten.old
 vendor/emscripten/.til-emsdk-*

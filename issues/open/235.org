@@ -37,9 +37,22 @@
   - [ ] ~mode crypto~, the constant-time dialect described below, with
     the typer errors that teach the idiom, and ~sha256~ moved into it as
     the first file under the rules.
-  - [ ] Cross targets: only the native archive is built; a windows twin of
-    ~build_nng_win~ is needed before a ~--target=windows-*~ program can
-    link it.
+  - [X] Windows: ~build_secp256k1_win~ in ~make.til~ cross-builds the
+    library with mingw for both arches (path goals
+    ~vendor/secp256k1/build-win{64,32}/lib/libsecp256k1.a~, the module
+    option list shared with the native build), and the builder swaps the
+    std/crypto ~link()~ for the target's archive, like the windows nng.
+    Valgrind auto-detection is now off for every build: it served only
+    the ctime tests, made the archive depend on the host's packages, and
+    put the host's ~/usr/include~ ahead of mingw's headers. CI
+    cross-builds ~test/crypto.til~ for windows-x64 and windows-x86 and
+    runs both on the windows runner; locally both pass under wine.
+  - [ ] The other cross targets (linux-x86, linux-arm32, linux-riscv32,
+    macOS): only the native archive is built, so a cross-built program
+    importing std/crypto still links the host's archive and fails.
+  - [ ] Interpreting std/crypto on a windows HOST (til.exe): the
+    interpreter dlopens a ~.so~ twin beside each archive, a mechanism
+    that has no windows (DLL) counterpart yet -- the same status as nng.
 
 *** Decision
 
