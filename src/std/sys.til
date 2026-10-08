@@ -90,7 +90,7 @@ ccmd_free := ext_func(handle: Dynamic) {}
 /// /bin/sh or cmd.exe, which re-splits it on whitespace, expands $VAR
 /// and globs it; every caller then has to quote its arguments back out
 /// of that, differently per host. A Cmd passes its elements straight to
-/// execvp / CreateProcess, so an argument means exactly the bytes it
+/// posix_spawnp / CreateProcess, so an argument means exactly the bytes it
 /// holds -- spaces, quotes, dollars and all. A shell is still reachable
 /// by asking for one: ~Cmd.new("sh", "-c", script)~.
 ///

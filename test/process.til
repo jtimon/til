@@ -5,7 +5,7 @@ import("../src/std/file")
 
 // Argv-based process execution (issue #345). The property under test in
 // almost every case below is the same one: an argument means exactly the
-// bytes it holds, because nothing between til and execvp re-parses it.
+// bytes it holds, because nothing between til and posix_spawnp re-parses it.
 // The old spawn_cmd/run_cmd path could not state that -- it built a
 // shell command line out of string concatenation.
 
