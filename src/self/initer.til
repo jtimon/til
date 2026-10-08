@@ -3239,7 +3239,48 @@ priv init_macro_returns_func_def := func(macro_fdef: Expr) returns Bool {
 priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len() == 0 { return false }
-    return init_is_macro_inst_call(stmt.children[0], macros, scope, ctx)
+    if init_is_macro_inst_call(stmt.children[0], macros, scope, ctx) { return true }
+    return init_is_lifted_generic_func_type_application(stmt, macros, scope, ctx)
+}
+
+// Issue #417: the parser lifts a function generator applied to the
+// enclosing generic's own type parameter in a signature (`f: FnOf(G)`) to
+// the placeholder `FnOf__G := FnOf(G)`. `G` is no registered type token,
+// so init_macro_call_is_type_application rejects it as a possible value
+// call -- but the parser only lifts type positions, and a name with no
+// top-level binding cannot be a value here. Recognize the placeholder by
+// its deterministic name so the dedup pass records it as a generic type
+// dependency, exactly like a struct template's `Box__G`.
+priv init_is_lifted_generic_func_type_application := func(stmt: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) returns Bool {
+    ref rhs : Expr = stmt.children[0]
+    if rhs.node_type.is(NodeType.FCall).not() { return false }
+    if rhs.children.len() < 2 { return false }
+    mut nm := ""
+    switch rhs.children[0].node_type {
+    case .Ident(cn): nm = Str.clone(cn.ident_name(ctx.symbols.names))
+    case: return false
+    }
+    macro_o := init_lookup_type_gen_macro(nm, macros, scope, ctx)
+    if macro_o.is_none() { return false }
+    if init_macro_returns_func_def(macro_o.unwrap()).not() { return false }
+    mut has_free_param := false
+    for i in 1..rhs.children.len() {
+        ref arg : Expr = rhs.children[i]
+        if init_arg_is_type_token(arg, macros, scope, ctx) { continue }
+        switch arg.node_type {
+        case .Ident(an):
+            if scope.get_binding_sym(an.ident_sym()).is_some() { return false }
+            has_free_param = true
+        case: return false
+        }
+    }
+    if has_free_param.not() { return false }
+    switch stmt.node_type {
+    case .Decl(dd):
+        return dd.name == init_macro_inst_name_for_macro(rhs, macro_o.unwrap(), scope, ctx.symbols)
+    case:
+    }
+    return false
 }
 
 // True when a direct decl `Name__A := Name(A)` is the macro's own

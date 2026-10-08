@@ -1,6 +1,37 @@
 # priority: low
 # category: bugs
-** OPEN #417 A function-pointer type template cannot be instantiated with a generic's own type parameter
+** FIXED #417 A function-pointer type template cannot be instantiated with a generic's own type parameter
+
+*** Post-mortem
+
+    Root cause: the parser lifts ~FnOf(G)~ in a generic signature to the
+    placeholder ~FnOf__G := FnOf(G)~. For a FuncDef-returning macro,
+    ~init_macro_call_is_type_application~ only accepts a call whose
+    arguments are all registered type tokens (to keep value calls like
+    ~gid(7)~ out of type expansion), and the generic's own ~G~ is not one.
+    So ~init_is_direct_macro_inst_decl~ was false for the placeholder, the
+    dedup pass never recorded it as a generic type dependency, and the
+    concrete ~FnOf__U64~ was never synthesized at instantiation; the
+    unexpanded placeholder then surfaced as "missing argument for
+    parameter ''".
+
+    Fix: ~init_is_direct_macro_inst_decl~ also accepts a parser-lifted
+    function-generator placeholder (new
+    ~init_is_lifted_generic_func_type_application~): a direct top-level
+    decl whose name is the deterministic instance name, whose callee is a
+    FuncDef-returning type-gen macro, and whose arguments are all
+    identifiers that are either type tokens or have no top-level binding
+    (at least one of the latter -- the generic's type parameter). It then
+    takes the same generic-dependency path as ~Box__G~. The typer's late
+    path needed no change: ~register_function_def_for_stmt~ already
+    registers a bodyless FuncDef dependency.
+
+    Regression test: ~test/bug417.til~ (both backends) -- a concrete
+    instance, explicit type arguments through ~func(G: Type, ...)~ and
+    ~func<G>~ sugar with two different types, and expected-type inference
+    of the omitted type argument for both spellings. Inference from the
+    call arguments alone stays unsupported ("nested type arguments are not
+    deduced"), as for struct templates.
 
 A type-gen macro returning a bare FuncDef (a function-pointer signature)
 works as a parameter type when instantiated with a concrete type, but

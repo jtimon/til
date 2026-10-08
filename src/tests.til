@@ -2295,6 +2295,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug258.til", flags)
     add_both(tests, "test/bug315.til", flags)
     add_both(tests, "test/bug350.til", flags)
+    add_both(tests, "test/bug417.til", flags)
     // A mode-cli main that RETURNS a value: interpreting one panicked
     // ("return type read outside a call") until interpret_units gave
     // main the same return context every other call gets. Both

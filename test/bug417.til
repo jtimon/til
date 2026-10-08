@@ -1,0 +1,42 @@
+mode test
+
+// Issue #417: a function-pointer type template (a FuncDef-returning macro)
+// instantiated with the enclosing generic's own type parameter. The parser
+// lifts `FnOf(G)` in the signature to the placeholder `FnOf__G := FnOf(G)`;
+// the initializer rejected it as a type application (G is no registered
+// type token, so it looked like a possible value call), so it was never
+// recorded as a generic type dependency and FnOf__U64 was never
+// synthesized ("missing argument for parameter ''"). Struct templates
+// (`Box(G)`) already took that path.
+
+FnOf := macro(H: Type) returns FuncDef {
+    return func(Dynamic, USize) returns H
+}
+
+count_bytes := func(_data: Dynamic, n: USize) returns U64 { return n.to_u64() }
+double_bytes := func(_data: Dynamic, n: USize) returns I64 { return n.to_i64() * 2 }
+
+apply_u64 := func(s: Str, f: FnOf(U64)) returns U64 { return f(s.c_str, s.count) }
+apply := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+apply_angle := func<G>(s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+
+test_concrete_instance := test() {
+    assert_eq(U64, apply_u64("abc", count_bytes), 3)
+}
+
+test_explicit_type_arg := test() {
+    assert_eq(U64, apply(U64, "abc", count_bytes), 3)
+    assert_eq(I64, apply(I64, "abcd", double_bytes), 8)
+}
+
+test_angle_sugar := test() {
+    assert_eq(U64, apply_angle(U64, "abcde", count_bytes), 5)
+    assert_eq(I64, apply_angle(I64, "ab", double_bytes), 4)
+}
+
+test_inferred_type_arg := test() {
+    a : U64 = apply("abcdef", count_bytes)
+    assert_eq(U64, a, 6)
+    b : I64 = apply_angle("abc", double_bytes)
+    assert_eq(I64, b, 6)
+}
