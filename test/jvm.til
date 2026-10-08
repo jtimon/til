@@ -1,0 +1,81 @@
+mode cli
+
+import("../src/std/sys")
+
+// #375 Stage G: the JVM corpus, run on demand by `make test_jvm`. The
+// default suite stays JDK-free, which is how a USize regression left
+// every JVM fixture failing in javac without anything noticing; this is
+// the leg that runs the JDK. Each program is built by the builder's real
+// path (`til run --target=jvm`: javac --release 17 -Xlint:all -Werror, a
+// verified JAR) at both USize widths, and its stdout and exit status must
+// equal the interpreter's at the same width. A missing JDK fails loudly
+// through the builder's own probe -- this target is opt-in, so a skip
+// would only hide that the corpus did not run.
+
+// Programs the JVM back end runs today. Grow this list as #375 lands
+// features; a program moves here from EXCLUDED below once it passes.
+CORPUS := array(Str,
+    "examples/hello_script.til",
+    "examples/fizzbuzz.til",
+    "test/jvm_scalar_smoke.til",
+    "test/jvm_stage_d.til",
+    "test/jvm_stage_e.til",
+    "test/jvm_stage_f.til",
+    "test/script_raw_alloc.til",
+    "test/script_dynamic_free.til",
+    "test/maps.til",
+    "test/sets.til",
+    "test/fn_ptr.til")
+
+// Not yet: each is refused at translation with the diagnostic shown --
+// a loud translation error, never a silently wrong program (#375's
+// acceptance). Kept here so the gap is a list, not a guess:
+//   test/script_str_runtime.til     parameter type for 'parts' (FuncDef Func)
+//   test/script_struct_runtime.til  non-addressable scalar ref (FCall)
+//   test/strings.til                unresolved direct call 'swap_bytes'
+//   test/arrays.til                 runtime function 'noop_proc'
+//   test/vecs.til                   runtime function 'dyn_size_of'
+//   test/closures.til               non-addressable scalar ref (Ident n)
+//   test/enums.til                  non-addressable scalar ref (FCall)
+//   test/structs.til                runtime function 'to_ptr'
+//   test/loops.til                  non-addressable scalar ref (Ident count)
+
+// stdout and exit status of one run. stderr is not compared: the JVM
+// prints its own notices there (JAVA_TOOL_OPTIONS), and a failure's
+// diagnostic is reported in full below.
+priv Outcome := struct {
+    out := ""
+    err := ""
+    status : I64 = 0
+}
+
+priv run_captured := proc(command: Cmd) returns Outcome {
+    command.capture()
+    status := command.run()
+    return Outcome(out = command.out(), err = command.err(), status = status)
+}
+
+main := proc() {
+    mut failures : I64 = 0
+    for bits : Str in array(Str, "32", "64") {
+        usize := format("--usize=", bits)
+        for source : Str in CORPUS {
+            expected := run_captured(Cmd.new("timeout", "300", "bin/til", "interpret", usize, source))
+            actual := run_captured(Cmd.new("timeout", "300", "bin/til", "run", "--target=jvm", usize, source))
+            if actual.status.eq(expected.status).and(actual.out.eq(expected.out)) {
+                println("jvm ", usize, " ", source, ": ok")
+            } else {
+                failures++
+                println("jvm ", usize, " ", source, ": FAIL (status ", actual.status.to_str(),
+                    ", interpreter ", expected.status.to_str(), ")")
+                println("--- interpreter stdout\n", expected.out)
+                println("--- jvm stdout\n", actual.out)
+                println("--- jvm stderr\n", actual.err)
+            }
+        }
+    }
+    if failures > 0 {
+        panic("JVM corpus: ", failures.to_str(), " failure(s)")
+    }
+    println("JVM corpus passed: ", CORPUS.len().to_str(), " programs at both USize widths")
+}

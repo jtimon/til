@@ -1812,7 +1812,11 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
                             if stmt.children.len() > 0 {
                                 if stmt.children[0].node_type.is(NodeType.StructDef)
                                     .or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
-                                    return jvm_int_const(e.til_type(), ctx_total_size(dd.name, lp.ctx).to_str(), lp)
+                                    // Core declares the primitives as structs too, so a
+                                    // struct layout's size would read U64 as its empty
+                                    // body (1 byte); the resolved type knows it is 8.
+                                    size_t := type_from_name_init_name(dd.name, lp.ctx.scope, lp.ctx.symbols)
+                                    return jvm_int_const(e.til_type(), jvm_storage_size(size_t, lp).to_str(), lp)
                                 }
                             }
                         }

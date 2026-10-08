@@ -513,6 +513,24 @@ remain in Stage F.
     C FFI/FFM, GUI and Java ecosystem interop each require a later explicit
     surface/ABI decision.
 
+JVM leg progress 2026-10-08: ~make test_jvm~ runs ~test/jvm.til~, the JVM
+corpus, on demand -- the leg the 2026-10-01 regression had no one to catch
+it. Each program builds through the real ~til run --target=jvm~ path
+(javac ~--release 17 -Xlint:all -Werror~, verified JAR) at ~--usize=32~ and
+~--usize=64~, and its stdout and exit status must equal the interpreter's
+at the same width. A missing JDK fails through the builder's own probe; the
+target is opt-in, so a skip would only hide that nothing ran. The default
+suite stays JDK-free. Eleven programs pass: hello_script, fizzbuzz,
+jvm_scalar_smoke, jvm_stage_d/e/f, script_raw_alloc, script_dynamic_free,
+maps, sets and fn_ptr. Nine more are listed next to the corpus with the
+translation diagnostic that refuses each (scalar refs to non-addressable
+values, a FuncDef-typed parameter, ~swap_bytes~, ~noop_proc~,
+~dyn_size_of~, ~to_ptr~) -- the burn-down list. Bringing the leg up found
+one wrong-result bug: the ~<T>_size~ shortcut read a primitive's size from
+its core struct layout (the empty body, 1 byte), so ~UPtr.size()~ allocated
+1 byte for a pointer and script_dynamic_free overran the virtual heap; it
+now asks ~jvm_storage_size~ of the resolved type.
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.
