@@ -1209,7 +1209,7 @@ main := proc(args: ..Str) {
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command
     // line gets wrong and compare what the child's C runtime parsed.
-    // This linux leg pins the driver and the execvp path; the SAME two
+    // This linux leg pins the driver and the posix_spawnp path; the SAME two
     // programs cross-compile to .exes in the windows-x64 host CI job
     // and run on a real windows runner, where they are the only
     // execution of win_quote_arg / CreateProcessA / win_env_block.

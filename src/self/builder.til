@@ -956,7 +956,7 @@ priv run_artifact := proc(paths: BuildPaths, user_argv: Vec(Str),
         } else {
             // -o names a filesystem path, including a bare filename. Execute
             // that freshly built file rather than searching PATH for its
-            // name: execvp and CreateProcess only search for a name without
+            // name: posix_spawnp and CreateProcess only search for a name without
             // a directory part, so that is the one spelling that needs `./`.
             mut executable := paths.bin_path.clone()
             mut has_dir := executable.contains("/")

@@ -119,6 +119,7 @@ static void stdio_capture_fail(const char *op) {
 #ifndef __EMSCRIPTEN__
 #include <sys/wait.h>
 #include <sys/resource.h>
+#include <spawn.h>
 #include <dlfcn.h>
 #ifdef __linux__
 #include <elf.h>
@@ -2521,16 +2522,17 @@ void sleep_ms(I64 ms) {
     (void)ms;
 }
 #else
+// posix_spawn, not fork+exec: see cmd_start_impl for why a fork is not
+// survivable in a sanitized process on macOS.
 I64 *spawn_cmd(const Str *cmd) {
     char *c = dup_n((const char *)cmd->c_str, cmd->count);
-    pid_t pid = fork();
-    if (pid == 0) {
-        execl("/bin/sh", "sh", "-c", c, NULL);
-        _exit(127);
-    }
+    char *argv[] = {"sh", "-c", c, NULL};
+    pid_t pid;
+    fflush(NULL);
+    int rc = posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, TIL_ENVIRON);
     free(c);
-    if (pid < 0) {
-        fprintf(stderr, "spawn_cmd: fork failed\n");
+    if (rc != 0) {
+        fprintf(stderr, "spawn_cmd: cannot execute /bin/sh: %s\n", strerror(rc));
         exit(1);
     }
     return new_i64((I64)pid);
@@ -2834,7 +2836,7 @@ I32 crename_path(const Str *src, const Str *dst) {
 // caller has to quote every argument back out of that -- differently
 // per host. A build program cannot live with it: one path containing a
 // space either breaks the command or, worse, quietly runs a different
-// one. This family passes an argv VECTOR straight to execvp /
+// one. This family passes an argv VECTOR straight to posix_spawnp /
 // CreateProcess, so an argument means exactly the bytes it holds. A
 // shell is still reachable when the caller actually wants one, by
 // asking for it: Cmd.new("sh", "-c", script).
@@ -3285,9 +3287,7 @@ static int cmd_out_fd(const char *path) {
     return fd;
 }
 
-// The child's environment, assembled HERE rather than after the fork:
-// setenv in the child would malloc, and malloc between fork and exec is
-// only safe while nothing else in the process holds the allocator lock.
+// The child's environment, assembled as the envp posix_spawn takes.
 // NULL means "inherit unchanged", which is the common case.
 static char **cmd_child_env(TilCmd *c) {
     if (c->envc == 0) return NULL;
@@ -3311,6 +3311,35 @@ static char **cmd_child_env(TilCmd *c) {
     return out;
 }
 
+static void cmd_action(int rc, const char *what) {
+    if (rc == 0) return;
+    fprintf(stderr, "cmd: %s: %s\n", what, strerror(rc));
+    exit(1);
+}
+
+// The program never started. Reported the way the shell reports it and
+// the way the fork-era child did after printing its reason: status 127.
+// The Cmd counts as started and finished, so wait/poll/status answer
+// without a process behind them; 0 is no child's pid.
+static void cmd_never_ran(TilCmd *c) {
+    c->child = 0;
+    c->status = 127;
+    c->reaped = 1;
+    cmd_slurp(c);
+}
+
+// posix_spawnp, not fork+exec. A fork is not survivable in a sanitized
+// process on macOS: libSystem's atfork child handlers (xpc_atfork_child)
+// allocate before the exec ever happens, that allocation goes through
+// ASAN's allocator, and whenever its stack depot has to grow right then
+// the child dies in os_unfair_lock ("BUG IN CLIENT OF LIBPLATFORM:
+// os_unfair_lock is corrupt", "crashed on child side of fork pre-exec",
+// SIGKILL) -- which is what test/process.til's first `echo` did under
+// bin/til_asan interpret on the arm64 runner, deterministically per
+// commit and flipping with unrelated interpreter changes, because what
+// decides it is how many stack traces the parent had recorded by then.
+// posix_spawn is a syscall there and runs no handlers; glibc's is a
+// vfork-style clone, so neither host duplicates the parent's locks.
 static void cmd_start_impl(TilCmd *c) {
     int out_fd = -1;
     int err_fd = -1;
@@ -3320,34 +3349,64 @@ static void cmd_start_impl(TilCmd *c) {
     else if (c->err_path && !c->err_to_out) err_fd = cmd_out_fd(c->err_path);
 
     char **child_env = cmd_child_env(c);
-    // Anything still sitting in this process's stdio buffers would be
-    // duplicated by fork and written twice, once per process.
-    fflush(NULL);
-    pid_t pid = fork();
-    if (pid == 0) {
-        if (c->cwd && chdir(c->cwd) != 0) {
-            fprintf(stderr, "cmd: cannot enter '%s': %s\n", c->cwd, strerror(errno));
-            _exit(127);
-        }
-        if (out_fd >= 0 && dup2(out_fd, STDOUT_FILENO) < 0) _exit(127);
-        if (c->err_to_out) {
-            if (dup2(STDOUT_FILENO, STDERR_FILENO) < 0) _exit(127);
-        } else if (err_fd >= 0 && dup2(err_fd, STDERR_FILENO) < 0) {
-            _exit(127);
-        }
-        if (out_fd > STDERR_FILENO) close(out_fd);
-        if (err_fd > STDERR_FILENO) close(err_fd);
-        if (child_env) TIL_ENVIRON = child_env;
-        execvp(c->argv[0], c->argv);
-        fprintf(stderr, "cmd: cannot execute '%s': %s\n", c->argv[0], strerror(errno));
-        _exit(127);
+    posix_spawn_file_actions_t actions;
+    cmd_action(posix_spawn_file_actions_init(&actions), "spawn setup failed");
+    if (out_fd >= 0) {
+        cmd_action(posix_spawn_file_actions_adddup2(&actions, out_fd, STDOUT_FILENO), "spawn setup failed");
     }
+    if (c->err_to_out) {
+        cmd_action(posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO), "spawn setup failed");
+    } else if (err_fd >= 0) {
+        cmd_action(posix_spawn_file_actions_adddup2(&actions, err_fd, STDERR_FILENO), "spawn setup failed");
+    }
+    if (out_fd > STDERR_FILENO) cmd_action(posix_spawn_file_actions_addclose(&actions, out_fd), "spawn setup failed");
+    if (err_fd > STDERR_FILENO) cmd_action(posix_spawn_file_actions_addclose(&actions, err_fd), "spawn setup failed");
+
+    // Cmd.cwd: the one thing posix_spawn has no portable action for
+    // (addchdir_np needs macOS 10.15, above the x64 target's 10.12), so
+    // this process steps into the directory around the spawn and back.
+    // The capture spools and redirections above were already opened
+    // against the caller's directory, as documented. til programs are
+    // single-threaded, so nothing else observes the excursion.
+    int here = -1;
+    if (c->cwd) {
+        here = open(".", O_RDONLY);
+        if (here < 0) {
+            fprintf(stderr, "cmd: cannot open the current directory: %s\n", strerror(errno));
+            exit(1);
+        }
+        if (chdir(c->cwd) != 0) {
+            fprintf(stderr, "cmd: cannot enter '%s': %s\n", c->cwd, strerror(errno));
+            close(here);
+            posix_spawn_file_actions_destroy(&actions);
+            free(child_env);
+            if (out_fd >= 0) close(out_fd);
+            if (err_fd >= 0) close(err_fd);
+            cmd_never_ran(c);
+            return;
+        }
+    }
+    // Whatever this process has buffered must reach its fd before the
+    // child writes to the same one, or the two interleave out of order.
+    fflush(NULL);
+    pid_t pid = -1;
+    int rc = posix_spawnp(&pid, c->argv[0], &actions, NULL, c->argv,
+                          child_env ? child_env : TIL_ENVIRON);
+    if (here >= 0) {
+        if (fchdir(here) != 0) {
+            fprintf(stderr, "cmd: cannot return from '%s': %s\n", c->cwd, strerror(errno));
+            exit(1);
+        }
+        close(here);
+    }
+    posix_spawn_file_actions_destroy(&actions);
     free(child_env);
     if (out_fd >= 0) close(out_fd);
     if (err_fd >= 0) close(err_fd);
-    if (pid < 0) {
-        fprintf(stderr, "cmd: fork failed: %s\n", strerror(errno));
-        exit(1);
+    if (rc != 0) {
+        fprintf(stderr, "cmd: cannot execute '%s': %s\n", c->argv[0], strerror(rc));
+        cmd_never_ran(c);
+        return;
     }
     c->child = (long long)pid;
 }
