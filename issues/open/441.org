@@ -1,0 +1,24 @@
+# priority: low
+# category: cleanups
+** OPEN #441 Diagnostics print the mangled synthetic name of an inline Fn(...) type
+
+An inline function type ~Fn(I64) returns I64~ is lifted by
+~parse_fn_signature~ (src/self/parser.til) to a synthetic FuncSig named
+like ~_Fn_I64_ret_I64~, and file-private mangling makes it
+~priv__<path>___Fn_I64_ret_I64~. Type errors print that name verbatim:
+
+#+begin_src til
+mode script
+wrong := func(a: Str) returns Str { return a }
+apply_fn := func(f: Fn(I64) returns I64, x: I64) returns I64 { return f(x) }
+println(apply_fn(wrong, 3).to_str())
+#+end_src
+
+On master f24e600:
+~argument type mismatch for 'f': function does not match priv__tmp_x_til___Fn_I64_ret_I64 (param 1 is Str, expected I64)~
+
+The diagnostic should spell the type the way the user wrote it,
+~Fn(I64) returns I64~, e.g. by rendering a synthetic FuncSig from its
+FunctionDef wherever a type name is formatted for a message
+(~type_to_name~ and the ~ptype_name~ / ~declared_name~ strings in the
+typer's mismatch errors). test/bug426_error.til exercises this message.

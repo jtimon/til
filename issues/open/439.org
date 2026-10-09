@@ -1,0 +1,37 @@
+# priority: medium
+# category: bugs
+** OPEN #439 A function value returned by a call bypasses the FuncSig check
+
+The result of a call to a function that returns a FuncSig is typed as the
+nameless ~Type.FuncPtr~, which ~funcptr_eq~ accepts for any FuncSig. #426
+closed that wildcard for functions referenced by name (it compares their
+FunctionDef structurally), but a call result has no FunctionDef to
+compare, so a function of the wrong signature still gets through.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+IdSig := func(I64) returns I64
+OtherSig := func(Str) returns Str
+wrong := func(a: Str) returns Str { return a }
+pick := func() returns OtherSig { return wrong }
+apply := func(f: IdSig, x: I64) returns I64 { return f(x) }
+println(apply(pick(), 3).to_str())
+#+end_src
+
+On master f24e600: no diagnostic; ~til interpret~ prints a pointer-sized
+number, ~til run~ exits 139 (SIGSEGV).
+
+*** Where to look
+
+The call's type should carry the declared return FuncSig
+(~Type.FuncPtrSigSym(OtherSig)~), so ~funcptr_eq~ compares names
+(~OtherSig~ vs ~IdSig~). ~fcall_callee_declared_return_type~
+(src/self/typer.til) already notes that the callee binding spells a
+FuncSig return as a nameless ~Type.FuncPtr~ until the typer reaches the
+function's own Decl; that nameless stamp is the source.
+
+Regression: the reproducer as an error at the ~apply(pick(), 3)~
+argument, plus a passing case where ~pick~ returns ~IdSig~, on both
+backends.

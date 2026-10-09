@@ -5,6 +5,9 @@
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it
 *** [[./open/431.org][#431]] til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
+*** [[./open/438.org][#438]] A proc is accepted for a func-typed FuncSig slot, so a func can run side effects
+*** [[./open/439.org][#439]] A function value returned by a call bypasses the FuncSig check
+*** [[./open/440.org][#440]] A namespaced function cannot be passed as a function value
 ** Low
 *** [[./open/425.org][#425]] A function-generator alias cannot be used as a function value
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
@@ -17,6 +20,7 @@
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/429.org][#429]] no-shell-antipatterns.sh: tail -f check has false positives
 *** [[./open/435.org][#435]] Build tooling papercuts: unignored libffi copies, bin/make help spacing, missing cross-compiler hints
+*** [[./open/441.org][#441]] Diagnostics print the mangled synthetic name of an inline Fn(...) type
 * Optimizations
 ** Low
 *** [[./open/405.org][#405]] Avoid owning Array(Str) and formatting allocations in panic

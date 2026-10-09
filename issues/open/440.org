@@ -1,0 +1,39 @@
+# priority: medium
+# category: bugs
+** OPEN #440 A namespaced function cannot be passed as a function value
+
+~Type.func_name~ used as a value (not called) is typed as the function's
+RETURN type instead of a function pointer, so passing it to a FuncSig
+parameter fails even when the signature matches, and a mismatch reports a
+misleading type.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+IdSig := func(I64) returns I64
+Foo := struct {
+    x : I64 = 0
+namespace:
+    double := func(a: I64) returns I64 { return a * 2 }
+}
+apply := func(f: IdSig, x: I64) returns I64 { return f(x) }
+println(apply(Foo.double, 3).to_str())
+#+end_src
+
+On master f24e600, both ~interpret~ and ~build~:
+~error: argument type mismatch for 'f': expected IdSig, got I64~. With
+~double~ changed to ~func(a: Str) returns Str~ the message says
+~got Str~ rather than naming the signature mismatch.
+
+*** Where to look
+
+The FieldAccess inference in src/self/typer.til for a namespace member
+that is a FuncDef. An Ident naming a function is stamped ~Type.FuncPtr~
+(infer of Ident, ~lookup_func_by_sym~); the namespaced spelling should be
+too, and ~funcref_sig_mismatch~ (#426) should then resolve the FieldAccess
+to its FunctionDef and compare it structurally, as it does for an Ident.
+
+Regression: the reproducer passing (prints 6), and a mismatching
+namespaced function reported as "function does not match IdSig", on both
+backends.

@@ -1,0 +1,40 @@
+# priority: medium
+# category: bugs
+** OPEN #438 A proc is accepted for a func-typed FuncSig slot, so a func can run side effects
+
+A FuncSig declared ~func~ accepts a ~proc~ passed by name, and the ~func~
+that calls it through the pointer then performs the proc's side effects.
+The #426 structural signature check compares params and return type but
+not ~func~ vs ~proc~.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+IdSig := func(I64) returns I64
+noisy := proc(a: I64) returns I64 { println("side effect"); return a }
+apply := func(f: IdSig, x: I64) returns I64 { return f(x) }
+println(apply(noisy, 3).to_str())
+#+end_src
+
+On master f24e600 both ~til interpret~ and ~til run~ print "side effect"
+then 3, with no diagnostic.
+
+*** Related: a call through a proc-typed pointer is not a proc call
+
+The other half of the same hole: calling through a ~proc~ FuncSig does not
+count toward ~proc_calls_count~. During #426, ~ext_dispatch_builtin~
+(src/self/interpreter.til) calls ~DispatchFn~ (a ~proc~ signature), yet
+declaring it ~proc~ fails with "proc has no proc/ext_proc calls; should be
+a func", so it stays a ~func~ that calls procs.
+
+*** Where to look
+
+~fdef_sig_mismatch~ (src/self/typer.til) should also compare
+~sig.func_type~: a ~func~ fits a ~proc~ slot, not the reverse. The funcptr
+branch of ~resolve_fcall_return_type~ returns before the purity
+accounting the direct-call path does (~func cannot call proc~ /
+~proc_calls_count~); it should apply the FuncSig's own ~func_type~.
+
+Regression: the reproducer as an error, a ~func~ passed to a ~proc~ slot
+as a passing case, and ~ext_dispatch_builtin~ declared ~proc~.
