@@ -388,8 +388,10 @@ typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self
 typedef struct Set__UPtr Set__UPtr;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
 typedef struct Option__ref_FunctionDef Option__ref_FunctionDef;
+typedef struct Vec__U8 Vec__U8;
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
+typedef struct SymMap__U8 SymMap__U8;
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef Map__Str_priv___src_self_scavenger_til__DeclRef;
 typedef struct Vec__priv___src_self_scavenger_til__DeclRef Vec__priv___src_self_scavenger_til__DeclRef;
 typedef struct ProgramUnit ProgramUnit;
@@ -1288,6 +1290,13 @@ struct Option__ref_FunctionDef {
     FunctionDef *data;
 };
 
+typedef struct Vec__U8 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__U8;
+
+
 struct Option__ref_Scope {
     Scope *data;
 };
@@ -1296,6 +1305,13 @@ typedef struct priv___src_self_scavenger_til__DeclRef {
     Str path;
     USize idx;
 } priv___src_self_scavenger_til__DeclRef;
+
+
+typedef struct SymMap__U8 {
+    Vec__U32 keys;
+    Vec__U8 values;
+    Vec__U32 slots;
+} SymMap__U8;
 
 
 typedef struct Vec__priv___src_self_scavenger_til__DeclRef {

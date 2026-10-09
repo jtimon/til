@@ -766,29 +766,50 @@ priv dyn_call_real_arg_count := func(e: Expr, symbols: SymbolPool) returns USize
     return real
 }
 
-// Collect Ident/Assign refs anywhere in the subtree. Inside any Body,
+// All candidate names are interned in phase 1. A name without a symbol
+// therefore cannot be a candidate (assign/capture metadata still uses Str).
+priv dce_candidate_pos := func(name: Str, candidates: SymMap(U8), symbols: SymbolPool) returns I64 {
+    sym := symbols.lookup(name)
+    if sym.is_none() { return -1 }
+    return candidates.find(sym.unwrap())
+}
+
+priv dce_record_ref := func(pos: I64, mut candidates: SymMap(U8)) {
+    // Most referenced names are not candidates. Store nothing for them.
+    if pos < 0 { return }
+    ref mut flags : U8 = candidates.values.unsafe_get(pos.to_usize())
+    flags = flags.bor(DCE_REFERENCED)
+}
+
+priv dce_candidate_dropped := func(sym: Sym, candidates: SymMap(U8)) returns Bool {
+    pos := candidates.find(sym)
+    if pos < 0 { return false }
+    return candidates.values.unsafe_get(pos.to_usize()).band(DCE_REFERENCED) == 0
+}
+
+// Record only candidate Ident/Assign refs anywhere in the subtree. Inside any Body,
 // skip trivial `<Type>.delete(<candidate>, false)` cleanup calls (at
 // any nesting depth) so a candidate's auto-generated cleanup doesn't
 // pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
-priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str), scope: TypeScope, symbols: SymbolPool) {
+priv collect_body_refs := proc(e: Expr, mut candidates: SymMap(U8), scope: TypeScope, symbols: SymbolPool) {
     switch e.node_type {
     case .Ident(name):
-        refs.add(own Str.clone(name.ident_name(symbols.names)))
+        dce_record_ref(candidates.find(name.ident_sym()), candidates)
     case .Assign(adata):
-        refs.add(own adata.name.clone())
+        dce_record_ref(dce_candidate_pos(adata.name, candidates, symbols), candidates)
     // A capture list names the enclosing local: the emitted env init reads
     // it, so it remains live even when constant folding erases the body's
     // own reference. Captures are Declaration metadata, not child Exprs.
     case .FuncDef(fd):
         for cap : Declaration in fd.captures {
-            refs.add(own cap.name.clone())
+            dce_record_ref(dce_candidate_pos(cap.name, candidates, symbols), candidates)
         }
     // An inlined capture block reads locals directly from its body. Only a
     // lowered closure reads through its capture metadata.
     case .CaptureBlock(cbd):
         if cbd.closure_name.len() > 0 {
             for bcap : Declaration in cbd.captures {
-                refs.add(own bcap.name.clone())
+                dce_record_ref(dce_candidate_pos(bcap.name, candidates, symbols), candidates)
             }
         }
     case:
@@ -799,11 +820,11 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
         if idx >= real_n { break }
         if is_body {
             target := match_trivial_delete(c, scope, symbols)
-            if target.len().gt(0).and(candidates.has(target)) {
+            if target.neq(0).and(candidates.has(target)) {
                 continue
             }
         }
-        collect_body_refs(c, refs, candidates, scope, symbols)
+        collect_body_refs(c, candidates, scope, symbols)
     }
 }
 
@@ -819,30 +840,30 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
 // DCE actually remove the temp without false-positive ref hits from
 // the cleanup itself.
 //
-// Returns the target Ident name on match, "" otherwise.
-priv match_trivial_delete := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
-    if stmt.node_type.is(NodeType.FCall).not() { return "" }
-    if stmt.children.len() != 3 { return "" }
+// Returns the target Ident symbol on match, 0 otherwise.
+priv match_trivial_delete := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Sym {
+    if stmt.node_type.is(NodeType.FCall).not() { return 0 }
+    if stmt.children.len() != 3 { return 0 }
     ref callee : Expr = stmt.children[0]
-    if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
+    if callee.node_type.is(NodeType.FieldAccess).not() { return 0 }
     mut method := ""
     switch callee.node_type {
-    case .FieldAccess(m): method = Str.clone(m.field_access_name(symbols.names))
+    case .FieldAccess(m): method = m.field_access_name(symbols.names).borrowed_view()
     case:
     }
-    if method.eq("delete").not() { return "" }
-    if callee.children.len() != 1 { return "" }
-    if callee.children[0].node_type.is(NodeType.Ident).not() { return "" }
+    if method.eq("delete").not() { return 0 }
+    if callee.children.len() != 1 { return 0 }
+    if callee.children[0].node_type.is(NodeType.Ident).not() { return 0 }
     ref arg0 : Expr = stmt.children[1]
-    if arg0.node_type.is(NodeType.Ident).not() { return "" }
+    if arg0.node_type.is(NodeType.Ident).not() { return 0 }
     ref arg1 : Expr = stmt.children[2]
-    if arg1.node_type.is_literal_bool().not() { return "" }
+    if arg1.node_type.is_literal_bool().not() { return 0 }
     mut bv := false
     switch arg1.node_type {
     case .Literal(Literal.Bool(b)): bv = b
     case:
     }
-    if bv { return "" }
+    if bv { return 0 }
     // An `own` arg is CONSUMING: the delete destroys the pointee (the old
     // element in Vec.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)`), which is real program semantics, not a temp cleanup --
@@ -854,13 +875,13 @@ priv match_trivial_delete := func(stmt: Expr, scope: TypeScope, symbols: SymbolP
     // element -- 349 such calls across the corpus, each with a pointer
     // temp that exists only to be handed to it.
     if get_own_arg(stmt, 1) {
-        if init_delete_is_noop(mtd_recv_type_name(callee, symbols), scope, symbols).not() { return "" }
+        if init_delete_is_noop(mtd_recv_type_name(callee, symbols), scope, symbols).not() { return 0 }
     }
     switch arg0.node_type {
-    case .Ident(n): return Str.clone(n.ident_name(symbols.names))
+    case .Ident(n): return n.ident_sym()
     case:
     }
-    return ""
+    return 0
 }
 
 // The type whose `delete` a `<Type>.delete(...)` callee names.
@@ -1322,13 +1343,27 @@ priv dce_aggregate_holds_nothing := func(dd: Declaration, rhs: Expr, scope: Type
 // Mark codes for body rewrite: 0=keep (default), 1=delete, 2=replace-with-rhs.
 priv MARK_DELETE : U8 = 1
 priv MARK_REPLACE_RHS : U8 = 2
+priv DCE_REFERENCED : U8 = 4
+
+// One entry holds eligibility, replacement policy and reference state. Merge
+// replacement bits just as the old name sets did for duplicate declarations.
+priv dce_add_candidate := func(name: Str, code: U8, mut candidates: SymMap(U8), mut symbols: SymbolPool) {
+    sym := symbols.intern(name)
+    pos := candidates.find(sym)
+    if pos < 0 {
+        candidates.set(sym, own code.clone())
+    } else {
+        ref mut flags : U8 = candidates.values.unsafe_get(pos.to_usize())
+        flags = flags.bor(code)
+    }
+}
 
 // Recursively prune trivial-delete stmts from any Body in the subtree
-// when they target a name in `dropped`. Used after candidates have
+// when they target an unreferenced candidate. Used after candidates have
 // been dropped/replaced in the outer body, since their cleanup calls
 // also live in nested early-return bodies (if-then deletes before a
 // return) that the outer body's phase 3 didn't reach.
-priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), scope: TypeScope, symbols: SymbolPool) {
+priv prune_trivial_deletes := proc(mut e: Expr, candidates: SymMap(U8), scope: TypeScope, symbols: SymbolPool) {
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n > 0 {
@@ -1337,8 +1372,8 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), scope: TypeSc
             mut any := false
             for i in 0..n {
                 target := match_trivial_delete(e.children[i], scope, symbols)
-                if target.len() == 0 { continue }
-                if dropped.has(target).not() { continue }
+                if target == 0 { continue }
+                if dce_candidate_dropped(target, candidates).not() { continue }
                 memset(ptr_add(marks, i), 1, 1)
                 any = true
             }
@@ -1346,7 +1381,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), scope: TypeSc
         }
     }
     for mut c : Expr in e.children {
-        prune_trivial_deletes(c, dropped, scope, symbols)
+        prune_trivial_deletes(c, candidates, scope, symbols)
     }
 }
 
@@ -1355,7 +1390,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str), scope: TypeSc
 // to compiler-internal `hoisted__*` names so we never drop a
 // user-named global -- those may be exported and referenced from
 // outside this body's view.
-priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
+priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, mut symbols: SymbolPool) returns Bool {
     n := body.children.len()
     if n == 0 { return false }
 
@@ -1372,8 +1407,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
     //     otherwise the binding is unused but the FCall may have side
     //     effects, so replace the Decl with the bare FCall. Results that own storage stay as Decl + delete:
     //     the garbager's AST, not either backend, says how they are reclaimed.
-    mut candidates := Set(Str).new()
-    mut candidates_replace := Set(Str).new()
+    mut candidates := SymMap(U8).new()
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -1397,15 +1431,16 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
                 is_internal := dd.name.starts_with("hoisted__").or(dd.name.starts_with("_t_")).or(dd.name.starts_with("_va_"))
                 if is_internal.not() { continue }
             }
+            mut code : U8 = 0
             if dd.own_type.is(OwnType.Ref) {
                 // Ref-typed hoisted temps come from stmt-level FCalls
                 // whose declared return is `ref T` (e.g. advance(p)):
                 // the borrow binding is never read, but the FCall has
                 // the real side effect we need to keep.
                 if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
-                    candidates.add(own dd.name.clone())
+                    code = MARK_DELETE
                     if dce_call_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH).not() {
-                        candidates_replace.add(own dd.name.clone())
+                        code = MARK_REPLACE_RHS
                     }
                 } else if dce_expr_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH) {
                     // #326: an unread borrow of a place is an address
@@ -1413,16 +1448,15 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
                     // `case Some(_n):` (`get_payload(...)`) or the `_ny` of
                     // a `case Point(y = _ny)` (`p.y`), which #86 lets a user
                     // name and leave unused.
-                    candidates.add(own dd.name.clone())
+                    code = MARK_DELETE
                 }
             } else if rhs_is_pure_byvalue(rhs) {
-                candidates.add(own dd.name.clone())
+                code = MARK_DELETE
             } else if dce_aggregate_holds_nothing(dd, rhs, scope, symbols) {
                 if dce_expr_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH) {
-                    candidates.add(own dd.name.clone())
+                    code = MARK_DELETE
                 } else if rhs.node_type.is(NodeType.FCall) {
-                    candidates.add(own dd.name.clone())
-                    candidates_replace.add(own dd.name.clone())
+                    code = MARK_REPLACE_RHS
                 }
             } else if rhs.node_type.is(NodeType.FCall) {
                 // #326: any name, not just hoisted__ temps. Below top level
@@ -1430,43 +1464,47 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
                 // the rest) -- a `for _ in a..b`'s per-step copy of its
                 // counter, a `_ := x.safe_add(y)` that keeps only the throw.
                 if dd.gc_storage.is(GcStorage.Stack).and(rhs.til_type().is(Type.Primitive).or(rhs.til_type().is(Type.None))) {
-                    candidates.add(own dd.name.clone())
+                    code = MARK_DELETE
                     if dce_call_is_pure(rhs, scope, symbols, DCE_PURE_DEPTH).not() {
-                        candidates_replace.add(own dd.name.clone())
+                        code = MARK_REPLACE_RHS
                     }
                 }
             }
+            if code != 0 { dce_add_candidate(dd.name, code, candidates, symbols) }
         case:
         }
     }
 
+    // With no eligible declaration, the reference walk and rewrite cannot
+    // remove anything. This also covers the final empty fixed-point round.
+    if candidates.len() == 0 { return false }
+
     // Phase 2: collect "real" refs -- everything except trivial deletes
     // that target a candidate temp. Those are weak refs we'll drop along
     // with the candidate.
-    mut refs := Set(Str).new()
     for stmt : Expr in body.children {
         target := match_trivial_delete(stmt, scope, symbols)
-        if target.len().gt(0).and(candidates.has(target)) { continue }
-        collect_body_refs(stmt, refs, candidates, scope, symbols)
+        if target.neq(0).and(candidates.has(target)) { continue }
+        collect_body_refs(stmt, candidates, scope, symbols)
     }
 
     // Phase 3: mark Decls (delete or replace-with-rhs) and the
     // matching trivial-delete stmts.
     mut marks : U8 = malloc(n)
     memset(marks, 0, n)
-    mut dropped := Set(Str).new()
     mut any := false
     for i in 0..n {
         ref stmt : Expr = body.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         switch stmt.node_type {
         case .Decl(dd):
-            if candidates.has(dd.name).not() { continue }
-            if refs.has(dd.name) { continue }
+            pos := dce_candidate_pos(dd.name, candidates, symbols)
+            if pos < 0 { continue }
+            ref flags : U8 = candidates.values.unsafe_get(pos.to_usize())
+            if flags.band(DCE_REFERENCED) > 0 { continue }
             mut code : U8 = MARK_DELETE
-            if candidates_replace.has(dd.name) { code = MARK_REPLACE_RHS }
+            if flags.band(MARK_REPLACE_RHS) > 0 { code = MARK_REPLACE_RHS }
             memset(ptr_add(marks, i), code.to_i32(), 1)
-            dropped.add(own dd.name.clone())
             any = true
         case:
         }
@@ -1474,8 +1512,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
     if any {
         for j in 0..n {
             target := match_trivial_delete(body.children[j], scope, symbols)
-            if target.len() == 0 { continue }
-            if dropped.has(target).not() { continue }
+            if target == 0 { continue }
+            if dce_candidate_dropped(target, candidates).not() { continue }
             memset(ptr_add(marks, j), MARK_DELETE.to_i32(), 1)
         }
         // Rebuild body.children honoring the marks. DELETE skips the
@@ -1497,7 +1535,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool, scope: TypeScope, 
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
         for mut bstmt : Expr in body.children {
-            prune_trivial_deletes(bstmt, dropped, scope, symbols)
+            prune_trivial_deletes(bstmt, candidates, scope, symbols)
         }
     }
     return any
@@ -1530,7 +1568,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // outer Decl drop too. `at_top_level` is true only for the program-root
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
-priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, symbols: SymbolPool) {
+priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, mut symbols: SymbolPool) {
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for mut c : Expr in e.children {
@@ -1551,7 +1589,7 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, sy
     }
 }
 
-priv body_dce_ns := proc(mut rhs: Expr, scope: TypeScope, symbols: SymbolPool) {
+priv body_dce_ns := proc(mut rhs: Expr, scope: TypeScope, mut symbols: SymbolPool) {
     ref mut dce_ns : Vec(Declaration) = def_ns_decls(rhs)
     for mut nsd : Declaration in dce_ns {
         if nsd.default_value.is_none() { continue }
@@ -1561,7 +1599,7 @@ priv body_dce_ns := proc(mut rhs: Expr, scope: TypeScope, symbols: SymbolPool) {
     }
 }
 
-dce_program_bodies := proc(mut program: Expr, scope: TypeScope, symbols: SymbolPool) {
+dce_program_bodies := proc(mut program: Expr, scope: TypeScope, mut symbols: SymbolPool) {
     // Walk the program-root body (becomes main() for non-library
     // modes) and every function/test/proc body inside it.
     // body_dce_walk descends through Expr.children, so namespace

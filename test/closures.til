@@ -226,3 +226,13 @@ test_capturing_closure_owned_aggregate_parameter := test() {
     box := ClosureBox346(value = "value")
     assert_eq(USize, consume(own box), 8)
 }
+
+// A literal local is a DCE candidate, but copying it into a closure's
+// environment is a real reference even if the body's arithmetic folds.
+test_dce_literal_capture := test() {
+    captured := 41
+    read : Thunk295 = func() returns I64 [shallow captured] {
+        return captured.add(1)
+    }
+    assert_eq(I64, read(), 42)
+}
