@@ -1115,7 +1115,10 @@ priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow t
         return raw_coerce_value(raw, type_from_sym_init(csym, ctx.scope, ctx.symbols), target_type, ctx, target_own_type)
     case .Dynamic:
         if target_type.is(Type.Dynamic).not() {
-            if heap_type_is_callable(target_type).and(callable_box_is(deref(raw))) { return raw }
+            // Dynamic callable values already use a callable slot, whether
+            // it contains a static FuncDef pointer or a captured closure.
+            // Unboxing a static target would treat the AST as slot storage.
+            if heap_type_is_callable(target_type) { return raw }
             ref pointed : Dynamic = deref(raw)
             // Unboxing to a SHALLOW primitive loads the scalar inline; the
             // pointed block stays owned by whoever boxed it. An own/ref

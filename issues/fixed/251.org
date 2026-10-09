@@ -23,6 +23,27 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Local dyn_fn callable initialization (based on master f24e6004c)
+
+    Reproduced the local FuncSig initialization crash under ASAN. Dynamic-to-
+    callable coercion preserved the raw callable slot only for closures. For
+    a static function it incorrectly unboxed that slot, so binding setup read
+    the FuncDef AST's first bytes as another pointer and crashed in
+    ~callable_box_is~. Both callable representations now retain their slot.
+
+    Regression tests: ~test_local_dyn_fn~ in ~test/fn_ptr.til~ covers local
+    initialization, copying and reassignment through typed callable values;
+    ~test_interface_local_dyn_fn~ in ~test/interfaces.til~ calls a concrete
+    override and a standalone interface default through the local callable.
+    ~make clean && make test~ passed 520/520, including ASAN/self-translation.
+
+    A separate C ABI mismatch surfaced in a scalar-argument probe:
+    ~func(I64) returns I64~ passes I64 by value, while the ~dyn_fn~ wrapper
+    expects a pointer and dereferences that integer. This interpreter fix
+    does not adapt that erased ABI; the regressions use pointer-compatible
+    Str/interface parameters. Direct ~callback = dyn_fn(...)~ reassignment
+    is also currently rejected by the typer; typed-local reassignment works.
+
 *** Multi-argument required methods (based on master f930e58b0)
 
     Removed the typer's one-explicit-argument-besides-self restriction.

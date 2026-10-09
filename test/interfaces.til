@@ -987,6 +987,13 @@ test_interface_default_callable_once := test() {
     assert_eq(I64, OverrideFlow.labels, before_labels + 2)
 }
 
+test_interface_local_dyn_fn := test() {
+    label: DefaultLabel = dyn_fn("DefaultFlow", "indirect")
+    view: DefaultFlow = OverrideFlow()
+    assert_eq(Str, label(view), "indirect override")
+    assert_eq(Str, label(DefaultFlow()), "indirect default")
+}
+
 DefaultNumberCell := struct { n := 3 }
 default_number_cell := DefaultNumberCell()
 DefaultBorrow := interface {

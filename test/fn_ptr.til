@@ -95,6 +95,24 @@ test_funcsig_unary := test() {
     assert_eq(I64, apply_unary(fn_negate, 5), -5)
 }
 
+DynCallbacks := struct {
+namespace:
+    length := func(text: Str) returns USize { return text.len() }
+    twice := func(text: Str) returns USize { return text.len() * 2 }
+}
+DynLength := func(Str) returns USize
+
+test_local_dyn_fn := test() {
+    mut callback: DynLength = dyn_fn("DynCallbacks", "length")
+    assert_eq(USize, callback("initial"), 7)
+    copy := callback
+    assert_eq(USize, copy("copy"), 4)
+    doubled: DynLength = dyn_fn("DynCallbacks", "twice")
+    callback = doubled
+    assert_eq(USize, callback("after"), 10)
+    assert_eq(USize, copy("after"), 5)
+}
+
 Mutator := func(mut I64)
 
 apply_mutator := func(f: Mutator, mut x: I64) {
