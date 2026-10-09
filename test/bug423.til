@@ -1,0 +1,47 @@
+mode test
+
+import("imports/funcsig_infer")
+
+// Issue #423: infer a generic's type argument from a function passed by
+// name (or written inline) to a function-pointer template parameter
+// (`f: FnOf(G)`). A bare function has no generated instance name, so the
+// #328 spelling alignment (`FnOf__G` against `FnOf__U64`) had nothing to
+// line up; generic_bind_funcsig_dep lines the generator's retained
+// signature up against the argument function's own signature instead.
+
+FnOf := macro(H: Type) returns FuncDef {
+    return func(Dynamic, USize) returns H
+}
+
+count_bytes := func(_data: Dynamic, n: USize) returns U64 { return n.to_u64() }
+double_bytes := func(_data: Dynamic, n: USize) returns I64 { return n.to_i64() * 2 }
+vlen := func(v: Vec(I64)) returns USize { return v.len() }
+
+apply := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+apply_angle := func<G>(s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+add_to := func(G: Type, base: G, s: Str, f: FnOf(G)) returns G { return base + f(s.c_str, s.count) }
+
+test_infer_from_named_function := test() {
+    assert_eq(U64, apply("abc", count_bytes), 3)
+    assert_eq(I64, apply("abcd", double_bytes), 8)
+}
+
+test_infer_through_angle_sugar := test() {
+    assert_eq(U64, apply_angle("abcde", count_bytes), 5)
+    assert_eq(I64, apply_angle("ab", double_bytes), 4)
+}
+
+test_infer_agrees_with_other_evidence := test() {
+    base : I64 = 10
+    assert_eq(I64, add_to(base, "abc", double_bytes), 16)
+}
+
+test_infer_from_inline_function := test() {
+    got := apply("xyz", func(_d: Dynamic, n: USize) returns I64 { return n.to_i64() + 100 })
+    assert_eq(I64, got, 103)
+}
+
+test_infer_cross_unit := test() {
+    assert_eq(U64, apply_lib("abcdef", count_bytes), 6)
+    assert_eq(USize, empty_len(vlen), 0)
+}

@@ -1,0 +1,87 @@
+# priority: low
+# category: features
+** FIXED #423 Infer a generic's type argument from a function passed by name to a function-pointer template parameter
+
+*** Post-mortem
+
+    Root cause: ~generic_infer_subs~ deduces a type parameter that appears
+    only inside another type by lining up generated instance spellings
+    (#328: ~FnOf__G~ against ~FnOf__U64~). A function passed by name has
+    no such spelling, only its own signature, so nothing bound ~G~ and the
+    call fell through to "nested type arguments are not deduced".
+
+    Fix: new ~generic_bind_funcsig_dep~ (src/self/typer.til), tried when
+    the spelling alignment binds nothing. Since #417 the initializer keeps
+    the generator's expansion (~FnOf__G := func(Dynamic, USize) returns G~)
+    as the generic's type dependency; the new helper fetches it with
+    ~generic_type_dep~ under the generic's declaring path (now passed into
+    ~generic_infer_subs~, so cross-unit generics work) and lines its
+    parameter and return types up against the argument function's
+    signature: a position spelled ~G~ binds directly, a position
+    mentioning ~G~ (~Vec__G~) goes through ~generic_decompose_nested~.
+    It declines on any arity mismatch, disagreement between positions, or
+    an argument that is itself a generic source. The argument may be a
+    function name or an inline function literal. Bindings then feed the
+    ordinary evidence checks, so a function that disagrees with another
+    argument reports "conflicting evidence".
+
+    Regression test: ~test/bug423.til~ (both backends), with
+    ~test/imports/funcsig_infer.til~ for the cross-unit cases: a named
+    function with two result types, ~func<G>~ sugar, agreement with
+    another argument's evidence, an inline function literal, and a
+    generic from another unit including one whose ~G~ appears only as
+    ~Vec__G~ inside the function's parameter type.
+
+Follow-up to #417. A generic whose parameter is a function-pointer type
+template applied to its own type parameter (~f: FnOf(G)~) now
+instantiates with an explicit type argument and with the type argument
+inferred from the expected type. But passing a function by name does
+not let the typer work out ~G~ when nothing else fixes it.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+FnOf := macro(H: Type) returns FuncDef {
+    return func(Dynamic, USize) returns H
+}
+
+count_bytes := func(_data: Dynamic, n: USize) returns U64 { return n.to_u64() }
+
+apply := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+
+// All of these work:
+println(apply(U64, "abc", count_bytes).to_str())
+a : U64 = apply("abc", count_bytes)
+f : FnOf(U64) = count_bytes
+println(apply("abc", f).to_str())
+
+// This one does not:
+println(apply("abc", count_bytes).to_str())
+#+end_src
+
+Output on master 7cc4830:
+
+#+begin_example
+error: cannot infer type argument 'G' for 'apply': it appears only inside
+another type (nested type arguments are not deduced); pass it explicitly
+#+end_example
+
+*** Why
+
+~generic_infer_subs~ (src/self/typer.til) deduces a parameter that
+appears only inside another type by lining up generated instance
+spellings (~Vec__T~ against ~Vec__I64~, #328). That is why the
+~f : FnOf(U64)~ variable works: its type is spelled ~FnOf__U64~. The
+bare function ~count_bytes~ has no such spelling, only its own
+signature, so there is nothing to line up against ~FnOf__G~.
+
+*** Possible approach
+
+When the formal is a function-generator instance (~FnOf__G~) and the
+argument is a function value, match the template's generated signature
+structurally against the argument's signature (parameter and return
+types), binding ~G~ where it appears, and declining on any mismatch the
+same way spelling alignment does. Regression: the reproducer's last
+call, plus the same through ~func<G>~ sugar, on both backends.

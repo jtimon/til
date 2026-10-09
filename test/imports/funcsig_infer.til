@@ -1,0 +1,22 @@
+mode lib
+
+// #423: generics taking a function-generator instance of their own type
+// parameter, declared in ANOTHER unit than the inferred calls
+// (test/bug423.til), so the retained type dependency is looked up under
+// this unit's path.
+
+FnOf := macro(H: Type) returns FuncDef {
+    return func(Dynamic, USize) returns H
+}
+
+FnVec := macro(H: Type) returns FuncDef {
+    return func(Vec__H) returns USize
+}
+
+apply_lib := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+
+// G appears ONLY nested inside the function's parameter type.
+empty_len := func(G: Type, f: FnVec(G)) returns USize {
+    v := Vec(G).new()
+    return f(v)
+}

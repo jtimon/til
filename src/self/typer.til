@@ -3427,6 +3427,63 @@ priv generic_decompose_nested := func(gfd: FunctionDef, formal: Str, actual: Str
     return bound
 }
 
+// Issue #423: bind a type parameter from a FUNCTION argument to a formal
+// that is a function-generator instance (`f: FnOf(G)`, lifted to
+// `FnOf__G`). A bare function has no instance name to line up, so the
+// spellings of generic_decompose_nested cannot meet; instead line the
+// generator's signature -- retained at init as the generic's type
+// dependency, still spelled in terms of `G` -- up against the argument
+// function's own signature, position by position. Just as conservative:
+// arity must match and every position claiming the parameter must agree.
+// A position that does not mention it is left to the ordinary argument
+// check once the call is concrete. Returns "" when nothing binds.
+priv generic_bind_funcsig_dep := func(scope: TypeScope, gfd: FunctionDef, src_path: Str, formal: Str, arg: Expr, pname: Str, ctx: Context) returns Str {
+    dep_o := generic_type_dep(ctx, src_path, formal)
+    if dep_o.is_none() { return "" }
+    ref dep : Expr = dep_o.unwrap()
+    ref tmpl_expr : Expr = dep.children[0]
+    if tmpl_expr.node_type.is(NodeType.FuncDef).not() { return "" }
+    if tmpl_expr.children.len() != 0 { return "" }
+    mut afd_o := Option(ref Expr).None
+    switch arg.node_type {
+    case .Ident(an): afd_o = scope.lookup_func_by_sym(an.ident_sym(), ctx.symbols)
+    case .FuncDef: afd_o = safe_ref(arg)
+    case:
+    }
+    if afd_o.is_none() { return "" }
+    ref afd_expr : Expr = afd_o.unwrap()
+    // A generic source's signature is spelled in ITS type parameters,
+    // which are no answer for ours.
+    if init_func_is_generic(afd_expr, ctx.symbols) { return "" }
+    ref tmpl : FunctionDef = funcdef_of(tmpl_expr)
+    ref afd : FunctionDef = funcdef_of(afd_expr)
+    if tmpl.sig.params.len() != afd.sig.params.len() { return "" }
+    mut bound := ""
+    for i in 0..tmpl.sig.params.len() + 1 {
+        mut ft := ""
+        mut at := ""
+        if i < tmpl.sig.params.len() {
+            ft = decl_type_name_ref(tmpl.sig.params[i], ctx.symbols).clone()
+            at = decl_type_name_ref(afd.sig.params[i], ctx.symbols).clone()
+        } else {
+            ft = tmpl.sig.return_type.clone()
+            at = afd.sig.return_type.clone()
+        }
+        if at.len() == 0 { continue }
+        mut got := ""
+        if ft.eq(pname) {
+            got = resolve_type_alias_for_name(scope, at, ctx.symbols).clone()
+        } else if type_name_mentions_param(ft, pname) {
+            got = generic_decompose_nested(gfd, ft, resolve_type_alias_for_name(scope, at, ctx.symbols), pname, ctx.symbols)
+            if got.len() == 0 { return "" }
+        }
+        if got.len() == 0 { continue }
+        if bound.len().gt(0).and(bound.eq(got).not()) { return "" }
+        bound = got.clone()
+    }
+    return bound
+}
+
 // A value-only clone of the generic's signature: the `Type` params are
 // gone and the variadic / kwargs block markers move with them. Used to
 // desugar the omitted call through the ONE existing argument matcher
@@ -3596,7 +3653,7 @@ priv generic_expected_evidence := func(e: Expr, gfd: FunctionDef, pname: Str, ct
 // (generic_expected_evidence) sits between the two: consulted when the
 // arguments' hard evidence is silent, and it beats the literal defaults --
 // `n : U8 = gid(7)` narrows the literal exactly as `n : U8 = 7` does.
-priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, mut ctx: Context) returns Bool {
+priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: FunctionDef, src_path: Str, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, mut ctx: Context) returns Bool {
     vo := generic_value_only_fdef(gfd, ctx.symbols)
     if desugar_fcall_args_for_fdef(e, display_name, vo, 0, ctx).not() { return false }
     for ai in 1..e.children.len() {
@@ -3653,8 +3710,13 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                     if ci + nk >= e.children.len() { break }
                     ref narg : Expr = e.children[ci + nk]
                     nspell := expr_declared_type_name(scope, narg, ctx.symbols)
-                    if nspell.len() == 0 { continue }
-                    nbound := generic_decompose_nested(gfd, ptype_name, nspell, ntp.name, ctx.symbols)
+                    mut nbound := ""
+                    if nspell.len() > 0 {
+                        nbound = generic_decompose_nested(gfd, ptype_name, nspell, ntp.name, ctx.symbols)
+                    }
+                    if nbound.len() == 0 {
+                        nbound = generic_bind_funcsig_dep(scope, gfd, src_path, ptype_name, narg, ntp.name, ctx)
+                    }
                     if nbound.len() == 0 { continue }
                     nsite := format(ctx.path, ":", narg.line.to_str(), ":", narg.col.to_str())
                     if ev_key.has(ntp.name) {
@@ -4066,7 +4128,9 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
     if explicit {
         ok = generic_explicit_subs(scope, e, gfd, subs, ref_params, display_name, ctx)
     } else {
-        ok = generic_infer_subs(scope, e, gfd, subs, display_name, in_func, ctx)
+        // The declaring unit keys the generic's retained type dependencies.
+        src_path := scope.get_binding_name(src_name, ctx.symbols).unwrap().path.clone()
+        ok = generic_infer_subs(scope, e, gfd, src_path, subs, display_name, in_func, ctx)
     }
     if ok.not() {
         e.set_til_type(Type.Unknown)
