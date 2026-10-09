@@ -24,6 +24,11 @@ None of these operations inherently requires MLIR or GPU execution.
   agreement on NaNs, infinities and signed zero. Existing ~a*b+c~ retains
   separate rounding. Software lowering must implement genuine fused semantics
   when there is no native FMA; an ordinary multiply followed by add is wrong.
+- Packed bits: after [[./438.org][#438]] settles the bitmap interface, storage
+  representation, bit order and padding invariants, re-analyze binary SIMD
+  operators for packed AND/OR/XOR/NOT and related reductions. Define result
+  lengths, tail masking and interpreter/C semantics before treating native
+  words or wider vectors as the implementation.
 
 Use the existing Simd type and Bool masks. Propose exact method names and
 signatures, error behavior and any necessary runtime/toolchain requirements

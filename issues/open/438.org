@@ -1,0 +1,65 @@
+# priority: low
+# category: features
+** OPEN #438 Packed BitMap container for boolean storage
+
+Add an explicit packed boolean container to the standard library. ~Vec(Bool)~
+and ~Array(Bool)~ currently retain their ordinary element layout, which is
+useful when callers need addressable values but wastes space when a logical
+flag needs only one bit.
+
+*** Draft interface and invariants
+
+Start with an owning, dynamically sized container under ~std/~. ~BitMap~ is the
+working name; settle whether ~BitVec~ better communicates its sequence
+semantics before making the name public.
+
+The initial surface should cover construction, bit length and capacity,
+checked/unchecked ~get~ and ~set~, ~push~, ~pop~, ~resize~ and ~clear~. Add
+bulk operations only with concrete users and defined tail behavior. Bounds and
+growth behavior should match ~Vec~ where packed storage does not change the
+contract.
+
+A packed element has no addressable ~Bool~ object, so ~get~ returns ~Bool~ and
+~set~ performs mutation; it cannot honestly expose ~ref Bool~. The internal
+storage unit (bytes or native words), bit numbering and growth policy must not
+leak accidentally into the public interface. Unused bits in the final unit
+remain zero so equality, hashing and later bulk operations do not observe
+uninitialized padding.
+
+Serialization is a separate contract. Never dump native words as a portable
+format: an encoded bitmap must define its bit length, byte order, bit order and
+padding independently of target ~USize~. General JSON/binary serialization is
+outside this container's initial scope.
+
+*** Vec(Bool), Array(Bool) and generic compatibility
+
+Do not silently change ~Vec(Bool)~ or ~Array(Bool)~ in the first implementation.
+Code taking element references, pointers, slices, relying on generic layout or
+crossing FFI cannot preserve its current semantics with packed bits. Users
+choose the packed container explicitly while those compatibility cases are
+identified.
+
+A later compiler/container specialization may make packed storage selectable
+for ~Vec(Bool)~ or ~Array(Bool)~. Before doing so, define how users request
+packed versus addressable storage and which generic operations preserve their
+contracts. If specialization eventually covers the full useful interface,
+~BitMap~ can be deprecated without removing the explicit representation choice.
+
+*** SIMD follow-up
+
+After this interface and representation contract are settled, re-analyze
+binary SIMD operators in [[./410.org][#410]]. Packed AND/OR/XOR/NOT, equality,
+population count and scans may operate efficiently on storage units or wider
+vectors, but tail masking, padding invariants, result lengths and
+interpreter/C agreement must be defined before exposing those operations.
+Do not design the bitmap around a provisional SIMD lowering.
+
+*** Verification
+
+- Exercise lengths around byte and native-word boundaries, including zero.
+- Check growth, shrink, clear, push/pop and out-of-bounds behavior.
+- Verify final-unit padding remains zero after every mutating operation.
+- Compare interpreter and compiled behavior for all operations.
+- Measure storage and representative bulk operations against ~Vec(Bool)~;
+  packed storage is primarily a space contract, not a promised universal
+  speedup.

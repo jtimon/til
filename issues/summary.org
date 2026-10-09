@@ -47,6 +47,7 @@
 *** [[./open/410.org][#410]] SIMD shuffles, masked memory, gather/scatter and explicit FMA
 *** [[./open/419.org][#419]] mode const_time: a constant-time dialect for cryptographic primitives
 *** [[./open/422.org][#422]] Modes with C (and other) dependencies: declaring and building them per target
+*** [[./open/438.org][#438]] Packed BitMap container for boolean storage
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
