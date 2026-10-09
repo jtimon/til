@@ -6931,6 +6931,11 @@ priv ffi_host_default_abi := proc() returns I32 {
     arch := host_arch()
     if arch == "x64" { return FFI_DEFAULT_ABI }
     if arch == "arm64" { return 1 }
+    // riscv (issue #420, src/riscv/ffitarget.h): FFI_FIRST_ABI=0,
+    // FFI_SYSV=1, the default. Its FFI_EXTRA_CIF_FIELDS are two unsigned;
+    // libffi writes only the first, riscv_nfixedargs -- the binding's
+    // one trailing ffi_cif slot.
+    if arch == "riscv64" { return 1 }
     panic(__LOC__, "FFI_DEFAULT_ABI not audited for this arch; add its value from vendor/libffi/src/<arch>/ffitarget.h")
     return 0
 }

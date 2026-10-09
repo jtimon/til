@@ -39,7 +39,9 @@ UNAME_M := $(shell uname -m)
 LIBFFI_DIR := vendor/libffi
 # configure names its build directory after the host triple, which is
 # not predictable here, so the archive is discovered rather than named.
-LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
+# make.til's linux cross builds (build-linux-<name>) sit beside it and
+# sort first, so they are filtered out; the mingw triples sort after.
+LIBFFI_LIBDIR = $(firstword $(filter-out $(LIBFFI_DIR)/build-%,$(wildcard $(LIBFFI_DIR)/*/.libs)))
 LIBFFI_FLAGS = -L$(LIBFFI_LIBDIR) -lffi
 
 CORE := $(wildcard src/core/*.til)

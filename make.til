@@ -352,11 +352,12 @@ force_load_args := func(host: Host, archive: Str) returns Vec(Str) {
 /// Where the native libffi build put its archive. configure names the
 /// directory after the host triple, which cannot be predicted from
 /// here, so it is discovered -- skipping the cross builds' own
-/// per-triple directories, which sit beside it.
+/// directories, which sit beside it: the mingw per-triple ones and the
+/// linux build-linux-<name> ones (which sort before x86_64-*).
 libffi_native_dir := proc() returns Str {
     mut best := ""
     for name : Str in Dir.list(LIBFFI_DIR) {
-        if name.contains("mingw") { continue }
+        if name.contains("mingw").or(name.starts_with("build-")) { continue }
         candidate := format(LIBFFI_DIR, "/", name, "/.libs")
         if File.is_dir(candidate).not() { continue }
         if best.is_empty().or(candidate.lt(best)) {
@@ -1206,6 +1207,88 @@ build_libffi_cross := proc(mut b: Build, triple: Str, output: Str) {
     run("make", "-C", format(LIBFFI_DIR, "/", triple))
 }
 
+/// libffi for the linux cross targets (issue #420), for runtime ext_func
+/// dispatch in programs built for them -- til itself among them, so the
+/// interpreter works on those hosts. Unlike the mingw builds these
+/// configure OUT of tree, one vendor/libffi/build-linux-<name> each: the
+/// archive path is fixed whatever triple config.sub makes of --host,
+/// and the in-tree native build (with the top-level Makefile configure
+/// rewrites) is never touched. The native libffi lookups skip these
+/// directories.
+LibffiCross := struct {
+    // Suffix of the build directory: build-linux-<name>.
+    name := ""
+    // configure's --host. With CC given, it only selects libffi's
+    // backend and the prefixed binutils.
+    host := ""
+    // Empty only for riscv32 before --riscv32-cc is given.
+    cc := ""
+    // Only for riscv32: the Bootlin binutils, which are not on PATH
+    // under --host's prefix.
+    ar := ""
+    ranlib := ""
+
+namespace:
+    dir := func(self: LibffiCross) returns Str {
+        return format(LIBFFI_DIR, "/build-linux-", self.name)
+    }
+
+    lib := func(self: LibffiCross) returns Str {
+        return format(self.dir(), "/.libs/libffi.a")
+    }
+}
+
+/// Every linux libffi cross archive, as data. targets.til's
+/// target_ffi_lib names the same paths; keep the two in step.
+libffi_cross_targets := func(b: Build) returns Vec(LibffiCross) {
+    mut out := Vec(LibffiCross).new()
+    out.push(own LibffiCross(name = "arm64", host = "aarch64-linux-gnu", cc = "aarch64-linux-gnu-gcc"))
+    out.push(own LibffiCross(name = "riscv64", host = "riscv64-linux-gnu", cc = "riscv64-linux-gnu-gcc"))
+    // The host gcc in 32-bit mode, like every linux-x86 build here.
+    // libffi's closures.c reaches asm/types.h, which only gcc-multilib's
+    // /usr/include/asm link supplies; the directory it points to goes
+    // LAST (-idirafter, unlike til's own -I in targets.til's
+    // target_prefix_args) so a system x86_64 ffi.h there cannot shadow
+    // libffi's own.
+    out.push(own LibffiCross(name = "x86", host = "i686-linux-gnu",
+        cc = "gcc -m32 -idirafter /usr/include/x86_64-linux-gnu"))
+    out.push(own LibffiCross(name = "arm32", host = "arm-linux-gnueabihf", cc = "arm-linux-gnueabihf-gcc"))
+    // No distro ships a riscv32 gcc: --riscv32-cc / RISCV32_CC, as for
+    // the riscv32 gui and libsecp256k1 archives.
+    mut riscv32_ranlib := ""
+    if b.riscv32_cc.ends_with("-gcc") {
+        riscv32_ranlib = format(b.riscv32_cc.strip_suffix("-gcc"), "-ranlib")
+    }
+    out.push(own LibffiCross(name = "riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
+        ar = riscv32_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
+    return out
+}
+
+build_libffi_linux_cross := proc(mut b: Build, name: Str) {
+    if b.begin(format("libffi-linux-", name)).not() { return }
+    mut found := false
+    mut t := LibffiCross()
+    for c : LibffiCross in libffi_cross_targets(b) {
+        if c.name == name {
+            t = c.clone()
+            found = true
+        }
+    }
+    if found.not() { panic("no libffi cross archive for linux-", name) }
+    if t.cc.is_empty() {
+        panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
+    }
+    if needs_rebuild(t.lib(), no_inputs()).not() { return }
+    if mkdir_p(t.dir()) != 0 { panic("could not create ", t.dir()) }
+    configure := Cmd.new("../configure", format("--host=", t.host), format("CC=", t.cc),
+        "--disable-shared", "--enable-static", "--disable-docs", "--quiet")
+    if t.ar.is_empty().not() { configure.arg(format("AR=", t.ar)) }
+    if t.ranlib.is_empty().not() { configure.arg(format("RANLIB=", t.ranlib)) }
+    configure.cwd(t.dir())
+    configure.run_checked()
+    run("make", "-C", t.dir())
+}
+
 /// nng for win64 (mode server and the nng custom modes).
 ///
 /// nng's cmake rejects "legacy mingw" unless three C11 symbols probe
@@ -1825,6 +1908,11 @@ libffi_win64 := proc(mut b: Build) {
 libffi_win32 := proc(mut b: Build) {
     build_libffi_cross(b, "i686-w64-mingw32", LIBFFI_WIN32_LIB)
 }
+libffi_linux_arm64 := proc(mut b: Build) { build_libffi_linux_cross(b, "arm64") }
+libffi_linux_riscv64 := proc(mut b: Build) { build_libffi_linux_cross(b, "riscv64") }
+libffi_linux_x86 := proc(mut b: Build) { build_libffi_linux_cross(b, "x86") }
+libffi_linux_arm32 := proc(mut b: Build) { build_libffi_linux_cross(b, "arm32") }
+libffi_linux_riscv32 := proc(mut b: Build) { build_libffi_linux_cross(b, "riscv32") }
 secp256k1_win64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win64") }
 secp256k1_win32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win32") }
 secp256k1_linux_arm64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-arm64") }
@@ -1922,6 +2010,16 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = NNG_WIN_LIB, alias_of = "win_server", is_path = true, go = build_nng_win))
     out.push(own Command(name = LIBFFI_WIN64_LIB, alias_of = "build_win_host", is_path = true, go = libffi_win64))
     out.push(own Command(name = LIBFFI_WIN32_LIB, alias_of = "build_win32", is_path = true, go = libffi_win32))
+    out.push(own Command(name = "vendor/libffi/build-linux-arm64/.libs/libffi.a", is_path = true, go = libffi_linux_arm64,
+        about = "linux-arm64 libffi, for runtime ext_func (til itself on that host)"))
+    out.push(own Command(name = "vendor/libffi/build-linux-riscv64/.libs/libffi.a", is_path = true, go = libffi_linux_riscv64,
+        about = "linux-riscv64 libffi, for runtime ext_func (til itself on that host)"))
+    out.push(own Command(name = "vendor/libffi/build-linux-x86/.libs/libffi.a", is_path = true, go = libffi_linux_x86,
+        about = "linux-x86 libffi, for runtime ext_func (til itself on that host)"))
+    out.push(own Command(name = "vendor/libffi/build-linux-arm32/.libs/libffi.a", is_path = true, go = libffi_linux_arm32,
+        about = "linux-arm32 libffi, for runtime ext_func (til itself on that host)"))
+    out.push(own Command(name = "vendor/libffi/build-linux-riscv32/.libs/libffi.a", is_path = true, go = libffi_linux_riscv32,
+        about = "linux-riscv32 libffi (needs --riscv32-cc=), for runtime ext_func"))
     out.push(own Command(name = SECP256K1_WIN64_LIB, is_path = true, go = secp256k1_win64,
         about = "windows-x64 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))

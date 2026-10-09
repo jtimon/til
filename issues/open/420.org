@@ -37,7 +37,7 @@ Observed on master d9976ce by cross-building examples/sender.til (nng,
 |---------+-------------+---------|
 | nng | native host, windows-x64 | linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x86, macos-x64, macos-arm64 (cross), wasm32 |
 | raylib + tinyfd | native host, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, wasm32, macos (cross via the mac CI archives) | linux-arm64 cross (only a native arm64 host works), linux-riscv64 (no ~target_gui_libs~ entry at all) |
-| libffi (runtime ext_func dispatch only) | linux-x64, windows-x64, windows-x86; linux-arm64 and macos only on a matching native host | linux-riscv64, linux-x86, linux-arm32, linux-riscv32, wasm32; linux-arm64 and macos cross from another host |
+| libffi (runtime ext_func dispatch only) | linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86; macos only on a native mac host | wasm32; macos cross from another host |
 | libsecp256k1 | every native target, both windows, wasm32 (emcc), til.exe interpreting | linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
 | windows-host twins (til.exe interpreting) | libsecp256k1, raylib, tinyfd (~.dll~ twins) | nng (moved to #422) |
 
@@ -84,9 +84,31 @@ How each fails today:
     32-bit ones. examples/hello_gui.til cross-links for both here; CI
     builds it in the linux-arm64 and linux-riscv64 jobs (build + file
     check, like arm32).
-  - [ ] libffi: cross configure for the missing linux triples (as
-    ~build_libffi_cross~ does for mingw) and stable-path entries so
-    linux-arm64 / macos work from any host.
+  - [X] libffi for the linux cross targets: make.til's
+    ~libffi_cross_targets~ configures each OUT of tree, one
+    ~vendor/libffi/build-linux-<name>~ per target (path goals
+    ~vendor/libffi/build-linux-<name>/.libs/libffi.a~ for arm64,
+    riscv64, x86, arm32 and riscv32 with ~--riscv32-cc~), so the path is
+    fixed and the in-tree native build is untouched; ~target_ffi_lib~
+    names them (a native arm64 host keeps the bootstrap's stable copy).
+    Both native-libffi lookups (the Makefile's ~LIBFFI_LIBDIR~ wildcard
+    and make.til's ~libffi_native_dir~) took the alphabetically first
+    ~vendor/libffi/*/.libs~, which these directories would have become;
+    both skip ~build-*~ now. Two bugs surfaced on the way: the
+    interpreter's ~ffi_host_default_abi~ had no riscv64 entry (til
+    cross-built for riscv64 panicked on its first ext_func; riscv's
+    FFI_SYSV is 1), and the libffi binding's ~ffi_cif~ reserved 4
+    trailing bytes for ~FFI_EXTRA_CIF_FIELDS~ where arm32's are 24
+    (every ~ffi_prep_cif~ smashed the stack; now six U32 slots).
+    test/ffi_prep.til (new, both backends in the suite) calls
+    ~ffi_prep_cif~ with the running arch's default ABI; each linux
+    cross CI job runs it under qemu, and the arm64 and riscv64 jobs also
+    cross-build til and run its interpreter (hello_script,
+    test/ext_libc.til) under qemu. til itself does not build for the
+    32-bit targets (the interpreter casts U64 to UPtr), so those get
+    test/ffi_prep.til only.
+  - [ ] libffi for macos from a non-mac host (configure with the
+    SDK-less clang setup the mac gui archives use).
   - [X] libsecp256k1 for wasm32: a ~build-wasm32~ entry in make.til's
     ~secp256k1_cross_targets~, configured through the vendored emsdk's
     Emscripten.cmake toolchain (path goal

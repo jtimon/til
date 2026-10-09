@@ -1,0 +1,44 @@
+mode cli
+
+import("../src/std/sys")
+import("../vendor/bindings/libffi")
+
+// Issue #420: a program that calls libffi directly links the TARGET's
+// own libffi archive (targets.til's target_ffi_lib) and runs it. The
+// suite runs it natively on both backends; the linux cross CI jobs
+// build it for their target -- including the 32-bit ones, where til
+// itself does not build -- and run it under qemu.
+//
+// ffi_prep_cif for a no-argument void call reaches the architecture's
+// ffi_prep_cif_machdep, and answers FFI_OK only for the ABI that
+// architecture's libffi accepts (src/<arch>/ffitarget.h). The return
+// type mirrors libffi's ffi_type_void (size 1, alignment 1, type 0;
+// size 0 would make it an aggregate to lay out). On the 32-bit targets
+// libffi reads size_t size from the low half of the binding's U64 (all
+// of them little-endian), and alignment and type as 0 from the high
+// half -- still void, which no machdep asks the alignment of.
+
+// FFI_DEFAULT_ABI per architecture; the binding's constant is x86-64's.
+default_abi := proc() returns I32 {
+    arch := host_arch()
+    if arch == "x64" { return FFI_DEFAULT_ABI }
+    // FFI_SYSV everywhere below, except hard-float arm32 (gnueabihf),
+    // whose default is FFI_VFP.
+    if arch == "arm64" { return 1 }
+    if arch == "riscv64" { return 1 }
+    if arch == "riscv32" { return 1 }
+    if arch == "x86" { return 1 }
+    if arch == "arm32" { return 2 }
+    panic("ffi_prep: no audited FFI_DEFAULT_ABI for ", arch)
+    return 0
+}
+
+main := proc() {
+    mut rt := ffi_type(size = 1, alignment = 1)
+    mut cif := ffi_cif(rtype = rt)
+    ref mut atypes : Dynamic = to_ptr(rt)
+    status := ffi_prep_cif(cif, default_abi(), 0, rt, atypes)
+    if status != FFI_OK { panic("ffi_prep_cif on ", host_arch(), ": status ", status.to_str()) }
+    if cif.nargs != 0 { panic("ffi_prep_cif left nargs ", cif.nargs.to_str()) }
+    println("ffi_prep ok")
+}

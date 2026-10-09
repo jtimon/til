@@ -191,17 +191,20 @@ FFI_BAD_ARGTYPE : I32 = 3
 
 // Hand-audited edit, keep across regens (the binder cannot see through
 // the ifdef): the C ffi_cif ends with FFI_EXTRA_CIF_FIELDS, a
-// per-target macro -- `unsigned aarch64_nfixedargs` on darwin-arm64,
-// `unsigned is_variadic` on windows-arm64, empty everywhere else
-// (vendor/libffi/src/aarch64/ffitarget.h). ffi_prep_cif_machdep WRITES
-// that field, so a mirror without it under-allocates by 4 bytes on
-// those targets and every ffi_prep_cif corrupts the neighboring heap
-// chunk -- the darwin-arm64 intermittent-crash root cause of issue
-// #25, caught by Guard Malloc inside ffi_prep_cif_machdep. Model the
-// union of the per-target layouts: the trailing slot is dead weight on
-// targets whose C struct lacks it (libffi never touches it there) and
-// keeps ffi_cif.size() large enough on the ones that have it. The
-// prefix field offsets are identical everywhere.
+// per-target macro (vendor/libffi/src/<arch>/ffitarget.h) --
+// `unsigned aarch64_nfixedargs` on darwin-arm64, `unsigned is_variadic`
+// on windows-arm64, two unsigned on riscv, and on arm32 `int vfp_used;
+// unsigned short vfp_reg_free, vfp_nargs; signed char vfp_args[16]`
+// (24 bytes); empty everywhere else. ffi_prep_cif_machdep WRITES those
+// fields, so a mirror without room for them under-allocates and every
+// ffi_prep_cif corrupts the neighboring memory -- the darwin-arm64
+// intermittent-crash root cause of issue #25, caught by Guard Malloc
+// inside ffi_prep_cif_machdep, and a smashed stack on linux-arm32
+// (issue #420, test/ffi_prep.til). Model the union of the per-target
+// layouts: six 4-byte slots (arm32's 24 bytes, at its int alignment)
+// are dead weight on targets whose C struct is shorter (libffi never
+// touches them there) and keep ffi_cif.size() large enough on the ones
+// that have them. The prefix field offsets are identical everywhere.
 ffi_cif := ext_struct {
     abi : ffi_abi = 0
     nargs : U32 = 0
@@ -218,6 +221,11 @@ ffi_cif := ext_struct {
     bytes : U32 = 0
     flags : U32 = 0
     extra_cif_fields : U32 = 0
+    extra_cif_fields_2 : U32 = 0
+    extra_cif_fields_3 : U32 = 0
+    extra_cif_fields_4 : U32 = 0
+    extra_cif_fields_5 : U32 = 0
+    extra_cif_fields_6 : U32 = 0
 }
 
 /* ---- Definitions for the raw API -------------------------------------- */

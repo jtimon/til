@@ -118,6 +118,18 @@ jobs:
           make vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a
           ./bin/til build --target=linux-arm64 -o bin/crypto_arm64 test/crypto.til
           qemu-aarch64 -L /usr/aarch64-linux-gnu bin/crypto_arm64
+      # Issue #420: libffi for this target, built out of tree into
+      # vendor/libffi/build-linux-arm64. test/ffi_prep.til calls it directly;
+      # til itself, cross-built, links it for the interpreter's ext_func
+      # dispatch, so til can interpret programs ON this host.
+      - name: Cross-compile and run libffi programs for linux-arm64
+        run: |
+          make vendor/libffi/build-linux-arm64/.libs/libffi.a
+          ./bin/til build --target=linux-arm64 -o bin/ffi_prep_arm64 test/ffi_prep.til
+          qemu-aarch64 -L /usr/aarch64-linux-gnu bin/ffi_prep_arm64 | grep -q "ffi_prep ok"
+          ./bin/til build --target=linux-arm64 -o bin/til_arm64 src/til.til
+          qemu-aarch64 -L /usr/aarch64-linux-gnu bin/til_arm64 interpret examples/hello_script.til | grep -q "Hello World"
+          qemu-aarch64 -L /usr/aarch64-linux-gnu bin/til_arm64 interpret test/ext_libc.til
       # Issue #420: the GUI cross-link for this target. raylib compiles
       # against the vendored X11 headers and GLFW dlopens libX11 on the
       # device, so the distro cross gcc is all it needs. Build + file
@@ -154,6 +166,18 @@ jobs:
           make vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a
           ./bin/til build --target=linux-riscv64 -o bin/crypto_riscv64 test/crypto.til
           qemu-riscv64 -L /usr/riscv64-linux-gnu bin/crypto_riscv64
+      # Issue #420: libffi for this target, built out of tree into
+      # vendor/libffi/build-linux-riscv64. test/ffi_prep.til calls it directly;
+      # til itself, cross-built, links it for the interpreter's ext_func
+      # dispatch, so til can interpret programs ON this host.
+      - name: Cross-compile and run libffi programs for linux-riscv64
+        run: |
+          make vendor/libffi/build-linux-riscv64/.libs/libffi.a
+          ./bin/til build --target=linux-riscv64 -o bin/ffi_prep_riscv64 test/ffi_prep.til
+          qemu-riscv64 -L /usr/riscv64-linux-gnu bin/ffi_prep_riscv64 | grep -q "ffi_prep ok"
+          ./bin/til build --target=linux-riscv64 -o bin/til_riscv64 src/til.til
+          qemu-riscv64 -L /usr/riscv64-linux-gnu bin/til_riscv64 interpret examples/hello_script.til | grep -q "Hello World"
+          qemu-riscv64 -L /usr/riscv64-linux-gnu bin/til_riscv64 interpret test/ext_libc.til
       # Issue #420: the GUI cross-link for this target. raylib compiles
       # against the vendored X11 headers and GLFW dlopens libX11 on the
       # device, so the distro cross gcc is all it needs. Build + file
@@ -192,6 +216,15 @@ jobs:
           make vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a
           ./bin/til build --target=linux-x86 -o bin/crypto_x86 test/crypto.til
           qemu-i386 bin/crypto_x86
+      # Issue #420: libffi for this target, built out of tree into
+      # vendor/libffi/build-linux-x86; test/ffi_prep.til calls it directly.
+      # (til itself does not build for a 32-bit target, so no interpreter
+      # run here.)
+      - name: Cross-compile and run a libffi program for linux-x86
+        run: |
+          make vendor/libffi/build-linux-x86/.libs/libffi.a
+          ./bin/til build --target=linux-x86 -o bin/ffi_prep_x86 test/ffi_prep.til
+          qemu-i386 bin/ffi_prep_x86 | grep -q "ffi_prep ok"
       # Issue #232: 32-bit linux GUI. raylib compiles -m32 against the
       # vendored X11 headers and GLFW dlopens libX11 at runtime, so
       # BUILDING needs only gcc-multilib (installed above) -- no 32-bit
@@ -241,6 +274,15 @@ jobs:
           make vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a
           ./bin/til build --target=linux-arm32 -o bin/crypto_arm32 test/crypto.til
           qemu-arm -L /usr/arm-linux-gnueabihf bin/crypto_arm32
+      # Issue #420: libffi for this target, built out of tree into
+      # vendor/libffi/build-linux-arm32; test/ffi_prep.til calls it directly.
+      # (til itself does not build for a 32-bit target, so no interpreter
+      # run here.)
+      - name: Cross-compile and run a libffi program for linux-arm32
+        run: |
+          make vendor/libffi/build-linux-arm32/.libs/libffi.a
+          ./bin/til build --target=linux-arm32 -o bin/ffi_prep_arm32 test/ffi_prep.til
+          qemu-arm -L /usr/arm-linux-gnueabihf bin/ffi_prep_arm32 | grep -q "ffi_prep ok"
       # Issue #232: arm32 GUI. Same recipe as linux-x86 gui (vendored X11
       # headers for the compile, GLFW dlopens libX11 on the target device
       # at runtime), with the same cross gcc the CLI step already uses.
@@ -299,6 +341,18 @@ jobs:
             -o bin/crypto_riscv32 test/crypto.til
           SYSROOT=$("$RISCV32_CC" -print-sysroot)
           qemu-riscv32 -L "$SYSROOT" bin/crypto_riscv32
+      # Issue #420: libffi for this target, built out of tree (with the
+      # Bootlin compiler and binutils) into vendor/libffi/build-linux-riscv32;
+      # test/ffi_prep.til calls it directly. (til itself does not build for
+      # a 32-bit target, so no interpreter run here.)
+      - name: Cross-compile and run a libffi program for linux-riscv32
+        run: |
+          RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)
+          make RISCV32_CC="$RISCV32_CC" vendor/libffi/build-linux-riscv32/.libs/libffi.a
+          ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" \
+            -o bin/ffi_prep_riscv32 test/ffi_prep.til
+          SYSROOT=$("$RISCV32_CC" -print-sysroot)
+          qemu-riscv32 -L "$SYSROOT" bin/ffi_prep_riscv32 | grep -q "ffi_prep ok"
       # Issue #232: riscv32 GUI, same shape as the arm32 gui step. No
       # distro ships a riscv32 gcc, so the raylib/tinyfd recipes take the
       # Bootlin compiler as RISCV32_CC. Build + file check only (no

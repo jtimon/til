@@ -1523,6 +1523,11 @@ typedef struct {
     U32 bytes;
     U32 flags;
     U32 extra_cif_fields;
+    U32 extra_cif_fields_2;
+    U32 extra_cif_fields_3;
+    U32 extra_cif_fields_4;
+    U32 extra_cif_fields_5;
+    U32 extra_cif_fields_6;
 } ffi_cif;
 
 
