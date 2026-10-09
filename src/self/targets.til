@@ -385,9 +385,19 @@ target_gui_libs := proc(target: Target) returns Str {
     case .LinuxX64:
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
     // Native arm64 linux hosts build the same vendor paths natively,
-    // exactly like the macos entries below (issue #25).
+    // exactly like the macos entries below (issue #25); any other host
+    // cross-links the -arm64 archives make.til builds with the distro
+    // cross gcc (issue #420). Same for riscv64, which had no entry.
     case .LinuxArm64:
-        return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
+        if target_is_host(target) {
+            return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
+        }
+        return "vendor/raylib/src/libraylib-arm64.a vendor/tinyfiledialogs/libtinyfd-arm64.a"
+    case .LinuxRiscv64:
+        if target_is_host(target) {
+            return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
+        }
+        return "vendor/raylib/src/libraylib-riscv64.a vendor/tinyfiledialogs/libtinyfd-riscv64.a"
     case .LinuxX86:
         return "vendor/raylib/src/libraylib-x86.a vendor/tinyfiledialogs/libtinyfd-x86.a"
     case .LinuxArm32:

@@ -1066,6 +1066,16 @@ gui_targets := proc(b: Build) returns Vec(GuiTarget) {
     out.push(own GuiTarget(name = "arm32",
         cc = "arm-linux-gnueabihf-gcc", ar = "arm-linux-gnueabihf-ar",
         raylib_cflags = x11_cflags()))
+    // The 64-bit linux cross targets (issue #420): the same recipe as
+    // arm32, with the distro cross gcc. A native arm64 host keeps
+    // building the canonical archives instead (targets.til's
+    // target_gui_libs picks by target_is_host).
+    out.push(own GuiTarget(name = "arm64",
+        cc = "aarch64-linux-gnu-gcc", ar = "aarch64-linux-gnu-ar",
+        raylib_cflags = x11_cflags()))
+    out.push(own GuiTarget(name = "riscv64",
+        cc = "riscv64-linux-gnu-gcc", ar = "riscv64-linux-gnu-ar",
+        raylib_cflags = x11_cflags()))
     // No distro ships a riscv32 gcc: CI downloads the Bootlin
     // toolchain and passes it in, and the matching ar is derived from
     // the compiler's name.
@@ -1749,6 +1759,10 @@ gui_raylib_arm32 := proc(mut b: Build) { build_gui_raylib(b, "arm32") }
 gui_tinyfd_arm32 := proc(mut b: Build) { build_gui_tinyfd(b, "arm32") }
 gui_raylib_riscv32 := proc(mut b: Build) { build_gui_raylib(b, "riscv32") }
 gui_tinyfd_riscv32 := proc(mut b: Build) { build_gui_tinyfd(b, "riscv32") }
+gui_raylib_arm64 := proc(mut b: Build) { build_gui_raylib(b, "arm64") }
+gui_tinyfd_arm64 := proc(mut b: Build) { build_gui_tinyfd(b, "arm64") }
+gui_raylib_riscv64 := proc(mut b: Build) { build_gui_raylib(b, "riscv64") }
+gui_tinyfd_riscv64 := proc(mut b: Build) { build_gui_tinyfd(b, "riscv64") }
 mac_raylib_arm64 := proc(mut b: Build) { build_mac_raylib(b, "arm64") }
 mac_raylib_x64 := proc(mut b: Build) { build_mac_raylib(b, "x64") }
 mac_tinyfd_arm64 := proc(mut b: Build) { build_mac_tinyfd(b, "arm64") }
@@ -1886,6 +1900,14 @@ commands := func() returns Vec(Command) {
         about = "linux-arm32 GUI archive"))
     out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-arm32.a", is_path = true, go = gui_tinyfd_arm32,
         about = "linux-arm32 GUI archive"))
+    out.push(own Command(name = "vendor/raylib/src/libraylib-arm64.a", is_path = true, go = gui_raylib_arm64,
+        about = "linux-arm64 GUI archive (cross; a native arm64 host uses the plain one)"))
+    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-arm64.a", is_path = true, go = gui_tinyfd_arm64,
+        about = "linux-arm64 GUI archive (cross; a native arm64 host uses the plain one)"))
+    out.push(own Command(name = "vendor/raylib/src/libraylib-riscv64.a", is_path = true, go = gui_raylib_riscv64,
+        about = "linux-riscv64 GUI archive"))
+    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-riscv64.a", is_path = true, go = gui_tinyfd_riscv64,
+        about = "linux-riscv64 GUI archive"))
     out.push(own Command(name = "vendor/raylib/src/libraylib-riscv32.a", is_path = true, go = gui_raylib_riscv32,
         about = "linux-riscv32 GUI archive (needs --riscv32-cc=)"))
     out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-riscv32.a", is_path = true, go = gui_tinyfd_riscv32,

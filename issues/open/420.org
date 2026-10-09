@@ -1,6 +1,6 @@
 # priority: low
 # category: backends
-** OPEN #420 Missing cross builds of the vendored libraries
+** WIP #420 Missing cross builds of the vendored libraries
 
 The vendored libraries do not cover every target. #235 fixed this for
 libsecp256k1 (std/crypto); the same gap remains for nng, raylib +
@@ -72,10 +72,17 @@ How each fails today:
   - [ ] nng: per-target cross archives (cmake, like the windows nng, with
     its winsock/shim notes) for the linux cross targets, windows-x86 and
     the mac cross targets; builder swap through a ~target_nng_lib~ table.
-  - [ ] raylib + tinyfd: linux-arm64 and linux-riscv64 cross archives
-    (the ~GuiTarget~ data in make.til already covers x86/arm32/riscv32
-    the same way), and the ~target_gui_libs~ entries; drop the host
-    archive tokens for those targets as the linux32 rewrite does.
+  - [X] raylib + tinyfd: ~arm64~ and ~riscv64~ entries in make.til's
+    ~GuiTarget~ table (distro cross gcc + the vendored X11 headers, like
+    arm32), with path goals ~vendor/raylib/src/libraylib-{arm64,riscv64}.a~
+    and ~vendor/tinyfiledialogs/libtinyfd-{arm64,riscv64}.a~.
+    ~target_gui_libs~ keeps the canonical archives for a native
+    arm64/riscv64 host (~target_is_host~) and names the cross ones
+    otherwise (riscv64 had no entry at all), and the builder now drops the
+    host's archive tokens for these two cross targets as it does for the
+    32-bit ones. examples/hello_gui.til cross-links for both here; CI
+    builds it in the linux-arm64 and linux-riscv64 jobs (build + file
+    check, like arm32).
   - [ ] libffi: cross configure for the missing linux triples (as
     ~build_libffi_cross~ does for mingw) and stable-path entries so
     linux-arm64 / macos work from any host.

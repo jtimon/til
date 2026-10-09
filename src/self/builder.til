@@ -443,7 +443,13 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // -x86/-arm32 variants); the dropped -l flags come back via
     // target_system_libs, which lists them all for linux targets.
     is_linux32 := target.is(Target.LinuxX86).or(target.is(Target.LinuxArm32)).or(target.is(Target.LinuxRiscv32))
-    if is_windows_target(target).or(target.is(Target.Wasm32)).or(is_linux32)
+    // The 64-bit non-x64 linux targets cross-built from another host
+    // (issue #420): the host's archives must go too, for the same reason
+    // as the 32-bit ones; target_gui_libs supplies -arm64/-riscv64. On a
+    // native arm64/riscv64 host the inherited archives are the right ones.
+    is_linux64_cross := target.is(Target.LinuxArm64).or(target.is(Target.LinuxRiscv64))
+        .and(target_is_host(target).not())
+    if is_windows_target(target).or(target.is(Target.Wasm32)).or(is_linux32).or(is_linux64_cross)
         .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)) {
         // On macos the archive paths stay (native archives live at the
         // same paths on a mac host) and -latomic must go (no such lib

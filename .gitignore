@@ -20,6 +20,8 @@ vendor/tinyfiledialogs/libtinyfd-win32.a
 vendor/tinyfiledialogs/libtinyfd-x86.a
 vendor/tinyfiledialogs/libtinyfd-arm32.a
 vendor/tinyfiledialogs/libtinyfd-riscv32.a
+vendor/tinyfiledialogs/libtinyfd-arm64.a
+vendor/tinyfiledialogs/libtinyfd-riscv64.a
 vendor/tinyfiledialogs/libtinyfd-macos-arm64.a
 vendor/tinyfiledialogs/libtinyfd-macos-x64.a
 vendor/raylib/src/libraylib-macos-arm64.a

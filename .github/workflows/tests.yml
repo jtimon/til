@@ -118,6 +118,17 @@ jobs:
           make vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a
           ./bin/til build --target=linux-arm64 -o bin/crypto_arm64 test/crypto.til
           qemu-aarch64 -L /usr/aarch64-linux-gnu bin/crypto_arm64
+      # Issue #420: the GUI cross-link for this target. raylib compiles
+      # against the vendored X11 headers and GLFW dlopens libX11 on the
+      # device, so the distro cross gcc is all it needs. Build + file
+      # check only, like the arm32 gui step: running it would need arm64
+      # X11 userspace, and the gui runtime path is exercised by the
+      # linux-x86 qemu+xvfb smoke.
+      - name: Cross-compile a GUI example for linux-arm64
+        run: |
+          make vendor/raylib/src/libraylib-arm64.a vendor/tinyfiledialogs/libtinyfd-arm64.a
+          ./bin/til build --target=linux-arm64 -o bin/hello_gui_arm64 examples/hello_gui.til
+          file bin/hello_gui_arm64 | grep -q "aarch64"
 
   linux-riscv64:
     name: linux-riscv64
@@ -143,6 +154,17 @@ jobs:
           make vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a
           ./bin/til build --target=linux-riscv64 -o bin/crypto_riscv64 test/crypto.til
           qemu-riscv64 -L /usr/riscv64-linux-gnu bin/crypto_riscv64
+      # Issue #420: the GUI cross-link for this target. raylib compiles
+      # against the vendored X11 headers and GLFW dlopens libX11 on the
+      # device, so the distro cross gcc is all it needs. Build + file
+      # check only, like the arm32 gui step: running it would need riscv64
+      # X11 userspace, and the gui runtime path is exercised by the
+      # linux-x86 qemu+xvfb smoke.
+      - name: Cross-compile a GUI example for linux-riscv64
+        run: |
+          make vendor/raylib/src/libraylib-riscv64.a vendor/tinyfiledialogs/libtinyfd-riscv64.a
+          ./bin/til build --target=linux-riscv64 -o bin/hello_gui_riscv64 examples/hello_gui.til
+          file bin/hello_gui_riscv64 | grep -q "RISC-V"
 
   linux-x86:
     name: linux-x86
