@@ -370,7 +370,10 @@ target_secp256k1_lib := func(target: Target) returns Str {
     case .LinuxRiscv32: return "vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a"
     case .MacosX64:     return "vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a"
     case .MacosArm64:   return "vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a"
-    // linux-x64 from another host, wasm32, TempleOS, JVM: none.
+    // Built with emcc (issue #420), so it links where wasm32 programs
+    // link with emscripten's libc: the mode gui path.
+    case .Wasm32:       return "vendor/secp256k1/build-wasm32/lib/libsecp256k1.a"
+    // linux-x64 from another host, TempleOS, JVM: none.
     case: return ""
     }
     return ""

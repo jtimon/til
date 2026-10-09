@@ -1254,6 +1254,10 @@ SecpCross := struct {
     // Mac archives from a non-mac host: Mach-O objects need llvm-ar, and
     // cmake's compiler probe must not try to link (there is no SDK).
     sdkless_mac := false
+    // wasm32 (issue #420): configured through emscripten's own cmake
+    // toolchain file from the vendored emsdk, which supplies emcc, emar
+    // and the platform settings, instead of system/processor/cc.
+    emscripten := false
 
 namespace:
     lib := func(self: SecpCross) returns Str {
@@ -1282,6 +1286,9 @@ secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
     // the riscv32 gui archives.
     out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-riscv32",
         system = "Linux", processor = "riscv32", cc = b.riscv32_cc.clone()))
+    // emcc, with emscripten's libc: the same toolchain a wasm32 mode gui
+    // program links with (--cc=emcc).
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-wasm32", emscripten = true))
     for arch : Str in MAC_ARCHES.split(" ") {
         // The deployment targets til links mac programs for
         // (targets.til's target_prefix_args), not mac_triple's macos11:
@@ -1316,7 +1323,8 @@ build_secp256k1_cross := proc(mut b: Build, dir: Str) {
         }
     }
     if found.not() { panic("no libsecp256k1 cross archive builds in ", dir) }
-    if t.cc.is_empty() {
+    if t.emscripten { build_emsdk(b) }
+    else if t.cc.is_empty() {
         panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
     }
     if t.sdkless_mac { check_mac_cross_tools(b) }
@@ -1324,9 +1332,17 @@ build_secp256k1_cross := proc(mut b: Build, dir: Str) {
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(t.lib(), inputs).not() { return }
     mut argv := secp256k1_cmake_configure(t.dir)
-    argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
-    argv.push(own format("-DCMAKE_SYSTEM_PROCESSOR=", t.processor))
-    argv.push(own format("-DCMAKE_C_COMPILER=", t.cc))
+    if t.emscripten {
+        if b.emcc.ends_with("/emcc").not() {
+            panic("cannot find emscripten's cmake toolchain next to EMCC=", b.emcc)
+        }
+        argv.push(own format("-DCMAKE_TOOLCHAIN_FILE=", b.emcc.strip_suffix("/emcc"),
+            "/cmake/Modules/Platform/Emscripten.cmake"))
+    } else {
+        argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
+        argv.push(own format("-DCMAKE_SYSTEM_PROCESSOR=", t.processor))
+        argv.push(own format("-DCMAKE_C_COMPILER=", t.cc))
+    }
     if t.cflags.is_empty().not() { argv.push(own format("-DCMAKE_C_FLAGS=", t.cflags)) }
     if t.clang_target.is_empty().not() {
         argv.push(own format("-DCMAKE_C_COMPILER_TARGET=", t.clang_target))
@@ -1781,6 +1797,7 @@ secp256k1_linux_x86 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/sec
 secp256k1_linux_arm32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-arm32") }
 secp256k1_linux_riscv32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-riscv32") }
 secp256k1_macos_arm64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-macos-arm64") }
+secp256k1_wasm32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-wasm32") }
 secp256k1_macos_x64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-macos-x64") }
 
 commands := func() returns Vec(Command) {
@@ -1884,6 +1901,8 @@ commands := func() returns Vec(Command) {
         about = "linux-arm32 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_riscv32,
         about = "linux-riscv32 libsecp256k1 (needs --riscv32-cc=), for std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-wasm32/lib/libsecp256k1.a", is_path = true, go = secp256k1_wasm32,
+        about = "wasm32 libsecp256k1 (emcc, vendored emsdk), for std/crypto"))
     out.push(own Command(name = "vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a", is_path = true, go = secp256k1_macos_arm64,
         about = "macos-arm64 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a", is_path = true, go = secp256k1_macos_x64,

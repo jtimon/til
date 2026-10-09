@@ -1,0 +1,76 @@
+# priority: low
+# category: features
+** OPEN #422 Modes with C (and other) dependencies: declaring and building them per target
+
+Brainstorm, not a plan yet. Split out of #420: nng is a dependency of
+the custom server modes in ~examples/custom_modes.til~ -- a user-defined
+mode loaded with ~--extra-modes~, not a built-in one -- so cross-building
+it the way #235 did for libsecp256k1 (tables inside the compiler) is the
+wrong shape. A mode author outside this repo can neither edit those
+tables nor ship the per-target archives the compiler would expect.
+
+*** What exists today
+
+- A mode is ~Mode(needs_main, decls_only, auto_import, is_library,
+  is_pure, run_tests, debug_prints)~ (src/std/mode_type.til); its support
+  file (~auto_import~) is ordinary til that may call ~link("<archive>")~,
+  ~link("-lfoo")~ and ~link_c("<file.c>")~.
+- A link() path names ONE archive, the host's. Everything per-target is
+  knowledge baked into the compiler for specific libraries: the windows
+  nng swap and libsecp256k1 table in src/self/builder.til,
+  ~target_gui_libs~ / ~target_ffi_lib~ / ~target_secp256k1_lib~ in
+  src/self/targets.til. Building the archives is make.til's job, per
+  library (~build_nng_win~, ~secp256k1_cross_targets~, ~gui_targets~).
+- The interpreter loads a twin beside each linked archive (~.so~, or
+  ~.dll~ on a windows host), also built by make.til.
+
+So a mode can declare a dependency only for the host, cannot say which
+targets it supports, and cannot say how to obtain the dependency for a
+target. A cross build of such a program fails at the final link with the
+host archive in the wrong format, or with undefined symbols (#420 has
+the observed errors for nng).
+
+*** Questions
+
+- Should a mode declare the targets it supports (allow-list), or the
+  ones it does not (deny-list)? Either way the compiler can refuse an
+  unsupported ~--target~ before compiling anything, naming the mode.
+- How does a mode name the per-target artifact? Options: a target-keyed
+  link (~link("...", target = "linux-arm64")~), a placeholder expanded by
+  the compiler (~link("vendor/nng/build-{target}/libnng.a")~), or a
+  function in the support file evaluated at compile time with the target
+  as an argument (the constfolder already runs til at build time).
+- Who BUILDS the artifact, and when? Keep it out of the compiler (the
+  mode ships a build program, like make.til, and the compiler only
+  reports "missing: <path>, build it with <command>"), or let the mode
+  declare a build recipe the compiler runs on demand (a step in
+  ~til build~, with its toolchain requirements checked up front)?
+- Where do built artifacts live: beside the mode's sources, in a
+  per-user cache keyed by target (and by til revision?), or in the
+  program's tree? What does an installed til (~make install~) look in?
+- Interpreter twins: the same declaration should say how to get the
+  loadable form per HOST (~.so~ / ~.dll~ / ~.dylib~), or that the mode
+  cannot be interpreted.
+- Non-C dependencies: other til modules (already ~import~), external
+  tools (cmake, emsdk, a cross gcc), system packages (pkg-config names),
+  data files. Which belong in the declaration and which in the build
+  recipe?
+- Provenance: vendored source plus a recorded version and hash (what
+  #235 did by hand), or fetched at build time? Fetching makes builds
+  depend on the network; vendoring makes the mode heavy.
+- Should the built-in vendored libraries (raylib/tinyfd for ~mode gui~,
+  libsecp256k1 for std/crypto, libffi) move onto the same mechanism, so
+  the compiler loses its library-specific tables? That is the test that
+  the design is general enough.
+
+*** Constraints from the rest of the repo
+
+- New file formats, caches, manifests or CLI flags need explicit
+  approval (CLAUDE.md); a design here should prefer plain til in the
+  mode's support file over a new manifest format.
+- Failure must be loud and early: a refused target or a missing artifact
+  is reported before the C compile, with the command that fixes it (the
+  shape #235 used for libsecp256k1).
+- Cross-builds are verified in CI by RUNNING the result (qemu, wine, the
+  windows and mac runners); a mechanism should make that easy for a mode
+  author too.

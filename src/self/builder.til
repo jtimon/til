@@ -489,7 +489,17 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32") }
         lf = new_lf
     }
-    if wasm_gui { lf = "" }
+    // A wasm gui build links only what target_gui_libs supplies: the
+    // inherited desktop archives and -l flags mean nothing to emcc. The
+    // exception is std/crypto's libsecp256k1, which has an emcc-built
+    // wasm32 archive of its own (swapped in just below).
+    if wasm_gui {
+        mut wasm_lf := ""
+        for wt : Str in lf.split(" ") {
+            if wt.ends_with("libsecp256k1.a") { wasm_lf = wasm_lf.format(" ", wt) }
+        }
+        lf = wasm_lf
+    }
 
     // libsecp256k1 (issue #235): std/crypto's link() names the canonical
     // archive, which is the HOST's. For any other target swap the token

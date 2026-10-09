@@ -38,7 +38,7 @@ Observed on master d9976ce by cross-building examples/sender.til (nng,
 | nng | native host, windows-x64 | linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x86, macos-x64, macos-arm64 (cross), wasm32 |
 | raylib + tinyfd | native host, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, wasm32, macos (cross via the mac CI archives) | linux-arm64 cross (only a native arm64 host works), linux-riscv64 (no ~target_gui_libs~ entry at all) |
 | libffi (runtime ext_func dispatch only) | linux-x64, windows-x64, windows-x86; linux-arm64 and macos only on a matching native host | linux-riscv64, linux-x86, linux-arm32, linux-riscv32, wasm32; linux-arm64 and macos cross from another host |
-| libsecp256k1 | every native target, both windows, til.exe interpreting | wasm32; linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
+| libsecp256k1 | every native target, both windows, wasm32 (emcc), til.exe interpreting | linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
 | windows-host twins (til.exe interpreting) | libsecp256k1 (~libsecp256k1.dll~) | nng, raylib, tinyfd |
 
 How each fails today:
@@ -69,9 +69,10 @@ How each fails today:
 
 *** Plan
 
-  - [ ] nng: per-target cross archives (cmake, like the windows nng, with
-    its winsock/shim notes) for the linux cross targets, windows-x86 and
-    the mac cross targets; builder swap through a ~target_nng_lib~ table.
+  - [-] nng: moved to #422. nng belongs to the user-defined custom
+    server modes (~--extra-modes~), not a built-in mode, so per-target
+    tables inside the compiler are the wrong fix; #422 is about letting a
+    mode declare its supported targets and per-target dependencies.
   - [X] raylib + tinyfd: ~arm64~ and ~riscv64~ entries in make.til's
     ~GuiTarget~ table (distro cross gcc + the vendored X11 headers, like
     arm32), with path goals ~vendor/raylib/src/libraylib-{arm64,riscv64}.a~
@@ -86,9 +87,21 @@ How each fails today:
   - [ ] libffi: cross configure for the missing linux triples (as
     ~build_libffi_cross~ does for mingw) and stable-path entries so
     linux-arm64 / macos work from any host.
-  - [ ] libsecp256k1: wasm32 via emscripten (the vendored emsdk), and
-    linux-x64 from a non-linux-x64 host (needs a linux-x64 cross
-    compiler choice, e.g. the ~--cc~ the mac-host CI job passes).
+  - [X] libsecp256k1 for wasm32: a ~build-wasm32~ entry in make.til's
+    ~secp256k1_cross_targets~, configured through the vendored emsdk's
+    Emscripten.cmake toolchain (path goal
+    ~vendor/secp256k1/build-wasm32/lib/libsecp256k1.a~), and
+    ~target_secp256k1_lib~'s wasm32 entry. The builder used to drop EVERY
+    link() token for a wasm gui build; it now keeps libsecp256k1's, so a
+    ~mode gui~ program importing std/crypto links for wasm32 with
+    ~--cc=emcc~. test/crypto.til, translated for wasm32 and compiled with
+    emcc against the archive, passes all vectors under node. Caveat: a
+    NON-gui wasm32 program does not link at all today (bare clang has no
+    libc, and with emcc the wasm32 ~-nostdlib~ flags break the link), so
+    the gui path is the only one this reaches.
+  - [ ] libsecp256k1 for linux-x64 from a non-linux-x64 host (needs a
+    linux-x64 cross compiler choice, e.g. the ~--cc~ the mac-host CI job
+    passes).
   - [ ] windows-host DLL twins for nng, raylib and tinyfd, built by
     ~build_win_host~ like ~libsecp256k1.dll~.
   - [ ] CI: one build-and-run step per new archive, in the existing
