@@ -75,8 +75,9 @@ endif
 
 # Command-line variables reach the build program unchanged. J is passed
 # as the option bin/make spells it; the rest are read from the
-# environment (bin/make also takes --riscv32-cc=<path> directly).
-export RISCV32_CC EMCC EMAR EMRANLIB
+# environment (bin/make also takes --riscv32-cc=<path> and
+# --linux-x64-cc=<path> directly).
+export RISCV32_CC LINUX_X64_CC EMCC EMAR EMRANLIB
 
 # A sudo invocation must bootstrap as the caller too: otherwise it leaves
 # root-owned bin/, gen/ and tmp/boot files before make.til can take over.

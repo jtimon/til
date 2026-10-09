@@ -122,6 +122,12 @@ Build := struct {
     // No distro ships a riscv32 gcc, so the compiler is a parameter:
     // --riscv32-cc=<path>, or RISCV32_CC in the environment.
     riscv32_cc := ""
+    // linux-x64 is a CROSS target only off a linux-x64 host (issue #420),
+    // whose compiler's name depends on the host: x86_64-linux-gnu-gcc is
+    // the distro cross gcc (e.g. on an arm64 linux host), and the default;
+    // a mac's (messense's tap) is x86_64-unknown-linux-gnu-gcc.
+    // --linux-x64-cc=<path>, or LINUX_X64_CC in the environment.
+    linux_x64_cc := ""
     emcc := ""
     emar := ""
     emranlib := ""
@@ -143,6 +149,7 @@ namespace:
             host = Host.detect(),
             done = Set(Str).new(),
             riscv32_cc = get_env("RISCV32_CC"),
+            linux_x64_cc = env_or("LINUX_X64_CC", "x86_64-linux-gnu-gcc"),
             emcc = env_or("EMCC", format(emsdk, "/emcc")),
             emar = env_or("EMAR", format(emsdk, "/emar")),
             emranlib = env_or("EMRANLIB", format(emsdk, "/emranlib")))
@@ -1385,6 +1392,11 @@ namespace:
 /// Every libsecp256k1 cross archive, as data.
 secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
     mut out := Vec(SecpCross).new()
+    // linux-x64 from another host: the native build makes the canonical
+    // archive on linux-x64 itself, so this one only ever serves a
+    // non-linux-x64 host (targets.til's target_secp256k1_lib).
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-x64",
+        system = "Linux", processor = "x86_64", cc = b.linux_x64_cc.clone()))
     out.push(own SecpCross(dir = "vendor/secp256k1/build-win64",
         system = "Windows", processor = "x86_64", cc = "x86_64-w64-mingw32-gcc"))
     out.push(own SecpCross(dir = "vendor/secp256k1/build-win32",
@@ -1949,6 +1961,7 @@ libffi_macos_arm64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "macos-ar
 libffi_macos_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "macos-x64") }
 secp256k1_win64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win64") }
 secp256k1_win32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win32") }
+secp256k1_linux_x64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-x64") }
 secp256k1_linux_arm64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-arm64") }
 secp256k1_linux_riscv64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-riscv64") }
 secp256k1_linux_x86 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-x86") }
@@ -2065,6 +2078,8 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = TINYFD_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
     out.push(own Command(name = SECP256K1_WIN32_LIB, is_path = true, go = secp256k1_win32,
         about = "windows-x86 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_x64,
+        about = "linux-x64 libsecp256k1 from another host (--linux-x64-cc=), for std/crypto"))
     out.push(own Command(name = "vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_arm64,
         about = "linux-arm64 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_riscv64,
@@ -2147,8 +2162,10 @@ usage := proc() {
     println("Options:")
     println(format("  ", pad("-jN", 22), "Run the test suite with N jobs"))
     println(format("  ", pad("--riscv32-cc=<path>", 22), "riscv32 gcc for the riscv32 GUI archives"))
+    println(format("  ", pad("--linux-x64-cc=<path>", 22), "linux-x64 cross gcc off a linux-x64 host"))
+    println(format("  ", pad("", 22), "(default x86_64-linux-gnu-gcc)"))
     println("")
-    println("RISCV32_CC, EMCC, EMAR and EMRANLIB are read from the")
+    println("RISCV32_CC, LINUX_X64_CC, EMCC, EMAR and EMRANLIB are read from the")
     println("environment; make passes them through unchanged.")
     println("`install` installs under /usr/local; for anywhere else run")
     println("`bin/til install --prefix=<path> src/til.til` directly.")
@@ -2285,7 +2302,7 @@ build_user_command := proc(uid: Str) returns Cmd {
         "-g", format("#", get_env("SUDO_GID")), "--", "env")
     // sudo resets the environment, so carry the existing build settings
     // explicitly instead of losing cross-toolchain selections.
-    for name : Str in "RISCV32_CC EMCC EMAR EMRANLIB".split(" ") {
+    for name : Str in "RISCV32_CC LINUX_X64_CC EMCC EMAR EMRANLIB".split(" ") {
         env_name := name.clone()
         value := get_env(env_name)
         if value.len() > 0 { command.arg(format(name, "=", value)) }
@@ -2307,6 +2324,8 @@ main := proc(args: ..Str) {
             b.jobs = arg.strip_prefix("-j").clone()
         } else if arg.starts_with("--riscv32-cc=") {
             b.riscv32_cc = arg.strip_prefix("--riscv32-cc=").clone()
+        } else if arg.starts_with("--linux-x64-cc=") {
+            b.linux_x64_cc = arg.strip_prefix("--linux-x64-cc=").clone()
         } else if arg.eq("-h").or(arg.eq("--help")) {
             goals.push(own "help")
         } else if arg.starts_with("-") {
@@ -2332,6 +2351,7 @@ main := proc(args: ..Str) {
             if b.riscv32_cc.len() > 0 {
                 command.arg(format("--riscv32-cc=", b.riscv32_cc))
             }
+            command.arg(format("--linux-x64-cc=", b.linux_x64_cc))
             if goal == "install" {
                 command.arg("bin/til")
             } else {

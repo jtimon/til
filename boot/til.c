@@ -13835,7 +13835,7 @@ static Str hoisted__Str_synth_symbol_suffix_4 = (Str){.c_str = (void *)"./src/se
 static Str hoisted__Str_target_ffi_build_hint_19 = (Str){.c_str = (void *)"./src/self/targets.til:383:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_ffi_lib_19 = (Str){.c_str = (void *)"./src/self/targets.til:348:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_from_str_105 = (Str){.c_str = (void *)"./src/self/targets.til:61:5", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_target_gui_libs_22 = (Str){.c_str = (void *)"./src/self/targets.til:481:16", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_target_gui_libs_22 = (Str){.c_str = (void *)"./src/self/targets.til:484:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_link_extra_args_3 = (Str){.c_str = (void *)"./src/self/targets.til:240:32", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_system_libs_6 = (Str){.c_str = (void *)"./src/self/targets.til:302:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_theme_codegen_translate_102 = (Str){.c_str = (void *)"./src/self/theme_codegen.til:338:61", .count = 35ULL, .cap = TIL_CAP_LIT};
@@ -14846,8 +14846,8 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-ea9455e31", .count = 15ULL, .cap = TIL_CAP_LIT};
-static Str COMPILER_REVISION = {.c_str = (I8 *)"ea9455e314c15ae40ad99210cc5769e47a9a5b55", .count = 40ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-892d4af87", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str COMPILER_REVISION = {.c_str = (I8 *)"892d4af870412afd921f8f324d2e94f40e022cb0", .count = 40ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -70431,6 +70431,10 @@ static Str target_secp256k1_lib(Target * target) {
     case Target_TAG_Wasm32: {
         static Str hoisted__Str_target_secp256k1_lib_9 = (Str){.c_str = (void *)"vendor/secp256k1/build-wasm32/lib/libsecp256k1.a", .count = 48ULL, .cap = TIL_CAP_LIT};
         { Str _ret = hoisted__Str_target_secp256k1_lib_9; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
+    case Target_TAG_LinuxX64: {
+        static Str hoisted__Str_target_secp256k1_lib_10 = (Str){.c_str = (void *)"vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a", .count = 51ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_secp256k1_lib_10; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     default: {
         { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }

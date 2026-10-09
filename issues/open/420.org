@@ -38,7 +38,7 @@ Observed on master d9976ce by cross-building examples/sender.til (nng,
 | nng | native host, windows-x64 | linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x86, macos-x64, macos-arm64 (cross), wasm32 |
 | raylib + tinyfd | native host, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, wasm32, macos (cross via the mac CI archives) | linux-arm64 cross (only a native arm64 host works), linux-riscv64 (no ~target_gui_libs~ entry at all) |
 | libffi (runtime ext_func dispatch only) | linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, macos-x64, macos-arm64 | wasm32 |
-| libsecp256k1 | every native target, both windows, wasm32 (emcc), til.exe interpreting | linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
+| libsecp256k1 | every native target; every cross target (linux-x64 included, off a linux-x64 host with ~--linux-x64-cc~); til.exe interpreting | none (no TempleOS or JVM build) |
 | windows-host twins (til.exe interpreting) | libsecp256k1, raylib, tinyfd (~.dll~ twins) | nng (moved to #422) |
 
 How each fails today:
@@ -131,9 +131,17 @@ How each fails today:
     emcc against the archive, passes all vectors under node. Non-gui
     wasm32 programs link too since #424 (single-file ~.js~ run with
     node).
-  - [ ] libsecp256k1 for linux-x64 from a non-linux-x64 host (needs a
-    linux-x64 cross compiler choice, e.g. the ~--cc~ the mac-host CI job
-    passes).
+  - [X] libsecp256k1 for linux-x64 from a non-linux-x64 host: a
+    ~build-linux-x64~ entry in ~secp256k1_cross_targets~ (path goal
+    ~vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a~) and
+    ~target_secp256k1_lib~'s linux-x64 entry, which the builder consults
+    only off a linux-x64 host. Its compiler is the new
+    ~bin/make --linux-x64-cc=~ / ~LINUX_X64_CC~, defaulting to the
+    distro cross gcc ~x86_64-linux-gnu-gcc~ (an arm64 linux host); the
+    mac-host CI job passes messense's ~x86_64-unknown-linux-gnu-gcc~,
+    builds test/crypto.til for linux-x64 and runs it on the linux
+    runner. Locally the archive (default compiler, and both overrides)
+    builds, and test/crypto.til linked against it passes 4/4.
   - [X] windows-host DLL twins for raylib and tinyfd: ~build_win_host~
     now also builds ~vendor/raylib/src/libraylib.dll~ and
     ~vendor/tinyfiledialogs/libtinyfd.dll~ from the win64 archives (one

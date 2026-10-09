@@ -1093,6 +1093,17 @@ jobs:
           ./bin/til build --target=linux-x64 --cc=x86_64-unknown-linux-gnu-gcc \
             -o bin/hello_script-from-mac-linux examples/hello_script.til
           file bin/hello_script-from-mac-linux | grep -q "ELF 64-bit"
+      # Issue #420: std/crypto for linux-x64 from a mac. The canonical
+      # libsecp256k1 archive is the mac's own, so linux-x64 links its
+      # cross archive, built with the same messense gcc (LINUX_X64_CC);
+      # test/crypto.til -- the SHA-256 and BIP-340 vectors -- runs on the
+      # linux runner below.
+      - name: Cross-compile the std/crypto test for linux-x64
+        run: |
+          make LINUX_X64_CC=x86_64-unknown-linux-gnu-gcc vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a
+          ./bin/til build --target=linux-x64 --cc=x86_64-unknown-linux-gnu-gcc \
+            -o bin/crypto-from-mac-linux test/crypto.til
+          file bin/crypto-from-mac-linux | grep -q "ELF 64-bit"
       - name: Upload cross artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -1100,6 +1111,7 @@ jobs:
           path: |
             bin/hello_script-from-mac.exe
             bin/hello_script-from-mac-linux
+            bin/crypto-from-mac-linux
 
   macos-host-cross-win-run:
     name: macos host cross (run .exe on windows)
@@ -1130,6 +1142,10 @@ jobs:
           chmod +x hello_script-from-mac-linux
           ./hello_script-from-mac-linux
           ./hello_script-from-mac-linux | grep -q "Hello World"
+      - name: Run the mac-built std/crypto test
+        run: |
+          chmod +x crypto-from-mac-linux
+          ./crypto-from-mac-linux
 
   # Issue #25 phase 3 / #232: mac GUI cross from Linux end to end, with NO
   # mac and NO Apple SDK. raylib's RGFW desktop backend drives Cocoa through
