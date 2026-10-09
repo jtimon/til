@@ -1,0 +1,27 @@
+mode pura
+
+pura_print_value := func(n: I64) returns I64 {
+    println("PURA_FOLD:", n)
+    println("PURA_SECOND")
+    return n.add(1)
+}
+
+pura_print_parts := func(parts: ..Str) returns USize {
+    println("VARIADIC_OUTPUT:", format(..parts))
+    return parts.len()
+}
+
+pura_abort_value := func(n: I64) returns I64 {
+    println("OPTIONAL_ABORT:", n)
+    if n > 0 { exit(1) }
+    return n
+}
+
+pura_spare_value := func() returns Str {
+    println("UNFOLDED_BUFFER")
+    mut result := Str.with_capacity(16)
+    result.push_str("x")
+    return result
+}
+
+PURA_PRINT_VALUE := pura_print_value(4)

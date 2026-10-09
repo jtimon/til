@@ -1,0 +1,30 @@
+mode script
+
+p := import("fold_print_pura")
+l := import("fold_print_liba")
+
+required_print_value := macro(n: I64) returns I64 {
+    println("REQUIRED_MACRO:", n)
+    eprint_single("REQUIRED_STDERR\n")
+    return n.add(1)
+}
+
+runtime_guard := proc() returns Bool {
+    noop_proc()
+    return false
+}
+
+required := required_print_value(8)
+parts_count := p.pura_print_parts("a", "b")
+assert(p.PURA_PRINT_VALUE.eq(5))
+assert(l.LIBA_PRINT_VALUE.eq(7))
+assert(required.eq(9))
+assert(parts_count.eq(2))
+// These calls fail optional folding (abort or nonserializable capacity), but
+// evaluation still prints directly. The proc guard prevents runtime execution,
+// so their markers below can only come from the constfolder.
+if runtime_guard() {
+    assert(p.pura_abort_value(1).eq(1))
+    spare := p.pura_spare_value()
+    assert(spare.len().eq(1))
+}

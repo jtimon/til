@@ -1,0 +1,10 @@
+mode script
+
+required_abort := macro(n: I64) returns I64 {
+    println("REQUIRED_BEFORE_ERROR:", n)
+    if n > 0 { exit(1) }
+    return n
+}
+
+result := required_abort(1)
+println(result)

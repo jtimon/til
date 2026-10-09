@@ -2203,6 +2203,47 @@ main := proc(args: ..Str) {
     add_both(tests, "test/dyn_hashmaps.til", flags)
     add_both(tests, "test/kwargs.til", flags)
     add_both(tests, "test/constfold.til", flags)
+    // Compiler output is observable here: debug funcs print when folded, and
+    // required macros print while executing. Optional attempts print too,
+    // even when the call remains behind an opaque runtime guard afterward.
+    add_counts(tests, "fold_print_translate", "build",
+        format("'(' ", til_bin, " translate -c gen/c/fold_print_translate.c test/fold_print.til '&&' echo FOLD_PRINT_OK ')'"),
+        CountCheck(needle = "FOLD_PRINT_OK", expected_count = 1),
+        CountCheck(needle = "PURA_FOLD:4\nPURA_SECOND\n", expected_count = 1),
+        CountCheck(needle = "LIBA_FOLD:6", expected_count = 1),
+        CountCheck(needle = "REQUIRED_MACRO:8", expected_count = 1),
+        CountCheck(needle = "REQUIRED_STDERR", expected_count = 1),
+        CountCheck(needle = "OPTIONAL_ABORT:1", expected_count = 1),
+        CountCheck(needle = "UNFOLDED_BUFFER", expected_count = 1))
+    add_counts(tests, "fold_print_interp", "interp",
+        format("'(' ", til_bin, " interpret test/fold_print.til '&&' echo FOLD_PRINT_OK ')'"),
+        CountCheck(needle = "FOLD_PRINT_OK", expected_count = 1),
+        CountCheck(needle = "PURA_FOLD:4\nPURA_SECOND\n", expected_count = 1),
+        CountCheck(needle = "LIBA_FOLD:6", expected_count = 1),
+        CountCheck(needle = "REQUIRED_MACRO:8", expected_count = 1),
+        CountCheck(needle = "REQUIRED_STDERR", expected_count = 1),
+        CountCheck(needle = "VARIADIC_OUTPUT:ab", expected_count = 1),
+        CountCheck(needle = "OPTIONAL_ABORT:1", expected_count = 1),
+        CountCheck(needle = "UNFOLDED_BUFFER", expected_count = 1))
+    add_counts(tests, "fold_print_run", "build",
+        format("'(' ", til_bin, " run", asan_flag,
+            " -o bin/c/fold_print_run -c gen/c/fold_print_run.c test/fold_print.til '&&' echo FOLD_PRINT_OK ')'"),
+        CountCheck(needle = "FOLD_PRINT_OK", expected_count = 1),
+        CountCheck(needle = "PURA_FOLD:4\nPURA_SECOND\n", expected_count = 1),
+        CountCheck(needle = "LIBA_FOLD:6", expected_count = 1),
+        CountCheck(needle = "REQUIRED_MACRO:8", expected_count = 1),
+        CountCheck(needle = "REQUIRED_STDERR", expected_count = 1),
+        CountCheck(needle = "VARIADIC_OUTPUT:ab", expected_count = 1),
+        CountCheck(needle = "OPTIONAL_ABORT:1", expected_count = 1),
+        CountCheck(needle = "UNFOLDED_BUFFER", expected_count = 1))
+    // Required macro output survives its error; keep the error fixture apart
+    // from the successful program and pin both the diagnostic and exit status.
+    add_counts(tests, "fold_print_macro_error_output", "typer",
+        format(til_bin, " interpret test/fold_print_macro_error.til"),
+        CountCheck(needle = "REQUIRED_BEFORE_ERROR:1", expected_count = 1),
+        CountCheck(needle = "macro aborted (panic/exit)", expected_count = 1))
+    add_single(tests, "fold_print_macro_error_exit", "typer", 1, "",
+        format(til_bin, " interpret test/fold_print_macro_error.til"))
     add_both(tests, "test/strings.til", flags)
     add_both(tests, "test/enums.til", flags)
     add_both(tests, "test/option.til", flags)

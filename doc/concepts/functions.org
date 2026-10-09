@@ -38,13 +38,25 @@ calls none is an error ("proc has no proc/ext_proc calls; should be a
 func"). So classifying the base ext declarations correctly is the whole
 job -- the call graph propagates it from there.
 
-Two things follow. A pass may skip evaluating a call only when it is a
-func AND takes no ~mut~ or ~own~ parameter: the typer guarantees no proc
+Outside the debug-print exception below, two things follow. A pass may skip
+evaluating a call only when it is a func AND takes no ~mut~ or ~own~
+parameter: the typer guarantees no proc
 effect hides inside a func, and the qualifiers say nothing is written
 through a parameter. And a bodyless ext declaration owes the truth about
 what it writes -- an FFI symbol that writes through a pointer declares
 that pointer ~mut~, or the signature lies and every reader of it is
 wrong.
+
+~pura~ and ~liba~ make an explicit exception for ~print~ / ~println~ in
+funcs. When the constfolder runs a func or macro, printing happens directly
+as the body executes. It is not queued or conditional on replacing the call.
+Output already printed remains visible even if evaluation later aborts or
+cannot reconstruct a constant result. Other macro effects likewise execute
+normally; constant evaluation does not roll them back.
+
+This does not make proc calls foldable. The constfolder walks proc and test
+definitions to optimize eligible expressions inside them, without executing
+the enclosing proc or test at compile time.
 
 ** ext_func / ext_proc
 

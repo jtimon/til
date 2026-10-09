@@ -7362,32 +7362,34 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
 
 priv h_print_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
-    // A const-fold eval is speculative and must emit no program output: if a
-    // fold candidate reaches a print (e.g. through panic's message on a
-    // failure branch the comptime inputs hit), swallow it. The fold itself is
-    // abandoned via the abort in h_exit and the call is left for runtime.
-    if ctx.eval.constfold_active.or(ctx.eval.eval_aborted).not() {
-        if ctx.eval.embedded { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
-        if ctx.eval.capture_output {
-            ctx.eval.output.push(own InterpOutputEvent(text = arg))
-        } else { print_single(arg) }
+    if ctx.eval.eval_aborted.not() {
+        if ctx.eval.constfold_active { print_single(arg) }
+        else {
+            if ctx.eval.embedded { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
+            if ctx.eval.capture_output {
+                ctx.eval.output.push(own InterpOutputEvent(text = arg))
+            } else { print_single(arg) }
+        }
     }
     return true
 }
 
 priv h_eprint_single := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
-    if ctx.eval.constfold_active.or(ctx.eval.eval_aborted).not() {
-        if ctx.eval.embedded { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
-        if ctx.eval.capture_output {
-            ctx.eval.output.push(own InterpOutputEvent(stream = InterpOutputStream.Stderr, text = arg))
-        } else { eprint_single(arg) }
+    if ctx.eval.eval_aborted.not() {
+        if ctx.eval.constfold_active { eprint_single(arg) }
+        else {
+            if ctx.eval.embedded { ctx.eval.guest_output = format(ctx.eval.guest_output, arg) }
+            if ctx.eval.capture_output {
+                ctx.eval.output.push(own InterpOutputEvent(stream = InterpOutputStream.Stderr, text = arg))
+            } else { eprint_single(arg) }
+        }
     }
     return true
 }
 
 priv h_print_flush := proc(_s: Scope, _e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    if ctx.eval.constfold_active.or(ctx.eval.capture_output).not() { print_flush() }
+    if ctx.eval.eval_aborted.not().and(ctx.eval.constfold_active.or(ctx.eval.capture_output.not())) { print_flush() }
     return true
 }
 

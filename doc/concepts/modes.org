@@ -25,3 +25,7 @@ Builds an importable library that may contain procs.
 
 ** liba
 Like lib but enables debug prints.
+
+In ~pura~ and ~liba~, ~print~ / ~println~ are permitted inside funcs.
+When the constfolder evaluates an eligible func or macro, its prints execute
+directly during that evaluation. Calls executed at runtime print normally.

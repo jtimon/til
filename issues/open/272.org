@@ -206,6 +206,36 @@ After the split, the broad row took 29.79s and the ASAN ownership row took
 runs at the same source base and default parallelism, not timings that omit
 the slow row or exclude it from the wall-clock metric.
 
+*** Debug output during folding
+
+The printing follow-up reproduced missing output from successful funcs in
+~pura~ / ~liba~ and required macros: ~h_print_single~ and ~h_print_flush~
+silenced every call while ~constfold_active~ was set, even though the typer
+permits debug printing in those modes and macro effects are mandatory.
+
+Printing now executes directly whenever the evaluator reaches it, for both
+funcs and macros, just like other effects. Output remains visible even when
+the evaluation later aborts or its result cannot replace the call. The
+rejected buffering implementation (~FoldPrintState~, ~constfold_required~,
+~constfold_output~, and its begin/restore/publish helpers) is removed. There
+is no constfold output queue, replay, or rollback. ~print_flush~ is the
+newline primitive (putchar) and likewise executes directly. stdout and
+stderr operations during folding bypass the embedded guest-output capture;
+normal guest execution retains the host-requested capture behavior.
+
+Regression fixtures: ~test/fold_print.til~ imports debug-printing funcs from
+~test/fold_print_pura.til~ and ~test/fold_print_liba.til~. Translation,
+interpretation, and compile/run checks pin successful output, multiple
+newlines, macro stdout/stderr, output from a remaining runtime call, and
+prints reached by abandoned optional calls. A shell success marker also pins successful exit.
+~test/fold_print_macro_error.til~ is a separate negative fixture checking
+required output before the abort diagnostic and exit status 1.
+
+Verification of the direct-printing implementation: ~make clean && make test~
+passed 512/512 under ASAN on master f930e58b0. The translation capture contains
+both ~OPTIONAL_ABORT:1~ and ~UNFOLDED_BUFFER~, demonstrating that effects are
+executed rather than retained until a successful replacement.
+
 *** Remaining audit: concrete ownership boundaries
 
 Start with these current call sites. For each, record the allocation's

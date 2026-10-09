@@ -1,0 +1,8 @@
+mode liba
+
+liba_print_value := func(n: I64) returns I64 {
+    println("LIBA_FOLD:", n)
+    return n.add(1)
+}
+
+LIBA_PRINT_VALUE := liba_print_value(6)
