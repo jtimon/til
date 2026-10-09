@@ -5827,6 +5827,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             if fdef.captures.len() > 0 {
                 ref cap_root : TypeScope = scope_root_ref(scope)
                 capture_block_check_refs(expr.children[0], scope, func_scope, cap_root, fdef.captures, ctx)
+                check_own_captures(expr.children[0], fdef.captures, ctx)
             }
         }
         if is_proc {
@@ -8045,6 +8046,42 @@ priv capture_block_check_refs := proc(e: Expr,
     }
 }
 
+// #415: a deferred closure (a Body value or a capturing func) cannot pass a
+// capture to an `own` parameter -- the rule a `mut` parameter already
+// follows, and the reason a re-callable closure cannot move out of its
+// captures in Rust. The env slot outlives the call: a Ref capture (`[x]`,
+// `[mut x]`) borrows the defining frame's binding, which the frame still
+// reads and finally deletes; an own/shallow capture belongs to the env,
+// which the next call reads and the closure's drop deletes. Either way a
+// move would leave the slot holding a value someone else already owns.
+// Inline capture blocks are not checked here: they run once, in place,
+// inside the enclosing view's dataflow. Stops at nested closures, which
+// check their own capture lists.
+priv check_own_captures := proc(e: Expr, captures: Vec(Declaration), mut ctx: Context) {
+    switch e.node_type {
+    case .BodyValue, .FuncDef: return
+    case .FCall:
+        for ai in 1..e.children.len() {
+            if get_own_arg(e, ai).not() { continue }
+            ref arg : Expr = e.children[ai]
+            switch arg.node_type {
+            case .Ident(aid):
+                ref aname : Str = aid.ident_name(ctx.symbols.names)
+                for cap : Declaration in captures {
+                    if cap.name.eq(aname) {
+                        arg.type_error(format("cannot pass capture '", aname,
+                            "' to 'own' parameter: the closure can run again and its environment still holds '",
+                            aname, "'; use .clone() to make an owned copy"), ctx)
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children { check_own_captures(c, captures, ctx) }
+}
+
 priv body_value_check_no_return := proc(e: Expr, mut ctx: Context) {
     switch e.node_type {
     case .FuncDef: return
@@ -8090,6 +8127,7 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
     capture_private_mut_end(scope, captures, capture_source_muts, capture_source_written, ctx.symbols)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, body_scope, root, captures, ctx)
+    check_own_captures(body, captures, ctx)
     check_unused_locals(body_scope, ctx.path, ctx)
     check_unused_mut_locals(body_scope, ctx.path, ctx)
     expr.set_til_type(Type.Body)

@@ -517,29 +517,7 @@ gen_struct_clone_delete_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut c
 
                 mut cf_lit := Expr.new(own NodeType.Literal(Literal.Bool(fd.own_type.is(OwnType.Own))), stmt.line, stmt.col)
                 del_call.add_child(own cf_lit)
-                if fd.own_type.is(OwnType.Own) {
-                    // Moved-out sources are zeroed (the push/move idiom
-                    // relies on delete being a no-op on them); a zeroed
-                    // own field is a NULL pointer, so guard the delete
-                    // or a generated container delete derefs NULL.
-                    mut g_self := Expr.new(own ident_node(ctx.symbols.intern("self")), stmt.line, stmt.col)
-                    mut g_facc := Expr.new(own field_access_node(ctx.symbols.intern(dl_fname)), stmt.line, stmt.col)
-                    g_facc.add_child(own g_self)
-                    // #321 step 3: probe through the to_ptr launder -- the
-                    // generated delete asks about raw field ADDRESSES, and
-                    // is_null on a typed value is an error now.
-                    mut g_tp := make_method_call_fcall(own g_facc, "to_ptr", stmt.line, stmt.col, ctx.symbols)
-                    mut g_null := make_method_call_fcall(own g_tp, "is_null", stmt.line, stmt.col, ctx.symbols)
-                    mut g_not := make_method_call_fcall(own g_null, "not", stmt.line, stmt.col, ctx.symbols)
-                    mut g_then := Expr.new(own NodeType.Body, stmt.line, stmt.col)
-                    g_then.add_child(own del_call)
-                    mut g_if := Expr.new(own NodeType.If, stmt.line, stmt.col)
-                    g_if.add_child(own g_not)
-                    g_if.add_child(own g_then)
-                    proc_body.add_child(own g_if)
-                } else {
-                    proc_body.add_child(own del_call)
-                }
+                proc_body.add_child(own del_call)
             }
         }
 

@@ -1858,8 +1858,7 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
         }
         if name == "to_ptr" {
             // An aggregate is a Java reference, and its address is that
-            // reference: a moved-out (zeroed) owned field is null, which is
-            // what the generated delete's `to_ptr(self.f).is_null()` asks.
+            // reference.
             ref tp_arg : Expr = e.children[1]
             if jvm_is_scalar(tp_arg.til_type(), lp)
                 .or(jvm_expr_is_raw_ref(tp_arg, state, lp.ctx.symbols.names)) {

@@ -2970,7 +2970,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
 // body -- including bodies with no locals of their own, which is where
 // most outer-target assigns live (if branches, loop wrappers), and
 // which insert_free_calls otherwise early-returns on.
-priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, symbols: SymbolPool) {
+priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
     for mut stmt : Expr in body.children {
         switch stmt.node_type {
         case .Assign(ad):
@@ -2980,7 +2980,7 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
                 if local.name.eq(vname) { is_body_local = true }
             }
             if is_body_local.or(stmt.children.len().eq(0)) { continue }
-            sf_out := scope.find_name(vname, symbols)
+            sf_out := scope.find_name(vname, ctx.symbols)
             switch sf_out {
             case .Found(ob):
                 mut flag_it := is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
@@ -3001,8 +3001,15 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
                     ref orhs : Expr = stmt.children[0]
                     mut rebind := orhs.node_type.is_literal_str()
                     if rebind.not().and(orhs.node_type.is(NodeType.FCall)) {
-                        rebind = fcall_returns_own(orhs, scope, symbols)
+                        rebind = fcall_returns_own(orhs, scope, ctx.symbols)
                     }
+                    // #415: `x = f(own x)` -- the RHS consumes the old value
+                    // itself, so there is nothing left to delete. The owning
+                    // view's dataflow clears this for a nested block of the
+                    // same function, but a closure body is its own view: no
+                    // pass ever sees the paths into a capture's assign, so
+                    // the RHS's own transfer must decide it here.
+                    if rebind.and(expr_transfers_own(orhs, vname, scope, ctx)) { rebind = false }
                     if rebind { ad.save_old_delete = true }
                 }
             case:
@@ -3724,7 +3731,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
-    flag_outer_assign_rebinds(body, locals_vec, scope, ctx.symbols)
+    flag_outer_assign_rebinds(body, locals_vec, scope, ctx)
     record_field_transfer_decisions(body, scope, ctx.symbols)
     // #209: before record_keep_outer_args, which keys on these literals.
     realign_delete_call_free(body, locals_vec, stack_own_params, scope, ctx)

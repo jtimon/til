@@ -1177,15 +1177,11 @@ Expr := struct {
     col : U32 = 0
 
 namespace:
-    /// Null-safe delete. The auto-generated version dereferences ~self~
-    /// unconditionally, so the asap pass deleting an owned-but-null Expr
-    /// (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
-    /// here lets functions return owned ~Expr~ that may be null without
-    /// the caller having to clone-and-leak to dodge the deep delete.
+    /// Delete the payload and every child. ~self~ is never null: #415
+    /// removed the null early-return this used to start with (it absorbed
+    /// a delete of a NULL Expr instead of failing at the caller that made
+    /// one), and the full suite, ASAN included, never reached it.
     delete := func(own self: Expr, call_free: Bool = true) {
-        // Raw-address probe through the to_ptr launder (#321 step 3):
-        // the #302 drain contract hands deletes zeroed/moved-out slots.
-        if to_ptr(self).is_null() { return }
         NodeType.delete(own self.node_type, false)
         self.children.clear()
         free(own self.children.data)

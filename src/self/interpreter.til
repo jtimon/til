@@ -528,7 +528,6 @@ priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Cont
     // reclaim there. (A BORROWED slot payload already returned above.)
     if enum_name_is_niche(enum_name, ctx) {
         ref niche_slot : Dynamic = deref(data)
-        if niche_slot.is_null() { return }
         // Rebind by value: heap_free takes the box as `own`, and a ref
         // binding cannot be handed to an own parameter.
         mut niche_box : Dynamic = niche_slot
@@ -595,7 +594,6 @@ priv enum_payload_deep_clone := func(enum_name: Str, mut data: Dynamic, ctx: Con
 
 // #286 Stage 2: drop nested heap owned by an enum payload.
 priv heap_drop_enum := func(enum_name: Str, mut data: Dynamic, ctx: Context) {
-    if data.is_null() { return }
     enum_payload_deep_free(enum_name, data, ctx)
 }
 
@@ -4221,7 +4219,6 @@ priv free_tuple_data := func(mut data: Dynamic, ctx: Context) {
     ref type_names_fl : FieldLayout = ctx_field_layout("Tuple", "type_names", ctx)
     ref type_sizes_fl : FieldLayout = ctx_field_layout("Tuple", "type_sizes", ctx)
     ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
-    if hdr.p.is_null() { return }
     ref type_names : Vec(Str) = ptr_add(data, type_names_fl.offset)
     ref type_sizes : Vec(USize) = ptr_add(data, type_sizes_fl.offset)
     mut offset : USize = 0
@@ -4273,7 +4270,6 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, mut dst_tuple: Dynamic, ctx:
 // fields and own non-struct pointers stay shallow (their construction can
 // share a pointer, so freeing here would risk a double-free).
 priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context) {
-    if data.is_null() { return }
     if ffi_place_is_foreign(data, ctx) {
         mut local : Dynamic = EvalHeap.heap_alloc(ctx_total_size(struct_name, ctx))
         ffi_copy_struct_into(struct_name, data, false, local, true, ctx)
@@ -4285,7 +4281,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
     if struct_name == "Str" {
         ref s_str : Str = to_ptr(data)
         if str_owns_c_str(data, ctx) {
-            if s_str.c_str.is_null().not() { free(own s_str.c_str) }
+            free(own s_str.c_str)
         }
         return
     }
@@ -4352,7 +4348,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
         if fl.is_str {
             ref s : Str = ptr_add(data, foff.to_uptr())
             if str_owns_c_str(ptr_add(data, foff.to_uptr()), ctx) {
-                if s.c_str.is_null().not() { free(own s.c_str) }
+                free(own s.c_str)
             }
             continue
         }
@@ -4385,7 +4381,6 @@ priv free_container_data := func(struct_name: Str, mut data: Dynamic, ctx: Conte
     if elem_type.len() == 0 { panic("free_container_data: not a container: ", struct_name) }
     ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
     ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
-    if hdr.p.is_null() { return }
     n := container_live_count(struct_name, data, ctx)
     esz := container_elem_size(elem_type, ctx)
     for i in 0..n {
@@ -4454,7 +4449,6 @@ priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Conte
 priv free_dyn_vec_buffer := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("DynVec", "data", ctx)
     ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
-    if hdr.p.is_null() { return }
     count := dyn_vec_count(data, ctx)
     elem_size := dyn_vec_elem_size(data, ctx)
     elem_kind := dyn_vec_elem_kind(data, ctx)
@@ -4475,7 +4469,6 @@ priv free_dyn_vec_buffer := func(mut data: Dynamic, ctx: Context) {
 priv free_dyn_array_buffer := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("DynArray", "data", ctx)
     ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
-    if hdr.p.is_null() { return }
     ref cap_fl : FieldLayout = ctx_field_layout("DynArray", "cap", ctx)
     ref elem_size_fl : FieldLayout = ctx_field_layout("DynArray", "elem_size", ctx)
     ref cap : USize = ptr_add(data, cap_fl.offset)
@@ -4498,7 +4491,6 @@ priv free_dyn_array_buffer := func(mut data: Dynamic, ctx: Context) {
 priv free_dyn_set_buffer := func(mut data: Dynamic, ctx: Context) {
     ref data_fl : FieldLayout = ctx_field_layout("DynSet", "data", ctx)
     ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
-    if hdr.p.is_null() { return }
     ref count_fl : FieldLayout = ctx_field_layout("DynSet", "count", ctx)
     ref elem_size_fl : FieldLayout = ctx_field_layout("DynSet", "elem_size", ctx)
     ref count : USize = ptr_add(data, count_fl.offset)
@@ -4658,7 +4650,7 @@ priv scope_pool_put := func(own p: Dynamic) {
 // a valid lazy-empty Vec for a later session/fold pass.
 scope_pool_drain := func() {
     for pe : DynPtrBox in scope_pool {
-        if pe.p.is_null().not() { free(own pe.p) }
+        free(own pe.p)
     }
     free(own scope_pool.data)
     memset(scope_pool, 0, Vec(DynPtrBox).size())
@@ -4885,7 +4877,6 @@ priv set_namespace_func_identity := func(owner: Option(ref Declaration), mut def
 }
 
 priv heap_drop_by_type := func(shallow til_type: Type, mut ptr: Dynamic, ctx: Context) {
-    if ptr.is_null() { return }
     switch til_type {
     case .Primitive:
     case .Struct(sname):
@@ -5199,7 +5190,6 @@ priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested:
     if hb.is_borrowed { return }
     if hb.moved_out { return }
     mut old_ptr : Dynamic = hb.ptr
-    if old_ptr.is_null() { return }
     if drop_nested.and(hb.is_static_callable.not()) { heap_drop_by_type(hb_type(hb), old_ptr, hb.ctx) }
     EvalHeap.heap_free(own old_ptr)
     hb.ptr = bits_word(0)
@@ -5953,7 +5943,6 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, fie
 
 priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
     ref old_owned_ref : Dynamic = deref(ptr)
-    if old_owned_ref.is_null() { return }
     mut old_owned : Dynamic = old_owned_ref
     heap_drop_struct(struct_name, old_owned, ctx)
     EvalHeap.heap_free(own old_owned)
@@ -5965,7 +5954,6 @@ priv free_inline_struct_slot := func(mut ptr: Dynamic, struct_name: Str, ctx: Co
 
 priv free_owned_enum_slot := func(ptr: Dynamic, enum_name: Str, ctx: Context) {
     ref old_data_ref : Dynamic = deref(ptr)
-    if old_data_ref.is_null() { return }
     mut old_data : Dynamic = old_data_ref
     heap_drop_enum(enum_name, old_data, ctx)
     EvalHeap.heap_free(own old_data)
@@ -6244,8 +6232,11 @@ interp_session_free := func(mut session: InterpSession) {
 
 interp_program_to_heap := func(own lp: LoadedProgram) returns Dynamic {
     mut raw : Dynamic = malloc(LoadedProgram.size())
-    memcpy(raw, lp, LoadedProgram.size())
-    memset(lp, 0, LoadedProgram.size())
+    // #415: adopt is the move -- it transfers lp, so the garbager schedules
+    // no delete for it. The memcpy + memset(lp) this replaced left that
+    // delete in place and blanked lp so it would run on zeroes, which only
+    // worked because the generated destructors skipped NULL own fields.
+    adopt(LoadedProgram, raw, own lp)
     return raw
 }
 

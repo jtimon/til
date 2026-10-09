@@ -154,13 +154,13 @@ their contracts rather than assuming they are all necessary or all defensive.
 - [ ] Cover body locals, outer-scope/global targets, captures and field/payload
   replacement paths where the same ownership mistake can occur. Keep the
   returned replacement's ownership and subsequent cleanup correct.
-- [ ] Inventory null guards, post-free clearing, moved-source zeroing and
+- [X] Inventory null guards, post-free clearing, moved-source zeroing and
   repeated-cleanup/default-return paths in generated and hand-written
   destructors, interpreter storage teardown, and backend cleanup adapters.
-- [ ] Remove checks/zeroing whose purpose is to silently absorb a cleanup
+- [X] Remove checks/zeroing whose purpose is to silently absorb a cleanup
   that ownership analysis should not emit. Fix the ownership/lifecycle cause;
   do not replace the duplicate delete with another null check or skip guard.
-- [ ] Retain only genuine optional/empty/moved-state handling required by a
+- [X] Retain only genuine optional/empty/moved-state handling required by a
   documented contract (for example a lazy-empty container, None, or transfer
   metadata). Unexpected repeated owning destruction must fail at its source,
   not silently become a no-op. Audit and explain each retained case.
@@ -212,8 +212,92 @@ so a duplicate or missing cleanup is a wrong count even where a literal
 sentinel hides it from ASAN. Master's compiler fails them (interpreter
 panic on the moved binding; ASAN use-after-free / double free).
 
-Still open: captures and field/payload replacement paths (the fix covers
-body locals and outer-scope targets reached through nested bodies), and
-the null-guard / post-free-zeroing inventory and removal across
-generated and hand-written destructors, interpreter teardown and backend
-adapters.
+2026-10-09, captures, payloads and globals. Probed every remaining
+target kind on master ~6fab8c5e~, heap-backed Str, both backends + ASAN:
+
+- Payloads: closed at the source already. ~own p~ on a switch payload
+  binding is "cannot pass ref variable to 'own' parameter".
+- Captures of a deferred closure (Body value, capturing func): both
+  backends ACCEPTED ~own x~ and broke on every shape -- self-consuming
+  reassignment, consume-then-reassign, consume-only -- for Ref captures
+  (~[mut x]~) and own captures (~[own mut x]~) alike: heap corruption
+  interpreted, uncompilable C compiled (~own_value_arg_has_outer_ptr~
+  unboxed the env slot as an owned outer pointer). Root cause was the
+  typer, not the backends: a Ref capture borrows the frame's binding
+  exactly as a ~mut~ parameter borrows the caller's, and a ~mut~
+  parameter cannot be passed ~own~ at all. An own capture belongs to
+  the env, which the next call reads and the drop deletes -- the reason
+  a re-callable (FnMut) closure cannot move out of a capture in Rust.
+  ~check_own_captures~ (typer.til) now rejects it for both kinds; inline
+  capture blocks stay legal (they run once, inside the enclosing view's
+  dataflow). Typer errors: test/typer_errors.til ~terr415_closures~,
+  needle "cannot pass capture" (3).
+- Globals rebound from inside a function: ~g = f(own g)~ deleted the old
+  value the callee had just released (interpreter: the moved-binding
+  assert; compiled: double free). No view's dataflow spans a function
+  body from the global's owner, so ~flag_outer_assign_rebinds~ now lets
+  the assign's own RHS transfer decide: a rebind whose RHS consumes its
+  target sets no ~save_old_delete~. Regression:
+  ~own415_global_self_reassignment~ (test/ownership_shapes.til; master's
+  compiler panics on it).
+
+Still open:
+
+- Globals consumed in an EARLIER statement of a function, then
+  reassigned (~sink(own g); g = new~): still the moved-binding assert
+  interpreted and a double free compiled. Needs the dataflow run for
+  the global in the function's root view (entry owned), plus a rule for
+  a function that moves a global out without re-establishing it.
+- Fields: ~own s.f~ is accepted and never tracked. ~s.f = f(own s.f)~,
+  ~push(own s.f); s.f = ...~, and a bare ~push(own s.f)~ with no
+  reassignment all double free -- the FieldAssign old-value delete
+  (desugarer ~field_assign_needs_delete~, type-driven only) and the
+  owner's exit delete both free the moved field. Plain rejection is not
+  possible: ~own self.data~ to free/realloc and destructor field
+  consumption are legitimate. Needs a semantics decision (track the
+  moved field as a place that must be re-established before the owner
+  is used or leaves scope, or reject outside those contexts).
+2026-10-09, the masking audit. Method: remove each guard and run the
+suite; a crash means it was control flow, nothing crashing means it
+stays gone. Two-pass, 511/511 with every removal below in.
+
+Removed:
+
+- Generated struct destructors (initer.til): every own field's delete
+  was wrapped in ~if self.f.to_ptr().is_null().not()~, "moved-out
+  sources are zeroed". Removing it failed exactly three tests (REPL,
+  interp_session, the installed TilVm host) with one source:
+  ~interp_program_to_heap~ moved its own LoadedProgram out with
+  memcpy + ~memset(lp, 0, ...)~ and let the garbager delete the zeroed
+  husk. It now moves with ~adopt~, the primitive mem.til documents as
+  the replacement for that hand-written blanking, so no delete is
+  scheduled at all.
+- ~Expr.delete~ (core/ast.til): ~if to_ptr(self).is_null() { return }~,
+  "a fold helper returns NULL"; never reached.
+- ~LoadedProgram.delete~ (loader.til): the null-self and null-unit
+  early returns -- the other half of the blanking above.
+- Interpreter teardown, twelve null early-returns:
+  enum_payload_deep_free, heap_drop_enum, heap_drop_struct,
+  heap_drop_by_type, free_tuple_data, free_container_data,
+  free_dyn_vec_buffer, free_dyn_array_buffer, free_dyn_set_buffer,
+  scope_drop_existing_heap_slot (after its ~moved_out~ check, so dead),
+  free_owned_struct_slot, free_owned_enum_slot. For the container
+  helpers a lazy-empty NULL buffer is still safe by construction: its
+  count is zero and EvalHeap.heap_free is plain free.
+- Three ~if x.is_null().not() { free(own x) }~ in interpreter teardown:
+  free(NULL) is already a no-op.
+
+Retained, each a documented contract:
+
+- InternedTypes' ~pointee.is_null()~ (context.til): its slots are NULL
+  until first interned.
+- Interpreter clone helpers' null source buffer (a lazy-empty
+  container clones to a lazy-empty one), and the lookups marked
+  ~// REM: nullable scope ARG~.
+- Container zeroed-slot drains: ~adopt_from~ / ~push_take~ blank the
+  source slot as the documented count==0/data==NULL convention, and
+  the JVM runtime's ~deleteStrAt~ null-slot return is that convention's
+  JVM model (its ~deleteStr~ already throws on a double delete).
+- The interpreter's ~moved_out~ binding state (transfer metadata), and
+  the lazy-empty resets after freeing a container's storage
+  (scope_pool_drain, scope recycling, session teardown).

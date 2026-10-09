@@ -254,11 +254,8 @@ namespace:
         return paths
     }
     delete := func(own self: LoadedProgram, call_free: Bool = true) {
-        // Raw-address probes through the to_ptr launder (#321 step 3):
-        // the #302 drain contract hands deletes zeroed/moved-out slots.
-        if to_ptr(self).is_null() { return }
-        if to_ptr(self.core_units).is_null().not() { own self.core_units.delete(true) }
-        if to_ptr(self.units).is_null().not() { own self.units.delete(true) }
+        own self.core_units.delete(true)
+        own self.units.delete(true)
         own self.mode_files.delete(false)
         Target.delete(own self.target, false)
         TargetCpu.delete(own self.cpu, false)

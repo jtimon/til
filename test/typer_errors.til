@@ -2030,3 +2030,34 @@ terr_is_dotted_payload := func(c: TErrIsColor) returns Bool {
     return c.is(.Tagged(5))
 }
 terr_is_dotted_payload(TErrIsColor.Red)
+
+// #415: a deferred closure cannot pass a capture to an 'own' parameter --
+// the rule a 'mut' parameter already follows. A Ref capture borrows the
+// defining frame's binding, which the frame still reads and deletes; an
+// own capture belongs to the environment, which the next call reads and
+// the closure's drop deletes. Self-consuming reassignment through a Ref
+// capture, consume-then-reassign through an own capture, and a capturing
+// func each count once.
+terr415_sink := proc(own text: Str) {
+    println(text)
+}
+terr415_replace := proc(own text: Str) returns Str {
+    println(text)
+    return "replaced"
+}
+terr415_closures := proc() {
+    mut by_ref := "a"
+    self_replace : Body = [mut by_ref] { by_ref = terr415_replace(own by_ref) }
+    self_replace()
+    by_own := "b"
+    consume_reassign : Body = [own mut by_own] {
+        terr415_sink(own by_own)
+        by_own = "c"
+    }
+    consume_reassign()
+    mut in_func := "d"
+    consume_in_func := proc() [mut in_func] { terr415_sink(own in_func) }
+    consume_in_func()
+    println(by_ref, in_func)
+}
+terr415_closures()

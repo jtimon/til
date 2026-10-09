@@ -843,3 +843,30 @@ own415_reassign_after_consume_counted := test() {
     counted415_loop()
     assert_eq(I64, Counted415.deletes, 4)
 }
+
+// A global replaced from inside a function. No view's dataflow spans a
+// function body from the global's owner (the program root), so the
+// assign's own RHS transfer is what says the old value is already
+// consumed: deleting it again freed what the callee had just released.
+mut str415_global := heap415("head")
+
+str415_global_rhs := proc() {
+    str415_global = replace415(own str415_global)
+}
+
+mut counted415_global := Counted415(id = 1)
+
+counted415_global_rhs := proc() {
+    noop_proc()
+    counted415_global = replace_counted415(own counted415_global)
+}
+
+own415_global_self_reassignment := test() {
+    str415_global_rhs()
+    assert_eq(Str, str415_global, "next")
+    Counted415.deletes = 0
+    counted415_global_rhs()
+    // The old value is deleted once, by the callee; the replacement lives on.
+    assert_eq(I64, Counted415.deletes, 1)
+    assert_eq(I64, counted415_global.id, 2)
+}
