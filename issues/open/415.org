@@ -74,6 +74,61 @@ static void test_own_consuming_self_reassignment(void) {
 }
 #+end_src
 
+*** Reproducer: transfer in an earlier statement
+
+Found 2026-10-09 while burning down the #375 JVM corpus. The same mistake
+when the ~own~ transfer and the reassignment are separate statements: the
+garbager still deletes the old value before rebinding, although
+~push(own pt)~ already moved it into the Vec.
+
+#+begin_src til
+mode cli
+
+P := struct {
+    name := "p"
+}
+
+runtime_text := proc() returns Str {
+    noop_proc()
+    mut text := Str.with_capacity(8)
+    text.push_str("first")
+    return text
+}
+
+main := proc() {
+    mut v := Vec(P).new()
+    mut pt := P(name = runtime_text())
+    v.push(own pt)
+    pt = P(name = "second")
+    println(v[0].name, " ", pt.name)
+}
+#+end_src
+
+Expected ~first second~. Checked on top of master ~f4b028f~: ~til run~
+aborts with ~free(): double free detected in tcache 2~, ~til run --asan~
+reports the use, and ~til interpret~ panics on the delete itself:
+
+#+begin_example
+ERROR: AddressSanitizer: heap-use-after-free
+    #1 Str_clone
+    #2 main                      /* reading v[0].name */
+freed by thread T0 here:
+    #1 Str_delete
+    #2 P_delete
+    #3 main                      /* the P_delete(&pt, 0) below */
+
+./src/self/interpreter.til:3070:38: panic: argument from moved binding: pt
+#+end_example
+
+#+begin_src c
+Vec__P_push(&v, &pt);    /* pt's bytes, incl. name's buffer, now in v */
+P_delete(&pt, 0);        /* wrong: pt was consumed by the push */
+pt = ({ P _sc1 = {0}; _sc1.name = ...; _sc1; });
+#+end_src
+
+The literal-only variant (~P(name = "first")~) passes everywhere: a
+literal Str's delete frees nothing, which is how this hid.
+
 *** Cleanup paths and masking audit
 
 Not all frees are protected by null checks or followed by pointer clearing.

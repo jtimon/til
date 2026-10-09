@@ -29,7 +29,8 @@ CORPUS := array(Str,
     "test/sets.til",
     "test/fn_ptr.til",
     "test/loops.til",
-    "test/closures.til")
+    "test/closures.til",
+    "test/structs.til")
 
 // Not yet: each fails loudly with the first diagnostic shown -- refused
 // at translation, or rejected by javac -- never a silently wrong program
@@ -42,8 +43,6 @@ CORPUS := array(Str,
 //   test/vecs.til                   runtime function 'dyn_size_of'
 //   test/enums.til                  non-addressable scalar ref (the error
 //                                   kind of a `?` call in a switch guard)
-//   test/structs.til                javac: struct namespace variables
-//                                   (`Counter.instance_count`)
 
 // What one run left: stdout, stderr and exit status.
 priv Outcome := struct {

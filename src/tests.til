@@ -1343,6 +1343,12 @@ main := proc(args: ..Str) {
         "test/jvm_stage_f.expected", til_bin, asan_flag)
     add_count(tests, "jvm_stage_f_funcsig_source", "build", "@FunctionalInterface", 3,
         format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_f.til '&&' cat gen/jvm/test/jvm_stage_f/src/til/generated/p_jvm_x5fstage_x5ff/F_*.java ')'"))
+    // #375: struct namespace data is a static field of the struct's class
+    // (a scalar one a cell), initialized at the top of Main.main.
+    add_counts(tests, "jvm_structs_namespace_source", "build",
+        format("'(' ", til_bin, " translate --target=jvm test/structs.til '&&' cat gen/jvm/test/structs/src/til/generated/p_structs/*.java ')'"),
+        CountCheck(needle = "static TilRuntime.I64Slot ns_p_instance_x5fcount;", expected_count = 1),
+        CountCheck(needle = "S_p_Counter.ns_p_instance_x5fcount = new TilRuntime.I64Cell(0L);", expected_count = 1))
     add_count(tests, "jvm_rejects_c_path", "build", "error: -c is not supported with --target=jvm", 1,
         format(til_bin, " translate --target=jvm -c gen/jvm/nope.java examples/hello_script.til"))
     add_count(tests, "jvm_rejects_cc", "build", "error: --cc is not supported with --target=jvm", 1,

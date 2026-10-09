@@ -11,6 +11,9 @@ priv JvmEmitState := struct {
     raw_refs := Set(Str).new()
     callable_defs := Map(Str, Str).new()
     return_cell := false
+    // #375: namespace data members ("Type.member") the program reads or
+    // writes; Main.main initializes exactly these (jvm_emit_ns_inits).
+    ns_used := Set(Str).new()
 }
 
 // #326: one method of an emitted class, keyed by the name a caller spells.
@@ -1176,12 +1179,52 @@ priv jvm_emit_cell_ref := proc(e: Expr, mut state: JvmEmitState,
             }
         case .FieldAccess(fa):
             if e.children.len().eq(1).and(jvm_is_scalar(e.til_type(), lp)) {
+                ref cr_member : Str = fa.field_access_name(lp.ctx.symbols.names)
+                cr_owner := jvm_ns_data_owner(e.children[0], cr_member, lp)
+                if cr_owner.len() > 0 { return jvm_ns_static(e, cr_owner, cr_member, state, lp) }
                 obj := jvm_emit_expr(e.children[0], state, lp)
-                return format(obj, ".", jvm_field_getter(fa.field_access_name(lp.ctx.symbols.names)))
+                return format(obj, ".", jvm_field_getter(cr_member))
             }
         case:
         }
         return jvm_fail_expr(e, "non-addressable scalar ref", state, lp.ctx.symbols.names)
+}
+
+// #375: the struct/enum whose NAMESPACE holds `member` as data, when a
+// field access names one -- `Counter.instance_count`, or
+// `c.instance_count` through an instance, which C reads from the same
+// global. "" when it is not namespace data (an instance field).
+priv jvm_ns_data_owner := func(receiver: Expr, member: Str, lp: LoadedProgram) returns Str {
+    rt := jvm_concrete(receiver.til_type(), lp)
+    if is_struct_type(rt).or(is_enum_type(rt)).not() { return "" }
+    tname := Str.clone(type_name_ref(rt, lp.ctx.symbols))
+    def_o := lp.ctx.scope.get_struct(tname, lp.ctx.symbols)
+    if def_o.is_none() { return "" }
+    ref def : Expr = def_o.unwrap()
+    ref ns : Vec(Declaration) = def_ns_decls(def)
+    for idx in 0..ns.len() {
+        if def_ns_name_at(def, idx) == member {
+            if ns_member_is_data(def, idx) { return tname }
+            return ""
+        }
+    }
+    return ""
+}
+
+// Namespace data is a static field of the owner's class (the C global
+// `Type_member`); a scalar one is a cell, so a `mut` ref to it
+// (`Counter.count.inc()`) shares the one storage.
+priv jvm_ns_static := proc(e: Expr, tname: Str, member: Str,
+    mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+        if tname == "Str" {
+            return jvm_fail_expr(e, "namespace data of Str", state, lp.ctx.symbols.names)
+        }
+        key := format(tname, ".", member)
+        if state.ns_used.has(key).not() { state.ns_used.add(own key) }
+        def_o := lp.ctx.scope.get_struct(tname, lp.ctx.symbols)
+        mut cls := jvm_struct_class(tname)
+        if def_o.unwrap().node_type.is(NodeType.EnumDef) { cls = jvm_enum_class(tname) }
+        return format(cls, ".ns_", jvm_package_segment(member))
 }
 
 priv jvm_emit_struct_ctor := proc(e: Expr, name: Str,
@@ -1398,6 +1441,11 @@ priv jvm_emit_typed_args := proc(e: Expr, fd: FunctionDef,
             mut arg := ""
             if jvm_param_needs_cell(fd, pi, lp) {
                 arg = jvm_emit_cell_ref(e.children[i], state, lp)
+            } else if pi.lt(fd.sig.params.len()).and(fd.sig.params[pi].til_type.is(Type.Dynamic))
+                .and(jvm_expr_is_raw_ref(e.children[i], state, lp.ctx.symbols.names)) {
+                // A raw ref handed to a Dynamic parameter (`adopt`'s
+                // `dest`, Vec.unsafe_set's slot) is the address itself.
+                arg = jvm_emit_expr(e.children[i], state, lp)
             } else {
                 arg = jvm_emit_value(e.children[i], state, lp)
             }
@@ -1861,18 +1909,17 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
             return "TilRuntime.dropScalar()"
         }
 
+        // A struct's GENERATED clone/delete is lowered to the Java-side
+        // cloneValue/delete (the generated til versions free own fields
+        // through C's boxed layout); a user-defined one runs as written.
         if name.ends_with("_clone").and(e.children.len() == 2) {
-            if is_struct_type(e.children[1].til_type()) {
-                if jvm_struct_has_raw_fields(type_name_ref(e.children[1].til_type(), lp.ctx.symbols), lp).not() {
-                    return format(jvm_emit_expr(e.children[1], state, lp), ".cloneValue()")
-                }
+            if is_struct_type(e.children[1].til_type()).and(jvm_is_auto_generated(name, lp)) {
+                return format(jvm_emit_expr(e.children[1], state, lp), ".cloneValue()")
             }
         }
         if name.ends_with("_delete").and(e.children.len() >= 2) {
-            if is_struct_type(e.children[1].til_type()) {
-                if jvm_struct_has_raw_fields(type_name_ref(e.children[1].til_type(), lp.ctx.symbols), lp).not() {
-                    return format(jvm_emit_expr(e.children[1], state, lp), ".delete()")
-                }
+            if is_struct_type(e.children[1].til_type()).and(jvm_is_auto_generated(name, lp)) {
+                return format(jvm_emit_expr(e.children[1], state, lp), ".delete()")
             }
             if is_enum_type(e.children[1].til_type()) {
                 return format(jvm_emit_expr(e.children[1], state, lp), ".delete()")
@@ -2053,6 +2100,13 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
                     fa.field_access_name(lp.ctx.symbols.names), lp)
                 if enum_variant.len() > 0 { return enum_variant }
             case:
+            }
+            ref fa_member : Str = fa.field_access_name(lp.ctx.symbols.names)
+            fa_owner := jvm_ns_data_owner(e.children[0], fa_member, lp)
+            if fa_owner.len() > 0 {
+                ns_static := jvm_ns_static(e, fa_owner, fa_member, state, lp)
+                if jvm_is_scalar(e.til_type(), lp) { return jvm_cell_read(e.til_type(), ns_static, lp) }
+                return ns_static
             }
             obj := jvm_emit_expr(e.children[0], state, lp)
             mut out := format(obj, ".", jvm_field_getter(fa.field_access_name(lp.ctx.symbols.names)))
@@ -2270,12 +2324,41 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
             return format(jvm_source_comment(e, state, depth), prefix, jvm_indent(depth),
                 assignment, ";\n", clear)
         case .FieldAssign(fad):
+            fas_owner := jvm_ns_data_owner(e.children[0], fad.name, lp)
+            if fas_owner.len() > 0 {
+                ns_target := jvm_ns_static(e, fas_owner, fad.name, state, lp)
+                ns_value := jvm_emit_expr(e.children[1], state, lp)
+                mut ns_prefix := ""
+                if fad.save_old_delete { ns_prefix = format(jvm_indent(depth), jvm_delete_value(e.children[1].til_type(), ns_target, lp), ";\n") }
+                mut ns_write := format(ns_target, " = ", ns_value)
+                if jvm_is_scalar(e.children[1].til_type(), lp) {
+                    ns_write = jvm_cell_write(e.children[1].til_type(), ns_target, ns_value, lp)
+                }
+                return format(jvm_source_comment(e, state, depth), ns_prefix, jvm_indent(depth), ns_write, ";\n")
+            }
             obj := jvm_emit_expr(e.children[0], state, lp)
             value := jvm_emit_expr(e.children[1], state, lp)
             target := format(obj, ".", jvm_field_getter(fad.name))
             is_scalar := jvm_field_is_cell(e.children[0].til_type(), fad.name, lp)
             mut prefix := ""
             if fad.save_old_delete { prefix = format(jvm_indent(depth), jvm_delete_value(e.children[1].til_type(), target, lp), ";\n") }
+            // A live owned aggregate field (save_old_delete: the field owns
+            // the old value, so nothing moved it away) is overwritten IN
+            // PLACE, as C overwrites the field's storage: a `ref` that
+            // borrows the field (`ref b := v.text`, a ref field built from
+            // it) is that object and must see the new value. The new value
+            // is evaluated before the old one is deleted, as in C.
+            ref fv_t : Type = e.children[1].til_type()
+            if fad.save_old_delete.and(is_scalar.not()).and(jvm_is_scalar(fv_t, lp).not()) {
+                mut in_place := ""
+                if jvm_is_runtime_str(fv_t, lp) { in_place = format("TilRuntime.assignStr(", target, ", assignNew)") }
+                else if is_struct_type(fv_t).or(is_enum_type(fv_t)) { in_place = format(target, ".assignFrom(assignNew)") }
+                if in_place.len() > 0 {
+                    return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
+                        "{ ", jvm_type_lp(fv_t, lp), " assignNew = ", value, "; ",
+                        jvm_delete_value(fv_t, target, lp), "; ", in_place, "; }\n")
+                }
+            }
             if is_scalar.not() {
                 mut set_value := value.clone()
                 if jvm_is_runtime_str(e.children[0].til_type(), lp).and(jvm_is_scalar(e.children[1].til_type(), lp)) {
@@ -2520,16 +2603,12 @@ priv jvm_field_is_cell := func(owner_type: Type, field_name: Str,
         return false
 }
 
-priv jvm_struct_has_raw_fields := func(name: Str, lp: LoadedProgram) returns Bool {
-    def_o := lp.ctx.scope.get_struct(name, lp.ctx.symbols)
-    if def_o.is_none() { return false }
-    ref def_expr : Expr = def_o.unwrap()
-    if def_expr.node_type.is(NodeType.StructDef).not() { return false }
-    ref sd : StructDef = structdef_of(def_expr)
-    for field : Declaration in sd.fields {
-        if jvm_is_scalar(field.til_type, lp).and(field.own_type.is(OwnType.Own)) { return true }
-    }
-    return false
+// Whether `name` is a method the initer generated (clone/delete/eq/...),
+// as opposed to one the user wrote in the namespace.
+priv jvm_is_auto_generated := func(name: Str, lp: LoadedProgram) returns Bool {
+    fdef_o := jvm_find_fdef(name, lp)
+    if fdef_o.is_none() { return false }
+    return funcdef_of(fdef_o.unwrap()).auto_generated
 }
 
 priv jvm_emit_struct := proc(decl: Expr, package_name: Str, mut state: JvmEmitState,
@@ -2903,6 +2982,112 @@ priv jvm_is_test_decl := func(stmt: Expr) returns Bool {
     }
 }
 
+// The declared type of a namespace data member (inferred from its value
+// when unannotated, as C's ns_data_ctype does).
+priv jvm_ns_data_type := func(dd: Declaration) returns Type {
+    if dd.til_type.is(Type.Unknown) { return dd.default_expr().til_type().clone() }
+    return dd.til_type.clone()
+}
+
+// The struct/enum types that may hold namespace data, in C's order:
+// unit declarations first (emit_ns_inits), then generic instances.
+priv jvm_ns_type_order := func(lp: LoadedProgram) returns Vec(Str) {
+    mut names := Vec(Str).new()
+    mut seen := Set(Str).new()
+    for unit_path : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[unit_path]
+        for stmt : Expr in iu.ast.children {
+            if is_struct_or_enum(stmt) {
+                ref owner : Declaration = decl_of(stmt)
+                if seen.has(owner.name).not() {
+                    seen.add(own owner.name.clone())
+                    names.push(own owner.name.clone())
+                }
+            }
+        }
+    }
+    for i in 0..lp.ctx.struct_layouts.len() {
+        ref type_name : Str = lp.ctx.struct_layouts.keys.unsafe_get(i)
+        if seen.has(type_name).not() {
+            seen.add(own type_name.clone())
+            names.push(own type_name.clone())
+        }
+    }
+    return names
+}
+
+// #375: the namespace data the program uses, initialized at the top of
+// Main.main as C's emit_ns_inits does at program start: per type in
+// ns_const_eval_order, so a member's initializer sees the members it
+// reads. An initializer can itself read more namespace data, so this
+// re-emits until the used set stops growing.
+priv jvm_emit_ns_inits := proc(mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+    type_order := jvm_ns_type_order(lp)
+    mut out := ""
+    mut prev : I64 = -1
+    while state.ns_used.len().to_i64() != prev {
+        prev = state.ns_used.len().to_i64()
+        out = ""
+        for tname : Str in type_order {
+            def_o := lp.ctx.scope.get_struct(tname, lp.ctx.symbols)
+            if def_o.is_none() { continue }
+            ref def : Expr = def_o.unwrap()
+            ref ns : Vec(Declaration) = def_ns_decls(def)
+            order := ns_const_eval_order(tname, def, lp.ctx.symbols)
+            for pos : I64 in order {
+                idx := pos.to_usize()
+                if ns_member_is_data(def, idx).not() { continue }
+                ref member : Str = def_ns_name_at(def, idx)
+                if state.ns_used.has(format(tname, ".", member)).not() { continue }
+                ref dd : Declaration = ns.unsafe_get(idx)
+                ref init_expr : Expr = dd.default_expr()
+                if dd.external_symbol.len() > 0 {
+                    jvm_fail_expr(init_expr, "external namespace data", state, lp.ctx.symbols.names)
+                    continue
+                }
+                target := jvm_ns_static(init_expr, tname, member, state, lp)
+                value := jvm_emit_expr(init_expr, state, lp)
+                t := jvm_ns_data_type(dd)
+                mut init := format(target, " = ", value)
+                if jvm_is_scalar(t, lp) { init = format(target, " = ", jvm_new_cell(t, value, lp)) }
+                out = format(out, jvm_source_comment(init_expr, state, 2), jvm_indent(2), init, ";\n")
+            }
+        }
+    }
+    return out
+}
+
+// The static field declarations for the used namespace data, added to
+// each owner's class.
+priv jvm_add_ns_fields := func(state: JvmEmitState, mut classes: Vec(JvmClassOut),
+    lp: LoadedProgram) {
+        for tname : Str in jvm_ns_type_order(lp) {
+            def_o := lp.ctx.scope.get_struct(tname, lp.ctx.symbols)
+            if def_o.is_none() { continue }
+            ref def : Expr = def_o.unwrap()
+            ref ns : Vec(Declaration) = def_ns_decls(def)
+            mut cls := jvm_struct_class(tname)
+            if def.node_type.is(NodeType.EnumDef) { cls = jvm_enum_class(tname) }
+            for idx in 0..ns.len() {
+                if ns_member_is_data(def, idx).not() { continue }
+                ref member : Str = def_ns_name_at(def, idx)
+                if state.ns_used.has(format(tname, ".", member)).not() { continue }
+                t := jvm_ns_data_type(ns.unsafe_get(idx))
+                mut jt := jvm_type_lp(t, lp)
+                if jvm_is_scalar(t, lp) { jt = jvm_cell_type(t, lp) }
+                field := format("ns_", jvm_package_segment(member))
+                mut found := false
+                for ci in 0..classes.len() {
+                    if classes[ci].name == cls {
+                        jvm_add_member(classes[ci], field, format("    static ", jt, " ", field, ";\n"))
+                        found = true
+                    }
+                }
+                if found.not() { panic(__LOC__, "JVM class missing for namespace data: ", cls) }
+            }
+        }
+}
+
 priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
     mut state: JvmEmitState, lp: LoadedProgram) returns Str {
         ref iu : ImportUnit = lp.ctx.imported[root.path]
@@ -2963,12 +3148,13 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
             }
             if lp.run_tests { main_body = format(main_body, jvm_emit_test_calls(state, lp)) }
         }
+        ns_inits := jvm_emit_ns_inits(state, lp)
         out := format("package ", package_name, ";\n\n",
             "import til.runtime.TilRuntime;\n\n",
             "public final class Main {\n",
             "    private Main() {}\n\n",
             "    public static void main(String[] args) {\n",
-            main_body,
+            ns_inits, main_body,
             "    }\n",
             "}\n")
         state.cells = saved_cells
@@ -3117,6 +3303,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
         main_out.path = source_path.clone()
         main_out.head = jvm_emit_main(root, package_name, state, lp)
         classes.push(own main_out)
+        jvm_add_ns_fields(state, classes, lp)
         if state.errors > 0 { return 1 }
 
         jvm_mark_live(File.readfile(runtime_path), classes)

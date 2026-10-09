@@ -3509,7 +3509,8 @@ priv typed_num_lit_to_c := func(text: Str, t: Type) returns Str {
     return num_lit_to_c(text)
 }
 
-priv ns_member_is_data := func(def: Expr, idx: USize) returns Bool {
+// Shared with the JVM backend (namespace data as static fields).
+ns_member_is_data := func(def: Expr, idx: USize) returns Bool {
     ref ns : Vec(Declaration) = def_ns_decls(def)
     if idx >= ns.len() { return false }
     ref dd : Declaration = ns.unsafe_get(idx)

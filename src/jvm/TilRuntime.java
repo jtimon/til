@@ -827,6 +827,8 @@ public final class TilRuntime {
     public static long cmpU64(long a, long b) { return Long.compareUnsigned(a, b); }
     public static long cmpF32(float a, float b) { return a > b ? 1 : a < b ? -1 : 0; }
     public static long cmpF64(double a, double b) { return a > b ? 1 : a < b ? -1 : 0; }
+    // Bool.cmp: false < true.
+    public static long cmpBool(boolean a, boolean b) { return a == b ? 0 : b ? -1 : 1; }
 
     public static float u64ToF32(long value) { return (float) u64ToF64(value); }
     public static double u64ToF64(long value) {

@@ -585,6 +585,28 @@ translation and fail in javac (struct namespace variables; a ~returns ref~
 struct field where a raw ~Ptr~ is expected; ~adopt~ of objects; missing
 ~cmpBool~); enums stops at a ~?~ call's error kind in a switch guard.
 
+structs 2026-10-08: test/structs.til passes (fourteen programs). Struct
+and enum namespace data (C's ~Type_member~ globals) is a static field of
+the owner's class -- a scalar one a cell, so a ~mut~ ref to it shares the
+storage -- read and written through the type or an instance, and
+initialized at the top of ~Main.main~ per type in ~ns_const_eval_order~,
+for the members the program uses (~ns_member_is_data~ is now shared with
+C). A raw ref passed to a ~Dynamic~ parameter (~adopt~'s ~dest~ from
+~Vec.unsafe_set~) is the address, not the loaded object. ~Bool.cmp~ has a
+runtime ~cmpBool~. Two silent wrong results fixed: struct ~clone~/~delete~
+were lowered to the Java-side ~cloneValue~/~delete~ even when the user
+wrote them (~test_custom_clone~ got 5) -- the shortcut now applies only to
+~auto_generated~ methods -- and assigning a struct field that a ~ref~
+borrows (~ref b := v.text~, a ref field built from it) replaced the
+field's object, leaving the borrow on the deleted one. A field write with
+~save_old_delete~ (the field owns a live old value, so nothing moved it
+away) now overwrites the field's object in place (~assignStr~/
+~assignFrom~), evaluating the new value first, as C does. The same
+staleness remains for a ~ref~ that borrows a LOCAL which is then
+reassigned (the garbager emits that delete as its own statement, and a
+local moved away by ~own~ still holds the object its new owner has, so
+an in-place write there first needs moved sources cleared).
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.

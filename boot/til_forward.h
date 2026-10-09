@@ -1410,6 +1410,7 @@ typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
     Set__Str raw_refs;
     Map__Str_Str callable_defs;
     Bool return_cell;
+    Set__Str ns_used;
 } priv___src_self_jvm_codegen_til__JvmEmitState;
 
 
