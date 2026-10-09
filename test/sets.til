@@ -113,3 +113,32 @@ test_set_with_capacity_zero_is_lazy := test() {
     assert(s.has("x"))
     assert_eq(USize, s.len(), 1)
 }
+
+// for-in over a Set walks its elements in sorted order (Set.unsafe_get).
+test_set_for_in_sorted := test() {
+    mut s := Set(I64).new()
+    s.add(own 30)
+    s.add(own 10)
+    s.add(own 20)
+    s.add(own 10)
+    mut seen := Vec(I64).new()
+    for x in s { seen.push(own x.clone()) }
+    assert_eq(USize, seen.len(), 3)
+    assert_eq(I64, seen[0], 10)
+    assert_eq(I64, seen[1], 20)
+    assert_eq(I64, seen[2], 30)
+    for i, x in s { assert_eq(I64, x, seen[i]) }
+}
+
+test_set_for_in_str := test() {
+    mut s := Set(Str).new()
+    s.add(own "beta")
+    s.add(own "alpha")
+    mut joined := ""
+    for name in s { joined = format(joined, name, ";") }
+    assert_eq(Str, joined, "alpha;beta;")
+    mut empty := Set(Str).new()
+    for _ in empty { panic("an empty Set yields nothing") }
+    empty.add(own "x")
+    assert(empty.has("x"))
+}

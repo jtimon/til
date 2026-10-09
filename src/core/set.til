@@ -34,6 +34,15 @@ namespace:
 
     len := func(self: Set(T)) returns USize { return self.count }
 
+    /// Unchecked element access: return a reference to the element at
+    /// index ~i~ (in sorted order) with NO bounds check. The caller must
+    /// prove ~i < len()~. This is what makes ~for x in set~ work: for-in
+    /// uses ~unsafe_get~ when a type has it, and its ~_fi < len()~
+    /// termination test proves the index in bounds (issue #284).
+    unsafe_get := func(self: Set(T), i: USize) returns ref T {
+        return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+    }
+
     /// Drop all live elements but keep the allocated storage so the Set can be reused.
     clear := func(mut self: Set(T)) {
         for i in 0..self.count {
