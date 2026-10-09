@@ -63,28 +63,55 @@ priv check_dynamic_widths := proc(compiler: Str) {
         "mode lib\nWord := struct { bits: UPtr }\nNested := struct { word: Word }\nPair := struct { a: U32; b: U32 }\nread_word := func(x: Nested) returns UPtr { return x.word.bits }\nread_pair := func(x: Pair) returns U32 { return x.a + x.b }\n")
     File.writefile(format(WORK, "/dynamic_width.til"),
         "mode cli\nmain := proc(name: Str) {\nif Dynamic.size() != UPtr.size() { panic(\"Dynamic width\") }\nif dyn_size_of(name) != Dynamic.size() { panic(\"runtime width\") }\nx : UPtr = 123\ny : UPtr = 456\na := array(Dynamic, x, y)\nmut v := Vec(Dynamic).new()\nv.push(own x)\nv.push(own y)\nmut t := Tuple.new()\nt.push_all_dynamic(a)\nref first : UPtr = t.get(0)\nref second : UPtr = t.get(1)\nref last : UPtr = v.unsafe_get(1)\nif first != 123 || second != 456 || last != 456 { panic(\"word copy/stride\") }\nif t.size_at(0) != Dynamic.size() { panic(\"tuple width\") }\nprintln(\"dynamic widths passed\")\n}\n")
+    File.writefile(format(WORK, "/pointer_count.til"),
+        "mode cli\nmain := proc(count: USize) { println(usize_to_uptr(count).to_str()) }\n")
     for width : Str in array(Str, "32", "64") {
         flag := format("--usize=", width)
         expect_output(Cmd.new(compiler, "run", flag, "dynamic_width.til", "Dynamic"), "dynamic widths passed\n")
         expect_output(Cmd.new(compiler, "interpret", flag, "dynamic_width.til", "Dynamic"), "dynamic widths passed\n")
+        for command : Str in array(Str, "run", "interpret") {
+            expect_output(Cmd.new(compiler, command, flag, "pointer_count.til", "0"), "0\n")
+            expect_output(Cmd.new(compiler, command, flag, "pointer_count.til", "4294967295"), "4294967295\n")
+            if width == "64" {
+                for count : Str in array(Str, "4294967296", "18446744073709551615") {
+                    if target_uptr_name(detect_current_target()) == "U64" {
+                        expect_output(Cmd.new(compiler, command, flag, "pointer_count.til", count), format(count, "\n"))
+                    } else {
+                        reject(Cmd.new(compiler, command, flag, "pointer_count.til", count),
+                            "usize_to_uptr: byte count exceeds pointer width")
+                    }
+                }
+            }
+        }
     }
-    // Native-width 32-bit targets. USize=64/UPtr=32 currently fails the
-    // unrelated usize_to_uptr narrowing cast in core/numbers.til.
     for target : Str in array(Str, "linux-x86", "linux-arm32", "linux-riscv32", "windows-x86", "wasm32") {
         tf := format("--target=", target)
-        _fit := execute(Cmd.new(compiler, "translate", tf, "dynamic_fit.til"))
-        reject(Cmd.new(compiler, "translate", tf, "dynamic_wide.til"), "one 4-byte word")
-        reject(Cmd.new(compiler, "translate", tf, "dynamic_wide_push.til"), "one 4-byte word")
-        reject(Cmd.new(compiler, "translate", tf, "dynamic_pair.til"), "one 4-byte word")
-        _shallow := execute(Cmd.new(compiler, "translate", tf, "-c", "dynamic_shallow.c", "dynamic_shallow.til"))
-        signatures := File.readfile(format(WORK, "/dynamic_shallow.c"))
-        if signatures.contains("read_word(Nested x)").and(signatures.contains("read_pair(Pair * x)")).not() {
-            panic("target auto-shallow classification: ", target)
-        }
-        _translated := execute(Cmd.new(compiler, "translate", tf, "-c", "dynamic_width.c", "dynamic_width.til"))
-        emitted := File.readfile(format(WORK, "/dynamic_width.c"))
-        if emitted.contains("Dynamic_size(void) {\n    return sizeof(void *);").not() {
-            panic("Dynamic.size lost target sizeof: ", target)
+        for width : Str in array(Str, "32", "64") {
+            flag := format("--usize=", width)
+            _fit := execute(Cmd.new(compiler, "translate", tf, flag, "dynamic_fit.til"))
+            reject(Cmd.new(compiler, "translate", tf, flag, "dynamic_wide.til"), "one 4-byte word")
+            reject(Cmd.new(compiler, "translate", tf, flag, "dynamic_wide_push.til"), "one 4-byte word")
+            reject(Cmd.new(compiler, "translate", tf, flag, "dynamic_pair.til"), "one 4-byte word")
+            _shallow := execute(Cmd.new(compiler, "translate", tf, flag, "-c", "dynamic_shallow.c", "dynamic_shallow.til"))
+            signatures := File.readfile(format(WORK, "/dynamic_shallow.c"))
+            if signatures.contains("read_word(Nested x)").and(signatures.contains("read_pair(Pair * x)")).not() {
+                panic("target auto-shallow classification: ", target, " ", flag)
+            }
+            _translated := execute(Cmd.new(compiler, "translate", tf, flag, "-c", "dynamic_width.c", "dynamic_width.til"))
+            emitted := File.readfile(format(WORK, "/dynamic_width.c"))
+            if emitted.contains("Dynamic_size(void) {\n    return sizeof(void *);").not() {
+                panic("Dynamic.size lost target sizeof: ", target, " ", flag)
+            }
+            // Scalar conversions can be interpreted with target widths even
+            // though pointer-bearing container storage stays host-sized.
+            expect_output(Cmd.new(compiler, "interpret", tf, flag, "pointer_count.til", "0"), "0\n")
+            expect_output(Cmd.new(compiler, "interpret", tf, flag, "pointer_count.til", "4294967295"), "4294967295\n")
+            if width == "64" {
+                for count : Str in array(Str, "4294967296", "18446744073709551615") {
+                    reject(Cmd.new(compiler, "interpret", tf, flag, "pointer_count.til", count),
+                        "usize_to_uptr: byte count exceeds pointer width")
+                }
+            }
         }
     }
 }

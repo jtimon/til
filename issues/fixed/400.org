@@ -36,9 +36,22 @@ probes also passed for the container/Tuple round-trip and nested-word case.
 suite and self-translation comparison. The two-pass build records the
 normalized Dynamic size method in the self-applied bootstrap output.
 
-The cross-target checks use native USize. The separate existing
-~--usize=64~ / 32-bit-pointer combination fails at ~usize_to_uptr~'s
-narrowing cast in core/numbers.til, before these probes can run.
+*** Follow-up: checked byte counts and 32-bit runtime coverage
+
+~usize_to_uptr~ no longer assumes a widening cast: it converts to the target
+pointer integer and compares both values widened to U64, panicking if any
+bits were lost. The round-trip check works during interpretation too, where
+size() queries describe host storage rather than the target scalar width.
+This enables ~--usize=64~ with 32-bit pointers for these programs.
+
+~check_dynamic_widths~ now exercises both USize widths on all five 32-bit C
+targets. Its CLI byte-count probe prevents constant folding and checks zero,
+the U32 maximum, the first overflowing value, and the U64 maximum. The
+existing linux-x86 CI job generates these same probes, cross-builds them at
+both widths, and runs the Array/Vec/Tuple and nested-word cases under
+~qemu-i386~. It also checks compiled byte-count success and overflow exits.
+Follow-up verification: ~make clean && make test~ passed all 520 tests;
+the linux-x86 QEMU probe commands passed locally at both USize widths.
 
 The analysis below records the pre-fix state.
 

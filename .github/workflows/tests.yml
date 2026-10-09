@@ -207,6 +207,26 @@ jobs:
           file bin/hello_script_x86 | grep -q "80386"
           qemu-i386 bin/hello_script_x86
           qemu-i386 bin/hello_script_x86 | grep -q "Hello World"
+      - name: Run Dynamic and checked byte-count probes at both USize widths
+        run: |
+          ./bin/til run -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ./bin/til
+          for width in 32 64; do
+            ./bin/til build --target=linux-x86 --usize=$width -o tmp/dynamic_width_x86 tmp/cpu_options/dynamic_width.til
+            qemu-i386 tmp/dynamic_width_x86 Dynamic | grep -qx "dynamic widths passed"
+            ./bin/til build --target=linux-x86 --usize=$width -o tmp/dynamic_fit_x86 tmp/cpu_options/dynamic_fit.til
+            qemu-i386 tmp/dynamic_fit_x86 | grep -qx "1"
+            ./bin/til build --target=linux-x86 --usize=$width -o tmp/pointer_count_x86 tmp/cpu_options/pointer_count.til
+            qemu-i386 tmp/pointer_count_x86 0 | grep -qx "0"
+            qemu-i386 tmp/pointer_count_x86 4294967295 | grep -qx "4294967295"
+            if [ "$width" = 64 ]; then
+              for count in 4294967296 18446744073709551615; do
+                if qemu-i386 tmp/pointer_count_x86 "$count" > tmp/pointer_count_overflow.log 2>&1; then
+                  exit 1
+                fi
+                grep -q "usize_to_uptr: byte count exceeds pointer width" tmp/pointer_count_overflow.log
+              done
+            fi
+          done
       # Issue #235: std/crypto cross-built for this target. libsecp256k1
       # builds from the vendored source into this target's own archive
       # (the builder links it instead of the host's), and test/crypto.til

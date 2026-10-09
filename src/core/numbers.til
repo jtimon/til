@@ -866,9 +866,16 @@ USize := U64
 UPtr := U64
 
 /// Convert a container-sized byte count to the target's pointer width.
-/// USize and UPtr are retargeted together before type checking, so this
-/// cast is either same-width or same-signedness widening on every target.
-usize_to_uptr := func(val: USize) returns UPtr { return val.cast(UPtr) }
+/// Panic if the byte count cannot fit; --usize=64 can exceed a 32-bit
+/// target's address range. Compare widened values after conversion rather
+/// than size() queries, which describe host storage in the interpreter.
+usize_to_uptr := func(val: USize) returns UPtr {
+    converted := val.to_uptr()
+    if converted.cast(U64) != val.cast(U64) {
+        panic("usize_to_uptr: byte count exceeds pointer width")
+    }
+    return converted
+}
 
 /// 256-bit unsigned value (issue #235): the width of a SHA-256 digest, a
 /// secp256k1 secret key, an x-only public key and a BIP-340 message.
