@@ -5956,6 +5956,19 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                 .write("->iface_type_name.c_str, \"").write(concrete).write("\", ")
                 .write(concrete.len().to_str()).write(") == 0) {\n")
             for i in 0..fd.sig.params.len() {
+                if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols).eq("Str")
+                    .and(fd.sig.params[i].own_type.is(OwnType.Own))
+                    .and(func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                        .or(func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)).not())
+                    .and(func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+                        .or(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)))
+                    .and(i.to_i32().neq(fd.sig.variadic_index)).and(i.to_i32().neq(fd.sig.kwargs_index)) {
+                    // A pointer-ABI owned Str may be a static literal wrapper.
+                    // Record its storage before an owned mutable callee can
+                    // replace the value; only heap wrappers need freeing here.
+                    f.write("        Bool _t_iface_free_argument_").write(i.to_str()).write(" = ")
+                        .write(fd.sig.params[i].name).write("->cap != TIL_CAP_LIT;\n")
+                }
                 if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols) == name {
                     emit_interface_receiver(f, name, concrete, def, fd.sig.params[i], i, lp)
                 } else if func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
@@ -6010,7 +6023,12 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                         // Owned primitives still arrive in caller-frame
                         // slots at the abstract boundary; only aggregate/
                         // variadic outer allocations belong to this bridge.
-                        f.write("        free(").write(fd.sig.params[i].name).write(");\n")
+                        f.write("        ")
+                        if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols).eq("Str")
+                            .and(i.to_i32().neq(fd.sig.variadic_index)).and(i.to_i32().neq(fd.sig.kwargs_index)) {
+                            f.write("if (_t_iface_free_argument_").write(i.to_str()).write(") ")
+                        }
+                        f.write("free(").write(fd.sig.params[i].name).write(");\n")
                     }
                 }
             }

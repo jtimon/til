@@ -978,12 +978,14 @@ TErrRefSelfDispatch := interface {
 terr_iface_dispatch_ref_self := func(view: TErrRefSelfDispatch) returns ref TErrRefSelfDispatch {
     return view.borrow()
 }
+TErrStaticDispatch := interface { get := ext_func() returns I64 {} }
+terr_iface_dispatch_static := func() returns I64 { return TErrStaticDispatch.get() }
+
+// Multi-argument dispatch still checks the later arguments against the contract.
 TErrManyDispatch := interface {
     add := ext_func(self: TErrManyDispatch, a: I64, b: I64) returns I64 {}
 }
-terr_iface_dispatch_many := func(view: TErrManyDispatch) returns I64 { return view.add(1, 2) }
-TErrStaticDispatch := interface { get := ext_func() returns I64 {} }
-terr_iface_dispatch_static := func() returns I64 { return TErrStaticDispatch.get() }
+terr_iface_dispatch_many := func(view: TErrManyDispatch) returns I64 { return view.add(1, "wrong") }
 
 TErrOwnedRefDispatch := interface {
     get := ext_func(own self: TErrOwnedRefDispatch) returns ref I64 {}

@@ -2532,14 +2532,6 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 mark_written_through(scope, payload, ctx.symbols)
                 check_write_roots_mut(scope, e, payload, "mutate the interface payload", ctx)
             }
-            mut source_params : USize = 0
-            for p : Declaration in ns_fdef.sig.params {
-                if p.name.starts_with("_err_").not() { source_params++ }
-            }
-            if ns_fdef.sig.func_type.is_ext().and(source_params > 2) {
-                e.type_error(format("interface dispatch of '", obj3_sname, ".", method,
-                    "': supports at most one argument besides self"), ctx)
-            }
             if ns_fdef.sig.params.len() == 0 {
                 e.type_error("abstract interface dispatch requires a receiver", ctx)
             } else if decl_type_name_ref(ns_fdef.sig.params[0], ctx.symbols) != obj3_sname {

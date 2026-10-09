@@ -23,6 +23,28 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Multi-argument required methods (based on master f930e58b0)
+
+    Removed the typer's one-explicit-argument-besides-self restriction.
+    The existing signature-preserving interpreter and C dispatchers already
+    forward the full parameter list, including lowered error out-parameters.
+
+    The owned-string regression exposed an unconditional outer-wrapper free
+    in the C bridge: a constant-folded string can use static literal storage.
+    The bridge now records whether each owned Str wrapper is heap-backed
+    before invoking the concrete method and frees only those heap wrappers.
+
+    Regression tests: ~test_interface_multi_defaults~,
+    ~test_interface_multi_owned_mut_and_order~, ~test_interface_multi_throws~,
+    and ~test_interface_multi_enum~. These cover contract defaults differing
+    from implementation defaults, named arguments, multiple owned strings,
+    mutable arguments and receiver payloads, evaluation order, error payloads,
+    and enum dispatch. ~terr_iface_dispatch_many~ now rejects a wrong type
+    in the later argument rather than rejecting a valid multi-argument call.
+
+    Verification: ~make clean && make test~ passed 507/507, including ASAN
+    and self-translation; interface tests pass 48/48 on both paths.
+
 *** Virtual concrete defaults (based on master 179d836f5)
 
     Interface-typed calls now select the concrete struct/enum's override, or

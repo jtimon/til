@@ -889,3 +889,84 @@ test_interface_default_ref_override := test() {
     ref base: I64 = empty.get(own "unused")
     assert_eq(I64, base, 3)
 }
+
+MultiContract := interface {
+    combine := ext_func(self: MultiContract, a: I64 = 2, b: I64 = 3) returns I64 {}
+    take := ext_func(mut self: MultiContract, own left: Str, mut count: I64, own right: Str) returns Str {}
+    checked := ext_func(self: MultiContract, a: I64, b: I64) returns I64 throws DispatchFailure {}
+}
+MultiValue := struct implements MultiContract {
+    n := 0
+namespace:
+    combine := func(self: MultiValue, a: I64 = 20, b: I64 = 30) returns I64 { return self.n + a * 10 + b }
+    take := func(mut self: MultiValue, own left: Str, mut count: I64, own right: Str) returns Str {
+        self.n = self.n + 1
+        count = count + self.n
+        return format(left, "/", right)
+    }
+    checked := func(self: MultiValue, a: I64, b: I64) returns I64 throws DispatchFailure {
+        if b == 0 { throw DispatchFailure(message = format("zero after ", a.to_str())) }
+        return self.n + a / b
+    }
+}
+
+test_interface_multi_defaults := test() {
+    view: MultiContract = MultiValue(n = 1)
+    assert_eq(I64, view.combine(4, 5), 46)
+    assert_eq(I64, view.combine(), 24)
+    assert_eq(I64, view.combine(4), 44)
+    assert_eq(I64, view.combine(b = 7, a = 6), 68)
+    assert_eq(I64, view.combine(b = 7), 28)
+}
+
+make_multi_contract := func(mut calls: I64) returns MultiContract {
+    calls++
+    return MultiValue(n = calls)
+}
+
+test_interface_multi_owned_mut_and_order := test() {
+    mut calls := 0
+    mut count := 0
+    assert_eq(Str, make_multi_contract(calls).take(own make_dispatch_argument(calls), count,
+        own make_dispatch_argument(calls)), "argument 2/argument 3")
+    assert_eq(I64, calls, 3)
+    assert_eq(I64, count, 2)
+    mut source := MultiValue(n = 4)
+    mut view: MultiContract = source
+    left := format("owned ", "left")
+    right := format("owned ", "right")
+    assert_eq(Str, view.take(own left, count, own right), "owned left/owned right")
+    assert_eq(I64, source.n, 5)
+    assert_eq(I64, count, 7)
+}
+
+dispatch_multi_checked := func(view: MultiContract, a: I64, b: I64) returns I64 throws DispatchFailure {
+    return view.checked(a, b)?
+}
+
+test_interface_multi_throws := test() {
+    view: MultiContract = MultiValue(n = 2)
+    assert_eq(I64, dispatch_multi_checked(view, 12, 3)!, 6)
+    mut message := ""
+    dispatch_multi_checked(view, 7, 0)?
+    catch (err: DispatchFailure) { message = err.message }
+    assert_eq(Str, message, "zero after 7")
+}
+
+MultiEnumContract := interface {
+    combine := ext_func(self: MultiEnumContract, a: I64, b: I64, c: I64) returns I64 {}
+}
+MultiChoice := enum implements MultiEnumContract {
+    Value: I64,
+namespace:
+    combine := func(self: MultiChoice, a: I64, b: I64, c: I64) returns I64 {
+        switch self {
+        case .Value(n): return n + a * 100 + b * 10 + c
+        }
+    }
+}
+
+test_interface_multi_enum := test() {
+    view: MultiEnumContract = MultiChoice.Value(4)
+    assert_eq(I64, view.combine(1, 2, 3), 127)
+}
