@@ -154,12 +154,103 @@ ordinary lazy_funcs -- their unrolling derives from their loop bodies.
 
 A body that is EXECUTED AT COMPILE TIME (not expanded): the call site
 is replaced by the AST node the macro returns. By codegen time no
-macro calls remain.
+macro calls remain. A macro returning ~FuncDef~ generates functions;
+see "Function generators" below.
 
 ** test
 
 A named test block; ~make test~ collects and runs them in both interp
 and compile modes.
+
+* Function types
+
+A bodyless ~func~ declaration names a function TYPE (a FuncSig):
+
+#+begin_src til
+IntOp := func(I64) returns I64
+VecLen := func(Vec(I64)) returns USize
+
+apply := func(f: IntOp, x: I64) returns I64 { return f(x) }
+inc := func(x: I64) returns I64 { return x + 1 }
+
+apply(inc, 1)                    // 2
+#+end_src
+
+Its params are bare types (no names); parametric types such as
+~Vec(I64)~ are allowed there like anywhere else a type is expected. A
+param can also spell the type inline with ~Fn~:
+
+#+begin_src til
+twice := func(f: Fn(I64) returns I64, x: I64) returns I64 { return f(f(x)) }
+#+end_src
+
+* Generic functions
+
+A ~Type~ parameter that the rest of the signature uses as a type makes a
+function generic:
+
+#+begin_src til
+first := func(T: Type, v: Vec(T)) returns T { return v.get(0)!.clone() }
+gid := func<T>(x: T) returns T { return x }
+#+end_src
+
+~func<T>(...)~ is sugar for a function generator (below) taking ~T: Type~.
+Each distinct set of type arguments compiles to one concrete function
+(~gid__I64~), shared across modules.
+
+The type arguments can be passed explicitly, ~gid(I64, 1)~, or omitted
+and inferred:
+
+  - from an argument whose param type IS the parameter: ~gid(x)~ with
+    ~x: I64~. Untyped numeric literals default to ~I64~ (~F64~ if any is
+    fractional);
+  - from the destination's declared type: ~y : U8 = gid(3)~;
+  - from inside another type, by lining up the instance names: a
+    ~Vec(I64)~ argument for ~v: Vec(T)~ gives ~T = I64~;
+  - from a function argument's signature, when the param is a function
+    type built by a generator (below): a function returning ~U64~ passed
+    for ~f: FnOf(G)~ gives ~G = U64~.
+
+When nothing fixes a parameter (it only appears in the return type and
+the destination is undeclared, or only ~Dynamic~ / ~null~ arguments
+mention it), the call is an error that says which way out applies:
+pass the type explicitly or declare the destination.
+
+* Function generators
+
+A macro returning ~FuncDef~ runs at compile time and produces a
+function. Its params may be values, baked into the generated body, or
+types:
+
+#+begin_src til
+make_adder := macro(N: I64) returns FuncDef {
+    return func(x: I64) returns I64 { return x + N }
+}
+add5 := make_adder(5)            // add5(1) == 6
+
+make_vec_len := macro(T: Type) returns FuncDef {
+    return func(v: Vec(T)) returns USize { return v.len() }
+}
+make_vec_len(I64)(v)             // inline instantiation
+#+end_src
+
+A generator may also return a bodyless ~func~, i.e. build a function
+TYPE from type arguments. Generic functions can take such a type
+applied to their own parameter:
+
+#+begin_src til
+FnOf := macro(H: Type) returns FuncDef {
+    return func(Dynamic, USize) returns H
+}
+apply_bytes := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
+count_bytes := func(_data: Dynamic, n: USize) returns U64 { return n.to_u64() }
+
+apply_bytes("abcd", count_bytes) // G inferred as U64 from count_bytes
+#+end_src
+
+Known gap: an alias of a generated function (~add5~ above) can be
+called but not yet used as a function VALUE (#425); the inline form
+(~f : IntOp = make_adder(5)~) works.
 
 * Inlining the compiler does on its own
 

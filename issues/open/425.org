@@ -54,6 +54,11 @@ alias works as a value, the alias produced for a function generator
 apparently differs from the one the typer/backends treat as a function
 alias.
 
+Value-param generators are affected the same way: ~add5 :=
+make_adder(5)~ with ~make_adder := macro(N: I64) returns FuncDef~ panics
+"declaration source not found: add5" / emits an undeclared
+~add5__til_closure~, while ~f : IntOp = make_adder(5)~ works.
+
 Found while adding ~test_macro_func_gen_parametric_param~
 (test/first_class.til), which avoids it by taking the function pointer
 of a plain function instead. Regression for the fix: the reproducer and

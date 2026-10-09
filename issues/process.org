@@ -7,6 +7,10 @@
    then by priority.
 5. Then: "** OPEN #189 Title" followed by the issue body
 6. After creating an issue, increment `issues/NEXT_ISSUE.txt` manually.
+   If a rebase shows master already took that number (another session
+   filed an issue meanwhile), take the next free number instead: rename
+   the issue file, `test/bugNNN.til` and every `#NNN` reference to it
+   (code comments, commit message), and set the counter past it.
 7. To start work: change OPEN -> WIP in the title line (no directory move needed)
 8. When fixed:  git mv issues/open/NNN.org issues/fixed/NNN.org
 9. When cancelled: git mv issues/open/NNN.org issues/cancelled/NNN.org

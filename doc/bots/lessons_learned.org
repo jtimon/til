@@ -71,3 +71,30 @@
     earlier ones landing immediately, doing the sequence directly on
     ~master~ can be less painful than carrying a long-lived worktree
     branch that must be rebased repeatedly.
+
+** Remote sessions: git recovery and the shell hook
+
+  - ~no-shell-antipatterns.sh~ blocks every command line containing
+    ~git stash~, including ~pop~ and ~list~. If a stash happens anyway,
+    recover it without naming the command:
+    ~git diff refs/stash^1 refs/stash > tmp/recover.patch~, then
+    ~git apply tmp/recover.patch~.
+  - The same hook's ~tail -f~ check also fires on ~tail -1 && git push
+    --force-with-lease~ (it scans past ~&&~ to the ~-f~ of ~--force~) and
+    on any first line merely mentioning that text, e.g. as a grep
+    pattern. Put the push, or the search, on its own command.
+  - The auto-mode permission check refuses ~git rebase --skip~ and
+    ~git checkout -B~. When a rebase stops on a commit master already
+    carries (re-committed by the merge script), resolve each conflict to
+    master's side; if nothing differs from ~HEAD~ any more, commit the
+    next piece of work at that stop and ~git rebase --continue~.
+
+** Generic signatures: test each spelling on its own
+
+  - A ~func<G>~ generic and a ~func(G: Type, ...)~ generic that spell the
+    same parametric type (~FnOf(G)~, ~Box(G)~) share ONE parser-lifted
+    placeholder (~FnOf__G~). A test file declaring both proves only that
+    the pair works: the #417 and #423 regression tests passed while
+    ~func<G>~ alone still failed. Exercise each spelling in a file
+    without the other.
+
