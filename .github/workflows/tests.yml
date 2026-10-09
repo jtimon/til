@@ -313,6 +313,36 @@ jobs:
             -o bin/hello_gui_riscv32 examples/hello_gui.til
           file bin/hello_gui_riscv32 | grep -q "RISC-V"
 
+  # Issue #424: wasm32 through the vendored emsdk. A non-gui program is a
+  # single .js (wasm embedded) run under node; a mode gui program is a
+  # single .html page. make installs the emsdk on the way to the wasm32
+  # libsecp256k1 archive, so test/crypto.til -- the SHA-256 and BIP-340
+  # vectors -- runs here as wasm too.
+  wasm32:
+    name: wasm32 (emscripten, run under node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri cmake
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Install the vendored emsdk and the wasm32 libsecp256k1
+        run: make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a vendor/raylib/src/libraylib-web.a
+      - name: Build and run wasm32 programs
+        run: |
+          export EM_CONFIG=$PWD/vendor/emscripten/.emscripten
+          EMCC=$PWD/vendor/emscripten/upstream/emscripten/emcc
+          NODE=$(ls vendor/emscripten/node/*/bin/node | head -1)
+          ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/hello_script.js examples/hello_script.til
+          "$NODE" bin/hello_script.js | grep -q "Hello World"
+          ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/crypto.js test/crypto.til
+          "$NODE" bin/crypto.js
+          ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/hello_gui.html examples/hello_gui.til
+          grep -qi "<html" bin/hello_gui.html
+
   windows-x64-build:
     name: windows-x64/x86 (cross-compile on linux)
     runs-on: ubuntu-latest

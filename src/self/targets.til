@@ -192,7 +192,12 @@ toolchain_command := proc(target: Target, lang: Lang) returns Str {
     case .WindowsX86:
         if host_os() == "windows" { return "gcc" }
         return "i686-w64-mingw32-gcc"
-    case .MacosX64, .MacosArm64, .Wasm32: return "clang"
+    case .MacosX64, .MacosArm64: return "clang"
+    // emscripten (issue #424): every til program includes src/c/ext.c,
+    // which needs a libc, and bare clang --target=wasm32 has none. emcc
+    // brings emscripten's; the vendored emsdk's emcc goes in with --cc, as
+    // for the mode gui browser build.
+    case .Wasm32: return "emcc"
     case .TempleosX86:  return "holyc"
     case .Jvm: panic("JVM target has no C toolchain command")
     }
@@ -204,7 +209,6 @@ priv target_prefix_args := func(target: Target) returns Str {
     case .LinuxX86:     return " -m32 -I/usr/include/x86_64-linux-gnu"
     case .MacosArm64: return " -target arm64-apple-macos11"
     case .MacosX64:   return " -target x86_64-apple-macos10.12"
-    case .Wasm32:     return " --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all"
     case .Jvm: panic("JVM target has no C compiler prefix arguments")
     case: return ""
     }
@@ -265,7 +269,9 @@ toolchain_extra_args := proc(target: Target) returns Str {
 executable_extension := func(target: Target) returns Str {
     switch target {
     case .WindowsX64, .WindowsX86: return ".exe"
-    case .Wasm32:     return ".wasm"
+    // A single node-runnable .js with the wasm embedded (issue #424); a
+    // mode gui program is a single .html instead (builder.til).
+    case .Wasm32:     return ".js"
     case .Jvm:        return ".jar"
     case: return ""
     }

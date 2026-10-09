@@ -65,10 +65,15 @@ check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
     status := cmd.run()
     output := format(cmd.out(), cmd.err())
     if status != 0 { panic("GUI target ", source, " failed: ", output) }
-    if output.contains("-sSINGLE_FILE") != has_gui {
+    // Both wasm32 shapes are single-file emscripten builds (#424), so the
+    // GUI marker is the GLFW port, which only the browser page links.
+    if output.contains("-sUSE_GLFW") != has_gui {
         panic("GUI target flags for ", source, ": ", output)
     }
-    mut ext := ".wasm"
+    if output.contains("-sSINGLE_FILE").not() {
+        panic("wasm32 build of ", source, " is not single-file: ", output)
+    }
+    mut ext := ".js"
     if has_gui { ext = ".html" }
     if output.contains(format("bin/test/", source.strip_suffix(".til"), ext)).not() {
         panic("GUI output extension for ", source, ": ", output)

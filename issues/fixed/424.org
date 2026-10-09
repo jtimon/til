@@ -1,0 +1,86 @@
+# priority: medium
+# category: backends
+** FIXED #424 Non-gui wasm32 builds cannot compile or link
+
+*** Post-mortem
+
+Root cause: the non-gui wasm32 path predated the emscripten work and
+used bare ~clang --target=wasm32 -nostdlib -Wl,--no-entry
+-Wl,--export-all~, which has no libc; every til program includes
+~src/c/ext.c~ (stdio.h), so no real program could ever compile, and
+with ~--cc=emcc~ those flags broke the link instead.
+
+Fix (single-file ~.js~ option): ~toolchain_command~ picks ~emcc~ for
+wasm32 (the vendored emsdk's, or ~--cc~, as for mode gui), the
+bare-clang flags are gone from ~target_prefix_args~, and a non-gui
+link adds ~-sSINGLE_FILE -sALLOW_MEMORY_GROWTH=1~ (link-only, so user
+C ~-c~ compiles stay warning-free). ~executable_extension~ is ~.js~ for
+wasm32 (mode gui keeps ~.html~), and ~run_artifact~ runs a wasm32
+~.js~ with ~node~, so ~til run --target=wasm32~ works.
+examples/hello_script.til and test/crypto.til (with the wasm32
+libsecp256k1 archive) pass under node.
+
+Regression tests: test/mode_loading.til's ~check_gui_link~ now
+checks both wasm32 shapes are single-file and that a non-gui program
+gets ~.js~; the new ~wasm32~ CI job builds and runs hello_script and
+test/crypto.til with node and builds hello_gui's ~.html~.
+
+Follow-ups, not implemented (design decisions pending): an html
+console page for non-gui programs (one file to open in a browser), and
+~mode lib~ for wasm32 as a JS library (an ES module exporting the
+library's functions for other JS code).
+
+
+~bin/til build --target=wasm32~ works only for ~mode gui~ programs (the
+emscripten single-file .html path from #228 / #377). Every other program
+fails, hello_script included.
+
+*** Reproducer
+
+#+begin_example
+$ bin/til build --target=wasm32 -o tmp/hello.wasm examples/hello_script.til
+gen/til/examples/hello_script.c:1:10: fatal error: 'stdio.h' file not found
+src/c/ext.c:4:10: fatal error: 'stdio.h' file not found
+
+$ bin/til build --target=wasm32 --cc=<emsdk>/emcc -o tmp/hello.wasm examples/hello_script.til
+wasm-ld: error: symbol exported via --export not found: emscripten_stack_get_current
+wasm-ld: error: /tmp/emscripten_temp_.../hello_script.o: undefined symbol: malloc
+#+end_example
+
+*** Root cause
+
+The non-gui wasm32 path predates the emscripten work: ~toolchain_command~
+picks bare ~clang~ and ~target_prefix_args~ adds
+~--target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all~. Bare clang
+has no libc headers, and every til program includes ~src/c/ext.c~, which
+includes ~stdio.h~ -- so this path could never compile a real program.
+With ~--cc=emcc~ the same flags strip emscripten's libc (~-nostdlib~) and
+export symbols that do not exist. ext.c itself makes no emscripten-only
+calls, so emscripten's libc is all a non-gui program needs.
+
+*** Options (both prototyped by hand on master edbab91)
+
+Translating with ~bin/til translate --target=wasm32~ and compiling the C
+with the vendored emsdk's emcc (~-fsigned-char -DTIL_USIZE32~, ext.c):
+
+- *Standalone WASI ~.wasm~* (~-sSTANDALONE_WASM~): keeps today's ~.wasm~
+  extension, imports only ~wasi_snapshot_preview1~, runs on any WASI
+  runtime (wasmtime, wasmer, node's ~node:wasi~). hello_script and
+  test/crypto.til (with the wasm32 libsecp256k1 archive) both pass under
+  node's WASI. Caveat: ~-sALLOW_MEMORY_GROWTH~ adds an
+  ~env.emscripten_notify_memory_growth~ import that plain WASI hosts do
+  not provide, so memory is fixed (emscripten's default 16 MB, raisable
+  with ~-sINITIAL_MEMORY~). Running it needs a WASI runtime; with node,
+  a few lines of runner script.
+- *Single-file ~.js~* (~-sSINGLE_FILE~): one artifact with the wasm
+  embedded, run as ~node prog.js~; memory growth works; the same
+  single-file model #228 chose for the browser. Changes the output
+  extension from ~.wasm~ to ~.js~ and ties running to node (or a
+  browser page loading the script).
+
+Either way the fix is to route non-gui wasm32 through emcc (resolved like
+the gui path, from the vendored emsdk or ~--cc~), drop the
+~-nostdlib -Wl,--no-entry -Wl,--export-all~ flags, keep the existing
+link-flag handling (libsecp256k1's wasm32 archive included), and add a
+test that runs a program under the chosen runtime -- which also gives CI
+a way to run test/crypto.til for wasm32 (#420's CI item).

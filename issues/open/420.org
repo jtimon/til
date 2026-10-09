@@ -95,10 +95,9 @@ How each fails today:
     link() token for a wasm gui build; it now keeps libsecp256k1's, so a
     ~mode gui~ program importing std/crypto links for wasm32 with
     ~--cc=emcc~. test/crypto.til, translated for wasm32 and compiled with
-    emcc against the archive, passes all vectors under node. Caveat: a
-    NON-gui wasm32 program does not link at all today (bare clang has no
-    libc, and with emcc the wasm32 ~-nostdlib~ flags break the link), so
-    the gui path is the only one this reaches.
+    emcc against the archive, passes all vectors under node. Non-gui
+    wasm32 programs link too since #424 (single-file ~.js~ run with
+    node).
   - [ ] libsecp256k1 for linux-x64 from a non-linux-x64 host (needs a
     linux-x64 cross compiler choice, e.g. the ~--cc~ the mac-host CI job
     passes).
@@ -112,4 +111,5 @@ How each fails today:
     CI's windows-host job runs it on the windows runner. nng's twin moves
     with nng to #422.
   - [ ] CI: one build-and-run step per new archive, in the existing
-    cross jobs.
+    cross jobs. wasm32's libsecp256k1 is covered by the ~wasm32~ job
+    (#424), which builds and runs test/crypto.til under node.
