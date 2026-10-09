@@ -37,7 +37,7 @@ Observed on master d9976ce by cross-building examples/sender.til (nng,
 |---------+-------------+---------|
 | nng | native host, windows-x64 | linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x86, macos-x64, macos-arm64 (cross), wasm32 |
 | raylib + tinyfd | native host, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, wasm32, macos (cross via the mac CI archives) | linux-arm64 cross (only a native arm64 host works), linux-riscv64 (no ~target_gui_libs~ entry at all) |
-| libffi (runtime ext_func dispatch only) | linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86; macos only on a native mac host | wasm32; macos cross from another host |
+| libffi (runtime ext_func dispatch only) | linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, macos-x64, macos-arm64 | wasm32 |
 | libsecp256k1 | every native target, both windows, wasm32 (emcc), til.exe interpreting | linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
 | windows-host twins (til.exe interpreting) | libsecp256k1, raylib, tinyfd (~.dll~ twins) | nng (moved to #422) |
 
@@ -107,8 +107,19 @@ How each fails today:
     test/ext_libc.til) under qemu. til itself does not build for the
     32-bit targets (the interpreter casts U64 to UPtr), so those get
     test/ffi_prep.til only.
-  - [ ] libffi for macos from a non-mac host (configure with the
-    SDK-less clang setup the mac gui archives use).
+  - [X] libffi for macos from a non-mac host: two more
+    ~libffi_cross_targets~ entries, ~build-macos-arm64~ and
+    ~build-macos-x64~, configured with clang at til's mac deployment
+    targets against the vendored SDK-less headers, with lld and the
+    vendored libSystem.tbd for configure's probe links and llvm-ar /
+    llvm-ranlib for the Mach-O archive (on a mac the real SDK, for the
+    other arch). ~target_ffi_lib~ keeps ~libffi-macos.a~ only when the
+    mac target IS the host -- it used to name it for both mac arches,
+    the wrong arch for the other one -- and the cross archive otherwise.
+    test/ffi_prep.til and til itself cross-link for both arches; the
+    macos-cross-build CI job builds them, and the two cross-run jobs run
+    ffi_prep and the cross-built til's interpreter (hello_script,
+    test/ext_libc.til) on real macs.
   - [X] libsecp256k1 for wasm32: a ~build-wasm32~ entry in make.til's
     ~secp256k1_cross_targets~, configured through the vendored emsdk's
     Emscripten.cmake toolchain (path goal

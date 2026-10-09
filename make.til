@@ -1207,30 +1207,36 @@ build_libffi_cross := proc(mut b: Build, triple: Str, output: Str) {
     run("make", "-C", format(LIBFFI_DIR, "/", triple))
 }
 
-/// libffi for the linux cross targets (issue #420), for runtime ext_func
-/// dispatch in programs built for them -- til itself among them, so the
-/// interpreter works on those hosts. Unlike the mingw builds these
-/// configure OUT of tree, one vendor/libffi/build-linux-<name> each: the
+/// libffi for the linux and mac cross targets (issue #420), for runtime
+/// ext_func dispatch in programs built for them -- til itself among
+/// them, so the interpreter works on those hosts. Unlike the mingw builds
+/// these configure OUT of tree, one vendor/libffi/build-<name> each: the
 /// archive path is fixed whatever triple config.sub makes of --host,
 /// and the in-tree native build (with the top-level Makefile configure
 /// rewrites) is never touched. The native libffi lookups skip these
 /// directories.
 LibffiCross := struct {
-    // Suffix of the build directory: build-linux-<name>.
+    // Suffix of the build directory: build-<name>, e.g. linux-arm64.
     name := ""
     // configure's --host. With CC given, it only selects libffi's
     // backend and the prefixed binutils.
     host := ""
     // Empty only for riscv32 before --riscv32-cc is given.
     cc := ""
-    // Only for riscv32: the Bootlin binutils, which are not on PATH
-    // under --host's prefix.
+    // For riscv32, the Bootlin binutils, which are not on PATH under
+    // --host's prefix; for a mac archive from a non-mac host, llvm's
+    // (GNU ar cannot index Mach-O objects).
     ar := ""
     ranlib := ""
+    // Mac archives from a non-mac host: configure links its probe
+    // programs, which takes lld and the vendored libSystem.tbd, as for
+    // til's own mac cross links (targets.til's target_link_extra_args).
+    ldflags := ""
+    sdkless_mac := false
 
 namespace:
     dir := func(self: LibffiCross) returns Str {
-        return format(LIBFFI_DIR, "/build-linux-", self.name)
+        return format(LIBFFI_DIR, "/build-", self.name)
     }
 
     lib := func(self: LibffiCross) returns Str {
@@ -1238,34 +1244,55 @@ namespace:
     }
 }
 
-/// Every linux libffi cross archive, as data. targets.til's
-/// target_ffi_lib names the same paths; keep the two in step.
-libffi_cross_targets := func(b: Build) returns Vec(LibffiCross) {
+/// Every libffi cross archive, as data. targets.til's target_ffi_lib
+/// names the same paths; keep the two in step.
+libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
     mut out := Vec(LibffiCross).new()
-    out.push(own LibffiCross(name = "arm64", host = "aarch64-linux-gnu", cc = "aarch64-linux-gnu-gcc"))
-    out.push(own LibffiCross(name = "riscv64", host = "riscv64-linux-gnu", cc = "riscv64-linux-gnu-gcc"))
+    out.push(own LibffiCross(name = "linux-arm64", host = "aarch64-linux-gnu", cc = "aarch64-linux-gnu-gcc"))
+    out.push(own LibffiCross(name = "linux-riscv64", host = "riscv64-linux-gnu", cc = "riscv64-linux-gnu-gcc"))
     // The host gcc in 32-bit mode, like every linux-x86 build here.
     // libffi's closures.c reaches asm/types.h, which only gcc-multilib's
     // /usr/include/asm link supplies; the directory it points to goes
     // LAST (-idirafter, unlike til's own -I in targets.til's
     // target_prefix_args) so a system x86_64 ffi.h there cannot shadow
     // libffi's own.
-    out.push(own LibffiCross(name = "x86", host = "i686-linux-gnu",
+    out.push(own LibffiCross(name = "linux-x86", host = "i686-linux-gnu",
         cc = "gcc -m32 -idirafter /usr/include/x86_64-linux-gnu"))
-    out.push(own LibffiCross(name = "arm32", host = "arm-linux-gnueabihf", cc = "arm-linux-gnueabihf-gcc"))
+    out.push(own LibffiCross(name = "linux-arm32", host = "arm-linux-gnueabihf", cc = "arm-linux-gnueabihf-gcc"))
     // No distro ships a riscv32 gcc: --riscv32-cc / RISCV32_CC, as for
     // the riscv32 gui and libsecp256k1 archives.
     mut riscv32_ranlib := ""
     if b.riscv32_cc.ends_with("-gcc") {
         riscv32_ranlib = format(b.riscv32_cc.strip_suffix("-gcc"), "-ranlib")
     }
-    out.push(own LibffiCross(name = "riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
+    out.push(own LibffiCross(name = "linux-riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
         ar = riscv32_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
+    for arch : Str in MAC_ARCHES.split(" ") {
+        // The deployment targets til links mac programs for (targets.til's
+        // target_prefix_args), as for the mac libsecp256k1 archives.
+        mut t := LibffiCross(name = format("macos-", arch), host = "x86_64-apple-darwin",
+            cc = "clang -target x86_64-apple-macos10.12")
+        if arch == "arm64" {
+            t.host = "aarch64-apple-darwin"
+            t.cc = "clang -target arm64-apple-macos11"
+        }
+        // On a mac the real SDK serves the other arch too; elsewhere the
+        // vendored SDK-less headers and libSystem.tbd, like the mac gui
+        // archives.
+        if b.host.is_mac().not() {
+            t.cc = format(t.cc, " -nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
+            t.ldflags = format("-fuse-ld=lld -L", get_cwd_str(), "/vendor/macos")
+            t.ar = "llvm-ar"
+            t.ranlib = "llvm-ranlib"
+            t.sdkless_mac = true
+        }
+        out.push(own t)
+    }
     return out
 }
 
-build_libffi_linux_cross := proc(mut b: Build, name: Str) {
-    if b.begin(format("libffi-linux-", name)).not() { return }
+build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
+    if b.begin(format("libffi-", name)).not() { return }
     mut found := false
     mut t := LibffiCross()
     for c : LibffiCross in libffi_cross_targets(b) {
@@ -1274,16 +1301,21 @@ build_libffi_linux_cross := proc(mut b: Build, name: Str) {
             found = true
         }
     }
-    if found.not() { panic("no libffi cross archive for linux-", name) }
+    if found.not() { panic("no libffi cross archive for ", name) }
     if t.cc.is_empty() {
         panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
     }
+    if t.sdkless_mac { check_mac_cross_tools(b) }
     if needs_rebuild(t.lib(), no_inputs()).not() { return }
     if mkdir_p(t.dir()) != 0 { panic("could not create ", t.dir()) }
+    // --disable-multi-os-directory: the archive is linked from the build
+    // directory, never installed, and the install-dir probe is a gcc
+    // option clang rejects with an error line per configure.
     configure := Cmd.new("../configure", format("--host=", t.host), format("CC=", t.cc),
-        "--disable-shared", "--enable-static", "--disable-docs", "--quiet")
+        "--disable-shared", "--enable-static", "--disable-docs", "--disable-multi-os-directory", "--quiet")
     if t.ar.is_empty().not() { configure.arg(format("AR=", t.ar)) }
     if t.ranlib.is_empty().not() { configure.arg(format("RANLIB=", t.ranlib)) }
+    if t.ldflags.is_empty().not() { configure.arg(format("LDFLAGS=", t.ldflags)) }
     configure.cwd(t.dir())
     configure.run_checked()
     run("make", "-C", t.dir())
@@ -1908,11 +1940,13 @@ libffi_win64 := proc(mut b: Build) {
 libffi_win32 := proc(mut b: Build) {
     build_libffi_cross(b, "i686-w64-mingw32", LIBFFI_WIN32_LIB)
 }
-libffi_linux_arm64 := proc(mut b: Build) { build_libffi_linux_cross(b, "arm64") }
-libffi_linux_riscv64 := proc(mut b: Build) { build_libffi_linux_cross(b, "riscv64") }
-libffi_linux_x86 := proc(mut b: Build) { build_libffi_linux_cross(b, "x86") }
-libffi_linux_arm32 := proc(mut b: Build) { build_libffi_linux_cross(b, "arm32") }
-libffi_linux_riscv32 := proc(mut b: Build) { build_libffi_linux_cross(b, "riscv32") }
+libffi_linux_arm64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-arm64") }
+libffi_linux_riscv64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-riscv64") }
+libffi_linux_x86 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-x86") }
+libffi_linux_arm32 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-arm32") }
+libffi_linux_riscv32 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-riscv32") }
+libffi_macos_arm64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "macos-arm64") }
+libffi_macos_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "macos-x64") }
 secp256k1_win64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win64") }
 secp256k1_win32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win32") }
 secp256k1_linux_arm64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-arm64") }
@@ -2020,6 +2054,10 @@ commands := func() returns Vec(Command) {
         about = "linux-arm32 libffi, for runtime ext_func (til itself on that host)"))
     out.push(own Command(name = "vendor/libffi/build-linux-riscv32/.libs/libffi.a", is_path = true, go = libffi_linux_riscv32,
         about = "linux-riscv32 libffi (needs --riscv32-cc=), for runtime ext_func"))
+    out.push(own Command(name = "vendor/libffi/build-macos-arm64/.libs/libffi.a", is_path = true, go = libffi_macos_arm64,
+        about = "macos-arm64 libffi (SDK-less off a mac), for runtime ext_func"))
+    out.push(own Command(name = "vendor/libffi/build-macos-x64/.libs/libffi.a", is_path = true, go = libffi_macos_x64,
+        about = "macos-x64 libffi (SDK-less off a mac), for runtime ext_func"))
     out.push(own Command(name = SECP256K1_WIN64_LIB, is_path = true, go = secp256k1_win64,
         about = "windows-x64 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))

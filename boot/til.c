@@ -7313,6 +7313,7 @@ static struct {
     Str h00310fea5417;
     Str h8917235815a4;
     Str h00017c9a7f6a;
+    Str hb3875d389bcb;
     Str h06530d39ad3d;
     Str h09887c7c6b1e;
     Str hbe0d19605c38;
@@ -7544,6 +7545,7 @@ static struct {
     Str h451edd9d0741;
     Str h065322383ff5;
     Str h00000b88b643;
+    Str h5056c771e578;
     Str h015d4dbb353b;
     Str hb50bb6dcbec7;
     Str h00017c9faa57;
@@ -8709,6 +8711,7 @@ static struct {
     .h00310fea5417 = (Str){.c_str = (void *)"macro", .count = 5ULL, .cap = TIL_CAP_LIT},
     .h8917235815a4 = (Str){.c_str = (void *)"macro argument must be known at compile time", .count = 44ULL, .cap = TIL_CAP_LIT},
     .h00017c9a7f6a = (Str){.c_str = (void *)"main", .count = 4ULL, .cap = TIL_CAP_LIT},
+    .hb3875d389bcb = (Str){.c_str = (void *)"make (the bootstrap builds the native libffi and stable-copies the archive)", .count = 75ULL, .cap = TIL_CAP_LIT},
     .h06530d39ad3d = (Str){.c_str = (void *)"malloc", .count = 6ULL, .cap = TIL_CAP_LIT},
     .h09887c7c6b1e = (Str){.c_str = (void *)"malloc(TIL_BOX(", .count = 15ULL, .cap = TIL_CAP_LIT},
     .hbe0d19605c38 = (Str){.c_str = (void *)"map literal: all keys must be the same type", .count = 43ULL, .cap = TIL_CAP_LIT},
@@ -8940,6 +8943,7 @@ static struct {
     .h451edd9d0741 = (Str){.c_str = (void *)"usize_to_uptr", .count = 13ULL, .cap = TIL_CAP_LIT},
     .h065322383ff5 = (Str){.c_str = (void *)"values", .count = 6ULL, .cap = TIL_CAP_LIT},
     .h00000b88b643 = (Str){.c_str = (void *)"vec", .count = 3ULL, .cap = TIL_CAP_LIT},
+    .h5056c771e578 = (Str){.c_str = (void *)"vendor/libffi/libffi-macos.a", .count = 28ULL, .cap = TIL_CAP_LIT},
     .h015d4dbb353b = (Str){.c_str = (void *)"vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a", .count = 64ULL, .cap = TIL_CAP_LIT},
     .hb50bb6dcbec7 = (Str){.c_str = (void *)"vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo", .count = 158ULL, .cap = TIL_CAP_LIT},
     .h00017c9faa57 = (Str){.c_str = (void *)"void", .count = 4ULL, .cap = TIL_CAP_LIT},
@@ -13815,10 +13819,10 @@ static Str hoisted__Str_sym_of_17 = (Str){.c_str = (void *)"./src/self/parser.ti
 static Str hoisted__Str_sym_of_4 = (Str){.c_str = (void *)"./src/self/parser.til:286:23", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_sym_of_9 = (Str){.c_str = (void *)"./src/self/parser.til:286:17", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_synth_symbol_suffix_4 = (Str){.c_str = (void *)"./src/self/context.til:1935:40", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_target_ffi_build_hint_14 = (Str){.c_str = (void *)"./src/self/targets.til:367:16", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_target_ffi_lib_14 = (Str){.c_str = (void *)"./src/self/targets.til:341:16", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_target_ffi_build_hint_19 = (Str){.c_str = (void *)"./src/self/targets.til:383:16", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_target_ffi_lib_19 = (Str){.c_str = (void *)"./src/self/targets.til:348:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_from_str_105 = (Str){.c_str = (void *)"./src/self/targets.til:61:5", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_target_gui_libs_22 = (Str){.c_str = (void *)"./src/self/targets.til:465:16", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_target_gui_libs_22 = (Str){.c_str = (void *)"./src/self/targets.til:481:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_link_extra_args_3 = (Str){.c_str = (void *)"./src/self/targets.til:240:32", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_system_libs_6 = (Str){.c_str = (void *)"./src/self/targets.til:302:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_theme_codegen_translate_102 = (Str){.c_str = (void *)"./src/self/theme_codegen.til:338:61", .count = 35ULL, .cap = TIL_CAP_LIT};
@@ -14829,8 +14833,8 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-9f200b666", .count = 15ULL, .cap = TIL_CAP_LIT};
-static Str COMPILER_REVISION = {.c_str = (I8 *)"9f200b6660333f7054197e741a1eff9542c006dc", .count = 40ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-2bc79c1b7", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str COMPILER_REVISION = {.c_str = (I8 *)"2bc79c1b7bd38b7dbf0a3d477128ee38c91461d2", .count = 40ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -70322,27 +70326,38 @@ static Str target_ffi_lib(Target * target) {
         static Str hoisted__Str_target_ffi_lib_7 = (Str){.c_str = (void *)"vendor/libffi/build-linux-riscv32/.libs/libffi.a", .count = 48ULL, .cap = TIL_CAP_LIT};
         { Str _ret = hoisted__Str_target_ffi_lib_7; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
-    case Target_TAG_MacosX64:
-    case Target_TAG_MacosArm64: {
-        static Str hoisted__Str_target_ffi_lib_8 = (Str){.c_str = (void *)"vendor/libffi/libffi-macos.a", .count = 28ULL, .cap = TIL_CAP_LIT};
-        { Str _ret = hoisted__Str_target_ffi_lib_8; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
-    }
-    case Target_TAG_WindowsX64: {
-        static Str hoisted__Str_target_ffi_lib_9 = (Str){.c_str = (void *)"vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a", .count = 47ULL, .cap = TIL_CAP_LIT};
-        { Str _ret = hoisted__Str_target_ffi_lib_9; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
-    }
-    case Target_TAG_WindowsX86: {
-        static Str hoisted__Str_target_ffi_lib_10 = (Str){.c_str = (void *)"vendor/libffi/i686-w64-mingw32/.libs/libffi.a", .count = 45ULL, .cap = TIL_CAP_LIT};
+    case Target_TAG_MacosX64: {
+        Bool hoisted__Bool_9 = target_is_host(target);
+        if (hoisted__Bool_9) {
+            { Str _ret = _til_str_lits.h5056c771e578; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        }
+        static Str hoisted__Str_target_ffi_lib_10 = (Str){.c_str = (void *)"vendor/libffi/build-macos-x64/.libs/libffi.a", .count = 44ULL, .cap = TIL_CAP_LIT};
         { Str _ret = hoisted__Str_target_ffi_lib_10; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
+    case Target_TAG_MacosArm64: {
+        Bool hoisted__Bool_12 = target_is_host(target);
+        if (hoisted__Bool_12) {
+            { Str _ret = _til_str_lits.h5056c771e578; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        }
+        static Str hoisted__Str_target_ffi_lib_13 = (Str){.c_str = (void *)"vendor/libffi/build-macos-arm64/.libs/libffi.a", .count = 46ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_ffi_lib_13; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
+    case Target_TAG_WindowsX64: {
+        static Str hoisted__Str_target_ffi_lib_14 = (Str){.c_str = (void *)"vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a", .count = 47ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_ffi_lib_14; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
+    case Target_TAG_WindowsX86: {
+        static Str hoisted__Str_target_ffi_lib_15 = (Str){.c_str = (void *)"vendor/libffi/i686-w64-mingw32/.libs/libffi.a", .count = 45ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_ffi_lib_15; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
     case Target_TAG_Jvm: {
-        U32 hoisted__U32_11 = 1;
-        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_11);
+        U32 hoisted__U32_16 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_16);
         I64 _va_Array_0_ek = 0;
-        U32 hoisted__U32_12 = 0;
-        static Str hoisted__Str_target_ffi_lib_13 = (Str){.c_str = (void *)"JVM target has no C libffi archive", .count = 34ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_12, &hoisted__Str_target_ffi_lib_13, &_va_Array_0_ek);
-        panic(&_va_Array_0, &hoisted__Str_target_ffi_lib_14);
+        U32 hoisted__U32_17 = 0;
+        static Str hoisted__Str_target_ffi_lib_18 = (Str){.c_str = (void *)"JVM target has no C libffi archive", .count = 34ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_17, &hoisted__Str_target_ffi_lib_18, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_target_ffi_lib_19);
     }
     default: {
         { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
@@ -70368,8 +70383,7 @@ static Str target_ffi_build_hint(Target * target) {
     case Target_TAG_LinuxArm64: {
         Bool hoisted__Bool_4 = target_is_host(target);
         if (hoisted__Bool_4) {
-            static Str hoisted__Str_target_ffi_build_hint_3 = (Str){.c_str = (void *)"make (the bootstrap builds the native libffi and stable-copies the archive)", .count = 75ULL, .cap = TIL_CAP_LIT};
-            { Str _ret = hoisted__Str_target_ffi_build_hint_3; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+            { Str _ret = _til_str_lits.hb3875d389bcb; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
         }
         static Str hoisted__Str_target_ffi_build_hint_5 = (Str){.c_str = (void *)"bin/make vendor/libffi/build-linux-arm64/.libs/libffi.a", .count = 55ULL, .cap = TIL_CAP_LIT};
         { Str _ret = hoisted__Str_target_ffi_build_hint_5; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
@@ -70390,23 +70404,34 @@ static Str target_ffi_build_hint(Target * target) {
         static Str hoisted__Str_target_ffi_build_hint_9 = (Str){.c_str = (void *)"bin/make --riscv32-cc=<path to riscv32 gcc> vendor/libffi/build-linux-riscv32/.libs/libffi.a", .count = 92ULL, .cap = TIL_CAP_LIT};
         { Str _ret = hoisted__Str_target_ffi_build_hint_9; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
-    case Target_TAG_MacosX64:
+    case Target_TAG_MacosX64: {
+        Bool hoisted__Bool_11 = target_is_host(target);
+        if (hoisted__Bool_11) {
+            { Str _ret = _til_str_lits.hb3875d389bcb; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        }
+        static Str hoisted__Str_target_ffi_build_hint_12 = (Str){.c_str = (void *)"bin/make vendor/libffi/build-macos-x64/.libs/libffi.a", .count = 53ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_ffi_build_hint_12; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
     case Target_TAG_MacosArm64: {
-        static Str hoisted__Str_target_ffi_build_hint_10 = (Str){.c_str = (void *)"make, on a mac host (the bootstrap stable-copies the archive)", .count = 61ULL, .cap = TIL_CAP_LIT};
-        { Str _ret = hoisted__Str_target_ffi_build_hint_10; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        Bool hoisted__Bool_14 = target_is_host(target);
+        if (hoisted__Bool_14) {
+            { Str _ret = _til_str_lits.hb3875d389bcb; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        }
+        static Str hoisted__Str_target_ffi_build_hint_15 = (Str){.c_str = (void *)"bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a", .count = 55ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_ffi_build_hint_15; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     case Target_TAG_Jvm: {
-        U32 hoisted__U32_11 = 1;
-        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_11);
+        U32 hoisted__U32_16 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_16);
         I64 _va_Array_0_ek = 0;
-        U32 hoisted__U32_12 = 0;
-        static Str hoisted__Str_target_ffi_build_hint_13 = (Str){.c_str = (void *)"JVM target has no C libffi build", .count = 32ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_12, &hoisted__Str_target_ffi_build_hint_13, &_va_Array_0_ek);
-        panic(&_va_Array_0, &hoisted__Str_target_ffi_build_hint_14);
+        U32 hoisted__U32_17 = 0;
+        static Str hoisted__Str_target_ffi_build_hint_18 = (Str){.c_str = (void *)"JVM target has no C libffi build", .count = 32ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_17, &hoisted__Str_target_ffi_build_hint_18, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_target_ffi_build_hint_19);
     }
     default: {
-        static Str hoisted__Str_target_ffi_build_hint_15 = (Str){.c_str = (void *)"this target has no vendored libffi build", .count = 40ULL, .cap = TIL_CAP_LIT};
-        { Str _ret = hoisted__Str_target_ffi_build_hint_15; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        static Str hoisted__Str_target_ffi_build_hint_20 = (Str){.c_str = (void *)"this target has no vendored libffi build", .count = 40ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_ffi_build_hint_20; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     }
     __builtin_unreachable();

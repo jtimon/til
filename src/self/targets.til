@@ -326,10 +326,17 @@ target_ffi_lib := proc(target: Target) returns Str {
     case .LinuxX86:     return "vendor/libffi/build-linux-x86/.libs/libffi.a"
     case .LinuxArm32:   return "vendor/libffi/build-linux-arm32/.libs/libffi.a"
     case .LinuxRiscv32: return "vendor/libffi/build-linux-riscv32/.libs/libffi.a"
-    // Native builds only: configure names the build dir with a
-    // version-suffixed triple, so the Makefile copies the result to
-    // this stable path on mac hosts.
-    case .MacosX64, .MacosArm64: return "vendor/libffi/libffi-macos.a"
+    // A mac host keeps the bootstrap's own archive: configure names the
+    // build dir with a version-suffixed triple, so the Makefile copies
+    // the result to this stable path. Any other host -- the other mac
+    // arch included, since that archive is the host's arch only --
+    // links make.til's out-of-tree build (SDK-less off a mac).
+    case .MacosX64:
+        if target_is_host(target) { return "vendor/libffi/libffi-macos.a" }
+        return "vendor/libffi/build-macos-x64/.libs/libffi.a"
+    case .MacosArm64:
+        if target_is_host(target) { return "vendor/libffi/libffi-macos.a" }
+        return "vendor/libffi/build-macos-arm64/.libs/libffi.a"
     // mingw's target triple is fixed (no version suffix), so this path
     // is stable and usable from any host that has the win64 libffi
     // built -- unlike the mac/arm64 stable-path copies. This unlocks
@@ -363,7 +370,16 @@ target_ffi_build_hint := proc(target: Target) returns Str {
     case .LinuxX86:     return "bin/make vendor/libffi/build-linux-x86/.libs/libffi.a"
     case .LinuxArm32:   return "bin/make vendor/libffi/build-linux-arm32/.libs/libffi.a"
     case .LinuxRiscv32: return "bin/make --riscv32-cc=<path to riscv32 gcc> vendor/libffi/build-linux-riscv32/.libs/libffi.a"
-    case .MacosX64, .MacosArm64: return "make, on a mac host (the bootstrap stable-copies the archive)"
+    case .MacosX64:
+        if target_is_host(target) {
+            return "make (the bootstrap builds the native libffi and stable-copies the archive)"
+        }
+        return "bin/make vendor/libffi/build-macos-x64/.libs/libffi.a"
+    case .MacosArm64:
+        if target_is_host(target) {
+            return "make (the bootstrap builds the native libffi and stable-copies the archive)"
+        }
+        return "bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a"
     case .Jvm: panic("JVM target has no C libffi build")
     case: return "this target has no vendored libffi build"
     }
