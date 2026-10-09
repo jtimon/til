@@ -5,9 +5,10 @@ import("../vendor/bindings/libffi")
 
 // Issue #420: a program that calls libffi directly links the TARGET's
 // own libffi archive (targets.til's target_ffi_lib) and runs it. The
-// suite runs it natively on both backends; the linux cross CI jobs
-// build it for their target -- including the 32-bit ones, where til
-// itself does not build -- and run it under qemu.
+// suite runs it natively on both backends; the cross CI jobs build it
+// for their target -- including the 32-bit ones, where til itself does
+// not build -- and run it: the linux ones under qemu, the mac and
+// windows ones on those runners.
 //
 // ffi_prep_cif for a no-argument void call reaches the architecture's
 // ffi_prep_cif_machdep, and answers FFI_OK only for the ABI that
@@ -23,7 +24,9 @@ default_abi := proc() returns I32 {
     arch := host_arch()
     if arch == "x64" { return FFI_DEFAULT_ABI }
     // FFI_SYSV everywhere below, except hard-float arm32 (gnueabihf),
-    // whose default is FFI_VFP.
+    // whose default is FFI_VFP. windows-x86's default is FFI_MS_CDECL
+    // (5), but FFI_SYSV (1) is a valid ABI there too, and both are cdecl.
+    // x64's 2 is FFI_UNIX64, and mingw's FFI_GNUW64.
     if arch == "arm64" { return 1 }
     if arch == "riscv64" { return 1 }
     if arch == "riscv32" { return 1 }

@@ -39,9 +39,12 @@ UNAME_M := $(shell uname -m)
 LIBFFI_DIR := vendor/libffi
 # configure names its build directory after the host triple, which is
 # not predictable here, so the archive is discovered rather than named.
-# make.til's linux cross builds (build-linux-<name>) sit beside it and
-# sort first, so they are filtered out; the mingw triples sort after.
-LIBFFI_LIBDIR = $(firstword $(filter-out $(LIBFFI_DIR)/build-%,$(wildcard $(LIBFFI_DIR)/*/.libs)))
+# make.til's cross builds sit beside it and are filtered out, as
+# make.til's libffi_native_dir skips them: the out-of-tree build-<name>
+# directories and the mingw triples (i686-w64-mingw32 sorts before
+# x86_64-pc-linux-gnu, so building the windows-x86 libffi used to make
+# the next bootstrap link it).
+LIBFFI_LIBDIR = $(firstword $(filter-out $(LIBFFI_DIR)/build-% $(LIBFFI_DIR)/%-mingw32/.libs,$(wildcard $(LIBFFI_DIR)/*/.libs)))
 LIBFFI_FLAGS = -L$(LIBFFI_LIBDIR) -lffi
 
 CORE := $(wildcard src/core/*.til)

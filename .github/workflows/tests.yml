@@ -446,6 +446,17 @@ jobs:
           file bin/crypto.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/crypto-x86.exe test/crypto.til
           file bin/crypto-x86.exe | grep -q "Intel 80386"
+      # Issue #420: both mingw libffi archives, called directly by
+      # test/ffi_prep.til (the win64 one is otherwise only exercised through
+      # til.exe's interpreter, the win32 one not at all); the programs run
+      # on the windows runner below.
+      - name: Cross-compile the libffi test for windows-x64 and windows-x86
+        run: |
+          make vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a vendor/libffi/i686-w64-mingw32/.libs/libffi.a
+          ./bin/til build --target=windows-x64 -o bin/ffi_prep.exe test/ffi_prep.til
+          file bin/ffi_prep.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/ffi_prep-x86.exe test/ffi_prep.til
+          file bin/ffi_prep-x86.exe | grep -q "Intel 80386"
       - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -455,6 +466,8 @@ jobs:
             bin/hello_script-x86.exe
             bin/crypto.exe
             bin/crypto-x86.exe
+            bin/ffi_prep.exe
+            bin/ffi_prep-x86.exe
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
@@ -479,6 +492,11 @@ jobs:
         run: |
           ./crypto.exe
           ./crypto-x86.exe
+      - name: Run the libffi test (x64 + x86 via WOW64)
+        shell: bash
+        run: |
+          ./ffi_prep.exe | grep -q "ffi_prep ok"
+          ./ffi_prep-x86.exe | grep -q "ffi_prep ok"
 
   # Issue #25: til itself running on a windows HOST. bin/til.exe is the
   # compiler cross-built for windows (build_win_host) on linux, then run

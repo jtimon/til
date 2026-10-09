@@ -1,6 +1,46 @@
 # priority: low
 # category: backends
-** WIP #420 Missing cross builds of the vendored libraries
+** FIXED #420 Missing cross builds of the vendored libraries
+
+*** Post-mortem
+
+Root cause: each vendored library had an archive for the host (and
+for windows-x64 at most), and the builder handed that host archive to
+every cross linker -- or had no command at all that could build the
+target's -- so most cross targets failed at the final link.
+
+What changed, one commit per row, all on #235's libsecp256k1 template
+(a make.til data table of per-target archives with bin/make path
+goals, a targets.til per-target table keyed on ~target_is_host~, the
+builder swapping the link token or reporting the missing archive with
+the command that builds it):
+
+- raylib + tinyfd for linux-arm64 / linux-riscv64 cross (~GuiTarget~).
+- windows-host ~.dll~ twins for libsecp256k1, raylib and tinyfd, so
+  til.exe interprets std/crypto and mode gui programs.
+- libsecp256k1 for wasm32 (emcc), and for linux-x64 off a linux-x64
+  host (~bin/make --linux-x64-cc=~ / ~LINUX_X64_CC~).
+- libffi, configured out of tree, for linux-arm64, riscv64, x86, arm32,
+  riscv32 and both mac arches (SDK-less off a mac).
+- nng moved to #422 (custom modes declaring their own dependencies).
+
+Bugs fixed on the way: the native-libffi lookups (Makefile and
+make.til) would take a cross build directory that sorts first --
+build-*, and i686-w64-mingw32, which the Makefile still picked until
+the last commit; the interpreter had no riscv64 FFI ABI; the libffi
+binding's ffi_cif reserved 4 trailing bytes where arm32 writes 24;
+~target_ffi_lib~ named the host-arch mac archive for both mac arches;
+a non-gui wasm32 program could not build at all (#424).
+
+Regression tests: every archive is built and run in CI -- test/crypto.til
+and test/ffi_prep.til (new, also in the suite on both backends) on
+every cross target (qemu for linux, the windows and mac runners, node
+for wasm32), the cross-built til's interpreter on arm64, riscv64 and
+both macs, til.exe interpreting std/crypto and test/gui_interp.til on
+windows. The 32-bit linux gui archives run under qemu+xvfb on
+linux-x86; the arm64/riscv64/arm32/riscv32 ones are build-and-file-check
+only, as no X11 userspace exists to run them against. Follow-ups found
+on the way: #431 (til itself on 32-bit targets), #435, #436, #437.
 
 The vendored libraries do not cover every target. #235 fixed this for
 libsecp256k1 (std/crypto); the same gap remains for nng, raylib +
@@ -151,6 +191,14 @@ How each fails today:
     or without an X server, and panics naming the DLL when it is removed;
     CI's windows-host job runs it on the windows runner. nng's twin moves
     with nng to #422.
-  - [ ] CI: one build-and-run step per new archive, in the existing
+  - [X] CI: one build-and-run step per new archive, in the existing
     cross jobs. wasm32's libsecp256k1 is covered by the ~wasm32~ job
-    (#424), which builds and runs test/crypto.til under node.
+    (#424), which builds and runs test/crypto.til under node. The audit
+    found the mingw libffi archives the only ones nothing ran directly
+    (the win32 one not at all): windows-x64-build now builds
+    test/ffi_prep.til for windows-x64 and windows-x86 and windows-x64-run
+    runs both (x64 passes under wine here; this container has no 32-bit
+    wine). Building the win32 libffi showed the Makefile's native-libffi
+    lookup taking ~i686-w64-mingw32~ (it sorts before
+    ~x86_64-pc-linux-gnu~), so the next bootstrap would link it; it now
+    skips the mingw triples, as make.til's ~libffi_native_dir~ did.
