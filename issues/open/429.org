@@ -1,0 +1,30 @@
+# priority: low
+# category: cleanups
+** OPEN #429 no-shell-antipatterns.sh: tail -f check has false positives
+
+~.claude/hooks/no-shell-antipatterns.sh~ blocks ~tail -f~ with
+
+#+begin_src sh
+grep -qP '\b(tail|less|more)\s+[^|;]*-[fF]'
+#+end_src
+
+on the command's first line. ~[^|;]*~ stops only at ~|~ and ~;~, so the
+match runs across ~&&~ into later commands:
+
+- ~git log --oneline | tail -1 && git push --force-with-lease ...~ is
+  blocked: the ~-f~ of ~--force-with-lease~ matches.
+- Any first line merely mentioning the text, e.g. a grep pattern
+  containing ~tail -f~, is blocked.
+
+Also, the comment above the check says "tail itself is already blocked
+above", which stopped being true when plain tail/head/cat were allowed
+(see the NOTE at the top of the file).
+
+*** Fix
+
+Match ~-f~ / ~-F~ / ~--follow~ only as tail's own option: stop at ~&~
+as well as ~|~ and ~;~, and require the flag to be a separate word
+(~\s-[a-zA-Z]*[fF]\b~ or ~--follow~), not a substring of a later long
+option. Drop the stale comment. A workaround is documented in
+doc/bots/lessons_learned.org ("Remote sessions: git recovery and the
+shell hook"); remove that bullet with the fix.

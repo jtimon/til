@@ -1,0 +1,56 @@
+# priority: low
+# category: bugs
+** OPEN #427 func<G> fails when G appears inside another type in its signature
+
+The angle-bracket generic form breaks when its type parameter is used as
+the argument of a parametric type in the signature. The equivalent
+~func(G: Type, ...)~ form works.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+Box := struct<T> { v : T }
+unbox := func<G>(b: Box(G)) returns G { return b.v.clone() }
+
+b := Box(I64)(v = 5)
+println(unbox(b).to_str())
+#+end_src
+
+On master b7ac5f1: ~error: no method 'clone' for type 'unknown'~ (plus
+~delete~). Variants:
+
+- ~first := func<G>(v: Vec(G)) returns G~ -- "undefined symbol 'G'" and
+  ~130 cascaded errors (see #428).
+- ~apply_bytes := func<G>(s: Str, f: FnOf(G)) returns G~ with a
+  FuncDef-returning ~FnOf~ -- "undefined type 'FnOf__U64'" for the
+  explicit call, "cannot infer type argument 'G'" for the omitted one.
+- ~func<T>(v: Vec(T))~ WORKS, but only by coincidence: ~T~ is also the
+  name of ~Vec~'s own parameter, so the dedup pass drops the placeholder
+  as Vec's self-reference (~init_macro_inst_uses_own_type_param~).
+
+*** Root cause
+
+~func<G>~ is parsed and then wrapped into a function-generator macro
+(~wrap_func_def_in_macro~, src/self/parser.til). Unlike ~struct<T>~ (and
+hand-written ~macro(T: Type)~ since the parametric-FuncSig commit), the
+~<G>~ params are not pushed on ~p.active_type_params~ while the
+signature and body parse, so ~Box(G)~ is lifted to a top-level
+~Box__G := Box(G)~ that names a ~G~ existing only inside the generator.
+
+The #417 and #423 regression tests (test/bug417.til, test/bug423.til)
+cover ~func<G>~ only next to a ~func(G: Type, ...)~ sibling that spells
+the same ~FnOf(G)~: the sibling's lifted placeholder is shared and
+handled as its generic type dependency, which masks this bug.
+
+*** Fix sketch
+
+Push the parsed ~gparams~ on ~active_type_params~ in ~parse_func_def~
+(truncate at the end, as for macros), then make sure the inferred
+(omitted-type-argument) path still finds what it needs: #423's
+~generic_bind_funcsig_dep~ reads the generic type dependency recorded
+from the lifted placeholder, which this change removes for ~func<G>~.
+
+Regression: the reproducer and both variants, each in a file WITHOUT a
+~func(G: Type)~ sibling, explicit and inferred calls, both backends.

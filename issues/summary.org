@@ -3,13 +3,17 @@
 *** [[./open/415.org][#415]] Own-consuming reassignment double-deletes; audit cleanup masking
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
+*** [[./open/426.org][#426]] A function with the wrong signature is accepted for a function-typed parameter
 ** Low
 *** [[./open/425.org][#425]] A function-generator alias cannot be used as a function value
+*** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
+*** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Low
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
+*** [[./open/429.org][#429]] no-shell-antipatterns.sh: tail -f check has false positives
 * Optimizations
 ** Low
 *** [[./open/405.org][#405]] Avoid owning Array(Str) and formatting allocations in panic

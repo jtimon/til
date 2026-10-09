@@ -1,0 +1,48 @@
+# priority: low
+# category: bugs
+** OPEN #428 Errors inside an instantiated template point at the user's file and cascade
+
+A single error in a type argument produces over a hundred diagnostics,
+most of them reported at locations that do not exist.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+f := func(v: Vec(Nope)) returns USize { return v.len() }
+#+end_src
+
+On master b7ac5f1 this prints 135 errors, starting:
+
+#+begin_example
+repro.til:3:14: error: undefined symbol 'Nope'
+repro.til:35:55: error: no method 'size' for type 'unknown'
+repro.til:35:62: error: no method 'to_uptr' for type 'unknown'
+repro.til:3:14: error: undefined symbol 'Nope'
+...
+#+end_example
+
+Two separate problems:
+
+- *Wrong file.* The file has 3 lines. ~35:55~ is
+  src/core/vec.til:35, inside the expanded ~Vec__Nope~: errors raised in
+  a template instance carry the template's line/col but the
+  instantiating unit's path.
+- *Cascade.* After the first "undefined symbol 'Nope'", every method of
+  the expanded instance reports "no method ... for type 'unknown'",
+  "undefined type", "unused variable" and so on, and the root error is
+  repeated once per method.
+
+The same cascade follows a failed type-argument inference: "cannot infer
+type argument 'G' ..." is followed by "no method 'to_str' for type
+'unknown'" at the same call.
+
+*** Expected
+
+One diagnostic at the user's ~Vec(Nope)~. A template instance whose
+type argument failed to resolve should not be typed at all (or its
+errors suppressed), and diagnostics from inside an instance that IS
+typed should name the template's file -- ideally with an "instantiated
+from <user site>" note. An expression whose type is already ~unknown~
+because of a reported error should not produce follow-up errors.

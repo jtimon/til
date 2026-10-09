@@ -1,0 +1,48 @@
+# priority: medium
+# category: bugs
+** OPEN #426 A function with the wrong signature is accepted for a function-typed parameter
+
+Passing a named function whose signature does not match a function-typed
+parameter is not a type error. The call then runs the function with
+wrongly typed arguments: the interpreter prints garbage and the compiled
+program segfaults.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+IdSig := func(I64) returns I64
+wrong := func(a: Str) returns Str { return a }
+apply := func(f: IdSig, x: I64) returns I64 { return f(x) }
+
+println(apply(wrong, 3).to_str())
+#+end_src
+
+On master b7ac5f1: no diagnostic. ~til interpret~ prints a pointer-sized
+number (~94355756654224~); ~til run~ exits with status 139 (SIGSEGV).
+The inline spelling ~f: Fn(I64) returns I64~ behaves the same way.
+
+A declaration does not check either; the binding silently takes the
+argument's signature instead of the declared one:
+
+#+begin_src til
+g : IdSig = wrong     // accepted
+g(4)                  // error: function pointer 'g' param 1: expected Str, got I64
+#+end_src
+
+*** Where to look
+
+~funcptr_eq~ (src/self/context.til) treats a function-pointer type with
+no signature name as a wildcard that matches any named FuncSig, and a
+function referenced by name reaches the argument and declaration checks
+(~validate_fcall_arg~ and the typed-Decl path in src/self/typer.til)
+with exactly such an unnamed type. The wildcard exists for values that
+genuinely carry no signature (e.g. #262's thunks), but a named function
+has a full FunctionDef to compare: its params (types, mut/own) and return
+type should be checked against the FuncSig's, structurally, and a
+mismatch reported at the argument / declaration.
+
+Regression: the reproducer (error at the ~apply(wrong, 3)~ argument),
+the ~Fn(...)~ spelling, and the declaration form, plus a passing case
+for a matching function, on both backends.
