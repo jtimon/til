@@ -1078,6 +1078,27 @@ test_macro_func_gen_str := test() {
     assert_eq(Str, id_str("hi"), "hi")
 }
 
+// A type generator's own Type param inside a parametric annotation
+// (`v: Vec(T)`): the parser used to lift a top-level `Vec__T := Vec(T)`
+// naming a T that exists only inside the macro ("undefined symbol 'T'").
+// Bare FuncSig params take parametric types too (`func(Vec(I64))`),
+// which used to be a parse error.
+make_vec_len := macro(T: Type) returns FuncDef {
+    return func(v: Vec(T)) returns USize { return v.len() }
+}
+vec_len_i64 := make_vec_len(I64)
+VecLenSig := func(Vec(I64)) returns USize
+vec_len_plain := func(v: Vec(I64)) returns USize { return v.len() }
+
+test_macro_func_gen_parametric_param := test() {
+    mut v := Vec(I64).new()
+    v.push(own 1)
+    v.push(own 2)
+    assert_eq(USize, vec_len_i64(v), 2)
+    f : VecLenSig = vec_len_plain
+    assert_eq(USize, f(v), 2)
+}
+
 // --- Function generators with value-typed params (issue #57) ---
 // A macro param like `N: I64` is a regular value, not a type; the
 // inliner substitutes Ident(N) inside the function body's expressions

@@ -3826,7 +3826,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
                     "': no value parameter mentions it; pass it explicitly, or declare the destination's type ('x : SomeType = ", display_name, "(...)')"), ctx)
             } else if nested_only.has(tp.name) {
                 e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
-                    "': it appears only inside another type (nested type arguments are not deduced); pass it explicitly"), ctx)
+                    "': it appears only inside another type and no argument's type lines up with it; pass it explicitly"), ctx)
             } else if soft_unnamed_func.has(tp.name) {
                 e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
                     "': the function argument has no named signature to deduce it from; declare it through a FuncSig (f : SomeSig = func(...)) or pass the type explicitly"), ctx)

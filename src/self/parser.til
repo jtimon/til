@@ -508,6 +508,14 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         return anon_lift(p, own parse_enum_def(p), tr_line, tr_col)
     }
     name := expect_text(p, TokenType.Ident)
+    return parse_type_ref_after_name(p, name, tr_line, tr_col)
+}
+
+// The rest of parse_type_ref once the leading type name is consumed. A
+// bare FuncSig param (`func(Vec(I64)) returns USize`) only learns its
+// Ident was a type -- not the param's name -- when no ':' follows, so it
+// continues here instead of re-parsing.
+priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, tr_col: U32) returns Str {
     // Issue #267 (type-annotation position): a parametric type `Name(A, B)`
     // is a type-gen macro instantiation used where a type is expected
     // (`mut v : TemplVec(Bool) = ...`, `func(x: TemplVec(I64))`, `returns
@@ -794,6 +802,13 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
 
     expect_token(p, TokenType.LParen)
 
+    // A hand-written type generator's own `Type` params are template
+    // parameters of everything it spells, exactly like struct<T>'s: an
+    // annotation `Vec(H)` in its signature or body mangles to `Vec__H`
+    // without lifting a top-level `Vec__H := Vec(H)`, which named an `H`
+    // that exists only inside the macro. Expansion substitutes H and
+    // instantiates the concrete type.
+    active_type_params_start := p.active_type_params.len()
     while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         mut own_type := OwnType.Ref
         if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
@@ -807,6 +822,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             parse_fail(p, peek_line(p), peek_col(p), "no need for 'ref' on parameter; parameters are borrowed by default")
         }
 
+        pname_line := peek_line(p)
+        pname_col := peek_col(p)
         pname := expect_text(p, TokenType.Ident)
 
         // Build param_decl directly; struct field assigns delete the
@@ -815,8 +832,9 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut is_variadic := false
         mut is_kwargs := false
         if check(p, TokenType.Colon).not() {
-            // Bare type (FuncSig style): name stays "", type from pname
-            set_decl_type(param_decl, pname, p.symbols)
+            // Bare type (FuncSig style): name stays "", type from pname,
+            // which may still be a parametric type `Vec(I64)`.
+            set_decl_type(param_decl, parse_type_ref_after_name(p, pname, pname_line, pname_col), p.symbols)
         } else {
             expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
@@ -895,6 +913,9 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             parse_fail(p, peek_line(p), peek_col(p), "no parameter allowed after kwargs")
         }
 
+        if ft.is(FuncType.Macro).and(decl_type_name_ref(param_decl, p.symbols) == "Type") {
+            p.active_type_params.push(own param_decl.name.clone())
+        }
         fd.sig.params.push(own param_decl)
         if check(p, TokenType.Comma) { advance(p) }
     }
@@ -994,6 +1015,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             parse_fail(p, kw_line, kw_col, "", func_type_name(ft), " requires a body")
         }
     }
+
+    p.active_type_params.truncate(active_type_params_start)
 
     // Issue #58: angle-bracket generic params wrap the def into a type-gen
     // macro now that the inner FuncDef is fully parsed. Mirrors the wrap

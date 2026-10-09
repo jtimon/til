@@ -1,0 +1,60 @@
+# priority: low
+# category: bugs
+** OPEN #425 A function-generator alias cannot be used as a function value
+
+A user alias of a hand-written FuncDef macro instance
+(~id_i64 := make_id(I64)~) can be CALLED, but using it as a function
+value fails on both backends: the interpreter panics and the C backend
+emits a reference to an undeclared closure. The canonical instance name
+(~make_id__I64~), the inline instantiation (~make_id(I64)~), a
+~func<T>~ instance (~gid(I64)~ / ~gid__I64~) and an alias of a plain
+function (~id_alias := plain_id~) all work in the same positions.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+make_id := macro(T: Type) returns FuncDef {
+    return func(x: T) returns T { return x }
+}
+id_i64 := make_id(I64)
+IdSig := func(I64) returns I64
+
+println(id_i64(2).to_str())   // works
+
+f : IdSig = id_i64            // fails
+println(f(3).to_str())
+#+end_src
+
+Output on master ea9455e:
+
+#+begin_example
+$ til interpret repro.til
+./src/self/interpreter.til:2353:36: panic: declaration source not found: id_i64
+
+$ til run repro.til
+gen/til/repro.c:400:14: error: 'id_i64__til_closure' undeclared (first use in this function)
+#+end_example
+
+Passing it as an argument fails the same way
+(~apply(id_i64, 6)~ with ~f: Fn(I64) returns I64~): the interpreter
+panics with "argument binding not found: id_i64" (interpreter.til
+~3086~), the C backend with the same undeclared ~id_i64__til_closure~.
+
+*** Where to look
+
+~init_normalize_direct_type_gen_aliases~ (src/self/initer.til) turns a
+direct ~Alias := Template(I64)~ into an alias of the deterministic
+monomorphization (~id_i64~ -> ~make_id__I64~) plus one canonical decl.
+Calls resolve through the alias; a value use of the alias name does
+not: neither the interpreter's heap bindings nor the C backend's
+closure wrappers know ~id_i64~ as a function. Since a plain function
+alias works as a value, the alias produced for a function generator
+apparently differs from the one the typer/backends treat as a function
+alias.
+
+Found while adding ~test_macro_func_gen_parametric_param~
+(test/first_class.til), which avoids it by taking the function pointer
+of a plain function instead. Regression for the fix: the reproducer and
+the argument form, on both backends.

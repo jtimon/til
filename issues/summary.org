@@ -3,6 +3,8 @@
 *** [[./open/415.org][#415]] Own-consuming reassignment double-deletes; audit cleanup masking
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
+** Low
+*** [[./open/425.org][#425]] A function-generator alias cannot be used as a function value
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core

@@ -10,7 +10,7 @@ FnOf := macro(H: Type) returns FuncDef {
 }
 
 FnVec := macro(H: Type) returns FuncDef {
-    return func(Vec__H) returns USize
+    return func(Vec(H)) returns USize
 }
 
 apply_lib := func(G: Type, s: Str, f: FnOf(G)) returns G { return f(s.c_str, s.count) }
