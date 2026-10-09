@@ -1,0 +1,51 @@
+mode test
+
+// Issue #426: a function passed by name to a function-typed parameter (or
+// bound to a function-typed declaration) must match the signature
+// structurally. These are the matching cases; test/bug426_error.til holds
+// the mismatches, which are type errors.
+
+IdSig := func(I64) returns I64
+double := func(a: I64) returns I64 { return a * 2 }
+
+apply := func(f: IdSig, x: I64) returns I64 { return f(x) }
+apply_fn := func(f: Fn(I64) returns I64, x: I64) returns I64 { return f(x) }
+
+// A function that only reads an aggregate fits a slot that lets it write:
+// both pass the address.
+GrowSig := func(mut Vec(I64)) returns USize
+count_items := func(v: Vec(I64)) returns USize { return v.len() }
+grow := func(f: GrowSig, mut v: Vec(I64)) returns USize { return f(v) }
+
+Holder := struct {
+    f : IdSig = double
+}
+
+test_named_funcsig_param := test() {
+    assert_eq(I64, apply(double, 3), 6)
+}
+
+test_inline_fn_param := test() {
+    assert_eq(I64, apply_fn(double, 4), 8)
+}
+
+test_declaration := test() {
+    g : IdSig = double
+    assert_eq(I64, g(5), 10)
+}
+
+test_reassignment_and_field := test() {
+    mut g : IdSig = double
+    g = double
+    assert_eq(I64, g(6), 12)
+    mut h := Holder()
+    h.f = double
+    assert_eq(I64, h.f(7), 14)
+}
+
+test_reader_fits_mut_aggregate_slot := test() {
+    mut v := Vec(I64).new()
+    v.push(own 1)
+    v.push(own 2)
+    assert_eq(USize, grow(count_items, v), 2)
+}

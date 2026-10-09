@@ -2356,6 +2356,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug350.til", flags)
     add_both(tests, "test/bug417.til", flags)
     add_both(tests, "test/bug423.til", flags)
+    add_both(tests, "test/bug426.til", flags)
     // A mode-cli main that RETURNS a value: interpreting one panicked
     // ("return type read outside a call") until interpret_units gave
     // main the same return context every other call gets. Both
@@ -2817,6 +2818,15 @@ main := proc(args: ..Str) {
     // is `run` where the error is raised by the emitted program (dyn_fn's
     // dispatcher) and `build` where the front end raises it before any C is
     // written (the main check, the introspection lookups).
+    // #426: a named function whose signature does not match a FuncSig
+    // slot (argument, Fn(...) argument, declaration, reassignment, field)
+    // is a type error on both backends (9 cases).
+    add_count(tests, "bug426_error_interp", "typer",
+        "function does not match", 9,
+        format(til_bin, " interpret test/bug426_error.til"))
+    add_count(tests, "bug426_error_build", "typer",
+        "function does not match", 9,
+        format(til_bin, " build", asan_flag, " test/bug426_error.til"))
     add_count(tests, "dyn_fn_value_member_error_interp", "interp",
         "dyn_fn: no method", 1,
         format(til_bin, " interpret test/dyn_fn_value_member_error.til"))

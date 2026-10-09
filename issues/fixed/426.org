@@ -1,6 +1,32 @@
 # priority: medium
 # category: bugs
-** OPEN #426 A function with the wrong signature is accepted for a function-typed parameter
+** FIXED #426 A function with the wrong signature is accepted for a function-typed parameter
+
+*** Post-mortem
+
+Root cause: a function referenced by name types as the nameless
+~Type.FuncPtr~, and ~funcptr_eq~ treats a nameless funcptr as the
+wildcard that matches any named FuncSig, so every check built on it
+(call arguments, typed declarations, reassignment, struct fields, and
+arguments to a call through a function pointer) accepted any function.
+
+Fix: ~funcref_sig_mismatch~ / ~fdef_sig_mismatch~ (src/self/typer.til)
+compare a named function's FunctionDef structurally against the
+expected FuncSig -- arity, each param's type, ~mut~ and ~own~, and the
+return type -- at each of those sites, and report what differs. ~mut~
+is checked by direction: a function that only reads an aggregate (or
+Dynamic) param fits a ~mut~ slot, since both pass the address; a ~mut~
+param in a read-only slot, or any ~mut~ difference on a primitive or a
+callable (value vs address), is an error. The wildcard itself stays for
+values that carry no signature (#262's thunks). The new check flagged
+the interpreter's own ~DispatchFn~, whose handlers write through their
+~mut~ params while the signature lent them read-only; ~DispatchFn~ and
+~ext_dispatch_builtin~ now spell those params ~mut~.
+
+Regression: test/bug426.til (matching cases, both backends) and
+test/bug426_error.til (9 mismatches, interpret and build).
+
+*** Description
 
 Passing a named function whose signature does not match a function-typed
 parameter is not a type error. The call then runs the function with

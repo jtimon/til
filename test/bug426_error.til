@@ -1,0 +1,43 @@
+mode script
+
+// Issue #426: a function whose signature does not match a function-typed
+// slot used to be accepted -- the call then ran it with wrongly typed
+// arguments (garbage interpreted, SIGSEGV compiled). Each mismatch below is
+// one "function does not match" type error (9 in all). The matching cases
+// are in test/bug426.til.
+
+IdSig := func(I64) returns I64
+double := func(a: I64) returns I64 { return a * 2 }
+wrong := func(a: Str) returns Str { return a }
+two := func(a: I64, b: I64) returns I64 { return a + b }
+to_text := func(a: I64) returns Str { return a.to_str() }
+
+apply := func(f: IdSig, x: I64) returns I64 { return f(x) }
+apply_fn := func(f: Fn(I64) returns I64, x: I64) returns I64 { return f(x) }
+
+// `mut` on a param the slot lends read-only lets the function write through
+// it; on a primitive it also switches value for address.
+ReadSig := func(Vec(I64)) returns USize
+push_one := func(mut v: Vec(I64)) returns USize { v.push(own 1); return v.len() }
+read := func(f: ReadSig, v: Vec(I64)) returns USize { return f(v) }
+BumpSig := func(mut I64) returns I64
+same := func(a: I64) returns I64 { return a }
+bump := func(f: BumpSig, mut a: I64) returns I64 { return f(a) }
+
+Holder := struct {
+    f : IdSig = double
+}
+
+println(apply(wrong, 3).to_str())
+println(apply_fn(wrong, 3).to_str())
+println(apply(two, 3).to_str())
+println(apply(to_text, 3).to_str())
+g : IdSig = wrong
+mut h : IdSig = double
+h = wrong
+mut hh := Holder()
+hh.f = wrong
+v := Vec(I64).new()
+println(read(push_one, v).to_str())
+mut n := 1
+println(bump(same, n).to_str())

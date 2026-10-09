@@ -1315,6 +1315,81 @@ priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope, sym
     }
 }
 
+// #426: a function referenced by name types as the nameless Type.FuncPtr,
+// which funcptr_eq accepts for ANY FuncSig -- that wildcard is for values
+// that really carry no signature (#262's thunks). A named function has a
+// full FunctionDef, so compare it structurally against the expected
+// FuncSig's: arity, each param's type / mut / own, and the return type.
+// Returns "" when they agree (or when `val` is not a named function meeting
+// a FuncSig), else what differs, for the caller's diagnostic.
+priv funcref_sig_mismatch := func(val: Expr, expected: Type, scope: TypeScope, symbols: SymbolPool) returns Str {
+    if expected.is_funcptr().not() { return "" }
+    if val.til_type().is_funcptr().not() { return "" }
+    // A value that names its FuncSig is compared by name in funcptr_eq.
+    val_tn_o := type_name_of(val.til_type(), symbols)
+    if val_tn_o.is_some() {
+        if val_tn_o.unwrap().is_empty().not() { return "" }
+    }
+    // A bare `Fn` slot is itself the wildcard: nothing to compare against.
+    exp_tn_o := type_name_of(expected, symbols)
+    if exp_tn_o.is_none() { return "" }
+    ref exp_name : Str = exp_tn_o.unwrap()
+    if exp_name.is_empty() { return "" }
+    sig_o := scope.lookup_func_name(exp_name, symbols)
+    if sig_o.is_none() { return "" }
+    ref sig_expr : Expr = sig_o.unwrap()
+    // REM: only a bodyless FuncDef is a FuncSig.
+    if sig_expr.children.len() != 0 { return "" }
+    switch val.node_type {
+    case .Ident(id):
+        // A local funcptr value of a nameless type has no FunctionDef here.
+        val_fd_o := scope.lookup_func_by_sym(id.ident_sym(), symbols)
+        if val_fd_o.is_none() { return "" }
+        return fdef_sig_mismatch(funcdef_of(val_fd_o.unwrap()), funcdef_of(sig_expr), scope, symbols)
+    case: return ""
+    }
+}
+
+priv fdef_sig_mismatch := func(got: FunctionDef, want: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Str {
+    if want.sig.params.len() != got.sig.params.len() {
+        return format("takes ", got.sig.params.len().to_str(), " params, expected ",
+            want.sig.params.len().to_str())
+    }
+    for i in 0..want.sig.params.len() {
+        ref wp : Declaration = want.sig.params[i]
+        ref gp : Declaration = got.sig.params[i]
+        ref wt : Str = resolve_type_alias(scope, decl_type_name_ref(wp, symbols), symbols)
+        ref gt : Str = resolve_type_alias(scope, decl_type_name_ref(gp, symbols), symbols)
+        if wt.eq(gt).not() {
+            return format("param ", i.add(1).to_str(), " is ", gt, ", expected ", wt)
+        }
+        if wp.is_mut.eq(gp.is_mut).not() {
+            // A function that only reads a param fits a slot that would let
+            // it write, when both pass the address anyway. The reverse lets
+            // it write through what the caller lends read-only, and on a
+            // primitive or a callable `mut` switches value for address.
+            pt := declaration_resolved_type(gp, scope, symbols)
+            by_address := is_primitive(pt).or(type_is_callable_storage(pt)).not()
+            if wp.is_mut.and(by_address).not() {
+                return format("param ", i.add(1).to_str(), " differs in 'mut'")
+            }
+        }
+        if wp.own_type.is(OwnType.Own).eq(gp.own_type.is(OwnType.Own)).not() {
+            return format("param ", i.add(1).to_str(), " differs in 'own'")
+        }
+    }
+    ref wr : Str = resolve_type_alias(scope, want.sig.return_type, symbols)
+    ref gr : Str = resolve_type_alias(scope, got.sig.return_type, symbols)
+    if wr.eq(gr).not() {
+        mut wr_show := wr.clone()
+        if wr_show.is_empty() { wr_show = "nothing" }
+        mut gr_show := gr.clone()
+        if gr_show.is_empty() { gr_show = "nothing" }
+        return format("returns ", gr_show, ", expected ", wr_show)
+    }
+    return ""
+}
+
 // Validate a single argument against its parameter's type. Narrows
 // numeric literals to fit the param type, applies implicit widen /
 // usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
@@ -1387,6 +1462,11 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     // semantic (bare FuncPtr matches any FuncPtrSig; named FuncPtrSig
     // must match exactly).
     if funcptr_eq(arg.til_type(), ptype, ctx.symbols) {
+        sig_diff := funcref_sig_mismatch(arg, ptype, ctx.scope, ctx.symbols)
+        if sig_diff.is_empty().not() {
+            arg.type_error(format("argument type mismatch for '", param_name, "': function does not match ", ptype_name, " (", sig_diff, ")"), ctx)
+            return
+        }
         type_matches = true
     }
     if type_matches.not().and(is_aggregate(ptype)) {
@@ -1876,6 +1956,12 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                         // arg, #262) matches any named FuncPtrSig param.
                         if type_kind_eq(arg.til_type(), expected).or(funcptr_eq(arg.til_type(), expected, ctx.symbols)).not() {
                             e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.til_type(), ctx.symbols)), ctx)
+                        } else {
+                            // #426: funcptr_eq lets a named function into any FuncSig.
+                            fp_sig_diff := funcref_sig_mismatch(arg, expected, scope, ctx.symbols)
+                            if fp_sig_diff.is_empty().not() {
+                                e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": function does not match ", expected_name, " (", fp_sig_diff, ")"), ctx)
+                            }
                         }
                         ai++
                     }
@@ -6811,6 +6897,12 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                                     stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
                                 }
                             }
+                        } else {
+                            // #426: funcptr_eq lets a named function into any FuncSig.
+                            fld_sig_diff := funcref_sig_mismatch(rhs, fld_type, scope, ctx.symbols)
+                            if fld_sig_diff.is_empty().not() {
+                                stmt.type_error(format("field '", fname, "' type mismatch: function does not match ", type_to_name(fld_type, ctx.symbols), " (", fld_sig_diff, ")"), ctx)
+                            }
                         }
                         // #396: the FIELD slot. `bx.p = s.c_str` (and the
                         // constructor spelling `Box(p = s.c_str)`, which
@@ -6866,6 +6958,12 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
                                     }
+                                }
+                            } else {
+                                // #426: funcptr_eq lets a named function into any FuncSig.
+                                nsd_sig_diff := funcref_sig_mismatch(rhs, nsd_type, scope, ctx.symbols)
+                                if nsd_sig_diff.is_empty().not() {
+                                    stmt.type_error(format("field '", fname, "' type mismatch: function does not match ", type_to_name(nsd_type, ctx.symbols), " (", nsd_sig_diff, ")"), ctx)
                                 }
                             }
                         }
@@ -7336,6 +7434,12 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
         if resolve_type_alias(scope, declared_name, ctx.symbols).eq(lit_name).not() {
             at.type_error(format("'", name, "' declared as ", declared_name, " but value is ", lit_name), ctx)
         }
+        return
+    }
+    // #426: funcptr_eq below lets a named function into any FuncSig.
+    sig_diff := funcref_sig_mismatch(val, declared, scope, ctx.symbols)
+    if sig_diff.is_empty().not() {
+        at.type_error(format("'", name, "' declared as ", declared_name, " but function does not match it (", sig_diff, ")"), ctx)
         return
     }
     if can_implicit_usize_coerce(val.til_type(), declared, declared_name)
@@ -9443,6 +9547,12 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // so don't also surface the internal temp name here.
         if aname.starts_with("_m_").not() {
             stmt.type_error(format("'", aname, "' assignment type mismatch"), ctx)
+        }
+    } else {
+        // #426: funcptr_eq lets a named function into any FuncSig.
+        asg_sig_diff := funcref_sig_mismatch(rhs, existing, scope, ctx.symbols)
+        if asg_sig_diff.is_empty().not() {
+            stmt.type_error(format("'", aname, "' assignment type mismatch: function does not match ", type_to_name(existing, ctx.symbols), " (", asg_sig_diff, ")"), ctx)
         }
     }
     // #164: record that this binding was written through. Done before

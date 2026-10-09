@@ -8741,7 +8741,7 @@ priv h_cfile_read_n := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: 
     return true
 }
 
-priv DispatchFn := proc(Scope, Expr, Dynamic, Context) returns Bool
+priv DispatchFn := proc(mut Scope, mut Expr, mut Dynamic, mut Context) returns Bool
 
 priv reg_dispatch := func(name: Str, handler: DispatchFn, mut ctx: Context) {
     mut v : UPtr = malloc(UPtr.size())
@@ -8838,7 +8838,7 @@ priv dispatch_init := func(mut ctx: Context) {
     ctx.ffi.dispatch_inited = true
 }
 
-priv ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, result: Dynamic, ctx: Context) returns Bool {
+priv ext_dispatch_builtin := func(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
     ref dm : Map(Str, Dynamic) = ctx.ffi.dispatch_map
     if dm.has(name) {
         ref slot : Dynamic = dm[name]
