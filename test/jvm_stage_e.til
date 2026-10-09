@@ -42,6 +42,23 @@ JvmBoxHolder := struct {
 // #416: an owned Str payload, written through its binding.
 JvmNote := enum { Text: Str, Empty }
 
+// Borrows of locals that are later reassigned.
+JvmLender := struct {
+    ref p : JvmPoint
+    ref s : Str
+}
+
+jvm_heap_text := proc(s: Str) returns Str {
+    noop_proc()
+    mut out := Str.with_capacity(8)
+    out.push_str(s)
+    return out
+}
+
+take_jvm_point := func(own p: JvmPoint) returns I64 {
+    return p.x
+}
+
 bump_jvm_field := func(mut n: I64) { n.inc() }
 
 // #416: assigning to a payload binding writes the enum's payload.
@@ -171,4 +188,34 @@ main := proc() {
     case .Number(_):
     }
     println("lent ", point.x.to_str())
+
+    // A ref to a local sees the local's reassignment: the local's object
+    // is its storage, written in place.
+    mut lent_point := JvmPoint(x = 2)
+    mut lent_text := jvm_heap_text("one")
+    lender := JvmLender(p = lent_point, s = lent_text)
+    lent_point = JvmPoint(x = 5)
+    lent_text = jvm_heap_text("two")
+    println("lender ", lender.p.x.to_str(), " ", lender.s)
+
+    // A value handed away by `own` belongs to its receiver: reassigning
+    // the old variable must not reach into the Vec, the callee, the
+    // payload or the field that now holds it.
+    mut moved_points := Vec(JvmPoint).new()
+    mut to_vec := JvmPoint(x = 3)
+    moved_points.push(own to_vec)
+    to_vec = JvmPoint(x = 4)
+    mut to_fn := JvmPoint(x = 6)
+    got := take_jvm_point(own to_fn)
+    to_fn = JvmPoint(x = 7)
+    mut to_payload := JvmPoint(x = 8)
+    boxed := JvmBox.Pt(to_payload)
+    to_payload = JvmPoint(x = 9)
+    mut to_field := JvmOwned(text = "field")
+    field_owner := JvmOwner(inner = to_field)
+    to_field = JvmOwned(text = "local")
+    println("moved ", moved_points[0].x.to_str(), " ", to_vec.x.to_str(), " ",
+        got.to_str(), " ", to_fn.x.to_str(), " ", to_payload.x.to_str(), " ",
+        field_owner.inner.text, " ", to_field.text)
+    show_jvm_box(boxed)
 }

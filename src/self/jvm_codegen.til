@@ -537,7 +537,7 @@ priv jvm_runtime_bound_function := func(name: Str) returns Bool {
         .or(name.eq("ptr_add")).or(name.eq("memcpy")).or(name.eq("memmove"))
         .or(name.eq("memset")).or(name.eq("memcmp")).or(name.eq("ptr_eq"))
         .or(name.eq("is_null")).or(name.eq("deref")).or(name.eq("write_ptr"))
-        .or(name.starts_with("write_")).or(name.eq("panic")).or(name.eq("to_ptr"))
+        .or(name.starts_with("write_")).or(name.eq("panic")).or(name.eq("to_ptr")).or(name.eq("noop_proc"))
         .or(name.eq("assert")).or(name.starts_with("assert_eq__"))
         .or(name.eq("expect")) { return true }
     return false
@@ -1182,7 +1182,7 @@ priv jvm_emit_cell_ref := proc(e: Expr, mut state: JvmEmitState,
                 ref cr_member : Str = fa.field_access_name(lp.ctx.symbols.names)
                 cr_owner := jvm_ns_data_owner(e.children[0], cr_member, lp)
                 if cr_owner.len() > 0 { return jvm_ns_static(e, cr_owner, cr_member, state, lp) }
-                obj := jvm_emit_expr(e.children[0], state, lp)
+                obj := jvm_emit_value(e.children[0], state, lp)
                 return format(obj, ".", jvm_field_getter(cr_member))
             }
         case:
@@ -1471,8 +1471,8 @@ priv jvm_emit_value := proc(e: Expr, mut state: JvmEmitState,
         out := jvm_emit_expr(e, state, lp)
         if jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names) {
             if is_struct_type(e.til_type()).or(is_enum_type(e.til_type())) {
-                return format("(", jvm_type_lp(e.til_type(), lp), ") TilRuntime.value(", out, ", ",
-                    ctx_total_size(type_name_ref(e.til_type(), lp.ctx.symbols), lp.ctx).to_str(), "L)")
+                return format("((", jvm_type_lp(e.til_type(), lp), ") TilRuntime.value(", out, ", ",
+                    ctx_total_size(type_name_ref(e.til_type(), lp.ctx.symbols), lp.ctx).to_str(), "L))")
             }
         }
         return out
@@ -1901,6 +1901,7 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
             return format("TilRuntime.store", scalar, "(", jvm_emit_expr(e.children[1], state, lp), ", ",
                 jvm_emit_expr(e.children[2], state, lp), ")")
         }
+        if name == "noop_proc" { return "TilRuntime.noopProc()" }
         if name == "usize_to_uptr" {
             return format("Integer.toUnsignedLong(", jvm_emit_expr(e.children[1], state, lp), ")")
         }
@@ -2108,7 +2109,7 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
                 if jvm_is_scalar(e.til_type(), lp) { return jvm_cell_read(e.til_type(), ns_static, lp) }
                 return ns_static
             }
-            obj := jvm_emit_expr(e.children[0], state, lp)
+            obj := jvm_emit_value(e.children[0], state, lp)
             mut out := format(obj, ".", jvm_field_getter(fa.field_access_name(lp.ctx.symbols.names)))
             if jvm_is_scalar(e.til_type(), lp).and(jvm_is_runtime_str(e.children[0].til_type(), lp)) {
                 return jvm_str_field_read(e.til_type(), out, lp)
@@ -2148,6 +2149,23 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
 priv jvm_source_comment := func(e: Expr, state: JvmEmitState, depth: I32) returns Str {
     path := state.path.replace("\n", " ")
     return format(jvm_indent(depth), "// ", path, ":", e.line.to_str(), "\n")
+}
+
+// Whether javac sees `e` as unable to complete normally: it ends in a
+// return, break or continue, or is an if/else whose branches all do.
+priv jvm_ends_abruptly := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .Return: return true
+    case .Break: return true
+    case .Continue: return true
+    case .Body:
+        if e.children.len() == 0 { return false }
+        return jvm_ends_abruptly(e.children[e.children.len() - 1])
+    case .If:
+        if e.children.len() < 3 { return false }
+        return jvm_ends_abruptly(e.children[1]).and(jvm_ends_abruptly(e.children[2]))
+    case: return false
+    }
 }
 
 priv jvm_emit_switch := proc(e: Expr, depth: I32, mut state: JvmEmitState,
@@ -2196,14 +2214,86 @@ priv jvm_emit_switch := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                 out = format(out, jvm_indent(depth + 1), "{\n")
             }
             ref case_body : Expr = cn.children[cn.children.len() - 1]
+            // javac rejects a `break` after an arm that cannot complete
+            // normally (a generated enum clone returns from every arm).
+            mut case_break := format(jvm_indent(depth + 2), "break;\n")
+            if jvm_ends_abruptly(case_body) { case_break = "" }
             out = format(out, jvm_emit_body(case_body, depth + 2, state, lp),
-                jvm_indent(depth + 2), "break;\n", jvm_indent(depth + 1), "}\n")
+                case_break, jvm_indent(depth + 1), "}\n")
         }
         if has_default.not() { out = format(out, jvm_indent(depth + 1), "default: break;\n") }
         return format(out, jvm_indent(depth), "}\n")
 }
 
+// An aggregate local handed away by an `own` argument (a call, a
+// constructor, an enum payload) or by an elided-clone move into a field
+// no longer owns that object -- the receiver may keep it (a Vec slot, a
+// field, a payload). Nulling the variable after the statement says so,
+// which is what lets a later reassignment write a NON-null variable's
+// object in place without touching the new owner's (see .Assign).
+priv jvm_collect_moved := func(e: Expr, lp: LoadedProgram, mut out: Vec(Str)) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    if e.node_type.is(NodeType.FCall) {
+        for i in 1..e.children.len() {
+            if get_own_arg(e, i) {
+                ref arg : Expr = e.children[i]
+                switch arg.node_type {
+                case .Ident(mid):
+                    ref at : Type = arg.til_type()
+                    if jvm_is_scalar(at, lp).not().and(jvm_is_runtime_str(at, lp).or(is_struct_type(at)).or(is_enum_type(at))) {
+                        out.push(own mid.ident_name(lp.ctx.symbols.names).clone())
+                    }
+                case:
+                }
+            }
+        }
+    }
+    for c : Expr in e.children { jvm_collect_moved(c, lp, out) }
+}
+
+priv jvm_moved_clears := func(e: Expr, depth: I32, state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        mut moved := Vec(Str).new()
+        mut skip := ""
+        switch e.node_type {
+        case .Decl(dd):
+            if e.children.len() > 0 { jvm_collect_moved(e.children[0], lp, moved) }
+            skip = dd.name.clone()
+        case .Assign(ad):
+            // `x = f(own x)`: x holds the new value afterwards.
+            jvm_collect_moved(e.children[0], lp, moved)
+            skip = ad.name.clone()
+        case .FieldAssign(fad):
+            jvm_collect_moved(e.children[1], lp, moved)
+            if fad.is_move {
+                switch e.children[1].node_type {
+                case .Ident(fid): moved.push(own fid.ident_name(lp.ctx.symbols.names).clone())
+                case:
+                }
+            }
+        case .FCall: jvm_collect_moved(e, lp, moved)
+        case: return ""
+        }
+        mut out := ""
+        mut done := Set(Str).new()
+        for name : Str in moved {
+            if name == skip { continue }
+            if state.raw_refs.has(name) { continue }
+            if done.has(name) { continue }
+            done.add(own name.clone())
+            out = format(out, jvm_indent(depth), jvm_var_name(name), " = null;\n")
+        }
+        return out
+}
+
 priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        stmt_out := jvm_emit_stmt_core(e, depth, state, lp)
+        if stmt_out.len() == 0 { return stmt_out }
+        return format(stmt_out, jvm_moved_clears(e, depth, state, lp))
+}
+
+priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         switch e.node_type {
         case .Decl(dd):
@@ -2278,18 +2368,33 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
         case .Assign(ad):
             value := jvm_emit_expr(e.children[0], state, lp)
             target := jvm_var_name(ad.name)
-            // #416: a payload binding is a ref into the enum's payload (or,
-            // for a `ref` payload, into the borrowed referent), and C writes
-            // through it (`*t = _new`). A scalar one already does, as a
-            // PayloadSlot cell; an aggregate one is a Java reference, so its
-            // object takes the new contents in place. The value is
-            // evaluated before the old one is deleted, as in C.
-            if ad.is_payload_alias.and(jvm_is_scalar(e.children[0].til_type(), lp).not()) {
-                ref at : Type = e.children[0].til_type()
-                mut write := ""
-                if jvm_is_runtime_str(at, lp) { write = format("TilRuntime.assignStr(", target, ", assignNew)") }
-                else if is_struct_type(at).or(is_enum_type(at)) { write = format(target, ".assignFrom(assignNew)") }
-                else { return jvm_fail_expr(e, "write through a payload binding of this type", state, lp.ctx.symbols.names) }
+            // An aggregate's Java object IS its storage: C overwrites a
+            // binding's storage in place (`x = v`, or `*t = _new` through a
+            // payload binding, #416), so whatever borrows it -- a `ref`
+            // local or field, an enum's payload slot -- sees the new value.
+            // The binding's object therefore takes the new contents in
+            // place. It is exclusively this binding's: a value handed away
+            // by `own` leaves the variable null (jvm_moved_clears), and a
+            // null variable simply takes the new object. A plain
+            // identifier RHS that is not a move rebinds a borrow (`r =
+            // other`; an owned value cannot be assigned to a `ref`), so it
+            // stays a reference assignment. The value is evaluated before
+            // the old one is deleted, as in C.
+            ref at : Type = e.children[0].til_type()
+            mut rhs_is_borrow := false
+            switch e.children[0].node_type {
+            case .Ident: rhs_is_borrow = ad.is_move.not().and(ad.is_payload_alias.not())
+            case:
+            }
+            mut in_place := ""
+            if jvm_is_scalar(at, lp).not().and(rhs_is_borrow.not()).and(state.raw_refs.has(ad.name).not()) {
+                if jvm_is_runtime_str(at, lp) { in_place = format("TilRuntime.assignStr(", target, ", assignNew)") }
+                else if is_struct_type(at).or(is_enum_type(at)) { in_place = format(target, ".assignFrom(assignNew)") }
+                else if ad.is_payload_alias {
+                    return jvm_fail_expr(e, "write through a payload binding of this type", state, lp.ctx.symbols.names)
+                }
+            }
+            if in_place.len() > 0 {
                 mut old_delete := ""
                 if ad.save_old_delete { old_delete = format(jvm_delete_value(at, target, lp), "; ") }
                 mut moved_clear := ""
@@ -2300,7 +2405,8 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                     }
                 }
                 return format(jvm_source_comment(e, state, depth), jvm_indent(depth),
-                    "{ ", jvm_type_lp(at, lp), " assignNew = ", value, "; ", old_delete, write, ";",
+                    "{ ", jvm_type_lp(at, lp), " assignNew = ", value, "; ", old_delete,
+                    "if (", target, " == null) { ", target, " = assignNew; } else { ", in_place, "; }",
                     moved_clear, " }\n")
             }
             is_cell := jvm_is_cell(state, ad.name, e.children[0].til_type(), lp)
@@ -2336,7 +2442,7 @@ priv jvm_emit_stmt := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                 }
                 return format(jvm_source_comment(e, state, depth), ns_prefix, jvm_indent(depth), ns_write, ";\n")
             }
-            obj := jvm_emit_expr(e.children[0], state, lp)
+            obj := jvm_emit_value(e.children[0], state, lp)
             value := jvm_emit_expr(e.children[1], state, lp)
             target := format(obj, ".", jvm_field_getter(fad.name))
             is_scalar := jvm_field_is_cell(e.children[0].til_type(), fad.name, lp)

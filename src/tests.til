@@ -1331,11 +1331,15 @@ main := proc(args: ..Str) {
         // 8, all in Str.cmp. It was 16 while the generated clone of a
         // tag-only enum (JvmWide) ended in an UNREACHABLE call, which kept
         // UNREACHABLE and the Str formatting behind it reachable.
-        CountCheck(needle = "TilRuntime.widenLength(", expected_count = 8),
+        CountCheck(needle = "TilRuntime.widenLength(", expected_count = 15),
         CountCheck(needle = "TilRuntime.payloadSlot(", expected_count = 5),
-        // #416: an aggregate payload binding is written in place.
-        CountCheck(needle = "TilRuntime.assignStr(", expected_count = 1),
-        CountCheck(needle = ".assignFrom(assignNew)", expected_count = 2),
+        // #416: an aggregate payload binding is written in place, and so
+        // is a reassigned owned local a `ref` may borrow; a value handed
+        // away by `own` leaves its variable null first.
+        CountCheck(needle = "TilRuntime.assignStr(", expected_count = 2),
+        CountCheck(needle = ".assignFrom(assignNew)", expected_count = 8),
+        CountCheck(needle = "if (v_p_lent_x5fpoint == null)", expected_count = 1),
+        CountCheck(needle = "v_p_to_x5fvec = null;", expected_count = 1),
         // Enum switches go through the variant ordinal: an enum(U64) tag
         // does not fit the int a Java switch takes.
         CountCheck(needle = "if (tag == 4294967303L) return", expected_count = 2),

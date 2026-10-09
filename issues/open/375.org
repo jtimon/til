@@ -607,6 +607,25 @@ reassigned (the garbager emits that delete as its own statement, and a
 local moved away by ~own~ still holds the object its new owner has, so
 an in-place write there first needs moved sources cleared).
 
+Borrowed locals 2026-10-09: that staleness is fixed. After a statement
+that hands an aggregate variable away -- an ~own~ argument of a call,
+constructor or enum payload (~FCallData.own_args~), or an elided-clone
+move into a field (~FieldAssignData.is_move~) -- the variable is set to
+~null~ (~jvm_moved_clears~): its object belongs to the receiver now. A
+non-null variable therefore owns its object exclusively, so a
+reassignment of an aggregate whose RHS is an owned value or a move is
+written into that object (~assignStr~/~assignFrom~; a null variable just
+takes the new object), as C overwrites the binding's storage -- a ~ref~
+local or field that borrows it sees the new value. A plain identifier
+RHS that is not a move rebinds a borrow (an owned value cannot be
+assigned to a ~ref~ local) and stays a reference assignment. The #416
+payload-binding write is now the same path. On the way: a field read or
+write through a raw ref (~v[0].x~) loads the object first, and
+~noop_proc~ is supported (~TilRuntime.noopProc~). Pinned by
+test/jvm_stage_e.til (a lender holding refs to two reassigned locals;
+values moved into a Vec, a callee, an enum payload and a field, then
+their old variables reassigned).
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.

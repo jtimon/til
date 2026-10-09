@@ -39,7 +39,8 @@ CORPUS := array(Str,
 //   test/script_struct_runtime.til  javac: a `returns ref` struct field
 //                                   returned where a raw Ptr is expected
 //   test/strings.til                swap of a runtime Str
-//   test/arrays.til                 runtime function 'noop_proc'
+//   test/arrays.til                 javac: a primitive's namespace
+//                                   constant (`I64.MAX`)
 //   test/vecs.til                   runtime function 'dyn_size_of'
 //   test/enums.til                  non-addressable scalar ref (the error
 //                                   kind of a `?` call in a switch guard)
