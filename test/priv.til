@@ -184,9 +184,7 @@ LateDigits := struct {
     v := 0
 namespace:
     show := func(self: LateDigits) returns Str {
-        mut out := Str.with_capacity(1)
-        out.push_str(LATE_DIGITS.substr(self.v.to_usize(), 1))
-        return out
+        return LATE_DIGITS.substr(self.v.to_usize(), 1)
     }
 }
 

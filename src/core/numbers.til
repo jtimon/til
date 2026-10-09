@@ -912,14 +912,13 @@ namespace:
 
     /// The 64 lowercase hex digits, most significant first.
     to_hex := func(self: U256) returns Str {
-        digits := "0123456789abcdef"
         mut out := Str.with_capacity(64)
         n : USize = 32
         for i in 0..n {
             ref b : U8 = ptr_add(self, i.to_uptr())
             v := b.to_i64()
-            out.push_str(digits.substr((v / 16).to_usize(), 1))
-            out.push_str(digits.substr((v % 16).to_usize(), 1))
+            out.push_str(HEX_LOWER.substr((v / 16).to_usize(), 1))
+            out.push_str(HEX_LOWER.substr((v % 16).to_usize(), 1))
         }
         return out
     }
@@ -939,6 +938,9 @@ namespace:
         return memcmp(a, b, 32) == 0
     }
 }
+
+/// The lowercase hex digits, indexed by nibble value (U256.to_hex).
+priv HEX_LOWER := "0123456789abcdef"
 
 /// The value of the hex digit at ~i~ in ~hex~; panics on a non-digit.
 priv hex_nibble := func(hex: Str, i: USize) returns I64 {

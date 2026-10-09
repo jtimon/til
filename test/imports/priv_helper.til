@@ -97,9 +97,7 @@ HexDigit := struct {
     v := 0
 namespace:
     show := func(self: HexDigit) returns Str {
-        mut out := Str.with_capacity(1)
-        out.push_str(HEX_DIGITS.substr(self.v.to_usize(), 1))
-        return out
+        return HEX_DIGITS.substr(self.v.to_usize(), 1)
     }
 }
 

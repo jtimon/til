@@ -10228,18 +10228,6 @@ priv str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPo
     }
 }
 
-// #421: does `sym` resolve to the file (root) scope -- a global -- rather
-// than a binding of some enclosing block, function or captured frame? The
-// caller already found `sym`, so the walk always ends at its binding.
-priv resolves_at_file_scope := func(scope: TypeScope, sym: Sym) returns Bool {
-    if scope.has_local_binding_sym(sym) { return scope.parent.is_none() }
-    switch scope.parent {
-    case .Some(p): return resolves_at_file_scope(p, sym)
-    case .None: panic(__LOC__, "resolves_at_file_scope: binding not in any scope")
-    }
-    return false
-}
-
 // Walk a view chain by NAME to whoever owns the storage, and report that
 // owner only when it is an owned local of this frame (or a mut global). A param, a `ref`, an
 // alias or a builtin bottoms out as "" -- storage this frame did not
@@ -10256,7 +10244,7 @@ priv view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) r
             return view_base_owner(b.str_view_base, scope, symbols)
         }
         if type_name_ref(b.type, symbols) != "Str" { return "" }
-        if b.is_mut.not().and(resolves_at_file_scope(scope, symbols.lookup(name).unwrap())) { return "" }
+        if b.is_mut.not().and(root_is_global(scope, borrow_root_of_binding(b), symbols)) { return "" }
         return Str.clone(name)
     case: return ""
     }
@@ -10281,7 +10269,7 @@ priv view_return_base_local := func(recv: Expr, scope: TypeScope, symbols: Symbo
                 return view_base_owner(b.str_view_base, scope, symbols)
             }
             if type_name_ref(b.type, symbols) != "Str" { return "" }
-            if b.is_mut.not().and(resolves_at_file_scope(scope, rid.ident_sym())) { return "" }
+            if b.is_mut.not().and(root_is_global(scope, borrow_root_of_binding(b), symbols)) { return "" }
             return Str.clone(rid.ident_name(symbols.names))
         case: return ""
         }
@@ -10317,12 +10305,11 @@ priv check_str_view_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ct
     if ret_val.children.len() < 2 { return }
     base := view_return_base_local(ret_val.children[1], scope, ctx.symbols)
     if base.len() == 0 { return }
-    base_sym := ctx.symbols.lookup(base).unwrap()
-    ref base_b : TypeBinding = scope.get_binding_sym(base_sym).unwrap()
+    ref base_b : TypeBinding = scope.get_binding_name(base, ctx.symbols).unwrap()
     // A priv global's binding name is mangled; report the source spelling.
     mut shown := Str.clone(base)
     if base_b.orig_name.len() > 0 { shown = base_b.orig_name.clone() }
-    if resolves_at_file_scope(scope, base_sym) {
+    if root_is_global(scope, borrow_root_of_binding(base_b), ctx.symbols) {
         stmt.type_error(format(
             "cannot return '", method, "' of mut global '", shown,
             "': the result is a view sharing that global's buffer, which reassigning it frees -- ",
@@ -10523,12 +10510,7 @@ priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, ro
         ref b : TypeBinding = b_o.unwrap()
         if b.own_type.is(OwnType.Ref).or(b.is_param).or(b.is_alias).or(b.is_builtin) { continue }
         if b.type.is(Type.Dynamic) { continue }
-        ref root_scope : TypeScope = scope_root_ref(scope)
-        global_o := root_scope.local_binding_name(r.name, ctx.symbols)
-        if global_o.is_some() {
-            ref global_b : TypeBinding = global_o.unwrap()
-            if global_b.path.eq(r.path).and(global_b.line.eq(r.line)).and(global_b.col == r.col) { continue }
-        }
+        if root_is_global(scope, r, ctx.symbols) { continue }
         if skip_carriers {
             ref b_type_name : Str = type_name_ref(b.type, ctx.symbols)
             b_def_o := scope.get_struct(b_type_name, ctx.symbols)
@@ -11564,6 +11546,17 @@ priv borrow_root_of_binding := func(b: TypeBinding) returns BorrowRoot {
     return BorrowRoot(name = b.name.clone(), path = b.path.clone(), line = b.line, col = b.col)
 }
 
+// Is `r` a file-level (global) binding? The root scope's same-named binding
+// counts only when it is that very declaration (same site), so a local
+// shadowing a global is still a local. A miss is the ordinary answer for
+// any non-global name.
+priv root_is_global := func(scope: TypeScope, r: BorrowRoot, symbols: SymbolPool) returns Bool {
+    gb_o := scope_root_ref(scope).local_binding_name(r.name, symbols)
+    if gb_o.is_none() { return false }
+    ref gb : TypeBinding = gb_o.unwrap()
+    return gb.line.eq(r.line).and(gb.col == r.col).and(gb.path == r.path)
+}
+
 priv push_root_unique := func(mut out: Vec(BorrowRoot), r: BorrowRoot) {
     for have : BorrowRoot in out {
         if BorrowRoot.eq(have, r) { return }
@@ -11800,11 +11793,7 @@ priv mark_roots_written := func(scope: TypeScope, roots: Vec(BorrowRoot), symbol
 priv root_is_writable := func(scope: TypeScope, b: TypeBinding, r: BorrowRoot, symbols: SymbolPool) returns Bool {
     if b.is_mut { return true }
     if b.own_type.is(OwnType.Own) { return true }
-    ref root : TypeScope = scope_root_ref(scope)
-    gb_o := root.local_binding_name(r.name, symbols)
-    if gb_o.is_none() { return false }
-    ref gb : TypeBinding = gb_o.unwrap()
-    return gb.line.eq(r.line).and(gb.col == r.col).and(gb.path == r.path)
+    return root_is_global(scope, r, symbols)
 }
 
 // A root the author cannot put `mut` on: a `case V(p):` payload binding,
@@ -12010,11 +11999,7 @@ priv check_interface_deposit_lifetimes := proc(scope: TypeScope, sink: TypeBindi
         // Ref aliases/borrowed params do not own the pointed-to storage;
         // their flattened roots carry its owner. Raw Dynamic is quarantine.
         if owner.own_type.is(OwnType.Ref).or(owner.is_param.and(owner.own_type.is(OwnType.Own).not())).or(owner.is_builtin).or(owner.type.is(Type.Dynamic)) { continue }
-        global_o := scope_root_ref(scope).local_binding_name(owner.name, ctx.symbols)
-        if global_o.is_some() {
-            ref global : TypeBinding = global_o.unwrap()
-            if global.line.eq(owner.line).and(global.col == owner.col).and(global.path == owner.path) { continue }
-        }
+        if root_is_global(scope, r, ctx.symbols) { continue }
         for target : BorrowRoot in sinks {
             target_o := lookup_binding_at(scope, target, ctx.symbols)
             if target_o.is_none() { continue }
