@@ -236,3 +236,36 @@ test_dce_literal_capture := test() {
     }
     assert_eq(I64, read(), 42)
 }
+
+// #54 follow-up: a LOCAL named like a global is not the global. Storing a
+// borrowed parameter into it does not escape, whether the local is declared
+// at the top of the body or in a nested block. The closure-store twin is
+// pinned in test/capture_global_escape_error.til, together with the shadow
+// ending at its block.
+ShadowThunk := func() returns I64
+shadow_zero := func() returns I64 { return 0 }
+mut shadow_slot : ShadowThunk = shadow_zero
+
+shadow_stash_local := func(f: ShadowThunk) returns I64 {
+    mut shadow_slot : ShadowThunk = shadow_zero
+    shadow_slot = f
+    return shadow_slot()
+}
+
+shadow_stash_nested := func(f: ShadowThunk, go: Bool) returns I64 {
+    mut r := 0
+    if go {
+        mut shadow_slot : ShadowThunk = shadow_zero
+        shadow_slot = f
+        r = shadow_slot()
+    }
+    return r
+}
+
+shadow_seven := func() returns I64 { return 7 }
+
+test_local_shadowing_global_is_not_an_escape := test() {
+    assert_eq(I64, shadow_stash_local(shadow_seven), 7)
+    assert_eq(I64, shadow_stash_nested(shadow_seven, true), 7)
+    assert_eq(I64, shadow_slot(), 0)
+}

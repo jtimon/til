@@ -5338,19 +5338,25 @@ priv closure_borrowed_capture_name := func(e: Expr, scope: TypeScope, symbols: S
     return ""
 }
 
-// #54: true when `name` denotes a GLOBAL -- a binding that lives in the
-// program root scope and is not shadowed by anything in this function. A
-// closure stored there outlives the call that built it.
-priv assign_target_is_global := func(name: Str, func_scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if func_scope.has_local_binding_name(name, symbols) { return false }
-    ref root : TypeScope = scope_root_ref(func_scope)
+// #54: true when an assignment to `name` writes a GLOBAL -- the program root
+// scope binds it and nothing on the lexical path to the assignment shadows
+// it. A closure stored there outlives the call that built it. `locals` is
+// the function's parameters plus every name declared so far in the
+// enclosing blocks (push_param_names / walk order of a Body); the typed
+// body's block scopes are gone by now, and asking the function's own scope
+// alone misread a block-local, or any local in the param-store check, as
+// the global it shadows.
+priv assign_target_is_global := func(name: Str, locals: Vec(Str), root: TypeScope, symbols: SymbolPool) returns Bool {
+    for l : Str in locals {
+        if l == name { return false }
+    }
     return root.has_local_binding_name(name, symbols)
 }
 
-priv assign_target_is_global_sym := func(sym: Sym, func_scope: TypeScope) returns Bool {
-    if func_scope.has_local_binding_sym(sym) { return false }
-    ref root : TypeScope = scope_root_ref(func_scope)
-    return root.has_local_binding_sym(sym)
+priv push_param_names := func(fdef: Expr, mut locals: Vec(Str)) {
+    for pp : Declaration in funcdef_of(fdef).sig.params {
+        locals.push(own pp.name.clone())
+    }
 }
 
 // #54: the root binding name of an lvalue chain (`g.a.b` -> `g`), or "" when
@@ -5371,12 +5377,27 @@ priv closure_lvalue_root_sym := func(e: Expr) returns Sym {
 // compilation makes the callee visible, so the escape is decidable here with
 // no annotation on the signature. `root` is the callee's own root scope; a
 // name it does not know is not a global of ours.
-priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, depth: I32, symbols: SymbolPool) returns Bool {
+priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, mut locals: Vec(Str), depth: I32, symbols: SymbolPool) returns Bool {
     if depth > 128 { return false }
     switch e.node_type {
     case .FuncDef: return false          // nested def: its own params
+    case .Body:
+        // A Decl shadows from the next statement to the end of its block.
+        mark := locals.len()
+        for c : Expr in e.children {
+            if body_stores_param_globally(c, pname, root, locals, depth + 1, symbols) {
+                locals.truncate(mark)
+                return true
+            }
+            switch c.node_type {
+            case .Decl(cd): locals.push(own cd.name.clone())
+            case:
+            }
+        }
+        locals.truncate(mark)
+        return false
     case .Assign(sad):
-        if root.has_local_binding_name(sad.name, symbols).and(e.children.len().gt(0)) {
+        if assign_target_is_global(sad.name, locals, root, symbols).and(e.children.len().gt(0)) {
             switch e.children[0].node_type {
             case .Ident(sid):
                 if sid.ident_name(symbols.names) == pname { return true }
@@ -5386,7 +5407,7 @@ priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, de
     case .FieldAssign:
         if e.children.len() > 1 {
             froot := closure_lvalue_root_sym(e.children[0])
-            if (froot != 0).and(root.has_local_binding_sym(froot)) {
+            if (froot != 0).and(assign_target_is_global(symbols.resolve(froot), locals, root, symbols)) {
                 switch e.children[1].node_type {
                 case .Ident(fid):
                     if fid.ident_name(symbols.names) == pname { return true }
@@ -5397,7 +5418,7 @@ priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, de
     case:
     }
     for c : Expr in e.children {
-        if body_stores_param_globally(c, pname, root, depth + 1, symbols) { return true }
+        if body_stores_param_globally(c, pname, root, locals, depth + 1, symbols) { return true }
     }
     return false
 }
@@ -5419,7 +5440,9 @@ priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, mut 
     for pp : Declaration in pfd.sig.params {
         if pp.own_type.is(OwnType.Ref).not() { continue }
         if pp.name.len() == 0 { continue }
-        if body_stores_param_globally(pbody, pp.name, proot, 0, ctx.symbols).not() { continue }
+        mut locals := Vec(Str).new()
+        push_param_names(fdef, locals)
+        if body_stores_param_globally(pbody, pp.name, proot, locals, 0, ctx.symbols).not() { continue }
         fdef.type_error(format("parameter '", pp.name,
             "' is stored where it outlives this call, but it is only borrowed; ",
             "declare it 'own ", pp.name, "' so the caller transfers ownership ",
@@ -5427,8 +5450,20 @@ priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, mut 
     }
 }
 
-priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, mut ctx: Context) {
+priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, root: TypeScope, mut locals: Vec(Str), mut ctx: Context) {
     switch e.node_type {
+    case .Body:
+        // A Decl shadows from the next statement to the end of its block.
+        mark := locals.len()
+        for c : Expr in e.children {
+            check_returned_borrowed_closure_captures_in(c, func_scope, root, locals, ctx)
+            switch c.node_type {
+            case .Decl(cd): locals.push(own cd.name.clone())
+            case:
+            }
+        }
+        locals.truncate(mark)
+        return
     case .Return:
         if e.children.len() == 0 { return }
         cap_name := closure_borrowed_capture_name(e.children[0], func_scope, ctx.symbols)
@@ -5444,7 +5479,7 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
         // captured stack local dangles the moment the function returns
         // (ASAN: stack-use-after-return). Same diagnostic and same fix.
         if e.children.len() > 0 {
-            if assign_target_is_global(gad.name, func_scope, ctx.symbols) {
+            if assign_target_is_global(gad.name, locals, root, ctx.symbols) {
                 gcap := closure_borrowed_capture_name(e.children[0], func_scope, ctx.symbols)
                 if gcap.len() > 0 {
                     e.type_error(format("closure stored in global '", gad.name,
@@ -5461,8 +5496,8 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
         if e.children.len() > 1 {
             froot_sym := closure_lvalue_root_sym(e.children[0])
             if froot_sym != 0 {
-                if assign_target_is_global_sym(froot_sym, func_scope) {
-                    ref froot : Str = ctx.symbols.resolve(froot_sym)
+                ref froot : Str = ctx.symbols.resolve(froot_sym)
+                if assign_target_is_global(froot, locals, root, ctx.symbols) {
                     fcap := closure_borrowed_capture_name(e.children[1], func_scope, ctx.symbols)
                     if fcap.len() > 0 {
                         e.type_error(format("closure stored in global '", froot, ".", gfad.name,
@@ -5477,7 +5512,7 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
     case:
     }
     for c : Expr in e.children {
-        check_returned_borrowed_closure_captures_in(c, func_scope, ctx)
+        check_returned_borrowed_closure_captures_in(c, func_scope, root, locals, ctx)
     }
 }
 
@@ -5485,7 +5520,9 @@ priv check_returned_borrowed_closure_captures := proc(func_scope: TypeScope, exp
     switch expr.node_type {
     case .FuncDef:
         if expr.children.len() == 0 { return }
-        check_returned_borrowed_closure_captures_in(expr.children[0], func_scope, ctx)
+        mut locals := Vec(Str).new()
+        push_param_names(expr, locals)
+        check_returned_borrowed_closure_captures_in(expr.children[0], func_scope, scope_root_ref(func_scope), locals, ctx)
     case:
         UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str(ctx.symbols.names))
     }

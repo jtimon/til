@@ -1,0 +1,75 @@
+# priority: medium
+# category: bugs
+** OPEN #430 Assigning a capturing closure to an existing function-pointer local leaks it
+
+A ~mut~ function-pointer local that is later ASSIGNED a capturing closure
+never has that closure dropped, on both backends. Declaring the local
+directly from the closure is fine; only the assignment leaks.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+Thunk := func() returns I64
+zero := func() returns I64 { return 0 }
+
+flat := func(n: I64) returns I64 {
+    local := n
+    mut slot : Thunk = zero
+    slot = func() returns I64 [local] { return local }
+    return slot()
+}
+
+mut seed := 5
+seed = seed + 1
+println(flat(seed).to_str())
+#+end_src
+
+On master ea9455e it prints 6, then:
+
+- compiled (~til build --asan~): "40 byte(s) leaked in 2 allocation(s)"
+  -- the TilClosure and its env;
+- interpreted (~bin/til_asan interpret~): "234 byte(s) leaked in 9
+  allocation(s)", the closure box from make_interp_closure and its env.
+
+The same leak happens when the local is first initialized from another
+capturing closure (~mut slot : Thunk = func() ... [local] { ... }~, then
+reassigned), and inside a nested block. The control
+~slot : Thunk = func() returns I64 [local] { return local }~ (no
+assignment) is clean on both backends.
+
+The leak also surfaces at COMPILE time: when the arguments are constant,
+the constfolder evaluates the function in the interpreter and the ASAN
+compiler reports the leak while translating, so a test containing this
+shape fails the suite even before it runs.
+
+*** Likely cause
+
+The garbager decides a local's cleanup from its declaration and does not
+revisit it when an assignment gives it an owned value. The generated C
+for ~flat~ above has no drop for ~slot~ before the return:
+
+#+begin_src c
+    Thunk slot = &zero__til_closure;
+    slot = ({ ... TilClosure *til_closure = malloc(...); ... til_closure; });
+    I64 hoisted__I64_0 = ({ ... til_closure->call ... });
+    return hoisted__I64_0;
+#+end_src
+
+A related stale cache in the interpreter: HeapBinding.is_static_callable
+is computed when the binding is created (scope_set_heap_owned) and is not
+refreshed when the Assign path in eval replaces the binding's ptr, so
+after the assignment it still says "static function". Refreshing it alone
+does not fix the leak (payloads are freed by the AST's delete, which is
+never emitted), but it is wrong once the garbager emits that delete.
+
+Found while adding the shadowing regression for the #54 closure-escape
+checks: test/closures.til could not run a closure store into a local, so
+that case lives in test/capture_global_escape_error.til instead, which
+never executes.
+
+Regression: the reproducer on both backends, the closure-to-closure
+reassignment, and the nested-block variant, all ASAN-clean; once fixed,
+the shadowing closure case can move into test/closures.til as a runtime
+test.
