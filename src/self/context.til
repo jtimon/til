@@ -98,6 +98,16 @@ TypeBinding := struct {
     is_param := false
     own_type := OwnType.Shallow
     is_alias := false
+    // #432: the binding holds an interface box whose PAYLOAD borrows another
+    // binding's concrete value. The box itself is this binding's own storage
+    // (destroyed here); the payload is not. Copying the binding somewhere
+    // that owns -- a return, an `own` argument -- deep-copies through the
+    // interface's clone. iface_borrow_explicit tells a user-written
+    // `ref d : Iface = c` (owning uses are rejected, like any ref variable)
+    // from the typer's elided copy of an immutable local (`d : Iface = c`),
+    // whose copy is simply made at the owning use instead.
+    iface_payload_borrowed := false
+    iface_borrow_explicit := false
     is_type_alias := false
     // True when the binding denotes a function or function-signature
     // *declaration*, as opposed to a function-pointer *value* (a local,

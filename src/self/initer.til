@@ -5587,10 +5587,14 @@ priv iface_box_ctor := func(stmt: Expr, sname: Str, own tn: Expr, own val: Expr,
 // #269 follow-up: generate ownership-aware clone/delete for an interface box.
 // The generic field-wise versions are wrong for an OWNED box -- clone would
 // value-copy (alias) the iface_val pointer and delete would skip it (Ref),
-// leaking the heap copy. These branch on iface_owned: an owned box deep-clones
-// / frees the concrete via dyn_call; a borrowed box copies / leaves the
-// pointer, exactly as before. Runs before gen_struct_clone_delete_for_stmt so
-// it sees clone/delete already present and skips them.
+// leaking the heap copy. delete branches on iface_owned: an owned box frees
+// the concrete via dyn_call, a borrowed box leaves the pointer alone. clone
+// (#432) always produces an OWNED box: a copy of an interface value owns its
+// payload exactly as a copy of any aggregate owns its heap, whether the
+// source box owned or merely borrowed (`ref d : Iface = c`) its concrete.
+// Only the empty Iface() box, which has no concrete to copy, is copied as
+// is. Runs before gen_struct_clone_delete_for_stmt so it sees clone/delete
+// already present and skips them.
 gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut sname := ""
@@ -5607,18 +5611,23 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
         has_delete := sdd.ns_index.has("delete")
 
         if has_clone.not() {
-            // owned: return Iface(self.iface_type_name.clone(), <deep copy>, true)
+            // if self.iface_type_name.len() > 0 {
+            //     return Iface(self.iface_type_name.clone(), <deep copy>, true)
+            // }
             mut owned_tn := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name", symbols), "clone", stmt.line, stmt.col, symbols)
             mut owned_box := iface_box_ctor(stmt, sname, own owned_tn, own iface_dyn_clone_call(stmt, symbols), true, symbols)
             mut owned_ret := Expr.new(own NodeType.Return, stmt.line, stmt.col)
             owned_ret.add_child(own owned_box)
             mut then_body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
             then_body.add_child(own owned_ret)
+            mut tn_len := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name", symbols), "len", stmt.line, stmt.col, symbols)
+            mut has_payload := make_method_call_fcall(own tn_len, "gt", stmt.line, stmt.col, symbols)
+            has_payload.add_child(own Expr.new(own literal_num_node("0"), stmt.line, stmt.col))
             mut if_node := Expr.new(own NodeType.If, stmt.line, stmt.col)
-            if_node.add_child(own iface_self_field(stmt, "iface_owned", symbols))
+            if_node.add_child(own has_payload)
             if_node.add_child(own then_body)
 
-            // borrow: return Iface(self.iface_type_name.clone(), self.iface_val, false)
+            // empty Iface(): return Iface(self.iface_type_name.clone(), self.iface_val, false)
             mut bor_tn := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name", symbols), "clone", stmt.line, stmt.col, symbols)
             mut bor_box := iface_box_ctor(stmt, sname, own bor_tn, own iface_self_field(stmt, "iface_val", symbols), false, symbols)
             mut bor_ret := Expr.new(own NodeType.Return, stmt.line, stmt.col)

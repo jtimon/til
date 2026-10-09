@@ -143,6 +143,36 @@ walks ~ref x := src~ and ~holder.f = src~ (ref-field assign) and pushes
 ~src~'s ~last_use~ out to cover the borrower. This is exactly Mojo's "if there
 are existing references to a value, Mojo extends the lifetime of the owner."
 
+**** Interface-typed locals (#432)
+
+An interface value is a fat box ~{iface_type_name, iface_val, iface_owned}~
+whose ~iface_val~ points at the concrete. The box itself is an ordinary
+aggregate local (owned, promoted, deleted at last use); the qualifier on the
+binding says who owns the PAYLOAD, with the same rule as any aggregate:
+
+| til                        | payload                                   | destruction                                       |
+|----------------------------+-------------------------------------------+---------------------------------------------------|
+| ~d : Iface = c~            | owned copy of ~c~ (deep clone)             | the box frees its copy (~iface_owned~ = true)     |
+| ~mut d : Iface = c~        | owned copy; reassignment frees the old one | same                                              |
+| ~ref d : Iface = c~        | borrowed: the box points at ~c~'s storage  | nothing; ~c~'s lifetime is extended to cover ~d~  |
+| ~ref mut d : Iface = c~    | mutable borrow; ~c~ must be ~mut~          | same as ~ref~                                     |
+| ~d : Iface = Circle(r = 1)~ | owned: the temporary moves into the box   | the box frees it                                  |
+
+The copy of an IMMUTABLE owned local into an immutable bare binding is
+ELIDED (~iface_decl_owns_payload~, mirroring ~infer_decl_value~'s alias rule
+for plain aggregates): no write and no lifetime can tell it from a borrow, so
+the box borrows and the source's lifetime is extended, exactly as for ~ref~.
+The binding records ~iface_payload_borrowed~, and the copy is materialized
+through the interface's clone where the binding leaves the frame: a
+~return~, a value-field store, an ~own~ argument (~own_elided_iface_copy~).
+A user-written ~ref~ binding (~iface_borrow_explicit~) is a ref variable
+instead, and those uses are rejected as for any ref. The interface's
+generated ~clone~ always produces an owned box (deep copy through the tag),
+so copying a box -- into a field, a collection, a return -- never aliases
+the source; ~iface_owned~ only tells ~delete~ whether this box frees its
+payload. Arguments keep their own context's rule: a ~d: Iface~ parameter
+borrows a named concrete (params are Ref) and owns a fresh one.
+
 *** Fields
 
 | til                   | ownership            | destruction (inside the parent's auto-generated ~delete~) |

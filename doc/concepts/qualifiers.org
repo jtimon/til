@@ -214,6 +214,14 @@ to a value exactly once at that boundary.
 Scalar types: I64, U8, I8, I16, I32, U32, U64, F32, Bool.
 Compound types: Str, user-defined structs, enums.
 
+An interface-typed local (~d : Drawable = c~) follows the same table for
+its PAYLOAD: bare and ~mut~ own an independent copy of the concrete, ~ref~
+and ~ref mut~ borrow it. The copy of an immutable local into a bare
+immutable binding is elided into a borrow (invisible: nothing can write
+either side, and the binding cannot outlive the source without the copy
+being made at that point). See doc/concepts/ownership.org, "Interface-typed
+locals" (#432).
+
 ** Struct fields
 
 Unlike locals and parameters, struct instance fields are MUTABLE by

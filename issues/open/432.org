@@ -1,0 +1,182 @@
+# priority: medium
+# category: features
+** OPEN #432 Dynamic interface values: explicit own/ref vs provenance-inferred boxing, and the remaining dispatch gaps
+
+   Re-scopes the dynamic-dispatch half of the interface work after the #251
+   follow-ups that landed on master in 2026-10 (b444d722, 377ed500,
+   d11c2acf, 0f13652c, 861318fd, e7551bac; the running status lives in
+   issues/fixed/251.org). Those commits implemented, on the existing
+   iface_owned design, the lifetime, storage, contract and default-dispatch
+   behaviour that earlier drafts of this issue proposed to rework. This issue
+   records what exists, the one design decision still open, and the gaps
+   nobody has taken.
+
+*** What master implements today
+
+   An interface value is a synthetic struct (gen_interface_box_fields_for_stmt):
+
+       Drawable = { iface_type_name: Str, iface_val: Dynamic (ref), iface_owned: Bool }
+
+   iface_val points at the concrete (heap-owned or borrowed); iface_owned
+   says which. The generated clone deep-copies an owned payload and
+   pointer-copies a borrowed one; the generated delete frees only an owned
+   payload. Boxing happens at argument, local, return, field-construction,
+   assignment, field-reassignment and container-deposit sites, with one
+   PROVENANCE rule (box_inferred_interface_value, box_return_value,
+   make_owned_iface_box in src/self/typer.til):
+
+   - a FRESH concrete value (constructor, factory result, temporary) is
+     boxed as an OWNED heap clone;
+   - EXISTING concrete storage (a named variable, a field chain, a
+     ref-returning call) was boxed as a BORROW: the box aliased it, and a
+     later write through the source stayed visible (the then
+     test_interface_named_local_borrow / test_interface_collection_borrows;
+     superseded by the decision below);
+   - an `own` interface parameter (Vec.push / Array.set / Map.set) owns a
+     concrete argument even when named; an already-boxed borrowed interface
+     keeps its borrow; copying a lent box into a value field clones the box.
+
+   A borrow-checker extension keeps borrowed boxes safe: returning or
+   depositing a borrow of a dying local -- directly, inside a holder, via a
+   helper, into an outer-scope or caller-owned collection -- is a typer
+   error (terr_iface_return_*, terr_iface_*collection*, terr_iface_inner_*).
+   Heterogeneous `Vec(Drawable)` / `Array(Drawable)` / `Map(Str, Drawable)`
+   of mixed structs and enums work, including clone/pop/clear and exactly
+   one destruction of a replaced payload (test_interface_collection_lifetimes,
+   test_interface_replacement_destruction).
+
+   Dispatch (861318fd, e7551bac): an abstract call keeps its
+   interface-qualified callee and signature in the AST and goes through
+   ordinary argument/ownership/effect validation; C emits a typed
+   `Iface_method` dispatcher that selects only conforming implementations,
+   the interpreter resolves the same call to the concrete method with the
+   ownership bits intact, receivers are evaluated once, and Self arguments
+   and results are unboxed/boxed with a runtime type check. Concrete
+   DEFAULTS are virtual too: a call through a boxed value selects the
+   concrete's override, or its copied default when there is none
+   (test_interface_default_virtual_selection). Conformance (0f13652c)
+   compares the complete FuncSig: parameter types, ownership and
+   mutability including self, return type and ownership, func/proc family,
+   variadic/kwargs positions and the ordered throws list, for abstract
+   methods and default overrides alike.
+
+   The items earlier drafts folded in here are therefore DONE on master:
+   field reassignment, collection storage, local/holder/argument escape
+   lifetimes, cloning an enum-holding box, virtual defaults through a box,
+   and the full contract check.
+
+*** DECIDED (2026-10-09): the qualifier owns, like every other aggregate
+
+   The provenance rule decided owned-vs-borrowed from WHERE the value came
+   from, and recorded the answer in a runtime flag. til states ownership
+   statically, per binding (doc/concepts/qualifiers.org,
+   doc/concepts/ownership.org): params are Ref by default; returns Own;
+   locals owned (`own` and `shallow` are both rejected on a local), with
+   `ref` for a borrow; struct fields Shallow (inline, owning their nested
+   heap), `own` for a heap pointer, `ref` for a borrow. Plain aggregates
+   already follow that: `b := a` is an independent copy (a write to a `mut`
+   a is not seen through b), and `ref b : T = a` the alias. Interface boxes
+   were the one deviation (`view: Drawable = source` aliased source while
+   `view: Drawable = Circle(r = 1)` owned a clone: same syntax, two
+   lifetimes). Decision: interfaces follow the qualifier.
+
+       d : Drawable = c             // owned: an independent copy of c
+       mut e : Drawable = c         // owned copy; reassignable
+       ref f : Drawable = c         // borrow: aliases c; c must outlive f
+       ref mut g : Drawable = c     // mutable borrow; c must be mut
+       Scene := struct {
+           shape: Drawable          // inline box owning its payload (as before)
+           ref backdrop: Drawable   // borrowed (&dyn Drawable)
+       }
+
+   Copy elision keeps the cheap cases cheap: the copy of an IMMUTABLE owned
+   local into an immutable bare binding is unobservable (nobody can write
+   either side, and the binding cannot outlive the source without the copy
+   happening there), so the typer borrows instead -- the same alias rule
+   infer_decl_value applies to plain aggregates -- and makes the copy at
+   the point the binding escapes: a return, a value-field store, an `own`
+   argument. Master's escape checker thus became the elision guard rather
+   than the semantics.
+
+   Implementation (this commit):
+   - typer: iface_decl_owns_payload decides per Decl (ref -> borrow; mut
+     binding, mut/own/ref/param source, field or call -> owned copy;
+     immutable local source -> elided borrow); a ref-returning concrete
+     needs `ref` or `.clone()` like any aggregate. TypeBinding records
+     iface_payload_borrowed / iface_borrow_explicit. own_elided_iface_copy
+     (own arguments) and the Return handler materialize the elided copy
+     through the interface's clone, and reject the explicit `ref` binding
+     as a ref variable; a `ref` binding cannot be reassigned. Assignments to
+     a `mut` binding own a copy. interface_box_storage_is_borrowed treats a
+     payload-borrowing box as lent, so value-field copies clone it.
+   - initer/interpreter: the generated and the native interface clone always
+     produce an OWNED box (deep copy through the tag); iface_owned only tells
+     delete whether to free. The borrow walkers (expr_borrow_roots,
+     return_escape_roots, summary_expr_bits) treat an interface clone as
+     fresh and a VALUE interface field as carrying nothing
+     (value_field_carries_borrow).
+   - tests: test_interface_named_local_copy, test_interface_ref_local_aliases,
+     test_interface_elided_copy{,_escapes,_owned_argument},
+     test_interface_enum_local_copy, test_interface_argument_copies_out,
+     test_interface_collection_copies; the ref rejections terr_iface_return_ref,
+     terr_iface_own_ref{,_aliased}, terr_iface_reassign_ref,
+     terr_iface_ref_mut_immutable, terr_iface_ref_temporary,
+     terr_iface_own_ref_result in test/typer_errors.til. The old escape
+     rejections for bare locals are now valid programs (copies) and live in
+     test/interfaces.til as positive tests.
+
+   "Owned" is about who destroys the payload, not where it lives. The box
+   itself is a fixed-size struct and follows the ordinary aggregate-local
+   rules (heap-promoted today, stack or inline possible). An owned payload is
+   a heap clone today (make_owned_iface_box emits Concrete.clone), but a
+   non-escaping fresh value could equally be a stack temporary destroyed by
+   the enclosing scope with call_free=false, the way a `returns shallow T`
+   result is handled; the heap is only forced when the box escapes (return,
+   field store, container deposit). Stack-vs-heap stays the builder's choice.
+
+   Still open from this decision: whether iface_owned should go entirely.
+   It is now an implementation detail (the typer knows statically which
+   boxes borrow), but a `d: Iface` PARAMETER receives either kind of box, so
+   its delete still needs the bit unless borrowed boxes are typed apart.
+
+*** Remaining gaps (not addressed by the 2026-10 commits)
+
+   - An abstract (ext) interface method carries at most one argument besides
+     self; two or more non-self params are a typer error at dispatch
+     ("supports at most one argument besides self", infer_field_access_fcall).
+     Synthetic error out-params do not count. Default methods keep their
+     full parameter lists already.
+   - The generated box clone/delete still dispatch by runtime tag through
+     dyn_call(iface_type_name, "clone"/"delete"), so collect_refs records
+     the `*.clone` / `*.delete` wildcards. Since #326 the wildcard only
+     expands over types the reachability walk reached, but it still keeps
+     those methods on every reached type, not only on the interface's
+     implementors. Abstract calls no longer use it (typed dispatcher).
+   - Self substitution in a copied default (gen_substitute_self_type)
+     rewrites only direct parameter and return types equal to the interface
+     name; nested generic types (`Vec(Self)`, `Option(Self)`) and explicit
+     interface-name references inside the body are not rewritten.
+   - `Iface()` (an empty box) is constructible; an abstract call on it has
+     no target (rejected explicitly), while a default call runs the
+     interface's own body. Decide whether a payload-less box is a value at
+     all. A user-declared clone/delete on an interface still suppresses the
+     generated box lifecycle methods.
+
+*** Acceptance
+
+   - [X] The ownership decision is recorded above and implemented: the
+     qualifier owns, with copy elision for immutable locals, documented in
+     doc/concepts/ownership.org "Interface-typed locals" and qualifiers.org.
+   - [ ] Decide whether iface_owned stays as an implementation detail or
+     borrowed boxes get typed apart so delete needs no runtime bit.
+   - Each remaining gap has either a fix with a regression test or an
+     explicit diagnostic.
+   - make test green on both backends under ASAN.
+
+*** Relations
+
+   #251/#268/#269 (fixed; the base and the status record). #433
+   (qualifiers on template arguments -- the per-container, static form of
+   what iface_owned does per element). #434 (static generic bounds -- the
+   other half of "interfaces"; most `d: Drawable` parameters written so far
+   are better expressed there).

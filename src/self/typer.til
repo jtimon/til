@@ -679,6 +679,10 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, mut ctx: Co
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FCall).not() { return }
         if fcall_is_raw_alloc(rhs, ctx.symbols) { return }
+        // #432: `ref d : Iface = c` was boxed into a constructor whose payload
+        // borrows c; the box is the binding's own value (iface_decl_owns_payload
+        // already checked that c is borrowable).
+        if expr_is_borrowed_iface_box_ctor(rhs, scope, ctx.symbols) { return }
         if fcall_returns_own(rhs, scope, ctx.symbols).not() { return }
         stmt.type_error(format("ref binding '", sdecl.name, "' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"), ctx)
     case:
@@ -1129,8 +1133,8 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
                                 // its concrete payload. Value-copying that box
                                 // into a field aliases its ownership; clone it
                                 // before the caller destroys the argument box.
-                                // The interface's clone preserves borrowed
-                                // payloads and deep-copies owned ones.
+                                // The interface's clone deep-copies the
+                                // payload, so the field owns its own (#432).
                                 field_vals[slot.to_usize()] = CtorArg.Filled(make_clone_call(fld_tn, arg.children[0].til_type(), arg.children[0], arg, ctx.symbols))
                             } else {
                                 field_vals[slot.to_usize()] = CtorArg.Filled(own take_expr(arg.children[0]))
@@ -1704,6 +1708,9 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             // store it inside a returned holder.
             if type_is_interface(ptype, scope, ctx.symbols) {
                 box_inferred_interface_value(scope, e.children[ci], ptype_name, param2.own_type.is(OwnType.Own), in_func, ctx)
+                if param2.own_type.is(OwnType.Own) {
+                    own_elided_iface_copy(scope, e.children[ci], ctx)
+                }
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, param2.own_type, ctx)
@@ -6445,7 +6452,36 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                     stmt.type_error("cannot return an aggregate field reached through a borrow: the by-value copy shares heap that dies with the borrow's owner; use .clone(), or 'returns ref'", ctx)
                 }
             }
-            check_carried_borrow_of_local_return(scope, stmt, ctx)
+            // #432: an interface box whose payload is a borrow leaves this
+            // frame as a COPY. The user-written `ref d : Iface = c` is a ref
+            // variable and is rejected like one; the typer's elided copy of
+            // an immutable local is materialized here through the
+            // interface's (deep) clone, before the borrow walk below, which
+            // would otherwise see the payload's source dying with the call.
+            mut returned_ref_iface_binding := false
+            switch stmt.children[0].node_type {
+            case .Ident(rvid):
+                rvb_o := scope.get_binding_sym(rvid.ident_sym())
+                if rvb_o.is_some() {
+                    ref rvb : TypeBinding = rvb_o.unwrap()
+                    if rvb.iface_payload_borrowed {
+                        if rvb.iface_borrow_explicit {
+                            stmt.type_error("cannot return ref variable from non-ref function; use .clone() or 'returns ref'", ctx)
+                            returned_ref_iface_binding = true
+                        } else {
+                            rv_tname := type_to_name(stmt.til_type(), ctx.symbols)
+                            rv_clone := make_clone_call(rv_tname, stmt.til_type(), stmt.children[0], stmt, ctx.symbols)
+                            stmt.children[0] = rv_clone
+                        }
+                    }
+                }
+            case:
+            }
+            // The rejected ref binding needs no second report for the
+            // payload's source dying with the call.
+            if returned_ref_iface_binding.not() {
+                check_carried_borrow_of_local_return(scope, stmt, ctx)
+            }
             check_str_view_of_local_return(scope, stmt, ctx)
             // #396: the RETURN slot. `returns I8 { return s.c_str }` handed
             // gcc a `char *` for a `char`. `returns ref I8` and `returns
@@ -7322,13 +7358,15 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
 
 // Whether this expression lends an existing interface box rather than
 // transferring an owned value. This is distinct from iface_owned, which
-// describes the PAYLOAD and is known only at runtime for a parameter.
+// describes the PAYLOAD and is known only at runtime for a parameter. A
+// local whose box borrows its payload (#432, iface_payload_borrowed) has no
+// payload to transfer either: value-copying it into a field must clone.
 priv interface_box_storage_is_borrowed := func(value: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     switch value.node_type {
     case .Ident(id):
         switch scope.get_binding_sym(id.ident_sym()) {
         case .Some(binding):
-            return binding.own_type.is(OwnType.Ref).or(binding.is_param.and(binding.own_type.is(OwnType.Own).not()))
+            return binding.own_type.is(OwnType.Ref).or(binding.is_param.and(binding.own_type.is(OwnType.Own).not())).or(binding.iface_payload_borrowed)
         case .None: return false
         }
     case .FieldAccess:
@@ -7365,10 +7403,124 @@ priv infer_interface_payload_call := proc(mut scope: TypeScope, mut call: Expr, 
     resolve_fcall_return_type(scope, call, name, binding_o, fdef_o, in_func, ctx)
 }
 
-// Borrowing locals/arguments borrow existing storage; fresh concrete values
-// use owned boxes so returning/storing the interface cannot retain a pointer
-// to a hoisted temporary. Value fields and owning parameters own even a named
-// concrete source, matching field construction. The input is already typed.
+// #432: the box constructor box_inferred_interface_value builds for a
+// BORROWED payload carries `iface_val = to_ptr(<source>)`. Inference desugars
+// the ctor's named args to positional, so the to_ptr call is looked for among
+// the children, wrapped in a NamedArg or not. The empty Iface() box and an
+// owned box (dyn_call_ret clone) are not borrowed.
+priv fcall_callee_is := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() == 0 { return false }
+    switch e.children[0].node_type {
+    case .Ident(callee): return callee.ident_name(symbols.names) == name
+    case: return false
+    }
+}
+
+priv expr_is_borrowed_iface_box_ctor := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() == 0 { return false }
+    switch e.children[0].node_type {
+    case .Ident(callee):
+        if name_is_interface(callee.ident_name(symbols.names), scope, symbols).not() { return false }
+    case: return false
+    }
+    for i in 1..e.children.len() {
+        ref arg : Expr = e.children[i]
+        if fcall_callee_is(arg, "to_ptr", symbols) { return true }
+        if arg.node_type.is(NodeType.NamedArg).and(arg.children.len() > 0) {
+            if fcall_callee_is(arg.children[0], "to_ptr", symbols) { return true }
+        }
+    }
+    return false
+}
+
+// #432: does an interface-typed Decl OWN its payload (a deep copy of the
+// concrete) or BORROW it (the box points at the source's storage)? The rule
+// is the plain aggregate local's (infer_decl_value's alias rule): `ref`
+// borrows and must name existing storage; a bare immutable binding
+// initialized from an immutable owned local (or another alias) borrows too,
+// because no write and no lifetime can tell that from a copy -- the copy is
+// elided, and materialized where the binding is returned or passed as `own`
+// (the binding's iface_payload_borrowed); everything else -- a `mut`
+// binding, a mut/own/ref/param source, a field, a call -- owns a copy. A
+// ref-returning call must choose explicitly, like any aggregate.
+priv iface_decl_owns_payload := proc(scope: TypeScope, stmt: Expr, iface_name: Str, mut ctx: Context) returns Bool {
+    ref sdecl : Declaration = decl_of(stmt)
+    ref rhs : Expr = stmt.children[0]
+    concrete_o := expr_type_name_ref(rhs, ctx.symbols)
+    if concrete_o.is_none() { return true }
+    // Already a box: the plain aggregate rules apply to the box itself.
+    if concrete_o.unwrap().eq(iface_name) { return true }
+    if sdecl.own_type.is(OwnType.Ref) {
+        // A temporary has no storage to borrow: box it owned and let the
+        // Decl's own ref-from-owned-value checks report the `ref`.
+        if expr_is_borrow_source(rhs, scope, ctx.symbols).not() { return true }
+        if sdecl.is_mut {
+            switch rhs.node_type {
+            case .Ident(rid):
+                rb_o := scope.get_binding_sym(rid.ident_sym())
+                if rb_o.is_some() {
+                    if rb_o.unwrap().is_mut.not() {
+                        stmt.type_error("'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
+                    }
+                }
+            case:
+            }
+        }
+        return false
+    }
+    if sdecl.is_mut { return true }
+    switch rhs.node_type {
+    case .Ident(rid):
+        rb_o := scope.get_binding_sym(rid.ident_sym())
+        if rb_o.is_some() {
+            ref rb : TypeBinding = rb_o.unwrap()
+            if rb.is_mut.or(rb.own_type.is(OwnType.Own))
+                .or(rb.own_type.is(OwnType.Ref).and(rb.is_alias.not()))
+                .or(rb.is_param).not() {
+                return false
+            }
+        }
+    case .FCall:
+        if fcall_returns_ref(rhs, scope, ctx.symbols) != 0 {
+            stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
+        }
+    case:
+    }
+    return true
+}
+
+// #432: an interface box whose payload is a borrow cannot hand that payload
+// to an `own` parameter. The user-written `ref d : Iface = c` is rejected
+// like any ref variable; the typer's elided copy of an immutable local is
+// materialized here through the interface's (deep) clone, so the callee owns
+// a copy and the binding stays usable.
+priv own_elided_iface_copy := proc(scope: TypeScope, mut value: Expr, mut ctx: Context) {
+    switch value.node_type {
+    case .Ident(vid):
+        vb_o := scope.get_binding_sym(vid.ident_sym())
+        if vb_o.is_none() { return }
+        ref vb : TypeBinding = vb_o.unwrap()
+        if vb.iface_payload_borrowed.not() { return }
+        if vb.iface_borrow_explicit {
+            value.type_error("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", ctx)
+            return
+        }
+        oec_tname := type_to_name(value.til_type(), ctx.symbols)
+        oec_clone := make_clone_call(oec_tname, value.til_type(), value, value, ctx.symbols)
+        value = oec_clone
+    case:
+    }
+}
+
+// Box a conforming concrete where an interface is expected. own_payload
+// chooses the box: a deep copy the box frees (make_owned_iface_box), or a
+// borrow of the concrete's existing storage (to_ptr). Arguments borrow a
+// named source (params are Ref) and own a fresh value, so returning/storing
+// the interface cannot retain a pointer to a hoisted temporary; value fields,
+// owning parameters and `mut` targets own even a named source; a Decl follows
+// iface_decl_owns_payload. The input is already typed.
 priv box_inferred_interface_value := proc(mut scope: TypeScope, mut value: Expr, iface_name: Str, own_payload: Bool, in_func: I32, mut ctx: Context) {
     concrete_o := expr_type_name_ref(value, ctx.symbols)
     if concrete_o.is_none() { return }
@@ -7729,7 +7881,25 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             decl_b.is_str_view = true
             decl_b.str_view_base = view_src
         }
-        if sdecl.own_type.is(OwnType.Ref) {
+        if sdecl.own_type.is(OwnType.Ref).and(expr_is_borrowed_iface_box_ctor(rhs, scope, ctx.symbols)) {
+            // #432: `ref d : Iface = c`. The BOX is this binding's own value,
+            // owned and destroyed here like any local; only its payload
+            // borrows c. Record that on the binding, and carry c as the box's
+            // root (the #351 rule below ran while the Decl still read Ref) so
+            // the garbager keeps c alive and writes through the box reach it.
+            sdecl.own_type = OwnType.Shallow
+            decl_b.iface_payload_borrowed = true
+            decl_b.iface_borrow_explicit = true
+            mut explicit_roots := expr_borrow_roots(scope, rhs, ctx.symbols)
+            for mut xrr : BorrowRoot in explicit_roots {
+                xrr.carried = true
+            }
+            decl_b.borrow_roots = explicit_roots
+        } else if expr_is_borrowed_iface_box_ctor(rhs, scope, ctx.symbols) {
+            // #432: the elided copy (iface_decl_owns_payload): owned box,
+            // borrowed payload, copied on demand at a return or `own` use.
+            decl_b.iface_payload_borrowed = true
+        } else if sdecl.own_type.is(OwnType.Ref) {
             decl_b.own_type = OwnType.Ref
             // #211: payload binding `ref T = get_payload(<ident>)` is the
             // typer-emitted shape produced by make_switch_case_condition.
@@ -7953,7 +8123,8 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
         else if name_is_interface(declared_name_at_entry, scope, ctx.symbols) {
             infer_expr(scope, stmt.children[0], in_func, ctx)
-            box_inferred_interface_value(scope, stmt.children[0], declared_name_at_entry, false, in_func, ctx)
+            decl_owns_payload := iface_decl_owns_payload(scope, stmt, declared_name_at_entry, ctx)
+            box_inferred_interface_value(scope, stmt.children[0], declared_name_at_entry, decl_owns_payload, in_func, ctx)
         } else { infer_expr(scope, stmt.children[0], in_func, ctx) }
         ctx.generic_expected_type = saved_expected_type.clone()
         ctx.generic_expected_for = saved_expected_for
@@ -9169,7 +9340,17 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     generic_expected_arm(ctx, scope, asg_expected_name, stmt.children[0])
     infer_expr(scope, stmt.children[0], in_func, ctx)
     if name_is_interface(asg_expected_name, scope, ctx.symbols) {
-        box_inferred_interface_value(scope, stmt.children[0], asg_expected_name, false, in_func, ctx)
+        // #432: a reassigned (`mut`) interface binding owns its payload, so
+        // a named concrete source is deep-copied, as for any aggregate
+        // assignment. A `ref d : Iface = c` binding borrows c's storage and
+        // has nothing of its own to replace.
+        if asg_b_o.is_some() {
+            ref asg_iface_b : TypeBinding = asg_b_o.unwrap()
+            if asg_iface_b.iface_payload_borrowed.and(asg_iface_b.iface_borrow_explicit) {
+                stmt.type_error(format("cannot reassign ref binding '", aname, "': it borrows its source; declare it 'mut ", aname, " : ", asg_expected_name, " = ...' to own a copy"), ctx)
+            }
+        }
+        box_inferred_interface_value(scope, stmt.children[0], asg_expected_name, true, in_func, ctx)
         check_declared_value_type(stmt, aname, stmt.children[0], type_from_name(asg_expected_name, scope, ctx), asg_expected_name, OwnType.Shallow, scope, ctx)
     }
     ctx.generic_expected_type = saved_asg_expected_type.clone()
@@ -10559,6 +10740,41 @@ priv collect_direct_return_borrow_source := func(scope: TypeScope, source: Expr,
     }
 }
 
+// #432: an interface's clone deep-copies the payload through the runtime
+// tag (gen_interface_clone_delete_for_stmt), so its result carries no borrow
+// whatever the source box carried -- unlike a plain struct's clone, which
+// copies its ref fields' pointers. Both spellings: `Iface.clone(x)` (also
+// what make_clone_call builds) and the UFCS `x.clone()` on an interface value.
+priv fcall_is_interface_clone := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() == 0 { return false }
+    ref callee : Expr = e.children[0]
+    switch callee.node_type {
+    case .FieldAccess(fad):
+        if fad.field_access_name(symbols.names) != "clone" { return false }
+        if callee.children.len() == 0 { return false }
+        switch callee.children[0].node_type {
+        case .Ident(tid):
+            if name_is_interface(tid.ident_name(symbols.names), scope, symbols) { return true }
+        case:
+        }
+        return type_is_interface(callee.children[0].til_type(), scope, symbols)
+    case: return false
+    }
+}
+
+// #432: does a VALUE (non-ref) field copy of this declaration's type carry a
+// borrow out of the argument? A plain borrow-carrying aggregate does (its
+// ref fields are pointer-copied). An interface-typed value field does not:
+// the typer makes every box stored there own its payload -- a fresh concrete
+// is boxed owned, a lent or payload-borrowing box is cloned (deep), a
+// ref-returned box is cloned -- so the field reaches nothing the argument
+// borrowed. `ref` interface fields are the callers' own branch.
+priv value_field_carries_borrow := func(scope: TypeScope, fld: Declaration, symbols: SymbolPool) returns Bool {
+    if type_is_interface(fld.til_type, scope, symbols) { return false }
+    return type_carries_borrow_t(scope, fld.til_type, symbols)
+}
+
 priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) returns ReturnEscapeRoots {
     mut out := ReturnEscapeRoots()
     switch e.node_type {
@@ -10571,6 +10787,7 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
             push_root_unique(out.indirect, cr)
         }
     case .FCall:
+        if fcall_is_interface_clone(e, scope, symbols) { return out }
         enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
         if enum_arg_o.is_some() {
             collect_direct_return_borrow_source(scope, enum_arg_o.unwrap(), symbols, out)
@@ -10591,7 +10808,7 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
                 ref source : Expr = ctor_arg_value(arg)
                 if fld.own_type.is(OwnType.Ref) {
                     collect_direct_return_borrow_source(scope, source, symbols, out)
-                } else if type_carries_borrow_t(scope, fld.til_type, symbols) {
+                } else if value_field_carries_borrow(scope, fld, symbols) {
                     nested := return_escape_roots(scope, source, symbols)
                     for r : BorrowRoot in nested.direct { push_root_unique(out.direct, r) }
                     for r : BorrowRoot in nested.indirect { push_root_unique(out.indirect, r) }
@@ -11731,6 +11948,7 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) r
         if fa_is_ns(e, scope, symbols) { return out }
         return expr_borrow_roots(scope, e.children[0], symbols)
     case .FCall:
+        if fcall_is_interface_clone(e, scope, symbols) { return out }
         rso := raw_borrow_source(e, symbols)
         if rso.is_some() { return expr_borrow_roots(scope, rso.unwrap(), symbols) }
         enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
@@ -11756,7 +11974,7 @@ priv expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) r
                     if fld_o.is_none() { continue }
                     ref fld : Declaration = fld_o.unwrap()
                     mut crosses := fld.own_type.is(OwnType.Ref)
-                    if crosses.not() { crosses = type_carries_borrow_t(scope, fld.til_type, symbols) }
+                    if crosses.not() { crosses = value_field_carries_borrow(scope, fld, symbols) }
                     if crosses.not() { continue }
                     // #355/#356: record the PATH the pointer sits
                     // behind. A ref field IS the last segment: what it
@@ -12482,6 +12700,32 @@ priv summary_fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeSc
     return false
 }
 
+// #432: is this FieldAssign's target a VALUE (non-ref) interface-typed field?
+// Resolved the way the FieldAccess arm of summary_expr_bits resolves its
+// base; an unresolvable base answers no (the conservative over-credit).
+priv summary_fieldassign_target_is_value_iface := func(e: Expr, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool) returns Bool {
+    ref target : Expr = e.children[0]
+    if target.node_type.is(NodeType.FieldAccess).not() { return false }
+    if target.children.len() == 0 { return false }
+    btn := summary_receiver_type(target.children[0], scope, self_type, params, symbols)
+    if btn.len() == 0 { return false }
+    bdef_o := scope.get_struct(btn, symbols)
+    if bdef_o.is_none() { return false }
+    switch bdef_o.unwrap().node_type {
+    case .StructDef(bsd):
+        switch target.node_type {
+        case .FieldAccess(fad):
+            fo := member_get(bsd.fields_index, bsd.fields, fad.field_access_name(symbols.names))
+            if fo.is_none() { return false }
+            ref tfd : Declaration = fo.unwrap()
+            return tfd.own_type.is(OwnType.Ref).not().and(type_is_interface(tfd.til_type, scope, symbols))
+        case:
+        }
+    case:
+    }
+    return false
+}
+
 priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
     case .Ident(id):
@@ -12522,6 +12766,8 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
         }
         return base
     case .FCall:
+        // #432: an interface clone is a deep copy; it reaches nothing.
+        if fcall_is_interface_clone(e, scope, symbols) { return RootBits() }
         rso := raw_borrow_source(e, symbols)
         if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, params, symbols, ctx) }
         mut enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
@@ -12549,7 +12795,7 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
                     if fld_o.is_none() { continue }
                     ref fld : Declaration = fld_o.unwrap()
                     mut crosses := fld.own_type.is(OwnType.Ref)
-                    if crosses.not() { crosses = type_carries_borrow_t(scope, fld.til_type, symbols) }
+                    if crosses.not() { crosses = value_field_carries_borrow(scope, fld, symbols) }
                     if crosses.not() { continue }
                     ab := summary_expr_bits(ctor_arg_value(arg), roots, scope, self_type, params, symbols, ctx)
                     if fld.own_type.is(OwnType.Ref) {
@@ -12828,7 +13074,9 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         }
     case .FieldAssign:
         // #393: `b.h = rhs` parks the source's borrows in b's storage.
-        if e.children.len() >= 2 {
+        // #432: not into a VALUE interface field -- the box stored there
+        // owns its payload (value_field_carries_borrow).
+        if e.children.len().gte(2).and(summary_fieldassign_target_is_value_iface(e, scope, self_type, params, symbols).not()) {
             src_bits := summary_expr_bits(e.children[1], roots, scope, self_type, params, symbols, ctx)
             if src_bits.is_zero().not() {
                 sink_bits := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)

@@ -166,8 +166,9 @@ test_default_through_iface_dispatches := test() {
 // #251 follow-up: a conforming concrete bound to an interface-typed LOCAL
 // (`d : Drawable = c`) boxes exactly like an interface-typed argument, and an
 // abstract-method call on that local dispatches to the runtime type -- a
-// struct (Circle) and an enum (Polygon). The borrow is sound: the source
-// local is declared first, so it outlives the interface-typed binding.
+// struct (Circle) and an enum (Polygon). The binding owns a copy of the
+// concrete; for an immutable source the copy is elided into a borrow (#432),
+// which is sound because the source outlives the binding.
 test_local_binding_dispatch := test() {
     c := Circle(r = 1)
     d : Drawable = c
@@ -256,20 +257,113 @@ test_interface_temporary_lifetimes := test() {
     assert_eq(I64, calls, 3)
 }
 
-// Existing storage still supplies a borrow, rather than an implicit snapshot.
-// Returning a holder of a PARAMETER's borrow is valid while the caller keeps
-// that parameter's concrete value alive.
+// #432: an interface-typed local follows the plain aggregate rule. A bare
+// binding owns an independent copy of a named concrete; `ref` borrows it.
+// Copying a lent box into a value field copies the payload too, so a holder
+// never aliases the caller's concrete.
 borrow_interface_holder := func(d: Drawable) returns DrawHolder {
     return DrawHolder(shape = d)
 }
 
-test_interface_named_local_borrow := test() {
+test_interface_named_local_copy := test() {
     mut value := CaptionShape(text = format("before ", "change"))
     d: Drawable = value
     holder := borrow_interface_holder(d)
     value.text = format("after ", "change")
-    assert_eq(Str, d.draw(), "after change")
-    assert_eq(Str, holder.shape.draw(), "after change")
+    assert_eq(Str, d.draw(), "before change")
+    assert_eq(Str, holder.shape.draw(), "before change")
+    assert_eq(Str, value.draw(), "after change")
+}
+
+test_interface_ref_local_aliases := test() {
+    mut value := CaptionShape(text = format("before ", "alias"))
+    ref view: Drawable = value
+    value.text = format("after ", "alias")
+    assert_eq(Str, view.draw(), "after alias")
+    holder := borrow_interface_holder(view)
+    value.text = format("final ", "alias")
+    assert_eq(Str, view.draw(), "final alias")
+    assert_eq(Str, holder.shape.draw(), "after alias")
+}
+
+// The copy of an IMMUTABLE local is elided -- no write and no lifetime can
+// tell it from a borrow -- and materialized only where the binding leaves
+// the frame: a return, a value field, an `own` argument. CloneProbe counts
+// the copies that are actually made.
+CloneProbe := struct implements Drawable {
+    text: Str
+namespace:
+    mut clones := 0
+    draw := func(self: CloneProbe) returns Str { return self.text.clone() }
+    clone := func(self: CloneProbe) returns CloneProbe {
+        CloneProbe.clones = CloneProbe.clones + 1
+        return CloneProbe(text = self.text.clone())
+    }
+}
+
+return_elided_copy := func() returns Drawable {
+    source := CloneProbe(text = format("returned ", "copy"))
+    d: Drawable = source
+    return d
+}
+
+return_elided_copy_holder := func() returns DrawHolder {
+    source := CloneProbe(text = format("holder ", "copy"))
+    d: Drawable = source
+    return DrawHolder(shape = d)
+}
+
+return_elided_copy_via_param := func() returns DrawHolder {
+    source := CloneProbe(text = format("relayed ", "copy"))
+    d: Drawable = source
+    return borrow_interface_holder(d)
+}
+
+test_interface_elided_copy := test() {
+    source := CloneProbe(text = format("elided ", "copy"))
+    before := CloneProbe.clones
+    d: Drawable = source
+    assert_eq(Str, d.draw(), "elided copy")
+    assert_eq(Str, d.describe(), "elided copy")
+    assert_eq(I64, CloneProbe.clones, before)
+    mut copied: Drawable = source
+    assert_eq(I64, CloneProbe.clones, before + 1)
+    assert_eq(Str, copied.draw(), "elided copy")
+    copied = Polygon.Tri
+    assert_eq(Str, copied.draw(), "polygon")
+    assert_eq(Str, source.draw(), "elided copy")
+    assert_eq(I64, CloneProbe.clones, before + 1)
+}
+
+test_interface_elided_copy_escapes := test() {
+    before := CloneProbe.clones
+    returned := return_elided_copy()
+    assert_eq(Str, returned.draw(), "returned copy")
+    assert_eq(I64, CloneProbe.clones, before + 1)
+    holder := return_elided_copy_holder()
+    assert_eq(Str, holder.shape.draw(), "holder copy")
+    assert_eq(I64, CloneProbe.clones, before + 2)
+    relayed := return_elided_copy_via_param()
+    assert_eq(Str, relayed.shape.draw(), "relayed copy")
+    assert_eq(I64, CloneProbe.clones, before + 3)
+}
+
+test_interface_elided_copy_owned_argument := test() {
+    source := CloneProbe(text = format("deposited ", "copy"))
+    view: Drawable = source
+    before := CloneProbe.clones
+    mut values := Vec(Drawable).new()
+    values.push(own view)
+    assert_eq(I64, CloneProbe.clones, before + 1)
+    assert_eq(Str, values[0].draw(), "deposited copy")
+    assert_eq(Str, view.draw(), "deposited copy")
+    if true {
+        inner := CloneProbe(text = format("inner ", "copy"))
+        inner_view: Drawable = inner
+        values.push(own inner_view)
+    }
+    assert_eq(Str, values[1].draw(), "inner copy")
+    assert_eq(I64, CloneProbe.clones, before + 2)
 }
 
 return_interface_enum_temporary := func() returns Drawable {
@@ -369,13 +463,16 @@ test_interface_argument_call_paths := test() {
 
 borrow_caption := func(value: CaptionShape) returns ref CaptionShape { return value }
 
-test_interface_argument_named_borrow := test() {
+// A named concrete passed to a borrowed parameter is lent, but leaving the
+// callee by value -- a return, a value field -- copies its payload (#432).
+test_interface_argument_copies_out := test() {
     mut value := CaptionShape(text = format("before ", "argument"))
     direct := relay_drawable(value)
     holder := borrow_interface_holder(borrow_caption(value))
     value.text = format("after ", "argument")
-    assert_eq(Str, direct.draw(), "after argument")
-    assert_eq(Str, holder.shape.draw(), "after argument")
+    assert_eq(Str, direct.draw(), "before argument")
+    assert_eq(Str, holder.shape.draw(), "before argument")
+    assert_eq(Str, value.draw(), "after argument")
 }
 
 CaptionChoice := enum implements Drawable {
@@ -397,6 +494,22 @@ test_interface_argument_enum_payload := test() {
     assert_eq(Str, holder.shape.draw(), "enum 5")
 }
 
+// An enum concrete follows the same local rule as a struct (#432).
+test_interface_enum_local_copy := test() {
+    choice := CaptionChoice.Text(format("enum ", "source"))
+    view: Drawable = choice
+    assert_eq(Str, view.draw(), "enum source")
+    mut copied: Drawable = choice
+    assert_eq(Str, copied.draw(), "enum source")
+    copied = Polygon.Quad
+    assert_eq(Str, copied.draw(), "polygon")
+    assert_eq(Str, choice.draw(), "enum source")
+    mut values := Vec(Drawable).new()
+    values.push(own view)
+    assert_eq(Str, values[0].draw(), "enum source")
+    assert_eq(Str, view.draw(), "enum source")
+}
+
 borrow_drawable := func(value: Drawable) returns ref Drawable { return value }
 
 test_interface_reassignment := test() {
@@ -416,7 +529,8 @@ test_interface_reassignment := test() {
     mut source := CaptionShape(text = format("before ", "assignment"))
     d = source
     source.text = format("after ", "assignment")
-    assert_eq(Str, d.draw(), "after assignment")
+    assert_eq(Str, d.draw(), "before assignment")
+    assert_eq(Str, source.draw(), "after assignment")
     assert_eq(I64, calls, 2)
 }
 
@@ -469,15 +583,17 @@ test_interface_collection_lifetimes := test() {
     assert_eq(Str, copies[2].draw(), "boxed 5")
 }
 
-test_interface_collection_borrows := test() {
-    mut source := CaptionShape(text = format("borrowed ", "before"))
+// A deposited box owns its payload: a collection never aliases a local (#432).
+test_interface_collection_copies := test() {
+    mut source := CaptionShape(text = format("deposited ", "before"))
     view: Drawable = source
     mut values := Vec(Drawable).new()
     values.push(own view)
-    source.text = format("borrowed ", "after")
-    assert_eq(Str, values[0].draw(), "borrowed after")
+    source.text = format("deposited ", "after")
+    assert_eq(Str, values[0].draw(), "deposited before")
     popped := values.pop()
-    assert_eq(Str, popped.draw(), "borrowed after")
+    assert_eq(Str, popped.draw(), "deposited before")
+    assert_eq(Str, source.draw(), "deposited after")
 }
 
 // Count destruction of the OLD payload independently of any new temporary
@@ -662,12 +778,15 @@ dispatch_announce := proc(view: FullContract) { view.announce() }
 
 test_interface_dispatch_mut_and_ref := test() {
     mut value := ContractValue(text = "borrowed", n = 1)
-    mut view: FullContract = value
+    ref mut view: FullContract = value
     assert_eq(I64, view.add(4), 5)
     assert_eq(I64, value.n, 5)
     ref text: Str = view.borrow()
     assert_eq(Str, text, "borrowed")
     dispatch_announce(view)
+    mut copy: FullContract = value
+    assert_eq(I64, copy.add(1), 6)
+    assert_eq(I64, value.n, 5)
 }
 
 Finishable := interface {
@@ -932,7 +1051,7 @@ test_interface_multi_owned_mut_and_order := test() {
     assert_eq(I64, calls, 3)
     assert_eq(I64, count, 2)
     mut source := MultiValue(n = 4)
-    mut view: MultiContract = source
+    ref mut view: MultiContract = source
     left := format("owned ", "left")
     right := format("owned ", "right")
     assert_eq(Str, view.take(own left, count, own right), "owned left/owned right")

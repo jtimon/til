@@ -1891,6 +1891,8 @@ typedef struct TypeBinding {
     Bool is_param;
     OwnType own_type;
     Bool is_alias;
+    Bool iface_payload_borrowed;
+    Bool iface_borrow_explicit;
     Bool is_type_alias;
     Bool is_func_decl;
     Str alias_target;
@@ -3752,6 +3754,10 @@ static Bool priv___src_self_typer_til__fcall_is_raw_alloc(Expr * e, SymbolPool *
 static void priv___src_self_typer_til__check_declared_value_type(Expr * at, Str * name, Expr * val, Type * declared, Str * declared_name, OwnType * own_type, TypeScope * scope, Context * ctx);
 static Bool priv___src_self_typer_til__interface_box_storage_is_borrowed(Expr * value, TypeScope * scope, SymbolPool * symbols);
 static void priv___src_self_typer_til__infer_interface_payload_call(TypeScope * scope, Expr * call, I32 in_func, Context * ctx);
+static Bool priv___src_self_typer_til__fcall_callee_is(Expr * e, Str * name, SymbolPool * symbols);
+static Bool priv___src_self_typer_til__expr_is_borrowed_iface_box_ctor(Expr * e, TypeScope * scope, SymbolPool * symbols);
+static Bool priv___src_self_typer_til__iface_decl_owns_payload(TypeScope * scope, Expr * stmt, Str * iface_name, Context * ctx);
+static void priv___src_self_typer_til__own_elided_iface_copy(TypeScope * scope, Expr * value, Context * ctx);
 static void priv___src_self_typer_til__box_inferred_interface_value(TypeScope * scope, Expr * value, Str * iface_name, Bool own_payload, I32 in_func, Context * ctx);
 static void priv___src_self_typer_til__infer_decl_typed_value(TypeScope * scope, Expr * stmt, Context * ctx);
 static void priv___src_self_typer_til__infer_decl_untyped_value(Expr * stmt, Context * ctx);
@@ -3849,6 +3855,8 @@ static void priv___src_self_typer_til__check_dyn_call_delete_of_local(TypeScope 
 static void priv___src_self_typer_til__ReturnEscapeRoots_delete(priv___src_self_typer_til__ReturnEscapeRoots * self, Bool call_free);
 static Option__ref_TypeBinding priv___src_self_typer_til__return_source_root_binding(TypeScope * scope, Expr * source);
 static void priv___src_self_typer_til__collect_direct_return_borrow_source(TypeScope * scope, Expr * source, SymbolPool * symbols, priv___src_self_typer_til__ReturnEscapeRoots * out);
+static Bool priv___src_self_typer_til__fcall_is_interface_clone(Expr * e, TypeScope * scope, SymbolPool * symbols);
+static Bool priv___src_self_typer_til__value_field_carries_borrow(TypeScope * scope, Declaration * fld, SymbolPool * symbols);
 static priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__return_escape_roots(TypeScope * scope, Expr * e, SymbolPool * symbols);
 static void priv___src_self_typer_til__report_local_return_roots(TypeScope * scope, Expr * stmt, Str * tn, Vec__BorrowRoot * roots, Bool skip_carriers, Set__Str * reported, Context * ctx);
 static void priv___src_self_typer_til__check_carried_borrow_of_local_return(TypeScope * scope, Expr * stmt, Context * ctx);
@@ -3927,6 +3935,7 @@ static RootBits priv___src_self_typer_til__summary_ctor_wrap(RootBits * arg_bits
 static Option__ref_Expr priv___src_self_typer_til__summary_generic_dep_def(Context * ctx, Str * name);
 static Option__ref_Expr priv___src_self_typer_til__summary_generic_ref_ctor_arg(Expr * e, Context * ctx);
 static Bool priv___src_self_typer_til__summary_fdef_return_carries_borrow(FunctionDef * fdef, TypeScope * scope, Context * ctx);
+static Bool priv___src_self_typer_til__summary_fieldassign_target_is_value_iface(Expr * e, TypeScope * scope, Str * self_type, Vec__Declaration * params, SymbolPool * symbols);
 static RootBits priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_RootBits * roots, TypeScope * scope, Str * self_type, Vec__Declaration * params, SymbolPool * symbols, Context * ctx);
 static Bool priv___src_self_typer_til__fdef_may_deposit(FunctionDef * fd);
 static U64 priv___src_self_typer_til__deposit_bit(USize sink, USize src);
@@ -6475,6 +6484,7 @@ static struct {
     Str hbb9488db7778;
     Str h827c1c21b3ac;
     Str h00000b876516;
+    Str h1b756034b220;
     Str heb5a3eb7e4ac;
     Str h00000002b5cd;
     Str h000000596f8e;
@@ -7047,7 +7057,9 @@ static struct {
     Str h869c52463145;
     Str he22c1de6c144;
     Str h9778b73eacba;
+    Str h4a20517dd2a8;
     Str he28c3733e50f;
+    Str h313c08bfe9f1;
     Str h00000b8864f9;
     Str hc3ea47c44cc0;
     Str h00017c9504e1;
@@ -7876,6 +7888,7 @@ static struct {
     .hbb9488db7778 = (Str){.c_str = (void *)"'; remove 'priv' to expose it", .count = 29ULL, .cap = TIL_CAP_LIT},
     .h827c1c21b3ac = (Str){.c_str = (void *)"'; use .clone() to make an owned copy", .count = 37ULL, .cap = TIL_CAP_LIT},
     .h00000b876516 = (Str){.c_str = (void *)"'\n", .count = 2ULL, .cap = TIL_CAP_LIT},
+    .h1b756034b220 = (Str){.c_str = (void *)"'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", .count = 86ULL, .cap = TIL_CAP_LIT},
     .heb5a3eb7e4ac = (Str){.c_str = (void *)"'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", .count = 92ULL, .cap = TIL_CAP_LIT},
     .h00000002b5cd = (Str){.c_str = (void *)"(", .count = 1ULL, .cap = TIL_CAP_LIT},
     .h000000596f8e = (Str){.c_str = (void *)"(!", .count = 2ULL, .cap = TIL_CAP_LIT},
@@ -8448,7 +8461,9 @@ static struct {
     .h869c52463145 = (Str){.c_str = (void *)"cannot initialize field '", .count = 25ULL, .cap = TIL_CAP_LIT},
     .he22c1de6c144 = (Str){.c_str = (void *)"cannot own result of ref-returning function; use 'ref' or Type.clone()", .count = 70ULL, .cap = TIL_CAP_LIT},
     .h9778b73eacba = (Str){.c_str = (void *)"cannot pass capture '", .count = 21ULL, .cap = TIL_CAP_LIT},
+    .h4a20517dd2a8 = (Str){.c_str = (void *)"cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", .count = 79ULL, .cap = TIL_CAP_LIT},
     .he28c3733e50f = (Str){.c_str = (void *)"cannot return '", .count = 15ULL, .cap = TIL_CAP_LIT},
+    .h313c08bfe9f1 = (Str){.c_str = (void *)"cannot return ref variable from non-ref function; use .clone() or 'returns ref'", .count = 79ULL, .cap = TIL_CAP_LIT},
     .h00000b8864f9 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT},
     .hc3ea47c44cc0 = (Str){.c_str = (void *)"capture '", .count = 9ULL, .cap = TIL_CAP_LIT},
     .h00017c9504e1 = (Str){.c_str = (void *)"case", .count = 4ULL, .cap = TIL_CAP_LIT},
@@ -9058,15 +9073,15 @@ static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.
 static Str hoisted__Str_Str_to_i64_21 = (Str){.c_str = (void *)"./src/core/str.til:399:40", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Str_to_i64_7 = (Str){.c_str = (void *)"./src/core/str.til:395:44", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Str_to_u64_7 = (Str){.c_str = (void *)"./src/core/str.til:441:44", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_SymMap__Dynamic_remove_10 = (Str){.c_str = (void *)"./src/self/context.til:494:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_SymMap__Dynamic_remove_5 = (Str){.c_str = (void *)"./src/self/context.til:493:19", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_SymMap__TypeBinding_remove_10 = (Str){.c_str = (void *)"./src/self/context.til:494:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_SymMap__TypeBinding_remove_5 = (Str){.c_str = (void *)"./src/self/context.til:493:19", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_SymMap__Dynamic_remove_10 = (Str){.c_str = (void *)"./src/self/context.til:504:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_SymMap__Dynamic_remove_5 = (Str){.c_str = (void *)"./src/self/context.til:503:19", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_SymMap__TypeBinding_remove_10 = (Str){.c_str = (void *)"./src/self/context.til:504:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_SymMap__TypeBinding_remove_5 = (Str){.c_str = (void *)"./src/self/context.til:503:19", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_SymbolPool_resolve_11 = (Str){.c_str = (void *)"./src/self/parser.til:90:13", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_SymbolPool_resolve_3 = (Str){.c_str = (void *)"./src/self/parser.til:88:23", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_TypeScope_set_func_def_name_5 = (Str){.c_str = (void *)"./src/self/context.til:815:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_TypeScope_set_struct_def_15 = (Str){.c_str = (void *)"./src/self/context.til:843:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_TypeScope_set_struct_def_9 = (Str){.c_str = (void *)"./src/self/context.til:838:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_TypeScope_set_func_def_name_5 = (Str){.c_str = (void *)"./src/self/context.til:825:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_TypeScope_set_struct_def_15 = (Str){.c_str = (void *)"./src/self/context.til:853:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_TypeScope_set_struct_def_9 = (Str){.c_str = (void *)"./src/self/context.til:848:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Vec__Declaration_pop_3 = (Str){.c_str = (void *)"./src/core/ast.til:195:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Vec__Expr_pop_3 = (Str){.c_str = (void *)"./src/core/ast.til:195:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_Vec__Expr_push_take_11 = (Str){.c_str = (void *)"./src/core/ast.til:280:13", .count = 25ULL, .cap = TIL_CAP_LIT};
@@ -9076,9 +9091,9 @@ static Str hoisted__Str_append_err_out_params_5 = (Str){.c_str = (void *)"./src/
 static Str hoisted__Str_append_switch_else_if_14 = (Str){.c_str = (void *)"./src/self/desugarer.til:3615:57", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_append_switch_else_if_4 = (Str){.c_str = (void *)"./src/self/desugarer.til:3612:17", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_append_switch_else_if_9 = (Str){.c_str = (void *)"./src/self/desugarer.til:3614:34", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_arg_addressed_ident_11 = (Str){.c_str = (void *)"./src/self/typer.til:10690:40", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_arg_addressed_ident_6 = (Str){.c_str = (void *)"./src/self/typer.til:10687:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_array_vec_elem_type_name_5 = (Str){.c_str = (void *)"./src/self/context.til:2574:26", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_arg_addressed_ident_11 = (Str){.c_str = (void *)"./src/self/typer.til:10907:40", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_arg_addressed_ident_6 = (Str){.c_str = (void *)"./src/self/typer.til:10904:32", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_array_vec_elem_type_name_5 = (Str){.c_str = (void *)"./src/self/context.til:2584:26", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_attach_switch_default_body_14 = (Str){.c_str = (void *)"./src/self/desugarer.til:3630:62", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_attach_switch_default_body_4 = (Str){.c_str = (void *)"./src/self/desugarer.til:3627:17", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_attach_switch_default_body_9 = (Str){.c_str = (void *)"./src/self/desugarer.til:3629:34", .count = 32ULL, .cap = TIL_CAP_LIT};
@@ -9094,8 +9109,8 @@ static Str hoisted__Str_builder_prepare_emit_6 = (Str){.c_str = (void *)"./src/s
 static Str hoisted__Str_builder_prepare_emit_66 = (Str){.c_str = (void *)"./src/self/c_codegen.til:10599:48", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_builder_prepare_emit_71 = (Str){.c_str = (void *)"./src/self/c_codegen.til:10600:50", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_case_pattern_count_0 = (Str){.c_str = (void *)"./src/core/ast.til:1481:12", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_check_unused_priv_members_in_program_6 = (Str){.c_str = (void *)"./src/self/typer.til:6182:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_check_unused_priv_members_in_program_77 = (Str){.c_str = (void *)"./src/self/typer.til:6186:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_check_unused_priv_members_in_program_6 = (Str){.c_str = (void *)"./src/self/typer.til:6189:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_check_unused_priv_members_in_program_77 = (Str){.c_str = (void *)"./src/self/typer.til:6193:37", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_cmd_ast_6 = (Str){.c_str = (void *)"./src/self/loader.til:4414:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_cmd_run_3 = (Str){.c_str = (void *)"./src/self/builder.til:1036:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_collect_decl_packed_8 = (Str){.c_str = (void *)"./src/self/loader.til:1590:37", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -9109,12 +9124,12 @@ static Str hoisted__Str_compute_enum_layout_26 = (Str){.c_str = (void *)"./src/s
 static Str hoisted__Str_compute_struct_layout_52 = (Str){.c_str = (void *)"./src/self/initer.til:2139:64", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_compute_struct_layout_61 = (Str){.c_str = (void *)"./src/self/initer.til:2144:41", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_compute_struct_layout_93 = (Str){.c_str = (void *)"./src/self/initer.til:2169:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_constfolder_classify_stmt_12 = (Str){.c_str = (void *)"./src/self/context.til:2149:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_constfolder_classify_stmt_12 = (Str){.c_str = (void *)"./src/self/context.til:2159:25", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_constfolder_normalize_stack_decls_in_body_11 = (Str){.c_str = (void *)"./src/self/constfolder.til:1648:12", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_constfolder_normalize_stack_decls_in_body_6 = (Str){.c_str = (void *)"./src/self/constfolder.til:1646:13", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_constfolder_register_core_constants_31 = (Str){.c_str = (void *)"./src/self/constfolder.til:2128:9", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_constfolder_register_fold_scope_6 = (Str){.c_str = (void *)"./src/self/constfolder.til:2066:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_container_elem_size_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:4138:19", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_container_elem_size_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:4142:19", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_context_set_mode_from_path_12 = (Str){.c_str = (void *)"./src/self/modes.til:15:30", .count = 26ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_context_set_mode_from_path_7 = (Str){.c_str = (void *)"./src/self/modes.til:13:9", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_core_str_parse_integer_magnitude_100 = (Str){.c_str = (void *)"./src/core/str.til:567:13", .count = 25ULL, .cap = TIL_CAP_LIT};
@@ -9130,16 +9145,16 @@ static Str hoisted__Str_core_str_parse_integer_magnitude_90 = (Str){.c_str = (vo
 static Str hoisted__Str_ctx_field_layout_14 = (Str){.c_str = (void *)"./src/self/initer.til:2304:9", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_ctx_total_size_6 = (Str){.c_str = (void *)"./src/self/initer.til:2281:30", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_dce_program_bodies_6 = (Str){.c_str = (void *)"./src/self/scavenger.til:1611:17", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_decls_2 = (Str){.c_str = (void *)"./src/self/context.til:2754:15", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_decls_5 = (Str){.c_str = (void *)"./src/self/context.til:2754:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_get_5 = (Str){.c_str = (void *)"./src/self/context.til:2791:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_has_5 = (Str){.c_str = (void *)"./src/self/context.til:2777:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_name_at_4 = (Str){.c_str = (void *)"./src/self/context.til:2766:15", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_name_at_7 = (Str){.c_str = (void *)"./src/self/context.til:2766:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_def_ns_pos_5 = (Str){.c_str = (void *)"./src/self/context.til:2811:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_delete_body_is_free_only_11 = (Str){.c_str = (void *)"./src/self/context.til:2591:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_delete_body_is_free_only_18 = (Str){.c_str = (void *)"./src/self/context.til:2594:29", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_delete_body_is_free_only_5 = (Str){.c_str = (void *)"./src/self/context.til:2589:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_decls_2 = (Str){.c_str = (void *)"./src/self/context.til:2764:15", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_decls_5 = (Str){.c_str = (void *)"./src/self/context.til:2764:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_get_5 = (Str){.c_str = (void *)"./src/self/context.til:2801:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_has_5 = (Str){.c_str = (void *)"./src/self/context.til:2787:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_name_at_4 = (Str){.c_str = (void *)"./src/self/context.til:2776:15", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_name_at_7 = (Str){.c_str = (void *)"./src/self/context.til:2776:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_def_ns_pos_5 = (Str){.c_str = (void *)"./src/self/context.til:2821:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_delete_body_is_free_only_11 = (Str){.c_str = (void *)"./src/self/context.til:2601:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_delete_body_is_free_only_18 = (Str){.c_str = (void *)"./src/self/context.til:2604:29", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_delete_body_is_free_only_5 = (Str){.c_str = (void *)"./src/self/context.til:2599:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_desugar_fcall_args_for_fdef_105 = (Str){.c_str = (void *)"./src/self/desugarer.til:109:26", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_desugar_fcall_args_for_fdef_122 = (Str){.c_str = (void *)"./src/self/desugarer.til:120:26", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_desugar_fcall_args_for_fdef_132 = (Str){.c_str = (void *)"./src/self/desugarer.til:123:22", .count = 31ULL, .cap = TIL_CAP_LIT};
@@ -9161,43 +9176,43 @@ static Str hoisted__Str_desugar_fcall_args_for_fdef_47 = (Str){.c_str = (void *)
 static Str hoisted__Str_desugar_fcall_args_for_fdef_54 = (Str){.c_str = (void *)"./src/self/desugarer.til:89:21", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_desugar_fcall_args_for_fdef_92 = (Str){.c_str = (void *)"./src/self/desugarer.til:106:25", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_desugar_user_func_fcall_args_1 = (Str){.c_str = (void *)"./src/self/desugarer.til:206:35", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_dispatch_result_alloc_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7193:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_has_payloads_9 = (Str){.c_str = (void *)"./src/self/context.til:2884:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_is_niche_18 = (Str){.c_str = (void *)"./src/self/context.til:3016:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_niche_some_index_13 = (Str){.c_str = (void *)"./src/self/context.til:3036:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_niche_some_index_16 = (Str){.c_str = (void *)"./src/self/context.til:3041:11", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_niche_some_index_19 = (Str){.c_str = (void *)"./src/self/context.til:3041:5", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_niche_some_index_6 = (Str){.c_str = (void *)"./src/self/context.til:3038:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_ref_payload_ctor_arg_35 = (Str){.c_str = (void *)"./src/self/context.til:3092:31", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_ref_payload_ctor_arg_4 = (Str){.c_str = (void *)"./src/self/context.til:3064:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_ref_payload_ctor_arg_9 = (Str){.c_str = (void *)"./src/self/context.til:3070:31", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_tag_type_1 = (Str){.c_str = (void *)"./src/self/context.til:2895:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_index_11 = (Str){.c_str = (void *)"./src/self/context.til:2944:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_index_6 = (Str){.c_str = (void *)"./src/self/context.til:2946:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_index_for_tag_11 = (Str){.c_str = (void *)"./src/self/context.til:2932:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_index_for_tag_6 = (Str){.c_str = (void *)"./src/self/context.til:2934:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_payload_const_4 = (Str){.c_str = (void *)"./src/self/context.til:2971:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_payload_const_8 = (Str){.c_str = (void *)"./src/self/context.til:2968:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_payload_funcsig_4 = (Str){.c_str = (void *)"./src/self/context.til:3009:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_payload_funcsig_8 = (Str){.c_str = (void *)"./src/self/context.til:3006:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_payload_ref_4 = (Str){.c_str = (void *)"./src/self/context.til:3052:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_payload_ref_8 = (Str){.c_str = (void *)"./src/self/context.til:3049:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_tag_7 = (Str){.c_str = (void *)"./src/self/context.til:2909:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_tag_at_4 = (Str){.c_str = (void *)"./src/self/context.til:2923:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_tag_at_8 = (Str){.c_str = (void *)"./src/self/context.til:2920:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_type_4 = (Str){.c_str = (void *)"./src/self/context.til:2958:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_enum_variant_type_8 = (Str){.c_str = (void *)"./src/self/context.til:2955:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_flow_facts_35 = (Str){.c_str = (void *)"./src/self/typer.til:11146:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_flow_facts_52 = (Str){.c_str = (void *)"./src/self/typer.til:11158:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_ptr_escapes_12 = (Str){.c_str = (void *)"./src/self/typer.til:10992:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_ptr_escapes_23 = (Str){.c_str = (void *)"./src/self/typer.til:10998:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_stmt_facts_112 = (Str){.c_str = (void *)"./src/self/typer.til:11263:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_stmt_facts_12 = (Str){.c_str = (void *)"./src/self/typer.til:11196:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_stmt_facts_23 = (Str){.c_str = (void *)"./src/self/typer.til:11202:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_stmt_facts_46 = (Str){.c_str = (void *)"./src/self/typer.til:11221:51", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_collect_stmt_facts_98 = (Str){.c_str = (void *)"./src/self/typer.til:11249:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_transfers_own_49 = (Str){.c_str = (void *)"./src/self/typer.til:10832:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_expr_transfers_own_61 = (Str){.c_str = (void *)"./src/self/typer.til:10851:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_dispatch_result_alloc_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7197:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_has_payloads_9 = (Str){.c_str = (void *)"./src/self/context.til:2894:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_is_niche_18 = (Str){.c_str = (void *)"./src/self/context.til:3026:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_niche_some_index_13 = (Str){.c_str = (void *)"./src/self/context.til:3046:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_niche_some_index_16 = (Str){.c_str = (void *)"./src/self/context.til:3051:11", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_niche_some_index_19 = (Str){.c_str = (void *)"./src/self/context.til:3051:5", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_niche_some_index_6 = (Str){.c_str = (void *)"./src/self/context.til:3048:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_ref_payload_ctor_arg_35 = (Str){.c_str = (void *)"./src/self/context.til:3102:31", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_ref_payload_ctor_arg_4 = (Str){.c_str = (void *)"./src/self/context.til:3074:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_ref_payload_ctor_arg_9 = (Str){.c_str = (void *)"./src/self/context.til:3080:31", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_tag_type_1 = (Str){.c_str = (void *)"./src/self/context.til:2905:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_index_11 = (Str){.c_str = (void *)"./src/self/context.til:2954:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_index_6 = (Str){.c_str = (void *)"./src/self/context.til:2956:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_index_for_tag_11 = (Str){.c_str = (void *)"./src/self/context.til:2942:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_index_for_tag_6 = (Str){.c_str = (void *)"./src/self/context.til:2944:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_payload_const_4 = (Str){.c_str = (void *)"./src/self/context.til:2981:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_payload_const_8 = (Str){.c_str = (void *)"./src/self/context.til:2978:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_payload_funcsig_4 = (Str){.c_str = (void *)"./src/self/context.til:3019:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_payload_funcsig_8 = (Str){.c_str = (void *)"./src/self/context.til:3016:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_payload_ref_4 = (Str){.c_str = (void *)"./src/self/context.til:3062:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_payload_ref_8 = (Str){.c_str = (void *)"./src/self/context.til:3059:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_tag_7 = (Str){.c_str = (void *)"./src/self/context.til:2919:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_tag_at_4 = (Str){.c_str = (void *)"./src/self/context.til:2933:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_tag_at_8 = (Str){.c_str = (void *)"./src/self/context.til:2930:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_type_4 = (Str){.c_str = (void *)"./src/self/context.til:2968:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_enum_variant_type_8 = (Str){.c_str = (void *)"./src/self/context.til:2965:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_flow_facts_35 = (Str){.c_str = (void *)"./src/self/typer.til:11363:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_flow_facts_52 = (Str){.c_str = (void *)"./src/self/typer.til:11375:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_ptr_escapes_12 = (Str){.c_str = (void *)"./src/self/typer.til:11209:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_ptr_escapes_23 = (Str){.c_str = (void *)"./src/self/typer.til:11215:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_stmt_facts_112 = (Str){.c_str = (void *)"./src/self/typer.til:11480:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_stmt_facts_12 = (Str){.c_str = (void *)"./src/self/typer.til:11413:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_stmt_facts_23 = (Str){.c_str = (void *)"./src/self/typer.til:11419:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_stmt_facts_46 = (Str){.c_str = (void *)"./src/self/typer.til:11438:51", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_collect_stmt_facts_98 = (Str){.c_str = (void *)"./src/self/typer.til:11466:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_transfers_own_49 = (Str){.c_str = (void *)"./src/self/typer.til:11049:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_expr_transfers_own_61 = (Str){.c_str = (void *)"./src/self/typer.til:11068:30", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_extend_throwing_func_sigs_101 = (Str){.c_str = (void *)"./src/self/desugarer.til:1263:64", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_extend_throwing_func_sigs_115 = (Str){.c_str = (void *)"./src/self/desugarer.til:1269:30", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_extend_throwing_func_sigs_38 = (Str){.c_str = (void *)"./src/self/desugarer.til:1191:21", .count = 32ULL, .cap = TIL_CAP_LIT};
@@ -9206,44 +9221,44 @@ static Str hoisted__Str_extend_throwing_func_sigs_9 = (Str){.c_str = (void *)"./
 static Str hoisted__Str_fa_is_ns_12 = (Str){.c_str = (void *)"./src/self/typer.til:8:9", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_fa_own_type_10 = (Str){.c_str = (void *)"./src/self/typer.til:152:9", .count = 26ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_fa_own_type_19 = (Str){.c_str = (void *)"./src/self/typer.til:176:9", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_arg_for_param_16 = (Str){.c_str = (void *)"./src/self/typer.til:11453:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_arg_for_param_25 = (Str){.c_str = (void *)"./src/self/typer.til:11454:70", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_arg_for_param_4 = (Str){.c_str = (void *)"./src/self/typer.til:11450:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_arg_for_param_40 = (Str){.c_str = (void *)"./src/self/typer.til:11457:70", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_callee_fdef_11 = (Str){.c_str = (void *)"./src/self/typer.til:11402:35", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_callee_fdef_27 = (Str){.c_str = (void *)"./src/self/typer.til:11419:55", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_callee_fdef_4 = (Str){.c_str = (void *)"./src/self/typer.til:11395:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_arg_for_param_16 = (Str){.c_str = (void *)"./src/self/typer.til:11670:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_arg_for_param_25 = (Str){.c_str = (void *)"./src/self/typer.til:11671:70", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_arg_for_param_4 = (Str){.c_str = (void *)"./src/self/typer.til:11667:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_arg_for_param_40 = (Str){.c_str = (void *)"./src/self/typer.til:11674:70", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_callee_fdef_11 = (Str){.c_str = (void *)"./src/self/typer.til:11619:35", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_callee_fdef_27 = (Str){.c_str = (void *)"./src/self/typer.til:11636:55", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_callee_fdef_4 = (Str){.c_str = (void *)"./src/self/typer.til:11612:9", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_fcall_has_ref_args_0 = (Str){.c_str = (void *)"./src/self/parser.til:3237:27", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_is_direct_13 = (Str){.c_str = (void *)"./src/self/context.til:3493:11", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_is_direct_4 = (Str){.c_str = (void *)"./src/self/context.til:3492:35", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_is_get_method_6 = (Str){.c_str = (void *)"./src/self/typer.til:13022:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_is_struct_ctor_15 = (Str){.c_str = (void *)"./src/self/context.til:2611:24", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_kwargs_count_14 = (Str){.c_str = (void *)"./src/self/context.til:3631:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_kwargs_count_5 = (Str){.c_str = (void *)"./src/self/context.til:3625:17", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_is_direct_13 = (Str){.c_str = (void *)"./src/self/context.til:3503:11", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_is_direct_4 = (Str){.c_str = (void *)"./src/self/context.til:3502:35", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_is_get_method_6 = (Str){.c_str = (void *)"./src/self/typer.til:13270:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_is_struct_ctor_15 = (Str){.c_str = (void *)"./src/self/context.til:2621:24", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_kwargs_count_14 = (Str){.c_str = (void *)"./src/self/context.til:3641:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_kwargs_count_5 = (Str){.c_str = (void *)"./src/self/context.til:3635:17", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_fcall_returns_own_21 = (Str){.c_str = (void *)"./src/self/typer.til:630:35", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_fcall_returns_own_38 = (Str){.c_str = (void *)"./src/self/typer.til:648:58", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_fcall_returns_own_6 = (Str){.c_str = (void *)"./src/self/typer.til:613:9", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_returns_ref_17 = (Str){.c_str = (void *)"./src/self/typer.til:13047:35", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_returns_ref_33 = (Str){.c_str = (void *)"./src/self/typer.til:13067:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_returns_ref_6 = (Str){.c_str = (void *)"./src/self/typer.til:13034:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_fcall_variadic_count_10 = (Str){.c_str = (void *)"./src/self/context.til:3665:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:10333:29", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:10334:21", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_28 = (Str){.c_str = (void *)"./src/self/interpreter.til:10352:29", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:10354:70", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:10380:29", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_59 = (Str){.c_str = (void *)"./src/self/interpreter.til:10383:37", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_60 = (Str){.c_str = (void *)"./src/self/interpreter.til:10387:67", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_84 = (Str){.c_str = (void *)"./src/self/interpreter.til:10353:41", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_scan_program_88 = (Str){.c_str = (void *)"./src/self/interpreter.til:10354:44", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_ffi_init_struct_defs_append_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:7076:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_returns_ref_17 = (Str){.c_str = (void *)"./src/self/typer.til:13295:35", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_returns_ref_33 = (Str){.c_str = (void *)"./src/self/typer.til:13315:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_returns_ref_6 = (Str){.c_str = (void *)"./src/self/typer.til:13282:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_fcall_variadic_count_10 = (Str){.c_str = (void *)"./src/self/context.til:3675:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:10337:29", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:10338:21", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_28 = (Str){.c_str = (void *)"./src/self/interpreter.til:10356:29", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:10358:70", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:10384:29", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_59 = (Str){.c_str = (void *)"./src/self/interpreter.til:10387:37", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_60 = (Str){.c_str = (void *)"./src/self/interpreter.til:10391:67", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_84 = (Str){.c_str = (void *)"./src/self/interpreter.til:10357:41", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_scan_program_88 = (Str){.c_str = (void *)"./src/self/interpreter.til:10358:44", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_ffi_init_struct_defs_append_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:7080:13", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_format_decl_info_5 = (Str){.c_str = (void *)"./src/self/loader.til:1452:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_func_param_has_stack_outer_12 = (Str){.c_str = (void *)"./src/self/context.til:2435:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_func_param_has_stack_outer_23 = (Str){.c_str = (void *)"./src/self/context.til:2444:41", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_func_param_has_stack_outer_28 = (Str){.c_str = (void *)"./src/self/context.til:2444:35", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_func_param_has_stack_outer_59 = (Str){.c_str = (void *)"./src/self/context.til:2462:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_func_param_passes_c_value_22 = (Str){.c_str = (void *)"./src/self/context.til:2422:25", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_func_param_passes_c_value_7 = (Str){.c_str = (void *)"./src/self/context.til:2414:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_func_param_has_stack_outer_12 = (Str){.c_str = (void *)"./src/self/context.til:2445:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_func_param_has_stack_outer_23 = (Str){.c_str = (void *)"./src/self/context.til:2454:41", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_func_param_has_stack_outer_28 = (Str){.c_str = (void *)"./src/self/context.til:2454:35", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_func_param_has_stack_outer_59 = (Str){.c_str = (void *)"./src/self/context.til:2472:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_func_param_passes_c_value_22 = (Str){.c_str = (void *)"./src/self/context.til:2432:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_func_param_passes_c_value_7 = (Str){.c_str = (void *)"./src/self/context.til:2424:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_cmp_derived_for_stmt_133 = (Str){.c_str = (void *)"./src/self/initer.til:1921:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_cmp_derived_for_stmt_187 = (Str){.c_str = (void *)"./src/self/initer.til:1952:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_cmp_derived_for_stmt_22 = (Str){.c_str = (void *)"./src/self/initer.til:1852:13", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -9267,9 +9282,9 @@ static Str hoisted__Str_gen_enum_nonclone_methods_for_stmt_93 = (Str){.c_str = (
 static Str hoisted__Str_gen_enum_size_method_for_stmt_12 = (Str){.c_str = (void *)"./src/self/initer.til:1716:31", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_enum_size_method_for_stmt_32 = (Str){.c_str = (void *)"./src/self/initer.til:1738:33", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_enum_size_method_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:1712:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_gen_implements_defaults_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5697:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_gen_implements_defaults_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5706:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_interface_box_fields_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5512:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_gen_interface_clone_delete_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5603:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_gen_interface_clone_delete_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5607:25", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_missing_enum_clone_for_stmt_14 = (Str){.c_str = (void *)"./src/self/initer.til:1427:44", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_missing_enum_clone_for_stmt_19 = (Str){.c_str = (void *)"./src/self/initer.til:1428:49", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_gen_missing_enum_clone_for_stmt_33 = (Str){.c_str = (void *)"./src/self/initer.til:1418:31", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -9298,24 +9313,24 @@ static Str hoisted__Str_get_keep_outer_arg_4 = (Str){.c_str = (void *)"./src/sel
 static Str hoisted__Str_get_own_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3196:27", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_get_ref_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3230:27", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_get_splat_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3216:27", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_hb_func_def_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4757:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_hb_func_def_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4757:27", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_hb_func_def_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4761:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_hb_func_def_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4761:27", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_holyc_codegen_translate_113 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:4105:43", .count = 36ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_holyc_codegen_translate_157 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:4107:38", .count = 36ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_holyc_codegen_translate_172 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:4129:49", .count = 36ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_holyc_codegen_translate_192 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:4139:49", .count = 36ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_holyc_codegen_translate_41 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:4076:45", .count = 36ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_holyc_codegen_translate_92 = (Str){.c_str = (void *)"./src/self/holyc_codegen.til:4098:48", .count = 36ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_import_path_for_stmt_5 = (Str){.c_str = (void *)"./src/self/context.til:1117:50", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_14 = (Str){.c_str = (void *)"./src/self/typer.til:8348:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_22 = (Str){.c_str = (void *)"./src/self/typer.til:8363:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_35 = (Str){.c_str = (void *)"./src/self/typer.til:8370:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:8341:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_48 = (Str){.c_str = (void *)"./src/self/typer.til:8375:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_72 = (Str){.c_str = (void *)"./src/self/typer.til:8427:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_84 = (Str){.c_str = (void *)"./src/self/typer.til:8438:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_infer_body_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:8343:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_init_file_6 = (Str){.c_str = (void *)"./src/self/initer.til:5825:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_import_path_for_stmt_5 = (Str){.c_str = (void *)"./src/self/context.til:1127:50", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_14 = (Str){.c_str = (void *)"./src/self/typer.til:8519:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_22 = (Str){.c_str = (void *)"./src/self/typer.til:8534:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_35 = (Str){.c_str = (void *)"./src/self/typer.til:8541:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:8512:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_48 = (Str){.c_str = (void *)"./src/self/typer.til:8546:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_72 = (Str){.c_str = (void *)"./src/self/typer.til:8598:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_84 = (Str){.c_str = (void *)"./src/self/typer.til:8609:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_infer_body_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:8514:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_init_file_6 = (Str){.c_str = (void *)"./src/self/initer.til:5834:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_lift_in_body_31 = (Str){.c_str = (void *)"./src/self/initer.til:2619:17", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_lift_in_body_36 = (Str){.c_str = (void *)"./src/self/initer.til:2621:17", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_lift_in_body_41 = (Str){.c_str = (void *)"./src/self/initer.til:2624:25", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -9333,37 +9348,37 @@ static Str hoisted__Str_init_refresh_interp_type_defs_from_75 = (Str){.c_str = (
 static Str hoisted__Str_init_refresh_interp_type_defs_from_80 = (Str){.c_str = (void *)"./src/self/initer.til:3948:17", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_refresh_interp_type_defs_from_92 = (Str){.c_str = (void *)"./src/self/initer.til:3944:32", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_refresh_seeded_scope_defs_19 = (Str){.c_str = (void *)"./src/self/initer.til:3925:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_init_repl_delta_4 = (Str){.c_str = (void *)"./src/self/initer.til:5846:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_init_require_simd_3 = (Str){.c_str = (void *)"./src/self/initer.til:5867:69", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_init_repl_delta_4 = (Str){.c_str = (void *)"./src/self/initer.til:5855:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_init_require_simd_3 = (Str){.c_str = (void *)"./src/self/initer.til:5876:69", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_retire_generic_sources_17 = (Str){.c_str = (void *)"./src/self/initer.til:4674:45", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_retire_generic_sources_22 = (Str){.c_str = (void *)"./src/self/initer.til:4674:26", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_retire_generic_sources_6 = (Str){.c_str = (void *)"./src/self/initer.til:4661:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_init_scan_unresolved_generic_calls_6 = (Str){.c_str = (void *)"./src/self/initer.til:4639:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_init_stmt_is_generic_source_6 = (Str){.c_str = (void *)"./src/self/context.til:1001:46", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_core_once_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6369:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_current_root_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:6491:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_current_root_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:6492:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_current_tail_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:6503:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_current_tail_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:6504:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_imported_once_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:6402:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_imported_once_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6400:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_eval_user_units_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6381:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_prepare_context_102 = (Str){.c_str = (void *)"./src/self/interpreter.til:6347:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_prepare_context_115 = (Str){.c_str = (void *)"./src/self/interpreter.til:6352:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_prepare_context_57 = (Str){.c_str = (void *)"./src/self/interpreter.til:6321:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_prepare_context_89 = (Str){.c_str = (void *)"./src/self/interpreter.til:6335:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interp_session_prepare_context_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:6288:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interpreter_init_ns_35 = (Str){.c_str = (void *)"./src/self/interpreter.til:5695:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_interpreter_init_ns_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:5652:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_clone_fcall_6 = (Str){.c_str = (void *)"./src/self/typer.til:817:22", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_compile_directive_6 = (Str){.c_str = (void *)"./src/self/typer.til:8001:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_def_5 = (Str){.c_str = (void *)"./src/self/context.til:2724:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_func_decl_5 = (Str){.c_str = (void *)"./src/self/context.til:2719:25", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_init_stmt_is_generic_source_6 = (Str){.c_str = (void *)"./src/self/context.til:1011:46", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_core_once_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6373:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_current_root_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:6495:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_current_root_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:6496:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_current_tail_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:6507:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_current_tail_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:6508:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_imported_once_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:6406:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_imported_once_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6404:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_eval_user_units_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6385:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_prepare_context_102 = (Str){.c_str = (void *)"./src/self/interpreter.til:6351:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_prepare_context_115 = (Str){.c_str = (void *)"./src/self/interpreter.til:6356:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_prepare_context_57 = (Str){.c_str = (void *)"./src/self/interpreter.til:6325:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_prepare_context_89 = (Str){.c_str = (void *)"./src/self/interpreter.til:6339:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interp_session_prepare_context_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:6292:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interpreter_init_ns_35 = (Str){.c_str = (void *)"./src/self/interpreter.til:5699:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_interpreter_init_ns_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:5656:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_clone_fcall_6 = (Str){.c_str = (void *)"./src/self/typer.til:821:22", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_compile_directive_6 = (Str){.c_str = (void *)"./src/self/typer.til:8172:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_def_5 = (Str){.c_str = (void *)"./src/self/context.til:2734:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_func_decl_5 = (Str){.c_str = (void *)"./src/self/context.til:2729:25", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_is_macro_call_7 = (Str){.c_str = (void *)"./src/self/constfolder.til:1276:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_range_new_call_16 = (Str){.c_str = (void *)"./src/self/context.til:3561:31", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_range_new_call_6 = (Str){.c_str = (void *)"./src/self/context.til:3553:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_simple_lvalue_expr_5 = (Str){.c_str = (void *)"./src/self/typer.til:7992:52", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_is_struct_or_enum_5 = (Str){.c_str = (void *)"./src/self/context.til:2713:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_range_new_call_16 = (Str){.c_str = (void *)"./src/self/context.til:3571:31", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_range_new_call_6 = (Str){.c_str = (void *)"./src/self/context.til:3563:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_simple_lvalue_expr_5 = (Str){.c_str = (void *)"./src/self/typer.til:8163:52", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_is_struct_or_enum_5 = (Str){.c_str = (void *)"./src/self/context.til:2723:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_jvm_codegen_translate_113 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3344:48", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_jvm_codegen_translate_118 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3345:33", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_jvm_codegen_translate_142 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3346:52", .count = 34ULL, .cap = TIL_CAP_LIT};
@@ -9376,7 +9391,7 @@ static Str hoisted__Str_jvm_codegen_translate_58 = (Str){.c_str = (void *)"./src
 static Str hoisted__Str_jvm_codegen_translate_76 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3328:17", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_jvm_codegen_translate_83 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3334:41", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_jvm_codegen_translate_98 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3339:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_lazy_body_split_point_6 = (Str){.c_str = (void *)"./src/self/context.til:3360:46", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_lazy_body_split_point_6 = (Str){.c_str = (void *)"./src/self/context.til:3370:46", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_lazy_recursive_variadic_def_10 = (Str){.c_str = (void *)"./src/self/loader.til:2430:30", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_lazy_recursive_variadic_def_17 = (Str){.c_str = (void *)"./src/self/loader.til:2431:81", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_lazy_recursive_variadic_def_42 = (Str){.c_str = (void *)"./src/self/loader.til:2434:51", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -9385,10 +9400,10 @@ static Str hoisted__Str_lazy_recursive_variadic_def_67 = (Str){.c_str = (void *)
 static Str hoisted__Str_lazy_recursive_variadic_def_81 = (Str){.c_str = (void *)"./src/self/loader.til:2458:42", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_lazy_recursive_variadic_def_87 = (Str){.c_str = (void *)"./src/self/loader.til:2459:52", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_lazy_recursive_variadic_def_92 = (Str){.c_str = (void *)"./src/self/loader.til:2460:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_lazy_variadic_body_unrollable_24 = (Str){.c_str = (void *)"./src/self/context.til:3408:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_lazy_variadic_body_unrollable_30 = (Str){.c_str = (void *)"./src/self/context.til:3414:33", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_lazy_variadic_body_unrollable_40 = (Str){.c_str = (void *)"./src/self/context.til:3421:17", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_lazy_variadic_body_unrollable_6 = (Str){.c_str = (void *)"./src/self/context.til:3404:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_lazy_variadic_body_unrollable_24 = (Str){.c_str = (void *)"./src/self/context.til:3418:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_lazy_variadic_body_unrollable_30 = (Str){.c_str = (void *)"./src/self/context.til:3424:33", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_lazy_variadic_body_unrollable_40 = (Str){.c_str = (void *)"./src/self/context.til:3431:17", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_lazy_variadic_body_unrollable_6 = (Str){.c_str = (void *)"./src/self/context.til:3414:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_load_program_22 = (Str){.c_str = (void *)"./src/self/loader.til:938:36", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_load_program_27 = (Str){.c_str = (void *)"./src/self/loader.til:939:36", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_load_program_33 = (Str){.c_str = (void *)"./src/self/loader.til:942:27", .count = 28ULL, .cap = TIL_CAP_LIT};
@@ -9433,10 +9448,10 @@ static Str hoisted__Str_make_switch_case_condition_85 = (Str){.c_str = (void *)"
 static Str hoisted__Str_make_switch_case_condition_9 = (Str){.c_str = (void *)"./src/self/desugarer.til:3233:43", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_make_switch_case_condition_90 = (Str){.c_str = (void *)"./src/self/desugarer.til:3267:51", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_make_switch_case_condition_95 = (Str){.c_str = (void *)"./src/self/desugarer.til:3268:37", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_mark_binding_referenced_7 = (Str){.c_str = (void *)"./src/self/typer.til:6079:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_mark_fcall_direct_11 = (Str){.c_str = (void *)"./src/self/context.til:3501:11", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_mark_fcall_direct_4 = (Str){.c_str = (void *)"./src/self/context.til:3500:28", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_normalize_enum_payload_aliases_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5776:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_mark_binding_referenced_7 = (Str){.c_str = (void *)"./src/self/typer.til:6086:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_mark_fcall_direct_11 = (Str){.c_str = (void *)"./src/self/context.til:3511:11", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_mark_fcall_direct_4 = (Str){.c_str = (void *)"./src/self/context.til:3510:28", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_normalize_enum_payload_aliases_for_stmt_4 = (Str){.c_str = (void *)"./src/self/initer.til:5785:25", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_parse_args_15 = (Str){.c_str = (void *)"src/til.til:825:13", .count = 18ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_parse_args_158 = (Str){.c_str = (void *)"src/til.til:897:13", .count = 18ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_parse_args_173 = (Str){.c_str = (void *)"src/til.til:902:17", .count = 18ULL, .cap = TIL_CAP_LIT};
@@ -9445,7 +9460,7 @@ static Str hoisted__Str_parse_args_283 = (Str){.c_str = (void *)"src/til.til:948
 static Str hoisted__Str_parse_args_353 = (Str){.c_str = (void *)"src/til.til:989:9", .count = 17ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_parse_args_56 = (Str){.c_str = (void *)"src/til.til:858:17", .count = 18ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_parse_args_6 = (Str){.c_str = (void *)"src/til.til:816:9", .count = 17ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_populate_cached_aggregate_defs_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:5628:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_populate_cached_aggregate_defs_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:5632:21", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_prepend_clike_payload_binding_15 = (Str){.c_str = (void *)"./src/self/desugarer.til:3816:24", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_prepend_clike_payload_binding_30 = (Str){.c_str = (void *)"./src/self/desugarer.til:3850:28", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_prepend_clike_payload_binding_35 = (Str){.c_str = (void *)"./src/self/desugarer.til:3851:28", .count = 32ULL, .cap = TIL_CAP_LIT};
@@ -9487,18 +9502,18 @@ static Str hoisted__Str_repl_type_delta_program_10 = (Str){.c_str = (void *)"./s
 static Str hoisted__Str_repl_type_delta_program_5 = (Str){.c_str = (void *)"./src/self/loader.til:4365:9", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_replace_body_stmt_with_block_4 = (Str){.c_str = (void *)"./src/self/desugarer.til:3868:18", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_replace_switch_stmt_with_block_4 = (Str){.c_str = (void *)"./src/self/desugarer.til:3607:18", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_resolve_direct_fcall_12 = (Str){.c_str = (void *)"./src/self/context.til:3521:13", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_resolve_direct_fcall_4 = (Str){.c_str = (void *)"./src/self/context.til:3512:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_resolve_direct_fcall_12 = (Str){.c_str = (void *)"./src/self/context.til:3531:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_resolve_direct_fcall_4 = (Str){.c_str = (void *)"./src/self/context.til:3522:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_resolve_fn_sig_31 = (Str){.c_str = (void *)"./src/self/typer.til:556:54", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_resolve_fn_sig_4 = (Str){.c_str = (void *)"./src/self/typer.til:513:9", .count = 26ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_resolve_import_for_stmt_16 = (Str){.c_str = (void *)"./src/self/context.til:1135:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_resolve_import_for_stmt_8 = (Str){.c_str = (void *)"./src/self/context.til:1131:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_resolve_import_for_stmt_16 = (Str){.c_str = (void *)"./src/self/context.til:1145:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_resolve_import_for_stmt_8 = (Str){.c_str = (void *)"./src/self/context.til:1141:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_resolve_target_cpu_31 = (Str){.c_str = (void *)"./src/self/targets.til:142:24", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_resolve_target_cpu_51 = (Str){.c_str = (void *)"./src/self/targets.til:147:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_rhs_is_allocator_call_6 = (Str){.c_str = (void *)"./src/self/context.til:3165:22", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_rhs_is_clone_fcall_6 = (Str){.c_str = (void *)"./src/self/typer.til:9334:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_rhs_is_payload_binding_14 = (Str){.c_str = (void *)"./src/self/typer.til:13608:68", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_rhs_is_payload_binding_6 = (Str){.c_str = (void *)"./src/self/typer.til:13603:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_rhs_is_allocator_call_6 = (Str){.c_str = (void *)"./src/self/context.til:3175:22", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_rhs_is_clone_fcall_6 = (Str){.c_str = (void *)"./src/self/typer.til:9515:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_rhs_is_payload_binding_14 = (Str){.c_str = (void *)"./src/self/typer.til:13856:68", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_rhs_is_payload_binding_6 = (Str){.c_str = (void *)"./src/self/typer.til:13851:24", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_run_cmd_5 = (Str){.c_str = (void *)"./src/std/sys.til:276:13", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_run_repl_session_109 = (Str){.c_str = (void *)"src/til.til:587:21", .count = 18ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_run_repl_session_114 = (Str){.c_str = (void *)"src/til.til:588:25", .count = 18ULL, .cap = TIL_CAP_LIT};
@@ -9506,7 +9521,7 @@ static Str hoisted__Str_run_repl_session_3 = (Str){.c_str = (void *)"src/til.til
 static Str hoisted__Str_run_repl_session_317 = (Str){.c_str = (void *)"src/til.til:656:21", .count = 18ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_run_repl_session_322 = (Str){.c_str = (void *)"src/til.til:657:25", .count = 18ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_run_repl_session_7 = (Str){.c_str = (void *)"src/til.til:435:28", .count = 18ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scalar_word_load_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:779:5", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scalar_word_load_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:783:5", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scav_value_decl_sweepable_5 = (Str){.c_str = (void *)"./src/self/scavenger.til:636:9", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scavenge_filter_26 = (Str){.c_str = (void *)"./src/self/scavenger.til:688:36", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scavenge_filter_46 = (Str){.c_str = (void *)"./src/self/scavenger.til:696:35", .count = 31ULL, .cap = TIL_CAP_LIT};
@@ -9518,11 +9533,11 @@ static Str hoisted__Str_scavenge_filter_86 = (Str){.c_str = (void *)"./src/self/
 static Str hoisted__Str_scavenge_imported_19 = (Str){.c_str = (void *)"./src/self/scavenger.til:2562:40", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scavenge_imported_39 = (Str){.c_str = (void *)"./src/self/scavenger.til:2597:43", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_scavenge_imported_6 = (Str){.c_str = (void *)"./src/self/scavenger.til:2558:44", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scope_read_bound_raw_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5062:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scope_set_heap_owned_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:5205:89", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scope_set_heap_owned_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:5209:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scope_set_heap_owned_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:5217:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_scope_set_raw_owned_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:1045:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scope_read_bound_raw_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5066:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scope_set_heap_owned_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:5209:89", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scope_set_heap_owned_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:5213:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scope_set_heap_owned_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:5221:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_scope_set_raw_owned_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:1049:29", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_binder_emit_function_39 = (Str){.c_str = (void *)"./src/self/binder.til:977:13", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_binder_emit_function_6 = (Str){.c_str = (void *)"./src/self/binder.til:977:13", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_binder_emit_struct_body_101 = (Str){.c_str = (void *)"./src/self/binder.til:468:13", .count = 28ULL, .cap = TIL_CAP_LIT};
@@ -10447,17 +10462,17 @@ static Str hoisted__Str_self_constfolder_va_consumer_args_ok_18 = (Str){.c_str =
 static Str hoisted__Str_self_constfolder_va_consumer_args_ok_6 = (Str){.c_str = (void *)"./src/self/constfolder.til:1469:13", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_constfolder_va_elements_known_23 = (Str){.c_str = (void *)"./src/self/constfolder.til:1371:46", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_constfolder_va_elements_known_5 = (Str){.c_str = (void *)"./src/self/constfolder.til:1364:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_import_path_for_call_14 = (Str){.c_str = (void *)"./src/self/context.til:1092:24", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_import_path_for_call_25 = (Str){.c_str = (void *)"./src/self/context.til:1098:24", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_is_guard_6 = (Str){.c_str = (void *)"./src/self/context.til:3303:49", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_single_return_body_6 = (Str){.c_str = (void *)"./src/self/context.til:3294:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_stmts_inlinable_14 = (Str){.c_str = (void *)"./src/self/context.til:3319:57", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_stmts_inlinable_26 = (Str){.c_str = (void *)"./src/self/context.til:3320:59", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_stmts_inlinable_5 = (Str){.c_str = (void *)"./src/self/context.til:3312:9", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_stmts_inlinable_57 = (Str){.c_str = (void *)"./src/self/context.til:3328:39", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_lazy_stmts_inlinable_68 = (Str){.c_str = (void *)"./src/self/context.til:3328:39", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_ns_const_order_deps_4 = (Str){.c_str = (void *)"./src/self/context.til:2869:30", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_context_ns_const_order_visit_12 = (Str){.c_str = (void *)"./src/self/context.til:2854:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_import_path_for_call_14 = (Str){.c_str = (void *)"./src/self/context.til:1102:24", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_import_path_for_call_25 = (Str){.c_str = (void *)"./src/self/context.til:1108:24", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_is_guard_6 = (Str){.c_str = (void *)"./src/self/context.til:3313:49", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_single_return_body_6 = (Str){.c_str = (void *)"./src/self/context.til:3304:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_stmts_inlinable_14 = (Str){.c_str = (void *)"./src/self/context.til:3329:57", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_stmts_inlinable_26 = (Str){.c_str = (void *)"./src/self/context.til:3330:59", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_stmts_inlinable_5 = (Str){.c_str = (void *)"./src/self/context.til:3322:9", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_stmts_inlinable_57 = (Str){.c_str = (void *)"./src/self/context.til:3338:39", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_lazy_stmts_inlinable_68 = (Str){.c_str = (void *)"./src/self/context.til:3338:39", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_ns_const_order_deps_4 = (Str){.c_str = (void *)"./src/self/context.til:2879:30", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_context_ns_const_order_visit_12 = (Str){.c_str = (void *)"./src/self/context.til:2864:9", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_annotate_throw_ident_expr_types_22 = (Str){.c_str = (void *)"./src/self/desugarer.til:645:26", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_annotate_throw_ident_expr_types_27 = (Str){.c_str = (void *)"./src/self/desugarer.til:649:27", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_desugarer_annotate_throw_types_in_16 = (Str){.c_str = (void *)"./src/self/desugarer.til:845:21", .count = 31ULL, .cap = TIL_CAP_LIT};
@@ -11583,7 +11598,7 @@ static Str hoisted__Str_self_initer_init_seed_declarations_unit_7 = (Str){.c_str
 static Str hoisted__Str_self_initer_init_seed_local_type_tokens_55 = (Str){.c_str = (void *)"./src/self/initer.til:3992:17", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_init_seed_local_type_tokens_6 = (Str){.c_str = (void *)"./src/self/initer.til:3965:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_init_seed_local_type_tokens_60 = (Str){.c_str = (void *)"./src/self/initer.til:3998:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_initer_init_seed_tree_4 = (Str){.c_str = (void *)"./src/self/initer.til:5806:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_initer_init_seed_tree_4 = (Str){.c_str = (void *)"./src/self/initer.til:5815:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_init_set_literal_elem_type_5 = (Str){.c_str = (void *)"./src/self/initer.til:3584:22", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_init_simd_constants_12 = (Str){.c_str = (void *)"./src/self/initer.til:4780:26", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_init_simd_constants_17 = (Str){.c_str = (void *)"./src/self/initer.til:4783:59", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -11630,543 +11645,543 @@ static Str hoisted__Str_self_initer_register_type_alias_for_stmt_4 = (Str){.c_st
 static Str hoisted__Str_self_initer_register_type_alias_for_stmt_57 = (Str){.c_str = (void *)"./src/self/initer.til:1455:31", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_type_size_align_21 = (Str){.c_str = (void *)"./src/self/initer.til:2206:13", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_initer_type_size_align_28 = (Str){.c_str = (void *)"./src/self/initer.til:2214:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_build_argv_array_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:5609:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_build_argv_array_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:5603:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_callable_env_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:5414:23", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_callable_env_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5414:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_capture_raw_binding_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:5366:23", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_capture_raw_binding_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:5369:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_capture_raw_binding_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5364:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_build_argv_array_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:5613:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_build_argv_array_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:5607:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_callable_env_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:5418:23", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_callable_env_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5418:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_capture_raw_binding_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:5370:23", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_capture_raw_binding_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:5373:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_capture_raw_binding_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5368:25", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_check_c_string_terminator_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:116:9", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_check_c_string_terminator_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:120:9", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_clike_case_variant_name_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2251:32", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_clone_container_buffer_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4394:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_clone_tuple_buffer_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:4258:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_clone_tuple_buffer_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:4257:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_closure_env_clone_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:5350:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_closure_env_clone_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:5353:95", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_closure_env_clone_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:5348:27", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_container_elem_clone_into_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:4200:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_container_elem_clone_into_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:4213:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_container_elem_deep_free_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:4174:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_container_elem_deep_free_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:4184:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_context_return_set_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1404:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_context_return_take_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1410:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_dispatch_enum_size_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7154:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_dispatch_scratch_push_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:861:59", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_dyn_type_to_str_raw_113 = (Str){.c_str = (void *)"./src/self/interpreter.til:8101:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_dyn_type_to_str_raw_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:7999:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_dyn_type_to_str_raw_52 = (Str){.c_str = (void *)"./src/self/interpreter.til:8082:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_core_is_eval_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:10036:13", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_core_is_eval_8 = (Str){.c_str = (void *)"./src/self/interpreter.til:10035:13", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_method_dispatch_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:8939:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_method_dispatch_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8917:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_method_dispatch_54 = (Str){.c_str = (void *)"./src/self/interpreter.til:8951:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_method_dispatch_61 = (Str){.c_str = (void *)"./src/self/interpreter.til:8960:53", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_method_dispatch_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:8962:51", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_method_dispatch_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8919:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_payload_deep_clone_24 = (Str){.c_str = (void *)"./src/self/interpreter.til:570:34", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_payload_deep_clone_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:591:9", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_payload_deep_free_24 = (Str){.c_str = (void *)"./src/self/interpreter.til:523:34", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_payload_deep_free_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:540:13", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_payload_deep_free_38 = (Str){.c_str = (void *)"./src/self/interpreter.til:553:9", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_enum_payload_type_ref_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:483:13", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_erased_elem_delete_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:4445:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_104 = (Str){.c_str = (void *)"./src/self/interpreter.til:2774:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:2697:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_120 = (Str){.c_str = (void *)"./src/self/interpreter.til:2782:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_136 = (Str){.c_str = (void *)"./src/self/interpreter.til:2801:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_143 = (Str){.c_str = (void *)"./src/self/interpreter.til:2803:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_156 = (Str){.c_str = (void *)"./src/self/interpreter.til:2816:64", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_161 = (Str){.c_str = (void *)"./src/self/interpreter.til:2818:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_183 = (Str){.c_str = (void *)"./src/self/interpreter.til:2850:70", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_233 = (Str){.c_str = (void *)"./src/self/interpreter.til:2906:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_244 = (Str){.c_str = (void *)"./src/self/interpreter.til:2918:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_251 = (Str){.c_str = (void *)"./src/self/interpreter.til:2925:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2695:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_77 = (Str){.c_str = (void *)"./src/self/interpreter.til:2765:27", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_body_92 = (Str){.c_str = (void *)"./src/self/interpreter.til:2765:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_113 = (Str){.c_str = (void *)"./src/self/interpreter.til:3671:64", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_120 = (Str){.c_str = (void *)"./src/self/interpreter.til:3679:63", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_145 = (Str){.c_str = (void *)"./src/self/interpreter.til:3689:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_150 = (Str){.c_str = (void *)"./src/self/interpreter.til:3695:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_154 = (Str){.c_str = (void *)"./src/self/interpreter.til:3636:49", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_176 = (Str){.c_str = (void *)"./src/self/interpreter.til:3579:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_180 = (Str){.c_str = (void *)"./src/self/interpreter.til:3631:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_212 = (Str){.c_str = (void *)"./src/self/interpreter.til:3755:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_259 = (Str){.c_str = (void *)"./src/self/interpreter.til:3782:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_277 = (Str){.c_str = (void *)"./src/self/interpreter.til:3782:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_322 = (Str){.c_str = (void *)"./src/self/interpreter.til:3858:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_336 = (Str){.c_str = (void *)"./src/self/interpreter.til:3876:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_341 = (Str){.c_str = (void *)"./src/self/interpreter.til:3880:64", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_350 = (Str){.c_str = (void *)"./src/self/interpreter.til:3881:66", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_365 = (Str){.c_str = (void *)"./src/self/interpreter.til:3889:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_380 = (Str){.c_str = (void *)"./src/self/interpreter.til:3904:54", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:3532:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_40 = (Str){.c_str = (void *)"./src/self/interpreter.til:3586:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_409 = (Str){.c_str = (void *)"./src/self/interpreter.til:3916:58", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:3585:20", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_49 = (Str){.c_str = (void *)"./src/self/interpreter.til:3611:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_54 = (Str){.c_str = (void *)"./src/self/interpreter.til:3617:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_568 = (Str){.c_str = (void *)"./src/self/interpreter.til:3869:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_589 = (Str){.c_str = (void *)"./src/self/interpreter.til:4050:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_617 = (Str){.c_str = (void *)"./src/self/interpreter.til:4067:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_80 = (Str){.c_str = (void *)"./src/self/interpreter.til:3597:45", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_call_info_94 = (Str){.c_str = (void *)"./src/self/interpreter.til:3639:78", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_callable_call_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:3388:55", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_callable_call_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:3380:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_callable_call_46 = (Str){.c_str = (void *)"./src/self/interpreter.til:3392:20", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_callable_call_55 = (Str){.c_str = (void *)"./src/self/interpreter.til:3399:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_callable_callee_raw_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:1270:35", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_callable_cast_callee_raw_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1283:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_declaration_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:2323:32", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_declaration_38 = (Str){.c_str = (void *)"./src/self/interpreter.til:2353:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_declaration_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2315:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_declaration_78 = (Str){.c_str = (void *)"./src/self/interpreter.til:2376:34", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_field_raw_123 = (Str){.c_str = (void *)"./src/self/interpreter.til:1812:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_field_raw_128 = (Str){.c_str = (void *)"./src/self/interpreter.til:1813:65", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_field_raw_164 = (Str){.c_str = (void *)"./src/self/interpreter.til:1824:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_field_raw_69 = (Str){.c_str = (void *)"./src/self/interpreter.til:1766:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_field_raw_91 = (Str){.c_str = (void *)"./src/self/interpreter.til:1768:54", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_raw_info_114 = (Str){.c_str = (void *)"./src/self/interpreter.til:2013:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_raw_info_134 = (Str){.c_str = (void *)"./src/self/interpreter.til:2026:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_raw_info_240 = (Str){.c_str = (void *)"./src/self/interpreter.til:2072:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_expr_raw_info_268 = (Str){.c_str = (void *)"./src/self/interpreter.til:2093:67", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_fcall_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:2581:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_fcall_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:2585:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_fcall_38 = (Str){.c_str = (void *)"./src/self/interpreter.til:2592:66", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_fcall_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:2595:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_fcall_50 = (Str){.c_str = (void *)"./src/self/interpreter.til:2596:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_if_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:2648:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_if_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2641:45", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_if_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:2644:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_index_arg_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7631:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_112 = (Str){.c_str = (void *)"./src/self/interpreter.til:3482:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_117 = (Str){.c_str = (void *)"./src/self/interpreter.til:3490:18", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_127 = (Str){.c_str = (void *)"./src/self/interpreter.til:3494:18", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_134 = (Str){.c_str = (void *)"./src/self/interpreter.til:3496:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_146 = (Str){.c_str = (void *)"./src/self/interpreter.til:3500:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:3453:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_159 = (Str){.c_str = (void *)"./src/self/interpreter.til:3501:70", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_164 = (Str){.c_str = (void *)"./src/self/interpreter.til:3501:51", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_172 = (Str){.c_str = (void *)"./src/self/interpreter.til:3503:59", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_183 = (Str){.c_str = (void *)"./src/self/interpreter.til:3506:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_194 = (Str){.c_str = (void *)"./src/self/interpreter.til:3508:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_212 = (Str){.c_str = (void *)"./src/self/interpreter.til:3496:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_224 = (Str){.c_str = (void *)"./src/self/interpreter.til:3500:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_237 = (Str){.c_str = (void *)"./src/self/interpreter.til:3501:70", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_242 = (Str){.c_str = (void *)"./src/self/interpreter.til:3501:51", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_250 = (Str){.c_str = (void *)"./src/self/interpreter.til:3503:59", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_261 = (Str){.c_str = (void *)"./src/self/interpreter.til:3506:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:3454:62", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_272 = (Str){.c_str = (void *)"./src/self/interpreter.til:3508:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_299 = (Str){.c_str = (void *)"./src/self/interpreter.til:3526:61", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_31 = (Str){.c_str = (void *)"./src/self/interpreter.til:3454:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_316 = (Str){.c_str = (void *)"./src/self/interpreter.til:3483:32", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_39 = (Str){.c_str = (void *)"./src/self/interpreter.til:3456:51", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:3450:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_58 = (Str){.c_str = (void *)"./src/self/interpreter.til:3469:90", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_63 = (Str){.c_str = (void *)"./src/self/interpreter.til:3472:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:3473:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_interface_call_79 = (Str){.c_str = (void *)"./src/self/interpreter.til:3477:91", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:1906:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:1907:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_40 = (Str){.c_str = (void *)"./src/self/interpreter.til:1908:58", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:1911:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_67 = (Str){.c_str = (void *)"./src/self/interpreter.til:1930:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_71 = (Str){.c_str = (void *)"./src/self/interpreter.til:1931:80", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_75 = (Str){.c_str = (void *)"./src/self/interpreter.til:1935:34", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_79 = (Str){.c_str = (void *)"./src/self/interpreter.til:1936:45", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_replacement_delete_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:2677:34", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_111 = (Str){.c_str = (void *)"./src/self/interpreter.til:2292:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_116 = (Str){.c_str = (void *)"./src/self/interpreter.til:2293:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_139 = (Str){.c_str = (void *)"./src/self/interpreter.til:2302:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:2269:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_155 = (Str){.c_str = (void *)"./src/self/interpreter.til:2309:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_160 = (Str){.c_str = (void *)"./src/self/interpreter.til:2309:65", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:2277:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:2287:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2262:50", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:2292:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_49 = (Str){.c_str = (void *)"./src/self/interpreter.til:2293:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_72 = (Str){.c_str = (void *)"./src/self/interpreter.til:2302:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_88 = (Str){.c_str = (void *)"./src/self/interpreter.til:2277:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:2267:47", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_switch_97 = (Str){.c_str = (void *)"./src/self/interpreter.til:2287:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:3055:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:3056:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_325 = (Str){.c_str = (void *)"./src/self/interpreter.til:3320:52", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:3086:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_373 = (Str){.c_str = (void *)"./src/self/interpreter.til:3368:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_390 = (Str){.c_str = (void *)"./src/self/interpreter.til:3053:37", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_43 = (Str){.c_str = (void *)"./src/self/interpreter.til:3088:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_user_func_call_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:3048:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_while_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2660:49", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_eval_while_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:2663:45", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_builtin_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8840:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_118 = (Str){.c_str = (void *)"./src/self/interpreter.til:9471:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_131 = (Str){.c_str = (void *)"./src/self/interpreter.til:9477:72", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:9394:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_146 = (Str){.c_str = (void *)"./src/self/interpreter.til:9493:80", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_160 = (Str){.c_str = (void *)"./src/self/interpreter.til:9504:80", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_173 = (Str){.c_str = (void *)"./src/self/interpreter.til:9508:76", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_237 = (Str){.c_str = (void *)"./src/self/interpreter.til:9553:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_278 = (Str){.c_str = (void *)"./src/self/interpreter.til:9599:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_298 = (Str){.c_str = (void *)"./src/self/interpreter.til:9611:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_305 = (Str){.c_str = (void *)"./src/self/interpreter.til:9614:51", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_329 = (Str){.c_str = (void *)"./src/self/interpreter.til:9625:74", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_341 = (Str){.c_str = (void *)"./src/self/interpreter.til:9629:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_353 = (Str){.c_str = (void *)"./src/self/interpreter.til:9635:59", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:9408:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_387 = (Str){.c_str = (void *)"./src/self/interpreter.til:9654:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_411 = (Str){.c_str = (void *)"./src/self/interpreter.til:9675:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_432 = (Str){.c_str = (void *)"./src/self/interpreter.til:9685:65", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_51 = (Str){.c_str = (void *)"./src/self/interpreter.til:9418:69", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:9375:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_99 = (Str){.c_str = (void *)"./src/self/interpreter.til:9455:76", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_f64_bits_apply_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:9790:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:1612:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:1615:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_43 = (Str){.c_str = (void *)"./src/self/interpreter.til:1613:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:1610:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_cached_layout_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1510:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_call_ret_struct_def_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9291:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_clear_struct_ownership_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:9268:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_clear_struct_ownership_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:9279:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_clear_struct_ownership_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9264:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:9139:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_16 = (Str){.c_str = (void *)"./src/self/interpreter.til:9146:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:9152:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9133:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_64 = (Str){.c_str = (void *)"./src/self/interpreter.til:9172:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:9174:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_97 = (Str){.c_str = (void *)"./src/self/interpreter.til:9188:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_host_default_abi_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:6930:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_host_default_abi_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:6930:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_load_archive_twin_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:6990:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_marshal_struct_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:9196:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_place_is_foreign_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:1500:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_place_is_foreign_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:1496:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_place_release_borrow_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1466:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_rebase_reference_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:9230:42", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_rebase_reference_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:9242:58", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_rebase_reference_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:9250:69", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_rebase_reference_56 = (Str){.c_str = (void *)"./src/self/interpreter.til:9256:32", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_rebase_reference_78 = (Str){.c_str = (void *)"./src/self/interpreter.til:9242:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_rebase_reference_86 = (Str){.c_str = (void *)"./src/self/interpreter.til:9260:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_refresh_external_place_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:1549:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_refresh_external_place_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1539:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_register_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:10218:17", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_register_45 = (Str){.c_str = (void *)"./src/self/interpreter.til:10188:28", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_register_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:10201:13", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_release_binding_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1556:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_remember_place_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:1585:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_struct_layout_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:8241:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_struct_layout_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:8288:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_struct_layout_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:8240:38", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_struct_layout_53 = (Str){.c_str = (void *)"./src/self/interpreter.til:8290:15", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_struct_layout_56 = (Str){.c_str = (void *)"./src/self/interpreter.til:8290:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_field_slot_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:9089:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_field_slot_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9089:58", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_field_slot_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:9090:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:9098:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:9105:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9098:58", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:9099:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_field_access_base_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:1652:58", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_field_access_base_35 = (Str){.c_str = (void *)"./src/self/interpreter.til:1681:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_field_access_sname_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:1426:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_field_access_sname_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1418:45", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_field_access_sname_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:1423:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_free_container_data_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4381:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_free_tuple_data_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:4227:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_free_tuple_data_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:4226:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_get_payload_field_addr_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:8601:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_and_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7224:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_and_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7219:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_eq_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7249:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_eq_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7250:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_not_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7239:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_or_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7234:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_Bool_or_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7229:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_F32_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7276:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_F64_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8152:62", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_I16_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7261:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_I32_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7271:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_U16_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7266:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_U32_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7281:44", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_U8_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7256:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_115 = (Str){.c_str = (void *)"./src/self/interpreter.til:7349:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_140 = (Str){.c_str = (void *)"./src/self/interpreter.til:7292:20", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7299:74", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:7300:74", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7289:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_61 = (Str){.c_str = (void *)"./src/self/interpreter.til:7298:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_71 = (Str){.c_str = (void *)"./src/self/interpreter.til:7295:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cast_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7292:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_close_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8474:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_exists_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8689:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_open_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8173:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_open_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8174:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_open_append_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8682:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_open_update_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8675:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_read_all_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8665:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_read_n_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8731:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_read_n_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8734:102", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_seek_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8704:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_seek_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8707:89", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_seek_cur_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8713:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_seek_cur_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8716:93", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_seek_end_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8722:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_seek_end_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8725:93", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_tell_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8695:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_write_str_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8483:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_cfile_write_str_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8486:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_check_cmd_status_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8128:61", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_call_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:8864:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_call_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:8869:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_call_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:8879:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_call_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8848:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_call_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8849:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_fn_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7450:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_fn_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7451:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_has_method_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7434:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_has_method_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7435:43", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_size_of_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:7500:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_size_of_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7474:76", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_storage_kind_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:7533:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_storage_kind_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7525:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_type_to_str_31 = (Str){.c_str = (void *)"./src/self/interpreter.til:8118:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_type_to_str_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:8120:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_dyn_type_to_str_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8108:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7707:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7703:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_has_payload_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7739:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_has_payload_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7734:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_has_payload_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7729:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_name_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7723:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_name_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7718:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_name_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7713:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_const_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7787:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_const_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7782:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_const_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7777:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_ref_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7803:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_ref_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7798:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_ref_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7793:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7755:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7750:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_payload_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7745:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_tag_value_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7771:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_tag_value_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7766:24", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_enum_variant_tag_value_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7761:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_eprint_single_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7369:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_exit_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:7398:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_file_mtime_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8138:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_free_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:8303:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_free_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:8305:27", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_free_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:8320:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_free_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8300:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_func_type_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7844:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_func_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7840:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_kwargs_index_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7945:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_kwargs_index_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7941:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7854:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7850:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_is_mut_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7901:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_is_mut_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7896:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_is_mut_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7891:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_own_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7886:47", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_own_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7881:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_own_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7876:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7870:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7865:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_param_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7860:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_count_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7910:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7906:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_own_type_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7955:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_own_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7951:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_shallow_explicit_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7965:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_shallow_explicit_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7961:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_type_22 = (Str){.c_str = (void *)"./src/self/interpreter.til:7921:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_return_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7916:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_throw_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7975:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_throw_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7971:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_throw_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7991:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_throw_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7986:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_throw_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7981:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_variadic_index_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7935:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_func_sig_variadic_index_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7931:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_get_payload_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:8648:64", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_get_payload_22 = (Str){.c_str = (void *)"./src/self/interpreter.til:8655:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_get_payload_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8637:48", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_is_n_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8522:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_is_n_54 = (Str){.c_str = (void *)"./src/self/interpreter.til:8563:118", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_is_n_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8523:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_is_null_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8509:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_print_single_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7355:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_ptr_add_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8493:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_ptr_add_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8496:93", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_sleep_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8133:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_spawn_cmd_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7428:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_str_parse_f32_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8157:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_str_parse_f64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8144:45", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7621:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7617:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_is_mut_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:7655:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_is_mut_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7650:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_name_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7640:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_name_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7635:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_type_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7671:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_struct_field_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7666:46", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:8337:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:8350:55", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8334:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_48 = (Str){.c_str = (void *)"./src/self/interpreter.til:8362:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_53 = (Str){.c_str = (void *)"./src/self/interpreter.til:8363:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_75 = (Str){.c_str = (void *)"./src/self/interpreter.til:8390:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_delete_96 = (Str){.c_str = (void *)"./src/self/interpreter.til:8397:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_clone_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8422:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_delete_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8408:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_pop_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8434:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_16 = (Str){.c_str = (void *)"./src/self/interpreter.til:8453:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:8455:34", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:8457:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8445:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_46 = (Str){.c_str = (void *)"./src/self/interpreter.til:8467:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8449:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_clike_case_variant_name_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2255:32", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_clone_container_buffer_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4398:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_clone_tuple_buffer_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:4262:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_clone_tuple_buffer_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:4261:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_closure_env_clone_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:5354:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_closure_env_clone_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:5357:95", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_closure_env_clone_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:5352:27", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_container_elem_clone_into_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:4204:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_container_elem_clone_into_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:4217:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_container_elem_deep_free_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:4178:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_container_elem_deep_free_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:4188:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_context_return_set_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1408:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_context_return_take_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1414:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_dispatch_enum_size_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7158:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_dispatch_scratch_push_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:865:59", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_dyn_type_to_str_raw_113 = (Str){.c_str = (void *)"./src/self/interpreter.til:8105:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_dyn_type_to_str_raw_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:8003:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_dyn_type_to_str_raw_52 = (Str){.c_str = (void *)"./src/self/interpreter.til:8086:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_core_is_eval_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:10040:13", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_core_is_eval_8 = (Str){.c_str = (void *)"./src/self/interpreter.til:10039:13", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_method_dispatch_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:8943:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_method_dispatch_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8921:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_method_dispatch_54 = (Str){.c_str = (void *)"./src/self/interpreter.til:8955:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_method_dispatch_61 = (Str){.c_str = (void *)"./src/self/interpreter.til:8964:53", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_method_dispatch_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:8966:51", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_method_dispatch_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8923:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_payload_deep_clone_24 = (Str){.c_str = (void *)"./src/self/interpreter.til:574:34", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_payload_deep_clone_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:595:9", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_payload_deep_free_24 = (Str){.c_str = (void *)"./src/self/interpreter.til:527:34", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_payload_deep_free_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:544:13", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_payload_deep_free_38 = (Str){.c_str = (void *)"./src/self/interpreter.til:557:9", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_enum_payload_type_ref_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:487:13", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_erased_elem_delete_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:4449:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_104 = (Str){.c_str = (void *)"./src/self/interpreter.til:2778:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:2701:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_120 = (Str){.c_str = (void *)"./src/self/interpreter.til:2786:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_136 = (Str){.c_str = (void *)"./src/self/interpreter.til:2805:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_143 = (Str){.c_str = (void *)"./src/self/interpreter.til:2807:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_156 = (Str){.c_str = (void *)"./src/self/interpreter.til:2820:64", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_161 = (Str){.c_str = (void *)"./src/self/interpreter.til:2822:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_183 = (Str){.c_str = (void *)"./src/self/interpreter.til:2854:70", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_233 = (Str){.c_str = (void *)"./src/self/interpreter.til:2910:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_244 = (Str){.c_str = (void *)"./src/self/interpreter.til:2922:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_251 = (Str){.c_str = (void *)"./src/self/interpreter.til:2929:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2699:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_77 = (Str){.c_str = (void *)"./src/self/interpreter.til:2769:27", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_body_92 = (Str){.c_str = (void *)"./src/self/interpreter.til:2769:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_113 = (Str){.c_str = (void *)"./src/self/interpreter.til:3675:64", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_120 = (Str){.c_str = (void *)"./src/self/interpreter.til:3683:63", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_145 = (Str){.c_str = (void *)"./src/self/interpreter.til:3693:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_150 = (Str){.c_str = (void *)"./src/self/interpreter.til:3699:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_154 = (Str){.c_str = (void *)"./src/self/interpreter.til:3640:49", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_176 = (Str){.c_str = (void *)"./src/self/interpreter.til:3583:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_180 = (Str){.c_str = (void *)"./src/self/interpreter.til:3635:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_212 = (Str){.c_str = (void *)"./src/self/interpreter.til:3759:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_259 = (Str){.c_str = (void *)"./src/self/interpreter.til:3786:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_277 = (Str){.c_str = (void *)"./src/self/interpreter.til:3786:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_322 = (Str){.c_str = (void *)"./src/self/interpreter.til:3862:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_336 = (Str){.c_str = (void *)"./src/self/interpreter.til:3880:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_341 = (Str){.c_str = (void *)"./src/self/interpreter.til:3884:64", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_350 = (Str){.c_str = (void *)"./src/self/interpreter.til:3885:66", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_365 = (Str){.c_str = (void *)"./src/self/interpreter.til:3893:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_380 = (Str){.c_str = (void *)"./src/self/interpreter.til:3908:54", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:3536:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_40 = (Str){.c_str = (void *)"./src/self/interpreter.til:3590:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_409 = (Str){.c_str = (void *)"./src/self/interpreter.til:3920:58", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:3589:20", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_49 = (Str){.c_str = (void *)"./src/self/interpreter.til:3615:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_54 = (Str){.c_str = (void *)"./src/self/interpreter.til:3621:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_568 = (Str){.c_str = (void *)"./src/self/interpreter.til:3873:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_589 = (Str){.c_str = (void *)"./src/self/interpreter.til:4054:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_617 = (Str){.c_str = (void *)"./src/self/interpreter.til:4071:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_80 = (Str){.c_str = (void *)"./src/self/interpreter.til:3601:45", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_call_info_94 = (Str){.c_str = (void *)"./src/self/interpreter.til:3643:78", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_callable_call_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:3392:55", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_callable_call_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:3384:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_callable_call_46 = (Str){.c_str = (void *)"./src/self/interpreter.til:3396:20", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_callable_call_55 = (Str){.c_str = (void *)"./src/self/interpreter.til:3403:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_callable_callee_raw_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:1274:35", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_callable_cast_callee_raw_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1287:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_declaration_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:2327:32", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_declaration_38 = (Str){.c_str = (void *)"./src/self/interpreter.til:2357:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_declaration_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2319:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_declaration_78 = (Str){.c_str = (void *)"./src/self/interpreter.til:2380:34", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_field_raw_123 = (Str){.c_str = (void *)"./src/self/interpreter.til:1816:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_field_raw_128 = (Str){.c_str = (void *)"./src/self/interpreter.til:1817:65", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_field_raw_164 = (Str){.c_str = (void *)"./src/self/interpreter.til:1828:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_field_raw_69 = (Str){.c_str = (void *)"./src/self/interpreter.til:1770:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_field_raw_91 = (Str){.c_str = (void *)"./src/self/interpreter.til:1772:54", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_raw_info_114 = (Str){.c_str = (void *)"./src/self/interpreter.til:2017:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_raw_info_134 = (Str){.c_str = (void *)"./src/self/interpreter.til:2030:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_raw_info_240 = (Str){.c_str = (void *)"./src/self/interpreter.til:2076:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_expr_raw_info_268 = (Str){.c_str = (void *)"./src/self/interpreter.til:2097:67", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_fcall_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:2585:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_fcall_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:2589:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_fcall_38 = (Str){.c_str = (void *)"./src/self/interpreter.til:2596:66", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_fcall_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:2599:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_fcall_50 = (Str){.c_str = (void *)"./src/self/interpreter.til:2600:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_if_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:2652:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_if_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2645:45", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_if_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:2648:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_index_arg_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7635:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_112 = (Str){.c_str = (void *)"./src/self/interpreter.til:3486:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_117 = (Str){.c_str = (void *)"./src/self/interpreter.til:3494:18", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_127 = (Str){.c_str = (void *)"./src/self/interpreter.til:3498:18", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_134 = (Str){.c_str = (void *)"./src/self/interpreter.til:3500:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_146 = (Str){.c_str = (void *)"./src/self/interpreter.til:3504:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:3457:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_159 = (Str){.c_str = (void *)"./src/self/interpreter.til:3505:70", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_164 = (Str){.c_str = (void *)"./src/self/interpreter.til:3505:51", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_172 = (Str){.c_str = (void *)"./src/self/interpreter.til:3507:59", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_183 = (Str){.c_str = (void *)"./src/self/interpreter.til:3510:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_194 = (Str){.c_str = (void *)"./src/self/interpreter.til:3512:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_212 = (Str){.c_str = (void *)"./src/self/interpreter.til:3500:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_224 = (Str){.c_str = (void *)"./src/self/interpreter.til:3504:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_237 = (Str){.c_str = (void *)"./src/self/interpreter.til:3505:70", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_242 = (Str){.c_str = (void *)"./src/self/interpreter.til:3505:51", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_250 = (Str){.c_str = (void *)"./src/self/interpreter.til:3507:59", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_261 = (Str){.c_str = (void *)"./src/self/interpreter.til:3510:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:3458:62", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_272 = (Str){.c_str = (void *)"./src/self/interpreter.til:3512:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_299 = (Str){.c_str = (void *)"./src/self/interpreter.til:3530:61", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_31 = (Str){.c_str = (void *)"./src/self/interpreter.til:3458:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_316 = (Str){.c_str = (void *)"./src/self/interpreter.til:3487:32", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_39 = (Str){.c_str = (void *)"./src/self/interpreter.til:3460:51", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:3454:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_58 = (Str){.c_str = (void *)"./src/self/interpreter.til:3473:90", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_63 = (Str){.c_str = (void *)"./src/self/interpreter.til:3476:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:3477:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_interface_call_79 = (Str){.c_str = (void *)"./src/self/interpreter.til:3481:91", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:1910:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:1911:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_40 = (Str){.c_str = (void *)"./src/self/interpreter.til:1912:58", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:1915:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_67 = (Str){.c_str = (void *)"./src/self/interpreter.til:1934:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_71 = (Str){.c_str = (void *)"./src/self/interpreter.til:1935:80", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_75 = (Str){.c_str = (void *)"./src/self/interpreter.til:1939:34", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_precomputed_sequence_79 = (Str){.c_str = (void *)"./src/self/interpreter.til:1940:45", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_replacement_delete_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:2681:34", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_111 = (Str){.c_str = (void *)"./src/self/interpreter.til:2296:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_116 = (Str){.c_str = (void *)"./src/self/interpreter.til:2297:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_139 = (Str){.c_str = (void *)"./src/self/interpreter.til:2306:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:2273:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_155 = (Str){.c_str = (void *)"./src/self/interpreter.til:2313:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_160 = (Str){.c_str = (void *)"./src/self/interpreter.til:2313:65", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:2281:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:2291:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2266:50", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:2296:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_49 = (Str){.c_str = (void *)"./src/self/interpreter.til:2297:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_72 = (Str){.c_str = (void *)"./src/self/interpreter.til:2306:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_88 = (Str){.c_str = (void *)"./src/self/interpreter.til:2281:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:2271:47", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_switch_97 = (Str){.c_str = (void *)"./src/self/interpreter.til:2291:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:3059:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:3060:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_325 = (Str){.c_str = (void *)"./src/self/interpreter.til:3324:52", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:3090:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_373 = (Str){.c_str = (void *)"./src/self/interpreter.til:3372:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_390 = (Str){.c_str = (void *)"./src/self/interpreter.til:3057:37", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_43 = (Str){.c_str = (void *)"./src/self/interpreter.til:3092:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_user_func_call_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:3052:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_while_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2664:49", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_eval_while_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:2667:45", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_builtin_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8844:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_118 = (Str){.c_str = (void *)"./src/self/interpreter.til:9475:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_131 = (Str){.c_str = (void *)"./src/self/interpreter.til:9481:72", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:9398:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_146 = (Str){.c_str = (void *)"./src/self/interpreter.til:9497:80", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_160 = (Str){.c_str = (void *)"./src/self/interpreter.til:9508:80", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_173 = (Str){.c_str = (void *)"./src/self/interpreter.til:9512:76", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_237 = (Str){.c_str = (void *)"./src/self/interpreter.til:9557:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_278 = (Str){.c_str = (void *)"./src/self/interpreter.til:9603:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_298 = (Str){.c_str = (void *)"./src/self/interpreter.til:9615:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_305 = (Str){.c_str = (void *)"./src/self/interpreter.til:9618:51", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_329 = (Str){.c_str = (void *)"./src/self/interpreter.til:9629:74", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_341 = (Str){.c_str = (void *)"./src/self/interpreter.til:9633:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_353 = (Str){.c_str = (void *)"./src/self/interpreter.til:9639:59", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:9412:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_387 = (Str){.c_str = (void *)"./src/self/interpreter.til:9658:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_411 = (Str){.c_str = (void *)"./src/self/interpreter.til:9679:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_432 = (Str){.c_str = (void *)"./src/self/interpreter.til:9689:65", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_51 = (Str){.c_str = (void *)"./src/self/interpreter.til:9422:69", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:9379:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ext_dispatch_ffi_99 = (Str){.c_str = (void *)"./src/self/interpreter.til:9459:76", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_f64_bits_apply_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:9794:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:1616:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:1619:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_43 = (Str){.c_str = (void *)"./src/self/interpreter.til:1617:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_borrow_place_walk_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:1614:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_cached_layout_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1514:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_call_ret_struct_def_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9295:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_clear_struct_ownership_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:9272:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_clear_struct_ownership_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:9283:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_clear_struct_ownership_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9268:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:9143:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_16 = (Str){.c_str = (void *)"./src/self/interpreter.til:9150:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:9156:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9137:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_64 = (Str){.c_str = (void *)"./src/self/interpreter.til:9176:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:9178:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_copy_struct_into_97 = (Str){.c_str = (void *)"./src/self/interpreter.til:9192:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_host_default_abi_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:6934:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_host_default_abi_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:6934:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_load_archive_twin_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:6994:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_marshal_struct_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:9200:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_place_is_foreign_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:1504:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_place_is_foreign_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:1500:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_place_release_borrow_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1470:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_rebase_reference_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:9234:42", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_rebase_reference_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:9246:58", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_rebase_reference_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:9254:69", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_rebase_reference_56 = (Str){.c_str = (void *)"./src/self/interpreter.til:9260:32", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_rebase_reference_78 = (Str){.c_str = (void *)"./src/self/interpreter.til:9246:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_rebase_reference_86 = (Str){.c_str = (void *)"./src/self/interpreter.til:9264:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_refresh_external_place_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:1553:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_refresh_external_place_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1543:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_register_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:10222:17", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_register_45 = (Str){.c_str = (void *)"./src/self/interpreter.til:10192:28", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_register_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:10205:13", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_release_binding_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1560:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_remember_place_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:1589:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_struct_layout_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:8245:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_struct_layout_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:8292:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_struct_layout_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:8244:38", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_struct_layout_53 = (Str){.c_str = (void *)"./src/self/interpreter.til:8294:15", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_struct_layout_56 = (Str){.c_str = (void *)"./src/self/interpreter.til:8294:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_field_slot_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:9093:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_field_slot_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9093:58", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_field_slot_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:9094:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:9102:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:9109:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9102:58", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ffi_vec_str_usize_field_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:9103:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_field_access_base_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:1656:58", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_field_access_base_35 = (Str){.c_str = (void *)"./src/self/interpreter.til:1685:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_field_access_sname_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:1430:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_field_access_sname_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1422:45", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_field_access_sname_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:1427:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_free_container_data_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4385:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_free_tuple_data_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:4231:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_free_tuple_data_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:4230:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_get_payload_field_addr_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:8605:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_and_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7228:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_and_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7223:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_eq_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7253:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_eq_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7254:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_not_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7243:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_or_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7238:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_Bool_or_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7233:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_F32_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7280:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_F64_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8156:62", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_I16_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7265:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_I32_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7275:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_U16_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7270:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_U32_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7285:44", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_U8_from_i64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7260:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_115 = (Str){.c_str = (void *)"./src/self/interpreter.til:7353:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_140 = (Str){.c_str = (void *)"./src/self/interpreter.til:7296:20", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7303:74", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:7304:74", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7293:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_61 = (Str){.c_str = (void *)"./src/self/interpreter.til:7302:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_71 = (Str){.c_str = (void *)"./src/self/interpreter.til:7299:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cast_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7296:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_close_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8478:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_exists_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8693:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_open_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8177:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_open_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8178:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_open_append_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8686:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_open_update_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8679:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_read_all_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8669:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_read_n_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8735:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_read_n_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8738:102", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_seek_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8708:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_seek_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8711:89", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_seek_cur_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8717:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_seek_cur_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8720:93", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_seek_end_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8726:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_seek_end_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8729:93", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_tell_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8699:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_write_str_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8487:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_cfile_write_str_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8490:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_check_cmd_status_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8132:61", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_call_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:8868:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_call_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:8873:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_call_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:8883:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_call_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8852:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_call_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8853:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_fn_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7454:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_fn_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7455:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_has_method_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7438:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_has_method_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:7439:43", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_size_of_29 = (Str){.c_str = (void *)"./src/self/interpreter.til:7504:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_size_of_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7478:76", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_storage_kind_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:7537:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_storage_kind_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7529:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_type_to_str_31 = (Str){.c_str = (void *)"./src/self/interpreter.til:8122:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_type_to_str_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:8124:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_dyn_type_to_str_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8112:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7711:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7707:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_has_payload_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7743:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_has_payload_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7738:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_has_payload_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7733:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_name_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7727:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_name_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7722:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_name_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7717:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_const_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7791:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_const_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7786:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_const_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7781:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_ref_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7807:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_ref_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7802:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_is_ref_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7797:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7759:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7754:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_payload_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7749:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_tag_value_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7775:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_tag_value_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7770:24", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_enum_variant_tag_value_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7765:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_eprint_single_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7373:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_exit_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:7402:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_file_mtime_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8142:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_free_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:8307:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_free_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:8309:27", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_free_34 = (Str){.c_str = (void *)"./src/self/interpreter.til:8324:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_free_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8304:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_func_type_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7848:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_func_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7844:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_kwargs_index_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7949:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_kwargs_index_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7945:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7858:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7854:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_is_mut_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7905:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_is_mut_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:7900:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_is_mut_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7895:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_own_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7890:47", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_own_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7885:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_own_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7880:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7874:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7869:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_param_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7864:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_count_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7914:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7910:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_own_type_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7959:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_own_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7955:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_shallow_explicit_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7969:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_shallow_explicit_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7965:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_type_22 = (Str){.c_str = (void *)"./src/self/interpreter.til:7925:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_return_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7920:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_throw_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7979:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_throw_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7975:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_throw_type_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:7995:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_throw_type_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:7990:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_throw_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7985:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_variadic_index_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7939:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_func_sig_variadic_index_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7935:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_get_payload_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:8652:64", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_get_payload_22 = (Str){.c_str = (void *)"./src/self/interpreter.til:8659:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_get_payload_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8641:48", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_is_n_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8526:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_is_n_54 = (Str){.c_str = (void *)"./src/self/interpreter.til:8567:118", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_is_n_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8527:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_is_null_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8513:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_print_single_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7359:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_ptr_add_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8497:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_ptr_add_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8500:93", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_sleep_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8137:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_spawn_cmd_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7432:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_str_parse_f32_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8161:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_str_parse_f64_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8148:45", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_count_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:7625:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_count_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7621:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_is_mut_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:7659:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_is_mut_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7654:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_name_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7644:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_name_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7639:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_type_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:7675:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_struct_field_type_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:7670:46", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:8341:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:8354:55", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8338:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_48 = (Str){.c_str = (void *)"./src/self/interpreter.til:8366:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_53 = (Str){.c_str = (void *)"./src/self/interpreter.til:8367:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_75 = (Str){.c_str = (void *)"./src/self/interpreter.til:8394:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_delete_96 = (Str){.c_str = (void *)"./src/self/interpreter.til:8401:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_clone_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8426:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_delete_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8412:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_pop_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8438:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_16 = (Str){.c_str = (void *)"./src/self/interpreter.til:8457:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:8459:34", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:8461:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:8449:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_46 = (Str){.c_str = (void *)"./src/self/interpreter.til:8471:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_h_til_closure_slot_take_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:8453:9", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_heap_clone_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:247:25", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_clone_80 = (Str){.c_str = (void *)"./src/self/interpreter.til:157:33", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_clone_85 = (Str){.c_str = (void *)"./src/self/interpreter.til:157:33", .count = 33ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_interpreter_heap_clone_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:186:13", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_clone_by_type_28 = (Str){.c_str = (void *)"./src/self/interpreter.til:4959:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_drop_struct_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:4291:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_drop_struct_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:4295:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_drop_struct_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:4311:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_move_ptr_into_slot_31 = (Str){.c_str = (void *)"./src/self/interpreter.til:5032:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_heap_slot_is_static_callable_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:4737:27", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_intern_simple_index_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:5106:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_c_str_arg_shape_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:9350:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_eval_exact_line_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:6453:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_eval_exact_line_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6445:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_ext_c_string_param_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:9363:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_fa_namespace_def_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:5578:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_fa_namespace_def_inner_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:5515:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_fa_namespace_def_with_name_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:5552:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_first_stmt_at_line_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6434:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_funcsig_param_count_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:7834:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_lowering_preamble_count_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6470:32", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_ret_type_name_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4589:15", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interp_ret_type_name_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4589:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_register_aliases_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6125:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_register_defs_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:6085:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_register_defs_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:6095:49", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_110 = (Str){.c_str = (void *)"./src/self/interpreter.til:6622:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:6537:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_134 = (Str){.c_str = (void *)"./src/self/interpreter.til:6649:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_139 = (Str){.c_str = (void *)"./src/self/interpreter.til:6659:110", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_145 = (Str){.c_str = (void *)"./src/self/interpreter.til:6662:59", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_169 = (Str){.c_str = (void *)"./src/self/interpreter.til:6667:64", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:6545:68", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_199 = (Str){.c_str = (void *)"./src/self/interpreter.til:6619:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:6545:80", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_50 = (Str){.c_str = (void *)"./src/self/interpreter.til:6558:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6534:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_interpret_units_63 = (Str){.c_str = (void *)"./src/self/interpreter.til:6575:74", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_make_interp_closure_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:5396:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_mark_deleted_receiver_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:2630:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_mark_deleted_receiver_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2624:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_namespace_func_qname_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4832:36", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_namespace_func_qname_45 = (Str){.c_str = (void *)"./src/self/interpreter.til:4828:28", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_namespace_func_qname_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:4832:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ns_field_type_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:5812:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ns_field_type_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:5814:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ns_scope_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:5732:23", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ns_scope_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5732:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_ns_set_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:5794:41", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_parse_cli_arg_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:682:9", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_parse_cli_arg_69 = (Str){.c_str = (void *)"./src/self/interpreter.til:685:5", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_place_field_layout_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1518:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_place_field_layout_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:1517:26", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_result_move_into_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:994:9", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_result_reframe_8 = (Str){.c_str = (void *)"./src/self/interpreter.til:954:35", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_switch_key_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:2219:35", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_switch_key_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:2234:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_switch_key_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2211:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_to_u64_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:1173:20", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_to_u64_22 = (Str){.c_str = (void *)"./src/self/interpreter.til:1174:20", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_to_u64_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:1181:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_type_is_simd_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:724:16", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_type_is_simd_8 = (Str){.c_str = (void *)"./src/self/interpreter.til:726:16", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_raw_type_size_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:1153:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_resolve_field_assign_base_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2163:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_resolve_field_assign_sname_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:2180:31", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_apply_f32_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:9801:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_apply_f32_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:9801:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_apply_i64_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:9777:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_apply_i64_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:9777:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_apply_u64_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:9758:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_apply_u64_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:9758:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_cmp_f32_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:9853:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_cmp_f32_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:9853:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_cmp_i64_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:9839:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_cmp_i64_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:9839:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_cmp_u64_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:9825:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_cmp_u64_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:9825:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_core_op_eval_109 = (Str){.c_str = (void *)"./src/self/interpreter.til:9976:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_core_op_eval_114 = (Str){.c_str = (void *)"./src/self/interpreter.til:9977:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_core_op_eval_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:9928:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_core_op_eval_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:9929:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_core_op_eval_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:9954:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_core_op_eval_96 = (Str){.c_str = (void *)"./src/self/interpreter.til:9967:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:9895:35", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:9895:29", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:9897:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:9897:27", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:9899:57", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:9899:51", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9888:13", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:9902:15", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_47 = (Str){.c_str = (void *)"./src/self/interpreter.til:9902:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_step_cell_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:9892:22", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_word_encode_41 = (Str){.c_str = (void *)"./src/self/interpreter.til:756:5", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_word_store_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:818:5", .count = 32ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scalar_write_raw_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:9868:9", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_get_binding_scope_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:4678:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_get_binding_scope_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:4678:11", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_move_bound_raw_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:5071:23", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_move_bound_raw_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:5073:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_move_bound_raw_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5069:25", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_read_heap_binding_raw_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:5038:23", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_read_heap_binding_raw_16 = (Str){.c_str = (void *)"./src/self/interpreter.til:5040:39", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_read_heap_binding_raw_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:5047:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_set_borrowed_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:5295:21", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_set_borrowed_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:5299:32", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_set_borrowed_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:5301:34", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_set_borrowed_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:5302:30", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_scope_set_borrowed_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5290:33", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_session_global_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:6187:23", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_session_global_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6187:17", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_106 = (Str){.c_str = (void *)"./src/self/interpreter.til:10093:67", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_113 = (Str){.c_str = (void *)"./src/self/interpreter.til:10096:45", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_127 = (Str){.c_str = (void *)"./src/self/interpreter.til:10102:48", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_132 = (Str){.c_str = (void *)"./src/self/interpreter.til:10103:48", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_172 = (Str){.c_str = (void *)"./src/self/interpreter.til:10118:39", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_190 = (Str){.c_str = (void *)"./src/self/interpreter.til:10122:61", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_195 = (Str){.c_str = (void *)"./src/self/interpreter.til:10123:35", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_217 = (Str){.c_str = (void *)"./src/self/interpreter.til:10130:70", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_222 = (Str){.c_str = (void *)"./src/self/interpreter.til:10131:70", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_227 = (Str){.c_str = (void *)"./src/self/interpreter.til:10132:71", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_238 = (Str){.c_str = (void *)"./src/self/interpreter.til:10142:35", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_243 = (Str){.c_str = (void *)"./src/self/interpreter.til:10143:35", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_248 = (Str){.c_str = (void *)"./src/self/interpreter.til:10144:35", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_281 = (Str){.c_str = (void *)"./src/self/interpreter.til:10147:13", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_286 = (Str){.c_str = (void *)"./src/self/interpreter.til:10148:13", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_333 = (Str){.c_str = (void *)"./src/self/interpreter.til:10079:28", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_72 = (Str){.c_str = (void *)"./src/self/interpreter.til:10081:52", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_77 = (Str){.c_str = (void *)"./src/self/interpreter.til:10086:67", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_simd_core_op_eval_82 = (Str){.c_str = (void *)"./src/self/interpreter.til:10088:35", .count = 35ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_unsigned_ffi_type_for_name_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:7099:5", .count = 33ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_write_runtime_type_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:1870:40", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_interpreter_write_runtime_type_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1835:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_clone_by_type_28 = (Str){.c_str = (void *)"./src/self/interpreter.til:4963:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_drop_struct_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:4295:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_drop_struct_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:4299:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_drop_struct_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:4315:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_move_ptr_into_slot_31 = (Str){.c_str = (void *)"./src/self/interpreter.til:5036:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_heap_slot_is_static_callable_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:4741:27", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_intern_simple_index_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:5110:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_c_str_arg_shape_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:9354:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_eval_exact_line_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:6457:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_eval_exact_line_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6449:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_ext_c_string_param_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:9367:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_fa_namespace_def_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:5582:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_fa_namespace_def_inner_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:5519:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_fa_namespace_def_with_name_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:5556:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_first_stmt_at_line_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6438:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_funcsig_param_count_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:7838:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_lowering_preamble_count_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6474:32", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_ret_type_name_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4593:15", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interp_ret_type_name_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:4593:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_register_aliases_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6129:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_register_defs_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:6089:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_register_defs_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:6099:49", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_110 = (Str){.c_str = (void *)"./src/self/interpreter.til:6626:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:6541:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_134 = (Str){.c_str = (void *)"./src/self/interpreter.til:6653:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_139 = (Str){.c_str = (void *)"./src/self/interpreter.til:6663:110", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_145 = (Str){.c_str = (void *)"./src/self/interpreter.til:6666:59", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_169 = (Str){.c_str = (void *)"./src/self/interpreter.til:6671:64", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:6549:68", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_199 = (Str){.c_str = (void *)"./src/self/interpreter.til:6623:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:6549:80", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_50 = (Str){.c_str = (void *)"./src/self/interpreter.til:6562:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:6538:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_interpret_units_63 = (Str){.c_str = (void *)"./src/self/interpreter.til:6579:74", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_make_interp_closure_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:5400:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_mark_deleted_receiver_15 = (Str){.c_str = (void *)"./src/self/interpreter.til:2634:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_mark_deleted_receiver_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:2628:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_namespace_func_qname_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:4836:36", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_namespace_func_qname_45 = (Str){.c_str = (void *)"./src/self/interpreter.til:4832:28", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_namespace_func_qname_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:4836:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ns_field_type_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:5816:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ns_field_type_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:5818:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ns_scope_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:5736:23", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ns_scope_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5736:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_ns_set_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:5798:41", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_parse_cli_arg_33 = (Str){.c_str = (void *)"./src/self/interpreter.til:686:9", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_parse_cli_arg_69 = (Str){.c_str = (void *)"./src/self/interpreter.til:689:5", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_place_field_layout_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:1522:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_place_field_layout_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:1521:26", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_result_move_into_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:998:9", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_result_reframe_8 = (Str){.c_str = (void *)"./src/self/interpreter.til:958:35", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_switch_key_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:2223:35", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_switch_key_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:2238:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_switch_key_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2215:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_to_u64_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:1177:20", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_to_u64_22 = (Str){.c_str = (void *)"./src/self/interpreter.til:1178:20", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_to_u64_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:1185:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_type_is_simd_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:728:16", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_type_is_simd_8 = (Str){.c_str = (void *)"./src/self/interpreter.til:730:16", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_raw_type_size_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:1157:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_resolve_field_assign_base_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:2167:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_resolve_field_assign_sname_7 = (Str){.c_str = (void *)"./src/self/interpreter.til:2184:31", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_apply_f32_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:9805:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_apply_f32_19 = (Str){.c_str = (void *)"./src/self/interpreter.til:9805:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_apply_i64_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:9781:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_apply_i64_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:9781:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_apply_u64_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:9762:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_apply_u64_37 = (Str){.c_str = (void *)"./src/self/interpreter.til:9762:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_cmp_f32_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:9857:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_cmp_f32_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:9857:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_cmp_i64_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:9843:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_cmp_i64_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:9843:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_cmp_u64_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:9829:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_cmp_u64_25 = (Str){.c_str = (void *)"./src/self/interpreter.til:9829:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_core_op_eval_109 = (Str){.c_str = (void *)"./src/self/interpreter.til:9980:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_core_op_eval_114 = (Str){.c_str = (void *)"./src/self/interpreter.til:9981:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_core_op_eval_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:9932:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_core_op_eval_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:9933:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_core_op_eval_68 = (Str){.c_str = (void *)"./src/self/interpreter.til:9958:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_core_op_eval_96 = (Str){.c_str = (void *)"./src/self/interpreter.til:9971:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:9899:35", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_18 = (Str){.c_str = (void *)"./src/self/interpreter.til:9899:29", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_21 = (Str){.c_str = (void *)"./src/self/interpreter.til:9901:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_27 = (Str){.c_str = (void *)"./src/self/interpreter.til:9901:27", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_30 = (Str){.c_str = (void *)"./src/self/interpreter.til:9903:57", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_36 = (Str){.c_str = (void *)"./src/self/interpreter.til:9903:51", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_4 = (Str){.c_str = (void *)"./src/self/interpreter.til:9892:13", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_44 = (Str){.c_str = (void *)"./src/self/interpreter.til:9906:15", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_47 = (Str){.c_str = (void *)"./src/self/interpreter.til:9906:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_step_cell_9 = (Str){.c_str = (void *)"./src/self/interpreter.til:9896:22", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_word_encode_41 = (Str){.c_str = (void *)"./src/self/interpreter.til:760:5", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_word_store_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:822:5", .count = 32ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scalar_write_raw_12 = (Str){.c_str = (void *)"./src/self/interpreter.til:9872:9", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_get_binding_scope_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:4682:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_get_binding_scope_6 = (Str){.c_str = (void *)"./src/self/interpreter.til:4682:11", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_move_bound_raw_11 = (Str){.c_str = (void *)"./src/self/interpreter.til:5075:23", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_move_bound_raw_17 = (Str){.c_str = (void *)"./src/self/interpreter.til:5077:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_move_bound_raw_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5073:25", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_read_heap_binding_raw_10 = (Str){.c_str = (void *)"./src/self/interpreter.til:5042:23", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_read_heap_binding_raw_16 = (Str){.c_str = (void *)"./src/self/interpreter.til:5044:39", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_read_heap_binding_raw_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:5051:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_set_borrowed_14 = (Str){.c_str = (void *)"./src/self/interpreter.til:5299:21", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_set_borrowed_20 = (Str){.c_str = (void *)"./src/self/interpreter.til:5303:32", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_set_borrowed_26 = (Str){.c_str = (void *)"./src/self/interpreter.til:5305:34", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_set_borrowed_32 = (Str){.c_str = (void *)"./src/self/interpreter.til:5306:30", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_scope_set_borrowed_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:5294:33", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_session_global_2 = (Str){.c_str = (void *)"./src/self/interpreter.til:6191:23", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_session_global_5 = (Str){.c_str = (void *)"./src/self/interpreter.til:6191:17", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_106 = (Str){.c_str = (void *)"./src/self/interpreter.til:10097:67", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_113 = (Str){.c_str = (void *)"./src/self/interpreter.til:10100:45", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_127 = (Str){.c_str = (void *)"./src/self/interpreter.til:10106:48", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_132 = (Str){.c_str = (void *)"./src/self/interpreter.til:10107:48", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_172 = (Str){.c_str = (void *)"./src/self/interpreter.til:10122:39", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_190 = (Str){.c_str = (void *)"./src/self/interpreter.til:10126:61", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_195 = (Str){.c_str = (void *)"./src/self/interpreter.til:10127:35", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_217 = (Str){.c_str = (void *)"./src/self/interpreter.til:10134:70", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_222 = (Str){.c_str = (void *)"./src/self/interpreter.til:10135:70", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_227 = (Str){.c_str = (void *)"./src/self/interpreter.til:10136:71", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_238 = (Str){.c_str = (void *)"./src/self/interpreter.til:10146:35", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_243 = (Str){.c_str = (void *)"./src/self/interpreter.til:10147:35", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_248 = (Str){.c_str = (void *)"./src/self/interpreter.til:10148:35", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_281 = (Str){.c_str = (void *)"./src/self/interpreter.til:10151:13", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_286 = (Str){.c_str = (void *)"./src/self/interpreter.til:10152:13", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_333 = (Str){.c_str = (void *)"./src/self/interpreter.til:10083:28", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_72 = (Str){.c_str = (void *)"./src/self/interpreter.til:10085:52", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_77 = (Str){.c_str = (void *)"./src/self/interpreter.til:10090:67", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_simd_core_op_eval_82 = (Str){.c_str = (void *)"./src/self/interpreter.til:10092:35", .count = 35ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_unsigned_ffi_type_for_name_23 = (Str){.c_str = (void *)"./src/self/interpreter.til:7103:5", .count = 33ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_write_runtime_type_13 = (Str){.c_str = (void *)"./src/self/interpreter.til:1874:40", .count = 34ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_interpreter_write_runtime_type_3 = (Str){.c_str = (void *)"./src/self/interpreter.til:1839:31", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_jvm_codegen_jvm_add_ns_fields_10 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3186:31", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_jvm_codegen_jvm_add_ns_fields_15 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3187:47", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_jvm_codegen_jvm_add_ns_fields_36 = (Str){.c_str = (void *)"./src/self/jvm_codegen.til:3191:40", .count = 34ULL, .cap = TIL_CAP_LIT};
@@ -12983,832 +12998,849 @@ static Str hoisted__Str_self_theme_codegen_theme_call_is_14 = (Str){.c_str = (vo
 static Str hoisted__Str_self_theme_codegen_theme_static_expr_14 = (Str){.c_str = (void *)"./src/self/theme_codegen.til:41:59", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_theme_codegen_theme_string_arg_14 = (Str){.c_str = (void *)"./src/self/theme_codegen.til:66:54", .count = 34ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_theme_codegen_theme_string_arg_19 = (Str){.c_str = (void *)"./src/self/theme_codegen.til:68:55", .count = 34ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_assert_fcall_callee_classified_19 = (Str){.c_str = (void *)"./src/self/typer.til:4415:11", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_assert_fcall_callee_classified_22 = (Str){.c_str = (void *)"./src/self/typer.til:4415:5", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_assert_fcall_callee_classified_4 = (Str){.c_str = (void *)"./src/self/typer.til:4413:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_body_stores_param_globally_25 = (Str){.c_str = (void *)"./src/self/typer.til:5401:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_body_stores_param_globally_36 = (Str){.c_str = (void *)"./src/self/typer.til:5409:56", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_body_stores_param_globally_49 = (Str){.c_str = (void *)"./src/self/typer.til:5411:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_inferred_interface_value_45 = (Str){.c_str = (void *)"./src/self/typer.til:7395:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_inferred_interface_value_50 = (Str){.c_str = (void *)"./src/self/typer.til:7395:65", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_14 = (Str){.c_str = (void *)"./src/self/typer.til:6312:47", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_19 = (Str){.c_str = (void *)"./src/self/typer.til:6313:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_31 = (Str){.c_str = (void *)"./src/self/typer.til:6317:95", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_36 = (Str){.c_str = (void *)"./src/self/typer.til:6317:118", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:6310:33", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_41 = (Str){.c_str = (void *)"./src/self/typer.til:6318:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_46 = (Str){.c_str = (void *)"./src/self/typer.til:6319:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_box_return_value_9 = (Str){.c_str = (void *)"./src/self/typer.til:6311:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_capture_private_mut_end_17 = (Str){.c_str = (void *)"./src/self/typer.til:8235:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_capture_private_mut_end_22 = (Str){.c_str = (void *)"./src/self/typer.til:8236:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_capture_private_mut_end_6 = (Str){.c_str = (void *)"./src/self/typer.til:8230:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_all_paths_return_30 = (Str){.c_str = (void *)"./src/self/typer.til:5936:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_carried_borrow_of_local_return_4 = (Str){.c_str = (void *)"./src/self/typer.til:10666:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_15 = (Str){.c_str = (void *)"./src/self/typer.til:2703:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_20 = (Str){.c_str = (void *)"./src/self/typer.til:2705:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_25 = (Str){.c_str = (void *)"./src/self/typer.til:2706:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_30 = (Str){.c_str = (void *)"./src/self/typer.til:2717:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_35 = (Str){.c_str = (void *)"./src/self/typer.til:2720:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_4 = (Str){.c_str = (void *)"./src/self/typer.til:2698:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_46 = (Str){.c_str = (void *)"./src/self/typer.til:2730:23", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_19 = (Str){.c_str = (void *)"./src/self/typer.til:10494:22", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_31 = (Str){.c_str = (void *)"./src/self/typer.til:10507:23", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_4 = (Str){.c_str = (void *)"./src/self/typer.til:10487:18", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_9 = (Str){.c_str = (void *)"./src/self/typer.til:10489:22", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_free_managed_local_4 = (Str){.c_str = (void *)"./src/self/typer.til:2745:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_free_managed_local_44 = (Str){.c_str = (void *)"./src/self/typer.til:2785:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_free_managed_local_49 = (Str){.c_str = (void *)"./src/self/typer.til:2786:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_free_managed_local_54 = (Str){.c_str = (void *)"./src/self/typer.til:2797:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_free_managed_local_59 = (Str){.c_str = (void *)"./src/self/typer.til:2800:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_is_null_arg_dynamic_4 = (Str){.c_str = (void *)"./src/self/typer.til:10282:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_memcpy_managed_src_12 = (Str){.c_str = (void *)"./src/self/typer.til:2870:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_memcpy_managed_src_17 = (Str){.c_str = (void *)"./src/self/typer.til:2875:32", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_memcpy_managed_src_23 = (Str){.c_str = (void *)"./src/self/typer.til:2879:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_memcpy_managed_src_4 = (Str){.c_str = (void *)"./src/self/typer.til:2861:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_own_args_13 = (Str){.c_str = (void *)"./src/self/typer.til:10712:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_own_args_8 = (Str){.c_str = (void *)"./src/self/typer.til:10710:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_own_captures_34 = (Str){.c_str = (void *)"./src/self/typer.til:8103:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_own_captures_6 = (Str){.c_str = (void *)"./src/self/typer.til:8103:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_param_stored_globally_37 = (Str){.c_str = (void *)"./src/self/typer.til:5436:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_param_stored_globally_4 = (Str){.c_str = (void *)"./src/self/typer.til:5438:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_assert_fcall_callee_classified_19 = (Str){.c_str = (void *)"./src/self/typer.til:4422:11", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_assert_fcall_callee_classified_22 = (Str){.c_str = (void *)"./src/self/typer.til:4422:5", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_assert_fcall_callee_classified_4 = (Str){.c_str = (void *)"./src/self/typer.til:4420:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_body_stores_param_globally_25 = (Str){.c_str = (void *)"./src/self/typer.til:5408:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_body_stores_param_globally_36 = (Str){.c_str = (void *)"./src/self/typer.til:5416:56", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_body_stores_param_globally_49 = (Str){.c_str = (void *)"./src/self/typer.til:5418:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_inferred_interface_value_45 = (Str){.c_str = (void *)"./src/self/typer.til:7547:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_inferred_interface_value_50 = (Str){.c_str = (void *)"./src/self/typer.til:7547:65", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_14 = (Str){.c_str = (void *)"./src/self/typer.til:6319:47", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_19 = (Str){.c_str = (void *)"./src/self/typer.til:6320:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_31 = (Str){.c_str = (void *)"./src/self/typer.til:6324:95", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_36 = (Str){.c_str = (void *)"./src/self/typer.til:6324:118", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:6317:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_41 = (Str){.c_str = (void *)"./src/self/typer.til:6325:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_46 = (Str){.c_str = (void *)"./src/self/typer.til:6326:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_box_return_value_9 = (Str){.c_str = (void *)"./src/self/typer.til:6318:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_capture_private_mut_end_17 = (Str){.c_str = (void *)"./src/self/typer.til:8406:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_capture_private_mut_end_22 = (Str){.c_str = (void *)"./src/self/typer.til:8407:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_capture_private_mut_end_6 = (Str){.c_str = (void *)"./src/self/typer.til:8401:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_all_paths_return_30 = (Str){.c_str = (void *)"./src/self/typer.til:5943:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_carried_borrow_of_local_return_4 = (Str){.c_str = (void *)"./src/self/typer.til:10883:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_15 = (Str){.c_str = (void *)"./src/self/typer.til:2710:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_20 = (Str){.c_str = (void *)"./src/self/typer.til:2712:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_25 = (Str){.c_str = (void *)"./src/self/typer.til:2713:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_30 = (Str){.c_str = (void *)"./src/self/typer.til:2724:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_35 = (Str){.c_str = (void *)"./src/self/typer.til:2727:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_4 = (Str){.c_str = (void *)"./src/self/typer.til:2705:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_delete_inline_field_call_free_46 = (Str){.c_str = (void *)"./src/self/typer.til:2737:23", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_19 = (Str){.c_str = (void *)"./src/self/typer.til:10675:22", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_31 = (Str){.c_str = (void *)"./src/self/typer.til:10688:23", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_4 = (Str){.c_str = (void *)"./src/self/typer.til:10668:18", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_dyn_call_delete_of_local_9 = (Str){.c_str = (void *)"./src/self/typer.til:10670:22", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_free_managed_local_4 = (Str){.c_str = (void *)"./src/self/typer.til:2752:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_free_managed_local_44 = (Str){.c_str = (void *)"./src/self/typer.til:2792:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_free_managed_local_49 = (Str){.c_str = (void *)"./src/self/typer.til:2793:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_free_managed_local_54 = (Str){.c_str = (void *)"./src/self/typer.til:2804:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_free_managed_local_59 = (Str){.c_str = (void *)"./src/self/typer.til:2807:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_is_null_arg_dynamic_4 = (Str){.c_str = (void *)"./src/self/typer.til:10463:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_memcpy_managed_src_12 = (Str){.c_str = (void *)"./src/self/typer.til:2877:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_memcpy_managed_src_17 = (Str){.c_str = (void *)"./src/self/typer.til:2882:32", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_memcpy_managed_src_23 = (Str){.c_str = (void *)"./src/self/typer.til:2886:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_memcpy_managed_src_4 = (Str){.c_str = (void *)"./src/self/typer.til:2868:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_own_args_13 = (Str){.c_str = (void *)"./src/self/typer.til:10929:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_own_args_8 = (Str){.c_str = (void *)"./src/self/typer.til:10927:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_own_captures_34 = (Str){.c_str = (void *)"./src/self/typer.til:8274:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_own_captures_6 = (Str){.c_str = (void *)"./src/self/typer.til:8274:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_param_stored_globally_37 = (Str){.c_str = (void *)"./src/self/typer.til:5443:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_param_stored_globally_4 = (Str){.c_str = (void *)"./src/self/typer.til:5445:9", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_check_ref_decl_owned_init_4 = (Str){.c_str = (void *)"./src/self/typer.til:679:13", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_101 = (Str){.c_str = (void *)"./src/self/typer.til:5263:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_26 = (Str){.c_str = (void *)"./src/self/typer.til:5280:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_37 = (Str){.c_str = (void *)"./src/self/typer.til:5283:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_44 = (Str){.c_str = (void *)"./src/self/typer.til:5290:107", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_6 = (Str){.c_str = (void *)"./src/self/typer.til:5271:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_72 = (Str){.c_str = (void *)"./src/self/typer.til:5302:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_function_returns_79 = (Str){.c_str = (void *)"./src/self/typer.til:5305:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_ref_local_null_init_4 = (Str){.c_str = (void *)"./src/self/typer.til:748:13", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_17 = (Str){.c_str = (void *)"./src/self/typer.til:5527:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_4 = (Str){.c_str = (void *)"./src/self/typer.til:5525:66", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_10 = (Str){.c_str = (void *)"./src/self/typer.til:5469:61", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_40 = (Str){.c_str = (void *)"./src/self/typer.til:5483:65", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_75 = (Str){.c_str = (void *)"./src/self/typer.til:5497:60", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_80 = (Str){.c_str = (void *)"./src/self/typer.til:5501:69", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_str_view_of_local_return_15 = (Str){.c_str = (void *)"./src/self/typer.til:10443:52", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_str_view_of_local_return_4 = (Str){.c_str = (void *)"./src/self/typer.til:10430:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_str_view_of_local_return_9 = (Str){.c_str = (void *)"./src/self/typer.til:10434:28", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_unused_mut_params_20 = (Str){.c_str = (void *)"./src/self/typer.til:5970:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_unused_params_20 = (Str){.c_str = (void *)"./src/self/typer.til:5944:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_check_user_delete_frees_own_fields_4 = (Str){.c_str = (void *)"./src/self/typer.til:4624:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_closure_lvalue_root_sym_5 = (Str){.c_str = (void *)"./src/self/typer.til:5369:76", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_collect_missing_paths_11 = (Str){.c_str = (void *)"./src/self/typer.til:13315:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_collect_missing_paths_6 = (Str){.c_str = (void *)"./src/self/typer.til:13313:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_collect_own_arg_names_11 = (Str){.c_str = (void *)"./src/self/typer.til:11017:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_collect_own_arg_names_6 = (Str){.c_str = (void *)"./src/self/typer.til:11015:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_coverage_sub_index_6 = (Str){.c_str = (void *)"./src/self/typer.til:13121:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_ctor_arg_field_decl_5 = (Str){.c_str = (void *)"./src/self/typer.til:11636:63", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_ctor_arg_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:11643:46", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_declared_type_for_decl_2 = (Str){.c_str = (void *)"./src/self/typer.til:7180:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_deposit_sink_binding_17 = (Str){.c_str = (void *)"./src/self/typer.til:12089:61", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_deposit_sink_outlives_owner_19 = (Str){.c_str = (void *)"./src/self/typer.til:12114:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_152 = (Str){.c_str = (void *)"./src/self/typer.til:14800:58", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_162 = (Str){.c_str = (void *)"./src/self/typer.til:14800:58", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_177 = (Str){.c_str = (void *)"./src/self/typer.til:14815:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_184 = (Str){.c_str = (void *)"./src/self/typer.til:14827:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_19 = (Str){.c_str = (void *)"./src/self/typer.til:14673:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_275 = (Str){.c_str = (void *)"./src/self/typer.til:14940:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_308 = (Str){.c_str = (void *)"./src/self/typer.til:14717:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_311 = (Str){.c_str = (void *)"./src/self/typer.til:14747:37", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:14656:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_89 = (Str){.c_str = (void *)"./src/self/typer.til:14758:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:14657:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_14 = (Str){.c_str = (void *)"./src/self/typer.til:15044:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_20 = (Str){.c_str = (void *)"./src/self/typer.til:15048:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:15030:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_43 = (Str){.c_str = (void *)"./src/self/typer.til:15085:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_16 = (Str){.c_str = (void *)"./src/self/typer.til:14493:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_28 = (Str){.c_str = (void *)"./src/self/typer.til:14501:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_39 = (Str){.c_str = (void *)"./src/self/typer.til:14509:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:14489:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_44 = (Str){.c_str = (void *)"./src/self/typer.til:14510:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_69 = (Str){.c_str = (void *)"./src/self/typer.til:14558:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_75 = (Str){.c_str = (void *)"./src/self/typer.til:14561:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:14490:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dotted_pattern_receiver_12 = (Str){.c_str = (void *)"./src/self/typer.til:13975:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dotted_pattern_receiver_17 = (Str){.c_str = (void *)"./src/self/typer.til:13976:41", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dotted_pattern_receiver_29 = (Str){.c_str = (void *)"./src/self/typer.til:13982:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dynvec_elem_from_new_14 = (Str){.c_str = (void *)"./src/self/typer.til:7522:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dynvec_elem_from_new_25 = (Str){.c_str = (void *)"./src/self/typer.til:7529:28", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dynvec_elem_from_new_35 = (Str){.c_str = (void *)"./src/self/typer.til:7534:28", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_dynvec_elem_from_new_6 = (Str){.c_str = (void *)"./src/self/typer.til:7514:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_113 = (Str){.c_str = (void *)"./src/self/typer.til:11754:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_119 = (Str){.c_str = (void *)"./src/self/typer.til:11775:96", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_130 = (Str){.c_str = (void *)"./src/self/typer.til:11777:66", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_20 = (Str){.c_str = (void *)"./src/self/typer.til:11732:51", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_44 = (Str){.c_str = (void *)"./src/self/typer.til:11754:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_50 = (Str){.c_str = (void *)"./src/self/typer.til:11775:96", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_borrow_roots_61 = (Str){.c_str = (void *)"./src/self/typer.til:11777:66", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_is_borrow_source_27 = (Str){.c_str = (void *)"./src/self/typer.til:11294:48", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_101 = (Str){.c_str = (void *)"./src/self/typer.til:5270:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_26 = (Str){.c_str = (void *)"./src/self/typer.til:5287:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_37 = (Str){.c_str = (void *)"./src/self/typer.til:5290:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_44 = (Str){.c_str = (void *)"./src/self/typer.til:5297:107", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_6 = (Str){.c_str = (void *)"./src/self/typer.til:5278:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_72 = (Str){.c_str = (void *)"./src/self/typer.til:5309:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_function_returns_79 = (Str){.c_str = (void *)"./src/self/typer.til:5312:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_ref_local_null_init_4 = (Str){.c_str = (void *)"./src/self/typer.til:752:13", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_17 = (Str){.c_str = (void *)"./src/self/typer.til:5534:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_4 = (Str){.c_str = (void *)"./src/self/typer.til:5532:66", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_10 = (Str){.c_str = (void *)"./src/self/typer.til:5476:61", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_40 = (Str){.c_str = (void *)"./src/self/typer.til:5490:65", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_75 = (Str){.c_str = (void *)"./src/self/typer.til:5504:60", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_80 = (Str){.c_str = (void *)"./src/self/typer.til:5508:69", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_str_view_of_local_return_15 = (Str){.c_str = (void *)"./src/self/typer.til:10624:52", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_str_view_of_local_return_4 = (Str){.c_str = (void *)"./src/self/typer.til:10611:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_str_view_of_local_return_9 = (Str){.c_str = (void *)"./src/self/typer.til:10615:28", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_unused_mut_params_20 = (Str){.c_str = (void *)"./src/self/typer.til:5977:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_unused_params_20 = (Str){.c_str = (void *)"./src/self/typer.til:5951:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_check_user_delete_frees_own_fields_4 = (Str){.c_str = (void *)"./src/self/typer.til:4631:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_closure_lvalue_root_sym_5 = (Str){.c_str = (void *)"./src/self/typer.til:5376:76", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_collect_missing_paths_11 = (Str){.c_str = (void *)"./src/self/typer.til:13563:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_collect_missing_paths_6 = (Str){.c_str = (void *)"./src/self/typer.til:13561:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_collect_own_arg_names_11 = (Str){.c_str = (void *)"./src/self/typer.til:11234:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_collect_own_arg_names_6 = (Str){.c_str = (void *)"./src/self/typer.til:11232:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_coverage_sub_index_6 = (Str){.c_str = (void *)"./src/self/typer.til:13369:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_ctor_arg_field_decl_5 = (Str){.c_str = (void *)"./src/self/typer.til:11853:63", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_ctor_arg_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:11860:46", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_declared_type_for_decl_2 = (Str){.c_str = (void *)"./src/self/typer.til:7216:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_deposit_sink_binding_17 = (Str){.c_str = (void *)"./src/self/typer.til:12307:61", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_deposit_sink_outlives_owner_19 = (Str){.c_str = (void *)"./src/self/typer.til:12332:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_152 = (Str){.c_str = (void *)"./src/self/typer.til:15048:58", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_162 = (Str){.c_str = (void *)"./src/self/typer.til:15048:58", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_177 = (Str){.c_str = (void *)"./src/self/typer.til:15063:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_184 = (Str){.c_str = (void *)"./src/self/typer.til:15075:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_19 = (Str){.c_str = (void *)"./src/self/typer.til:14921:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_275 = (Str){.c_str = (void *)"./src/self/typer.til:15188:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_308 = (Str){.c_str = (void *)"./src/self/typer.til:14965:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_311 = (Str){.c_str = (void *)"./src/self/typer.til:14995:37", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:14904:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_89 = (Str){.c_str = (void *)"./src/self/typer.til:15006:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_collection_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:14905:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_14 = (Str){.c_str = (void *)"./src/self/typer.til:15292:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_20 = (Str){.c_str = (void *)"./src/self/typer.til:15296:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:15278:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_kv_stmt_43 = (Str){.c_str = (void *)"./src/self/typer.til:15333:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_16 = (Str){.c_str = (void *)"./src/self/typer.til:14741:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_28 = (Str){.c_str = (void *)"./src/self/typer.til:14749:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_39 = (Str){.c_str = (void *)"./src/self/typer.til:14757:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:14737:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_44 = (Str){.c_str = (void *)"./src/self/typer.til:14758:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_69 = (Str){.c_str = (void *)"./src/self/typer.til:14806:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_75 = (Str){.c_str = (void *)"./src/self/typer.til:14809:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_desugar_for_in_range_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:14738:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dotted_pattern_receiver_12 = (Str){.c_str = (void *)"./src/self/typer.til:14223:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dotted_pattern_receiver_17 = (Str){.c_str = (void *)"./src/self/typer.til:14224:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dotted_pattern_receiver_29 = (Str){.c_str = (void *)"./src/self/typer.til:14230:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dynvec_elem_from_new_14 = (Str){.c_str = (void *)"./src/self/typer.til:7674:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dynvec_elem_from_new_25 = (Str){.c_str = (void *)"./src/self/typer.til:7681:28", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dynvec_elem_from_new_35 = (Str){.c_str = (void *)"./src/self/typer.til:7686:28", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_dynvec_elem_from_new_6 = (Str){.c_str = (void *)"./src/self/typer.til:7666:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_113 = (Str){.c_str = (void *)"./src/self/typer.til:11972:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_119 = (Str){.c_str = (void *)"./src/self/typer.til:11993:96", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_130 = (Str){.c_str = (void *)"./src/self/typer.til:11995:66", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_20 = (Str){.c_str = (void *)"./src/self/typer.til:11949:51", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_44 = (Str){.c_str = (void *)"./src/self/typer.til:11972:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_50 = (Str){.c_str = (void *)"./src/self/typer.til:11993:96", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_borrow_roots_61 = (Str){.c_str = (void *)"./src/self/typer.til:11995:66", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_borrow_source_27 = (Str){.c_str = (void *)"./src/self/typer.til:11511:48", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_18 = (Str){.c_str = (void *)"./src/self/typer.til:7429:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_32 = (Str){.c_str = (void *)"./src/self/typer.til:7432:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_48 = (Str){.c_str = (void *)"./src/self/typer.til:7429:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_6 = (Str){.c_str = (void *)"./src/self/typer.til:7423:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_62 = (Str){.c_str = (void *)"./src/self/typer.til:7432:44", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_expr_is_comptime_106 = (Str){.c_str = (void *)"./src/self/typer.til:394:30", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_expr_is_comptime_17 = (Str){.c_str = (void *)"./src/self/typer.til:342:30", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_expr_is_comptime_28 = (Str){.c_str = (void *)"./src/self/typer.til:342:30", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_expr_is_comptime_40 = (Str){.c_str = (void *)"./src/self/typer.til:346:13", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_expr_is_comptime_51 = (Str){.c_str = (void *)"./src/self/typer.til:364:17", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_expr_is_comptime_95 = (Str){.c_str = (void *)"./src/self/typer.til:394:30", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_is_ref_decl_source_11 = (Str){.c_str = (void *)"./src/self/typer.til:11329:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_is_ref_decl_source_36 = (Str){.c_str = (void *)"./src/self/typer.til:11344:52", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_is_ref_decl_source_5 = (Str){.c_str = (void *)"./src/self/typer.til:11326:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_is_stable_field_base_17 = (Str){.c_str = (void *)"./src/self/typer.til:11316:52", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_uses_self_field_21 = (Str){.c_str = (void *)"./src/self/typer.til:4590:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_expr_uses_self_field_4 = (Str){.c_str = (void *)"./src/self/typer.til:4580:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_ref_decl_source_11 = (Str){.c_str = (void *)"./src/self/typer.til:11546:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_ref_decl_source_36 = (Str){.c_str = (void *)"./src/self/typer.til:11561:52", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_ref_decl_source_5 = (Str){.c_str = (void *)"./src/self/typer.til:11543:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_is_stable_field_base_17 = (Str){.c_str = (void *)"./src/self/typer.til:11533:52", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_uses_self_field_21 = (Str){.c_str = (void *)"./src/self/typer.til:4597:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_expr_uses_self_field_4 = (Str){.c_str = (void *)"./src/self/typer.til:4587:34", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_fa_is_ns_named_sym_9 = (Str){.c_str = (void *)"./src/self/typer.til:38:9", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_callee_declared_return_type_11 = (Str){.c_str = (void *)"./src/self/typer.til:3070:33", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_callee_declared_return_type_5 = (Str){.c_str = (void *)"./src/self/typer.til:3066:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_11 = (Str){.c_str = (void *)"./src/self/typer.til:11051:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_16 = (Str){.c_str = (void *)"./src/self/typer.til:11059:104", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_4 = (Str){.c_str = (void *)"./src/self/typer.til:11038:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_45 = (Str){.c_str = (void *)"./src/self/typer.til:11051:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_50 = (Str){.c_str = (void *)"./src/self/typer.til:11059:104", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_85 = (Str){.c_str = (void *)"./src/self/typer.til:11079:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_93 = (Str){.c_str = (void *)"./src/self/typer.til:11087:35", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_98 = (Str){.c_str = (void *)"./src/self/typer.til:11088:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_105 = (Str){.c_str = (void *)"./src/self/typer.til:10787:35", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_110 = (Str){.c_str = (void *)"./src/self/typer.til:10788:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_13 = (Str){.c_str = (void *)"./src/self/typer.til:10752:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_18 = (Str){.c_str = (void *)"./src/self/typer.til:10761:104", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_51 = (Str){.c_str = (void *)"./src/self/typer.til:10752:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_56 = (Str){.c_str = (void *)"./src/self/typer.til:10761:104", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_6 = (Str){.c_str = (void *)"./src/self/typer.til:10730:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_has_own_arg_95 = (Str){.c_str = (void *)"./src/self/typer.til:10780:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_is_raw_alloc_6 = (Str){.c_str = (void *)"./src/self/typer.til:7217:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_namespace_name_11 = (Str){.c_str = (void *)"./src/self/typer.til:10168:31", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_namespace_name_5 = (Str){.c_str = (void *)"./src/self/typer.til:10164:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fcall_struct_ctor_def_4 = (Str){.c_str = (void *)"./src/self/typer.til:11599:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fdef_may_deposit_14 = (Str){.c_str = (void *)"./src/self/typer.til:12640:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fieldaccess_field_decl_4 = (Str){.c_str = (void *)"./src/self/typer.til:11566:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fieldaccess_field_decl_9 = (Str){.c_str = (void *)"./src/self/typer.til:11567:59", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_fieldaccess_path_7 = (Str){.c_str = (void *)"./src/self/typer.til:12226:41", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_finalize_decl_binding_316 = (Str){.c_str = (void *)"./src/self/typer.til:7810:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_finalize_decl_binding_341 = (Str){.c_str = (void *)"./src/self/typer.til:7815:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_finalize_decl_binding_4 = (Str){.c_str = (void *)"./src/self/typer.til:7546:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_104 = (Str){.c_str = (void *)"./src/self/typer.til:8618:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_11 = (Str){.c_str = (void *)"./src/self/typer.til:8578:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_114 = (Str){.c_str = (void *)"./src/self/typer.til:8619:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_143 = (Str){.c_str = (void *)"./src/self/typer.til:8610:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_148 = (Str){.c_str = (void *)"./src/self/typer.til:8612:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_153 = (Str){.c_str = (void *)"./src/self/typer.til:8613:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_158 = (Str){.c_str = (void *)"./src/self/typer.til:8613:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_168 = (Str){.c_str = (void *)"./src/self/typer.til:8616:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_173 = (Str){.c_str = (void *)"./src/self/typer.til:8618:50", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_178 = (Str){.c_str = (void *)"./src/self/typer.til:8618:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_188 = (Str){.c_str = (void *)"./src/self/typer.til:8619:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_51 = (Str){.c_str = (void *)"./src/self/typer.til:8607:58", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_59 = (Str){.c_str = (void *)"./src/self/typer.til:8607:58", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_6 = (Str){.c_str = (void *)"./src/self/typer.til:8573:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_69 = (Str){.c_str = (void *)"./src/self/typer.til:8610:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_74 = (Str){.c_str = (void *)"./src/self/typer.til:8612:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_79 = (Str){.c_str = (void *)"./src/self/typer.til:8613:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_84 = (Str){.c_str = (void *)"./src/self/typer.til:8613:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_94 = (Str){.c_str = (void *)"./src/self/typer.til:8616:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_flush_generic_pending_99 = (Str){.c_str = (void *)"./src/self/typer.til:8618:50", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_func_gen_macro_template_27 = (Str){.c_str = (void *)"./src/self/typer.til:4041:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_func_gen_macro_template_32 = (Str){.c_str = (void *)"./src/self/typer.til:4044:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_func_gen_macro_template_37 = (Str){.c_str = (void *)"./src/self/typer.til:4047:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_18 = (Str){.c_str = (void *)"./src/self/typer.til:3456:52", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_23 = (Str){.c_str = (void *)"./src/self/typer.til:3457:51", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_5 = (Str){.c_str = (void *)"./src/self/typer.til:3434:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_69 = (Str){.c_str = (void *)"./src/self/typer.til:3448:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_70 = (Str){.c_str = (void *)"./src/self/typer.til:3449:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_body_declares_type_12 = (Str){.c_str = (void *)"./src/self/typer.til:3334:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_call_declared_return_5 = (Str){.c_str = (void *)"./src/self/typer.til:3298:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_call_is_explicit_12 = (Str){.c_str = (void *)"./src/self/typer.til:3510:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_call_is_explicit_6 = (Str){.c_str = (void *)"./src/self/typer.til:3506:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_closure_walk_calls_12 = (Str){.c_str = (void *)"./src/self/typer.til:3356:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_decompose_nested_19 = (Str){.c_str = (void *)"./src/self/typer.til:3402:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_decompose_nested_24 = (Str){.c_str = (void *)"./src/self/typer.til:3403:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_explicit_subs_24 = (Str){.c_str = (void *)"./src/self/typer.til:3534:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_explicit_subs_6 = (Str){.c_str = (void *)"./src/self/typer.til:3527:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_field_declared_type_5 = (Str){.c_str = (void *)"./src/self/typer.til:3269:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_100 = (Str){.c_str = (void *)"./src/self/typer.til:3964:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_109 = (Str){.c_str = (void *)"./src/self/typer.til:3967:79", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_114 = (Str){.c_str = (void *)"./src/self/typer.til:3967:91", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_128 = (Str){.c_str = (void *)"./src/self/typer.til:3973:73", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_141 = (Str){.c_str = (void *)"./src/self/typer.til:3981:19", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_15 = (Str){.c_str = (void *)"./src/self/typer.til:3960:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_158 = (Str){.c_str = (void *)"./src/self/typer.til:3992:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_166 = (Str){.c_str = (void *)"./src/self/typer.til:4006:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_174 = (Str){.c_str = (void *)"./src/self/typer.til:4006:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_190 = (Str){.c_str = (void *)"./src/self/typer.til:3999:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_20 = (Str){.c_str = (void *)"./src/self/typer.til:3961:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_31 = (Str){.c_str = (void *)"./src/self/typer.til:3963:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_37 = (Str){.c_str = (void *)"./src/self/typer.til:3964:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_46 = (Str){.c_str = (void *)"./src/self/typer.til:3967:79", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_51 = (Str){.c_str = (void *)"./src/self/typer.til:3967:91", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_65 = (Str){.c_str = (void *)"./src/self/typer.til:3973:73", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_78 = (Str){.c_str = (void *)"./src/self/typer.til:3960:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_83 = (Str){.c_str = (void *)"./src/self/typer.til:3961:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_finish_fcall_94 = (Str){.c_str = (void *)"./src/self/typer.til:3963:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_15 = (Str){.c_str = (void *)"./src/self/typer.til:3650:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_153 = (Str){.c_str = (void *)"./src/self/typer.til:3730:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_197 = (Str){.c_str = (void *)"./src/self/typer.til:3782:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_202 = (Str){.c_str = (void *)"./src/self/typer.til:3784:66", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_207 = (Str){.c_str = (void *)"./src/self/typer.til:3784:95", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_289 = (Str){.c_str = (void *)"./src/self/typer.til:3802:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_379 = (Str){.c_str = (void *)"./src/self/typer.til:3848:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_48 = (Str){.c_str = (void *)"./src/self/typer.til:3691:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_57 = (Str){.c_str = (void *)"./src/self/typer.til:3701:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_62 = (Str){.c_str = (void *)"./src/self/typer.til:3713:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_67 = (Str){.c_str = (void *)"./src/self/typer.til:3715:70", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_7 = (Str){.c_str = (void *)"./src/self/typer.til:3650:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_infer_subs_72 = (Str){.c_str = (void *)"./src/self/typer.til:3715:97", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_16 = (Str){.c_str = (void *)"./src/self/typer.til:3881:23", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_26 = (Str){.c_str = (void *)"./src/self/typer.til:3890:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_38 = (Str){.c_str = (void *)"./src/self/typer.til:3881:23", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_4 = (Str){.c_str = (void *)"./src/self/typer.til:3876:78", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_48 = (Str){.c_str = (void *)"./src/self/typer.til:3890:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_65 = (Str){.c_str = (void *)"./src/self/typer.til:3901:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_76 = (Str){.c_str = (void *)"./src/self/typer.til:3904:20", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_9 = (Str){.c_str = (void *)"./src/self/typer.til:3876:98", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_generic_value_only_fdef_6 = (Str){.c_str = (void *)"./src/self/typer.til:3487:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_115 = (Str){.c_str = (void *)"./src/self/typer.til:1783:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_23 = (Str){.c_str = (void *)"./src/self/typer.til:1745:33", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_30 = (Str){.c_str = (void *)"./src/self/typer.til:1767:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_35 = (Str){.c_str = (void *)"./src/self/typer.til:1769:47", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_40 = (Str){.c_str = (void *)"./src/self/typer.til:1770:65", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_57 = (Str){.c_str = (void *)"./src/self/typer.til:1773:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_69 = (Str){.c_str = (void *)"./src/self/typer.til:1767:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_74 = (Str){.c_str = (void *)"./src/self/typer.til:1769:47", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_79 = (Str){.c_str = (void *)"./src/self/typer.til:1770:65", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_96 = (Str){.c_str = (void *)"./src/self/typer.til:1773:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_10 = (Str){.c_str = (void *)"./src/self/typer.til:1532:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_118 = (Str){.c_str = (void *)"./src/self/typer.til:1620:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_141 = (Str){.c_str = (void *)"./src/self/typer.til:1626:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_159 = (Str){.c_str = (void *)"./src/self/typer.til:1634:58", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_17 = (Str){.c_str = (void *)"./src/self/typer.til:1536:50", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_183 = (Str){.c_str = (void *)"./src/self/typer.til:1649:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_188 = (Str){.c_str = (void *)"./src/self/typer.til:1665:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_194 = (Str){.c_str = (void *)"./src/self/typer.til:1670:66", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_199 = (Str){.c_str = (void *)"./src/self/typer.til:1671:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_225 = (Str){.c_str = (void *)"./src/self/typer.til:1686:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_230 = (Str){.c_str = (void *)"./src/self/typer.til:1687:64", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_236 = (Str){.c_str = (void *)"./src/self/typer.til:1691:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_276 = (Str){.c_str = (void *)"./src/self/typer.til:1706:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_284 = (Str){.c_str = (void *)"./src/self/typer.til:1709:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_289 = (Str){.c_str = (void *)"./src/self/typer.til:1710:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_35 = (Str){.c_str = (void *)"./src/self/typer.til:1550:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_40 = (Str){.c_str = (void *)"./src/self/typer.til:1553:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_50 = (Str){.c_str = (void *)"./src/self/typer.til:1564:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_57 = (Str){.c_str = (void *)"./src/self/typer.til:1567:56", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_62 = (Str){.c_str = (void *)"./src/self/typer.til:1567:72", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_91 = (Str){.c_str = (void *)"./src/self/typer.til:1579:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_98 = (Str){.c_str = (void *)"./src/self/typer.til:1614:75", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_108 = (Str){.c_str = (void *)"./src/self/typer.til:3203:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_127 = (Str){.c_str = (void *)"./src/self/typer.til:3206:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_14 = (Str){.c_str = (void *)"./src/self/typer.til:3181:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_140 = (Str){.c_str = (void *)"./src/self/typer.til:3227:56", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_145 = (Str){.c_str = (void *)"./src/self/typer.til:3228:57", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_151 = (Str){.c_str = (void *)"./src/self/typer.til:3235:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_25 = (Str){.c_str = (void *)"./src/self/typer.til:3203:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_44 = (Str){.c_str = (void *)"./src/self/typer.til:3206:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_57 = (Str){.c_str = (void *)"./src/self/typer.til:3227:56", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_6 = (Str){.c_str = (void *)"./src/self/typer.til:3181:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_62 = (Str){.c_str = (void *)"./src/self/typer.til:3228:57", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_array_vec_fcall_68 = (Str){.c_str = (void *)"./src/self/typer.til:3235:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_10 = (Str){.c_str = (void *)"./src/self/typer.til:9152:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_18 = (Str){.c_str = (void *)"./src/self/typer.til:9169:70", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_221 = (Str){.c_str = (void *)"./src/self/typer.til:9320:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_23 = (Str){.c_str = (void *)"./src/self/typer.til:9170:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_28 = (Str){.c_str = (void *)"./src/self/typer.til:9172:58", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_33 = (Str){.c_str = (void *)"./src/self/typer.til:9173:61", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_46 = (Str){.c_str = (void *)"./src/self/typer.til:9177:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_assign_stmt_5 = (Str){.c_str = (void *)"./src/self/typer.til:9147:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_body_value_expr_13 = (Str){.c_str = (void *)"./src/self/typer.til:8147:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_body_value_expr_19 = (Str){.c_str = (void *)"./src/self/typer.til:8153:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_body_value_expr_24 = (Str){.c_str = (void *)"./src/self/typer.til:8155:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_capture_block_12 = (Str){.c_str = (void *)"./src/self/typer.til:8295:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_capture_block_48 = (Str){.c_str = (void *)"./src/self/typer.til:8304:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_capture_block_5 = (Str){.c_str = (void *)"./src/self/typer.til:8278:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_112 = (Str){.c_str = (void *)"./src/self/typer.til:3019:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_113 = (Str){.c_str = (void *)"./src/self/typer.til:3020:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_13 = (Str){.c_str = (void *)"./src/self/typer.til:2997:33", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_132 = (Str){.c_str = (void *)"./src/self/typer.til:3054:15", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_18 = (Str){.c_str = (void *)"./src/self/typer.til:2998:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_23 = (Str){.c_str = (void *)"./src/self/typer.til:3000:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_29 = (Str){.c_str = (void *)"./src/self/typer.til:3003:19", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_44 = (Str){.c_str = (void *)"./src/self/typer.til:3016:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_5 = (Str){.c_str = (void *)"./src/self/typer.til:2994:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_56 = (Str){.c_str = (void *)"./src/self/typer.til:3022:74", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_61 = (Str){.c_str = (void *)"./src/self/typer.til:3023:74", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_cast_fcall_92 = (Str){.c_str = (void *)"./src/self/typer.til:3026:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_12 = (Str){.c_str = (void *)"./src/self/typer.til:13884:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_132 = (Str){.c_str = (void *)"./src/self/typer.til:13936:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_159 = (Str){.c_str = (void *)"./src/self/typer.til:13952:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_20 = (Str){.c_str = (void *)"./src/self/typer.til:13901:87", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_32 = (Str){.c_str = (void *)"./src/self/typer.til:13911:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_4 = (Str){.c_str = (void *)"./src/self/typer.til:13865:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_53 = (Str){.c_str = (void *)"./src/self/typer.til:13884:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_61 = (Str){.c_str = (void *)"./src/self/typer.til:13901:87", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_clike_switch_73 = (Str){.c_str = (void *)"./src/self/typer.til:13911:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_107 = (Str){.c_str = (void *)"./src/self/typer.til:7054:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_14 = (Str){.c_str = (void *)"./src/self/typer.til:7001:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_5 = (Str){.c_str = (void *)"./src/self/typer.til:6992:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_59 = (Str){.c_str = (void *)"./src/self/typer.til:7017:58", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_64 = (Str){.c_str = (void *)"./src/self/typer.til:7028:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_70 = (Str){.c_str = (void *)"./src/self/typer.til:7035:58", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_func_def_81 = (Str){.c_str = (void *)"./src/self/typer.til:7017:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_110 = (Str){.c_str = (void *)"./src/self/typer.til:7916:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_115 = (Str){.c_str = (void *)"./src/self/typer.til:7917:33", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_138 = (Str){.c_str = (void *)"./src/self/typer.til:7933:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_143 = (Str){.c_str = (void *)"./src/self/typer.til:7948:50", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_148 = (Str){.c_str = (void *)"./src/self/typer.til:7949:101", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_15 = (Str){.c_str = (void *)"./src/self/typer.til:7837:60", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_164 = (Str){.c_str = (void *)"./src/self/typer.til:7953:67", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_172 = (Str){.c_str = (void *)"./src/self/typer.til:7955:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_177 = (Str){.c_str = (void *)"./src/self/typer.til:7956:62", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_189 = (Str){.c_str = (void *)"./src/self/typer.til:7957:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_201 = (Str){.c_str = (void *)"./src/self/typer.til:7975:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_21 = (Str){.c_str = (void *)"./src/self/typer.til:7841:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_213 = (Str){.c_str = (void *)"./src/self/typer.til:7828:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_221 = (Str){.c_str = (void *)"./src/self/typer.til:7846:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_229 = (Str){.c_str = (void *)"./src/self/typer.til:7972:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_29 = (Str){.c_str = (void *)"./src/self/typer.til:7852:68", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_35 = (Str){.c_str = (void *)"./src/self/typer.til:7854:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:7831:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_46 = (Str){.c_str = (void *)"./src/self/typer.til:7857:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_47 = (Str){.c_str = (void *)"./src/self/typer.til:7856:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_55 = (Str){.c_str = (void *)"./src/self/typer.til:7886:67", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_63 = (Str){.c_str = (void *)"./src/self/typer.til:7888:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_68 = (Str){.c_str = (void *)"./src/self/typer.til:7892:59", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_79 = (Str){.c_str = (void *)"./src/self/typer.til:7901:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_stmt_84 = (Str){.c_str = (void *)"./src/self/typer.til:7902:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_type_alias_passthrough_12 = (Str){.c_str = (void *)"./src/self/typer.til:7061:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_type_alias_passthrough_4 = (Str){.c_str = (void *)"./src/self/typer.til:7060:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_type_def_30 = (Str){.c_str = (void *)"./src/self/typer.til:6946:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_type_def_5 = (Str){.c_str = (void *)"./src/self/typer.til:6925:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_type_def_77 = (Str){.c_str = (void *)"./src/self/typer.til:6974:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_type_def_83 = (Str){.c_str = (void *)"./src/self/typer.til:6926:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_typed_value_107 = (Str){.c_str = (void *)"./src/self/typer.til:7480:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_typed_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:7409:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_untyped_value_26 = (Str){.c_str = (void *)"./src/self/typer.til:7503:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_decl_untyped_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:7485:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_ext_global_decl_14 = (Str){.c_str = (void *)"./src/self/typer.til:7094:24", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_ext_global_decl_26 = (Str){.c_str = (void *)"./src/self/typer.til:7108:28", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_ext_global_decl_32 = (Str){.c_str = (void *)"./src/self/typer.til:7111:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_ext_global_decl_42 = (Str){.c_str = (void *)"./src/self/typer.til:7114:28", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_ext_global_decl_48 = (Str){.c_str = (void *)"./src/self/typer.til:7117:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_133 = (Str){.c_str = (void *)"./src/self/typer.til:4327:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_138 = (Str){.c_str = (void *)"./src/self/typer.til:4332:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_15 = (Str){.c_str = (void *)"./src/self/typer.til:4157:18", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_21 = (Str){.c_str = (void *)"./src/self/typer.til:4160:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_234 = (Str){.c_str = (void *)"./src/self/typer.til:4370:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_239 = (Str){.c_str = (void *)"./src/self/typer.til:4371:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_252 = (Str){.c_str = (void *)"./src/self/typer.til:4370:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_257 = (Str){.c_str = (void *)"./src/self/typer.til:4371:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:4143:59", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_47 = (Str){.c_str = (void *)"./src/self/typer.til:4207:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_74 = (Str){.c_str = (void *)"./src/self/typer.til:4235:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_fcall_expr_92 = (Str){.c_str = (void *)"./src/self/typer.til:4287:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_14 = (Str){.c_str = (void *)"./src/self/typer.til:6547:56", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_19 = (Str){.c_str = (void *)"./src/self/typer.til:6554:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_24 = (Str){.c_str = (void *)"./src/self/typer.til:6561:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_34 = (Str){.c_str = (void *)"./src/self/typer.til:6563:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:6545:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_51 = (Str){.c_str = (void *)"./src/self/typer.til:6572:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_9 = (Str){.c_str = (void *)"./src/self/typer.til:6546:51", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_expr_94 = (Str){.c_str = (void *)"./src/self/typer.til:6585:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_112 = (Str){.c_str = (void *)"./src/self/typer.til:2148:80", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_120 = (Str){.c_str = (void *)"./src/self/typer.til:2148:80", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_145 = (Str){.c_str = (void *)"./src/self/typer.til:2125:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_167 = (Str){.c_str = (void *)"./src/self/typer.til:2174:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_17 = (Str){.c_str = (void *)"./src/self/typer.til:2087:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_172 = (Str){.c_str = (void *)"./src/self/typer.til:2175:62", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_180 = (Str){.c_str = (void *)"./src/self/typer.til:2179:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_194 = (Str){.c_str = (void *)"./src/self/typer.til:2181:81", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_209 = (Str){.c_str = (void *)"./src/self/typer.til:2187:28", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_214 = (Str){.c_str = (void *)"./src/self/typer.til:2191:48", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_219 = (Str){.c_str = (void *)"./src/self/typer.til:2192:48", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_243 = (Str){.c_str = (void *)"./src/self/typer.til:2172:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_258 = (Str){.c_str = (void *)"./src/self/typer.til:2211:24", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_324 = (Str){.c_str = (void *)"./src/self/typer.til:2256:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_4 = (Str){.c_str = (void *)"./src/self/typer.til:2054:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_417 = (Str){.c_str = (void *)"./src/self/typer.til:2331:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_422 = (Str){.c_str = (void *)"./src/self/typer.til:2333:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_431 = (Str){.c_str = (void *)"./src/self/typer.til:2338:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_439 = (Str){.c_str = (void *)"./src/self/typer.til:2324:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_458 = (Str){.c_str = (void *)"./src/self/typer.til:2339:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_464 = (Str){.c_str = (void *)"./src/self/typer.til:2343:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_469 = (Str){.c_str = (void *)"./src/self/typer.til:2344:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_528 = (Str){.c_str = (void *)"./src/self/typer.til:2397:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_582 = (Str){.c_str = (void *)"./src/self/typer.til:2448:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_587 = (Str){.c_str = (void *)"./src/self/typer.til:2454:51", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_592 = (Str){.c_str = (void *)"./src/self/typer.til:2454:80", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_597 = (Str){.c_str = (void *)"./src/self/typer.til:2455:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_602 = (Str){.c_str = (void *)"./src/self/typer.til:2455:82", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_620 = (Str){.c_str = (void *)"./src/self/typer.til:2457:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_636 = (Str){.c_str = (void *)"./src/self/typer.til:2448:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_641 = (Str){.c_str = (void *)"./src/self/typer.til:2454:51", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_646 = (Str){.c_str = (void *)"./src/self/typer.til:2454:80", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_651 = (Str){.c_str = (void *)"./src/self/typer.til:2455:63", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_656 = (Str){.c_str = (void *)"./src/self/typer.til:2455:82", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_674 = (Str){.c_str = (void *)"./src/self/typer.til:2457:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_690 = (Str){.c_str = (void *)"./src/self/typer.til:2471:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_708 = (Str){.c_str = (void *)"./src/self/typer.til:2485:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_72 = (Str){.c_str = (void *)"./src/self/typer.til:2128:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_725 = (Str){.c_str = (void *)"./src/self/typer.til:2505:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_772 = (Str){.c_str = (void *)"./src/self/typer.til:2521:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_79 = (Str){.c_str = (void *)"./src/self/typer.til:2132:78", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_792 = (Str){.c_str = (void *)"./src/self/typer.til:2524:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_804 = (Str){.c_str = (void *)"./src/self/typer.til:2530:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_825 = (Str){.c_str = (void *)"./src/self/typer.til:2537:60", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_866 = (Str){.c_str = (void *)"./src/self/typer.til:2555:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_886 = (Str){.c_str = (void *)"./src/self/typer.til:2574:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_891 = (Str){.c_str = (void *)"./src/self/typer.til:2575:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_9 = (Str){.c_str = (void *)"./src/self/typer.til:2055:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_904 = (Str){.c_str = (void *)"./src/self/typer.til:2574:30", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_909 = (Str){.c_str = (void *)"./src/self/typer.til:2575:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_933 = (Str){.c_str = (void *)"./src/self/typer.til:2581:74", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_938 = (Str){.c_str = (void *)"./src/self/typer.til:2581:94", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_943 = (Str){.c_str = (void *)"./src/self/typer.til:2582:19", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_960 = (Str){.c_str = (void *)"./src/self/typer.til:2586:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_access_fcall_968 = (Str){.c_str = (void *)"./src/self/typer.til:2057:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_10 = (Str){.c_str = (void *)"./src/self/typer.til:6674:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_15 = (Str){.c_str = (void *)"./src/self/typer.til:6683:76", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_20 = (Str){.c_str = (void *)"./src/self/typer.til:6684:68", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_25 = (Str){.c_str = (void *)"./src/self/typer.til:6685:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_254 = (Str){.c_str = (void *)"./src/self/typer.til:6857:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_30 = (Str){.c_str = (void *)"./src/self/typer.til:6690:62", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_39 = (Str){.c_str = (void *)"./src/self/typer.til:6692:61", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6668:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_52 = (Str){.c_str = (void *)"./src/self/typer.til:6696:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_field_assign_stmt_57 = (Str){.c_str = (void *)"./src/self/typer.til:6697:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_116 = (Str){.c_str = (void *)"./src/self/typer.til:5642:89", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_170 = (Str){.c_str = (void *)"./src/self/typer.til:5693:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_316 = (Str){.c_str = (void *)"./src/self/typer.til:5827:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_32 = (Str){.c_str = (void *)"./src/self/typer.til:5578:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_331 = (Str){.c_str = (void *)"./src/self/typer.til:5845:72", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_336 = (Str){.c_str = (void *)"./src/self/typer.til:5845:90", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_341 = (Str){.c_str = (void *)"./src/self/typer.til:5846:76", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_357 = (Str){.c_str = (void *)"./src/self/typer.til:5855:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_362 = (Str){.c_str = (void *)"./src/self/typer.til:5866:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_367 = (Str){.c_str = (void *)"./src/self/typer.til:5867:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_411 = (Str){.c_str = (void *)"./src/self/typer.til:5905:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_43 = (Str){.c_str = (void *)"./src/self/typer.til:5586:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_def_expr_440 = (Str){.c_str = (void *)"./src/self/typer.til:5908:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_ptr_field_call_61 = (Str){.c_str = (void *)"./src/self/typer.til:796:45", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_ptr_field_call_77 = (Str){.c_str = (void *)"./src/self/typer.til:789:42", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_func_sig_expr_97 = (Str){.c_str = (void *)"./src/self/typer.til:5141:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_11 = (Str){.c_str = (void *)"./src/self/typer.til:3097:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_22 = (Str){.c_str = (void *)"./src/self/typer.til:3103:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_4 = (Str){.c_str = (void *)"./src/self/typer.til:3086:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_60 = (Str){.c_str = (void *)"./src/self/typer.til:3159:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_68 = (Str){.c_str = (void *)"./src/self/typer.til:3159:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_generic_fcall_23 = (Str){.c_str = (void *)"./src/self/typer.til:4105:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_ident_expr_25 = (Str){.c_str = (void *)"./src/self/typer.til:4454:31", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_if_stmt_21 = (Str){.c_str = (void *)"./src/self/typer.til:6504:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_if_stmt_26 = (Str){.c_str = (void *)"./src/self/typer.til:6506:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_if_stmt_31 = (Str){.c_str = (void *)"./src/self/typer.til:6511:96", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_if_stmt_36 = (Str){.c_str = (void *)"./src/self/typer.til:6513:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_if_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6498:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_if_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:6499:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_12 = (Str){.c_str = (void *)"./src/self/typer.til:7353:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_19 = (Str){.c_str = (void *)"./src/self/typer.til:7356:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_24 = (Str){.c_str = (void *)"./src/self/typer.til:7357:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_36 = (Str){.c_str = (void *)"./src/self/typer.til:7356:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_4 = (Str){.c_str = (void *)"./src/self/typer.til:7349:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_41 = (Str){.c_str = (void *)"./src/self/typer.til:7357:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_52 = (Str){.c_str = (void *)"./src/self/typer.til:7349:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_interface_payload_call_56 = (Str){.c_str = (void *)"./src/self/typer.til:7351:28", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_map_lit_expr_7 = (Str){.c_str = (void *)"./src/self/typer.til:4521:48", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_match_expr_16 = (Str){.c_str = (void *)"./src/self/typer.til:13372:59", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_match_expr_35 = (Str){.c_str = (void *)"./src/self/typer.til:13377:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_match_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:13359:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_match_expr_60 = (Str){.c_str = (void *)"./src/self/typer.til:13372:59", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_match_expr_79 = (Str){.c_str = (void *)"./src/self/typer.til:13377:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_match_expr_9 = (Str){.c_str = (void *)"./src/self/typer.til:13364:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_named_arg_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:4503:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_requested_value_method_11 = (Str){.c_str = (void *)"./src/self/typer.til:2049:38", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_requested_value_method_4 = (Str){.c_str = (void *)"./src/self/typer.til:2044:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_13 = (Str){.c_str = (void *)"./src/self/typer.til:6367:73", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_134 = (Str){.c_str = (void *)"./src/self/typer.til:6455:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_139 = (Str){.c_str = (void *)"./src/self/typer.til:6458:54", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_144 = (Str){.c_str = (void *)"./src/self/typer.til:6460:54", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_173 = (Str){.c_str = (void *)"./src/self/typer.til:6464:33", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_218 = (Str){.c_str = (void *)"./src/self/typer.til:6476:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_223 = (Str){.c_str = (void *)"./src/self/typer.til:6477:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_248 = (Str){.c_str = (void *)"./src/self/typer.til:6487:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_26 = (Str){.c_str = (void *)"./src/self/typer.til:6371:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_31 = (Str){.c_str = (void *)"./src/self/typer.til:6372:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6360:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_42 = (Str){.c_str = (void *)"./src/self/typer.til:6376:40", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_47 = (Str){.c_str = (void *)"./src/self/typer.til:6380:47", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_57 = (Str){.c_str = (void *)"./src/self/typer.til:6389:25", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_return_stmt_84 = (Str){.c_str = (void *)"./src/self/typer.til:6408:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_set_lit_expr_6 = (Str){.c_str = (void *)"./src/self/typer.til:4560:67", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_113 = (Str){.c_str = (void *)"./src/self/typer.til:1103:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_125 = (Str){.c_str = (void *)"./src/self/typer.til:1116:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_130 = (Str){.c_str = (void *)"./src/self/typer.til:1117:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_135 = (Str){.c_str = (void *)"./src/self/typer.til:1118:71", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_147 = (Str){.c_str = (void *)"./src/self/typer.til:1123:114", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_152 = (Str){.c_str = (void *)"./src/self/typer.til:1123:136", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_157 = (Str){.c_str = (void *)"./src/self/typer.til:1125:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_184 = (Str){.c_str = (void *)"./src/self/typer.til:1127:84", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_196 = (Str){.c_str = (void *)"./src/self/typer.til:1134:114", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_201 = (Str){.c_str = (void *)"./src/self/typer.til:1134:142", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_206 = (Str){.c_str = (void *)"./src/self/typer.til:1134:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_223 = (Str){.c_str = (void *)"./src/self/typer.til:1136:104", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_228 = (Str){.c_str = (void *)"./src/self/typer.til:1136:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_241 = (Str){.c_str = (void *)"./src/self/typer.til:1139:100", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_246 = (Str){.c_str = (void *)"./src/self/typer.til:1139:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_269 = (Str){.c_str = (void *)"./src/self/typer.til:1146:96", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_274 = (Str){.c_str = (void *)"./src/self/typer.til:1146:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_309 = (Str){.c_str = (void *)"./src/self/typer.til:1073:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_314 = (Str){.c_str = (void *)"./src/self/typer.til:1080:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_334 = (Str){.c_str = (void *)"./src/self/typer.til:1092:54", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_339 = (Str){.c_str = (void *)"./src/self/typer.til:1095:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_360 = (Str){.c_str = (void *)"./src/self/typer.til:1098:61", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_37 = (Str){.c_str = (void *)"./src/self/typer.til:1073:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_385 = (Str){.c_str = (void *)"./src/self/typer.til:1103:21", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_397 = (Str){.c_str = (void *)"./src/self/typer.til:1116:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_402 = (Str){.c_str = (void *)"./src/self/typer.til:1117:55", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_407 = (Str){.c_str = (void *)"./src/self/typer.til:1118:71", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_419 = (Str){.c_str = (void *)"./src/self/typer.til:1123:114", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_42 = (Str){.c_str = (void *)"./src/self/typer.til:1080:45", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_424 = (Str){.c_str = (void *)"./src/self/typer.til:1123:136", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_429 = (Str){.c_str = (void *)"./src/self/typer.til:1125:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_456 = (Str){.c_str = (void *)"./src/self/typer.til:1127:84", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_468 = (Str){.c_str = (void *)"./src/self/typer.til:1134:114", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_473 = (Str){.c_str = (void *)"./src/self/typer.til:1134:142", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_478 = (Str){.c_str = (void *)"./src/self/typer.til:1134:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_495 = (Str){.c_str = (void *)"./src/self/typer.til:1136:104", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_500 = (Str){.c_str = (void *)"./src/self/typer.til:1136:43", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_513 = (Str){.c_str = (void *)"./src/self/typer.til:1139:100", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_518 = (Str){.c_str = (void *)"./src/self/typer.til:1139:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_541 = (Str){.c_str = (void *)"./src/self/typer.til:1146:96", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_546 = (Str){.c_str = (void *)"./src/self/typer.til:1146:35", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_583 = (Str){.c_str = (void *)"./src/self/typer.til:1157:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_602 = (Str){.c_str = (void *)"./src/self/typer.til:1165:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_62 = (Str){.c_str = (void *)"./src/self/typer.til:1092:54", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_625 = (Str){.c_str = (void *)"./src/self/typer.til:1186:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_635 = (Str){.c_str = (void *)"./src/self/typer.til:1196:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_661 = (Str){.c_str = (void *)"./src/self/typer.til:1196:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_67 = (Str){.c_str = (void *)"./src/self/typer.til:1095:53", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_689 = (Str){.c_str = (void *)"./src/self/typer.til:1241:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_731 = (Str){.c_str = (void *)"./src/self/typer.til:1065:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_88 = (Str){.c_str = (void *)"./src/self/typer.til:1098:61", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_112 = (Str){.c_str = (void *)"./src/self/typer.til:14087:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_117 = (Str){.c_str = (void *)"./src/self/typer.til:14089:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_123 = (Str){.c_str = (void *)"./src/self/typer.til:14091:76", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_145 = (Str){.c_str = (void *)"./src/self/typer.til:14087:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_150 = (Str){.c_str = (void *)"./src/self/typer.til:14089:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_156 = (Str){.c_str = (void *)"./src/self/typer.til:14091:76", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_16 = (Str){.c_str = (void *)"./src/self/typer.til:14054:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_195 = (Str){.c_str = (void *)"./src/self/typer.til:14178:15", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_232 = (Str){.c_str = (void *)"./src/self/typer.til:14206:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_242 = (Str){.c_str = (void *)"./src/self/typer.til:14206:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_271 = (Str){.c_str = (void *)"./src/self/typer.til:14244:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_277 = (Str){.c_str = (void *)"./src/self/typer.til:14250:46", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_288 = (Str){.c_str = (void *)"./src/self/typer.til:14260:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_29 = (Str){.c_str = (void *)"./src/self/typer.til:14056:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_293 = (Str){.c_str = (void *)"./src/self/typer.til:14261:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_300 = (Str){.c_str = (void *)"./src/self/typer.til:14267:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_334 = (Str){.c_str = (void *)"./src/self/typer.til:14286:106", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_344 = (Str){.c_str = (void *)"./src/self/typer.til:14298:93", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_354 = (Str){.c_str = (void *)"./src/self/typer.til:14298:93", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_369 = (Str){.c_str = (void *)"./src/self/typer.til:14327:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_374 = (Str){.c_str = (void *)"./src/self/typer.til:14337:54", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_38 = (Str){.c_str = (void *)"./src/self/typer.til:14069:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:14037:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_424 = (Str){.c_str = (void *)"./src/self/typer.til:14244:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_430 = (Str){.c_str = (void *)"./src/self/typer.til:14250:46", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_441 = (Str){.c_str = (void *)"./src/self/typer.til:14260:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_446 = (Str){.c_str = (void *)"./src/self/typer.til:14261:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_453 = (Str){.c_str = (void *)"./src/self/typer.til:14267:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_487 = (Str){.c_str = (void *)"./src/self/typer.til:14286:106", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_497 = (Str){.c_str = (void *)"./src/self/typer.til:14298:93", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_507 = (Str){.c_str = (void *)"./src/self/typer.til:14298:93", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_522 = (Str){.c_str = (void *)"./src/self/typer.til:14327:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_527 = (Str){.c_str = (void *)"./src/self/typer.til:14337:54", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_63 = (Str){.c_str = (void *)"./src/self/typer.til:14054:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_76 = (Str){.c_str = (void *)"./src/self/typer.til:14056:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_85 = (Str){.c_str = (void *)"./src/self/typer.til:14069:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_switch_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:14038:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_type_def_expr_243 = (Str){.c_str = (void *)"./src/self/typer.til:5041:12", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_105 = (Str){.c_str = (void *)"./src/self/typer.til:6915:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_110 = (Str){.c_str = (void *)"./src/self/typer.til:6917:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_20 = (Str){.c_str = (void *)"./src/self/typer.til:6866:96", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_35 = (Str){.c_str = (void *)"./src/self/typer.til:6868:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6863:36", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_46 = (Str){.c_str = (void *)"./src/self/typer.til:6870:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_51 = (Str){.c_str = (void *)"./src/self/typer.til:6873:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_56 = (Str){.c_str = (void *)"./src/self/typer.til:6880:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_61 = (Str){.c_str = (void *)"./src/self/typer.til:6901:22", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_infer_while_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:6864:44", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_interface_box_storage_is_borrowed_25 = (Str){.c_str = (void *)"./src/self/typer.til:7336:64", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_interface_contract_signature_10 = (Str){.c_str = (void *)"./src/self/typer.til:4677:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_enum_variant_ctor_with_payload_15 = (Str){.c_str = (void *)"./src/self/typer.til:10199:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_enum_variant_ctor_with_payload_6 = (Str){.c_str = (void *)"./src/self/typer.til:10191:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_16 = (Str){.c_str = (void *)"./src/self/typer.til:13154:29", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_4 = (Str){.c_str = (void *)"./src/self/typer.til:13136:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_40 = (Str){.c_str = (void *)"./src/self/typer.til:13165:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_45 = (Str){.c_str = (void *)"./src/self/typer.til:13168:39", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_50 = (Str){.c_str = (void *)"./src/self/typer.til:13171:47", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_57 = (Str){.c_str = (void *)"./src/self/typer.til:13183:37", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_63 = (Str){.c_str = (void *)"./src/self/typer.til:13185:37", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_is_pattern_covered_9 = (Str){.c_str = (void *)"./src/self/typer.til:13139:40", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_literal_instance_type_name_10 = (Str){.c_str = (void *)"./src/self/typer.til:4542:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_literal_instance_type_name_48 = (Str){.c_str = (void *)"./src/self/typer.til:4547:47", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_literal_instance_type_name_5 = (Str){.c_str = (void *)"./src/self/typer.til:4541:46", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_lower_matches_in_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:13424:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_lvalue_write_roots_14 = (Str){.c_str = (void *)"./src/self/typer.til:11872:81", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_lvalue_write_roots_25 = (Str){.c_str = (void *)"./src/self/typer.til:11875:54", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_callable_field_transfer_6 = (Str){.c_str = (void *)"./src/self/typer.til:6645:11", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_16 = (Str){.c_str = (void *)"./src/self/typer.til:13241:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_39 = (Str){.c_str = (void *)"./src/self/typer.til:13254:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_4 = (Str){.c_str = (void *)"./src/self/typer.til:13223:32", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_44 = (Str){.c_str = (void *)"./src/self/typer.til:13257:39", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_49 = (Str){.c_str = (void *)"./src/self/typer.til:13260:47", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_56 = (Str){.c_str = (void *)"./src/self/typer.til:13272:41", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_61 = (Str){.c_str = (void *)"./src/self/typer.til:13273:37", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_pattern_coverage_9 = (Str){.c_str = (void *)"./src/self/typer.til:13226:40", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_mark_written_through_5 = (Str){.c_str = (void *)"./src/self/typer.til:12020:77", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_arm_value_type_22 = (Str){.c_str = (void *)"./src/self/typer.til:13410:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_arm_value_type_27 = (Str){.c_str = (void *)"./src/self/typer.til:13411:27", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_arm_value_type_4 = (Str){.c_str = (void *)"./src/self/typer.til:13394:36", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_arm_value_type_9 = (Str){.c_str = (void *)"./src/self/typer.til:13400:72", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_12 = (Str){.c_str = (void *)"./src/self/typer.til:13452:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_17 = (Str){.c_str = (void *)"./src/self/typer.til:13453:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_24 = (Str){.c_str = (void *)"./src/self/typer.til:13456:42", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_30 = (Str){.c_str = (void *)"./src/self/typer.til:13457:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_35 = (Str){.c_str = (void *)"./src/self/typer.til:13458:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_42 = (Str){.c_str = (void *)"./src/self/typer.til:13461:42", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_48 = (Str){.c_str = (void *)"./src/self/typer.til:13462:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_match_is_bool_identity_6 = (Str){.c_str = (void *)"./src/self/typer.til:13451:36", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_named_arg_inner_4 = (Str){.c_str = (void *)"./src/self/typer.til:9869:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_pre_coerce_decl_numeric_literals_15 = (Str){.c_str = (void *)"./src/self/typer.til:7205:59", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_propagate_priv_refs_16 = (Str){.c_str = (void *)"./src/self/typer.til:6099:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_propagate_priv_refs_21 = (Str){.c_str = (void *)"./src/self/typer.til:6102:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_push_param_names_6 = (Str){.c_str = (void *)"./src/self/typer.til:5357:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_13 = (Str){.c_str = (void *)"./src/self/typer.til:14019:65", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_27 = (Str){.c_str = (void *)"./src/self/typer.til:14022:31", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_47 = (Str){.c_str = (void *)"./src/self/typer.til:14016:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_54 = (Str){.c_str = (void *)"./src/self/typer.til:14019:65", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_6 = (Str){.c_str = (void *)"./src/self/typer.til:14016:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_68 = (Str){.c_str = (void *)"./src/self/typer.til:14022:31", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_raw_borrow_source_27 = (Str){.c_str = (void *)"./src/self/typer.til:11675:41", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_raw_borrow_source_4 = (Str){.c_str = (void *)"./src/self/typer.til:11671:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_10 = (Str){.c_str = (void *)"./src/self/typer.til:13481:50", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_15 = (Str){.c_str = (void *)"./src/self/typer.til:13486:52", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_20 = (Str){.c_str = (void *)"./src/self/typer.til:13487:50", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_25 = (Str){.c_str = (void *)"./src/self/typer.til:13487:63", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_30 = (Str){.c_str = (void *)"./src/self/typer.til:13487:30", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_43 = (Str){.c_str = (void *)"./src/self/typer.til:13490:58", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_48 = (Str){.c_str = (void *)"./src/self/typer.til:13491:88", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_5 = (Str){.c_str = (void *)"./src/self/typer.til:13480:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_53 = (Str){.c_str = (void *)"./src/self/typer.til:13491:112", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_58 = (Str){.c_str = (void *)"./src/self/typer.til:13492:42", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_63 = (Str){.c_str = (void *)"./src/self/typer.til:13493:26", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_replace_matches_rec_86 = (Str){.c_str = (void *)"./src/self/typer.til:13495:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_106 = (Str){.c_str = (void *)"./src/self/typer.til:8506:42", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_24 = (Str){.c_str = (void *)"./src/self/typer.til:8465:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_38 = (Str){.c_str = (void *)"./src/self/typer.til:8476:69", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_45 = (Str){.c_str = (void *)"./src/self/typer.til:8484:76", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_6 = (Str){.c_str = (void *)"./src/self/typer.til:8457:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_67 = (Str){.c_str = (void *)"./src/self/typer.til:8491:92", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_81 = (Str){.c_str = (void *)"./src/self/typer.til:8494:72", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_reregister_scope_defs_88 = (Str){.c_str = (void *)"./src/self/typer.til:8500:79", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_106 = (Str){.c_str = (void *)"./src/self/typer.til:1851:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_111 = (Str){.c_str = (void *)"./src/self/typer.til:1852:89", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_161 = (Str){.c_str = (void *)"./src/self/typer.til:1842:50", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_22 = (Str){.c_str = (void *)"./src/self/typer.til:1791:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_44 = (Str){.c_str = (void *)"./src/self/typer.til:1808:19", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_80 = (Str){.c_str = (void *)"./src/self/typer.til:1827:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_resolve_fcall_return_type_82 = (Str){.c_str = (void *)"./src/self/typer.til:1829:49", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_return_escape_roots_15 = (Str){.c_str = (void *)"./src/self/typer.til:10587:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_return_escape_roots_39 = (Str){.c_str = (void *)"./src/self/typer.til:10587:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_return_escape_roots_75 = (Str){.c_str = (void *)"./src/self/typer.til:10622:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_return_fieldaccess_root_12 = (Str){.c_str = (void *)"./src/self/typer.til:6343:50", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_return_source_root_binding_6 = (Str){.c_str = (void *)"./src/self/typer.til:10529:96", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_14 = (Str){.c_str = (void *)"./src/self/typer.til:1019:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_19 = (Str){.c_str = (void *)"./src/self/typer.til:1020:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_24 = (Str){.c_str = (void *)"./src/self/typer.til:1022:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_29 = (Str){.c_str = (void *)"./src/self/typer.til:1023:19", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_51 = (Str){.c_str = (void *)"./src/self/typer.til:1013:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_59 = (Str){.c_str = (void *)"./src/self/typer.til:1019:27", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_6 = (Str){.c_str = (void *)"./src/self/typer.til:1013:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_64 = (Str){.c_str = (void *)"./src/self/typer.til:1020:26", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_69 = (Str){.c_str = (void *)"./src/self/typer.til:1022:39", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_74 = (Str){.c_str = (void *)"./src/self/typer.til:1023:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_callee_declared_return_type_11 = (Str){.c_str = (void *)"./src/self/typer.til:3077:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_callee_declared_return_type_5 = (Str){.c_str = (void *)"./src/self/typer.til:3073:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_callee_is_6 = (Str){.c_str = (void *)"./src/self/typer.til:7414:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_11 = (Str){.c_str = (void *)"./src/self/typer.til:11268:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_16 = (Str){.c_str = (void *)"./src/self/typer.til:11276:104", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_4 = (Str){.c_str = (void *)"./src/self/typer.til:11255:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_45 = (Str){.c_str = (void *)"./src/self/typer.til:11268:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_50 = (Str){.c_str = (void *)"./src/self/typer.til:11276:104", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_85 = (Str){.c_str = (void *)"./src/self/typer.til:11296:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_93 = (Str){.c_str = (void *)"./src/self/typer.til:11304:35", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_collect_own_arg_names_98 = (Str){.c_str = (void *)"./src/self/typer.til:11305:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_105 = (Str){.c_str = (void *)"./src/self/typer.til:11004:35", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_110 = (Str){.c_str = (void *)"./src/self/typer.til:11005:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_13 = (Str){.c_str = (void *)"./src/self/typer.til:10969:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_18 = (Str){.c_str = (void *)"./src/self/typer.til:10978:104", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_51 = (Str){.c_str = (void *)"./src/self/typer.til:10969:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_56 = (Str){.c_str = (void *)"./src/self/typer.til:10978:104", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_6 = (Str){.c_str = (void *)"./src/self/typer.til:10947:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_has_own_arg_95 = (Str){.c_str = (void *)"./src/self/typer.til:10997:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_is_interface_clone_13 = (Str){.c_str = (void *)"./src/self/typer.til:10756:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_is_interface_clone_21 = (Str){.c_str = (void *)"./src/self/typer.til:10761:49", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_is_interface_clone_6 = (Str){.c_str = (void *)"./src/self/typer.til:10751:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_is_raw_alloc_6 = (Str){.c_str = (void *)"./src/self/typer.til:7253:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_namespace_name_11 = (Str){.c_str = (void *)"./src/self/typer.til:10349:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_namespace_name_5 = (Str){.c_str = (void *)"./src/self/typer.til:10345:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fcall_struct_ctor_def_4 = (Str){.c_str = (void *)"./src/self/typer.til:11816:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fdef_may_deposit_14 = (Str){.c_str = (void *)"./src/self/typer.til:12886:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fieldaccess_field_decl_4 = (Str){.c_str = (void *)"./src/self/typer.til:11783:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fieldaccess_field_decl_9 = (Str){.c_str = (void *)"./src/self/typer.til:11784:59", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_fieldaccess_path_7 = (Str){.c_str = (void *)"./src/self/typer.til:12444:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_finalize_decl_binding_333 = (Str){.c_str = (void *)"./src/self/typer.til:7980:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_finalize_decl_binding_357 = (Str){.c_str = (void *)"./src/self/typer.til:7985:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_finalize_decl_binding_4 = (Str){.c_str = (void *)"./src/self/typer.til:7698:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_104 = (Str){.c_str = (void *)"./src/self/typer.til:8789:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_11 = (Str){.c_str = (void *)"./src/self/typer.til:8749:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_114 = (Str){.c_str = (void *)"./src/self/typer.til:8790:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_143 = (Str){.c_str = (void *)"./src/self/typer.til:8781:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_148 = (Str){.c_str = (void *)"./src/self/typer.til:8783:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_153 = (Str){.c_str = (void *)"./src/self/typer.til:8784:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_158 = (Str){.c_str = (void *)"./src/self/typer.til:8784:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_168 = (Str){.c_str = (void *)"./src/self/typer.til:8787:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_173 = (Str){.c_str = (void *)"./src/self/typer.til:8789:50", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_178 = (Str){.c_str = (void *)"./src/self/typer.til:8789:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_188 = (Str){.c_str = (void *)"./src/self/typer.til:8790:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_51 = (Str){.c_str = (void *)"./src/self/typer.til:8778:58", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_59 = (Str){.c_str = (void *)"./src/self/typer.til:8778:58", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_6 = (Str){.c_str = (void *)"./src/self/typer.til:8744:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_69 = (Str){.c_str = (void *)"./src/self/typer.til:8781:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_74 = (Str){.c_str = (void *)"./src/self/typer.til:8783:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_79 = (Str){.c_str = (void *)"./src/self/typer.til:8784:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_84 = (Str){.c_str = (void *)"./src/self/typer.til:8784:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_94 = (Str){.c_str = (void *)"./src/self/typer.til:8787:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_flush_generic_pending_99 = (Str){.c_str = (void *)"./src/self/typer.til:8789:50", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_func_gen_macro_template_27 = (Str){.c_str = (void *)"./src/self/typer.til:4048:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_func_gen_macro_template_32 = (Str){.c_str = (void *)"./src/self/typer.til:4051:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_func_gen_macro_template_37 = (Str){.c_str = (void *)"./src/self/typer.til:4054:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_18 = (Str){.c_str = (void *)"./src/self/typer.til:3463:52", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_23 = (Str){.c_str = (void *)"./src/self/typer.til:3464:51", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_5 = (Str){.c_str = (void *)"./src/self/typer.til:3441:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_69 = (Str){.c_str = (void *)"./src/self/typer.til:3455:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_bind_funcsig_dep_70 = (Str){.c_str = (void *)"./src/self/typer.til:3456:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_body_declares_type_12 = (Str){.c_str = (void *)"./src/self/typer.til:3341:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_call_declared_return_5 = (Str){.c_str = (void *)"./src/self/typer.til:3305:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_call_is_explicit_12 = (Str){.c_str = (void *)"./src/self/typer.til:3517:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_call_is_explicit_6 = (Str){.c_str = (void *)"./src/self/typer.til:3513:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_closure_walk_calls_12 = (Str){.c_str = (void *)"./src/self/typer.til:3363:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_decompose_nested_19 = (Str){.c_str = (void *)"./src/self/typer.til:3409:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_decompose_nested_24 = (Str){.c_str = (void *)"./src/self/typer.til:3410:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_explicit_subs_24 = (Str){.c_str = (void *)"./src/self/typer.til:3541:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_explicit_subs_6 = (Str){.c_str = (void *)"./src/self/typer.til:3534:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_field_declared_type_5 = (Str){.c_str = (void *)"./src/self/typer.til:3276:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_100 = (Str){.c_str = (void *)"./src/self/typer.til:3971:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_109 = (Str){.c_str = (void *)"./src/self/typer.til:3974:79", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_114 = (Str){.c_str = (void *)"./src/self/typer.til:3974:91", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_128 = (Str){.c_str = (void *)"./src/self/typer.til:3980:73", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_141 = (Str){.c_str = (void *)"./src/self/typer.til:3988:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_15 = (Str){.c_str = (void *)"./src/self/typer.til:3967:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_158 = (Str){.c_str = (void *)"./src/self/typer.til:3999:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_166 = (Str){.c_str = (void *)"./src/self/typer.til:4013:41", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_174 = (Str){.c_str = (void *)"./src/self/typer.til:4013:41", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_190 = (Str){.c_str = (void *)"./src/self/typer.til:4006:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_20 = (Str){.c_str = (void *)"./src/self/typer.til:3968:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_31 = (Str){.c_str = (void *)"./src/self/typer.til:3970:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_37 = (Str){.c_str = (void *)"./src/self/typer.til:3971:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_46 = (Str){.c_str = (void *)"./src/self/typer.til:3974:79", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_51 = (Str){.c_str = (void *)"./src/self/typer.til:3974:91", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_65 = (Str){.c_str = (void *)"./src/self/typer.til:3980:73", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_78 = (Str){.c_str = (void *)"./src/self/typer.til:3967:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_83 = (Str){.c_str = (void *)"./src/self/typer.til:3968:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_finish_fcall_94 = (Str){.c_str = (void *)"./src/self/typer.til:3970:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_15 = (Str){.c_str = (void *)"./src/self/typer.til:3657:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_153 = (Str){.c_str = (void *)"./src/self/typer.til:3737:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_197 = (Str){.c_str = (void *)"./src/self/typer.til:3789:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_202 = (Str){.c_str = (void *)"./src/self/typer.til:3791:66", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_207 = (Str){.c_str = (void *)"./src/self/typer.til:3791:95", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_289 = (Str){.c_str = (void *)"./src/self/typer.til:3809:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_379 = (Str){.c_str = (void *)"./src/self/typer.til:3855:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_48 = (Str){.c_str = (void *)"./src/self/typer.til:3698:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_57 = (Str){.c_str = (void *)"./src/self/typer.til:3708:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_62 = (Str){.c_str = (void *)"./src/self/typer.til:3720:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_67 = (Str){.c_str = (void *)"./src/self/typer.til:3722:70", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_7 = (Str){.c_str = (void *)"./src/self/typer.til:3657:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_infer_subs_72 = (Str){.c_str = (void *)"./src/self/typer.til:3722:97", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_16 = (Str){.c_str = (void *)"./src/self/typer.til:3888:23", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_26 = (Str){.c_str = (void *)"./src/self/typer.til:3897:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_38 = (Str){.c_str = (void *)"./src/self/typer.til:3888:23", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_4 = (Str){.c_str = (void *)"./src/self/typer.til:3883:78", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_48 = (Str){.c_str = (void *)"./src/self/typer.til:3897:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_65 = (Str){.c_str = (void *)"./src/self/typer.til:3908:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_76 = (Str){.c_str = (void *)"./src/self/typer.til:3911:20", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_rewrite_call_in_place_9 = (Str){.c_str = (void *)"./src/self/typer.til:3883:98", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_generic_value_only_fdef_6 = (Str){.c_str = (void *)"./src/self/typer.til:3494:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_iface_decl_owns_payload_4 = (Str){.c_str = (void *)"./src/self/typer.til:7450:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_iface_decl_owns_payload_40 = (Str){.c_str = (void *)"./src/self/typer.til:7449:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_115 = (Str){.c_str = (void *)"./src/self/typer.til:1790:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_23 = (Str){.c_str = (void *)"./src/self/typer.til:1752:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_30 = (Str){.c_str = (void *)"./src/self/typer.til:1774:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_35 = (Str){.c_str = (void *)"./src/self/typer.til:1776:47", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_40 = (Str){.c_str = (void *)"./src/self/typer.til:1777:65", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_57 = (Str){.c_str = (void *)"./src/self/typer.til:1780:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_69 = (Str){.c_str = (void *)"./src/self/typer.til:1774:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_74 = (Str){.c_str = (void *)"./src/self/typer.til:1776:47", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_79 = (Str){.c_str = (void *)"./src/self/typer.til:1777:65", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_96 = (Str){.c_str = (void *)"./src/self/typer.til:1780:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_10 = (Str){.c_str = (void *)"./src/self/typer.til:1536:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_118 = (Str){.c_str = (void *)"./src/self/typer.til:1624:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_141 = (Str){.c_str = (void *)"./src/self/typer.til:1630:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_159 = (Str){.c_str = (void *)"./src/self/typer.til:1638:58", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_17 = (Str){.c_str = (void *)"./src/self/typer.til:1540:50", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_183 = (Str){.c_str = (void *)"./src/self/typer.til:1653:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_188 = (Str){.c_str = (void *)"./src/self/typer.til:1669:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_194 = (Str){.c_str = (void *)"./src/self/typer.til:1674:66", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_199 = (Str){.c_str = (void *)"./src/self/typer.til:1675:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_225 = (Str){.c_str = (void *)"./src/self/typer.til:1690:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_230 = (Str){.c_str = (void *)"./src/self/typer.til:1691:64", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_236 = (Str){.c_str = (void *)"./src/self/typer.til:1695:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_276 = (Str){.c_str = (void *)"./src/self/typer.til:1710:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_281 = (Str){.c_str = (void *)"./src/self/typer.til:1712:60", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_292 = (Str){.c_str = (void *)"./src/self/typer.til:1716:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_297 = (Str){.c_str = (void *)"./src/self/typer.til:1717:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_35 = (Str){.c_str = (void *)"./src/self/typer.til:1554:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_40 = (Str){.c_str = (void *)"./src/self/typer.til:1557:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_50 = (Str){.c_str = (void *)"./src/self/typer.til:1568:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_57 = (Str){.c_str = (void *)"./src/self/typer.til:1571:56", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_62 = (Str){.c_str = (void *)"./src/self/typer.til:1571:72", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_91 = (Str){.c_str = (void *)"./src/self/typer.til:1583:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_98 = (Str){.c_str = (void *)"./src/self/typer.til:1618:75", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_108 = (Str){.c_str = (void *)"./src/self/typer.til:3210:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_127 = (Str){.c_str = (void *)"./src/self/typer.til:3213:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_14 = (Str){.c_str = (void *)"./src/self/typer.til:3188:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_140 = (Str){.c_str = (void *)"./src/self/typer.til:3234:56", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_145 = (Str){.c_str = (void *)"./src/self/typer.til:3235:57", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_151 = (Str){.c_str = (void *)"./src/self/typer.til:3242:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_25 = (Str){.c_str = (void *)"./src/self/typer.til:3210:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_44 = (Str){.c_str = (void *)"./src/self/typer.til:3213:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_57 = (Str){.c_str = (void *)"./src/self/typer.til:3234:56", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_6 = (Str){.c_str = (void *)"./src/self/typer.til:3188:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_62 = (Str){.c_str = (void *)"./src/self/typer.til:3235:57", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_array_vec_fcall_68 = (Str){.c_str = (void *)"./src/self/typer.til:3242:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_10 = (Str){.c_str = (void *)"./src/self/typer.til:9323:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_18 = (Str){.c_str = (void *)"./src/self/typer.til:9340:70", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_23 = (Str){.c_str = (void *)"./src/self/typer.til:9341:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_242 = (Str){.c_str = (void *)"./src/self/typer.til:9501:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_48 = (Str){.c_str = (void *)"./src/self/typer.til:9353:58", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_5 = (Str){.c_str = (void *)"./src/self/typer.til:9318:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_53 = (Str){.c_str = (void *)"./src/self/typer.til:9354:61", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_assign_stmt_67 = (Str){.c_str = (void *)"./src/self/typer.til:9358:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_body_value_expr_13 = (Str){.c_str = (void *)"./src/self/typer.til:8318:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_body_value_expr_19 = (Str){.c_str = (void *)"./src/self/typer.til:8324:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_body_value_expr_24 = (Str){.c_str = (void *)"./src/self/typer.til:8326:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_capture_block_12 = (Str){.c_str = (void *)"./src/self/typer.til:8466:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_capture_block_48 = (Str){.c_str = (void *)"./src/self/typer.til:8475:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_capture_block_5 = (Str){.c_str = (void *)"./src/self/typer.til:8449:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_112 = (Str){.c_str = (void *)"./src/self/typer.til:3026:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_113 = (Str){.c_str = (void *)"./src/self/typer.til:3027:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_13 = (Str){.c_str = (void *)"./src/self/typer.til:3004:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_132 = (Str){.c_str = (void *)"./src/self/typer.til:3061:15", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_18 = (Str){.c_str = (void *)"./src/self/typer.til:3005:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_23 = (Str){.c_str = (void *)"./src/self/typer.til:3007:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_29 = (Str){.c_str = (void *)"./src/self/typer.til:3010:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_44 = (Str){.c_str = (void *)"./src/self/typer.til:3023:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_5 = (Str){.c_str = (void *)"./src/self/typer.til:3001:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_56 = (Str){.c_str = (void *)"./src/self/typer.til:3029:74", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_61 = (Str){.c_str = (void *)"./src/self/typer.til:3030:74", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_cast_fcall_92 = (Str){.c_str = (void *)"./src/self/typer.til:3033:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_12 = (Str){.c_str = (void *)"./src/self/typer.til:14132:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_132 = (Str){.c_str = (void *)"./src/self/typer.til:14184:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_159 = (Str){.c_str = (void *)"./src/self/typer.til:14200:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_20 = (Str){.c_str = (void *)"./src/self/typer.til:14149:87", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_32 = (Str){.c_str = (void *)"./src/self/typer.til:14159:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_4 = (Str){.c_str = (void *)"./src/self/typer.til:14113:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_53 = (Str){.c_str = (void *)"./src/self/typer.til:14132:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_61 = (Str){.c_str = (void *)"./src/self/typer.til:14149:87", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_clike_switch_73 = (Str){.c_str = (void *)"./src/self/typer.til:14159:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_107 = (Str){.c_str = (void *)"./src/self/typer.til:7090:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_14 = (Str){.c_str = (void *)"./src/self/typer.til:7037:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_5 = (Str){.c_str = (void *)"./src/self/typer.til:7028:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_59 = (Str){.c_str = (void *)"./src/self/typer.til:7053:58", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_64 = (Str){.c_str = (void *)"./src/self/typer.til:7064:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_70 = (Str){.c_str = (void *)"./src/self/typer.til:7071:58", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_func_def_81 = (Str){.c_str = (void *)"./src/self/typer.til:7053:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_110 = (Str){.c_str = (void *)"./src/self/typer.til:8086:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_115 = (Str){.c_str = (void *)"./src/self/typer.til:8087:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_138 = (Str){.c_str = (void *)"./src/self/typer.til:8103:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_143 = (Str){.c_str = (void *)"./src/self/typer.til:8118:50", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_148 = (Str){.c_str = (void *)"./src/self/typer.til:8119:101", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_15 = (Str){.c_str = (void *)"./src/self/typer.til:8007:60", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_164 = (Str){.c_str = (void *)"./src/self/typer.til:8123:67", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_172 = (Str){.c_str = (void *)"./src/self/typer.til:8125:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_177 = (Str){.c_str = (void *)"./src/self/typer.til:8127:62", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_188 = (Str){.c_str = (void *)"./src/self/typer.til:8128:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_200 = (Str){.c_str = (void *)"./src/self/typer.til:8146:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_21 = (Str){.c_str = (void *)"./src/self/typer.til:8011:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_212 = (Str){.c_str = (void *)"./src/self/typer.til:7998:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_220 = (Str){.c_str = (void *)"./src/self/typer.til:8016:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_228 = (Str){.c_str = (void *)"./src/self/typer.til:8143:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_29 = (Str){.c_str = (void *)"./src/self/typer.til:8022:68", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_35 = (Str){.c_str = (void *)"./src/self/typer.til:8024:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:8001:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_46 = (Str){.c_str = (void *)"./src/self/typer.til:8027:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_47 = (Str){.c_str = (void *)"./src/self/typer.til:8026:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_55 = (Str){.c_str = (void *)"./src/self/typer.til:8056:67", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_63 = (Str){.c_str = (void *)"./src/self/typer.til:8058:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_68 = (Str){.c_str = (void *)"./src/self/typer.til:8062:59", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_79 = (Str){.c_str = (void *)"./src/self/typer.til:8071:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_stmt_84 = (Str){.c_str = (void *)"./src/self/typer.til:8072:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_type_alias_passthrough_12 = (Str){.c_str = (void *)"./src/self/typer.til:7097:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_type_alias_passthrough_4 = (Str){.c_str = (void *)"./src/self/typer.til:7096:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_type_def_30 = (Str){.c_str = (void *)"./src/self/typer.til:6982:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_type_def_5 = (Str){.c_str = (void *)"./src/self/typer.til:6961:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_type_def_77 = (Str){.c_str = (void *)"./src/self/typer.til:7010:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_type_def_83 = (Str){.c_str = (void *)"./src/self/typer.til:6962:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_typed_value_107 = (Str){.c_str = (void *)"./src/self/typer.til:7632:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_typed_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:7561:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_untyped_value_26 = (Str){.c_str = (void *)"./src/self/typer.til:7655:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_decl_untyped_value_4 = (Str){.c_str = (void *)"./src/self/typer.til:7637:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_ext_global_decl_14 = (Str){.c_str = (void *)"./src/self/typer.til:7130:24", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_ext_global_decl_26 = (Str){.c_str = (void *)"./src/self/typer.til:7144:28", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_ext_global_decl_32 = (Str){.c_str = (void *)"./src/self/typer.til:7147:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_ext_global_decl_42 = (Str){.c_str = (void *)"./src/self/typer.til:7150:28", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_ext_global_decl_48 = (Str){.c_str = (void *)"./src/self/typer.til:7153:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_133 = (Str){.c_str = (void *)"./src/self/typer.til:4334:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_138 = (Str){.c_str = (void *)"./src/self/typer.til:4339:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_15 = (Str){.c_str = (void *)"./src/self/typer.til:4164:18", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_21 = (Str){.c_str = (void *)"./src/self/typer.til:4167:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_234 = (Str){.c_str = (void *)"./src/self/typer.til:4377:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_239 = (Str){.c_str = (void *)"./src/self/typer.til:4378:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_252 = (Str){.c_str = (void *)"./src/self/typer.til:4377:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_257 = (Str){.c_str = (void *)"./src/self/typer.til:4378:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:4150:59", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_47 = (Str){.c_str = (void *)"./src/self/typer.til:4214:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_74 = (Str){.c_str = (void *)"./src/self/typer.til:4242:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_fcall_expr_92 = (Str){.c_str = (void *)"./src/self/typer.til:4294:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_14 = (Str){.c_str = (void *)"./src/self/typer.til:6583:56", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_19 = (Str){.c_str = (void *)"./src/self/typer.til:6590:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_24 = (Str){.c_str = (void *)"./src/self/typer.til:6597:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_34 = (Str){.c_str = (void *)"./src/self/typer.til:6599:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:6581:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_51 = (Str){.c_str = (void *)"./src/self/typer.til:6608:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_9 = (Str){.c_str = (void *)"./src/self/typer.til:6582:51", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_expr_94 = (Str){.c_str = (void *)"./src/self/typer.til:6621:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_112 = (Str){.c_str = (void *)"./src/self/typer.til:2155:80", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_120 = (Str){.c_str = (void *)"./src/self/typer.til:2155:80", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_145 = (Str){.c_str = (void *)"./src/self/typer.til:2132:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_167 = (Str){.c_str = (void *)"./src/self/typer.til:2181:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_17 = (Str){.c_str = (void *)"./src/self/typer.til:2094:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_172 = (Str){.c_str = (void *)"./src/self/typer.til:2182:62", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_180 = (Str){.c_str = (void *)"./src/self/typer.til:2186:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_194 = (Str){.c_str = (void *)"./src/self/typer.til:2188:81", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_209 = (Str){.c_str = (void *)"./src/self/typer.til:2194:28", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_214 = (Str){.c_str = (void *)"./src/self/typer.til:2198:48", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_219 = (Str){.c_str = (void *)"./src/self/typer.til:2199:48", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_243 = (Str){.c_str = (void *)"./src/self/typer.til:2179:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_258 = (Str){.c_str = (void *)"./src/self/typer.til:2218:24", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_324 = (Str){.c_str = (void *)"./src/self/typer.til:2263:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_4 = (Str){.c_str = (void *)"./src/self/typer.til:2061:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_417 = (Str){.c_str = (void *)"./src/self/typer.til:2338:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_422 = (Str){.c_str = (void *)"./src/self/typer.til:2340:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_431 = (Str){.c_str = (void *)"./src/self/typer.til:2345:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_439 = (Str){.c_str = (void *)"./src/self/typer.til:2331:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_458 = (Str){.c_str = (void *)"./src/self/typer.til:2346:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_464 = (Str){.c_str = (void *)"./src/self/typer.til:2350:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_469 = (Str){.c_str = (void *)"./src/self/typer.til:2351:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_528 = (Str){.c_str = (void *)"./src/self/typer.til:2404:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_582 = (Str){.c_str = (void *)"./src/self/typer.til:2455:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_587 = (Str){.c_str = (void *)"./src/self/typer.til:2461:51", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_592 = (Str){.c_str = (void *)"./src/self/typer.til:2461:80", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_597 = (Str){.c_str = (void *)"./src/self/typer.til:2462:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_602 = (Str){.c_str = (void *)"./src/self/typer.til:2462:82", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_620 = (Str){.c_str = (void *)"./src/self/typer.til:2464:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_636 = (Str){.c_str = (void *)"./src/self/typer.til:2455:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_641 = (Str){.c_str = (void *)"./src/self/typer.til:2461:51", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_646 = (Str){.c_str = (void *)"./src/self/typer.til:2461:80", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_651 = (Str){.c_str = (void *)"./src/self/typer.til:2462:63", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_656 = (Str){.c_str = (void *)"./src/self/typer.til:2462:82", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_674 = (Str){.c_str = (void *)"./src/self/typer.til:2464:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_690 = (Str){.c_str = (void *)"./src/self/typer.til:2478:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_708 = (Str){.c_str = (void *)"./src/self/typer.til:2492:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_72 = (Str){.c_str = (void *)"./src/self/typer.til:2135:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_725 = (Str){.c_str = (void *)"./src/self/typer.til:2512:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_772 = (Str){.c_str = (void *)"./src/self/typer.til:2528:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_79 = (Str){.c_str = (void *)"./src/self/typer.til:2139:78", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_792 = (Str){.c_str = (void *)"./src/self/typer.til:2531:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_804 = (Str){.c_str = (void *)"./src/self/typer.til:2537:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_825 = (Str){.c_str = (void *)"./src/self/typer.til:2544:60", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_866 = (Str){.c_str = (void *)"./src/self/typer.til:2562:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_886 = (Str){.c_str = (void *)"./src/self/typer.til:2581:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_891 = (Str){.c_str = (void *)"./src/self/typer.til:2582:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_9 = (Str){.c_str = (void *)"./src/self/typer.til:2062:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_904 = (Str){.c_str = (void *)"./src/self/typer.til:2581:30", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_909 = (Str){.c_str = (void *)"./src/self/typer.til:2582:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_933 = (Str){.c_str = (void *)"./src/self/typer.til:2588:74", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_938 = (Str){.c_str = (void *)"./src/self/typer.til:2588:94", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_943 = (Str){.c_str = (void *)"./src/self/typer.til:2589:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_960 = (Str){.c_str = (void *)"./src/self/typer.til:2593:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_access_fcall_968 = (Str){.c_str = (void *)"./src/self/typer.til:2064:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_10 = (Str){.c_str = (void *)"./src/self/typer.til:6710:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_15 = (Str){.c_str = (void *)"./src/self/typer.til:6719:76", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_20 = (Str){.c_str = (void *)"./src/self/typer.til:6720:68", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_25 = (Str){.c_str = (void *)"./src/self/typer.til:6721:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_254 = (Str){.c_str = (void *)"./src/self/typer.til:6893:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_30 = (Str){.c_str = (void *)"./src/self/typer.til:6726:62", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_39 = (Str){.c_str = (void *)"./src/self/typer.til:6728:61", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6704:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_52 = (Str){.c_str = (void *)"./src/self/typer.til:6732:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_field_assign_stmt_57 = (Str){.c_str = (void *)"./src/self/typer.til:6733:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_116 = (Str){.c_str = (void *)"./src/self/typer.til:5649:89", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_170 = (Str){.c_str = (void *)"./src/self/typer.til:5700:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_316 = (Str){.c_str = (void *)"./src/self/typer.til:5834:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_32 = (Str){.c_str = (void *)"./src/self/typer.til:5585:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_331 = (Str){.c_str = (void *)"./src/self/typer.til:5852:72", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_336 = (Str){.c_str = (void *)"./src/self/typer.til:5852:90", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_341 = (Str){.c_str = (void *)"./src/self/typer.til:5853:76", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_357 = (Str){.c_str = (void *)"./src/self/typer.til:5862:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_362 = (Str){.c_str = (void *)"./src/self/typer.til:5873:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_367 = (Str){.c_str = (void *)"./src/self/typer.til:5874:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_411 = (Str){.c_str = (void *)"./src/self/typer.til:5912:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_43 = (Str){.c_str = (void *)"./src/self/typer.til:5593:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_def_expr_440 = (Str){.c_str = (void *)"./src/self/typer.til:5915:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_ptr_field_call_61 = (Str){.c_str = (void *)"./src/self/typer.til:800:45", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_ptr_field_call_77 = (Str){.c_str = (void *)"./src/self/typer.til:793:42", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_func_sig_expr_97 = (Str){.c_str = (void *)"./src/self/typer.til:5148:34", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_11 = (Str){.c_str = (void *)"./src/self/typer.til:3104:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_22 = (Str){.c_str = (void *)"./src/self/typer.til:3110:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_4 = (Str){.c_str = (void *)"./src/self/typer.til:3093:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_60 = (Str){.c_str = (void *)"./src/self/typer.til:3166:41", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_funcptr_call_via_cast_68 = (Str){.c_str = (void *)"./src/self/typer.til:3166:41", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_generic_fcall_23 = (Str){.c_str = (void *)"./src/self/typer.til:4112:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_ident_expr_25 = (Str){.c_str = (void *)"./src/self/typer.til:4461:31", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_if_stmt_21 = (Str){.c_str = (void *)"./src/self/typer.til:6540:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_if_stmt_26 = (Str){.c_str = (void *)"./src/self/typer.til:6542:41", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_if_stmt_31 = (Str){.c_str = (void *)"./src/self/typer.til:6547:96", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_if_stmt_36 = (Str){.c_str = (void *)"./src/self/typer.til:6549:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_if_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6534:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_if_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:6535:41", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_12 = (Str){.c_str = (void *)"./src/self/typer.til:7391:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_19 = (Str){.c_str = (void *)"./src/self/typer.til:7394:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_24 = (Str){.c_str = (void *)"./src/self/typer.til:7395:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_36 = (Str){.c_str = (void *)"./src/self/typer.til:7394:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_4 = (Str){.c_str = (void *)"./src/self/typer.til:7387:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_41 = (Str){.c_str = (void *)"./src/self/typer.til:7395:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_52 = (Str){.c_str = (void *)"./src/self/typer.til:7387:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_interface_payload_call_56 = (Str){.c_str = (void *)"./src/self/typer.til:7389:28", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_map_lit_expr_7 = (Str){.c_str = (void *)"./src/self/typer.til:4528:48", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_match_expr_16 = (Str){.c_str = (void *)"./src/self/typer.til:13620:59", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_match_expr_35 = (Str){.c_str = (void *)"./src/self/typer.til:13625:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_match_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:13607:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_match_expr_60 = (Str){.c_str = (void *)"./src/self/typer.til:13620:59", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_match_expr_79 = (Str){.c_str = (void *)"./src/self/typer.til:13625:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_match_expr_9 = (Str){.c_str = (void *)"./src/self/typer.til:13612:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_named_arg_expr_4 = (Str){.c_str = (void *)"./src/self/typer.til:4510:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_requested_value_method_11 = (Str){.c_str = (void *)"./src/self/typer.til:2056:38", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_requested_value_method_4 = (Str){.c_str = (void *)"./src/self/typer.til:2051:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_13 = (Str){.c_str = (void *)"./src/self/typer.til:6374:73", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_134 = (Str){.c_str = (void *)"./src/self/typer.til:6462:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_141 = (Str){.c_str = (void *)"./src/self/typer.til:6473:97", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_146 = (Str){.c_str = (void *)"./src/self/typer.til:6474:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_161 = (Str){.c_str = (void *)"./src/self/typer.til:6491:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_166 = (Str){.c_str = (void *)"./src/self/typer.til:6494:54", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_171 = (Str){.c_str = (void *)"./src/self/typer.til:6496:54", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_200 = (Str){.c_str = (void *)"./src/self/typer.til:6500:33", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_245 = (Str){.c_str = (void *)"./src/self/typer.til:6512:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_250 = (Str){.c_str = (void *)"./src/self/typer.til:6513:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_26 = (Str){.c_str = (void *)"./src/self/typer.til:6378:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_279 = (Str){.c_str = (void *)"./src/self/typer.til:6523:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_31 = (Str){.c_str = (void *)"./src/self/typer.til:6379:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6367:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_42 = (Str){.c_str = (void *)"./src/self/typer.til:6383:40", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_47 = (Str){.c_str = (void *)"./src/self/typer.til:6387:47", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_57 = (Str){.c_str = (void *)"./src/self/typer.til:6396:25", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_return_stmt_84 = (Str){.c_str = (void *)"./src/self/typer.til:6415:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_set_lit_expr_6 = (Str){.c_str = (void *)"./src/self/typer.til:4567:67", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_113 = (Str){.c_str = (void *)"./src/self/typer.til:1107:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_125 = (Str){.c_str = (void *)"./src/self/typer.til:1120:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_130 = (Str){.c_str = (void *)"./src/self/typer.til:1121:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_135 = (Str){.c_str = (void *)"./src/self/typer.til:1122:71", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_147 = (Str){.c_str = (void *)"./src/self/typer.til:1127:114", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_152 = (Str){.c_str = (void *)"./src/self/typer.til:1127:136", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_157 = (Str){.c_str = (void *)"./src/self/typer.til:1129:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_184 = (Str){.c_str = (void *)"./src/self/typer.til:1131:84", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_196 = (Str){.c_str = (void *)"./src/self/typer.til:1138:114", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_201 = (Str){.c_str = (void *)"./src/self/typer.til:1138:142", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_206 = (Str){.c_str = (void *)"./src/self/typer.til:1138:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_223 = (Str){.c_str = (void *)"./src/self/typer.til:1140:104", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_228 = (Str){.c_str = (void *)"./src/self/typer.til:1140:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_241 = (Str){.c_str = (void *)"./src/self/typer.til:1143:100", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_246 = (Str){.c_str = (void *)"./src/self/typer.til:1143:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_269 = (Str){.c_str = (void *)"./src/self/typer.til:1150:96", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_274 = (Str){.c_str = (void *)"./src/self/typer.til:1150:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_309 = (Str){.c_str = (void *)"./src/self/typer.til:1077:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_314 = (Str){.c_str = (void *)"./src/self/typer.til:1084:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_334 = (Str){.c_str = (void *)"./src/self/typer.til:1096:54", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_339 = (Str){.c_str = (void *)"./src/self/typer.til:1099:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_360 = (Str){.c_str = (void *)"./src/self/typer.til:1102:61", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_37 = (Str){.c_str = (void *)"./src/self/typer.til:1077:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_385 = (Str){.c_str = (void *)"./src/self/typer.til:1107:21", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_397 = (Str){.c_str = (void *)"./src/self/typer.til:1120:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_402 = (Str){.c_str = (void *)"./src/self/typer.til:1121:55", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_407 = (Str){.c_str = (void *)"./src/self/typer.til:1122:71", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_419 = (Str){.c_str = (void *)"./src/self/typer.til:1127:114", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_42 = (Str){.c_str = (void *)"./src/self/typer.til:1084:45", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_424 = (Str){.c_str = (void *)"./src/self/typer.til:1127:136", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_429 = (Str){.c_str = (void *)"./src/self/typer.til:1129:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_456 = (Str){.c_str = (void *)"./src/self/typer.til:1131:84", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_468 = (Str){.c_str = (void *)"./src/self/typer.til:1138:114", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_473 = (Str){.c_str = (void *)"./src/self/typer.til:1138:142", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_478 = (Str){.c_str = (void *)"./src/self/typer.til:1138:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_495 = (Str){.c_str = (void *)"./src/self/typer.til:1140:104", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_500 = (Str){.c_str = (void *)"./src/self/typer.til:1140:43", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_513 = (Str){.c_str = (void *)"./src/self/typer.til:1143:100", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_518 = (Str){.c_str = (void *)"./src/self/typer.til:1143:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_541 = (Str){.c_str = (void *)"./src/self/typer.til:1150:96", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_546 = (Str){.c_str = (void *)"./src/self/typer.til:1150:35", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_583 = (Str){.c_str = (void *)"./src/self/typer.til:1161:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_602 = (Str){.c_str = (void *)"./src/self/typer.til:1169:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_62 = (Str){.c_str = (void *)"./src/self/typer.til:1096:54", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_625 = (Str){.c_str = (void *)"./src/self/typer.til:1190:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_635 = (Str){.c_str = (void *)"./src/self/typer.til:1200:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_661 = (Str){.c_str = (void *)"./src/self/typer.til:1200:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_67 = (Str){.c_str = (void *)"./src/self/typer.til:1099:53", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_689 = (Str){.c_str = (void *)"./src/self/typer.til:1245:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_731 = (Str){.c_str = (void *)"./src/self/typer.til:1069:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_88 = (Str){.c_str = (void *)"./src/self/typer.til:1102:61", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_112 = (Str){.c_str = (void *)"./src/self/typer.til:14335:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_117 = (Str){.c_str = (void *)"./src/self/typer.til:14337:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_123 = (Str){.c_str = (void *)"./src/self/typer.til:14339:76", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_145 = (Str){.c_str = (void *)"./src/self/typer.til:14335:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_150 = (Str){.c_str = (void *)"./src/self/typer.til:14337:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_156 = (Str){.c_str = (void *)"./src/self/typer.til:14339:76", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_16 = (Str){.c_str = (void *)"./src/self/typer.til:14302:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_195 = (Str){.c_str = (void *)"./src/self/typer.til:14426:15", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_232 = (Str){.c_str = (void *)"./src/self/typer.til:14454:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_242 = (Str){.c_str = (void *)"./src/self/typer.til:14454:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_271 = (Str){.c_str = (void *)"./src/self/typer.til:14492:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_277 = (Str){.c_str = (void *)"./src/self/typer.til:14498:46", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_288 = (Str){.c_str = (void *)"./src/self/typer.til:14508:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_29 = (Str){.c_str = (void *)"./src/self/typer.til:14304:32", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_293 = (Str){.c_str = (void *)"./src/self/typer.til:14509:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_300 = (Str){.c_str = (void *)"./src/self/typer.til:14515:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_334 = (Str){.c_str = (void *)"./src/self/typer.til:14534:106", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_344 = (Str){.c_str = (void *)"./src/self/typer.til:14546:93", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_354 = (Str){.c_str = (void *)"./src/self/typer.til:14546:93", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_369 = (Str){.c_str = (void *)"./src/self/typer.til:14575:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_374 = (Str){.c_str = (void *)"./src/self/typer.til:14585:54", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_38 = (Str){.c_str = (void *)"./src/self/typer.til:14317:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:14285:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_424 = (Str){.c_str = (void *)"./src/self/typer.til:14492:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_430 = (Str){.c_str = (void *)"./src/self/typer.til:14498:46", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_441 = (Str){.c_str = (void *)"./src/self/typer.til:14508:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_446 = (Str){.c_str = (void *)"./src/self/typer.til:14509:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_453 = (Str){.c_str = (void *)"./src/self/typer.til:14515:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_487 = (Str){.c_str = (void *)"./src/self/typer.til:14534:106", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_497 = (Str){.c_str = (void *)"./src/self/typer.til:14546:93", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_507 = (Str){.c_str = (void *)"./src/self/typer.til:14546:93", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_522 = (Str){.c_str = (void *)"./src/self/typer.til:14575:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_527 = (Str){.c_str = (void *)"./src/self/typer.til:14585:54", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_63 = (Str){.c_str = (void *)"./src/self/typer.til:14302:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_76 = (Str){.c_str = (void *)"./src/self/typer.til:14304:32", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_85 = (Str){.c_str = (void *)"./src/self/typer.til:14317:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_switch_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:14286:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_type_def_expr_243 = (Str){.c_str = (void *)"./src/self/typer.til:5048:12", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_105 = (Str){.c_str = (void *)"./src/self/typer.til:6951:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_110 = (Str){.c_str = (void *)"./src/self/typer.til:6953:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_20 = (Str){.c_str = (void *)"./src/self/typer.til:6902:96", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_35 = (Str){.c_str = (void *)"./src/self/typer.til:6904:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:6899:36", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_46 = (Str){.c_str = (void *)"./src/self/typer.til:6906:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_51 = (Str){.c_str = (void *)"./src/self/typer.til:6909:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_56 = (Str){.c_str = (void *)"./src/self/typer.til:6916:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_61 = (Str){.c_str = (void *)"./src/self/typer.til:6937:22", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_infer_while_stmt_9 = (Str){.c_str = (void *)"./src/self/typer.til:6900:44", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_interface_box_storage_is_borrowed_28 = (Str){.c_str = (void *)"./src/self/typer.til:7374:64", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_interface_contract_signature_10 = (Str){.c_str = (void *)"./src/self/typer.til:4684:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_enum_variant_ctor_with_payload_15 = (Str){.c_str = (void *)"./src/self/typer.til:10380:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_enum_variant_ctor_with_payload_6 = (Str){.c_str = (void *)"./src/self/typer.til:10372:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_16 = (Str){.c_str = (void *)"./src/self/typer.til:13402:29", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_4 = (Str){.c_str = (void *)"./src/self/typer.til:13384:32", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_40 = (Str){.c_str = (void *)"./src/self/typer.til:13413:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_45 = (Str){.c_str = (void *)"./src/self/typer.til:13416:39", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_50 = (Str){.c_str = (void *)"./src/self/typer.til:13419:47", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_57 = (Str){.c_str = (void *)"./src/self/typer.til:13431:37", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_63 = (Str){.c_str = (void *)"./src/self/typer.til:13433:37", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_is_pattern_covered_9 = (Str){.c_str = (void *)"./src/self/typer.til:13387:40", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_literal_instance_type_name_10 = (Str){.c_str = (void *)"./src/self/typer.til:4549:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_literal_instance_type_name_48 = (Str){.c_str = (void *)"./src/self/typer.til:4554:47", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_literal_instance_type_name_5 = (Str){.c_str = (void *)"./src/self/typer.til:4548:46", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_lower_matches_in_stmt_4 = (Str){.c_str = (void *)"./src/self/typer.til:13672:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_lvalue_write_roots_14 = (Str){.c_str = (void *)"./src/self/typer.til:12090:81", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_lvalue_write_roots_25 = (Str){.c_str = (void *)"./src/self/typer.til:12093:54", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_callable_field_transfer_6 = (Str){.c_str = (void *)"./src/self/typer.til:6681:11", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_16 = (Str){.c_str = (void *)"./src/self/typer.til:13489:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_39 = (Str){.c_str = (void *)"./src/self/typer.til:13502:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_4 = (Str){.c_str = (void *)"./src/self/typer.til:13471:32", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_44 = (Str){.c_str = (void *)"./src/self/typer.til:13505:39", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_49 = (Str){.c_str = (void *)"./src/self/typer.til:13508:47", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_56 = (Str){.c_str = (void *)"./src/self/typer.til:13520:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_61 = (Str){.c_str = (void *)"./src/self/typer.til:13521:37", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_pattern_coverage_9 = (Str){.c_str = (void *)"./src/self/typer.til:13474:40", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_mark_written_through_5 = (Str){.c_str = (void *)"./src/self/typer.til:12238:77", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_arm_value_type_22 = (Str){.c_str = (void *)"./src/self/typer.til:13658:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_arm_value_type_27 = (Str){.c_str = (void *)"./src/self/typer.til:13659:27", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_arm_value_type_4 = (Str){.c_str = (void *)"./src/self/typer.til:13642:36", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_arm_value_type_9 = (Str){.c_str = (void *)"./src/self/typer.til:13648:72", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_12 = (Str){.c_str = (void *)"./src/self/typer.til:13700:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_17 = (Str){.c_str = (void *)"./src/self/typer.til:13701:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_24 = (Str){.c_str = (void *)"./src/self/typer.til:13704:42", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_30 = (Str){.c_str = (void *)"./src/self/typer.til:13705:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_35 = (Str){.c_str = (void *)"./src/self/typer.til:13706:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_42 = (Str){.c_str = (void *)"./src/self/typer.til:13709:42", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_48 = (Str){.c_str = (void *)"./src/self/typer.til:13710:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_match_is_bool_identity_6 = (Str){.c_str = (void *)"./src/self/typer.til:13699:36", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_named_arg_inner_4 = (Str){.c_str = (void *)"./src/self/typer.til:10050:37", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_pre_coerce_decl_numeric_literals_15 = (Str){.c_str = (void *)"./src/self/typer.til:7241:59", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_propagate_priv_refs_16 = (Str){.c_str = (void *)"./src/self/typer.til:6106:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_propagate_priv_refs_21 = (Str){.c_str = (void *)"./src/self/typer.til:6109:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_push_param_names_6 = (Str){.c_str = (void *)"./src/self/typer.til:5364:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_13 = (Str){.c_str = (void *)"./src/self/typer.til:14267:65", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_27 = (Str){.c_str = (void *)"./src/self/typer.til:14270:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_47 = (Str){.c_str = (void *)"./src/self/typer.til:14264:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_54 = (Str){.c_str = (void *)"./src/self/typer.til:14267:65", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_6 = (Str){.c_str = (void *)"./src/self/typer.til:14264:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_qualify_dotted_case_patterns_68 = (Str){.c_str = (void *)"./src/self/typer.til:14270:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_raw_borrow_source_27 = (Str){.c_str = (void *)"./src/self/typer.til:11892:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_raw_borrow_source_4 = (Str){.c_str = (void *)"./src/self/typer.til:11888:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_10 = (Str){.c_str = (void *)"./src/self/typer.til:13729:50", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_15 = (Str){.c_str = (void *)"./src/self/typer.til:13734:52", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_20 = (Str){.c_str = (void *)"./src/self/typer.til:13735:50", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_25 = (Str){.c_str = (void *)"./src/self/typer.til:13735:63", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_30 = (Str){.c_str = (void *)"./src/self/typer.til:13735:30", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_43 = (Str){.c_str = (void *)"./src/self/typer.til:13738:58", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_48 = (Str){.c_str = (void *)"./src/self/typer.til:13739:88", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_5 = (Str){.c_str = (void *)"./src/self/typer.til:13728:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_53 = (Str){.c_str = (void *)"./src/self/typer.til:13739:112", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_58 = (Str){.c_str = (void *)"./src/self/typer.til:13740:42", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_63 = (Str){.c_str = (void *)"./src/self/typer.til:13741:26", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_replace_matches_rec_86 = (Str){.c_str = (void *)"./src/self/typer.til:13743:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_106 = (Str){.c_str = (void *)"./src/self/typer.til:8677:42", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_24 = (Str){.c_str = (void *)"./src/self/typer.til:8636:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_38 = (Str){.c_str = (void *)"./src/self/typer.til:8647:69", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_45 = (Str){.c_str = (void *)"./src/self/typer.til:8655:76", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_6 = (Str){.c_str = (void *)"./src/self/typer.til:8628:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_67 = (Str){.c_str = (void *)"./src/self/typer.til:8662:92", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_81 = (Str){.c_str = (void *)"./src/self/typer.til:8665:72", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_reregister_scope_defs_88 = (Str){.c_str = (void *)"./src/self/typer.til:8671:79", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_106 = (Str){.c_str = (void *)"./src/self/typer.til:1858:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_111 = (Str){.c_str = (void *)"./src/self/typer.til:1859:89", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_161 = (Str){.c_str = (void *)"./src/self/typer.til:1849:50", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_22 = (Str){.c_str = (void *)"./src/self/typer.til:1798:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_44 = (Str){.c_str = (void *)"./src/self/typer.til:1815:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_80 = (Str){.c_str = (void *)"./src/self/typer.til:1834:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_resolve_fcall_return_type_82 = (Str){.c_str = (void *)"./src/self/typer.til:1836:49", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_return_escape_roots_15 = (Str){.c_str = (void *)"./src/self/typer.til:10804:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_return_escape_roots_39 = (Str){.c_str = (void *)"./src/self/typer.til:10804:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_return_escape_roots_75 = (Str){.c_str = (void *)"./src/self/typer.til:10839:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_return_fieldaccess_root_12 = (Str){.c_str = (void *)"./src/self/typer.til:6350:50", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_return_source_root_binding_6 = (Str){.c_str = (void *)"./src/self/typer.til:10710:96", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_14 = (Str){.c_str = (void *)"./src/self/typer.til:1023:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_19 = (Str){.c_str = (void *)"./src/self/typer.til:1024:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_24 = (Str){.c_str = (void *)"./src/self/typer.til:1026:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_29 = (Str){.c_str = (void *)"./src/self/typer.til:1027:19", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_51 = (Str){.c_str = (void *)"./src/self/typer.til:1017:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_59 = (Str){.c_str = (void *)"./src/self/typer.til:1023:27", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_6 = (Str){.c_str = (void *)"./src/self/typer.til:1017:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_64 = (Str){.c_str = (void *)"./src/self/typer.til:1024:26", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_69 = (Str){.c_str = (void *)"./src/self/typer.til:1026:39", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_rewrite_ctor_field_shorthand_74 = (Str){.c_str = (void *)"./src/self/typer.til:1027:19", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_rewrite_til_type_arg_14 = (Str){.c_str = (void *)"./src/self/typer.til:143:42", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_rewrite_til_type_arg_4 = (Str){.c_str = (void *)"./src/self/typer.til:134:9", .count = 26ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_rewrite_til_type_arg_9 = (Str){.c_str = (void *)"./src/self/typer.til:142:24", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_set_fcall_own_args_for_own_params_18 = (Str){.c_str = (void *)"./src/self/typer.til:979:32", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_own_param_payload_returns_15 = (Str){.c_str = (void *)"./src/self/typer.til:13817:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_own_param_payload_returns_22 = (Str){.c_str = (void *)"./src/self/typer.til:13821:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_own_param_payload_returns_29 = (Str){.c_str = (void *)"./src/self/typer.til:13826:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_own_param_payload_returns_40 = (Str){.c_str = (void *)"./src/self/typer.til:13849:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_own_param_payload_returns_46 = (Str){.c_str = (void *)"./src/self/typer.til:13855:50", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_payload_returns_19 = (Str){.c_str = (void *)"./src/self/typer.til:13772:31", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_payload_returns_26 = (Str){.c_str = (void *)"./src/self/typer.til:13779:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_payload_returns_34 = (Str){.c_str = (void *)"./src/self/typer.til:13781:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_steal_payload_returns_6 = (Str){.c_str = (void *)"./src/self/typer.til:13768:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_str_view_source_name_12 = (Str){.c_str = (void *)"./src/self/typer.til:10358:28", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_str_view_source_name_6 = (Str){.c_str = (void *)"./src/self/typer.til:10355:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summarize_unit_walk_5 = (Str){.c_str = (void *)"./src/self/typer.til:12931:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_bind_case_11 = (Str){.c_str = (void *)"./src/self/typer.til:12288:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_bind_case_16 = (Str){.c_str = (void *)"./src/self/typer.til:12289:28", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_bind_case_6 = (Str){.c_str = (void *)"./src/self/typer.til:12285:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_case_payload_ref_14 = (Str){.c_str = (void *)"./src/self/typer.til:12267:31", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_case_payload_ref_6 = (Str){.c_str = (void *)"./src/self/typer.til:12258:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_deposit_base_name_6 = (Str){.c_str = (void *)"./src/self/typer.til:12685:78", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_121 = (Str){.c_str = (void *)"./src/self/typer.til:12578:83", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_131 = (Str){.c_str = (void *)"./src/self/typer.til:12578:83", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_27 = (Str){.c_str = (void *)"./src/self/typer.til:12496:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_32 = (Str){.c_str = (void *)"./src/self/typer.til:12501:48", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_4 = (Str){.c_str = (void *)"./src/self/typer.til:12489:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_65 = (Str){.c_str = (void *)"./src/self/typer.til:12547:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_expr_bits_86 = (Str){.c_str = (void *)"./src/self/typer.til:12547:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_arg_for_param_20 = (Str){.c_str = (void *)"./src/self/typer.til:11470:41", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_arg_for_param_27 = (Str){.c_str = (void *)"./src/self/typer.til:11473:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_arg_for_param_37 = (Str){.c_str = (void *)"./src/self/typer.til:11476:35", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_deposits_19 = (Str){.c_str = (void *)"./src/self/typer.til:12729:54", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_deposits_24 = (Str){.c_str = (void *)"./src/self/typer.til:12730:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_deposits_29 = (Str){.c_str = (void *)"./src/self/typer.til:12732:76", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_fcall_deposits_4 = (Str){.c_str = (void *)"./src/self/typer.til:12718:22", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_generic_dep_def_4 = (Str){.c_str = (void *)"./src/self/typer.til:12446:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_generic_ref_ctor_arg_10 = (Str){.c_str = (void *)"./src/self/typer.til:12461:27", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_generic_ref_ctor_arg_16 = (Str){.c_str = (void *)"./src/self/typer.til:12472:31", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_generic_ref_ctor_arg_4 = (Str){.c_str = (void *)"./src/self/typer.til:12452:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_note_local_deposit_4 = (Str){.c_str = (void *)"./src/self/typer.til:12703:22", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_param_method_4 = (Str){.c_str = (void *)"./src/self/typer.til:12399:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_param_method_9 = (Str){.c_str = (void *)"./src/self/typer.til:12404:27", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_receiver_type_16 = (Str){.c_str = (void *)"./src/self/typer.til:12340:52", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_self_method_4 = (Str){.c_str = (void *)"./src/self/typer.til:12367:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_self_method_9 = (Str){.c_str = (void *)"./src/self/typer.til:12370:49", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_112 = (Str){.c_str = (void *)"./src/self/typer.til:12807:49", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_119 = (Str){.c_str = (void *)"./src/self/typer.til:12811:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_12 = (Str){.c_str = (void *)"./src/self/typer.til:12769:42", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_124 = (Str){.c_str = (void *)"./src/self/typer.til:12812:66", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_135 = (Str){.c_str = (void *)"./src/self/typer.til:12811:45", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_140 = (Str){.c_str = (void *)"./src/self/typer.til:12812:66", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_160 = (Str){.c_str = (void *)"./src/self/typer.til:12820:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_165 = (Str){.c_str = (void *)"./src/self/typer.til:12823:34", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_17 = (Str){.c_str = (void *)"./src/self/typer.til:12770:44", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_185 = (Str){.c_str = (void *)"./src/self/typer.til:12832:53", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_190 = (Str){.c_str = (void *)"./src/self/typer.til:12834:58", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_195 = (Str){.c_str = (void *)"./src/self/typer.til:12836:80", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_32 = (Str){.c_str = (void *)"./src/self/typer.til:12779:46", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_44 = (Str){.c_str = (void *)"./src/self/typer.til:12785:75", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_60 = (Str){.c_str = (void *)"./src/self/typer.til:12786:51", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_71 = (Str){.c_str = (void *)"./src/self/typer.til:12788:33", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_summary_walk_76 = (Str){.c_str = (void *)"./src/self/typer.til:12789:51", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_target_value_size_align_71 = (Str){.c_str = (void *)"./src/self/typer.til:10121:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_set_fcall_own_args_for_own_params_18 = (Str){.c_str = (void *)"./src/self/typer.til:983:32", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_own_param_payload_returns_15 = (Str){.c_str = (void *)"./src/self/typer.til:14065:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_own_param_payload_returns_22 = (Str){.c_str = (void *)"./src/self/typer.til:14069:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_own_param_payload_returns_29 = (Str){.c_str = (void *)"./src/self/typer.til:14074:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_own_param_payload_returns_40 = (Str){.c_str = (void *)"./src/self/typer.til:14097:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_own_param_payload_returns_46 = (Str){.c_str = (void *)"./src/self/typer.til:14103:50", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_payload_returns_19 = (Str){.c_str = (void *)"./src/self/typer.til:14020:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_payload_returns_26 = (Str){.c_str = (void *)"./src/self/typer.til:14027:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_payload_returns_34 = (Str){.c_str = (void *)"./src/self/typer.til:14029:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_steal_payload_returns_6 = (Str){.c_str = (void *)"./src/self/typer.til:14016:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_str_view_source_name_12 = (Str){.c_str = (void *)"./src/self/typer.til:10539:28", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_str_view_source_name_6 = (Str){.c_str = (void *)"./src/self/typer.til:10536:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summarize_unit_walk_5 = (Str){.c_str = (void *)"./src/self/typer.til:13179:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_bind_case_11 = (Str){.c_str = (void *)"./src/self/typer.til:12506:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_bind_case_16 = (Str){.c_str = (void *)"./src/self/typer.til:12507:28", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_bind_case_6 = (Str){.c_str = (void *)"./src/self/typer.til:12503:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_case_payload_ref_14 = (Str){.c_str = (void *)"./src/self/typer.til:12485:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_case_payload_ref_6 = (Str){.c_str = (void *)"./src/self/typer.til:12476:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_deposit_base_name_6 = (Str){.c_str = (void *)"./src/self/typer.til:12931:78", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_125 = (Str){.c_str = (void *)"./src/self/typer.til:12824:83", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_135 = (Str){.c_str = (void *)"./src/self/typer.til:12824:83", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_27 = (Str){.c_str = (void *)"./src/self/typer.til:12740:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_32 = (Str){.c_str = (void *)"./src/self/typer.til:12745:48", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_4 = (Str){.c_str = (void *)"./src/self/typer.til:12733:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_69 = (Str){.c_str = (void *)"./src/self/typer.til:12793:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_expr_bits_90 = (Str){.c_str = (void *)"./src/self/typer.til:12793:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_arg_for_param_20 = (Str){.c_str = (void *)"./src/self/typer.til:11687:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_arg_for_param_27 = (Str){.c_str = (void *)"./src/self/typer.til:11690:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_arg_for_param_37 = (Str){.c_str = (void *)"./src/self/typer.til:11693:35", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_deposits_19 = (Str){.c_str = (void *)"./src/self/typer.til:12975:54", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_deposits_24 = (Str){.c_str = (void *)"./src/self/typer.til:12976:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_deposits_29 = (Str){.c_str = (void *)"./src/self/typer.til:12978:76", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fcall_deposits_4 = (Str){.c_str = (void *)"./src/self/typer.til:12964:22", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fieldassign_target_is_value_iface_11 = (Str){.c_str = (void *)"./src/self/typer.til:12710:49", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_fieldassign_target_is_value_iface_4 = (Str){.c_str = (void *)"./src/self/typer.til:12707:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_generic_dep_def_4 = (Str){.c_str = (void *)"./src/self/typer.til:12664:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_generic_ref_ctor_arg_10 = (Str){.c_str = (void *)"./src/self/typer.til:12679:27", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_generic_ref_ctor_arg_16 = (Str){.c_str = (void *)"./src/self/typer.til:12690:31", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_generic_ref_ctor_arg_4 = (Str){.c_str = (void *)"./src/self/typer.til:12670:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_note_local_deposit_4 = (Str){.c_str = (void *)"./src/self/typer.til:12949:22", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_param_method_4 = (Str){.c_str = (void *)"./src/self/typer.til:12617:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_param_method_9 = (Str){.c_str = (void *)"./src/self/typer.til:12622:27", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_receiver_type_16 = (Str){.c_str = (void *)"./src/self/typer.til:12558:52", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_self_method_4 = (Str){.c_str = (void *)"./src/self/typer.til:12585:9", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_self_method_9 = (Str){.c_str = (void *)"./src/self/typer.til:12588:49", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_112 = (Str){.c_str = (void *)"./src/self/typer.til:13053:49", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_119 = (Str){.c_str = (void *)"./src/self/typer.til:13057:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_12 = (Str){.c_str = (void *)"./src/self/typer.til:13015:42", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_124 = (Str){.c_str = (void *)"./src/self/typer.til:13058:66", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_135 = (Str){.c_str = (void *)"./src/self/typer.til:13057:45", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_140 = (Str){.c_str = (void *)"./src/self/typer.til:13058:66", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_160 = (Str){.c_str = (void *)"./src/self/typer.til:13066:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_165 = (Str){.c_str = (void *)"./src/self/typer.til:13069:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_17 = (Str){.c_str = (void *)"./src/self/typer.til:13016:44", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_194 = (Str){.c_str = (void *)"./src/self/typer.til:13080:53", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_199 = (Str){.c_str = (void *)"./src/self/typer.til:13082:58", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_204 = (Str){.c_str = (void *)"./src/self/typer.til:13084:80", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_32 = (Str){.c_str = (void *)"./src/self/typer.til:13025:46", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_44 = (Str){.c_str = (void *)"./src/self/typer.til:13031:75", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_60 = (Str){.c_str = (void *)"./src/self/typer.til:13032:51", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_71 = (Str){.c_str = (void *)"./src/self/typer.til:13034:33", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_summary_walk_76 = (Str){.c_str = (void *)"./src/self/typer.til:13035:51", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_target_value_size_align_71 = (Str){.c_str = (void *)"./src/self/typer.til:10302:9", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_try_ufcs_rewrite_5 = (Str){.c_str = (void *)"./src/self/typer.til:450:83", .count = 27ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_typer_try_ufcs_rewrite_66 = (Str){.c_str = (void *)"./src/self/typer.til:491:38", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_bodies_file_24 = (Str){.c_str = (void *)"./src/self/typer.til:9114:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_bodies_file_37 = (Str){.c_str = (void *)"./src/self/typer.til:9117:37", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_bodies_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:9092:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_check_unit_22 = (Str){.c_str = (void *)"./src/self/typer.til:8779:51", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_check_unit_30 = (Str){.c_str = (void *)"./src/self/typer.til:8779:51", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_check_unit_41 = (Str){.c_str = (void *)"./src/self/typer.til:8820:9", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_decls_file_24 = (Str){.c_str = (void *)"./src/self/typer.til:9045:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_decls_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:9017:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_fields_file_24 = (Str){.c_str = (void *)"./src/self/typer.til:8989:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_fields_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:8974:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:8858:13", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_19 = (Str){.c_str = (void *)"./src/self/typer.til:8877:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_31 = (Str){.c_str = (void *)"./src/self/typer.til:8875:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_44 = (Str){.c_str = (void *)"./src/self/typer.til:8877:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_58 = (Str){.c_str = (void *)"./src/self/typer.til:8885:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_6 = (Str){.c_str = (void *)"./src/self/typer.til:8875:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_71 = (Str){.c_str = (void *)"./src/self/typer.til:8887:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_83 = (Str){.c_str = (void *)"./src/self/typer.til:8885:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_methods_from_96 = (Str){.c_str = (void *)"./src/self/typer.til:8887:29", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_repl_delta_decls_from_10 = (Str){.c_str = (void *)"./src/self/typer.til:8920:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_repl_delta_decls_from_5 = (Str){.c_str = (void *)"./src/self/typer.til:8916:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_repl_delta_fields_from_20 = (Str){.c_str = (void *)"./src/self/typer.til:8901:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_repl_delta_fields_from_38 = (Str){.c_str = (void *)"./src/self/typer.til:8899:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_repl_delta_fields_from_52 = (Str){.c_str = (void *)"./src/self/typer.til:8901:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_type_repl_delta_fields_from_6 = (Str){.c_str = (void *)"./src/self/typer.til:8899:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_update_ref_return_summary_25 = (Str){.c_str = (void *)"./src/self/typer.til:12859:81", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_update_ref_return_summary_45 = (Str){.c_str = (void *)"./src/self/typer.til:12866:25", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_update_ref_return_summary_76 = (Str){.c_str = (void *)"./src/self/typer.til:12888:17", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_update_ref_return_summary_90 = (Str){.c_str = (void *)"./src/self/typer.til:12893:44", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_fcall_own_args_2 = (Str){.c_str = (void *)"./src/self/typer.til:946:35", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_18 = (Str){.c_str = (void *)"./src/self/typer.til:854:17", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_23 = (Str){.c_str = (void *)"./src/self/typer.til:856:17", .count = 27ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_struct_pattern_rest_17 = (Str){.c_str = (void *)"./src/self/typer.til:13553:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_struct_pattern_rest_30 = (Str){.c_str = (void *)"./src/self/typer.til:13553:13", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_struct_pattern_rest_4 = (Str){.c_str = (void *)"./src/self/typer.til:13544:24", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_struct_pattern_rest_47 = (Str){.c_str = (void *)"./src/self/typer.til:13571:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_struct_pattern_rest_57 = (Str){.c_str = (void *)"./src/self/typer.til:13571:21", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_validate_struct_pattern_rest_9 = (Str){.c_str = (void *)"./src/self/typer.til:13546:28", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_view_return_base_local_36 = (Str){.c_str = (void *)"./src/self/typer.til:10419:29", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_typer_view_return_base_local_42 = (Str){.c_str = (void *)"./src/self/typer.til:10422:56", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_bodies_file_24 = (Str){.c_str = (void *)"./src/self/typer.til:9285:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_bodies_file_37 = (Str){.c_str = (void *)"./src/self/typer.til:9288:37", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_bodies_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:9263:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_check_unit_22 = (Str){.c_str = (void *)"./src/self/typer.til:8950:51", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_check_unit_30 = (Str){.c_str = (void *)"./src/self/typer.til:8950:51", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_check_unit_41 = (Str){.c_str = (void *)"./src/self/typer.til:8991:9", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_decls_file_24 = (Str){.c_str = (void *)"./src/self/typer.til:9216:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_decls_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:9188:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_fields_file_24 = (Str){.c_str = (void *)"./src/self/typer.til:9160:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_fields_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:9145:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_file_5 = (Str){.c_str = (void *)"./src/self/typer.til:9029:13", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_19 = (Str){.c_str = (void *)"./src/self/typer.til:9048:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_31 = (Str){.c_str = (void *)"./src/self/typer.til:9046:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_44 = (Str){.c_str = (void *)"./src/self/typer.til:9048:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_58 = (Str){.c_str = (void *)"./src/self/typer.til:9056:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_6 = (Str){.c_str = (void *)"./src/self/typer.til:9046:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_71 = (Str){.c_str = (void *)"./src/self/typer.til:9058:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_83 = (Str){.c_str = (void *)"./src/self/typer.til:9056:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_methods_from_96 = (Str){.c_str = (void *)"./src/self/typer.til:9058:29", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_repl_delta_decls_from_10 = (Str){.c_str = (void *)"./src/self/typer.til:9091:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_repl_delta_decls_from_5 = (Str){.c_str = (void *)"./src/self/typer.til:9087:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_repl_delta_fields_from_20 = (Str){.c_str = (void *)"./src/self/typer.til:9072:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_repl_delta_fields_from_38 = (Str){.c_str = (void *)"./src/self/typer.til:9070:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_repl_delta_fields_from_52 = (Str){.c_str = (void *)"./src/self/typer.til:9072:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_type_repl_delta_fields_from_6 = (Str){.c_str = (void *)"./src/self/typer.til:9070:17", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_update_ref_return_summary_25 = (Str){.c_str = (void *)"./src/self/typer.til:13107:81", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_update_ref_return_summary_45 = (Str){.c_str = (void *)"./src/self/typer.til:13114:25", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_update_ref_return_summary_76 = (Str){.c_str = (void *)"./src/self/typer.til:13136:17", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_update_ref_return_summary_90 = (Str){.c_str = (void *)"./src/self/typer.til:13141:44", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_fcall_own_args_2 = (Str){.c_str = (void *)"./src/self/typer.til:950:35", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_18 = (Str){.c_str = (void *)"./src/self/typer.til:858:17", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_23 = (Str){.c_str = (void *)"./src/self/typer.til:860:17", .count = 27ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_struct_pattern_rest_17 = (Str){.c_str = (void *)"./src/self/typer.til:13801:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_struct_pattern_rest_30 = (Str){.c_str = (void *)"./src/self/typer.til:13801:13", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_struct_pattern_rest_4 = (Str){.c_str = (void *)"./src/self/typer.til:13792:24", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_struct_pattern_rest_47 = (Str){.c_str = (void *)"./src/self/typer.til:13819:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_struct_pattern_rest_57 = (Str){.c_str = (void *)"./src/self/typer.til:13819:21", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_validate_struct_pattern_rest_9 = (Str){.c_str = (void *)"./src/self/typer.til:13794:28", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_view_return_base_local_36 = (Str){.c_str = (void *)"./src/self/typer.til:10600:29", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_typer_view_return_base_local_42 = (Str){.c_str = (void *)"./src/self/typer.til:10603:56", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_set_keep_outer_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3254:31", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_set_own_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3189:31", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_set_ref_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3223:31", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_set_splat_arg_4 = (Str){.c_str = (void *)"./src/self/parser.til:3206:31", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_shared_lib_extension_5 = (Str){.c_str = (void *)"./src/self/targets.til:284:16", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_101 = (Str){.c_str = (void *)"./src/self/context.til:3268:42", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_113 = (Str){.c_str = (void *)"./src/self/context.til:3268:80", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_19 = (Str){.c_str = (void *)"./src/self/context.til:3252:47", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_31 = (Str){.c_str = (void *)"./src/self/context.til:3252:103", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_51 = (Str){.c_str = (void *)"./src/self/context.til:3259:17", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_57 = (Str){.c_str = (void *)"./src/self/context.til:3261:48", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_76 = (Str){.c_str = (void *)"./src/self/context.til:3259:17", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_stmt_always_diverges_82 = (Str){.c_str = (void *)"./src/self/context.til:3261:48", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_101 = (Str){.c_str = (void *)"./src/self/context.til:3278:42", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_113 = (Str){.c_str = (void *)"./src/self/context.til:3278:80", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_19 = (Str){.c_str = (void *)"./src/self/context.til:3262:47", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_31 = (Str){.c_str = (void *)"./src/self/context.til:3262:103", .count = 31ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_51 = (Str){.c_str = (void *)"./src/self/context.til:3269:17", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_57 = (Str){.c_str = (void *)"./src/self/context.til:3271:48", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_76 = (Str){.c_str = (void *)"./src/self/context.til:3269:17", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_stmt_always_diverges_82 = (Str){.c_str = (void *)"./src/self/context.til:3271:48", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_switch_is_clike_134 = (Str){.c_str = (void *)"./src/self/desugarer.til:3762:36", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_switch_is_clike_140 = (Str){.c_str = (void *)"./src/self/desugarer.til:3763:36", .count = 32ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_switch_is_clike_176 = (Str){.c_str = (void *)"./src/self/desugarer.til:3777:48", .count = 32ULL, .cap = TIL_CAP_LIT};
@@ -13833,7 +13865,7 @@ static Str hoisted__Str_sym_of_12 = (Str){.c_str = (void *)"./src/self/parser.ti
 static Str hoisted__Str_sym_of_17 = (Str){.c_str = (void *)"./src/self/parser.til:286:17", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_sym_of_4 = (Str){.c_str = (void *)"./src/self/parser.til:286:23", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_sym_of_9 = (Str){.c_str = (void *)"./src/self/parser.til:286:17", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_synth_symbol_suffix_4 = (Str){.c_str = (void *)"./src/self/context.til:1935:40", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_synth_symbol_suffix_4 = (Str){.c_str = (void *)"./src/self/context.til:1945:40", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_ffi_build_hint_19 = (Str){.c_str = (void *)"./src/self/targets.til:383:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_ffi_lib_19 = (Str){.c_str = (void *)"./src/self/targets.til:348:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_target_from_str_105 = (Str){.c_str = (void *)"./src/self/targets.til:61:5", .count = 27ULL, .cap = TIL_CAP_LIT};
@@ -13847,11 +13879,11 @@ static Str hoisted__Str_theme_codegen_translate_60 = (Str){.c_str = (void *)"./s
 static Str hoisted__Str_toolchain_command_22 = (Str){.c_str = (void *)"./src/self/targets.til:202:16", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_toolchain_extra_args_3 = (Str){.c_str = (void *)"./src/self/targets.til:247:9", .count = 28ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_toolchain_extra_args_7 = (Str){.c_str = (void *)"./src/self/targets.til:250:9", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_transfer_is_shallow_field_value_copy_12 = (Str){.c_str = (void *)"./src/self/typer.til:9900:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_transfer_is_shallow_field_value_copy_20 = (Str){.c_str = (void *)"./src/self/typer.til:9917:74", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_transfer_is_shallow_field_value_copy_46 = (Str){.c_str = (void *)"./src/self/typer.til:9900:41", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_transfer_is_shallow_field_value_copy_5 = (Str){.c_str = (void *)"./src/self/typer.til:9882:34", .count = 28ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_transfer_is_shallow_field_value_copy_54 = (Str){.c_str = (void *)"./src/self/typer.til:9917:74", .count = 28ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_transfer_is_shallow_field_value_copy_12 = (Str){.c_str = (void *)"./src/self/typer.til:10081:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_transfer_is_shallow_field_value_copy_20 = (Str){.c_str = (void *)"./src/self/typer.til:10098:74", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_transfer_is_shallow_field_value_copy_46 = (Str){.c_str = (void *)"./src/self/typer.til:10081:41", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_transfer_is_shallow_field_value_copy_5 = (Str){.c_str = (void *)"./src/self/typer.til:10063:34", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_transfer_is_shallow_field_value_copy_54 = (Str){.c_str = (void *)"./src/self/typer.til:10098:74", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_type_program_errors_101 = (Str){.c_str = (void *)"./src/self/loader.til:4214:62", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_type_program_errors_11 = (Str){.c_str = (void *)"./src/self/loader.til:4123:67", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_type_program_errors_115 = (Str){.c_str = (void *)"./src/self/loader.til:4224:89", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -13870,8 +13902,8 @@ static Str hoisted__Str_type_program_errors_77 = (Str){.c_str = (void *)"./src/s
 static Str hoisted__Str_type_program_errors_89 = (Str){.c_str = (void *)"./src/self/loader.til:4206:52", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_typer_lift_lambdas_32 = (Str){.c_str = (void *)"./src/self/desugarer.til:379:13", .count = 31ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_typer_lift_lambdas_6 = (Str){.c_str = (void *)"./src/self/desugarer.til:358:21", .count = 31ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_unsigned_prim_name_for_width_11 = (Str){.c_str = (void *)"./src/self/context.til:2088:5", .count = 29ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_unsigned_prim_width_for_name_19 = (Str){.c_str = (void *)"./src/self/context.til:2104:5", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_unsigned_prim_name_for_width_11 = (Str){.c_str = (void *)"./src/self/context.til:2098:5", .count = 29ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_unsigned_prim_width_for_name_19 = (Str){.c_str = (void *)"./src/self/context.til:2114:5", .count = 29ULL, .cap = TIL_CAP_LIT};
 
 static Vec__Str _til_precomputed_sequence_0 = {.data = NULL, .count = 0ULL, .cap = 0ULL};
 static Str _til_precomputed_sequence_21_data[64] = {{.c_str = (I8 *)"break", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"case", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"catch", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"const", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"continue", .count = 8ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"core_func", .count = 9ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"core_lazy_func", .count = 14ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"core_proc", .count = 9ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"default", .count = 7ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"defer", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"else", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"enum", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"ext_func", .count = 8ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"ext_proc", .count = 8ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"ext_struct", .count = 10ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"false", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"for", .count = 3ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"func", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"if", .count = 2ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"implements", .count = 10ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"in", .count = 2ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"interface", .count = 9ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"lazy_func", .count = 9ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"lazy_proc", .count = 9ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"macro", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"match", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"mut", .count = 3ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"namespace", .count = 9ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"own", .count = 3ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"priv", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"proc", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"ref", .count = 3ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"return", .count = 6ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"returns", .count = 7ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"shallow", .count = 7ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"struct", .count = 6ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"switch", .count = 6ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"test", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"throw", .count = 5ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"throws", .count = 6ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"true", .count = 4ULL, .cap = TIL_CAP_LIT}, {.c_str = (I8 *)"while", .count = 5ULL, .cap = TIL_CAP_LIT}};
@@ -14850,8 +14882,8 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-502907273", .count = 15ULL, .cap = TIL_CAP_LIT};
-static Str COMPILER_REVISION = {.c_str = (I8 *)"502907273cf017f7902ad380a667fb62fd3be422", .count = 40ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-c647cd855", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str COMPILER_REVISION = {.c_str = (I8 *)"c647cd85539a5eb5a381940676e4f44a0218bee4", .count = 40ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -34763,6 +34795,8 @@ static TypeBinding TypeBinding_clone(TypeBinding * self) {
     hoisted__TypeBinding_0.is_param = self->is_param;
     hoisted__TypeBinding_0.own_type = self->own_type;
     hoisted__TypeBinding_0.is_alias = self->is_alias;
+    hoisted__TypeBinding_0.iface_payload_borrowed = self->iface_payload_borrowed;
+    hoisted__TypeBinding_0.iface_borrow_explicit = self->iface_borrow_explicit;
     hoisted__TypeBinding_0.is_type_alias = self->is_type_alias;
     hoisted__TypeBinding_0.is_func_decl = self->is_func_decl;
     hoisted__TypeBinding_0.alias_target = Str_clone(&self->alias_target);
@@ -35691,6 +35725,8 @@ static void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut
     Bool hoisted__Bool_11 = 0;
     Bool hoisted__Bool_12 = 0;
     Bool hoisted__Bool_13 = 0;
+    Bool hoisted__Bool_14 = 0;
+    Bool hoisted__Bool_15 = 0;
     TypeBinding nb = {0};
     nb.name = Str_clone(name);
     nb.type = Type_clone(type);
@@ -35702,22 +35738,24 @@ static void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut
     nb.is_param = is_param;
     nb.own_type = own_type;
     nb.is_alias = hoisted__Bool_4;
-    nb.is_type_alias = hoisted__Bool_5;
-    nb.is_func_decl = hoisted__Bool_6;
+    nb.iface_payload_borrowed = hoisted__Bool_5;
+    nb.iface_borrow_explicit = hoisted__Bool_6;
+    nb.is_type_alias = hoisted__Bool_7;
+    nb.is_func_decl = hoisted__Bool_8;
     nb.alias_target = _til_str_lits.h000000001505;
     nb.func_type = (FuncType){.tag = FuncType_TAG_Func};
-    nb.is_builtin = hoisted__Bool_7;
-    nb.used = hoisted__Bool_8;
-    nb.written = hoisted__Bool_9;
-    nb.mut_explicit = hoisted__Bool_10;
-    nb.is_raw_alloc = hoisted__Bool_11;
-    nb.is_str_view = hoisted__Bool_12;
+    nb.is_builtin = hoisted__Bool_9;
+    nb.used = hoisted__Bool_10;
+    nb.written = hoisted__Bool_11;
+    nb.mut_explicit = hoisted__Bool_12;
+    nb.is_raw_alloc = hoisted__Bool_13;
+    nb.is_str_view = hoisted__Bool_14;
     nb.str_view_base = _til_str_lits.h000000001505;
     nb.orig_name = _til_str_lits.h000000001505;
     nb.dynvec_elem = _til_str_lits.h000000001505;
     nb.declared_type_name = _til_str_lits.h000000001505;
     nb.borrow_roots = Vec__BorrowRoot_clone(&_til_precomputed_sequence_82);
-    nb.is_external_global = hoisted__Bool_13;
+    nb.is_external_global = hoisted__Bool_15;
     SymMap__TypeBinding_insert_absent(&self->bindings, sym, &nb);
 }
 
@@ -68291,9 +68329,9 @@ static Expr priv___src_self_initer_til__iface_box_ctor(Expr * stmt, Str * sname,
 
 static void gen_interface_clone_delete_for_stmt(Expr * stmt, SymbolPool * symbols) {
     I64 _err_kind = 0;
-    Bool hoisted__Bool_135 = ((Bool)((((NodeType *)(&stmt->node_type))->tag) == NodeType_TAG_Decl));
-    Bool hoisted__Bool_136 = ((Bool)(!(hoisted__Bool_135)));
-    if (hoisted__Bool_136) {
+    Bool hoisted__Bool_140 = ((Bool)((((NodeType *)(&stmt->node_type))->tag) == NodeType_TAG_Decl));
+    Bool hoisted__Bool_141 = ((Bool)(!(hoisted__Bool_140)));
+    if (hoisted__Bool_141) {
         return;
     }
     Str sname = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT};
@@ -68308,11 +68346,11 @@ static void gen_interface_clone_delete_for_stmt(Expr * stmt, SymbolPool * symbol
         return;
     }
     }
-    U32 hoisted__U32_137 = 0;
-    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_137) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_137))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_138 = 1;
-    Bool hoisted__Bool_139 = ((Bool)(_err_kind == hoisted__I64_138));
-    if (hoisted__Bool_139) {
+    U32 hoisted__U32_142 = 0;
+    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_142) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_142))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_143 = 1;
+    Bool hoisted__Bool_144 = ((Bool)(_err_kind == hoisted__I64_143));
+    if (hoisted__Bool_144) {
         I64 hoisted__I64_0 = 0;
         _err_kind = hoisted__I64_0;
         U32 hoisted__U32_1 = 1;
@@ -68325,15 +68363,15 @@ static void gen_interface_clone_delete_for_stmt(Expr * stmt, SymbolPool * symbol
     switch ((_bang_ret_0->node_type).tag) {
     case NodeType_TAG_StructDef: {
         StructDef *sdd = ((void *)((U8 *)(&_bang_ret_0->node_type) + offsetof(NodeType, data)));
-        Bool hoisted__Bool_130 = ((Bool)(!(sdd->is_interface)));
-        if (hoisted__Bool_130) {
+        Bool hoisted__Bool_135 = ((Bool)(!(sdd->is_interface)));
+        if (hoisted__Bool_135) {
             Str_delete(&sname, 0);
             return;
         }
         Bool has_clone = Map__Str_USize_has(sdd->ns_index, &_til_str_lits.h00310f3b99b6);
         Bool has_delete = Map__Str_USize_has(sdd->ns_index, &_til_str_lits.h0652f8838478);
-        Bool hoisted__Bool_133 = ((Bool)(!(has_clone)));
-        if (hoisted__Bool_133) {
+        Bool hoisted__Bool_138 = ((Bool)(!(has_clone)));
+        if (hoisted__Bool_138) {
             Expr hoisted__Expr_6 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hdf075f30c45e, symbols);
             Expr owned_tn = make_method_call_fcall(&hoisted__Expr_6, &_til_str_lits.h00310f3b99b6, stmt->line, stmt->col, symbols);
             Expr hoisted__Expr_8 = priv___src_self_initer_til__iface_dyn_clone_call(stmt, symbols);
@@ -68343,268 +68381,276 @@ static void gen_interface_clone_delete_for_stmt(Expr * stmt, SymbolPool * symbol
             Expr_add_child(&owned_ret, &owned_box);
             Expr then_body = Expr_new(&(NodeType){.tag = NodeType_TAG_Body}, stmt->line, stmt->col);
             Expr_add_child(&then_body, &owned_ret);
+            Expr hoisted__Expr_11 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hdf075f30c45e, symbols);
+            Expr tn_len = make_method_call_fcall(&hoisted__Expr_11, &_til_str_lits.h00000b888bc4, stmt->line, stmt->col, symbols);
+            Expr has_payload = make_method_call_fcall(&tn_len, &_til_str_lits.h000000597800, stmt->line, stmt->col, symbols);
+            LiteralNumData hoisted__LiteralNumData_g109 = {0};
+            hoisted__LiteralNumData_g109.text = _til_str_lits.h00000002b5d5;
+            hoisted__LiteralNumData_g109.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+            NodeType hoisted__NodeType_15 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g109) })[0]);
+            Expr hoisted__Expr_16 = Expr_new(&hoisted__NodeType_15, stmt->line, stmt->col);
+            Expr_add_child(&has_payload, &hoisted__Expr_16);
             Expr if_node = Expr_new(&(NodeType){.tag = NodeType_TAG_If}, stmt->line, stmt->col);
-            Expr hoisted__Expr_11 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcc92ffb1e559, symbols);
-            Expr_add_child(&if_node, &hoisted__Expr_11);
+            Expr_add_child(&if_node, &has_payload);
             Expr_add_child(&if_node, &then_body);
-            Expr hoisted__Expr_13 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hdf075f30c45e, symbols);
-            Expr bor_tn = make_method_call_fcall(&hoisted__Expr_13, &_til_str_lits.h00310f3b99b6, stmt->line, stmt->col, symbols);
-            Expr hoisted__Expr_16 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcbc3f47b36df, symbols);
-            Bool hoisted__Bool_17 = 0;
-            Expr bor_box = priv___src_self_initer_til__iface_box_ctor(stmt, &sname, &bor_tn, &hoisted__Expr_16, hoisted__Bool_17, symbols);
+            Expr hoisted__Expr_18 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hdf075f30c45e, symbols);
+            Expr bor_tn = make_method_call_fcall(&hoisted__Expr_18, &_til_str_lits.h00310f3b99b6, stmt->line, stmt->col, symbols);
+            Expr hoisted__Expr_21 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcbc3f47b36df, symbols);
+            Bool hoisted__Bool_22 = 0;
+            Expr bor_box = priv___src_self_initer_til__iface_box_ctor(stmt, &sname, &bor_tn, &hoisted__Expr_21, hoisted__Bool_22, symbols);
             Expr bor_ret = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, stmt->line, stmt->col);
             Expr_add_child(&bor_ret, &bor_box);
             Expr clone_body = Expr_new(&(NodeType){.tag = NodeType_TAG_Body}, stmt->line, stmt->col);
             Expr_add_child(&clone_body, &if_node);
             Expr_add_child(&clone_body, &bor_ret);
-            I32 hoisted__I32_18 = -1;
-            I32 hoisted__I32_19 = -1;
-            Bool hoisted__Bool_20 = 0;
-            Bool hoisted__Bool_21 = 1;
-            Bool hoisted__Bool_22 = 0;
-            Bool hoisted__Bool_23 = 0;
-            Bool hoisted__Bool_24 = 0;
-            U64 hoisted__U64_25 = 0ULL;
-            U64 hoisted__U64_26 = 0ULL;
-            U64 hoisted__U64_27 = 0ULL;
-            U64 hoisted__U64_28 = 0ULL;
+            I32 hoisted__I32_23 = -1;
+            I32 hoisted__I32_24 = -1;
+            Bool hoisted__Bool_25 = 0;
+            Bool hoisted__Bool_26 = 1;
+            Bool hoisted__Bool_27 = 0;
+            Bool hoisted__Bool_28 = 0;
+            Bool hoisted__Bool_29 = 0;
+            U64 hoisted__U64_30 = 0ULL;
+            U64 hoisted__U64_31 = 0ULL;
+            U64 hoisted__U64_32 = 0ULL;
+            U64 hoisted__U64_33 = 0ULL;
             FunctionDef clone_decl = {0};
             clone_decl.sig = ({ FuncSig _sc1 = {0};             _sc1.func_type = (FuncType){.tag = FuncType_TAG_Func};
             _sc1.params = Vec__Declaration_clone(&_til_precomputed_sequence_245);
             _sc1.return_type = _til_str_lits.h000000001505;
             _sc1.throw_types = Vec__Str_clone(&_til_precomputed_sequence_246);
-            _sc1.variadic_index = hoisted__I32_18;
-            _sc1.kwargs_index = hoisted__I32_19;
+            _sc1.variadic_index = hoisted__I32_23;
+            _sc1.kwargs_index = hoisted__I32_24;
             _sc1.return_own_type = (OwnType){.tag = OwnType_TAG_Own};
-            _sc1.return_shallow_explicit = hoisted__Bool_20;
+            _sc1.return_shallow_explicit = hoisted__Bool_25;
  _sc1; });
-            clone_decl.auto_generated = hoisted__Bool_21;
-            clone_decl.typed_on_demand = hoisted__Bool_22;
-            clone_decl.is_enum_variant_ctor = hoisted__Bool_23;
-            clone_decl.noreturn = hoisted__Bool_24;
+            clone_decl.auto_generated = hoisted__Bool_26;
+            clone_decl.typed_on_demand = hoisted__Bool_27;
+            clone_decl.is_enum_variant_ctor = hoisted__Bool_28;
+            clone_decl.noreturn = hoisted__Bool_29;
             clone_decl.captures = Vec__Declaration_clone(&_til_precomputed_sequence_247);
             clone_decl.closure_name = _til_str_lits.h000000001505;
-            clone_decl.ref_return_params = hoisted__U64_25;
-            clone_decl.ref_return_into_params = hoisted__U64_26;
-            clone_decl.ref_return_carried_params = hoisted__U64_27;
+            clone_decl.ref_return_params = hoisted__U64_30;
+            clone_decl.ref_return_into_params = hoisted__U64_31;
+            clone_decl.ref_return_carried_params = hoisted__U64_32;
             clone_decl.namespace_decl = (Option__ref_Declaration){.data = NULL};
-            clone_decl.deposit_matrix = hoisted__U64_28;
+            clone_decl.deposit_matrix = hoisted__U64_33;
             { FuncType _old = clone_decl.sig.func_type;
             clone_decl.sig.func_type = FuncType_clone(&(FuncType){.tag = FuncType_TAG_Func});
             FuncType_delete(&_old, (Bool){0}); }
-            Bool hoisted__Bool_31 = 0;
-            Bool hoisted__Bool_32 = 0;
-            Bool hoisted__Bool_33 = 0;
-            Bool hoisted__Bool_34 = 0;
-            Declaration hoisted__Declaration_35 = decl_typed(symbols, &sname, &_til_str_lits.h00017c9ddb0f, &_til_str_lits.h000000001505, hoisted__Bool_31, hoisted__Bool_32, hoisted__Bool_33, hoisted__Bool_34, &(OwnType){.tag = OwnType_TAG_Ref});
-            Vec__Declaration_push(&clone_decl.sig.params, &hoisted__Declaration_35);
+            Bool hoisted__Bool_36 = 0;
+            Bool hoisted__Bool_37 = 0;
+            Bool hoisted__Bool_38 = 0;
+            Bool hoisted__Bool_39 = 0;
+            Declaration hoisted__Declaration_40 = decl_typed(symbols, &sname, &_til_str_lits.h00017c9ddb0f, &_til_str_lits.h000000001505, hoisted__Bool_36, hoisted__Bool_37, hoisted__Bool_38, hoisted__Bool_39, &(OwnType){.tag = OwnType_TAG_Ref});
+            Vec__Declaration_push(&clone_decl.sig.params, &hoisted__Declaration_40);
             { Str _old = clone_decl.sig.return_type;
             clone_decl.sig.return_type = Str_clone(&sname);
             Str_delete(&_old, (Bool){0}); }
-            I32 hoisted__I32_36 = -1;
-            clone_decl.sig.variadic_index = hoisted__I32_36;
-            I32 hoisted__I32_37 = -1;
-            clone_decl.sig.kwargs_index = hoisted__I32_37;
-            NodeType hoisted__NodeType_38 = NodeType_FuncDef(&clone_decl);
-            Expr clone_def = Expr_new(&hoisted__NodeType_38, stmt->line, stmt->col);
+            I32 hoisted__I32_41 = -1;
+            clone_decl.sig.variadic_index = hoisted__I32_41;
+            I32 hoisted__I32_42 = -1;
+            clone_decl.sig.kwargs_index = hoisted__I32_42;
+            NodeType hoisted__NodeType_43 = NodeType_FuncDef(&clone_decl);
+            Expr clone_def = Expr_new(&hoisted__NodeType_43, stmt->line, stmt->col);
             Expr_add_child(&clone_def, &clone_body);
-            Bool hoisted__Bool_39 = 0;
-            Bool hoisted__Bool_40 = 0;
-            Bool hoisted__Bool_41 = 0;
-            Bool hoisted__Bool_42 = 0;
-            Bool hoisted__Bool_43 = 0;
-            Declaration hoisted__Declaration_44 = {0};
-            hoisted__Declaration_44.name = _til_str_lits.h00310f3b99b6;
-            hoisted__Declaration_44.doc = _til_str_lits.h000000001505;
-            hoisted__Declaration_44.is_mut = hoisted__Bool_39;
-            hoisted__Declaration_44.redundant_mut = hoisted__Bool_40;
-            hoisted__Declaration_44.is_priv = hoisted__Bool_41;
-            hoisted__Declaration_44.used = hoisted__Bool_42;
-            hoisted__Declaration_44.own_type = (OwnType){.tag = OwnType_TAG_Shallow};
-            hoisted__Declaration_44.til_type = (Type){.tag = Type_TAG_Unknown};
-            hoisted__Declaration_44.default_value = Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr)); *_oa = clone_def; _oa; }));
-            hoisted__Declaration_44.orig_name = _til_str_lits.h000000001505;
-            hoisted__Declaration_44.gc_storage = (GcStorage){.tag = GcStorage_TAG_Unset};
-            hoisted__Declaration_44.external_symbol = _til_str_lits.h000000001505;
-            hoisted__Declaration_44.infer_call_ownership = hoisted__Bool_43;
-            StructDef_push_member(sdd, &hoisted__Declaration_44);
+            Bool hoisted__Bool_44 = 0;
+            Bool hoisted__Bool_45 = 0;
+            Bool hoisted__Bool_46 = 0;
+            Bool hoisted__Bool_47 = 0;
+            Bool hoisted__Bool_48 = 0;
+            Declaration hoisted__Declaration_49 = {0};
+            hoisted__Declaration_49.name = _til_str_lits.h00310f3b99b6;
+            hoisted__Declaration_49.doc = _til_str_lits.h000000001505;
+            hoisted__Declaration_49.is_mut = hoisted__Bool_44;
+            hoisted__Declaration_49.redundant_mut = hoisted__Bool_45;
+            hoisted__Declaration_49.is_priv = hoisted__Bool_46;
+            hoisted__Declaration_49.used = hoisted__Bool_47;
+            hoisted__Declaration_49.own_type = (OwnType){.tag = OwnType_TAG_Shallow};
+            hoisted__Declaration_49.til_type = (Type){.tag = Type_TAG_Unknown};
+            hoisted__Declaration_49.default_value = Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr)); *_oa = clone_def; _oa; }));
+            hoisted__Declaration_49.orig_name = _til_str_lits.h000000001505;
+            hoisted__Declaration_49.gc_storage = (GcStorage){.tag = GcStorage_TAG_Unset};
+            hoisted__Declaration_49.external_symbol = _til_str_lits.h000000001505;
+            hoisted__Declaration_49.infer_call_ownership = hoisted__Bool_48;
+            StructDef_push_member(sdd, &hoisted__Declaration_49);
         }
-        Bool hoisted__Bool_134 = ((Bool)(!(has_delete)));
-        if (hoisted__Bool_134) {
+        Bool hoisted__Bool_139 = ((Bool)(!(has_delete)));
+        if (hoisted__Bool_139) {
             Expr del_then = Expr_new(&(NodeType){.tag = NodeType_TAG_Body}, stmt->line, stmt->col);
-            Expr hoisted__Expr_45 = priv___src_self_initer_til__iface_dyn_delete_call(stmt, symbols);
-            Expr_add_child(&del_then, &hoisted__Expr_45);
+            Expr hoisted__Expr_50 = priv___src_self_initer_til__iface_dyn_delete_call(stmt, symbols);
+            Expr_add_child(&del_then, &hoisted__Expr_50);
             Expr del_if = Expr_new(&(NodeType){.tag = NodeType_TAG_If}, stmt->line, stmt->col);
-            Expr hoisted__Expr_47 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcc92ffb1e559, symbols);
-            Expr_add_child(&del_if, &hoisted__Expr_47);
+            Expr hoisted__Expr_52 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcc92ffb1e559, symbols);
+            Expr_add_child(&del_if, &hoisted__Expr_52);
             Expr_add_child(&del_if, &del_then);
-            U32 hoisted__U32_49 = SymbolPool_intern(symbols, &_til_str_lits.h0652f8838478);
-            NodeType hoisted__NodeType_50 = field_access_node(hoisted__U32_49);
-            Expr tn_del_acc = Expr_new(&hoisted__NodeType_50, stmt->line, stmt->col);
-            Expr hoisted__Expr_52 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hdf075f30c45e, symbols);
-            Expr_add_child(&tn_del_acc, &hoisted__Expr_52);
-            Bool hoisted__Bool_53 = 0;
-            Bool hoisted__Bool_54 = 0;
-            Bool hoisted__Bool_55 = 0;
-            U64 hoisted__U64_56 = 0ULL;
-            U64 hoisted__U64_57 = 0ULL;
+            U32 hoisted__U32_54 = SymbolPool_intern(symbols, &_til_str_lits.h0652f8838478);
+            NodeType hoisted__NodeType_55 = field_access_node(hoisted__U32_54);
+            Expr tn_del_acc = Expr_new(&hoisted__NodeType_55, stmt->line, stmt->col);
+            Expr hoisted__Expr_57 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hdf075f30c45e, symbols);
+            Expr_add_child(&tn_del_acc, &hoisted__Expr_57);
             Bool hoisted__Bool_58 = 0;
-            U64 hoisted__U64_59 = 0ULL;
-            U64 hoisted__U64_60 = 0ULL;
-            Bool hoisted__Bool_61 = 0;
-            FCallData hoisted__FCallData_62 = {0};
-            hoisted__FCallData_62.constfold_value = hoisted__Bool_53;
-            hoisted__FCallData_62.does_throw = hoisted__Bool_54;
-            hoisted__FCallData_62.is_bang = hoisted__Bool_55;
-            hoisted__FCallData_62.own_args = hoisted__U64_56;
-            hoisted__FCallData_62.keep_outer_args = hoisted__U64_57;
-            hoisted__FCallData_62.swap_replace = hoisted__Bool_58;
-            hoisted__FCallData_62.til_type = (Type){.tag = Type_TAG_Unknown};
-            hoisted__FCallData_62.ref_args = hoisted__U64_59;
-            hoisted__FCallData_62.splat_args = hoisted__U64_60;
-            hoisted__FCallData_62.is_subscript = hoisted__Bool_61;
-            NodeType hoisted__NodeType_63 = NodeType_FCall(&hoisted__FCallData_62);
-            Expr tn_del_call = Expr_new(&hoisted__NodeType_63, stmt->line, stmt->col);
-            U32 hoisted__U32_64 = 0;
-            set_own_arg(&tn_del_call, hoisted__U32_64);
+            Bool hoisted__Bool_59 = 0;
+            Bool hoisted__Bool_60 = 0;
+            U64 hoisted__U64_61 = 0ULL;
+            U64 hoisted__U64_62 = 0ULL;
+            Bool hoisted__Bool_63 = 0;
+            U64 hoisted__U64_64 = 0ULL;
+            U64 hoisted__U64_65 = 0ULL;
+            Bool hoisted__Bool_66 = 0;
+            FCallData hoisted__FCallData_67 = {0};
+            hoisted__FCallData_67.constfold_value = hoisted__Bool_58;
+            hoisted__FCallData_67.does_throw = hoisted__Bool_59;
+            hoisted__FCallData_67.is_bang = hoisted__Bool_60;
+            hoisted__FCallData_67.own_args = hoisted__U64_61;
+            hoisted__FCallData_67.keep_outer_args = hoisted__U64_62;
+            hoisted__FCallData_67.swap_replace = hoisted__Bool_63;
+            hoisted__FCallData_67.til_type = (Type){.tag = Type_TAG_Unknown};
+            hoisted__FCallData_67.ref_args = hoisted__U64_64;
+            hoisted__FCallData_67.splat_args = hoisted__U64_65;
+            hoisted__FCallData_67.is_subscript = hoisted__Bool_66;
+            NodeType hoisted__NodeType_68 = NodeType_FCall(&hoisted__FCallData_67);
+            Expr tn_del_call = Expr_new(&hoisted__NodeType_68, stmt->line, stmt->col);
+            U32 hoisted__U32_69 = 0;
+            set_own_arg(&tn_del_call, hoisted__U32_69);
             Expr_add_child(&tn_del_call, &tn_del_acc);
-            NodeType hoisted__NodeType_67 = NodeType_Literal(&((Literal[]){ Literal_Bool(&(Bool){0}) })[0]);
-            Expr hoisted__Expr_68 = Expr_new(&hoisted__NodeType_67, stmt->line, stmt->col);
-            Expr_add_child(&tn_del_call, &hoisted__Expr_68);
-            Bool hoisted__Bool_69 = 0;
-            Bool hoisted__Bool_70 = 0;
-            Bool hoisted__Bool_71 = 0;
-            U64 hoisted__U64_72 = 0ULL;
-            U64 hoisted__U64_73 = 0ULL;
+            NodeType hoisted__NodeType_72 = NodeType_Literal(&((Literal[]){ Literal_Bool(&(Bool){0}) })[0]);
+            Expr hoisted__Expr_73 = Expr_new(&hoisted__NodeType_72, stmt->line, stmt->col);
+            Expr_add_child(&tn_del_call, &hoisted__Expr_73);
             Bool hoisted__Bool_74 = 0;
-            U64 hoisted__U64_75 = 0ULL;
-            U64 hoisted__U64_76 = 0ULL;
-            Bool hoisted__Bool_77 = 0;
-            FCallData hoisted__FCallData_78 = {0};
-            hoisted__FCallData_78.constfold_value = hoisted__Bool_69;
-            hoisted__FCallData_78.does_throw = hoisted__Bool_70;
-            hoisted__FCallData_78.is_bang = hoisted__Bool_71;
-            hoisted__FCallData_78.own_args = hoisted__U64_72;
-            hoisted__FCallData_78.keep_outer_args = hoisted__U64_73;
-            hoisted__FCallData_78.swap_replace = hoisted__Bool_74;
-            hoisted__FCallData_78.til_type = (Type){.tag = Type_TAG_Unknown};
-            hoisted__FCallData_78.ref_args = hoisted__U64_75;
-            hoisted__FCallData_78.splat_args = hoisted__U64_76;
-            hoisted__FCallData_78.is_subscript = hoisted__Bool_77;
-            NodeType hoisted__NodeType_79 = NodeType_FCall(&hoisted__FCallData_78);
-            Expr free_call = Expr_new(&hoisted__NodeType_79, stmt->line, stmt->col);
-            U32 hoisted__U32_81 = SymbolPool_intern(symbols, &_til_str_lits.h00017c96f087);
-            NodeType hoisted__NodeType_82 = ident_node(hoisted__U32_81);
-            Expr hoisted__Expr_83 = Expr_new(&hoisted__NodeType_82, stmt->line, stmt->col);
-            Expr_add_child(&free_call, &hoisted__Expr_83);
-            U32 hoisted__U32_84 = (free_call.children.count);
-            set_own_arg(&free_call, hoisted__U32_84);
-            U32 hoisted__U32_86 = SymbolPool_intern(symbols, &_til_str_lits.h00017c9ddb0f);
+            Bool hoisted__Bool_75 = 0;
+            Bool hoisted__Bool_76 = 0;
+            U64 hoisted__U64_77 = 0ULL;
+            U64 hoisted__U64_78 = 0ULL;
+            Bool hoisted__Bool_79 = 0;
+            U64 hoisted__U64_80 = 0ULL;
+            U64 hoisted__U64_81 = 0ULL;
+            Bool hoisted__Bool_82 = 0;
+            FCallData hoisted__FCallData_83 = {0};
+            hoisted__FCallData_83.constfold_value = hoisted__Bool_74;
+            hoisted__FCallData_83.does_throw = hoisted__Bool_75;
+            hoisted__FCallData_83.is_bang = hoisted__Bool_76;
+            hoisted__FCallData_83.own_args = hoisted__U64_77;
+            hoisted__FCallData_83.keep_outer_args = hoisted__U64_78;
+            hoisted__FCallData_83.swap_replace = hoisted__Bool_79;
+            hoisted__FCallData_83.til_type = (Type){.tag = Type_TAG_Unknown};
+            hoisted__FCallData_83.ref_args = hoisted__U64_80;
+            hoisted__FCallData_83.splat_args = hoisted__U64_81;
+            hoisted__FCallData_83.is_subscript = hoisted__Bool_82;
+            NodeType hoisted__NodeType_84 = NodeType_FCall(&hoisted__FCallData_83);
+            Expr free_call = Expr_new(&hoisted__NodeType_84, stmt->line, stmt->col);
+            U32 hoisted__U32_86 = SymbolPool_intern(symbols, &_til_str_lits.h00017c96f087);
             NodeType hoisted__NodeType_87 = ident_node(hoisted__U32_86);
             Expr hoisted__Expr_88 = Expr_new(&hoisted__NodeType_87, stmt->line, stmt->col);
             Expr_add_child(&free_call, &hoisted__Expr_88);
+            U32 hoisted__U32_89 = (free_call.children.count);
+            set_own_arg(&free_call, hoisted__U32_89);
+            U32 hoisted__U32_91 = SymbolPool_intern(symbols, &_til_str_lits.h00017c9ddb0f);
+            NodeType hoisted__NodeType_92 = ident_node(hoisted__U32_91);
+            Expr hoisted__Expr_93 = Expr_new(&hoisted__NodeType_92, stmt->line, stmt->col);
+            Expr_add_child(&free_call, &hoisted__Expr_93);
             Expr free_then = Expr_new(&(NodeType){.tag = NodeType_TAG_Body}, stmt->line, stmt->col);
             Expr_add_child(&free_then, &free_call);
             Expr free_if = Expr_new(&(NodeType){.tag = NodeType_TAG_If}, stmt->line, stmt->col);
-            U32 hoisted__U32_90 = SymbolPool_intern(symbols, &_til_str_lits.hc3e8ff9da582);
-            NodeType hoisted__NodeType_91 = ident_node(hoisted__U32_90);
-            Expr hoisted__Expr_92 = Expr_new(&hoisted__NodeType_91, stmt->line, stmt->col);
-            Expr_add_child(&free_if, &hoisted__Expr_92);
+            U32 hoisted__U32_95 = SymbolPool_intern(symbols, &_til_str_lits.hc3e8ff9da582);
+            NodeType hoisted__NodeType_96 = ident_node(hoisted__U32_95);
+            Expr hoisted__Expr_97 = Expr_new(&hoisted__NodeType_96, stmt->line, stmt->col);
+            Expr_add_child(&free_if, &hoisted__Expr_97);
             Expr_add_child(&free_if, &free_then);
             Expr del_body = Expr_new(&(NodeType){.tag = NodeType_TAG_Body}, stmt->line, stmt->col);
             Expr_add_child(&del_body, &del_if);
             Expr_add_child(&del_body, &tn_del_call);
             Expr_add_child(&del_body, &free_if);
-            I32 hoisted__I32_93 = -1;
-            I32 hoisted__I32_94 = -1;
-            Bool hoisted__Bool_95 = 0;
-            Bool hoisted__Bool_96 = 1;
-            Bool hoisted__Bool_97 = 0;
-            Bool hoisted__Bool_98 = 0;
-            Bool hoisted__Bool_99 = 0;
-            U64 hoisted__U64_100 = 0ULL;
-            U64 hoisted__U64_101 = 0ULL;
-            U64 hoisted__U64_102 = 0ULL;
-            U64 hoisted__U64_103 = 0ULL;
+            I32 hoisted__I32_98 = -1;
+            I32 hoisted__I32_99 = -1;
+            Bool hoisted__Bool_100 = 0;
+            Bool hoisted__Bool_101 = 1;
+            Bool hoisted__Bool_102 = 0;
+            Bool hoisted__Bool_103 = 0;
+            Bool hoisted__Bool_104 = 0;
+            U64 hoisted__U64_105 = 0ULL;
+            U64 hoisted__U64_106 = 0ULL;
+            U64 hoisted__U64_107 = 0ULL;
+            U64 hoisted__U64_108 = 0ULL;
             FunctionDef del_decl = {0};
             del_decl.sig = ({ FuncSig _sc2 = {0};             _sc2.func_type = (FuncType){.tag = FuncType_TAG_Func};
             _sc2.params = Vec__Declaration_clone(&_til_precomputed_sequence_248);
             _sc2.return_type = _til_str_lits.h000000001505;
             _sc2.throw_types = Vec__Str_clone(&_til_precomputed_sequence_249);
-            _sc2.variadic_index = hoisted__I32_93;
-            _sc2.kwargs_index = hoisted__I32_94;
+            _sc2.variadic_index = hoisted__I32_98;
+            _sc2.kwargs_index = hoisted__I32_99;
             _sc2.return_own_type = (OwnType){.tag = OwnType_TAG_Own};
-            _sc2.return_shallow_explicit = hoisted__Bool_95;
+            _sc2.return_shallow_explicit = hoisted__Bool_100;
  _sc2; });
-            del_decl.auto_generated = hoisted__Bool_96;
-            del_decl.typed_on_demand = hoisted__Bool_97;
-            del_decl.is_enum_variant_ctor = hoisted__Bool_98;
-            del_decl.noreturn = hoisted__Bool_99;
+            del_decl.auto_generated = hoisted__Bool_101;
+            del_decl.typed_on_demand = hoisted__Bool_102;
+            del_decl.is_enum_variant_ctor = hoisted__Bool_103;
+            del_decl.noreturn = hoisted__Bool_104;
             del_decl.captures = Vec__Declaration_clone(&_til_precomputed_sequence_250);
             del_decl.closure_name = _til_str_lits.h000000001505;
-            del_decl.ref_return_params = hoisted__U64_100;
-            del_decl.ref_return_into_params = hoisted__U64_101;
-            del_decl.ref_return_carried_params = hoisted__U64_102;
+            del_decl.ref_return_params = hoisted__U64_105;
+            del_decl.ref_return_into_params = hoisted__U64_106;
+            del_decl.ref_return_carried_params = hoisted__U64_107;
             del_decl.namespace_decl = (Option__ref_Declaration){.data = NULL};
-            del_decl.deposit_matrix = hoisted__U64_103;
+            del_decl.deposit_matrix = hoisted__U64_108;
             { FuncType _old = del_decl.sig.func_type;
             del_decl.sig.func_type = FuncType_clone(&(FuncType){.tag = FuncType_TAG_Func});
             FuncType_delete(&_old, (Bool){0}); }
-            Bool hoisted__Bool_106 = 0;
-            Bool hoisted__Bool_107 = 0;
-            Bool hoisted__Bool_108 = 0;
-            Bool hoisted__Bool_109 = 0;
-            Declaration hoisted__Declaration_110 = decl_typed(symbols, &sname, &_til_str_lits.h00017c9ddb0f, &_til_str_lits.h000000001505, hoisted__Bool_106, hoisted__Bool_107, hoisted__Bool_108, hoisted__Bool_109, &(OwnType){.tag = OwnType_TAG_Own});
-            Vec__Declaration_push(&del_decl.sig.params, &hoisted__Declaration_110);
-            NodeType hoisted__NodeType_113 = NodeType_Literal(&((Literal[]){ Literal_Bool(&(Bool){1}) })[0]);
-            Expr hoisted__Expr_114 = Expr_new(&hoisted__NodeType_113, stmt->line, stmt->col);
-            Bool hoisted__Bool_115 = 0;
-            Bool hoisted__Bool_116 = 0;
-            Bool hoisted__Bool_117 = 0;
-            Bool hoisted__Bool_118 = 0;
-            Bool hoisted__Bool_119 = 0;
-            Declaration hoisted__Declaration_120 = {0};
-            hoisted__Declaration_120.name = _til_str_lits.hc3e8ff9da582;
-            hoisted__Declaration_120.doc = _til_str_lits.h000000001505;
-            hoisted__Declaration_120.is_mut = hoisted__Bool_115;
-            hoisted__Declaration_120.redundant_mut = hoisted__Bool_116;
-            hoisted__Declaration_120.is_priv = hoisted__Bool_117;
-            hoisted__Declaration_120.used = hoisted__Bool_118;
-            hoisted__Declaration_120.own_type = (OwnType){.tag = OwnType_TAG_Ref};
-            hoisted__Declaration_120.til_type = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
-            hoisted__Declaration_120.default_value = Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr)); *_oa = hoisted__Expr_114; _oa; }));
-            hoisted__Declaration_120.orig_name = _til_str_lits.h000000001505;
-            hoisted__Declaration_120.gc_storage = (GcStorage){.tag = GcStorage_TAG_Unset};
-            hoisted__Declaration_120.external_symbol = _til_str_lits.h000000001505;
-            hoisted__Declaration_120.infer_call_ownership = hoisted__Bool_119;
-            Vec__Declaration_push(&del_decl.sig.params, &hoisted__Declaration_120);
-            I32 hoisted__I32_121 = -1;
-            del_decl.sig.variadic_index = hoisted__I32_121;
-            I32 hoisted__I32_122 = -1;
-            del_decl.sig.kwargs_index = hoisted__I32_122;
-            NodeType hoisted__NodeType_123 = NodeType_FuncDef(&del_decl);
-            Expr del_def = Expr_new(&hoisted__NodeType_123, stmt->line, stmt->col);
-            Expr_add_child(&del_def, &del_body);
+            Bool hoisted__Bool_111 = 0;
+            Bool hoisted__Bool_112 = 0;
+            Bool hoisted__Bool_113 = 0;
+            Bool hoisted__Bool_114 = 0;
+            Declaration hoisted__Declaration_115 = decl_typed(symbols, &sname, &_til_str_lits.h00017c9ddb0f, &_til_str_lits.h000000001505, hoisted__Bool_111, hoisted__Bool_112, hoisted__Bool_113, hoisted__Bool_114, &(OwnType){.tag = OwnType_TAG_Own});
+            Vec__Declaration_push(&del_decl.sig.params, &hoisted__Declaration_115);
+            NodeType hoisted__NodeType_118 = NodeType_Literal(&((Literal[]){ Literal_Bool(&(Bool){1}) })[0]);
+            Expr hoisted__Expr_119 = Expr_new(&hoisted__NodeType_118, stmt->line, stmt->col);
+            Bool hoisted__Bool_120 = 0;
+            Bool hoisted__Bool_121 = 0;
+            Bool hoisted__Bool_122 = 0;
+            Bool hoisted__Bool_123 = 0;
             Bool hoisted__Bool_124 = 0;
-            Bool hoisted__Bool_125 = 0;
-            Bool hoisted__Bool_126 = 0;
-            Bool hoisted__Bool_127 = 0;
-            Bool hoisted__Bool_128 = 0;
-            Declaration hoisted__Declaration_129 = {0};
-            hoisted__Declaration_129.name = _til_str_lits.h0652f8838478;
-            hoisted__Declaration_129.doc = _til_str_lits.h000000001505;
-            hoisted__Declaration_129.is_mut = hoisted__Bool_124;
-            hoisted__Declaration_129.redundant_mut = hoisted__Bool_125;
-            hoisted__Declaration_129.is_priv = hoisted__Bool_126;
-            hoisted__Declaration_129.used = hoisted__Bool_127;
-            hoisted__Declaration_129.own_type = (OwnType){.tag = OwnType_TAG_Shallow};
-            hoisted__Declaration_129.til_type = (Type){.tag = Type_TAG_Unknown};
-            hoisted__Declaration_129.default_value = Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr)); *_oa = del_def; _oa; }));
-            hoisted__Declaration_129.orig_name = _til_str_lits.h000000001505;
-            hoisted__Declaration_129.gc_storage = (GcStorage){.tag = GcStorage_TAG_Unset};
-            hoisted__Declaration_129.external_symbol = _til_str_lits.h000000001505;
-            hoisted__Declaration_129.infer_call_ownership = hoisted__Bool_128;
-            StructDef_push_member(sdd, &hoisted__Declaration_129);
+            Declaration hoisted__Declaration_125 = {0};
+            hoisted__Declaration_125.name = _til_str_lits.hc3e8ff9da582;
+            hoisted__Declaration_125.doc = _til_str_lits.h000000001505;
+            hoisted__Declaration_125.is_mut = hoisted__Bool_120;
+            hoisted__Declaration_125.redundant_mut = hoisted__Bool_121;
+            hoisted__Declaration_125.is_priv = hoisted__Bool_122;
+            hoisted__Declaration_125.used = hoisted__Bool_123;
+            hoisted__Declaration_125.own_type = (OwnType){.tag = OwnType_TAG_Ref};
+            hoisted__Declaration_125.til_type = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
+            hoisted__Declaration_125.default_value = Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr)); *_oa = hoisted__Expr_119; _oa; }));
+            hoisted__Declaration_125.orig_name = _til_str_lits.h000000001505;
+            hoisted__Declaration_125.gc_storage = (GcStorage){.tag = GcStorage_TAG_Unset};
+            hoisted__Declaration_125.external_symbol = _til_str_lits.h000000001505;
+            hoisted__Declaration_125.infer_call_ownership = hoisted__Bool_124;
+            Vec__Declaration_push(&del_decl.sig.params, &hoisted__Declaration_125);
+            I32 hoisted__I32_126 = -1;
+            del_decl.sig.variadic_index = hoisted__I32_126;
+            I32 hoisted__I32_127 = -1;
+            del_decl.sig.kwargs_index = hoisted__I32_127;
+            NodeType hoisted__NodeType_128 = NodeType_FuncDef(&del_decl);
+            Expr del_def = Expr_new(&hoisted__NodeType_128, stmt->line, stmt->col);
+            Expr_add_child(&del_def, &del_body);
+            Bool hoisted__Bool_129 = 0;
+            Bool hoisted__Bool_130 = 0;
+            Bool hoisted__Bool_131 = 0;
+            Bool hoisted__Bool_132 = 0;
+            Bool hoisted__Bool_133 = 0;
+            Declaration hoisted__Declaration_134 = {0};
+            hoisted__Declaration_134.name = _til_str_lits.h0652f8838478;
+            hoisted__Declaration_134.doc = _til_str_lits.h000000001505;
+            hoisted__Declaration_134.is_mut = hoisted__Bool_129;
+            hoisted__Declaration_134.redundant_mut = hoisted__Bool_130;
+            hoisted__Declaration_134.is_priv = hoisted__Bool_131;
+            hoisted__Declaration_134.used = hoisted__Bool_132;
+            hoisted__Declaration_134.own_type = (OwnType){.tag = OwnType_TAG_Shallow};
+            hoisted__Declaration_134.til_type = (Type){.tag = Type_TAG_Unknown};
+            hoisted__Declaration_134.default_value = Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr)); *_oa = del_def; _oa; }));
+            hoisted__Declaration_134.orig_name = _til_str_lits.h000000001505;
+            hoisted__Declaration_134.gc_storage = (GcStorage){.tag = GcStorage_TAG_Unset};
+            hoisted__Declaration_134.external_symbol = _til_str_lits.h000000001505;
+            hoisted__Declaration_134.infer_call_ownership = hoisted__Bool_133;
+            StructDef_push_member(sdd, &hoisted__Declaration_134);
         }
         break;
     }
@@ -72434,10 +72480,10 @@ static Bool fcall_returns_own(Expr * fcall, TypeScope * scope, SymbolPool * symb
 
 static void priv___src_self_typer_til__check_ref_decl_owned_init(Expr * stmt, TypeScope * scope, Context * ctx) {
     I64 _err_kind = 0;
-    U32 hoisted__U32_23 = (stmt->children.count);
-    U32 hoisted__U32_24 = 0;
-    Bool hoisted__Bool_25 = ((Bool)(hoisted__U32_23 == hoisted__U32_24));
-    if (hoisted__Bool_25) {
+    U32 hoisted__U32_24 = (stmt->children.count);
+    U32 hoisted__U32_25 = 0;
+    Bool hoisted__Bool_26 = ((Bool)(hoisted__U32_24 == hoisted__U32_25));
+    if (hoisted__Bool_26) {
         return;
     }
     switch ((stmt->node_type).tag) {
@@ -72471,25 +72517,29 @@ static void priv___src_self_typer_til__check_ref_decl_owned_init(Expr * stmt, Ty
         if (hoisted__Bool_12) {
             return;
         }
-        Bool hoisted__Bool_13 = fcall_returns_own(rhs, scope, &ctx->symbols);
-        Bool hoisted__Bool_14 = ((Bool)(!(hoisted__Bool_13)));
-        if (hoisted__Bool_14) {
+        Bool hoisted__Bool_13 = priv___src_self_typer_til__expr_is_borrowed_iface_box_ctor(rhs, scope, &ctx->symbols);
+        if (hoisted__Bool_13) {
             return;
         }
-        U32 hoisted__U32_15 = 3;
-        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_15);
+        Bool hoisted__Bool_14 = fcall_returns_own(rhs, scope, &ctx->symbols);
+        Bool hoisted__Bool_15 = ((Bool)(!(hoisted__Bool_14)));
+        if (hoisted__Bool_15) {
+            return;
+        }
+        U32 hoisted__U32_16 = 3;
+        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_16);
         I64 _va_Array_1_ek = 0;
-        U32 hoisted__U32_16 = 0;
-        Array__Str_set(&_va_Array_1, hoisted__U32_16, &_til_str_lits.ha0dc3cab6964, &_va_Array_1_ek);
-        U32 hoisted__U32_18 = 1;
-        Str hoisted__Str_self_typer_check_ref_decl_owned_init_19 = Str_clone(&sdecl->name);
-        Array__Str_set(&_va_Array_1, hoisted__U32_18, &hoisted__Str_self_typer_check_ref_decl_owned_init_19, &_va_Array_1_ek);
-        U32 hoisted__U32_20 = 2;
-        static Str hoisted__Str_self_typer_check_ref_decl_owned_init_21 = (Str){.c_str = (void *)"' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly", .count = 155ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_1, hoisted__U32_20, &hoisted__Str_self_typer_check_ref_decl_owned_init_21, &_va_Array_1_ek);
-        Str hoisted__Str_self_typer_check_ref_decl_owned_init_22 = format(&_va_Array_1);
-        type_error(stmt, &hoisted__Str_self_typer_check_ref_decl_owned_init_22, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-        Str_delete(&hoisted__Str_self_typer_check_ref_decl_owned_init_22, 0);
+        U32 hoisted__U32_17 = 0;
+        Array__Str_set(&_va_Array_1, hoisted__U32_17, &_til_str_lits.ha0dc3cab6964, &_va_Array_1_ek);
+        U32 hoisted__U32_19 = 1;
+        Str hoisted__Str_self_typer_check_ref_decl_owned_init_20 = Str_clone(&sdecl->name);
+        Array__Str_set(&_va_Array_1, hoisted__U32_19, &hoisted__Str_self_typer_check_ref_decl_owned_init_20, &_va_Array_1_ek);
+        U32 hoisted__U32_21 = 2;
+        static Str hoisted__Str_self_typer_check_ref_decl_owned_init_22 = (Str){.c_str = (void *)"' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly", .count = 155ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_1, hoisted__U32_21, &hoisted__Str_self_typer_check_ref_decl_owned_init_22, &_va_Array_1_ek);
+        Str hoisted__Str_self_typer_check_ref_decl_owned_init_23 = format(&_va_Array_1);
+        type_error(stmt, &hoisted__Str_self_typer_check_ref_decl_owned_init_23, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+        Str_delete(&hoisted__Str_self_typer_check_ref_decl_owned_init_23, 0);
         break;
     }
     default: {
@@ -73099,8 +73149,7 @@ static void priv___src_self_typer_til__validate_fcall_own_args_for_fdef(TypeScop
                     TypeBinding *ab = ((void *)((ScopeFind *)(&sf_ab))->data);
                     Bool hoisted__Bool_78 = ((Bool)((((OwnType *)(&ab->own_type))->tag) == OwnType_TAG_Ref));
                     if (hoisted__Bool_78) {
-                        static Str hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_77 = (Str){.c_str = (void *)"cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", .count = 79ULL, .cap = TIL_CAP_LIT};
-                        type_error(arg, &hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_77, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                        type_error(arg, &_til_str_lits.h4a20517dd2a8, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
                     }
                     break;
                 }
@@ -75616,9 +75665,9 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
     I32 fvi = fdef_data->sig.variadic_index;
     I32 fkwi = fdef_data->sig.kwargs_index;
     USize fvc = 0;
-    I32 hoisted__I32_320 = 0;
-    Bool hoisted__Bool_321 = ((Bool)(fvi >= hoisted__I32_320));
-    if (hoisted__Bool_321) {
+    I32 hoisted__I32_328 = 0;
+    Bool hoisted__Bool_329 = ((Bool)(fvi >= hoisted__I32_328));
+    if (hoisted__Bool_329) {
         I32 hoisted__I32_0 = 0;
         U32 hoisted__U32_1 = (fdef_data->sig.params.count);
         Bool hoisted__Bool_2 = ((Bool)(fkwi >= hoisted__I32_0));
@@ -75626,9 +75675,9 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
         fvc = hoisted__U32_3;
     }
     USize fkc = 0;
-    I32 hoisted__I32_322 = 0;
-    Bool hoisted__Bool_323 = ((Bool)(fkwi >= hoisted__I32_322));
-    if (hoisted__Bool_323) {
+    I32 hoisted__I32_330 = 0;
+    Bool hoisted__Bool_331 = ((Bool)(fkwi >= hoisted__I32_330));
+    if (hoisted__Bool_331) {
         U32 hoisted__U32_4 = fcall_kwargs_count(e);
         fkc = hoisted__U32_4;
     }
@@ -75817,24 +75866,24 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
         (++ci);
         (++pi);
     }
-    U32 hoisted__U32_324 = 1;
-    ci = hoisted__U32_324;
-    U32 hoisted__U32_325 = 0;
-    pi = hoisted__U32_325;
+    U32 hoisted__U32_332 = 1;
+    ci = hoisted__U32_332;
+    U32 hoisted__U32_333 = 0;
+    pi = hoisted__U32_333;
     while (1) {
-        U32 hoisted__U32_290 = (fdef_data->sig.params.count);
-        Bool _wcond_Bool_86 = ((Bool)(pi < hoisted__U32_290));
+        U32 hoisted__U32_298 = (fdef_data->sig.params.count);
+        Bool _wcond_Bool_86 = ((Bool)(pi < hoisted__U32_298));
         if (!(_wcond_Bool_86)) {
             break;
         }
-        U32 hoisted__U32_291 = (e->children.count);
-        Bool hoisted__Bool_292 = ((Bool)(ci >= hoisted__U32_291));
-        if (hoisted__Bool_292) {
+        U32 hoisted__U32_299 = (e->children.count);
+        Bool hoisted__Bool_300 = ((Bool)(ci >= hoisted__U32_299));
+        if (hoisted__Bool_300) {
             break;
         }
-        I32 hoisted__I32_293 = 0;
-        Bool hoisted__Bool_294 = ((Bool)(fvi >= hoisted__I32_293));
-        if (hoisted__Bool_294) {
+        I32 hoisted__I32_301 = 0;
+        Bool hoisted__Bool_302 = ((Bool)(fvi >= hoisted__I32_301));
+        if (hoisted__Bool_302) {
             I32 hoisted__I32_173 = U32_to_i32(pi);
             Bool hoisted__Bool_174 = ((Bool)(hoisted__I32_173 == fvi));
             if (hoisted__Bool_174) {
@@ -76017,9 +76066,9 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
                 continue;
             }
         }
-        I32 hoisted__I32_295 = 0;
-        Bool hoisted__Bool_296 = ((Bool)(fkwi >= hoisted__I32_295));
-        if (hoisted__Bool_296) {
+        I32 hoisted__I32_303 = 0;
+        Bool hoisted__Bool_304 = ((Bool)(fkwi >= hoisted__I32_303));
+        if (hoisted__Bool_304) {
             I64 hoisted__I64_176 = U32_to_i64(pi);
             I64 hoisted__I64_177 = (I64)(fkwi);
             Bool hoisted__Bool_178 = ((Bool)(hoisted__I64_176 == hoisted__I64_177));
@@ -76031,9 +76080,9 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
             }
         }
         Declaration *param2 = (((Bool)((U32)(pi) < fdef_data->sig.params.count)) ? (Declaration *)((Declaration *)((void *)((U8 *)(fdef_data->sig.params.data) + (((U64)(((U64)((U32)(pi))) * 120ULL)))))) : (_err_kind = 1, (Declaration *)NULL));
-        I64 hoisted__I64_297 = 1;
-        Bool hoisted__Bool_298 = ((Bool)(_err_kind == hoisted__I64_297));
-        if (hoisted__Bool_298) {
+        I64 hoisted__I64_305 = 1;
+        Bool hoisted__Bool_306 = ((Bool)(_err_kind == hoisted__I64_305));
+        if (hoisted__Bool_306) {
             I64 hoisted__I64_179 = 0;
             _err_kind = hoisted__I64_179;
             U32 hoisted__U32_180 = 1;
@@ -76044,17 +76093,17 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
             panic(&_va_Array_14, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_183);
         }
         Str *ptype_name = decl_type_name_ref(param2, &ctx->symbols);
-        U32 hoisted__U32_299 = (ptype_name->count);
-        U32 hoisted__U32_300 = 0;
-        Bool hoisted__Bool_301 = ((Bool)(hoisted__U32_299 == hoisted__U32_300));
-        if (hoisted__Bool_301) {
+        U32 hoisted__U32_307 = (ptype_name->count);
+        U32 hoisted__U32_308 = 0;
+        Bool hoisted__Bool_309 = ((Bool)(hoisted__U32_307 == hoisted__U32_308));
+        if (hoisted__Bool_309) {
             (++ci);
             (++pi);
             continue;
         }
         Type ptype = declaration_resolved_type(param2, scope, &ctx->symbols);
-        Bool hoisted__Bool_302 = ((Bool)((((Type *)(&ptype))->tag) == Type_TAG_Dynamic));
-        if (hoisted__Bool_302) {
+        Bool hoisted__Bool_310 = ((Bool)((((Type *)(&ptype))->tag) == Type_TAG_Dynamic));
+        if (hoisted__Bool_310) {
             U32 hoisted__U32_268 = 0;
             Bool hoisted__Bool_269 = ((Bool)(pi == hoisted__U32_268));
             if (hoisted__Bool_269) {
@@ -76234,12 +76283,12 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
             Type_delete(&ptype, 0);
             continue;
         }
-        Bool hoisted__Bool_303 = priv___src_self_typer_til__type_is_interface(&ptype, scope, &ctx->symbols);
-        if (hoisted__Bool_303) {
+        Bool hoisted__Bool_311 = priv___src_self_typer_til__type_is_interface(&ptype, scope, &ctx->symbols);
+        if (hoisted__Bool_311) {
             Expr *_bang_ret_13 = (((Bool)((U32)(ci) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ci))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-            I64 hoisted__I64_277 = 1;
-            Bool hoisted__Bool_278 = ((Bool)(_err_kind == hoisted__I64_277));
-            if (hoisted__Bool_278) {
+            I64 hoisted__I64_284 = 1;
+            Bool hoisted__Bool_285 = ((Bool)(_err_kind == hoisted__I64_284));
+            if (hoisted__Bool_285) {
                 I64 hoisted__I64_272 = 0;
                 _err_kind = hoisted__I64_272;
                 U32 hoisted__U32_273 = 1;
@@ -76249,85 +76298,102 @@ static void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(Ty
                 Array__Str_set(&_va_Array_23, hoisted__U32_274, &_til_str_lits.h4d3ab87300de, &_va_Array_23_ek);
                 panic(&_va_Array_23, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_276);
             }
-            Bool hoisted__Bool_279 = ((Bool)((((OwnType *)(&param2->own_type))->tag) == OwnType_TAG_Own));
-            priv___src_self_typer_til__box_inferred_interface_value(scope, _bang_ret_13, ptype_name, hoisted__Bool_279, in_func, ctx);
+            Bool hoisted__Bool_286 = ((Bool)((((OwnType *)(&param2->own_type))->tag) == OwnType_TAG_Own));
+            priv___src_self_typer_til__box_inferred_interface_value(scope, _bang_ret_13, ptype_name, hoisted__Bool_286, in_func, ctx);
+            Bool hoisted__Bool_287 = ((Bool)((((OwnType *)(&param2->own_type))->tag) == OwnType_TAG_Own));
+            if (hoisted__Bool_287) {
+                Expr *_bang_ret_14 = (((Bool)((U32)(ci) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ci))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_282 = 1;
+                Bool hoisted__Bool_283 = ((Bool)(_err_kind == hoisted__I64_282));
+                if (hoisted__Bool_283) {
+                    I64 hoisted__I64_277 = 0;
+                    _err_kind = hoisted__I64_277;
+                    U32 hoisted__U32_278 = 1;
+                    Array__Str _va_Array_24 = Array__Str_new(hoisted__U32_278);
+                    I64 _va_Array_24_ek = 0;
+                    U32 hoisted__U32_279 = 0;
+                    Array__Str_set(&_va_Array_24, hoisted__U32_279, &_til_str_lits.h4d3ab87300de, &_va_Array_24_ek);
+                    panic(&_va_Array_24, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_281);
+                }
+                priv___src_self_typer_til__own_elided_iface_copy(scope, _bang_ret_14, ctx);
+            }
         }
         priv___src_self_typer_til__rewrite_til_type_arg(scope, e, ci, &ptype, in_func, ctx);
-        Expr *_bang_ret_14 = (((Bool)((U32)(ci) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ci))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_304 = 1;
-        Bool hoisted__Bool_305 = ((Bool)(_err_kind == hoisted__I64_304));
-        if (hoisted__Bool_305) {
-            I64 hoisted__I64_280 = 0;
-            _err_kind = hoisted__I64_280;
-            U32 hoisted__U32_281 = 1;
-            Array__Str _va_Array_24 = Array__Str_new(hoisted__U32_281);
-            I64 _va_Array_24_ek = 0;
-            U32 hoisted__U32_282 = 0;
-            Array__Str_set(&_va_Array_24, hoisted__U32_282, &_til_str_lits.h4d3ab87300de, &_va_Array_24_ek);
-            panic(&_va_Array_24, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_284);
-        }
-        priv___src_self_typer_til__validate_fcall_arg(_bang_ret_14, &ptype, ptype_name, &param2->name, &param2->own_type, ctx);
         Expr *_bang_ret_15 = (((Bool)((U32)(ci) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ci))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_306 = 1;
-        Bool hoisted__Bool_307 = ((Bool)(_err_kind == hoisted__I64_306));
-        if (hoisted__Bool_307) {
-            I64 hoisted__I64_285 = 0;
-            _err_kind = hoisted__I64_285;
-            U32 hoisted__U32_286 = 1;
-            Array__Str _va_Array_25 = Array__Str_new(hoisted__U32_286);
+        I64 hoisted__I64_312 = 1;
+        Bool hoisted__Bool_313 = ((Bool)(_err_kind == hoisted__I64_312));
+        if (hoisted__Bool_313) {
+            I64 hoisted__I64_288 = 0;
+            _err_kind = hoisted__I64_288;
+            U32 hoisted__U32_289 = 1;
+            Array__Str _va_Array_25 = Array__Str_new(hoisted__U32_289);
             I64 _va_Array_25_ek = 0;
-            U32 hoisted__U32_287 = 0;
-            Array__Str_set(&_va_Array_25, hoisted__U32_287, &_til_str_lits.h4d3ab87300de, &_va_Array_25_ek);
-            panic(&_va_Array_25, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_289);
+            U32 hoisted__U32_290 = 0;
+            Array__Str_set(&_va_Array_25, hoisted__U32_290, &_til_str_lits.h4d3ab87300de, &_va_Array_25_ek);
+            panic(&_va_Array_25, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_292);
         }
-        priv___src_self_typer_til__coerce_size_reference_arg(_bang_ret_15, param2, &ptype, ptype_name, scope, ctx);
+        priv___src_self_typer_til__validate_fcall_arg(_bang_ret_15, &ptype, ptype_name, &param2->name, &param2->own_type, ctx);
+        Expr *_bang_ret_16 = (((Bool)((U32)(ci) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ci))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_314 = 1;
+        Bool hoisted__Bool_315 = ((Bool)(_err_kind == hoisted__I64_314));
+        if (hoisted__Bool_315) {
+            I64 hoisted__I64_293 = 0;
+            _err_kind = hoisted__I64_293;
+            U32 hoisted__U32_294 = 1;
+            Array__Str _va_Array_26 = Array__Str_new(hoisted__U32_294);
+            I64 _va_Array_26_ek = 0;
+            U32 hoisted__U32_295 = 0;
+            Array__Str_set(&_va_Array_26, hoisted__U32_295, &_til_str_lits.h4d3ab87300de, &_va_Array_26_ek);
+            panic(&_va_Array_26, &hoisted__Str_self_typer_infer_and_validate_fcall_args_for_fdef_297);
+        }
+        priv___src_self_typer_til__coerce_size_reference_arg(_bang_ret_16, param2, &ptype, ptype_name, scope, ctx);
         Type_delete(&ptype, 0);
         (++ci);
         (++pi);
     }
-    U64 hoisted__U64_326 = 0ULL;
-    Bool hoisted__Bool_327 = ((Bool)(fdef_data->deposit_matrix != hoisted__U64_326));
-    if (hoisted__Bool_327) {
+    U64 hoisted__U64_334 = 0ULL;
+    Bool hoisted__Bool_335 = ((Bool)(fdef_data->deposit_matrix != hoisted__U64_334));
+    if (hoisted__Bool_335) {
         {
-            U32 *_re_U32_308 = &DEPOSIT_PARAMS;
-            U32 _rc_U32_308 = 0;
+            U32 *_re_U32_316 = &DEPOSIT_PARAMS;
+            U32 _rc_U32_316 = 0;
             while (1) {
-                Bool _wcond_Bool_309 = ((Bool)(_rc_U32_308 < DEREF(_re_U32_308)));
-                if (!(_wcond_Bool_309)) {
+                Bool _wcond_Bool_317 = ((Bool)(_rc_U32_316 < DEREF(_re_U32_316)));
+                if (!(_wcond_Bool_317)) {
                     break;
                 }
-                U32 dsink = (_rc_U32_308);
-                (++_rc_U32_308);
+                U32 dsink = (_rc_U32_316);
+                (++_rc_U32_316);
                 {
-                    U32 *_re_U32_310 = &DEPOSIT_PARAMS;
-                    U32 _rc_U32_310 = 0;
+                    U32 *_re_U32_318 = &DEPOSIT_PARAMS;
+                    U32 _rc_U32_318 = 0;
                     while (1) {
-                        Bool _wcond_Bool_311 = ((Bool)(_rc_U32_310 < DEREF(_re_U32_310)));
-                        if (!(_wcond_Bool_311)) {
+                        Bool _wcond_Bool_319 = ((Bool)(_rc_U32_318 < DEREF(_re_U32_318)));
+                        if (!(_wcond_Bool_319)) {
                             break;
                         }
-                        U32 dsrc = (_rc_U32_310);
-                        (++_rc_U32_310);
-                        U64 hoisted__U64_312 = priv___src_self_typer_til__deposit_bit(dsink, dsrc);
-                        U64 hoisted__U64_313 = ((U64)(fdef_data->deposit_matrix & hoisted__U64_312));
-                        U64 hoisted__U64_314 = 0ULL;
-                        Bool hoisted__Bool_315 = ((Bool)(hoisted__U64_313 == hoisted__U64_314));
-                        if (hoisted__Bool_315) {
+                        U32 dsrc = (_rc_U32_318);
+                        (++_rc_U32_318);
+                        U64 hoisted__U64_320 = priv___src_self_typer_til__deposit_bit(dsink, dsrc);
+                        U64 hoisted__U64_321 = ((U64)(fdef_data->deposit_matrix & hoisted__U64_320));
+                        U64 hoisted__U64_322 = 0ULL;
+                        Bool hoisted__Bool_323 = ((Bool)(hoisted__U64_321 == hoisted__U64_322));
+                        if (hoisted__Bool_323) {
                             continue;
                         }
                         Option__ref_Expr sink_o = priv___src_self_typer_til__summary_fcall_arg_for_param(e, fdef_data, &dsink, scope, &ctx->symbols);
-                        Bool hoisted__Bool_316 = Option__ref_Expr_is_none(sink_o);
-                        if (hoisted__Bool_316) {
+                        Bool hoisted__Bool_324 = Option__ref_Expr_is_none(sink_o);
+                        if (hoisted__Bool_324) {
                             continue;
                         }
                         Option__ref_Expr src_o = priv___src_self_typer_til__summary_fcall_arg_for_param(e, fdef_data, &dsrc, scope, &ctx->symbols);
-                        Bool hoisted__Bool_317 = Option__ref_Expr_is_none(src_o);
-                        if (hoisted__Bool_317) {
+                        Bool hoisted__Bool_325 = Option__ref_Expr_is_none(src_o);
+                        if (hoisted__Bool_325) {
                             continue;
                         }
-                        Expr *hoisted__Expr_318 = Option__ref_Expr_unwrap(&sink_o);
-                        Expr *hoisted__Expr_319 = Option__ref_Expr_unwrap(&src_o);
-                        priv___src_self_typer_til__apply_call_deposit(scope, hoisted__Expr_318, hoisted__Expr_319, e, ctx);
+                        Expr *hoisted__Expr_326 = Option__ref_Expr_unwrap(&sink_o);
+                        Expr *hoisted__Expr_327 = Option__ref_Expr_unwrap(&src_o);
+                        priv___src_self_typer_til__apply_call_deposit(scope, hoisted__Expr_326, hoisted__Expr_327, e, ctx);
                     }
                 }
             }
@@ -91557,15 +91623,15 @@ static Expr * priv___src_self_typer_til__return_fieldaccess_root(Expr * e) {
 static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx) {
     I64 _err_kind = 0;
     TyperFuncState *func_state = TypeScope_typer_func_state(scope);
-    U32 hoisted__U32_277 = (stmt->children.count);
-    U32 hoisted__U32_278 = 0;
-    Bool hoisted__Bool_279 = ((Bool)(hoisted__U32_277 > hoisted__U32_278));
-    if (hoisted__Bool_279) {
+    U32 hoisted__U32_308 = (stmt->children.count);
+    U32 hoisted__U32_309 = 0;
+    Bool hoisted__Bool_310 = ((Bool)(hoisted__U32_308 > hoisted__U32_309));
+    if (hoisted__Bool_310) {
         Str *return_type_name = &func_state->typer_return_type_name;
-        U32 hoisted__U32_259 = (return_type_name->count);
-        U32 hoisted__U32_260 = 0;
-        Bool hoisted__Bool_261 = ((Bool)(hoisted__U32_259 > hoisted__U32_260));
-        if (hoisted__Bool_261) {
+        U32 hoisted__U32_290 = (return_type_name->count);
+        U32 hoisted__U32_291 = 0;
+        Bool hoisted__Bool_292 = ((Bool)(hoisted__U32_290 > hoisted__U32_291));
+        if (hoisted__Bool_292) {
             U32 hoisted__U32_5 = 0;
             Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_5) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_5))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
             I64 hoisted__I64_6 = 1;
@@ -91586,11 +91652,11 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
         }
         Str saved_ret_expected_type = Str_clone(&ctx->generic_expected_type);
         void *saved_ret_expected_for = ctx->generic_expected_for;
-        U32 hoisted__U32_262 = 0;
-        Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_262) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_262))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_263 = 1;
-        Bool hoisted__Bool_264 = ((Bool)(_err_kind == hoisted__I64_263));
-        if (hoisted__Bool_264) {
+        U32 hoisted__U32_293 = 0;
+        Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_293) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_293))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_294 = 1;
+        Bool hoisted__Bool_295 = ((Bool)(_err_kind == hoisted__I64_294));
+        if (hoisted__Bool_295) {
             I64 hoisted__I64_9 = 0;
             _err_kind = hoisted__I64_9;
             U32 hoisted__U32_10 = 1;
@@ -91655,11 +91721,11 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
         Str_delete(&_old, (Bool){0}); }
         Str_delete(&saved_ret_expected_type, 0);
         ctx->generic_expected_for = saved_ret_expected_for;
-        U32 hoisted__U32_265 = 0;
-        Expr *_bang_ret_4 = (((Bool)((U32)(hoisted__U32_265) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_265))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_266 = 1;
-        Bool hoisted__Bool_267 = ((Bool)(_err_kind == hoisted__I64_266));
-        if (hoisted__Bool_267) {
+        U32 hoisted__U32_296 = 0;
+        Expr *_bang_ret_4 = (((Bool)((U32)(hoisted__U32_296) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_296))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_297 = 1;
+        Bool hoisted__Bool_298 = ((Bool)(_err_kind == hoisted__I64_297));
+        if (hoisted__Bool_298) {
             I64 hoisted__I64_38 = 0;
             _err_kind = hoisted__I64_38;
             U32 hoisted__U32_39 = 1;
@@ -91669,12 +91735,12 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
             Array__Str_set(&_va_Array_4, hoisted__U32_40, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
             panic(&_va_Array_4, &hoisted__Str_self_typer_infer_return_stmt_42);
         }
-        Type *hoisted__Type_268 = Expr_til_type(_bang_ret_4);
-        Expr_set_til_type(stmt, DEREF(hoisted__Type_268));
-        U32 hoisted__U32_269 = (return_type_name->count);
-        U32 hoisted__U32_270 = 0;
-        Bool hoisted__Bool_271 = ((Bool)(hoisted__U32_269 > hoisted__U32_270));
-        if (hoisted__Bool_271) {
+        Type *hoisted__Type_299 = Expr_til_type(_bang_ret_4);
+        Expr_set_til_type(stmt, DEREF(hoisted__Type_299));
+        U32 hoisted__U32_300 = (return_type_name->count);
+        U32 hoisted__U32_301 = 0;
+        Bool hoisted__Bool_302 = ((Bool)(hoisted__U32_300 > hoisted__U32_301));
+        if (hoisted__Bool_302) {
             U32 hoisted__U32_48 = 0;
             Expr *_bang_ret_5 = (((Bool)((U32)(hoisted__U32_48) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_48))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
             I64 hoisted__I64_49 = 1;
@@ -91694,11 +91760,11 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
             priv___src_self_typer_til__rewrite_zero_to_null(_bang_ret_5, hoisted__Type_51, hoisted__Bool_52);
             Type_delete(&hoisted__Type_51, 0);
         }
-        U32 hoisted__U32_272 = 0;
-        Expr *_bang_ret_6 = (((Bool)((U32)(hoisted__U32_272) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_272))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_273 = 1;
-        Bool hoisted__Bool_274 = ((Bool)(_err_kind == hoisted__I64_273));
-        if (hoisted__Bool_274) {
+        U32 hoisted__U32_303 = 0;
+        Expr *_bang_ret_6 = (((Bool)((U32)(hoisted__U32_303) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_303))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_304 = 1;
+        Bool hoisted__Bool_305 = ((Bool)(_err_kind == hoisted__I64_304));
+        if (hoisted__Bool_305) {
             I64 hoisted__I64_53 = 0;
             _err_kind = hoisted__I64_53;
             U32 hoisted__U32_54 = 1;
@@ -91757,14 +91823,14 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
                 type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_76, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
             }
         }
-        I32 hoisted__I32_275 = 0;
-        Bool hoisted__Bool_276 = ((Bool)(returns_ref == hoisted__I32_275));
-        if (hoisted__Bool_276) {
-            U32 hoisted__U32_233 = 0;
-            Expr *ret_val = (((Bool)((U32)(hoisted__U32_233) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_233))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-            I64 hoisted__I64_234 = 1;
-            Bool hoisted__Bool_235 = ((Bool)(_err_kind == hoisted__I64_234));
-            if (hoisted__Bool_235) {
+        I32 hoisted__I32_306 = 0;
+        Bool hoisted__Bool_307 = ((Bool)(returns_ref == hoisted__I32_306));
+        if (hoisted__Bool_307) {
+            U32 hoisted__U32_260 = 0;
+            Expr *ret_val = (((Bool)((U32)(hoisted__U32_260) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_260))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+            I64 hoisted__I64_261 = 1;
+            Bool hoisted__Bool_262 = ((Bool)(_err_kind == hoisted__I64_261));
+            if (hoisted__Bool_262) {
                 I64 hoisted__I64_80 = 0;
                 _err_kind = hoisted__I64_80;
                 U32 hoisted__U32_81 = 1;
@@ -91814,10 +91880,10 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
             if (_m_Bool_85) {
                 type_error(stmt, &_til_str_lits.he22c1de6c144, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
             }
-            Type *hoisted__Type_236 = Expr_til_type(stmt);
-            Str ret_agg_tn = type_to_name(hoisted__Type_236, &ctx->symbols);
-            Type *hoisted__Type_237 = Expr_til_type(stmt);
-            Bool ret_agg_owns_heap = is_aggregate(hoisted__Type_237);
+            Type *hoisted__Type_263 = Expr_til_type(stmt);
+            Str ret_agg_tn = type_to_name(hoisted__Type_263, &ctx->symbols);
+            Type *hoisted__Type_264 = Expr_til_type(stmt);
+            Bool ret_agg_owns_heap = is_aggregate(hoisted__Type_264);
             Bool _m_Bool_103 = 0;
             {
                 Bool hoisted__Bool_108 = 1;
@@ -91897,227 +91963,300 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
                     type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_129, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
                 }
             }
-            priv___src_self_typer_til__check_carried_borrow_of_local_return(scope, stmt, ctx);
-            priv___src_self_typer_til__check_str_view_of_local_return(scope, stmt, ctx);
-            Type *hoisted__Type_238 = Expr_til_type(stmt);
-            Bool hoisted__Bool_239 = ((Bool)((((Type *)(hoisted__Type_238))->tag) == Type_TAG_Dynamic));
-            Bool hoisted__Bool_240 = ((Bool)(!(hoisted__Bool_239)));
-            if (hoisted__Bool_240) {
-                U32 hoisted__U32_165 = 0;
-                Expr *_bang_ret_7 = (((Bool)((U32)(hoisted__U32_165) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_165))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_166 = 1;
-                Bool hoisted__Bool_167 = ((Bool)(_err_kind == hoisted__I64_166));
-                if (hoisted__Bool_167) {
-                    I64 hoisted__I64_130 = 0;
-                    _err_kind = hoisted__I64_130;
-                    U32 hoisted__U32_131 = 1;
-                    Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_131);
-                    I64 _va_Array_8_ek = 0;
-                    U32 hoisted__U32_132 = 0;
-                    Array__Str_set(&_va_Array_8, hoisted__U32_132, &_til_str_lits.h4d3ab87300de, &_va_Array_8_ek);
-                    panic(&_va_Array_8, &hoisted__Str_self_typer_infer_return_stmt_134);
-                }
-                Bool hoisted__Bool_168 = expr_is_address(_bang_ret_7, scope, &ctx->symbols);
-                if (hoisted__Bool_168) {
-                    U32 hoisted__U32_145 = 0;
-                    Expr *_bang_ret_8 = (((Bool)((U32)(hoisted__U32_145) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_145))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                    I64 hoisted__I64_146 = 1;
-                    Bool hoisted__Bool_147 = ((Bool)(_err_kind == hoisted__I64_146));
-                    if (hoisted__Bool_147) {
-                        I64 hoisted__I64_135 = 0;
-                        _err_kind = hoisted__I64_135;
-                        U32 hoisted__U32_136 = 1;
-                        Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_136);
-                        I64 _va_Array_9_ek = 0;
-                        U32 hoisted__U32_137 = 0;
-                        Array__Str_set(&_va_Array_9, hoisted__U32_137, &_til_str_lits.h4d3ab87300de, &_va_Array_9_ek);
-                        panic(&_va_Array_9, &hoisted__Str_self_typer_infer_return_stmt_139);
-                    }
-                    U32 hoisted__U32_148 = 0;
-                    Expr *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_148) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_148))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                    I64 hoisted__I64_149 = 1;
-                    Bool hoisted__Bool_150 = ((Bool)(_err_kind == hoisted__I64_149));
-                    if (hoisted__Bool_150) {
-                        I64 hoisted__I64_140 = 0;
-                        _err_kind = hoisted__I64_140;
-                        U32 hoisted__U32_141 = 1;
-                        Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_141);
-                        I64 _va_Array_10_ek = 0;
-                        U32 hoisted__U32_142 = 0;
-                        Array__Str_set(&_va_Array_10, hoisted__U32_142, &_til_str_lits.h4d3ab87300de, &_va_Array_10_ek);
-                        panic(&_va_Array_10, &hoisted__Str_self_typer_infer_return_stmt_144);
-                    }
-                    U32 hoisted__U32_151 = 5;
-                    Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_151);
-                    I64 _va_Array_11_ek = 0;
-                    U32 hoisted__U32_152 = 0;
-                    static Str hoisted__Str_self_typer_infer_return_stmt_153 = (Str){.c_str = (void *)"returning the pointer field by value would hand back one ", .count = 57ULL, .cap = TIL_CAP_LIT};
-                    Array__Str_set(&_va_Array_11, hoisted__U32_152, &hoisted__Str_self_typer_infer_return_stmt_153, &_va_Array_11_ek);
-                    Type *hoisted__Type_154 = Expr_til_type(_bang_ret_8);
-                    U32 hoisted__U32_155 = 1;
-                    Str hoisted__Str_self_typer_infer_return_stmt_156 = til_type_name_c(hoisted__Type_154, &ctx->symbols);
-                    Array__Str_set(&_va_Array_11, hoisted__U32_155, &hoisted__Str_self_typer_infer_return_stmt_156, &_va_Array_11_ek);
-                    U32 hoisted__U32_157 = 2;
-                    static Str hoisted__Str_self_typer_infer_return_stmt_158 = (Str){.c_str = (void *)" where the address belongs -- declare 'returns ref ", .count = 51ULL, .cap = TIL_CAP_LIT};
-                    Array__Str_set(&_va_Array_11, hoisted__U32_157, &hoisted__Str_self_typer_infer_return_stmt_158, &_va_Array_11_ek);
-                    Type *hoisted__Type_159 = Expr_til_type(_bang_ret_9);
-                    U32 hoisted__U32_160 = 3;
-                    Str hoisted__Str_self_typer_infer_return_stmt_161 = til_type_name_c(hoisted__Type_159, &ctx->symbols);
-                    Array__Str_set(&_va_Array_11, hoisted__U32_160, &hoisted__Str_self_typer_infer_return_stmt_161, &_va_Array_11_ek);
-                    U32 hoisted__U32_162 = 4;
-                    static Str hoisted__Str_self_typer_infer_return_stmt_163 = (Str){.c_str = (void *)"' to lend the pointer, or 'returns Dynamic' for the raw address", .count = 63ULL, .cap = TIL_CAP_LIT};
-                    Array__Str_set(&_va_Array_11, hoisted__U32_162, &hoisted__Str_self_typer_infer_return_stmt_163, &_va_Array_11_ek);
-                    Str hoisted__Str_self_typer_infer_return_stmt_164 = format(&_va_Array_11);
-                    type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_164, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-                    Str_delete(&hoisted__Str_self_typer_infer_return_stmt_164, 0);
-                }
+            Bool returned_ref_iface_binding = 0;
+            U32 hoisted__U32_265 = 0;
+            Expr *_bang_ret_7 = (((Bool)((U32)(hoisted__U32_265) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_265))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+            I64 hoisted__I64_266 = 1;
+            Bool hoisted__Bool_267 = ((Bool)(_err_kind == hoisted__I64_266));
+            if (hoisted__Bool_267) {
+                I64 hoisted__I64_130 = 0;
+                _err_kind = hoisted__I64_130;
+                U32 hoisted__U32_131 = 1;
+                Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_131);
+                I64 _va_Array_8_ek = 0;
+                U32 hoisted__U32_132 = 0;
+                Array__Str_set(&_va_Array_8, hoisted__U32_132, &_til_str_lits.h4d3ab87300de, &_va_Array_8_ek);
+                panic(&_va_Array_8, &hoisted__Str_self_typer_infer_return_stmt_134);
             }
-            U32 hoisted__U32_241 = 0;
-            Expr *_bang_ret_10 = (((Bool)((U32)(hoisted__U32_241) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_241))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-            I64 hoisted__I64_242 = 1;
-            Bool hoisted__Bool_243 = ((Bool)(_err_kind == hoisted__I64_242));
-            if (hoisted__Bool_243) {
-                I64 hoisted__I64_169 = 0;
-                _err_kind = hoisted__I64_169;
-                U32 hoisted__U32_170 = 1;
-                Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_170);
-                I64 _va_Array_12_ek = 0;
-                U32 hoisted__U32_171 = 0;
-                Array__Str_set(&_va_Array_12, hoisted__U32_171, &_til_str_lits.h4d3ab87300de, &_va_Array_12_ek);
-                panic(&_va_Array_12, &hoisted__Str_self_typer_infer_return_stmt_173);
-            }
-            switch ((_bang_ret_10->node_type).tag) {
+            switch ((_bang_ret_7->node_type).tag) {
             case NodeType_TAG_Ident: {
-                IdentData *rn = ((void *)((U8 *)(&_bang_ret_10->node_type) + offsetof(NodeType, data)));
-                U32 hoisted__U32_232 = IdentData_ident_sym(rn);
-                ScopeFind sf = TypeScope_find_sym(scope, hoisted__U32_232);
+                IdentData *rvid = ((void *)((U8 *)(&_bang_ret_7->node_type) + offsetof(NodeType, data)));
+                U32 hoisted__U32_155 = IdentData_ident_sym(rvid);
+                Option__ref_TypeBinding rvb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_155);
+                Bool hoisted__Bool_156 = Option__ref_TypeBinding_is_some(rvb_o);
+                if (hoisted__Bool_156) {
+                    TypeBinding *rvb = Option__ref_TypeBinding_unwrap(&rvb_o);
+                    if (rvb->iface_payload_borrowed) {
+                        if (rvb->iface_borrow_explicit) {
+                            type_error(stmt, &_til_str_lits.h313c08bfe9f1, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                            Bool hoisted__Bool_136 = 1;
+                            returned_ref_iface_binding = hoisted__Bool_136;
+                        } else {
+                            Type *hoisted__Type_147 = Expr_til_type(stmt);
+                            Str rv_tname = type_to_name(hoisted__Type_147, &ctx->symbols);
+                            U32 hoisted__U32_148 = 0;
+                            Expr *_bang_ret_8 = (((Bool)((U32)(hoisted__U32_148) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_148))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                            I64 hoisted__I64_149 = 1;
+                            Bool hoisted__Bool_150 = ((Bool)(_err_kind == hoisted__I64_149));
+                            if (hoisted__Bool_150) {
+                                I64 hoisted__I64_137 = 0;
+                                _err_kind = hoisted__I64_137;
+                                U32 hoisted__U32_138 = 1;
+                                Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_138);
+                                I64 _va_Array_9_ek = 0;
+                                U32 hoisted__U32_139 = 0;
+                                Array__Str_set(&_va_Array_9, hoisted__U32_139, &_til_str_lits.h4d3ab87300de, &_va_Array_9_ek);
+                                panic(&_va_Array_9, &hoisted__Str_self_typer_infer_return_stmt_141);
+                            }
+                            Type *hoisted__Type_151 = Expr_til_type(stmt);
+                            Expr rv_clone = make_clone_call(&rv_tname, DEREF(hoisted__Type_151), _bang_ret_8, stmt, &ctx->symbols);
+                            U32 hoisted__U32_152 = 0;
+                            Vec__Expr_set(&stmt->children, hoisted__U32_152, &rv_clone, &_err_kind);
+                            Str_delete(&rv_tname, 0);
+                            I64 hoisted__I64_153 = 1;
+                            Bool hoisted__Bool_154 = ((Bool)(_err_kind == hoisted__I64_153));
+                            if (hoisted__Bool_154) {
+                                I64 hoisted__I64_142 = 0;
+                                _err_kind = hoisted__I64_142;
+                                U32 hoisted__U32_143 = 1;
+                                Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_143);
+                                I64 _va_Array_10_ek = 0;
+                                U32 hoisted__U32_144 = 0;
+                                Array__Str_set(&_va_Array_10, hoisted__U32_144, &_til_str_lits.h4d3ab87300de, &_va_Array_10_ek);
+                                panic(&_va_Array_10, &hoisted__Str_self_typer_infer_return_stmt_146);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            default: {
+                break;
+            }
+            }
+            Bool hoisted__Bool_268 = ((Bool)(!(returned_ref_iface_binding)));
+            if (hoisted__Bool_268) {
+                priv___src_self_typer_til__check_carried_borrow_of_local_return(scope, stmt, ctx);
+            }
+            priv___src_self_typer_til__check_str_view_of_local_return(scope, stmt, ctx);
+            Type *hoisted__Type_269 = Expr_til_type(stmt);
+            Bool hoisted__Bool_270 = ((Bool)((((Type *)(hoisted__Type_269))->tag) == Type_TAG_Dynamic));
+            Bool hoisted__Bool_271 = ((Bool)(!(hoisted__Bool_270)));
+            if (hoisted__Bool_271) {
+                U32 hoisted__U32_192 = 0;
+                Expr *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_192) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_192))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_193 = 1;
+                Bool hoisted__Bool_194 = ((Bool)(_err_kind == hoisted__I64_193));
+                if (hoisted__Bool_194) {
+                    I64 hoisted__I64_157 = 0;
+                    _err_kind = hoisted__I64_157;
+                    U32 hoisted__U32_158 = 1;
+                    Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_158);
+                    I64 _va_Array_11_ek = 0;
+                    U32 hoisted__U32_159 = 0;
+                    Array__Str_set(&_va_Array_11, hoisted__U32_159, &_til_str_lits.h4d3ab87300de, &_va_Array_11_ek);
+                    panic(&_va_Array_11, &hoisted__Str_self_typer_infer_return_stmt_161);
+                }
+                Bool hoisted__Bool_195 = expr_is_address(_bang_ret_9, scope, &ctx->symbols);
+                if (hoisted__Bool_195) {
+                    U32 hoisted__U32_172 = 0;
+                    Expr *_bang_ret_10 = (((Bool)((U32)(hoisted__U32_172) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_172))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                    I64 hoisted__I64_173 = 1;
+                    Bool hoisted__Bool_174 = ((Bool)(_err_kind == hoisted__I64_173));
+                    if (hoisted__Bool_174) {
+                        I64 hoisted__I64_162 = 0;
+                        _err_kind = hoisted__I64_162;
+                        U32 hoisted__U32_163 = 1;
+                        Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_163);
+                        I64 _va_Array_12_ek = 0;
+                        U32 hoisted__U32_164 = 0;
+                        Array__Str_set(&_va_Array_12, hoisted__U32_164, &_til_str_lits.h4d3ab87300de, &_va_Array_12_ek);
+                        panic(&_va_Array_12, &hoisted__Str_self_typer_infer_return_stmt_166);
+                    }
+                    U32 hoisted__U32_175 = 0;
+                    Expr *_bang_ret_11 = (((Bool)((U32)(hoisted__U32_175) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_175))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                    I64 hoisted__I64_176 = 1;
+                    Bool hoisted__Bool_177 = ((Bool)(_err_kind == hoisted__I64_176));
+                    if (hoisted__Bool_177) {
+                        I64 hoisted__I64_167 = 0;
+                        _err_kind = hoisted__I64_167;
+                        U32 hoisted__U32_168 = 1;
+                        Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_168);
+                        I64 _va_Array_13_ek = 0;
+                        U32 hoisted__U32_169 = 0;
+                        Array__Str_set(&_va_Array_13, hoisted__U32_169, &_til_str_lits.h4d3ab87300de, &_va_Array_13_ek);
+                        panic(&_va_Array_13, &hoisted__Str_self_typer_infer_return_stmt_171);
+                    }
+                    U32 hoisted__U32_178 = 5;
+                    Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_178);
+                    I64 _va_Array_14_ek = 0;
+                    U32 hoisted__U32_179 = 0;
+                    static Str hoisted__Str_self_typer_infer_return_stmt_180 = (Str){.c_str = (void *)"returning the pointer field by value would hand back one ", .count = 57ULL, .cap = TIL_CAP_LIT};
+                    Array__Str_set(&_va_Array_14, hoisted__U32_179, &hoisted__Str_self_typer_infer_return_stmt_180, &_va_Array_14_ek);
+                    Type *hoisted__Type_181 = Expr_til_type(_bang_ret_10);
+                    U32 hoisted__U32_182 = 1;
+                    Str hoisted__Str_self_typer_infer_return_stmt_183 = til_type_name_c(hoisted__Type_181, &ctx->symbols);
+                    Array__Str_set(&_va_Array_14, hoisted__U32_182, &hoisted__Str_self_typer_infer_return_stmt_183, &_va_Array_14_ek);
+                    U32 hoisted__U32_184 = 2;
+                    static Str hoisted__Str_self_typer_infer_return_stmt_185 = (Str){.c_str = (void *)" where the address belongs -- declare 'returns ref ", .count = 51ULL, .cap = TIL_CAP_LIT};
+                    Array__Str_set(&_va_Array_14, hoisted__U32_184, &hoisted__Str_self_typer_infer_return_stmt_185, &_va_Array_14_ek);
+                    Type *hoisted__Type_186 = Expr_til_type(_bang_ret_11);
+                    U32 hoisted__U32_187 = 3;
+                    Str hoisted__Str_self_typer_infer_return_stmt_188 = til_type_name_c(hoisted__Type_186, &ctx->symbols);
+                    Array__Str_set(&_va_Array_14, hoisted__U32_187, &hoisted__Str_self_typer_infer_return_stmt_188, &_va_Array_14_ek);
+                    U32 hoisted__U32_189 = 4;
+                    static Str hoisted__Str_self_typer_infer_return_stmt_190 = (Str){.c_str = (void *)"' to lend the pointer, or 'returns Dynamic' for the raw address", .count = 63ULL, .cap = TIL_CAP_LIT};
+                    Array__Str_set(&_va_Array_14, hoisted__U32_189, &hoisted__Str_self_typer_infer_return_stmt_190, &_va_Array_14_ek);
+                    Str hoisted__Str_self_typer_infer_return_stmt_191 = format(&_va_Array_14);
+                    type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_191, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                    Str_delete(&hoisted__Str_self_typer_infer_return_stmt_191, 0);
+                }
+            }
+            U32 hoisted__U32_272 = 0;
+            Expr *_bang_ret_12 = (((Bool)((U32)(hoisted__U32_272) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_272))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+            I64 hoisted__I64_273 = 1;
+            Bool hoisted__Bool_274 = ((Bool)(_err_kind == hoisted__I64_273));
+            if (hoisted__Bool_274) {
+                I64 hoisted__I64_196 = 0;
+                _err_kind = hoisted__I64_196;
+                U32 hoisted__U32_197 = 1;
+                Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_197);
+                I64 _va_Array_15_ek = 0;
+                U32 hoisted__U32_198 = 0;
+                Array__Str_set(&_va_Array_15, hoisted__U32_198, &_til_str_lits.h4d3ab87300de, &_va_Array_15_ek);
+                panic(&_va_Array_15, &hoisted__Str_self_typer_infer_return_stmt_200);
+            }
+            switch ((_bang_ret_12->node_type).tag) {
+            case NodeType_TAG_Ident: {
+                IdentData *rn = ((void *)((U8 *)(&_bang_ret_12->node_type) + offsetof(NodeType, data)));
+                U32 hoisted__U32_259 = IdentData_ident_sym(rn);
+                ScopeFind sf = TypeScope_find_sym(scope, hoisted__U32_259);
                 switch ((int)((sf).data != NULL)) {
                 case 1: {
                     TypeBinding *b = ((void *)((ScopeFind *)(&sf))->data);
-                    Bool _m_Bool_174 = 0;
+                    Bool _m_Bool_201 = 0;
                     {
-                        Bool _sw_Bool_175 = ((Bool)((((OwnType *)(&b->own_type))->tag) == OwnType_TAG_Ref));
-                        Bool hoisted__Bool_182 = 1;
-                        Bool hoisted__Bool_183 = ((Bool)(_sw_Bool_175 == hoisted__Bool_182));
-                        if (hoisted__Bool_183) {
-                            Bool _m_Bool_176 = 0;
+                        Bool _sw_Bool_202 = ((Bool)((((OwnType *)(&b->own_type))->tag) == OwnType_TAG_Ref));
+                        Bool hoisted__Bool_209 = 1;
+                        Bool hoisted__Bool_210 = ((Bool)(_sw_Bool_202 == hoisted__Bool_209));
+                        if (hoisted__Bool_210) {
+                            Bool _m_Bool_203 = 0;
                             {
-                                Bool hoisted__Bool_178 = 1;
-                                Bool hoisted__Bool_179 = ((Bool)(b->is_alias == hoisted__Bool_178));
-                                if (hoisted__Bool_179) {
-                                    Bool hoisted__Bool_177 = 1;
-                                    _m_Bool_176 = hoisted__Bool_177;
+                                Bool hoisted__Bool_205 = 1;
+                                Bool hoisted__Bool_206 = ((Bool)(b->is_alias == hoisted__Bool_205));
+                                if (hoisted__Bool_206) {
+                                    Bool hoisted__Bool_204 = 1;
+                                    _m_Bool_203 = hoisted__Bool_204;
                                 } else {
-                                    _m_Bool_176 = b->is_param;
+                                    _m_Bool_203 = b->is_param;
                                 }
                             }
-                            Bool hoisted__Bool_180 = ((Bool)(!(_m_Bool_176)));
-                            _m_Bool_174 = hoisted__Bool_180;
+                            Bool hoisted__Bool_207 = ((Bool)(!(_m_Bool_203)));
+                            _m_Bool_201 = hoisted__Bool_207;
                         } else {
-                            Bool hoisted__Bool_181 = 0;
-                            _m_Bool_174 = hoisted__Bool_181;
+                            Bool hoisted__Bool_208 = 0;
+                            _m_Bool_201 = hoisted__Bool_208;
                         }
                     }
-                    if (_m_Bool_174) {
-                        static Str hoisted__Str_self_typer_infer_return_stmt_184 = (Str){.c_str = (void *)"cannot return ref variable from non-ref function; use .clone() or 'returns ref'", .count = 79ULL, .cap = TIL_CAP_LIT};
-                        type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_184, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                    if (_m_Bool_201) {
+                        type_error(stmt, &_til_str_lits.h313c08bfe9f1, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
                     }
-                    Bool _m_Bool_185 = 0;
+                    Bool _m_Bool_212 = 0;
                     {
                         {
-                            Bool _sw_Bool_186 = ((Bool)((((OwnType *)(&b->own_type))->tag) == OwnType_TAG_Ref));
-                            Bool hoisted__Bool_188 = 1;
-                            Bool hoisted__Bool_189 = ((Bool)(_sw_Bool_186 == hoisted__Bool_188));
-                            if (hoisted__Bool_189) {
-                                _m_Bool_185 = b->is_alias;
+                            Bool _sw_Bool_213 = ((Bool)((((OwnType *)(&b->own_type))->tag) == OwnType_TAG_Ref));
+                            Bool hoisted__Bool_215 = 1;
+                            Bool hoisted__Bool_216 = ((Bool)(_sw_Bool_213 == hoisted__Bool_215));
+                            if (hoisted__Bool_216) {
+                                _m_Bool_212 = b->is_alias;
                             } else {
-                                Bool hoisted__Bool_187 = 0;
-                                _m_Bool_185 = hoisted__Bool_187;
+                                Bool hoisted__Bool_214 = 0;
+                                _m_Bool_212 = hoisted__Bool_214;
                             }
                         }
-                        Bool hoisted__Bool_196 = 1;
-                        Bool hoisted__Bool_197 = ((Bool)(_m_Bool_185 == hoisted__Bool_196));
-                        if (hoisted__Bool_197) {
-                            Bool hoisted__Bool_190 = 1;
-                            _m_Bool_185 = hoisted__Bool_190;
+                        Bool hoisted__Bool_223 = 1;
+                        Bool hoisted__Bool_224 = ((Bool)(_m_Bool_212 == hoisted__Bool_223));
+                        if (hoisted__Bool_224) {
+                            Bool hoisted__Bool_217 = 1;
+                            _m_Bool_212 = hoisted__Bool_217;
                         } else {
                             {
-                                Bool hoisted__Bool_194 = 1;
-                                Bool hoisted__Bool_195 = ((Bool)(b->is_param == hoisted__Bool_194));
-                                if (hoisted__Bool_195) {
-                                    Bool hoisted__Bool_191 = ((Bool)((((OwnType *)(&b->own_type))->tag) == OwnType_TAG_Own));
-                                    Bool hoisted__Bool_192 = ((Bool)(!(hoisted__Bool_191)));
-                                    _m_Bool_185 = hoisted__Bool_192;
+                                Bool hoisted__Bool_221 = 1;
+                                Bool hoisted__Bool_222 = ((Bool)(b->is_param == hoisted__Bool_221));
+                                if (hoisted__Bool_222) {
+                                    Bool hoisted__Bool_218 = ((Bool)((((OwnType *)(&b->own_type))->tag) == OwnType_TAG_Own));
+                                    Bool hoisted__Bool_219 = ((Bool)(!(hoisted__Bool_218)));
+                                    _m_Bool_212 = hoisted__Bool_219;
                                 } else {
-                                    Bool hoisted__Bool_193 = 0;
-                                    _m_Bool_185 = hoisted__Bool_193;
+                                    Bool hoisted__Bool_220 = 0;
+                                    _m_Bool_212 = hoisted__Bool_220;
                                 }
                             }
                         }
                     }
-                    if (_m_Bool_185) {
-                        Type *hoisted__Type_231 = Expr_til_type(stmt);
-                        Str tname = type_to_name(hoisted__Type_231, &ctx->symbols);
-                        Bool _m_Bool_198 = 0;
+                    if (_m_Bool_212) {
+                        Type *hoisted__Type_258 = Expr_til_type(stmt);
+                        Str tname = type_to_name(hoisted__Type_258, &ctx->symbols);
+                        Bool _m_Bool_225 = 0;
                         {
-                            U32 hoisted__U32_210 = (tname.count);
-                            U32 hoisted__U32_211 = 0;
-                            Bool _sw_Bool_199 = ((Bool)(hoisted__U32_210 > hoisted__U32_211));
-                            Bool hoisted__Bool_212 = 1;
-                            Bool hoisted__Bool_213 = ((Bool)(_sw_Bool_199 == hoisted__Bool_212));
-                            if (hoisted__Bool_213) {
-                                Bool _m_Bool_200 = 0;
+                            U32 hoisted__U32_237 = (tname.count);
+                            U32 hoisted__U32_238 = 0;
+                            Bool _sw_Bool_226 = ((Bool)(hoisted__U32_237 > hoisted__U32_238));
+                            Bool hoisted__Bool_239 = 1;
+                            Bool hoisted__Bool_240 = ((Bool)(_sw_Bool_226 == hoisted__Bool_239));
+                            if (hoisted__Bool_240) {
+                                Bool _m_Bool_227 = 0;
                                 {
-                                    Type *hoisted__Type_205 = Expr_til_type(stmt);
-                                    Bool _sw_Bool_201 = is_funcptr(hoisted__Type_205);
-                                    Bool hoisted__Bool_206 = 1;
-                                    Bool hoisted__Bool_207 = ((Bool)(_sw_Bool_201 == hoisted__Bool_206));
-                                    if (hoisted__Bool_207) {
-                                        Bool hoisted__Bool_202 = 1;
-                                        _m_Bool_200 = hoisted__Bool_202;
+                                    Type *hoisted__Type_232 = Expr_til_type(stmt);
+                                    Bool _sw_Bool_228 = is_funcptr(hoisted__Type_232);
+                                    Bool hoisted__Bool_233 = 1;
+                                    Bool hoisted__Bool_234 = ((Bool)(_sw_Bool_228 == hoisted__Bool_233));
+                                    if (hoisted__Bool_234) {
+                                        Bool hoisted__Bool_229 = 1;
+                                        _m_Bool_227 = hoisted__Bool_229;
                                     } else {
-                                        Type *hoisted__Type_203 = Expr_til_type(stmt);
-                                        Bool hoisted__Bool_204 = ((Bool)((((Type *)(hoisted__Type_203))->tag) == Type_TAG_Body));
-                                        _m_Bool_200 = hoisted__Bool_204;
+                                        Type *hoisted__Type_230 = Expr_til_type(stmt);
+                                        Bool hoisted__Bool_231 = ((Bool)((((Type *)(hoisted__Type_230))->tag) == Type_TAG_Body));
+                                        _m_Bool_227 = hoisted__Bool_231;
                                     }
                                 }
-                                Bool hoisted__Bool_208 = ((Bool)(!(_m_Bool_200)));
-                                _m_Bool_198 = hoisted__Bool_208;
+                                Bool hoisted__Bool_235 = ((Bool)(!(_m_Bool_227)));
+                                _m_Bool_225 = hoisted__Bool_235;
                             } else {
-                                Bool hoisted__Bool_209 = 0;
-                                _m_Bool_198 = hoisted__Bool_209;
+                                Bool hoisted__Bool_236 = 0;
+                                _m_Bool_225 = hoisted__Bool_236;
                             }
                         }
-                        if (_m_Bool_198) {
-                            U32 hoisted__U32_224 = 0;
-                            Expr *_bang_ret_11 = (((Bool)((U32)(hoisted__U32_224) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_224))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                            I64 hoisted__I64_225 = 1;
-                            Bool hoisted__Bool_226 = ((Bool)(_err_kind == hoisted__I64_225));
-                            if (hoisted__Bool_226) {
-                                I64 hoisted__I64_214 = 0;
-                                _err_kind = hoisted__I64_214;
-                                U32 hoisted__U32_215 = 1;
-                                Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_215);
-                                I64 _va_Array_13_ek = 0;
-                                U32 hoisted__U32_216 = 0;
-                                Array__Str_set(&_va_Array_13, hoisted__U32_216, &_til_str_lits.h4d3ab87300de, &_va_Array_13_ek);
-                                panic(&_va_Array_13, &hoisted__Str_self_typer_infer_return_stmt_218);
+                        if (_m_Bool_225) {
+                            U32 hoisted__U32_251 = 0;
+                            Expr *_bang_ret_13 = (((Bool)((U32)(hoisted__U32_251) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_251))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                            I64 hoisted__I64_252 = 1;
+                            Bool hoisted__Bool_253 = ((Bool)(_err_kind == hoisted__I64_252));
+                            if (hoisted__Bool_253) {
+                                I64 hoisted__I64_241 = 0;
+                                _err_kind = hoisted__I64_241;
+                                U32 hoisted__U32_242 = 1;
+                                Array__Str _va_Array_16 = Array__Str_new(hoisted__U32_242);
+                                I64 _va_Array_16_ek = 0;
+                                U32 hoisted__U32_243 = 0;
+                                Array__Str_set(&_va_Array_16, hoisted__U32_243, &_til_str_lits.h4d3ab87300de, &_va_Array_16_ek);
+                                panic(&_va_Array_16, &hoisted__Str_self_typer_infer_return_stmt_245);
                             }
-                            Type *hoisted__Type_227 = Expr_til_type(stmt);
-                            Expr mc = make_clone_call(&tname, DEREF(hoisted__Type_227), _bang_ret_11, stmt, &ctx->symbols);
-                            U32 hoisted__U32_228 = 0;
-                            Vec__Expr_set(&stmt->children, hoisted__U32_228, &mc, &_err_kind);
-                            I64 hoisted__I64_229 = 1;
-                            Bool hoisted__Bool_230 = ((Bool)(_err_kind == hoisted__I64_229));
-                            if (hoisted__Bool_230) {
-                                I64 hoisted__I64_219 = 0;
-                                _err_kind = hoisted__I64_219;
-                                U32 hoisted__U32_220 = 1;
-                                Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_220);
-                                I64 _va_Array_14_ek = 0;
-                                U32 hoisted__U32_221 = 0;
-                                Array__Str_set(&_va_Array_14, hoisted__U32_221, &_til_str_lits.h4d3ab87300de, &_va_Array_14_ek);
-                                panic(&_va_Array_14, &hoisted__Str_self_typer_infer_return_stmt_223);
+                            Type *hoisted__Type_254 = Expr_til_type(stmt);
+                            Expr mc = make_clone_call(&tname, DEREF(hoisted__Type_254), _bang_ret_13, stmt, &ctx->symbols);
+                            U32 hoisted__U32_255 = 0;
+                            Vec__Expr_set(&stmt->children, hoisted__U32_255, &mc, &_err_kind);
+                            I64 hoisted__I64_256 = 1;
+                            Bool hoisted__Bool_257 = ((Bool)(_err_kind == hoisted__I64_256));
+                            if (hoisted__Bool_257) {
+                                I64 hoisted__I64_246 = 0;
+                                _err_kind = hoisted__I64_246;
+                                U32 hoisted__U32_247 = 1;
+                                Array__Str _va_Array_17 = Array__Str_new(hoisted__U32_247);
+                                I64 _va_Array_17_ek = 0;
+                                U32 hoisted__U32_248 = 0;
+                                Array__Str_set(&_va_Array_17, hoisted__U32_248, &_til_str_lits.h4d3ab87300de, &_va_Array_17_ek);
+                                panic(&_va_Array_17, &hoisted__Str_self_typer_infer_return_stmt_250);
                             }
                         }
                         Str_delete(&tname, 0);
@@ -92136,36 +92275,36 @@ static void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr
             }
             }
         } else {
-            U32 hoisted__U32_256 = 0;
-            Expr *ret_expr = (((Bool)((U32)(hoisted__U32_256) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_256))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-            I64 hoisted__I64_257 = 1;
-            Bool hoisted__Bool_258 = ((Bool)(_err_kind == hoisted__I64_257));
-            if (hoisted__Bool_258) {
-                I64 hoisted__I64_244 = 0;
-                _err_kind = hoisted__I64_244;
-                U32 hoisted__U32_245 = 1;
-                Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_245);
-                I64 _va_Array_15_ek = 0;
-                U32 hoisted__U32_246 = 0;
-                Array__Str_set(&_va_Array_15, hoisted__U32_246, &_til_str_lits.h4d3ab87300de, &_va_Array_15_ek);
-                panic(&_va_Array_15, &hoisted__Str_self_typer_infer_return_stmt_248);
+            U32 hoisted__U32_287 = 0;
+            Expr *ret_expr = (((Bool)((U32)(hoisted__U32_287) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_287))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+            I64 hoisted__I64_288 = 1;
+            Bool hoisted__Bool_289 = ((Bool)(_err_kind == hoisted__I64_288));
+            if (hoisted__Bool_289) {
+                I64 hoisted__I64_275 = 0;
+                _err_kind = hoisted__I64_275;
+                U32 hoisted__U32_276 = 1;
+                Array__Str _va_Array_18 = Array__Str_new(hoisted__U32_276);
+                I64 _va_Array_18_ek = 0;
+                U32 hoisted__U32_277 = 0;
+                Array__Str_set(&_va_Array_18, hoisted__U32_277, &_til_str_lits.h4d3ab87300de, &_va_Array_18_ek);
+                panic(&_va_Array_18, &hoisted__Str_self_typer_infer_return_stmt_279);
             }
-            Bool _m_Bool_249 = 0;
+            Bool _m_Bool_280 = 0;
             {
-                Bool _sw_Bool_250 = ((Bool)((((NodeType *)(&ret_expr->node_type))->tag) == NodeType_TAG_FCall));
-                Bool hoisted__Bool_253 = 1;
-                Bool hoisted__Bool_254 = ((Bool)(_sw_Bool_250 == hoisted__Bool_253));
-                if (hoisted__Bool_254) {
-                    Bool hoisted__Bool_251 = fcall_returns_own(ret_expr, scope, &ctx->symbols);
-                    _m_Bool_249 = hoisted__Bool_251;
+                Bool _sw_Bool_281 = ((Bool)((((NodeType *)(&ret_expr->node_type))->tag) == NodeType_TAG_FCall));
+                Bool hoisted__Bool_284 = 1;
+                Bool hoisted__Bool_285 = ((Bool)(_sw_Bool_281 == hoisted__Bool_284));
+                if (hoisted__Bool_285) {
+                    Bool hoisted__Bool_282 = fcall_returns_own(ret_expr, scope, &ctx->symbols);
+                    _m_Bool_280 = hoisted__Bool_282;
                 } else {
-                    Bool hoisted__Bool_252 = 0;
-                    _m_Bool_249 = hoisted__Bool_252;
+                    Bool hoisted__Bool_283 = 0;
+                    _m_Bool_280 = hoisted__Bool_283;
                 }
             }
-            if (_m_Bool_249) {
-                static Str hoisted__Str_self_typer_infer_return_stmt_255 = (Str){.c_str = (void *)"ref-typed function cannot return an owned value (.clone() / constructor / function returning own) -- return a borrow source directly, or change the signature to return owned", .count = 173ULL, .cap = TIL_CAP_LIT};
-                type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_255, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+            if (_m_Bool_280) {
+                static Str hoisted__Str_self_typer_infer_return_stmt_286 = (Str){.c_str = (void *)"ref-typed function cannot return an owned value (.clone() / constructor / function returning own) -- return a borrow source directly, or change the signature to return owned", .count = 173ULL, .cap = TIL_CAP_LIT};
+                type_error(stmt, &hoisted__Str_self_typer_infer_return_stmt_286, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
             }
         }
     } else {
@@ -95193,85 +95332,95 @@ static Bool priv___src_self_typer_til__interface_box_storage_is_borrowed(Expr * 
     case NodeType_TAG_Ident: {
         IdentData *id = ((void *)((U8 *)(&value->node_type) + offsetof(NodeType, data)));
         {
-            U32 hoisted__U32_17 = IdentData_ident_sym(id);
-            Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_18 = TypeScope_get_binding_sym(scope, &hoisted__U32_17);
-            Bool hoisted__Bool_19 = ((Bool)((((Option__ref_TypeBinding *)(&hoisted__Option__ref_TypeBinding_18))->data != NULL) == 1));
-            if (hoisted__Bool_19) {
-                U32 hoisted__U32_10 = IdentData_ident_sym(id);
-                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_11 = TypeScope_get_binding_sym(scope, &hoisted__U32_10);
-                TypeBinding *binding = ((void *)((Option__ref_TypeBinding *)(&hoisted__Option__ref_TypeBinding_11))->data);
+            U32 hoisted__U32_20 = IdentData_ident_sym(id);
+            Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_21 = TypeScope_get_binding_sym(scope, &hoisted__U32_20);
+            Bool hoisted__Bool_22 = ((Bool)((((Option__ref_TypeBinding *)(&hoisted__Option__ref_TypeBinding_21))->data != NULL) == 1));
+            if (hoisted__Bool_22) {
+                U32 hoisted__U32_13 = IdentData_ident_sym(id);
+                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_14 = TypeScope_get_binding_sym(scope, &hoisted__U32_13);
+                TypeBinding *binding = ((void *)((Option__ref_TypeBinding *)(&hoisted__Option__ref_TypeBinding_14))->data);
                 Bool _m_Bool_0 = 0;
                 {
-                    Bool _sw_Bool_1 = ((Bool)((((OwnType *)(&binding->own_type))->tag) == OwnType_TAG_Ref));
-                    Bool hoisted__Bool_8 = 1;
-                    Bool hoisted__Bool_9 = ((Bool)(_sw_Bool_1 == hoisted__Bool_8));
-                    if (hoisted__Bool_9) {
-                        Bool hoisted__Bool_2 = 1;
-                        _m_Bool_0 = hoisted__Bool_2;
-                    } else {
-                        {
-                            Bool hoisted__Bool_6 = 1;
-                            Bool hoisted__Bool_7 = ((Bool)(binding->is_param == hoisted__Bool_6));
-                            if (hoisted__Bool_7) {
-                                Bool hoisted__Bool_3 = ((Bool)((((OwnType *)(&binding->own_type))->tag) == OwnType_TAG_Own));
-                                Bool hoisted__Bool_4 = ((Bool)(!(hoisted__Bool_3)));
-                                _m_Bool_0 = hoisted__Bool_4;
-                            } else {
-                                Bool hoisted__Bool_5 = 0;
-                                _m_Bool_0 = hoisted__Bool_5;
+                    {
+                        Bool _sw_Bool_1 = ((Bool)((((OwnType *)(&binding->own_type))->tag) == OwnType_TAG_Ref));
+                        Bool hoisted__Bool_8 = 1;
+                        Bool hoisted__Bool_9 = ((Bool)(_sw_Bool_1 == hoisted__Bool_8));
+                        if (hoisted__Bool_9) {
+                            Bool hoisted__Bool_2 = 1;
+                            _m_Bool_0 = hoisted__Bool_2;
+                        } else {
+                            {
+                                Bool hoisted__Bool_6 = 1;
+                                Bool hoisted__Bool_7 = ((Bool)(binding->is_param == hoisted__Bool_6));
+                                if (hoisted__Bool_7) {
+                                    Bool hoisted__Bool_3 = ((Bool)((((OwnType *)(&binding->own_type))->tag) == OwnType_TAG_Own));
+                                    Bool hoisted__Bool_4 = ((Bool)(!(hoisted__Bool_3)));
+                                    _m_Bool_0 = hoisted__Bool_4;
+                                } else {
+                                    Bool hoisted__Bool_5 = 0;
+                                    _m_Bool_0 = hoisted__Bool_5;
+                                }
                             }
                         }
+                    }
+                    Bool hoisted__Bool_11 = 1;
+                    Bool hoisted__Bool_12 = ((Bool)(_m_Bool_0 == hoisted__Bool_11));
+                    if (hoisted__Bool_12) {
+                        Bool hoisted__Bool_10 = 1;
+                        _m_Bool_0 = hoisted__Bool_10;
+                    } else {
+                        _m_Bool_0 = binding->iface_payload_borrowed;
                     }
                 }
                 return _m_Bool_0;
             } else {
-                U32 hoisted__U32_14 = IdentData_ident_sym(id);
-                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_15 = TypeScope_get_binding_sym(scope, &hoisted__U32_14);
-                Bool hoisted__Bool_16 = ((Bool)((((Option__ref_TypeBinding *)(&hoisted__Option__ref_TypeBinding_15))->data != NULL) == 0));
-                if (hoisted__Bool_16) {
-                    Bool hoisted__Bool_12 = 0;
-                    return hoisted__Bool_12;
+                U32 hoisted__U32_17 = IdentData_ident_sym(id);
+                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_18 = TypeScope_get_binding_sym(scope, &hoisted__U32_17);
+                Bool hoisted__Bool_19 = ((Bool)((((Option__ref_TypeBinding *)(&hoisted__Option__ref_TypeBinding_18))->data != NULL) == 0));
+                if (hoisted__Bool_19) {
+                    Bool hoisted__Bool_15 = 0;
+                    return hoisted__Bool_15;
                 } else {
-                    Bool hoisted__Bool_13 = 0;
-                    return hoisted__Bool_13;
+                    Bool hoisted__Bool_16 = 0;
+                    return hoisted__Bool_16;
                 }
             }
         }
         break;
     }
     case NodeType_TAG_FieldAccess: {
-        OwnType hoisted__OwnType_26 = fa_own_type(value, scope, symbols);
-        Bool hoisted__Bool_27 = ((Bool)((((OwnType *)(&hoisted__OwnType_26))->tag) == OwnType_TAG_Ref));
-        if (hoisted__Bool_27) {
-            Bool hoisted__Bool_20 = 1;
-            return hoisted__Bool_20;
-        }
-        U32 hoisted__U32_28 = 0;
-        Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_28) < value->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(value->children.data) + (((U64)(((U64)((U32)(hoisted__U32_28))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_29 = 1;
-        Bool hoisted__Bool_30 = ((Bool)(_err_kind == hoisted__I64_29));
+        OwnType hoisted__OwnType_29 = fa_own_type(value, scope, symbols);
+        Bool hoisted__Bool_30 = ((Bool)((((OwnType *)(&hoisted__OwnType_29))->tag) == OwnType_TAG_Ref));
         if (hoisted__Bool_30) {
-            I64 hoisted__I64_21 = 0;
-            _err_kind = hoisted__I64_21;
-            U32 hoisted__U32_22 = 1;
-            Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_22);
-            I64 _va_Array_0_ek = 0;
-            U32 hoisted__U32_23 = 0;
-            Array__Str_set(&_va_Array_0, hoisted__U32_23, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
-            panic(&_va_Array_0, &hoisted__Str_self_typer_interface_box_storage_is_borrowed_25);
+            Bool hoisted__Bool_23 = 1;
+            return hoisted__Bool_23;
         }
-        Bool hoisted__Bool_31 = priv___src_self_typer_til__interface_box_storage_is_borrowed(_bang_ret_0, scope, symbols);
-        return hoisted__Bool_31;
-    }
-    case NodeType_TAG_FCall: {
-        I32 hoisted__I32_32 = fcall_returns_ref(value, scope, symbols);
-        I32 hoisted__I32_33 = 0;
-        Bool hoisted__Bool_34 = ((Bool)(hoisted__I32_32 != hoisted__I32_33));
+        U32 hoisted__U32_31 = 0;
+        Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_31) < value->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(value->children.data) + (((U64)(((U64)((U32)(hoisted__U32_31))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_32 = 1;
+        Bool hoisted__Bool_33 = ((Bool)(_err_kind == hoisted__I64_32));
+        if (hoisted__Bool_33) {
+            I64 hoisted__I64_24 = 0;
+            _err_kind = hoisted__I64_24;
+            U32 hoisted__U32_25 = 1;
+            Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_25);
+            I64 _va_Array_0_ek = 0;
+            U32 hoisted__U32_26 = 0;
+            Array__Str_set(&_va_Array_0, hoisted__U32_26, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+            panic(&_va_Array_0, &hoisted__Str_self_typer_interface_box_storage_is_borrowed_28);
+        }
+        Bool hoisted__Bool_34 = priv___src_self_typer_til__interface_box_storage_is_borrowed(_bang_ret_0, scope, symbols);
         return hoisted__Bool_34;
     }
+    case NodeType_TAG_FCall: {
+        I32 hoisted__I32_35 = fcall_returns_ref(value, scope, symbols);
+        I32 hoisted__I32_36 = 0;
+        Bool hoisted__Bool_37 = ((Bool)(hoisted__I32_35 != hoisted__I32_36));
+        return hoisted__Bool_37;
+    }
     default: {
-        Bool hoisted__Bool_35 = 0;
-        return hoisted__Bool_35;
+        Bool hoisted__Bool_38 = 0;
+        return hoisted__Bool_38;
     }
     }
     __builtin_unreachable();
@@ -95411,6 +95560,409 @@ static void priv___src_self_typer_til__infer_interface_payload_call(TypeScope * 
     binding->used = hoisted__Bool_60;
     priv___src_self_typer_til__resolve_fcall_return_type(scope, call, &name, binding_o, fdef_o, in_func, ctx);
     Str_delete(&name, 0);
+}
+
+static Bool priv___src_self_typer_til__fcall_callee_is(Expr * e, Str * name, SymbolPool * symbols) {
+    I64 _err_kind = 0;
+    Bool hoisted__Bool_10 = ((Bool)((((NodeType *)(&e->node_type))->tag) == NodeType_TAG_FCall));
+    Bool hoisted__Bool_11 = ((Bool)(!(hoisted__Bool_10)));
+    if (hoisted__Bool_11) {
+        Bool hoisted__Bool_0 = 0;
+        return hoisted__Bool_0;
+    }
+    U32 hoisted__U32_12 = (e->children.count);
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(hoisted__U32_12 == hoisted__U32_13));
+    if (hoisted__Bool_14) {
+        Bool hoisted__Bool_1 = 0;
+        return hoisted__Bool_1;
+    }
+    U32 hoisted__U32_15 = 0;
+    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_15) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_15))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_16 = 1;
+    Bool hoisted__Bool_17 = ((Bool)(_err_kind == hoisted__I64_16));
+    if (hoisted__Bool_17) {
+        I64 hoisted__I64_2 = 0;
+        _err_kind = hoisted__I64_2;
+        U32 hoisted__U32_3 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_3);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_4 = 0;
+        Array__Str_set(&_va_Array_0, hoisted__U32_4, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_self_typer_fcall_callee_is_6);
+    }
+    switch ((_bang_ret_0->node_type).tag) {
+    case NodeType_TAG_Ident: {
+        IdentData *callee = ((void *)((U8 *)(&_bang_ret_0->node_type) + offsetof(NodeType, data)));
+        Str *hoisted__Str_self_typer_fcall_callee_is_7 = IdentData_ident_name(callee, &symbols->names);
+        Bool hoisted__Bool_8 = Str_eq(hoisted__Str_self_typer_fcall_callee_is_7, name);
+        return hoisted__Bool_8;
+    }
+    default: {
+        Bool hoisted__Bool_9 = 0;
+        return hoisted__Bool_9;
+    }
+    }
+    __builtin_unreachable();
+}
+
+static Bool priv___src_self_typer_til__expr_is_borrowed_iface_box_ctor(Expr * e, TypeScope * scope, SymbolPool * symbols) {
+    I64 _err_kind = 0;
+    Bool hoisted__Bool_74 = ((Bool)((((NodeType *)(&e->node_type))->tag) == NodeType_TAG_FCall));
+    Bool hoisted__Bool_75 = ((Bool)(!(hoisted__Bool_74)));
+    if (hoisted__Bool_75) {
+        Bool hoisted__Bool_0 = 0;
+        return hoisted__Bool_0;
+    }
+    U32 hoisted__U32_76 = (e->children.count);
+    U32 hoisted__U32_77 = 0;
+    Bool hoisted__Bool_78 = ((Bool)(hoisted__U32_76 == hoisted__U32_77));
+    if (hoisted__Bool_78) {
+        Bool hoisted__Bool_1 = 0;
+        return hoisted__Bool_1;
+    }
+    U32 hoisted__U32_79 = 0;
+    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_79) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_79))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_80 = 1;
+    Bool hoisted__Bool_81 = ((Bool)(_err_kind == hoisted__I64_80));
+    if (hoisted__Bool_81) {
+        I64 hoisted__I64_2 = 0;
+        _err_kind = hoisted__I64_2;
+        U32 hoisted__U32_3 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_3);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_4 = 0;
+        Array__Str_set(&_va_Array_0, hoisted__U32_4, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_6);
+    }
+    switch ((_bang_ret_0->node_type).tag) {
+    case NodeType_TAG_Ident: {
+        IdentData *callee = ((void *)((U8 *)(&_bang_ret_0->node_type) + offsetof(NodeType, data)));
+        Str *hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_8 = IdentData_ident_name(callee, &symbols->names);
+        Bool hoisted__Bool_9 = priv___src_self_typer_til__name_is_interface(hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_8, scope, symbols);
+        Bool hoisted__Bool_10 = ((Bool)(!(hoisted__Bool_9)));
+        if (hoisted__Bool_10) {
+            Bool hoisted__Bool_7 = 0;
+            return hoisted__Bool_7;
+        }
+        break;
+    }
+    default: {
+        Bool hoisted__Bool_11 = 0;
+        return hoisted__Bool_11;
+    }
+    }
+    {
+        U32 _re_U32_12 = (e->children.count);
+        U32 _rc_U32_12 = 1;
+        Bool hoisted__Bool_73 = ((Bool)(_rc_U32_12 <= _re_U32_12));
+        if (hoisted__Bool_73) {
+            while (1) {
+                Bool _wcond_Bool_13 = ((Bool)(_rc_U32_12 < _re_U32_12));
+                if (!(_wcond_Bool_13)) {
+                    break;
+                }
+                U32 i = (_rc_U32_12);
+                (++_rc_U32_12);
+                Expr *arg = (((Bool)((U32)(i) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(i))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_39 = 1;
+                Bool hoisted__Bool_40 = ((Bool)(_err_kind == hoisted__I64_39));
+                if (hoisted__Bool_40) {
+                    I64 hoisted__I64_14 = 0;
+                    _err_kind = hoisted__I64_14;
+                    U32 hoisted__U32_15 = 1;
+                    Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_15);
+                    I64 _va_Array_1_ek = 0;
+                    U32 hoisted__U32_16 = 0;
+                    Array__Str_set(&_va_Array_1, hoisted__U32_16, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
+                    panic(&_va_Array_1, &hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_18);
+                }
+                Bool hoisted__Bool_42 = priv___src_self_typer_til__fcall_callee_is(arg, &_til_str_lits.h06531e84117d, symbols);
+                if (hoisted__Bool_42) {
+                    Bool hoisted__Bool_19 = 1;
+                    return hoisted__Bool_19;
+                }
+                Bool _m_Bool_20 = 0;
+                {
+                    Bool _sw_Bool_21 = ((Bool)((((NodeType *)(&arg->node_type))->tag) == NodeType_TAG_NamedArg));
+                    Bool hoisted__Bool_26 = 1;
+                    Bool hoisted__Bool_27 = ((Bool)(_sw_Bool_21 == hoisted__Bool_26));
+                    if (hoisted__Bool_27) {
+                        U32 hoisted__U32_22 = (arg->children.count);
+                        U32 hoisted__U32_23 = 0;
+                        Bool hoisted__Bool_24 = ((Bool)(hoisted__U32_22 > hoisted__U32_23));
+                        _m_Bool_20 = hoisted__Bool_24;
+                    } else {
+                        Bool hoisted__Bool_25 = 0;
+                        _m_Bool_20 = hoisted__Bool_25;
+                    }
+                }
+                if (_m_Bool_20) {
+                    U32 hoisted__U32_34 = 0;
+                    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_34) < arg->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(arg->children.data) + (((U64)(((U64)((U32)(hoisted__U32_34))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                    I64 hoisted__I64_35 = 1;
+                    Bool hoisted__Bool_36 = ((Bool)(_err_kind == hoisted__I64_35));
+                    if (hoisted__Bool_36) {
+                        I64 hoisted__I64_28 = 0;
+                        _err_kind = hoisted__I64_28;
+                        U32 hoisted__U32_29 = 1;
+                        Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_29);
+                        I64 _va_Array_2_ek = 0;
+                        U32 hoisted__U32_30 = 0;
+                        Array__Str_set(&_va_Array_2, hoisted__U32_30, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
+                        panic(&_va_Array_2, &hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_32);
+                    }
+                    Bool hoisted__Bool_38 = priv___src_self_typer_til__fcall_callee_is(_bang_ret_1, &_til_str_lits.h06531e84117d, symbols);
+                    if (hoisted__Bool_38) {
+                        Bool hoisted__Bool_33 = 1;
+                        return hoisted__Bool_33;
+                    }
+                }
+            }
+        } else {
+            while (1) {
+                Bool _wcond_Bool_43 = ((Bool)(_rc_U32_12 > _re_U32_12));
+                if (!(_wcond_Bool_43)) {
+                    break;
+                }
+                U32 i = (_rc_U32_12);
+                (--_rc_U32_12);
+                Expr *arg = (((Bool)((U32)(i) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(i))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_69 = 1;
+                Bool hoisted__Bool_70 = ((Bool)(_err_kind == hoisted__I64_69));
+                if (hoisted__Bool_70) {
+                    I64 hoisted__I64_44 = 0;
+                    _err_kind = hoisted__I64_44;
+                    U32 hoisted__U32_45 = 1;
+                    Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_45);
+                    I64 _va_Array_3_ek = 0;
+                    U32 hoisted__U32_46 = 0;
+                    Array__Str_set(&_va_Array_3, hoisted__U32_46, &_til_str_lits.h4d3ab87300de, &_va_Array_3_ek);
+                    panic(&_va_Array_3, &hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_48);
+                }
+                Bool hoisted__Bool_72 = priv___src_self_typer_til__fcall_callee_is(arg, &_til_str_lits.h06531e84117d, symbols);
+                if (hoisted__Bool_72) {
+                    Bool hoisted__Bool_49 = 1;
+                    return hoisted__Bool_49;
+                }
+                Bool _m_Bool_50 = 0;
+                {
+                    Bool _sw_Bool_51 = ((Bool)((((NodeType *)(&arg->node_type))->tag) == NodeType_TAG_NamedArg));
+                    Bool hoisted__Bool_56 = 1;
+                    Bool hoisted__Bool_57 = ((Bool)(_sw_Bool_51 == hoisted__Bool_56));
+                    if (hoisted__Bool_57) {
+                        U32 hoisted__U32_52 = (arg->children.count);
+                        U32 hoisted__U32_53 = 0;
+                        Bool hoisted__Bool_54 = ((Bool)(hoisted__U32_52 > hoisted__U32_53));
+                        _m_Bool_50 = hoisted__Bool_54;
+                    } else {
+                        Bool hoisted__Bool_55 = 0;
+                        _m_Bool_50 = hoisted__Bool_55;
+                    }
+                }
+                if (_m_Bool_50) {
+                    U32 hoisted__U32_64 = 0;
+                    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_64) < arg->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(arg->children.data) + (((U64)(((U64)((U32)(hoisted__U32_64))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                    I64 hoisted__I64_65 = 1;
+                    Bool hoisted__Bool_66 = ((Bool)(_err_kind == hoisted__I64_65));
+                    if (hoisted__Bool_66) {
+                        I64 hoisted__I64_58 = 0;
+                        _err_kind = hoisted__I64_58;
+                        U32 hoisted__U32_59 = 1;
+                        Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_59);
+                        I64 _va_Array_4_ek = 0;
+                        U32 hoisted__U32_60 = 0;
+                        Array__Str_set(&_va_Array_4, hoisted__U32_60, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
+                        panic(&_va_Array_4, &hoisted__Str_self_typer_expr_is_borrowed_iface_box_ctor_62);
+                    }
+                    Bool hoisted__Bool_68 = priv___src_self_typer_til__fcall_callee_is(_bang_ret_1, &_til_str_lits.h06531e84117d, symbols);
+                    if (hoisted__Bool_68) {
+                        Bool hoisted__Bool_63 = 1;
+                        return hoisted__Bool_63;
+                    }
+                }
+            }
+        }
+    }
+    Bool hoisted__Bool_82 = 0;
+    return hoisted__Bool_82;
+}
+
+static Bool priv___src_self_typer_til__iface_decl_owns_payload(TypeScope * scope, Expr * stmt, Str * iface_name, Context * ctx) {
+    I64 _err_kind = 0;
+    Declaration *sdecl = decl_of(stmt, &hoisted__Str_self_typer_iface_decl_owns_payload_40);
+    U32 hoisted__U32_41 = 0;
+    Expr *rhs = (((Bool)((U32)(hoisted__U32_41) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_41))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_42 = 1;
+    Bool hoisted__Bool_43 = ((Bool)(_err_kind == hoisted__I64_42));
+    if (hoisted__Bool_43) {
+        I64 hoisted__I64_0 = 0;
+        _err_kind = hoisted__I64_0;
+        U32 hoisted__U32_1 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_1);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_2 = 0;
+        Array__Str_set(&_va_Array_0, hoisted__U32_2, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_self_typer_iface_decl_owns_payload_4);
+    }
+    Option__ref_Str concrete_o = expr_type_name_ref(rhs, &ctx->symbols);
+    Bool hoisted__Bool_44 = Option__ref_Str_is_none(concrete_o);
+    if (hoisted__Bool_44) {
+        Bool hoisted__Bool_5 = 1;
+        return hoisted__Bool_5;
+    }
+    Str *hoisted__Str_self_typer_iface_decl_owns_payload_45 = Option__ref_Str_unwrap(&concrete_o);
+    Bool hoisted__Bool_46 = Str_eq(hoisted__Str_self_typer_iface_decl_owns_payload_45, iface_name);
+    if (hoisted__Bool_46) {
+        Bool hoisted__Bool_6 = 1;
+        return hoisted__Bool_6;
+    }
+    Bool hoisted__Bool_47 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
+    if (hoisted__Bool_47) {
+        Bool hoisted__Bool_12 = priv___src_self_typer_til__expr_is_borrow_source(rhs, scope, &ctx->symbols);
+        Bool hoisted__Bool_13 = ((Bool)(!(hoisted__Bool_12)));
+        if (hoisted__Bool_13) {
+            Bool hoisted__Bool_7 = 1;
+            return hoisted__Bool_7;
+        }
+        if (sdecl->is_mut) {
+            switch ((rhs->node_type).tag) {
+            case NodeType_TAG_Ident: {
+                IdentData *rid = ((void *)((U8 *)(&rhs->node_type) + offsetof(NodeType, data)));
+                U32 hoisted__U32_10 = IdentData_ident_sym(rid);
+                Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_10);
+                Bool hoisted__Bool_11 = Option__ref_TypeBinding_is_some(rb_o);
+                if (hoisted__Bool_11) {
+                    Bool hoisted__Bool_9 = ((Bool)(!(Option__ref_TypeBinding_unwrap(&rb_o)->is_mut)));
+                    if (hoisted__Bool_9) {
+                        type_error(stmt, &_til_str_lits.h1b756034b220, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                    }
+                }
+                break;
+            }
+            default: {
+                break;
+            }
+            }
+        }
+        Bool hoisted__Bool_14 = 0;
+        return hoisted__Bool_14;
+    }
+    if (sdecl->is_mut) {
+        Bool hoisted__Bool_15 = 1;
+        return hoisted__Bool_15;
+    }
+    switch ((rhs->node_type).tag) {
+    case NodeType_TAG_Ident: {
+        IdentData *rid = ((void *)((U8 *)(&rhs->node_type) + offsetof(NodeType, data)));
+        U32 hoisted__U32_34 = IdentData_ident_sym(rid);
+        Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_34);
+        Bool hoisted__Bool_35 = Option__ref_TypeBinding_is_some(rb_o);
+        if (hoisted__Bool_35) {
+            TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
+            Bool _m_Bool_16 = 0;
+            {
+                {
+                    {
+                        Bool hoisted__Bool_19 = 1;
+                        Bool hoisted__Bool_20 = ((Bool)(rb->is_mut == hoisted__Bool_19));
+                        if (hoisted__Bool_20) {
+                            Bool hoisted__Bool_17 = 1;
+                            _m_Bool_16 = hoisted__Bool_17;
+                        } else {
+                            Bool hoisted__Bool_18 = ((Bool)((((OwnType *)(&rb->own_type))->tag) == OwnType_TAG_Own));
+                            _m_Bool_16 = hoisted__Bool_18;
+                        }
+                    }
+                    Bool hoisted__Bool_27 = 1;
+                    Bool hoisted__Bool_28 = ((Bool)(_m_Bool_16 == hoisted__Bool_27));
+                    if (hoisted__Bool_28) {
+                        Bool hoisted__Bool_21 = 1;
+                        _m_Bool_16 = hoisted__Bool_21;
+                    } else {
+                        {
+                            Bool _sw_Bool_22 = ((Bool)((((OwnType *)(&rb->own_type))->tag) == OwnType_TAG_Ref));
+                            Bool hoisted__Bool_25 = 1;
+                            Bool hoisted__Bool_26 = ((Bool)(_sw_Bool_22 == hoisted__Bool_25));
+                            if (hoisted__Bool_26) {
+                                Bool hoisted__Bool_23 = ((Bool)(!(rb->is_alias)));
+                                _m_Bool_16 = hoisted__Bool_23;
+                            } else {
+                                Bool hoisted__Bool_24 = 0;
+                                _m_Bool_16 = hoisted__Bool_24;
+                            }
+                        }
+                    }
+                }
+                Bool hoisted__Bool_30 = 1;
+                Bool hoisted__Bool_31 = ((Bool)(_m_Bool_16 == hoisted__Bool_30));
+                if (hoisted__Bool_31) {
+                    Bool hoisted__Bool_29 = 1;
+                    _m_Bool_16 = hoisted__Bool_29;
+                } else {
+                    _m_Bool_16 = rb->is_param;
+                }
+            }
+            Bool hoisted__Bool_33 = ((Bool)(!(_m_Bool_16)));
+            if (hoisted__Bool_33) {
+                Bool hoisted__Bool_32 = 0;
+                return hoisted__Bool_32;
+            }
+        }
+        break;
+    }
+    case NodeType_TAG_FCall: {
+        I32 hoisted__I32_37 = fcall_returns_ref(rhs, scope, &ctx->symbols);
+        I32 hoisted__I32_38 = 0;
+        Bool hoisted__Bool_39 = ((Bool)(hoisted__I32_37 != hoisted__I32_38));
+        if (hoisted__Bool_39) {
+            type_error(stmt, &_til_str_lits.he22c1de6c144, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+        }
+        break;
+    }
+    default: {
+        break;
+    }
+    }
+    Bool hoisted__Bool_48 = 1;
+    return hoisted__Bool_48;
+}
+
+static void priv___src_self_typer_til__own_elided_iface_copy(TypeScope * scope, Expr * value, Context * ctx) {
+    switch ((value->node_type).tag) {
+    case NodeType_TAG_Ident: {
+        IdentData *vid = ((void *)((U8 *)(&value->node_type) + offsetof(NodeType, data)));
+        U32 hoisted__U32_1 = IdentData_ident_sym(vid);
+        Option__ref_TypeBinding vb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_1);
+        Bool hoisted__Bool_2 = Option__ref_TypeBinding_is_none(vb_o);
+        if (hoisted__Bool_2) {
+            return;
+        }
+        TypeBinding *vb = Option__ref_TypeBinding_unwrap(&vb_o);
+        Bool hoisted__Bool_3 = ((Bool)(!(vb->iface_payload_borrowed)));
+        if (hoisted__Bool_3) {
+            return;
+        }
+        if (vb->iface_borrow_explicit) {
+            type_error(value, &_til_str_lits.h4a20517dd2a8, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+            return;
+        }
+        Type *hoisted__Type_4 = Expr_til_type(value);
+        Str oec_tname = type_to_name(hoisted__Type_4, &ctx->symbols);
+        Type *hoisted__Type_5 = Expr_til_type(value);
+        Expr oec_clone = make_clone_call(&oec_tname, DEREF(hoisted__Type_5), value, value, &ctx->symbols);
+        Expr hoisted__Expr_6 = Expr_clone(&oec_clone);
+        U32 hoisted__U32_7 = 184;
+        swap_bytes(value, &hoisted__Expr_6, hoisted__U32_7);
+        Expr_delete(&hoisted__Expr_6, 0);
+        Expr_delete(&oec_clone, 0);
+        Str_delete(&oec_tname, 0);
+        break;
+    }
+    default: {
+        break;
+    }
+    }
 }
 
 static void priv___src_self_typer_til__box_inferred_interface_value(TypeScope * scope, Expr * value, Str * iface_name, Bool own_payload, I32 in_func, Context * ctx) {
@@ -96087,11 +96639,11 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
     switch ((stmt->node_type).tag) {
     case NodeType_TAG_Decl: {
         Declaration *sdecl = ((void *)((U8 *)(&stmt->node_type) + offsetof(NodeType, data)));
-        U32 hoisted__U32_322 = 0;
-        Expr *rhs = (((Bool)((U32)(hoisted__U32_322) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_322))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_323 = 1;
-        Bool hoisted__Bool_324 = ((Bool)(_err_kind == hoisted__I64_323));
-        if (hoisted__Bool_324) {
+        U32 hoisted__U32_339 = 0;
+        Expr *rhs = (((Bool)((U32)(hoisted__U32_339) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_339))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_340 = 1;
+        Bool hoisted__Bool_341 = ((Bool)(_err_kind == hoisted__I64_340));
+        if (hoisted__Bool_341) {
             I64 hoisted__I64_0 = 0;
             _err_kind = hoisted__I64_0;
             U32 hoisted__U32_1 = 1;
@@ -96416,11 +96968,11 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
             Str_delete(&hoisted__Str_self_typer_finalize_decl_binding_172, 0);
         }
         Type semantic_decl_type = declaration_resolved_type(sdecl, scope, &ctx->symbols);
-        Bool hoisted__Bool_325 = 0;
-        TypeScope_set(scope, &sdecl->name, &semantic_decl_type, sdecl->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_325, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
+        Bool hoisted__Bool_342 = 0;
+        TypeScope_set(scope, &sdecl->name, &semantic_decl_type, sdecl->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_342, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
         Type_delete(&semantic_decl_type, 0);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_326 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-        TypeBinding *decl_b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_326);
+        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_343 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
+        TypeBinding *decl_b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_343);
         decl_b->mut_explicit = sdecl->is_mut;
         if (had_declared_type) {
             { Str _old = decl_b->declared_type_name;
@@ -96449,8 +97001,8 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
             Bool hoisted__Bool_175 = 1;
             decl_b->used = hoisted__Bool_175;
         }
-        Bool hoisted__Bool_327 = Set__Str_has(&func_state->throw_used_local_names, &sdecl->name);
-        if (hoisted__Bool_327) {
+        Bool hoisted__Bool_344 = Set__Str_has(&func_state->throw_used_local_names, &sdecl->name);
+        if (hoisted__Bool_344) {
             Bool hoisted__Bool_176 = 1;
             decl_b->used = hoisted__Bool_176;
         }
@@ -96461,8 +97013,8 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
         { Str _old = decl_b->dynvec_elem;
         decl_b->dynvec_elem = Str_clone(dv_elem);
         Str_delete(&_old, (Bool){0}); }
-        Bool hoisted__Bool_328 = ((Bool)(!(had_declared_type)));
-        if (hoisted__Bool_328) {
+        Bool hoisted__Bool_345 = ((Bool)(!(had_declared_type)));
+        if (hoisted__Bool_345) {
             Type *hoisted__Type_178 = Expr_til_type(stmt);
             Bool hoisted__Bool_179 = is_funcptr_sig(hoisted__Type_178);
             if (hoisted__Bool_179) {
@@ -96472,9 +97024,9 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
                 Type_delete(&_old, (Bool){0}); }
             }
         }
-        Type *hoisted__Type_329 = Expr_til_type(stmt);
-        Bool hoisted__Bool_330 = is_funcptr(hoisted__Type_329);
-        if (hoisted__Bool_330) {
+        Type *hoisted__Type_346 = Expr_til_type(stmt);
+        Bool hoisted__Bool_347 = is_funcptr(hoisted__Type_346);
+        if (hoisted__Bool_347) {
             switch ((rhs->node_type).tag) {
             case NodeType_TAG_Ident: {
                 IdentData *rhs_id = ((void *)((U8 *)(&rhs->node_type) + offsetof(NodeType, data)));
@@ -96590,211 +97142,261 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
             decl_b->is_raw_alloc = hoisted__Bool_216;
         }
         Str view_src = priv___src_self_typer_til__str_view_source_name(rhs, scope, &ctx->symbols);
-        U32 hoisted__U32_331 = (view_src.count);
-        U32 hoisted__U32_332 = 0;
-        Bool hoisted__Bool_333 = ((Bool)(hoisted__U32_331 > hoisted__U32_332));
-        if (hoisted__Bool_333) {
+        U32 hoisted__U32_348 = (view_src.count);
+        U32 hoisted__U32_349 = 0;
+        Bool hoisted__Bool_350 = ((Bool)(hoisted__U32_348 > hoisted__U32_349));
+        if (hoisted__Bool_350) {
             Bool hoisted__Bool_217 = 1;
             decl_b->is_str_view = hoisted__Bool_217;
             { Str _old = decl_b->str_view_base;
             decl_b->str_view_base = Str_clone(&view_src);
             Str_delete(&_old, (Bool){0}); }
         }
-        Bool hoisted__Bool_334 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
-        if (hoisted__Bool_334) {
-            { OwnType _old = decl_b->own_type;
-            decl_b->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Ref});
+        Bool _m_Bool_218 = 0;
+        {
+            Bool _sw_Bool_219 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
+            Bool hoisted__Bool_222 = 1;
+            Bool hoisted__Bool_223 = ((Bool)(_sw_Bool_219 == hoisted__Bool_222));
+            if (hoisted__Bool_223) {
+                Bool hoisted__Bool_220 = priv___src_self_typer_til__expr_is_borrowed_iface_box_ctor(rhs, scope, &ctx->symbols);
+                _m_Bool_218 = hoisted__Bool_220;
+            } else {
+                Bool hoisted__Bool_221 = 0;
+                _m_Bool_218 = hoisted__Bool_221;
+            }
+        }
+        if (_m_Bool_218) {
+            { OwnType _old = sdecl->own_type;
+            sdecl->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Shallow});
             OwnType_delete(&_old, (Bool){0}); }
-            Bool hoisted__Bool_230 = rhs_is_payload_binding(rhs, &ctx->symbols);
-            if (hoisted__Bool_230) {
-                Bool hoisted__Bool_218 = 1;
-                decl_b->is_alias = hoisted__Bool_218;
-            }
-            Bool _m_Bool_219 = 0;
+            Bool hoisted__Bool_230 = 1;
+            decl_b->iface_payload_borrowed = hoisted__Bool_230;
+            Bool hoisted__Bool_231 = 1;
+            decl_b->iface_borrow_explicit = hoisted__Bool_231;
+            Vec__BorrowRoot explicit_roots = priv___src_self_typer_til__expr_borrow_roots(scope, rhs, &ctx->symbols);
             {
-                Bool _sw_Bool_220 = priv___src_self_typer_til__expr_is_ref_decl_source(rhs, scope, &ctx->symbols);
-                Bool hoisted__Bool_223 = 1;
-                Bool hoisted__Bool_224 = ((Bool)(_sw_Bool_220 == hoisted__Bool_223));
-                if (hoisted__Bool_224) {
-                    Bool hoisted__Bool_221 = 1;
-                    _m_Bool_219 = hoisted__Bool_221;
-                } else {
-                    Bool hoisted__Bool_222 = (raw_alloc_rhs);
-                    _m_Bool_219 = hoisted__Bool_222;
+                Vec__BorrowRoot *_fc_Vec__BorrowRoot_224 = &explicit_roots;
+                USize _fi_USize_224 = 0;
+                while (1) {
+                    U32 hoisted__U32_226 = (_fc_Vec__BorrowRoot_224->count);
+                    Bool _wcond_Bool_225 = ((Bool)(_fi_USize_224 < hoisted__U32_226));
+                    if (!(_wcond_Bool_225)) {
+                        break;
+                    }
+                    BorrowRoot *xrr = ((BorrowRoot *)((void *)((U8 *)(_fc_Vec__BorrowRoot_224->data) + (((U64)(((U64)(_fi_USize_224)) * 64ULL))))));
+                    U32 hoisted__U32_227 = 1;
+                    U32 hoisted__U32_228 = ((U32)(_fi_USize_224 + hoisted__U32_227));
+                    _fi_USize_224 = hoisted__U32_228;
+                    Bool hoisted__Bool_229 = 1;
+                    xrr->carried = hoisted__Bool_229;
                 }
-            }
-            Bool hoisted__Bool_231 = ((Bool)(!(_m_Bool_219)));
-            if (hoisted__Bool_231) {
-                static Str hoisted__Str_self_typer_finalize_decl_binding_225 = (Str){.c_str = (void *)"'ref' declaration requires a ref-returning function, a ref/param variable, or a raw allocation", .count = 94ULL, .cap = TIL_CAP_LIT};
-                type_error(stmt, &hoisted__Str_self_typer_finalize_decl_binding_225, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
             }
             { Vec__BorrowRoot _old = decl_b->borrow_roots;
-            decl_b->borrow_roots = priv___src_self_typer_til__lvalue_write_roots(scope, rhs, &ctx->symbols);
+            decl_b->borrow_roots = Vec__BorrowRoot_clone(&explicit_roots);
             Vec__BorrowRoot_delete(&_old, (Bool){0}); }
-            if (sdecl->is_mut) {
-                switch ((rhs->node_type).tag) {
-                case NodeType_TAG_Ident: {
-                    IdentData *rid = ((void *)((U8 *)(&rhs->node_type) + offsetof(NodeType, data)));
-                    U32 hoisted__U32_228 = IdentData_ident_sym(rid);
-                    Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_228);
-                    Bool hoisted__Bool_229 = Option__ref_TypeBinding_is_some(rb_o);
-                    if (hoisted__Bool_229) {
-                        TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
-                        Bool hoisted__Bool_227 = ((Bool)(!(rb->is_mut)));
-                        if (hoisted__Bool_227) {
-                            static Str hoisted__Str_self_typer_finalize_decl_binding_226 = (Str){.c_str = (void *)"'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", .count = 86ULL, .cap = TIL_CAP_LIT};
-                            type_error(stmt, &hoisted__Str_self_typer_finalize_decl_binding_226, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+            Vec__BorrowRoot_delete(&explicit_roots, 0);
+        } else {
+            Bool hoisted__Bool_248 = priv___src_self_typer_til__expr_is_borrowed_iface_box_ctor(rhs, scope, &ctx->symbols);
+            if (hoisted__Bool_248) {
+                Bool hoisted__Bool_232 = 1;
+                decl_b->iface_payload_borrowed = hoisted__Bool_232;
+            } else {
+                Bool hoisted__Bool_247 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
+                if (hoisted__Bool_247) {
+                    { OwnType _old = decl_b->own_type;
+                    decl_b->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Ref});
+                    OwnType_delete(&_old, (Bool){0}); }
+                    Bool hoisted__Bool_245 = rhs_is_payload_binding(rhs, &ctx->symbols);
+                    if (hoisted__Bool_245) {
+                        Bool hoisted__Bool_233 = 1;
+                        decl_b->is_alias = hoisted__Bool_233;
+                    }
+                    Bool _m_Bool_234 = 0;
+                    {
+                        Bool _sw_Bool_235 = priv___src_self_typer_til__expr_is_ref_decl_source(rhs, scope, &ctx->symbols);
+                        Bool hoisted__Bool_238 = 1;
+                        Bool hoisted__Bool_239 = ((Bool)(_sw_Bool_235 == hoisted__Bool_238));
+                        if (hoisted__Bool_239) {
+                            Bool hoisted__Bool_236 = 1;
+                            _m_Bool_234 = hoisted__Bool_236;
+                        } else {
+                            Bool hoisted__Bool_237 = (raw_alloc_rhs);
+                            _m_Bool_234 = hoisted__Bool_237;
                         }
                     }
-                    break;
-                }
-                default: {
-                    break;
-                }
-                }
-            }
-        }
-        Bool _m_Bool_232 = 0;
-        {
-            {
-                {
-                    Bool hoisted__Bool_236 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
-                    Bool _sw_Bool_233 = ((Bool)(!(hoisted__Bool_236)));
-                    Bool hoisted__Bool_237 = 1;
-                    Bool hoisted__Bool_238 = ((Bool)(_sw_Bool_233 == hoisted__Bool_237));
-                    if (hoisted__Bool_238) {
-                        Bool hoisted__Bool_234 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FCall));
-                        _m_Bool_232 = hoisted__Bool_234;
-                    } else {
-                        Bool hoisted__Bool_235 = 0;
-                        _m_Bool_232 = hoisted__Bool_235;
+                    Bool hoisted__Bool_246 = ((Bool)(!(_m_Bool_234)));
+                    if (hoisted__Bool_246) {
+                        static Str hoisted__Str_self_typer_finalize_decl_binding_240 = (Str){.c_str = (void *)"'ref' declaration requires a ref-returning function, a ref/param variable, or a raw allocation", .count = 94ULL, .cap = TIL_CAP_LIT};
+                        type_error(stmt, &hoisted__Str_self_typer_finalize_decl_binding_240, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                    }
+                    { Vec__BorrowRoot _old = decl_b->borrow_roots;
+                    decl_b->borrow_roots = priv___src_self_typer_til__lvalue_write_roots(scope, rhs, &ctx->symbols);
+                    Vec__BorrowRoot_delete(&_old, (Bool){0}); }
+                    if (sdecl->is_mut) {
+                        switch ((rhs->node_type).tag) {
+                        case NodeType_TAG_Ident: {
+                            IdentData *rid = ((void *)((U8 *)(&rhs->node_type) + offsetof(NodeType, data)));
+                            U32 hoisted__U32_243 = IdentData_ident_sym(rid);
+                            Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_243);
+                            Bool hoisted__Bool_244 = Option__ref_TypeBinding_is_some(rb_o);
+                            if (hoisted__Bool_244) {
+                                TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
+                                Bool hoisted__Bool_242 = ((Bool)(!(rb->is_mut)));
+                                if (hoisted__Bool_242) {
+                                    type_error(stmt, &_til_str_lits.h1b756034b220, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                                }
+                            }
+                            break;
+                        }
+                        default: {
+                            break;
+                        }
+                        }
                     }
                 }
-                Bool hoisted__Bool_243 = 1;
-                Bool hoisted__Bool_244 = ((Bool)(_m_Bool_232 == hoisted__Bool_243));
-                if (hoisted__Bool_244) {
-                    I32 hoisted__I32_239 = fcall_returns_ref(rhs, scope, &ctx->symbols);
-                    I32 hoisted__I32_240 = 0;
-                    Bool hoisted__Bool_241 = ((Bool)(hoisted__I32_239 != hoisted__I32_240));
-                    _m_Bool_232 = hoisted__Bool_241;
-                } else {
-                    Bool hoisted__Bool_242 = 0;
-                    _m_Bool_232 = hoisted__Bool_242;
-                }
-            }
-            Bool hoisted__Bool_249 = 1;
-            Bool hoisted__Bool_250 = ((Bool)(_m_Bool_232 == hoisted__Bool_249));
-            if (hoisted__Bool_250) {
-                Bool hoisted__Bool_246 = Str_starts_with(&sdecl->name, &_til_str_lits.hd0b0a94990fc);
-                Bool hoisted__Bool_247 = ((Bool)(!(hoisted__Bool_246)));
-                _m_Bool_232 = hoisted__Bool_247;
-            } else {
-                Bool hoisted__Bool_248 = 0;
-                _m_Bool_232 = hoisted__Bool_248;
             }
         }
-        if (_m_Bool_232) {
-            type_error(stmt, &_til_str_lits.he22c1de6c144, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-        }
-        Bool _m_Bool_252 = 0;
+        Bool _m_Bool_249 = 0;
         {
             {
                 {
-                    Bool _sw_Bool_253 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
-                    Bool hoisted__Bool_255 = 1;
-                    Bool hoisted__Bool_256 = ((Bool)(_sw_Bool_253 == hoisted__Bool_255));
-                    if (hoisted__Bool_256) {
-                        Bool hoisted__Bool_254 = 1;
-                        _m_Bool_252 = hoisted__Bool_254;
+                    Bool hoisted__Bool_253 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
+                    Bool _sw_Bool_250 = ((Bool)(!(hoisted__Bool_253)));
+                    Bool hoisted__Bool_254 = 1;
+                    Bool hoisted__Bool_255 = ((Bool)(_sw_Bool_250 == hoisted__Bool_254));
+                    if (hoisted__Bool_255) {
+                        Bool hoisted__Bool_251 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FCall));
+                        _m_Bool_249 = hoisted__Bool_251;
                     } else {
-                        _m_Bool_252 = sdecl->is_mut;
+                        Bool hoisted__Bool_252 = 0;
+                        _m_Bool_249 = hoisted__Bool_252;
                     }
                 }
                 Bool hoisted__Bool_260 = 1;
-                Bool hoisted__Bool_261 = ((Bool)(_m_Bool_252 == hoisted__Bool_260));
+                Bool hoisted__Bool_261 = ((Bool)(_m_Bool_249 == hoisted__Bool_260));
                 if (hoisted__Bool_261) {
-                    Bool hoisted__Bool_257 = 1;
-                    _m_Bool_252 = hoisted__Bool_257;
+                    I32 hoisted__I32_256 = fcall_returns_ref(rhs, scope, &ctx->symbols);
+                    I32 hoisted__I32_257 = 0;
+                    Bool hoisted__Bool_258 = ((Bool)(hoisted__I32_256 != hoisted__I32_257));
+                    _m_Bool_249 = hoisted__Bool_258;
                 } else {
-                    Type *hoisted__Type_258 = Expr_til_type(stmt);
-                    Bool hoisted__Bool_259 = is_funcptr(hoisted__Type_258);
-                    _m_Bool_252 = hoisted__Bool_259;
+                    Bool hoisted__Bool_259 = 0;
+                    _m_Bool_249 = hoisted__Bool_259;
                 }
             }
-            Bool hoisted__Bool_265 = 1;
-            Bool hoisted__Bool_266 = ((Bool)(_m_Bool_252 == hoisted__Bool_265));
-            if (hoisted__Bool_266) {
-                Bool hoisted__Bool_262 = 1;
-                _m_Bool_252 = hoisted__Bool_262;
+            Bool hoisted__Bool_266 = 1;
+            Bool hoisted__Bool_267 = ((Bool)(_m_Bool_249 == hoisted__Bool_266));
+            if (hoisted__Bool_267) {
+                Bool hoisted__Bool_263 = Str_starts_with(&sdecl->name, &_til_str_lits.hd0b0a94990fc);
+                Bool hoisted__Bool_264 = ((Bool)(!(hoisted__Bool_263)));
+                _m_Bool_249 = hoisted__Bool_264;
             } else {
-                Type *hoisted__Type_263 = Expr_til_type(stmt);
-                Bool hoisted__Bool_264 = ((Bool)((((Type *)(hoisted__Type_263))->tag) == Type_TAG_Body));
-                _m_Bool_252 = hoisted__Bool_264;
+                Bool hoisted__Bool_265 = 0;
+                _m_Bool_249 = hoisted__Bool_265;
             }
         }
-        Bool hoisted__Bool_335 = ((Bool)(!(_m_Bool_252)));
-        if (hoisted__Bool_335) {
+        if (_m_Bool_249) {
+            type_error(stmt, &_til_str_lits.he22c1de6c144, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+        }
+        Bool _m_Bool_269 = 0;
+        {
+            {
+                {
+                    Bool _sw_Bool_270 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
+                    Bool hoisted__Bool_272 = 1;
+                    Bool hoisted__Bool_273 = ((Bool)(_sw_Bool_270 == hoisted__Bool_272));
+                    if (hoisted__Bool_273) {
+                        Bool hoisted__Bool_271 = 1;
+                        _m_Bool_269 = hoisted__Bool_271;
+                    } else {
+                        _m_Bool_269 = sdecl->is_mut;
+                    }
+                }
+                Bool hoisted__Bool_277 = 1;
+                Bool hoisted__Bool_278 = ((Bool)(_m_Bool_269 == hoisted__Bool_277));
+                if (hoisted__Bool_278) {
+                    Bool hoisted__Bool_274 = 1;
+                    _m_Bool_269 = hoisted__Bool_274;
+                } else {
+                    Type *hoisted__Type_275 = Expr_til_type(stmt);
+                    Bool hoisted__Bool_276 = is_funcptr(hoisted__Type_275);
+                    _m_Bool_269 = hoisted__Bool_276;
+                }
+            }
+            Bool hoisted__Bool_282 = 1;
+            Bool hoisted__Bool_283 = ((Bool)(_m_Bool_269 == hoisted__Bool_282));
+            if (hoisted__Bool_283) {
+                Bool hoisted__Bool_279 = 1;
+                _m_Bool_269 = hoisted__Bool_279;
+            } else {
+                Type *hoisted__Type_280 = Expr_til_type(stmt);
+                Bool hoisted__Bool_281 = ((Bool)((((Type *)(hoisted__Type_280))->tag) == Type_TAG_Body));
+                _m_Bool_269 = hoisted__Bool_281;
+            }
+        }
+        Bool hoisted__Bool_351 = ((Bool)(!(_m_Bool_269)));
+        if (hoisted__Bool_351) {
             switch ((rhs->node_type).tag) {
             case NodeType_TAG_Ident: {
                 IdentData *rhs_id2 = ((void *)((U8 *)(&rhs->node_type) + offsetof(NodeType, data)));
-                U32 hoisted__U32_285 = IdentData_ident_sym(rhs_id2);
-                Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_285);
-                Bool hoisted__Bool_286 = Option__ref_TypeBinding_is_some(rb_o);
-                if (hoisted__Bool_286) {
+                U32 hoisted__U32_302 = IdentData_ident_sym(rhs_id2);
+                Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &hoisted__U32_302);
+                Bool hoisted__Bool_303 = Option__ref_TypeBinding_is_some(rb_o);
+                if (hoisted__Bool_303) {
                     TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
-                    Bool _m_Bool_267 = 0;
+                    Bool _m_Bool_284 = 0;
                     {
                         {
                             {
-                                Bool hoisted__Bool_270 = 1;
-                                Bool hoisted__Bool_271 = ((Bool)(rb->is_mut == hoisted__Bool_270));
-                                if (hoisted__Bool_271) {
-                                    Bool hoisted__Bool_268 = 1;
-                                    _m_Bool_267 = hoisted__Bool_268;
+                                Bool hoisted__Bool_287 = 1;
+                                Bool hoisted__Bool_288 = ((Bool)(rb->is_mut == hoisted__Bool_287));
+                                if (hoisted__Bool_288) {
+                                    Bool hoisted__Bool_285 = 1;
+                                    _m_Bool_284 = hoisted__Bool_285;
                                 } else {
-                                    Bool hoisted__Bool_269 = ((Bool)((((OwnType *)(&rb->own_type))->tag) == OwnType_TAG_Own));
-                                    _m_Bool_267 = hoisted__Bool_269;
+                                    Bool hoisted__Bool_286 = ((Bool)((((OwnType *)(&rb->own_type))->tag) == OwnType_TAG_Own));
+                                    _m_Bool_284 = hoisted__Bool_286;
                                 }
                             }
-                            Bool hoisted__Bool_278 = 1;
-                            Bool hoisted__Bool_279 = ((Bool)(_m_Bool_267 == hoisted__Bool_278));
-                            if (hoisted__Bool_279) {
-                                Bool hoisted__Bool_272 = 1;
-                                _m_Bool_267 = hoisted__Bool_272;
+                            Bool hoisted__Bool_295 = 1;
+                            Bool hoisted__Bool_296 = ((Bool)(_m_Bool_284 == hoisted__Bool_295));
+                            if (hoisted__Bool_296) {
+                                Bool hoisted__Bool_289 = 1;
+                                _m_Bool_284 = hoisted__Bool_289;
                             } else {
                                 {
-                                    Bool _sw_Bool_273 = ((Bool)((((OwnType *)(&rb->own_type))->tag) == OwnType_TAG_Ref));
-                                    Bool hoisted__Bool_276 = 1;
-                                    Bool hoisted__Bool_277 = ((Bool)(_sw_Bool_273 == hoisted__Bool_276));
-                                    if (hoisted__Bool_277) {
-                                        Bool hoisted__Bool_274 = ((Bool)(!(rb->is_alias)));
-                                        _m_Bool_267 = hoisted__Bool_274;
+                                    Bool _sw_Bool_290 = ((Bool)((((OwnType *)(&rb->own_type))->tag) == OwnType_TAG_Ref));
+                                    Bool hoisted__Bool_293 = 1;
+                                    Bool hoisted__Bool_294 = ((Bool)(_sw_Bool_290 == hoisted__Bool_293));
+                                    if (hoisted__Bool_294) {
+                                        Bool hoisted__Bool_291 = ((Bool)(!(rb->is_alias)));
+                                        _m_Bool_284 = hoisted__Bool_291;
                                     } else {
-                                        Bool hoisted__Bool_275 = 0;
-                                        _m_Bool_267 = hoisted__Bool_275;
+                                        Bool hoisted__Bool_292 = 0;
+                                        _m_Bool_284 = hoisted__Bool_292;
                                     }
                                 }
                             }
                         }
-                        Bool hoisted__Bool_281 = 1;
-                        Bool hoisted__Bool_282 = ((Bool)(_m_Bool_267 == hoisted__Bool_281));
-                        if (hoisted__Bool_282) {
-                            Bool hoisted__Bool_280 = 1;
-                            _m_Bool_267 = hoisted__Bool_280;
+                        Bool hoisted__Bool_298 = 1;
+                        Bool hoisted__Bool_299 = ((Bool)(_m_Bool_284 == hoisted__Bool_298));
+                        if (hoisted__Bool_299) {
+                            Bool hoisted__Bool_297 = 1;
+                            _m_Bool_284 = hoisted__Bool_297;
                         } else {
-                            _m_Bool_267 = rb->is_param;
+                            _m_Bool_284 = rb->is_param;
                         }
                     }
-                    Bool hoisted__Bool_284 = ((Bool)(!(_m_Bool_267)));
-                    if (hoisted__Bool_284) {
+                    Bool hoisted__Bool_301 = ((Bool)(!(_m_Bool_284)));
+                    if (hoisted__Bool_301) {
                         { OwnType _old = sdecl->own_type;
                         sdecl->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Ref});
                         OwnType_delete(&_old, (Bool){0}); }
                         { OwnType _old = decl_b->own_type;
                         decl_b->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Ref});
                         OwnType_delete(&_old, (Bool){0}); }
-                        Bool hoisted__Bool_283 = 1;
-                        decl_b->is_alias = hoisted__Bool_283;
+                        Bool hoisted__Bool_300 = 1;
+                        decl_b->is_alias = hoisted__Bool_300;
                     }
                 }
                 break;
@@ -96804,79 +97406,79 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
             }
             }
         }
-        Bool _m_Bool_287 = 0;
+        Bool _m_Bool_304 = 0;
         {
-            Bool _sw_Bool_288 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_Ident));
-            Bool hoisted__Bool_296 = 1;
-            Bool hoisted__Bool_297 = ((Bool)(_sw_Bool_288 == hoisted__Bool_296));
-            if (hoisted__Bool_297) {
-                Bool hoisted__Bool_289 = 1;
-                _m_Bool_287 = hoisted__Bool_289;
+            Bool _sw_Bool_305 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_Ident));
+            Bool hoisted__Bool_313 = 1;
+            Bool hoisted__Bool_314 = ((Bool)(_sw_Bool_305 == hoisted__Bool_313));
+            if (hoisted__Bool_314) {
+                Bool hoisted__Bool_306 = 1;
+                _m_Bool_304 = hoisted__Bool_306;
             } else {
                 {
-                    Bool _sw_Bool_290 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FieldAccess));
-                    Bool hoisted__Bool_294 = 1;
-                    Bool hoisted__Bool_295 = ((Bool)(_sw_Bool_290 == hoisted__Bool_294));
-                    if (hoisted__Bool_295) {
-                        Type *hoisted__Type_291 = Expr_til_type(rhs);
-                        Bool hoisted__Bool_292 = is_aggregate(hoisted__Type_291);
-                        _m_Bool_287 = hoisted__Bool_292;
+                    Bool _sw_Bool_307 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FieldAccess));
+                    Bool hoisted__Bool_311 = 1;
+                    Bool hoisted__Bool_312 = ((Bool)(_sw_Bool_307 == hoisted__Bool_311));
+                    if (hoisted__Bool_312) {
+                        Type *hoisted__Type_308 = Expr_til_type(rhs);
+                        Bool hoisted__Bool_309 = is_aggregate(hoisted__Type_308);
+                        _m_Bool_304 = hoisted__Bool_309;
                     } else {
-                        Bool hoisted__Bool_293 = 0;
-                        _m_Bool_287 = hoisted__Bool_293;
+                        Bool hoisted__Bool_310 = 0;
+                        _m_Bool_304 = hoisted__Bool_310;
                     }
                 }
             }
         }
-        if (_m_Bool_287) {
-            Bool hoisted__Bool_320 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
-            Bool hoisted__Bool_321 = ((Bool)(!(hoisted__Bool_320)));
-            if (hoisted__Bool_321) {
+        if (_m_Bool_304) {
+            Bool hoisted__Bool_337 = ((Bool)((((OwnType *)(&sdecl->own_type))->tag) == OwnType_TAG_Ref));
+            Bool hoisted__Bool_338 = ((Bool)(!(hoisted__Bool_337)));
+            if (hoisted__Bool_338) {
                 Type clone_type = declaration_resolved_type(sdecl, scope, &ctx->symbols);
                 Str tname = type_to_name(&clone_type, &ctx->symbols);
-                Bool _m_Bool_298 = 0;
+                Bool _m_Bool_315 = 0;
                 {
-                    U32 hoisted__U32_308 = (tname.count);
-                    U32 hoisted__U32_309 = 0;
-                    Bool _sw_Bool_299 = ((Bool)(hoisted__U32_308 > hoisted__U32_309));
-                    Bool hoisted__Bool_310 = 1;
-                    Bool hoisted__Bool_311 = ((Bool)(_sw_Bool_299 == hoisted__Bool_310));
-                    if (hoisted__Bool_311) {
-                        Bool _m_Bool_300 = 0;
+                    U32 hoisted__U32_325 = (tname.count);
+                    U32 hoisted__U32_326 = 0;
+                    Bool _sw_Bool_316 = ((Bool)(hoisted__U32_325 > hoisted__U32_326));
+                    Bool hoisted__Bool_327 = 1;
+                    Bool hoisted__Bool_328 = ((Bool)(_sw_Bool_316 == hoisted__Bool_327));
+                    if (hoisted__Bool_328) {
+                        Bool _m_Bool_317 = 0;
                         {
-                            Bool _sw_Bool_301 = is_funcptr(&clone_type);
-                            Bool hoisted__Bool_304 = 1;
-                            Bool hoisted__Bool_305 = ((Bool)(_sw_Bool_301 == hoisted__Bool_304));
-                            if (hoisted__Bool_305) {
-                                Bool hoisted__Bool_302 = 1;
-                                _m_Bool_300 = hoisted__Bool_302;
+                            Bool _sw_Bool_318 = is_funcptr(&clone_type);
+                            Bool hoisted__Bool_321 = 1;
+                            Bool hoisted__Bool_322 = ((Bool)(_sw_Bool_318 == hoisted__Bool_321));
+                            if (hoisted__Bool_322) {
+                                Bool hoisted__Bool_319 = 1;
+                                _m_Bool_317 = hoisted__Bool_319;
                             } else {
-                                Bool hoisted__Bool_303 = ((Bool)((((Type *)(&clone_type))->tag) == Type_TAG_Body));
-                                _m_Bool_300 = hoisted__Bool_303;
+                                Bool hoisted__Bool_320 = ((Bool)((((Type *)(&clone_type))->tag) == Type_TAG_Body));
+                                _m_Bool_317 = hoisted__Bool_320;
                             }
                         }
-                        Bool hoisted__Bool_306 = ((Bool)(!(_m_Bool_300)));
-                        _m_Bool_298 = hoisted__Bool_306;
+                        Bool hoisted__Bool_323 = ((Bool)(!(_m_Bool_317)));
+                        _m_Bool_315 = hoisted__Bool_323;
                     } else {
-                        Bool hoisted__Bool_307 = 0;
-                        _m_Bool_298 = hoisted__Bool_307;
+                        Bool hoisted__Bool_324 = 0;
+                        _m_Bool_315 = hoisted__Bool_324;
                     }
                 }
-                if (_m_Bool_298) {
+                if (_m_Bool_315) {
                     Expr mc = make_clone_call(&tname, clone_type, rhs, stmt, &ctx->symbols);
-                    U32 hoisted__U32_317 = 0;
-                    Vec__Expr_set(&stmt->children, hoisted__U32_317, &mc, &_err_kind);
-                    I64 hoisted__I64_318 = 1;
-                    Bool hoisted__Bool_319 = ((Bool)(_err_kind == hoisted__I64_318));
-                    if (hoisted__Bool_319) {
-                        I64 hoisted__I64_312 = 0;
-                        _err_kind = hoisted__I64_312;
-                        U32 hoisted__U32_313 = 1;
-                        Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_313);
+                    U32 hoisted__U32_334 = 0;
+                    Vec__Expr_set(&stmt->children, hoisted__U32_334, &mc, &_err_kind);
+                    I64 hoisted__I64_335 = 1;
+                    Bool hoisted__Bool_336 = ((Bool)(_err_kind == hoisted__I64_335));
+                    if (hoisted__Bool_336) {
+                        I64 hoisted__I64_329 = 0;
+                        _err_kind = hoisted__I64_329;
+                        U32 hoisted__U32_330 = 1;
+                        Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_330);
                         I64 _va_Array_8_ek = 0;
-                        U32 hoisted__U32_314 = 0;
-                        Array__Str_set(&_va_Array_8, hoisted__U32_314, &_til_str_lits.h4d3ab87300de, &_va_Array_8_ek);
-                        panic(&_va_Array_8, &hoisted__Str_self_typer_finalize_decl_binding_316);
+                        U32 hoisted__U32_331 = 0;
+                        Array__Str_set(&_va_Array_8, hoisted__U32_331, &_til_str_lits.h4d3ab87300de, &_va_Array_8_ek);
+                        panic(&_va_Array_8, &hoisted__Str_self_typer_finalize_decl_binding_333);
                     }
                 }
                 Type_delete(&clone_type, 0);
@@ -96887,15 +97489,15 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
         break;
     }
     default: {
-        U32 hoisted__U32_336 = 2;
-        Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_336);
+        U32 hoisted__U32_352 = 2;
+        Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_352);
         I64 _va_Array_9_ek = 0;
-        U32 hoisted__U32_337 = 0;
-        Array__Str_set(&_va_Array_9, hoisted__U32_337, &_til_str_lits.hea640554fb65, &_va_Array_9_ek);
-        U32 hoisted__U32_339 = 1;
-        Str hoisted__Str_self_typer_finalize_decl_binding_340 = NodeType_head_str(&stmt->node_type, &ctx->symbols.names);
-        Array__Str_set(&_va_Array_9, hoisted__U32_339, &hoisted__Str_self_typer_finalize_decl_binding_340, &_va_Array_9_ek);
-        UNREACHABLE(&_va_Array_9, &hoisted__Str_self_typer_finalize_decl_binding_341);
+        U32 hoisted__U32_353 = 0;
+        Array__Str_set(&_va_Array_9, hoisted__U32_353, &_til_str_lits.hea640554fb65, &_va_Array_9_ek);
+        U32 hoisted__U32_355 = 1;
+        Str hoisted__Str_self_typer_finalize_decl_binding_356 = NodeType_head_str(&stmt->node_type, &ctx->symbols.names);
+        Array__Str_set(&_va_Array_9, hoisted__U32_355, &hoisted__Str_self_typer_finalize_decl_binding_356, &_va_Array_9_ek);
+        UNREACHABLE(&_va_Array_9, &hoisted__Str_self_typer_finalize_decl_binding_357);
     }
     }
 }
@@ -96903,21 +97505,21 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
 static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_type_body, Context * ctx) {
     I64 _err_kind = 0;
     TyperFuncState *func_state = TypeScope_typer_func_state(scope);
-    U32 hoisted__U32_209 = (stmt->children.count);
-    U32 hoisted__U32_210 = 0;
-    Bool hoisted__Bool_211 = ((Bool)(hoisted__U32_209 == hoisted__U32_210));
+    U32 hoisted__U32_208 = (stmt->children.count);
+    U32 hoisted__U32_209 = 0;
+    Bool hoisted__Bool_210 = ((Bool)(hoisted__U32_208 == hoisted__U32_209));
+    if (hoisted__Bool_210) {
+        return;
+    }
+    Bool hoisted__Bool_211 = init_stmt_is_generic_source(stmt, &ctx->symbols);
     if (hoisted__Bool_211) {
         return;
     }
-    Bool hoisted__Bool_212 = init_stmt_is_generic_source(stmt, &ctx->symbols);
-    if (hoisted__Bool_212) {
-        return;
-    }
-    Declaration *ext_decl = decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_213);
-    U32 hoisted__U32_214 = (ext_decl->external_symbol.count);
-    U32 hoisted__U32_215 = 0;
-    Bool hoisted__Bool_216 = ((Bool)(hoisted__U32_214 > hoisted__U32_215));
-    if (hoisted__Bool_216) {
+    Declaration *ext_decl = decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_212);
+    U32 hoisted__U32_213 = (ext_decl->external_symbol.count);
+    U32 hoisted__U32_214 = 0;
+    Bool hoisted__Bool_215 = ((Bool)(hoisted__U32_213 > hoisted__U32_214));
+    if (hoisted__Bool_215) {
         Str *hoisted__Str_self_typer_infer_decl_stmt_5 = decl_type_name_ref(ext_decl, &ctx->symbols);
         Type external_type = type_from_name(hoisted__Str_self_typer_infer_decl_stmt_5, scope, ctx);
         U32 hoisted__U32_6 = 0;
@@ -96944,11 +97546,11 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
         Type_delete(&external_type, 0);
         return;
     }
-    U32 hoisted__U32_217 = 0;
-    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_217) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_217))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_218 = 1;
-    Bool hoisted__Bool_219 = ((Bool)(_err_kind == hoisted__I64_218));
-    if (hoisted__Bool_219) {
+    U32 hoisted__U32_216 = 0;
+    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_216) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_216))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_217 = 1;
+    Bool hoisted__Bool_218 = ((Bool)(_err_kind == hoisted__I64_217));
+    if (hoisted__Bool_218) {
         I64 hoisted__I64_11 = 0;
         _err_kind = hoisted__I64_11;
         U32 hoisted__U32_12 = 1;
@@ -96958,8 +97560,8 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
         Array__Str_set(&_va_Array_1, hoisted__U32_13, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
         panic(&_va_Array_1, &hoisted__Str_self_typer_infer_decl_stmt_15);
     }
-    Bool hoisted__Bool_220 = priv___src_self_typer_til__infer_ext_global_decl(scope, ext_decl, _bang_ret_1, stmt, ctx);
-    if (hoisted__Bool_220) {
+    Bool hoisted__Bool_219 = priv___src_self_typer_til__infer_ext_global_decl(scope, ext_decl, _bang_ret_1, stmt, ctx);
+    if (hoisted__Bool_219) {
         Bool hoisted__Bool_22 = TypeScope_in_function(scope);
         if (hoisted__Bool_22) {
             static Str hoisted__Str_self_typer_infer_decl_stmt_16 = (Str){.c_str = (void *)"ext_global declarations are only allowed at top level or in a type namespace", .count = 76ULL, .cap = TIL_CAP_LIT};
@@ -96987,19 +97589,19 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
         priv___src_self_typer_til__bind_ext_global_decl(scope, ext_decl, hoisted__Type_28, &ctx->path, stmt->line, stmt->col, ctx);
         return;
     }
-    Bool hoisted__Bool_222 = ((Bool)((((Type *)(&((Declaration *)decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_221))->til_type))->tag) == Type_TAG_Unknown));
-    Bool had_declared_type = ((Bool)(!(hoisted__Bool_222)));
+    Bool hoisted__Bool_221 = ((Bool)((((Type *)(&((Declaration *)decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_220))->til_type))->tag) == Type_TAG_Unknown));
+    Bool had_declared_type = ((Bool)(!(hoisted__Bool_221)));
     Str declared_name_at_entry = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT};
     if (had_declared_type) {
         Declaration *hoisted__Declaration_30 = decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_29);
         { Str _new = decl_type_name(hoisted__Declaration_30, &ctx->symbols); Str_delete(&declared_name_at_entry, (Bool){0}); declared_name_at_entry = _new; }
     }
     Str dv_elem = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT};
-    U32 hoisted__U32_223 = 0;
-    Expr *first_child = (((Bool)((U32)(hoisted__U32_223) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_223))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_224 = 1;
-    Bool hoisted__Bool_225 = ((Bool)(_err_kind == hoisted__I64_224));
-    if (hoisted__Bool_225) {
+    U32 hoisted__U32_222 = 0;
+    Expr *first_child = (((Bool)((U32)(hoisted__U32_222) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_222))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_223 = 1;
+    Bool hoisted__Bool_224 = ((Bool)(_err_kind == hoisted__I64_223));
+    if (hoisted__Bool_224) {
         I64 hoisted__I64_31 = 0;
         _err_kind = hoisted__I64_31;
         U32 hoisted__U32_32 = 1;
@@ -97255,11 +97857,11 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
             break;
         }
         }
-        U32 hoisted__U32_194 = 0;
-        Expr *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_194) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_194))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_195 = 1;
-        Bool hoisted__Bool_196 = ((Bool)(_err_kind == hoisted__I64_195));
-        if (hoisted__Bool_196) {
+        U32 hoisted__U32_193 = 0;
+        Expr *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_193) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_193))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_194 = 1;
+        Bool hoisted__Bool_195 = ((Bool)(_err_kind == hoisted__I64_194));
+        if (hoisted__Bool_195) {
             I64 hoisted__I64_134 = 0;
             _err_kind = hoisted__I64_134;
             U32 hoisted__U32_135 = 1;
@@ -97336,8 +97938,8 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
             }
             priv___src_self_typer_til__infer_func_def_expr(scope, _bang_ret_12, &top_func_name, ctx);
         } else {
-            Bool hoisted__Bool_193 = priv___src_self_typer_til__name_is_interface(&declared_name_at_entry, scope, &ctx->symbols);
-            if (hoisted__Bool_193) {
+            Bool hoisted__Bool_192 = priv___src_self_typer_til__name_is_interface(&declared_name_at_entry, scope, &ctx->symbols);
+            if (hoisted__Bool_192) {
                 U32 hoisted__U32_178 = 0;
                 Expr *_bang_ret_13 = (((Bool)((U32)(hoisted__U32_178) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_178))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
                 I64 hoisted__I64_179 = 1;
@@ -97353,6 +97955,7 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
                     panic(&_va_Array_16, &hoisted__Str_self_typer_infer_decl_stmt_172);
                 }
                 infer_expr(scope, _bang_ret_13, in_func, ctx);
+                Bool decl_owns_payload = priv___src_self_typer_til__iface_decl_owns_payload(scope, stmt, &declared_name_at_entry, ctx);
                 U32 hoisted__U32_181 = 0;
                 Expr *_bang_ret_14 = (((Bool)((U32)(hoisted__U32_181) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_181))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
                 I64 hoisted__I64_182 = 1;
@@ -97367,22 +97970,21 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
                     Array__Str_set(&_va_Array_17, hoisted__U32_175, &_til_str_lits.h4d3ab87300de, &_va_Array_17_ek);
                     panic(&_va_Array_17, &hoisted__Str_self_typer_infer_decl_stmt_177);
                 }
-                Bool hoisted__Bool_184 = 0;
-                priv___src_self_typer_til__box_inferred_interface_value(scope, _bang_ret_14, &declared_name_at_entry, hoisted__Bool_184, in_func, ctx);
+                priv___src_self_typer_til__box_inferred_interface_value(scope, _bang_ret_14, &declared_name_at_entry, decl_owns_payload, in_func, ctx);
             } else {
-                U32 hoisted__U32_190 = 0;
-                Expr *_bang_ret_15 = (((Bool)((U32)(hoisted__U32_190) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_190))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_191 = 1;
-                Bool hoisted__Bool_192 = ((Bool)(_err_kind == hoisted__I64_191));
-                if (hoisted__Bool_192) {
-                    I64 hoisted__I64_185 = 0;
-                    _err_kind = hoisted__I64_185;
-                    U32 hoisted__U32_186 = 1;
-                    Array__Str _va_Array_18 = Array__Str_new(hoisted__U32_186);
+                U32 hoisted__U32_189 = 0;
+                Expr *_bang_ret_15 = (((Bool)((U32)(hoisted__U32_189) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_189))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_190 = 1;
+                Bool hoisted__Bool_191 = ((Bool)(_err_kind == hoisted__I64_190));
+                if (hoisted__Bool_191) {
+                    I64 hoisted__I64_184 = 0;
+                    _err_kind = hoisted__I64_184;
+                    U32 hoisted__U32_185 = 1;
+                    Array__Str _va_Array_18 = Array__Str_new(hoisted__U32_185);
                     I64 _va_Array_18_ek = 0;
-                    U32 hoisted__U32_187 = 0;
-                    Array__Str_set(&_va_Array_18, hoisted__U32_187, &_til_str_lits.h4d3ab87300de, &_va_Array_18_ek);
-                    panic(&_va_Array_18, &hoisted__Str_self_typer_infer_decl_stmt_189);
+                    U32 hoisted__U32_186 = 0;
+                    Array__Str_set(&_va_Array_18, hoisted__U32_186, &_til_str_lits.h4d3ab87300de, &_va_Array_18_ek);
+                    panic(&_va_Array_18, &hoisted__Str_self_typer_infer_decl_stmt_188);
                 }
                 infer_expr(scope, _bang_ret_15, in_func, ctx);
             }
@@ -97405,57 +98007,57 @@ static void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr *
         }
         Str_delete(&saved_synth_owner, 0);
     }
-    Bool hoisted__Bool_226 = priv___src_self_typer_til__infer_decl_type_def(scope, stmt, ctx);
+    Bool hoisted__Bool_225 = priv___src_self_typer_til__infer_decl_type_def(scope, stmt, ctx);
+    if (hoisted__Bool_225) {
+        Str_delete(&declared_name_at_entry, 0);
+        Str_delete(&dv_elem, 0);
+        return;
+    }
+    Bool hoisted__Bool_226 = priv___src_self_typer_til__infer_decl_func_def(scope, stmt, &declared_name_at_entry, ctx);
     if (hoisted__Bool_226) {
         Str_delete(&declared_name_at_entry, 0);
         Str_delete(&dv_elem, 0);
         return;
     }
-    Bool hoisted__Bool_227 = priv___src_self_typer_til__infer_decl_func_def(scope, stmt, &declared_name_at_entry, ctx);
-    if (hoisted__Bool_227) {
-        Str_delete(&declared_name_at_entry, 0);
-        Str_delete(&dv_elem, 0);
-        return;
-    }
     Str_delete(&declared_name_at_entry, 0);
-    Bool hoisted__Bool_228 = priv___src_self_typer_til__infer_decl_type_alias_passthrough(scope, stmt, &ctx->symbols);
-    if (hoisted__Bool_228) {
+    Bool hoisted__Bool_227 = priv___src_self_typer_til__infer_decl_type_alias_passthrough(scope, stmt, &ctx->symbols);
+    if (hoisted__Bool_227) {
         Str_delete(&dv_elem, 0);
         return;
     }
-    Declaration *sdecl = decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_229);
+    Declaration *sdecl = decl_of(stmt, &hoisted__Str_self_typer_infer_decl_stmt_228);
     if (sdecl->infer_call_ownership) {
         { OwnType _old = sdecl->own_type;
         sdecl->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Shallow});
         OwnType_delete(&_old, (Bool){0}); }
-        U32 hoisted__U32_202 = 0;
-        Expr *_bang_ret_16 = (((Bool)((U32)(hoisted__U32_202) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_202))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_203 = 1;
-        Bool hoisted__Bool_204 = ((Bool)(_err_kind == hoisted__I64_203));
-        if (hoisted__Bool_204) {
-            I64 hoisted__I64_197 = 0;
-            _err_kind = hoisted__I64_197;
-            U32 hoisted__U32_198 = 1;
-            Array__Str _va_Array_19 = Array__Str_new(hoisted__U32_198);
+        U32 hoisted__U32_201 = 0;
+        Expr *_bang_ret_16 = (((Bool)((U32)(hoisted__U32_201) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_201))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_202 = 1;
+        Bool hoisted__Bool_203 = ((Bool)(_err_kind == hoisted__I64_202));
+        if (hoisted__Bool_203) {
+            I64 hoisted__I64_196 = 0;
+            _err_kind = hoisted__I64_196;
+            U32 hoisted__U32_197 = 1;
+            Array__Str _va_Array_19 = Array__Str_new(hoisted__U32_197);
             I64 _va_Array_19_ek = 0;
-            U32 hoisted__U32_199 = 0;
-            Array__Str_set(&_va_Array_19, hoisted__U32_199, &_til_str_lits.h4d3ab87300de, &_va_Array_19_ek);
-            panic(&_va_Array_19, &hoisted__Str_self_typer_infer_decl_stmt_201);
+            U32 hoisted__U32_198 = 0;
+            Array__Str_set(&_va_Array_19, hoisted__U32_198, &_til_str_lits.h4d3ab87300de, &_va_Array_19_ek);
+            panic(&_va_Array_19, &hoisted__Str_self_typer_infer_decl_stmt_200);
         }
-        I32 hoisted__I32_205 = fcall_returns_ref(_bang_ret_16, scope, &ctx->symbols);
-        I32 hoisted__I32_206 = 0;
-        Bool hoisted__Bool_207 = ((Bool)(hoisted__I32_205 != hoisted__I32_206));
-        if (hoisted__Bool_207) {
+        I32 hoisted__I32_204 = fcall_returns_ref(_bang_ret_16, scope, &ctx->symbols);
+        I32 hoisted__I32_205 = 0;
+        Bool hoisted__Bool_206 = ((Bool)(hoisted__I32_204 != hoisted__I32_205));
+        if (hoisted__Bool_206) {
             { OwnType _old = sdecl->own_type;
             sdecl->own_type = OwnType_clone(&(OwnType){.tag = OwnType_TAG_Ref});
             OwnType_delete(&_old, (Bool){0}); }
         }
-        Bool hoisted__Bool_208 = 0;
-        sdecl->infer_call_ownership = hoisted__Bool_208;
+        Bool hoisted__Bool_207 = 0;
+        sdecl->infer_call_ownership = hoisted__Bool_207;
     }
-    Bool hoisted__Bool_230 = ((Bool)((((Type *)(&sdecl->til_type))->tag) == Type_TAG_Unknown));
-    Bool hoisted__Bool_231 = ((Bool)(!(hoisted__Bool_230)));
-    if (hoisted__Bool_231) {
+    Bool hoisted__Bool_229 = ((Bool)((((Type *)(&sdecl->til_type))->tag) == Type_TAG_Unknown));
+    Bool hoisted__Bool_230 = ((Bool)(!(hoisted__Bool_229)));
+    if (hoisted__Bool_230) {
         priv___src_self_typer_til__infer_decl_typed_value(scope, stmt, ctx);
     } else {
         priv___src_self_typer_til__infer_decl_untyped_value(stmt, ctx);
@@ -101258,11 +101860,11 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         UNREACHABLE(&_va_Array_0, &hoisted__Str_self_typer_infer_assign_stmt_5);
     }
     }
-    U32 hoisted__U32_227 = 0;
-    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_227) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_227))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_228 = 1;
-    Bool hoisted__Bool_229 = ((Bool)(_err_kind == hoisted__I64_228));
-    if (hoisted__Bool_229) {
+    U32 hoisted__U32_248 = 0;
+    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_248) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_248))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_249 = 1;
+    Bool hoisted__Bool_250 = ((Bool)(_err_kind == hoisted__I64_249));
+    if (hoisted__Bool_250) {
         I64 hoisted__I64_6 = 0;
         _err_kind = hoisted__I64_6;
         U32 hoisted__U32_7 = 1;
@@ -101272,15 +101874,15 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         Array__Str_set(&_va_Array_1, hoisted__U32_8, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
         panic(&_va_Array_1, &hoisted__Str_self_typer_infer_assign_stmt_10);
     }
-    Type hoisted__Type_230 = TypeScope_get_type_name(scope, &aname, &ctx->symbols);
-    priv___src_self_typer_til__qualify_dotted_expr(_bang_ret_0, &hoisted__Type_230, &ctx->symbols);
-    Type_delete(&hoisted__Type_230, 0);
+    Type hoisted__Type_251 = TypeScope_get_type_name(scope, &aname, &ctx->symbols);
+    priv___src_self_typer_til__qualify_dotted_expr(_bang_ret_0, &hoisted__Type_251, &ctx->symbols);
+    Type_delete(&hoisted__Type_251, 0);
     Str saved_asg_expected_type = Str_clone(&ctx->generic_expected_type);
     void *saved_asg_expected_for = ctx->generic_expected_for;
     Str asg_expected_name = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT};
     Option__ref_TypeBinding asg_b_o = TypeScope_get_binding_name(scope, &aname, &ctx->symbols);
-    Bool hoisted__Bool_231 = Option__ref_TypeBinding_is_some(asg_b_o);
-    if (hoisted__Bool_231) {
+    Bool hoisted__Bool_252 = Option__ref_TypeBinding_is_some(asg_b_o);
+    if (hoisted__Bool_252) {
         TypeBinding *asg_b = Option__ref_TypeBinding_unwrap(&asg_b_o);
         { Str _new = Str_clone(&asg_b->declared_type_name); Str_delete(&asg_expected_name, (Bool){0}); asg_expected_name = _new; }
         U32 hoisted__U32_11 = (asg_expected_name.count);
@@ -101290,11 +101892,11 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
             { Str _new = priv___src_self_typer_til__generic_expected_name_of_type(scope, &asg_b->type, ctx); Str_delete(&asg_expected_name, (Bool){0}); asg_expected_name = _new; }
         }
     }
-    U32 hoisted__U32_232 = 0;
-    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_232) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_232))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_233 = 1;
-    Bool hoisted__Bool_234 = ((Bool)(_err_kind == hoisted__I64_233));
-    if (hoisted__Bool_234) {
+    U32 hoisted__U32_253 = 0;
+    Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_253) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_253))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_254 = 1;
+    Bool hoisted__Bool_255 = ((Bool)(_err_kind == hoisted__I64_254));
+    if (hoisted__Bool_255) {
         I64 hoisted__I64_14 = 0;
         _err_kind = hoisted__I64_14;
         U32 hoisted__U32_15 = 1;
@@ -101305,11 +101907,11 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         panic(&_va_Array_2, &hoisted__Str_self_typer_infer_assign_stmt_18);
     }
     priv___src_self_typer_til__generic_expected_arm(ctx, scope, &asg_expected_name, _bang_ret_1);
-    U32 hoisted__U32_235 = 0;
-    Expr *_bang_ret_2 = (((Bool)((U32)(hoisted__U32_235) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_235))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_236 = 1;
-    Bool hoisted__Bool_237 = ((Bool)(_err_kind == hoisted__I64_236));
-    if (hoisted__Bool_237) {
+    U32 hoisted__U32_256 = 0;
+    Expr *_bang_ret_2 = (((Bool)((U32)(hoisted__U32_256) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_256))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_257 = 1;
+    Bool hoisted__Bool_258 = ((Bool)(_err_kind == hoisted__I64_257));
+    if (hoisted__Bool_258) {
         I64 hoisted__I64_19 = 0;
         _err_kind = hoisted__I64_19;
         U32 hoisted__U32_20 = 1;
@@ -101320,140 +101922,183 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         panic(&_va_Array_3, &hoisted__Str_self_typer_infer_assign_stmt_23);
     }
     infer_expr(scope, _bang_ret_2, in_func, ctx);
-    Bool hoisted__Bool_238 = priv___src_self_typer_til__name_is_interface(&asg_expected_name, scope, &ctx->symbols);
-    if (hoisted__Bool_238) {
-        U32 hoisted__U32_34 = 0;
-        Expr *_bang_ret_3 = (((Bool)((U32)(hoisted__U32_34) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_34))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_35 = 1;
-        Bool hoisted__Bool_36 = ((Bool)(_err_kind == hoisted__I64_35));
-        if (hoisted__Bool_36) {
-            I64 hoisted__I64_24 = 0;
-            _err_kind = hoisted__I64_24;
-            U32 hoisted__U32_25 = 1;
-            Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_25);
-            I64 _va_Array_4_ek = 0;
-            U32 hoisted__U32_26 = 0;
-            Array__Str_set(&_va_Array_4, hoisted__U32_26, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
-            panic(&_va_Array_4, &hoisted__Str_self_typer_infer_assign_stmt_28);
+    Bool hoisted__Bool_259 = priv___src_self_typer_til__name_is_interface(&asg_expected_name, scope, &ctx->symbols);
+    if (hoisted__Bool_259) {
+        Bool hoisted__Bool_54 = Option__ref_TypeBinding_is_some(asg_b_o);
+        if (hoisted__Bool_54) {
+            TypeBinding *asg_iface_b = Option__ref_TypeBinding_unwrap(&asg_b_o);
+            Bool _m_Bool_24 = 0;
+            {
+                Bool hoisted__Bool_26 = 1;
+                Bool hoisted__Bool_27 = ((Bool)(asg_iface_b->iface_payload_borrowed == hoisted__Bool_26));
+                if (hoisted__Bool_27) {
+                    _m_Bool_24 = asg_iface_b->iface_borrow_explicit;
+                } else {
+                    Bool hoisted__Bool_25 = 0;
+                    _m_Bool_24 = hoisted__Bool_25;
+                }
+            }
+            if (_m_Bool_24) {
+                U32 hoisted__U32_28 = 7;
+                Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_28);
+                I64 _va_Array_4_ek = 0;
+                U32 hoisted__U32_29 = 0;
+                static Str hoisted__Str_self_typer_infer_assign_stmt_30 = (Str){.c_str = (void *)"cannot reassign ref binding '", .count = 29ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_4, hoisted__U32_29, &hoisted__Str_self_typer_infer_assign_stmt_30, &_va_Array_4_ek);
+                U32 hoisted__U32_31 = 1;
+                Str hoisted__Str_self_typer_infer_assign_stmt_32 = Str_clone(&aname);
+                Array__Str_set(&_va_Array_4, hoisted__U32_31, &hoisted__Str_self_typer_infer_assign_stmt_32, &_va_Array_4_ek);
+                U32 hoisted__U32_33 = 2;
+                static Str hoisted__Str_self_typer_infer_assign_stmt_34 = (Str){.c_str = (void *)"': it borrows its source; declare it 'mut ", .count = 42ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_4, hoisted__U32_33, &hoisted__Str_self_typer_infer_assign_stmt_34, &_va_Array_4_ek);
+                U32 hoisted__U32_35 = 3;
+                Str hoisted__Str_self_typer_infer_assign_stmt_36 = Str_clone(&aname);
+                Array__Str_set(&_va_Array_4, hoisted__U32_35, &hoisted__Str_self_typer_infer_assign_stmt_36, &_va_Array_4_ek);
+                U32 hoisted__U32_37 = 4;
+                Array__Str_set(&_va_Array_4, hoisted__U32_37, &_til_str_lits.h00000b87429f, &_va_Array_4_ek);
+                U32 hoisted__U32_39 = 5;
+                Str hoisted__Str_self_typer_infer_assign_stmt_40 = Str_clone(&asg_expected_name);
+                Array__Str_set(&_va_Array_4, hoisted__U32_39, &hoisted__Str_self_typer_infer_assign_stmt_40, &_va_Array_4_ek);
+                U32 hoisted__U32_41 = 6;
+                static Str hoisted__Str_self_typer_infer_assign_stmt_42 = (Str){.c_str = (void *)" = ...' to own a copy", .count = 21ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_4, hoisted__U32_41, &hoisted__Str_self_typer_infer_assign_stmt_42, &_va_Array_4_ek);
+                Str hoisted__Str_self_typer_infer_assign_stmt_43 = format(&_va_Array_4);
+                type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_43, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_43, 0);
+            }
         }
-        Bool hoisted__Bool_37 = 0;
-        priv___src_self_typer_til__box_inferred_interface_value(scope, _bang_ret_3, &asg_expected_name, hoisted__Bool_37, in_func, ctx);
-        U32 hoisted__U32_38 = 0;
-        Expr *_bang_ret_4 = (((Bool)((U32)(hoisted__U32_38) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_38))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_39 = 1;
-        Bool hoisted__Bool_40 = ((Bool)(_err_kind == hoisted__I64_39));
-        if (hoisted__Bool_40) {
-            I64 hoisted__I64_29 = 0;
-            _err_kind = hoisted__I64_29;
-            U32 hoisted__U32_30 = 1;
-            Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_30);
+        U32 hoisted__U32_55 = 0;
+        Expr *_bang_ret_3 = (((Bool)((U32)(hoisted__U32_55) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_55))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_56 = 1;
+        Bool hoisted__Bool_57 = ((Bool)(_err_kind == hoisted__I64_56));
+        if (hoisted__Bool_57) {
+            I64 hoisted__I64_44 = 0;
+            _err_kind = hoisted__I64_44;
+            U32 hoisted__U32_45 = 1;
+            Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_45);
             I64 _va_Array_5_ek = 0;
-            U32 hoisted__U32_31 = 0;
-            Array__Str_set(&_va_Array_5, hoisted__U32_31, &_til_str_lits.h4d3ab87300de, &_va_Array_5_ek);
-            panic(&_va_Array_5, &hoisted__Str_self_typer_infer_assign_stmt_33);
+            U32 hoisted__U32_46 = 0;
+            Array__Str_set(&_va_Array_5, hoisted__U32_46, &_til_str_lits.h4d3ab87300de, &_va_Array_5_ek);
+            panic(&_va_Array_5, &hoisted__Str_self_typer_infer_assign_stmt_48);
         }
-        Type hoisted__Type_41 = type_from_name(&asg_expected_name, scope, ctx);
-        priv___src_self_typer_til__check_declared_value_type(stmt, &aname, _bang_ret_4, &hoisted__Type_41, &asg_expected_name, &(OwnType){.tag = OwnType_TAG_Shallow}, scope, ctx);
-        Type_delete(&hoisted__Type_41, 0);
+        Bool hoisted__Bool_58 = 1;
+        priv___src_self_typer_til__box_inferred_interface_value(scope, _bang_ret_3, &asg_expected_name, hoisted__Bool_58, in_func, ctx);
+        U32 hoisted__U32_59 = 0;
+        Expr *_bang_ret_4 = (((Bool)((U32)(hoisted__U32_59) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_59))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_60 = 1;
+        Bool hoisted__Bool_61 = ((Bool)(_err_kind == hoisted__I64_60));
+        if (hoisted__Bool_61) {
+            I64 hoisted__I64_49 = 0;
+            _err_kind = hoisted__I64_49;
+            U32 hoisted__U32_50 = 1;
+            Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_50);
+            I64 _va_Array_6_ek = 0;
+            U32 hoisted__U32_51 = 0;
+            Array__Str_set(&_va_Array_6, hoisted__U32_51, &_til_str_lits.h4d3ab87300de, &_va_Array_6_ek);
+            panic(&_va_Array_6, &hoisted__Str_self_typer_infer_assign_stmt_53);
+        }
+        Type hoisted__Type_62 = type_from_name(&asg_expected_name, scope, ctx);
+        priv___src_self_typer_til__check_declared_value_type(stmt, &aname, _bang_ret_4, &hoisted__Type_62, &asg_expected_name, &(OwnType){.tag = OwnType_TAG_Shallow}, scope, ctx);
+        Type_delete(&hoisted__Type_62, 0);
     }
     { Str _old = ctx->generic_expected_type;
     ctx->generic_expected_type = Str_clone(&saved_asg_expected_type);
     Str_delete(&_old, (Bool){0}); }
     Str_delete(&saved_asg_expected_type, 0);
     ctx->generic_expected_for = saved_asg_expected_for;
-    U32 hoisted__U32_239 = 0;
-    Expr *rhs = (((Bool)((U32)(hoisted__U32_239) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_239))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-    I64 hoisted__I64_240 = 1;
-    Bool hoisted__Bool_241 = ((Bool)(_err_kind == hoisted__I64_240));
-    if (hoisted__Bool_241) {
-        I64 hoisted__I64_42 = 0;
-        _err_kind = hoisted__I64_42;
-        U32 hoisted__U32_43 = 1;
-        Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_43);
-        I64 _va_Array_6_ek = 0;
-        U32 hoisted__U32_44 = 0;
-        Array__Str_set(&_va_Array_6, hoisted__U32_44, &_til_str_lits.h4d3ab87300de, &_va_Array_6_ek);
-        panic(&_va_Array_6, &hoisted__Str_self_typer_infer_assign_stmt_46);
+    U32 hoisted__U32_260 = 0;
+    Expr *rhs = (((Bool)((U32)(hoisted__U32_260) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(stmt->children.data) + (((U64)(((U64)((U32)(hoisted__U32_260))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_261 = 1;
+    Bool hoisted__Bool_262 = ((Bool)(_err_kind == hoisted__I64_261));
+    if (hoisted__Bool_262) {
+        I64 hoisted__I64_63 = 0;
+        _err_kind = hoisted__I64_63;
+        U32 hoisted__U32_64 = 1;
+        Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_64);
+        I64 _va_Array_7_ek = 0;
+        U32 hoisted__U32_65 = 0;
+        Array__Str_set(&_va_Array_7, hoisted__U32_65, &_til_str_lits.h4d3ab87300de, &_va_Array_7_ek);
+        panic(&_va_Array_7, &hoisted__Str_self_typer_infer_assign_stmt_67);
     }
-    Type *hoisted__Type_242 = Expr_til_type(rhs);
-    Expr_set_til_type(stmt, DEREF(hoisted__Type_242));
+    Type *hoisted__Type_263 = Expr_til_type(rhs);
+    Expr_set_til_type(stmt, DEREF(hoisted__Type_263));
     Option__ref_TypeBinding ub_o = TypeScope_get_binding_name(scope, &aname, &ctx->symbols);
-    Bool hoisted__Bool_243 = Option__ref_TypeBinding_is_some(ub_o);
-    if (hoisted__Bool_243) {
+    Bool hoisted__Bool_264 = Option__ref_TypeBinding_is_some(ub_o);
+    if (hoisted__Bool_264) {
         TypeBinding *ub = Option__ref_TypeBinding_unwrap(&ub_o);
         note_cross_file_use(ctx, &ub->path);
-        Bool _m_Bool_47 = 0;
+        Bool _m_Bool_68 = 0;
         {
-            Bool hoisted__Bool_50 = 1;
-            Bool hoisted__Bool_51 = ((Bool)(ub->is_param == hoisted__Bool_50));
-            if (hoisted__Bool_51) {
-                Bool hoisted__Bool_48 = 1;
-                _m_Bool_47 = hoisted__Bool_48;
+            Bool hoisted__Bool_71 = 1;
+            Bool hoisted__Bool_72 = ((Bool)(ub->is_param == hoisted__Bool_71));
+            if (hoisted__Bool_72) {
+                Bool hoisted__Bool_69 = 1;
+                _m_Bool_68 = hoisted__Bool_69;
             } else {
-                Bool hoisted__Bool_49 = ((Bool)((((OwnType *)(&ub->own_type))->tag) == OwnType_TAG_Ref));
-                _m_Bool_47 = hoisted__Bool_49;
+                Bool hoisted__Bool_70 = ((Bool)((((OwnType *)(&ub->own_type))->tag) == OwnType_TAG_Ref));
+                _m_Bool_68 = hoisted__Bool_70;
             }
         }
-        if (_m_Bool_47) {
-            Bool hoisted__Bool_52 = 1;
-            ub->used = hoisted__Bool_52;
+        if (_m_Bool_68) {
+            Bool hoisted__Bool_73 = 1;
+            ub->used = hoisted__Bool_73;
         }
-        Bool hoisted__Bool_74 = slot_takes_address(&ub->own_type, &ub->type);
-        Bool hoisted__Bool_75 = ((Bool)(!(hoisted__Bool_74)));
-        if (hoisted__Bool_75) {
-            Bool hoisted__Bool_73 = expr_is_address(rhs, scope, &ctx->symbols);
-            if (hoisted__Bool_73) {
-                U32 hoisted__U32_53 = 9;
-                Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_53);
-                I64 _va_Array_7_ek = 0;
-                U32 hoisted__U32_54 = 0;
-                Array__Str_set(&_va_Array_7, hoisted__U32_54, &_til_str_lits.h00000002b5cc, &_va_Array_7_ek);
-                U32 hoisted__U32_56 = 1;
-                Str hoisted__Str_self_typer_infer_assign_stmt_57 = Str_clone(&aname);
-                Array__Str_set(&_va_Array_7, hoisted__U32_56, &hoisted__Str_self_typer_infer_assign_stmt_57, &_va_Array_7_ek);
-                U32 hoisted__U32_58 = 2;
-                static Str hoisted__Str_self_typer_infer_assign_stmt_59 = (Str){.c_str = (void *)"' holds one ", .count = 12ULL, .cap = TIL_CAP_LIT};
-                Array__Str_set(&_va_Array_7, hoisted__U32_58, &hoisted__Str_self_typer_infer_assign_stmt_59, &_va_Array_7_ek);
-                U32 hoisted__U32_60 = 3;
-                Str hoisted__Str_self_typer_infer_assign_stmt_61 = til_type_name_c(&ub->type, &ctx->symbols);
-                Array__Str_set(&_va_Array_7, hoisted__U32_60, &hoisted__Str_self_typer_infer_assign_stmt_61, &_va_Array_7_ek);
-                U32 hoisted__U32_62 = 4;
-                static Str hoisted__Str_self_typer_infer_assign_stmt_63 = (Str){.c_str = (void *)" by value, so assigning a pointer field to it stores the byte, not the address -- declare it 'ref ", .count = 98ULL, .cap = TIL_CAP_LIT};
-                Array__Str_set(&_va_Array_7, hoisted__U32_62, &hoisted__Str_self_typer_infer_assign_stmt_63, &_va_Array_7_ek);
-                U32 hoisted__U32_64 = 5;
-                Str hoisted__Str_self_typer_infer_assign_stmt_65 = Str_clone(&aname);
-                Array__Str_set(&_va_Array_7, hoisted__U32_64, &hoisted__Str_self_typer_infer_assign_stmt_65, &_va_Array_7_ek);
-                U32 hoisted__U32_66 = 6;
-                Array__Str_set(&_va_Array_7, hoisted__U32_66, &_til_str_lits.h00000b87429f, &_va_Array_7_ek);
-                U32 hoisted__U32_68 = 7;
-                Str hoisted__Str_self_typer_infer_assign_stmt_69 = til_type_name_c(&ub->type, &ctx->symbols);
-                Array__Str_set(&_va_Array_7, hoisted__U32_68, &hoisted__Str_self_typer_infer_assign_stmt_69, &_va_Array_7_ek);
-                U32 hoisted__U32_70 = 8;
-                static Str hoisted__Str_self_typer_infer_assign_stmt_71 = (Str){.c_str = (void *)" = ...' to borrow the pointer, or ' : Dynamic' for the raw address", .count = 66ULL, .cap = TIL_CAP_LIT};
-                Array__Str_set(&_va_Array_7, hoisted__U32_70, &hoisted__Str_self_typer_infer_assign_stmt_71, &_va_Array_7_ek);
-                Str hoisted__Str_self_typer_infer_assign_stmt_72 = format(&_va_Array_7);
-                type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_72, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-                Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_72, 0);
+        Bool hoisted__Bool_95 = slot_takes_address(&ub->own_type, &ub->type);
+        Bool hoisted__Bool_96 = ((Bool)(!(hoisted__Bool_95)));
+        if (hoisted__Bool_96) {
+            Bool hoisted__Bool_94 = expr_is_address(rhs, scope, &ctx->symbols);
+            if (hoisted__Bool_94) {
+                U32 hoisted__U32_74 = 9;
+                Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_74);
+                I64 _va_Array_8_ek = 0;
+                U32 hoisted__U32_75 = 0;
+                Array__Str_set(&_va_Array_8, hoisted__U32_75, &_til_str_lits.h00000002b5cc, &_va_Array_8_ek);
+                U32 hoisted__U32_77 = 1;
+                Str hoisted__Str_self_typer_infer_assign_stmt_78 = Str_clone(&aname);
+                Array__Str_set(&_va_Array_8, hoisted__U32_77, &hoisted__Str_self_typer_infer_assign_stmt_78, &_va_Array_8_ek);
+                U32 hoisted__U32_79 = 2;
+                static Str hoisted__Str_self_typer_infer_assign_stmt_80 = (Str){.c_str = (void *)"' holds one ", .count = 12ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_8, hoisted__U32_79, &hoisted__Str_self_typer_infer_assign_stmt_80, &_va_Array_8_ek);
+                U32 hoisted__U32_81 = 3;
+                Str hoisted__Str_self_typer_infer_assign_stmt_82 = til_type_name_c(&ub->type, &ctx->symbols);
+                Array__Str_set(&_va_Array_8, hoisted__U32_81, &hoisted__Str_self_typer_infer_assign_stmt_82, &_va_Array_8_ek);
+                U32 hoisted__U32_83 = 4;
+                static Str hoisted__Str_self_typer_infer_assign_stmt_84 = (Str){.c_str = (void *)" by value, so assigning a pointer field to it stores the byte, not the address -- declare it 'ref ", .count = 98ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_8, hoisted__U32_83, &hoisted__Str_self_typer_infer_assign_stmt_84, &_va_Array_8_ek);
+                U32 hoisted__U32_85 = 5;
+                Str hoisted__Str_self_typer_infer_assign_stmt_86 = Str_clone(&aname);
+                Array__Str_set(&_va_Array_8, hoisted__U32_85, &hoisted__Str_self_typer_infer_assign_stmt_86, &_va_Array_8_ek);
+                U32 hoisted__U32_87 = 6;
+                Array__Str_set(&_va_Array_8, hoisted__U32_87, &_til_str_lits.h00000b87429f, &_va_Array_8_ek);
+                U32 hoisted__U32_89 = 7;
+                Str hoisted__Str_self_typer_infer_assign_stmt_90 = til_type_name_c(&ub->type, &ctx->symbols);
+                Array__Str_set(&_va_Array_8, hoisted__U32_89, &hoisted__Str_self_typer_infer_assign_stmt_90, &_va_Array_8_ek);
+                U32 hoisted__U32_91 = 8;
+                static Str hoisted__Str_self_typer_infer_assign_stmt_92 = (Str){.c_str = (void *)" = ...' to borrow the pointer, or ' : Dynamic' for the raw address", .count = 66ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_8, hoisted__U32_91, &hoisted__Str_self_typer_infer_assign_stmt_92, &_va_Array_8_ek);
+                Str hoisted__Str_self_typer_infer_assign_stmt_93 = format(&_va_Array_8);
+                type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_93, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_93, 0);
             }
         }
     }
-    Type *hoisted__Type_244 = Expr_til_type(rhs);
-    Bool hoisted__Bool_245 = type_carries_borrow_t(scope, hoisted__Type_244, &ctx->symbols);
-    if (hoisted__Bool_245) {
+    Type *hoisted__Type_265 = Expr_til_type(rhs);
+    Bool hoisted__Bool_266 = type_carries_borrow_t(scope, hoisted__Type_265, &ctx->symbols);
+    if (hoisted__Bool_266) {
         Vec__BorrowRoot deposited_393 = priv___src_self_typer_til__deposit_src_roots(scope, rhs, &ctx->symbols);
-        U32 hoisted__U32_80 = (deposited_393.count);
-        U32 hoisted__U32_81 = 0;
-        Bool hoisted__Bool_82 = ((Bool)(hoisted__U32_80 > hoisted__U32_81));
-        if (hoisted__Bool_82) {
+        U32 hoisted__U32_101 = (deposited_393.count);
+        U32 hoisted__U32_102 = 0;
+        Bool hoisted__Bool_103 = ((Bool)(hoisted__U32_101 > hoisted__U32_102));
+        if (hoisted__Bool_103) {
             Option__ref_TypeBinding db_o = TypeScope_get_binding_name(scope, &aname, &ctx->symbols);
-            Bool hoisted__Bool_79 = Option__ref_TypeBinding_is_some(db_o);
-            if (hoisted__Bool_79) {
+            Bool hoisted__Bool_100 = Option__ref_TypeBinding_is_some(db_o);
+            if (hoisted__Bool_100) {
                 TypeBinding *db = Option__ref_TypeBinding_unwrap(&db_o);
-                Bool hoisted__Bool_78 = priv___src_self_typer_til__binding_is_storage(scope, db, &ctx->symbols);
-                if (hoisted__Bool_78) {
-                    Type *hoisted__Type_76 = Expr_til_type(rhs);
-                    Bool hoisted__Bool_77 = priv___src_self_typer_til__type_is_interface(hoisted__Type_76, scope, &ctx->symbols);
-                    if (hoisted__Bool_77) {
+                Bool hoisted__Bool_99 = priv___src_self_typer_til__binding_is_storage(scope, db, &ctx->symbols);
+                if (hoisted__Bool_99) {
+                    Type *hoisted__Type_97 = Expr_til_type(rhs);
+                    Bool hoisted__Bool_98 = priv___src_self_typer_til__type_is_interface(hoisted__Type_97, scope, &ctx->symbols);
+                    if (hoisted__Bool_98) {
                         priv___src_self_typer_til__check_interface_deposit_lifetimes(scope, db, &deposited_393, stmt, ctx);
                     }
                     priv___src_self_typer_til__deposit_roots_into_binding(scope, db, &deposited_393, &ctx->symbols);
@@ -101463,112 +102108,112 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         Vec__BorrowRoot_delete(&deposited_393, 0);
     }
     Type existing = TypeScope_get_type_name(scope, &aname, &ctx->symbols);
-    Bool hoisted__Bool_246 = 0;
-    priv___src_self_typer_til__rewrite_zero_to_null(rhs, existing, hoisted__Bool_246);
-    Bool _m_Bool_83 = 0;
+    Bool hoisted__Bool_267 = 0;
+    priv___src_self_typer_til__rewrite_zero_to_null(rhs, existing, hoisted__Bool_267);
+    Bool _m_Bool_104 = 0;
     {
-        Bool _sw_Bool_84 = NodeType_is_literal_null(&rhs->node_type);
-        Bool hoisted__Bool_88 = 1;
-        Bool hoisted__Bool_89 = ((Bool)(_sw_Bool_84 == hoisted__Bool_88));
-        if (hoisted__Bool_89) {
-            Bool hoisted__Bool_85 = ((Bool)((((Type *)(&existing))->tag) == Type_TAG_Unknown));
-            Bool hoisted__Bool_86 = ((Bool)(!(hoisted__Bool_85)));
-            _m_Bool_83 = hoisted__Bool_86;
+        Bool _sw_Bool_105 = NodeType_is_literal_null(&rhs->node_type);
+        Bool hoisted__Bool_109 = 1;
+        Bool hoisted__Bool_110 = ((Bool)(_sw_Bool_105 == hoisted__Bool_109));
+        if (hoisted__Bool_110) {
+            Bool hoisted__Bool_106 = ((Bool)((((Type *)(&existing))->tag) == Type_TAG_Unknown));
+            Bool hoisted__Bool_107 = ((Bool)(!(hoisted__Bool_106)));
+            _m_Bool_104 = hoisted__Bool_107;
         } else {
-            Bool hoisted__Bool_87 = 0;
-            _m_Bool_83 = hoisted__Bool_87;
+            Bool hoisted__Bool_108 = 0;
+            _m_Bool_104 = hoisted__Bool_108;
         }
     }
-    if (_m_Bool_83) {
-        Bool hoisted__Bool_98 = priv___src_self_typer_til__type_is_null_quarantine(existing);
-        Bool hoisted__Bool_99 = ((Bool)(!(hoisted__Bool_98)));
-        if (hoisted__Bool_99) {
-            U32 hoisted__U32_90 = 3;
-            Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_90);
-            I64 _va_Array_8_ek = 0;
-            U32 hoisted__U32_91 = 0;
-            static Str hoisted__Str_self_typer_infer_assign_stmt_92 = (Str){.c_str = (void *)"cannot assign a null pointer to '", .count = 33ULL, .cap = TIL_CAP_LIT};
-            Array__Str_set(&_va_Array_8, hoisted__U32_91, &hoisted__Str_self_typer_infer_assign_stmt_92, &_va_Array_8_ek);
-            U32 hoisted__U32_93 = 1;
-            Str hoisted__Str_self_typer_infer_assign_stmt_94 = Str_clone(&aname);
-            Array__Str_set(&_va_Array_8, hoisted__U32_93, &hoisted__Str_self_typer_infer_assign_stmt_94, &_va_Array_8_ek);
-            U32 hoisted__U32_95 = 2;
-            static Str hoisted__Str_self_typer_infer_assign_stmt_96 = (Str){.c_str = (void *)"'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- use an Option for a real absent state (#321)", .count = 132ULL, .cap = TIL_CAP_LIT};
-            Array__Str_set(&_va_Array_8, hoisted__U32_95, &hoisted__Str_self_typer_infer_assign_stmt_96, &_va_Array_8_ek);
-            Str hoisted__Str_self_typer_infer_assign_stmt_97 = format(&_va_Array_8);
-            type_error(rhs, &hoisted__Str_self_typer_infer_assign_stmt_97, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-            Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_97, 0);
+    if (_m_Bool_104) {
+        Bool hoisted__Bool_119 = priv___src_self_typer_til__type_is_null_quarantine(existing);
+        Bool hoisted__Bool_120 = ((Bool)(!(hoisted__Bool_119)));
+        if (hoisted__Bool_120) {
+            U32 hoisted__U32_111 = 3;
+            Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_111);
+            I64 _va_Array_9_ek = 0;
+            U32 hoisted__U32_112 = 0;
+            static Str hoisted__Str_self_typer_infer_assign_stmt_113 = (Str){.c_str = (void *)"cannot assign a null pointer to '", .count = 33ULL, .cap = TIL_CAP_LIT};
+            Array__Str_set(&_va_Array_9, hoisted__U32_112, &hoisted__Str_self_typer_infer_assign_stmt_113, &_va_Array_9_ek);
+            U32 hoisted__U32_114 = 1;
+            Str hoisted__Str_self_typer_infer_assign_stmt_115 = Str_clone(&aname);
+            Array__Str_set(&_va_Array_9, hoisted__U32_114, &hoisted__Str_self_typer_infer_assign_stmt_115, &_va_Array_9_ek);
+            U32 hoisted__U32_116 = 2;
+            static Str hoisted__Str_self_typer_infer_assign_stmt_117 = (Str){.c_str = (void *)"'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- use an Option for a real absent state (#321)", .count = 132ULL, .cap = TIL_CAP_LIT};
+            Array__Str_set(&_va_Array_9, hoisted__U32_116, &hoisted__Str_self_typer_infer_assign_stmt_117, &_va_Array_9_ek);
+            Str hoisted__Str_self_typer_infer_assign_stmt_118 = format(&_va_Array_9);
+            type_error(rhs, &hoisted__Str_self_typer_infer_assign_stmt_118, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+            Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_118, 0);
         }
     }
-    Bool hoisted__Bool_247 = ((Bool)((((Type *)(&existing))->tag) == Type_TAG_Unknown));
-    if (hoisted__Bool_247) {
-        U32 hoisted__U32_100 = 3;
-        Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_100);
-        I64 _va_Array_9_ek = 0;
-        U32 hoisted__U32_101 = 0;
-        Array__Str_set(&_va_Array_9, hoisted__U32_101, &_til_str_lits.hb4b5f5032634, &_va_Array_9_ek);
-        U32 hoisted__U32_103 = 1;
-        Str hoisted__Str_self_typer_infer_assign_stmt_104 = Str_clone(&aname);
-        Array__Str_set(&_va_Array_9, hoisted__U32_103, &hoisted__Str_self_typer_infer_assign_stmt_104, &_va_Array_9_ek);
-        U32 hoisted__U32_105 = 2;
-        Array__Str_set(&_va_Array_9, hoisted__U32_105, &_til_str_lits.h00000002b5cc, &_va_Array_9_ek);
-        Str hoisted__Str_self_typer_infer_assign_stmt_107 = format(&_va_Array_9);
-        type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_107, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-        Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_107, 0);
+    Bool hoisted__Bool_268 = ((Bool)((((Type *)(&existing))->tag) == Type_TAG_Unknown));
+    if (hoisted__Bool_268) {
+        U32 hoisted__U32_121 = 3;
+        Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_121);
+        I64 _va_Array_10_ek = 0;
+        U32 hoisted__U32_122 = 0;
+        Array__Str_set(&_va_Array_10, hoisted__U32_122, &_til_str_lits.hb4b5f5032634, &_va_Array_10_ek);
+        U32 hoisted__U32_124 = 1;
+        Str hoisted__Str_self_typer_infer_assign_stmt_125 = Str_clone(&aname);
+        Array__Str_set(&_va_Array_10, hoisted__U32_124, &hoisted__Str_self_typer_infer_assign_stmt_125, &_va_Array_10_ek);
+        U32 hoisted__U32_126 = 2;
+        Array__Str_set(&_va_Array_10, hoisted__U32_126, &_til_str_lits.h00000002b5cc, &_va_Array_10_ek);
+        Str hoisted__Str_self_typer_infer_assign_stmt_128 = format(&_va_Array_10);
+        type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_128, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+        Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_128, 0);
     } else {
-        Bool hoisted__Bool_165 = TypeScope_is_mut_name(scope, &aname, &ctx->symbols);
-        Bool hoisted__Bool_166 = ((Bool)(!(hoisted__Bool_165)));
-        if (hoisted__Bool_166) {
-            U32 hoisted__U32_126 = 3;
-            Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_126);
-            I64 _va_Array_12_ek = 0;
-            U32 hoisted__U32_127 = 0;
-            static Str hoisted__Str_self_typer_infer_assign_stmt_128 = (Str){.c_str = (void *)"cannot assign to immutable variable '", .count = 37ULL, .cap = TIL_CAP_LIT};
-            Array__Str_set(&_va_Array_12, hoisted__U32_127, &hoisted__Str_self_typer_infer_assign_stmt_128, &_va_Array_12_ek);
-            U32 hoisted__U32_129 = 1;
-            Str hoisted__Str_self_typer_infer_assign_stmt_130 = Str_clone(&aname);
-            Array__Str_set(&_va_Array_12, hoisted__U32_129, &hoisted__Str_self_typer_infer_assign_stmt_130, &_va_Array_12_ek);
-            U32 hoisted__U32_131 = 2;
-            Array__Str_set(&_va_Array_12, hoisted__U32_131, &_til_str_lits.h00000002b5cc, &_va_Array_12_ek);
-            Str hoisted__Str_self_typer_infer_assign_stmt_133 = format(&_va_Array_12);
-            type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_133, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-            Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_133, 0);
+        Bool hoisted__Bool_186 = TypeScope_is_mut_name(scope, &aname, &ctx->symbols);
+        Bool hoisted__Bool_187 = ((Bool)(!(hoisted__Bool_186)));
+        if (hoisted__Bool_187) {
+            U32 hoisted__U32_147 = 3;
+            Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_147);
+            I64 _va_Array_13_ek = 0;
+            U32 hoisted__U32_148 = 0;
+            static Str hoisted__Str_self_typer_infer_assign_stmt_149 = (Str){.c_str = (void *)"cannot assign to immutable variable '", .count = 37ULL, .cap = TIL_CAP_LIT};
+            Array__Str_set(&_va_Array_13, hoisted__U32_148, &hoisted__Str_self_typer_infer_assign_stmt_149, &_va_Array_13_ek);
+            U32 hoisted__U32_150 = 1;
+            Str hoisted__Str_self_typer_infer_assign_stmt_151 = Str_clone(&aname);
+            Array__Str_set(&_va_Array_13, hoisted__U32_150, &hoisted__Str_self_typer_infer_assign_stmt_151, &_va_Array_13_ek);
+            U32 hoisted__U32_152 = 2;
+            Array__Str_set(&_va_Array_13, hoisted__U32_152, &_til_str_lits.h00000002b5cc, &_va_Array_13_ek);
+            Str hoisted__Str_self_typer_infer_assign_stmt_154 = format(&_va_Array_13);
+            type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_154, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+            Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_154, 0);
             ScopeFind sf = TypeScope_find_name(scope, &aname, &ctx->symbols);
             switch ((int)((sf).data != NULL)) {
             case 1: {
                 TypeBinding *b = ((void *)((ScopeFind *)(&sf))->data);
                 if (b->is_param) {
-                    U32 hoisted__U32_108 = 3;
-                    Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_108);
-                    I64 _va_Array_10_ek = 0;
-                    U32 hoisted__U32_109 = 0;
-                    Array__Str_set(&_va_Array_10, hoisted__U32_109, &_til_str_lits.h00000002b5cc, &_va_Array_10_ek);
-                    U32 hoisted__U32_111 = 1;
-                    Str hoisted__Str_self_typer_infer_assign_stmt_112 = Str_clone(&aname);
-                    Array__Str_set(&_va_Array_10, hoisted__U32_111, &hoisted__Str_self_typer_infer_assign_stmt_112, &_va_Array_10_ek);
-                    U32 hoisted__U32_113 = 2;
-                    static Str hoisted__Str_self_typer_infer_assign_stmt_114 = (Str){.c_str = (void *)"' is a function parameter", .count = 25ULL, .cap = TIL_CAP_LIT};
-                    Array__Str_set(&_va_Array_10, hoisted__U32_113, &hoisted__Str_self_typer_infer_assign_stmt_114, &_va_Array_10_ek);
-                    Str hoisted__Str_self_typer_infer_assign_stmt_115 = format(&_va_Array_10);
-                    Bool hoisted__Bool_116 = 1;
-                    context_diagnostic(ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type}, &(DiagnosticSeverity){.tag = DiagnosticSeverity_TAG_Note}, &ctx->path, b->line, b->col, &hoisted__Str_self_typer_infer_assign_stmt_115, hoisted__Bool_116);
-                    Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_115, 0);
-                } else {
-                    U32 hoisted__U32_117 = 3;
-                    Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_117);
+                    U32 hoisted__U32_129 = 3;
+                    Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_129);
                     I64 _va_Array_11_ek = 0;
-                    U32 hoisted__U32_118 = 0;
-                    Array__Str_set(&_va_Array_11, hoisted__U32_118, &_til_str_lits.h00000002b5cc, &_va_Array_11_ek);
-                    U32 hoisted__U32_120 = 1;
-                    Str hoisted__Str_self_typer_infer_assign_stmt_121 = Str_clone(&aname);
-                    Array__Str_set(&_va_Array_11, hoisted__U32_120, &hoisted__Str_self_typer_infer_assign_stmt_121, &_va_Array_11_ek);
-                    U32 hoisted__U32_122 = 2;
-                    static Str hoisted__Str_self_typer_infer_assign_stmt_123 = (Str){.c_str = (void *)"' declared here, consider adding 'mut'", .count = 38ULL, .cap = TIL_CAP_LIT};
-                    Array__Str_set(&_va_Array_11, hoisted__U32_122, &hoisted__Str_self_typer_infer_assign_stmt_123, &_va_Array_11_ek);
-                    Str hoisted__Str_self_typer_infer_assign_stmt_124 = format(&_va_Array_11);
-                    Bool hoisted__Bool_125 = 1;
-                    context_diagnostic(ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type}, &(DiagnosticSeverity){.tag = DiagnosticSeverity_TAG_Note}, &ctx->path, b->line, b->col, &hoisted__Str_self_typer_infer_assign_stmt_124, hoisted__Bool_125);
-                    Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_124, 0);
+                    U32 hoisted__U32_130 = 0;
+                    Array__Str_set(&_va_Array_11, hoisted__U32_130, &_til_str_lits.h00000002b5cc, &_va_Array_11_ek);
+                    U32 hoisted__U32_132 = 1;
+                    Str hoisted__Str_self_typer_infer_assign_stmt_133 = Str_clone(&aname);
+                    Array__Str_set(&_va_Array_11, hoisted__U32_132, &hoisted__Str_self_typer_infer_assign_stmt_133, &_va_Array_11_ek);
+                    U32 hoisted__U32_134 = 2;
+                    static Str hoisted__Str_self_typer_infer_assign_stmt_135 = (Str){.c_str = (void *)"' is a function parameter", .count = 25ULL, .cap = TIL_CAP_LIT};
+                    Array__Str_set(&_va_Array_11, hoisted__U32_134, &hoisted__Str_self_typer_infer_assign_stmt_135, &_va_Array_11_ek);
+                    Str hoisted__Str_self_typer_infer_assign_stmt_136 = format(&_va_Array_11);
+                    Bool hoisted__Bool_137 = 1;
+                    context_diagnostic(ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type}, &(DiagnosticSeverity){.tag = DiagnosticSeverity_TAG_Note}, &ctx->path, b->line, b->col, &hoisted__Str_self_typer_infer_assign_stmt_136, hoisted__Bool_137);
+                    Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_136, 0);
+                } else {
+                    U32 hoisted__U32_138 = 3;
+                    Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_138);
+                    I64 _va_Array_12_ek = 0;
+                    U32 hoisted__U32_139 = 0;
+                    Array__Str_set(&_va_Array_12, hoisted__U32_139, &_til_str_lits.h00000002b5cc, &_va_Array_12_ek);
+                    U32 hoisted__U32_141 = 1;
+                    Str hoisted__Str_self_typer_infer_assign_stmt_142 = Str_clone(&aname);
+                    Array__Str_set(&_va_Array_12, hoisted__U32_141, &hoisted__Str_self_typer_infer_assign_stmt_142, &_va_Array_12_ek);
+                    U32 hoisted__U32_143 = 2;
+                    static Str hoisted__Str_self_typer_infer_assign_stmt_144 = (Str){.c_str = (void *)"' declared here, consider adding 'mut'", .count = 38ULL, .cap = TIL_CAP_LIT};
+                    Array__Str_set(&_va_Array_12, hoisted__U32_143, &hoisted__Str_self_typer_infer_assign_stmt_144, &_va_Array_12_ek);
+                    Str hoisted__Str_self_typer_infer_assign_stmt_145 = format(&_va_Array_12);
+                    Bool hoisted__Bool_146 = 1;
+                    context_diagnostic(ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type}, &(DiagnosticSeverity){.tag = DiagnosticSeverity_TAG_Note}, &ctx->path, b->line, b->col, &hoisted__Str_self_typer_infer_assign_stmt_145, hoisted__Bool_146);
+                    Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_145, 0);
                 }
                 break;
             }
@@ -101578,69 +102223,69 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
             }
             ScopeFind_delete(&sf, 0);
         } else {
-            Bool _m_Bool_134 = 0;
+            Bool _m_Bool_155 = 0;
             {
-                Bool _sw_Bool_135 = NodeType_is_literal_num(&rhs->node_type);
-                Bool hoisted__Bool_138 = 1;
-                Bool hoisted__Bool_139 = ((Bool)(_sw_Bool_135 == hoisted__Bool_138));
-                if (hoisted__Bool_139) {
-                    Bool hoisted__Bool_136 = is_numeric_type(&existing);
-                    _m_Bool_134 = hoisted__Bool_136;
+                Bool _sw_Bool_156 = NodeType_is_literal_num(&rhs->node_type);
+                Bool hoisted__Bool_159 = 1;
+                Bool hoisted__Bool_160 = ((Bool)(_sw_Bool_156 == hoisted__Bool_159));
+                if (hoisted__Bool_160) {
+                    Bool hoisted__Bool_157 = is_numeric_type(&existing);
+                    _m_Bool_155 = hoisted__Bool_157;
                 } else {
-                    Bool hoisted__Bool_137 = 0;
-                    _m_Bool_134 = hoisted__Bool_137;
+                    Bool hoisted__Bool_158 = 0;
+                    _m_Bool_155 = hoisted__Bool_158;
                 }
             }
-            if (_m_Bool_134) {
+            if (_m_Bool_155) {
                 Expr_set_til_type(rhs, existing);
                 Expr_set_til_type(stmt, existing);
             } else {
-                Bool _m_Bool_140 = 0;
+                Bool _m_Bool_161 = 0;
                 {
                     {
-                        Type *hoisted__Type_145 = Expr_til_type(rhs);
-                        Bool _sw_Bool_141 = type_kind_eq(hoisted__Type_145, &existing);
-                        Bool hoisted__Bool_146 = 1;
-                        Bool hoisted__Bool_147 = ((Bool)(_sw_Bool_141 == hoisted__Bool_146));
-                        if (hoisted__Bool_147) {
-                            Bool hoisted__Bool_142 = 1;
-                            _m_Bool_140 = hoisted__Bool_142;
+                        Type *hoisted__Type_166 = Expr_til_type(rhs);
+                        Bool _sw_Bool_162 = type_kind_eq(hoisted__Type_166, &existing);
+                        Bool hoisted__Bool_167 = 1;
+                        Bool hoisted__Bool_168 = ((Bool)(_sw_Bool_162 == hoisted__Bool_167));
+                        if (hoisted__Bool_168) {
+                            Bool hoisted__Bool_163 = 1;
+                            _m_Bool_161 = hoisted__Bool_163;
                         } else {
-                            Type *hoisted__Type_143 = Expr_til_type(rhs);
-                            Bool hoisted__Bool_144 = ((Bool)((((Type *)(hoisted__Type_143))->tag) == Type_TAG_Unknown));
-                            _m_Bool_140 = hoisted__Bool_144;
+                            Type *hoisted__Type_164 = Expr_til_type(rhs);
+                            Bool hoisted__Bool_165 = ((Bool)((((Type *)(hoisted__Type_164))->tag) == Type_TAG_Unknown));
+                            _m_Bool_161 = hoisted__Bool_165;
                         }
                     }
-                    Bool hoisted__Bool_151 = 1;
-                    Bool hoisted__Bool_152 = ((Bool)(_m_Bool_140 == hoisted__Bool_151));
-                    if (hoisted__Bool_152) {
-                        Bool hoisted__Bool_148 = 1;
-                        _m_Bool_140 = hoisted__Bool_148;
+                    Bool hoisted__Bool_172 = 1;
+                    Bool hoisted__Bool_173 = ((Bool)(_m_Bool_161 == hoisted__Bool_172));
+                    if (hoisted__Bool_173) {
+                        Bool hoisted__Bool_169 = 1;
+                        _m_Bool_161 = hoisted__Bool_169;
                     } else {
-                        Type *hoisted__Type_149 = Expr_til_type(rhs);
-                        Bool hoisted__Bool_150 = funcptr_eq(hoisted__Type_149, &existing, &ctx->symbols);
-                        _m_Bool_140 = hoisted__Bool_150;
+                        Type *hoisted__Type_170 = Expr_til_type(rhs);
+                        Bool hoisted__Bool_171 = funcptr_eq(hoisted__Type_170, &existing, &ctx->symbols);
+                        _m_Bool_161 = hoisted__Bool_171;
                     }
                 }
-                Bool hoisted__Bool_164 = ((Bool)(!(_m_Bool_140)));
-                if (hoisted__Bool_164) {
-                    Bool hoisted__Bool_162 = Str_starts_with(&aname, &_til_str_lits.h00000b885570);
-                    Bool hoisted__Bool_163 = ((Bool)(!(hoisted__Bool_162)));
-                    if (hoisted__Bool_163) {
-                        U32 hoisted__U32_153 = 3;
-                        Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_153);
-                        I64 _va_Array_13_ek = 0;
-                        U32 hoisted__U32_154 = 0;
-                        Array__Str_set(&_va_Array_13, hoisted__U32_154, &_til_str_lits.h00000002b5cc, &_va_Array_13_ek);
-                        U32 hoisted__U32_156 = 1;
-                        Str hoisted__Str_self_typer_infer_assign_stmt_157 = Str_clone(&aname);
-                        Array__Str_set(&_va_Array_13, hoisted__U32_156, &hoisted__Str_self_typer_infer_assign_stmt_157, &_va_Array_13_ek);
-                        U32 hoisted__U32_158 = 2;
-                        static Str hoisted__Str_self_typer_infer_assign_stmt_159 = (Str){.c_str = (void *)"' assignment type mismatch", .count = 26ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_13, hoisted__U32_158, &hoisted__Str_self_typer_infer_assign_stmt_159, &_va_Array_13_ek);
-                        Str hoisted__Str_self_typer_infer_assign_stmt_160 = format(&_va_Array_13);
-                        type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_160, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
-                        Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_160, 0);
+                Bool hoisted__Bool_185 = ((Bool)(!(_m_Bool_161)));
+                if (hoisted__Bool_185) {
+                    Bool hoisted__Bool_183 = Str_starts_with(&aname, &_til_str_lits.h00000b885570);
+                    Bool hoisted__Bool_184 = ((Bool)(!(hoisted__Bool_183)));
+                    if (hoisted__Bool_184) {
+                        U32 hoisted__U32_174 = 3;
+                        Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_174);
+                        I64 _va_Array_14_ek = 0;
+                        U32 hoisted__U32_175 = 0;
+                        Array__Str_set(&_va_Array_14, hoisted__U32_175, &_til_str_lits.h00000002b5cc, &_va_Array_14_ek);
+                        U32 hoisted__U32_177 = 1;
+                        Str hoisted__Str_self_typer_infer_assign_stmt_178 = Str_clone(&aname);
+                        Array__Str_set(&_va_Array_14, hoisted__U32_177, &hoisted__Str_self_typer_infer_assign_stmt_178, &_va_Array_14_ek);
+                        U32 hoisted__U32_179 = 2;
+                        static Str hoisted__Str_self_typer_infer_assign_stmt_180 = (Str){.c_str = (void *)"' assignment type mismatch", .count = 26ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_14, hoisted__U32_179, &hoisted__Str_self_typer_infer_assign_stmt_180, &_va_Array_14_ek);
+                        Str hoisted__Str_self_typer_infer_assign_stmt_181 = format(&_va_Array_14);
+                        type_error(stmt, &hoisted__Str_self_typer_infer_assign_stmt_181, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
+                        Str_delete(&hoisted__Str_self_typer_infer_assign_stmt_181, 0);
                     }
                 }
             }
@@ -101653,25 +102298,25 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
     switch ((int)((sf_assign).data != NULL)) {
     case 1: {
         TypeBinding *ab = ((void *)((ScopeFind *)(&sf_assign))->data);
-        Bool _m_Bool_167 = 0;
+        Bool _m_Bool_188 = 0;
         {
-            Bool _sw_Bool_168 = ((Bool)((((OwnType *)(&ab->own_type))->tag) == OwnType_TAG_Ref));
-            Bool hoisted__Bool_171 = 1;
-            Bool hoisted__Bool_172 = ((Bool)(_sw_Bool_168 == hoisted__Bool_171));
-            if (hoisted__Bool_172) {
-                Bool hoisted__Bool_169 = ((Bool)(!(ab->is_param)));
-                _m_Bool_167 = hoisted__Bool_169;
+            Bool _sw_Bool_189 = ((Bool)((((OwnType *)(&ab->own_type))->tag) == OwnType_TAG_Ref));
+            Bool hoisted__Bool_192 = 1;
+            Bool hoisted__Bool_193 = ((Bool)(_sw_Bool_189 == hoisted__Bool_192));
+            if (hoisted__Bool_193) {
+                Bool hoisted__Bool_190 = ((Bool)(!(ab->is_param)));
+                _m_Bool_188 = hoisted__Bool_190;
             } else {
-                Bool hoisted__Bool_170 = 0;
-                _m_Bool_167 = hoisted__Bool_170;
+                Bool hoisted__Bool_191 = 0;
+                _m_Bool_188 = hoisted__Bool_191;
             }
         }
-        if (_m_Bool_167) {
-            Bool hoisted__Bool_174 = 1;
-            is_ref_target = hoisted__Bool_174;
+        if (_m_Bool_188) {
+            Bool hoisted__Bool_195 = 1;
+            is_ref_target = hoisted__Bool_195;
             if (ab->is_alias) {
-                Bool hoisted__Bool_173 = 1;
-                is_payload_alias = hoisted__Bool_173;
+                Bool hoisted__Bool_194 = 1;
+                is_payload_alias = hoisted__Bool_194;
             }
         }
         break;
@@ -101685,8 +102330,8 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         switch ((stmt->node_type).tag) {
         case NodeType_TAG_Assign: {
             AssignData *adata_p = ((void *)((U8 *)(&stmt->node_type) + offsetof(NodeType, data)));
-            Bool hoisted__Bool_175 = 1;
-            adata_p->is_payload_alias = hoisted__Bool_175;
+            Bool hoisted__Bool_196 = 1;
+            adata_p->is_payload_alias = hoisted__Bool_196;
             break;
         }
         default: {
@@ -101695,115 +102340,115 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         }
     }
     if (is_ref_target) {
-        Bool hoisted__Bool_176 = ((Bool)(!(is_payload_alias)));
-        if (hoisted__Bool_176) {
+        Bool hoisted__Bool_197 = ((Bool)(!(is_payload_alias)));
+        if (hoisted__Bool_197) {
             priv___src_self_typer_til__check_ref_assign_owned_rhs(stmt, &aname, rhs, scope, ctx);
         }
     }
-    Bool hoisted__Bool_248 = ((Bool)(!(is_ref_target)));
-    if (hoisted__Bool_248) {
-        Bool _m_Bool_177 = 0;
+    Bool hoisted__Bool_269 = ((Bool)(!(is_ref_target)));
+    if (hoisted__Bool_269) {
+        Bool _m_Bool_198 = 0;
         {
             {
-                Bool _sw_Bool_178 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FCall));
-                Bool hoisted__Bool_183 = 1;
-                Bool hoisted__Bool_184 = ((Bool)(_sw_Bool_178 == hoisted__Bool_183));
-                if (hoisted__Bool_184) {
-                    I32 hoisted__I32_179 = fcall_returns_ref(rhs, scope, &ctx->symbols);
-                    I32 hoisted__I32_180 = 0;
-                    Bool hoisted__Bool_181 = ((Bool)(hoisted__I32_179 != hoisted__I32_180));
-                    _m_Bool_177 = hoisted__Bool_181;
+                Bool _sw_Bool_199 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FCall));
+                Bool hoisted__Bool_204 = 1;
+                Bool hoisted__Bool_205 = ((Bool)(_sw_Bool_199 == hoisted__Bool_204));
+                if (hoisted__Bool_205) {
+                    I32 hoisted__I32_200 = fcall_returns_ref(rhs, scope, &ctx->symbols);
+                    I32 hoisted__I32_201 = 0;
+                    Bool hoisted__Bool_202 = ((Bool)(hoisted__I32_200 != hoisted__I32_201));
+                    _m_Bool_198 = hoisted__Bool_202;
                 } else {
-                    Bool hoisted__Bool_182 = 0;
-                    _m_Bool_177 = hoisted__Bool_182;
+                    Bool hoisted__Bool_203 = 0;
+                    _m_Bool_198 = hoisted__Bool_203;
                 }
             }
-            Bool hoisted__Bool_187 = 1;
-            Bool hoisted__Bool_188 = ((Bool)(_m_Bool_177 == hoisted__Bool_187));
-            if (hoisted__Bool_188) {
-                Bool hoisted__Bool_185 = is_aggregate(&existing);
-                _m_Bool_177 = hoisted__Bool_185;
+            Bool hoisted__Bool_208 = 1;
+            Bool hoisted__Bool_209 = ((Bool)(_m_Bool_198 == hoisted__Bool_208));
+            if (hoisted__Bool_209) {
+                Bool hoisted__Bool_206 = is_aggregate(&existing);
+                _m_Bool_198 = hoisted__Bool_206;
             } else {
-                Bool hoisted__Bool_186 = 0;
-                _m_Bool_177 = hoisted__Bool_186;
+                Bool hoisted__Bool_207 = 0;
+                _m_Bool_198 = hoisted__Bool_207;
             }
         }
-        if (_m_Bool_177) {
+        if (_m_Bool_198) {
             type_error(stmt, &_til_str_lits.he22c1de6c144, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
         }
-        Bool _m_Bool_190 = 0;
+        Bool _m_Bool_211 = 0;
         {
-            Bool _sw_Bool_191 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_Ident));
-            Bool hoisted__Bool_199 = 1;
-            Bool hoisted__Bool_200 = ((Bool)(_sw_Bool_191 == hoisted__Bool_199));
-            if (hoisted__Bool_200) {
-                Bool hoisted__Bool_192 = 1;
-                _m_Bool_190 = hoisted__Bool_192;
+            Bool _sw_Bool_212 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_Ident));
+            Bool hoisted__Bool_220 = 1;
+            Bool hoisted__Bool_221 = ((Bool)(_sw_Bool_212 == hoisted__Bool_220));
+            if (hoisted__Bool_221) {
+                Bool hoisted__Bool_213 = 1;
+                _m_Bool_211 = hoisted__Bool_213;
             } else {
                 {
-                    Bool _sw_Bool_193 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FieldAccess));
-                    Bool hoisted__Bool_197 = 1;
-                    Bool hoisted__Bool_198 = ((Bool)(_sw_Bool_193 == hoisted__Bool_197));
-                    if (hoisted__Bool_198) {
-                        Type *hoisted__Type_194 = Expr_til_type(rhs);
-                        Bool hoisted__Bool_195 = is_aggregate(hoisted__Type_194);
-                        _m_Bool_190 = hoisted__Bool_195;
+                    Bool _sw_Bool_214 = ((Bool)((((NodeType *)(&rhs->node_type))->tag) == NodeType_TAG_FieldAccess));
+                    Bool hoisted__Bool_218 = 1;
+                    Bool hoisted__Bool_219 = ((Bool)(_sw_Bool_214 == hoisted__Bool_218));
+                    if (hoisted__Bool_219) {
+                        Type *hoisted__Type_215 = Expr_til_type(rhs);
+                        Bool hoisted__Bool_216 = is_aggregate(hoisted__Type_215);
+                        _m_Bool_211 = hoisted__Bool_216;
                     } else {
-                        Bool hoisted__Bool_196 = 0;
-                        _m_Bool_190 = hoisted__Bool_196;
+                        Bool hoisted__Bool_217 = 0;
+                        _m_Bool_211 = hoisted__Bool_217;
                     }
                 }
             }
         }
-        if (_m_Bool_190) {
-            Type *hoisted__Type_226 = Expr_til_type(rhs);
-            Str tname = type_to_name(hoisted__Type_226, &ctx->symbols);
-            Bool _m_Bool_201 = 0;
+        if (_m_Bool_211) {
+            Type *hoisted__Type_247 = Expr_til_type(rhs);
+            Str tname = type_to_name(hoisted__Type_247, &ctx->symbols);
+            Bool _m_Bool_222 = 0;
             {
-                U32 hoisted__U32_213 = (tname.count);
-                U32 hoisted__U32_214 = 0;
-                Bool _sw_Bool_202 = ((Bool)(hoisted__U32_213 > hoisted__U32_214));
-                Bool hoisted__Bool_215 = 1;
-                Bool hoisted__Bool_216 = ((Bool)(_sw_Bool_202 == hoisted__Bool_215));
-                if (hoisted__Bool_216) {
-                    Bool _m_Bool_203 = 0;
+                U32 hoisted__U32_234 = (tname.count);
+                U32 hoisted__U32_235 = 0;
+                Bool _sw_Bool_223 = ((Bool)(hoisted__U32_234 > hoisted__U32_235));
+                Bool hoisted__Bool_236 = 1;
+                Bool hoisted__Bool_237 = ((Bool)(_sw_Bool_223 == hoisted__Bool_236));
+                if (hoisted__Bool_237) {
+                    Bool _m_Bool_224 = 0;
                     {
-                        Type *hoisted__Type_208 = Expr_til_type(rhs);
-                        Bool _sw_Bool_204 = is_funcptr(hoisted__Type_208);
-                        Bool hoisted__Bool_209 = 1;
-                        Bool hoisted__Bool_210 = ((Bool)(_sw_Bool_204 == hoisted__Bool_209));
-                        if (hoisted__Bool_210) {
-                            Bool hoisted__Bool_205 = 1;
-                            _m_Bool_203 = hoisted__Bool_205;
+                        Type *hoisted__Type_229 = Expr_til_type(rhs);
+                        Bool _sw_Bool_225 = is_funcptr(hoisted__Type_229);
+                        Bool hoisted__Bool_230 = 1;
+                        Bool hoisted__Bool_231 = ((Bool)(_sw_Bool_225 == hoisted__Bool_230));
+                        if (hoisted__Bool_231) {
+                            Bool hoisted__Bool_226 = 1;
+                            _m_Bool_224 = hoisted__Bool_226;
                         } else {
-                            Type *hoisted__Type_206 = Expr_til_type(rhs);
-                            Bool hoisted__Bool_207 = ((Bool)((((Type *)(hoisted__Type_206))->tag) == Type_TAG_Body));
-                            _m_Bool_203 = hoisted__Bool_207;
+                            Type *hoisted__Type_227 = Expr_til_type(rhs);
+                            Bool hoisted__Bool_228 = ((Bool)((((Type *)(hoisted__Type_227))->tag) == Type_TAG_Body));
+                            _m_Bool_224 = hoisted__Bool_228;
                         }
                     }
-                    Bool hoisted__Bool_211 = ((Bool)(!(_m_Bool_203)));
-                    _m_Bool_201 = hoisted__Bool_211;
+                    Bool hoisted__Bool_232 = ((Bool)(!(_m_Bool_224)));
+                    _m_Bool_222 = hoisted__Bool_232;
                 } else {
-                    Bool hoisted__Bool_212 = 0;
-                    _m_Bool_201 = hoisted__Bool_212;
+                    Bool hoisted__Bool_233 = 0;
+                    _m_Bool_222 = hoisted__Bool_233;
                 }
             }
-            if (_m_Bool_201) {
-                Type *hoisted__Type_222 = Expr_til_type(rhs);
-                Expr mc = make_clone_call(&tname, DEREF(hoisted__Type_222), rhs, stmt, &ctx->symbols);
-                U32 hoisted__U32_223 = 0;
-                Vec__Expr_set(&stmt->children, hoisted__U32_223, &mc, &_err_kind);
-                I64 hoisted__I64_224 = 1;
-                Bool hoisted__Bool_225 = ((Bool)(_err_kind == hoisted__I64_224));
-                if (hoisted__Bool_225) {
-                    I64 hoisted__I64_217 = 0;
-                    _err_kind = hoisted__I64_217;
-                    U32 hoisted__U32_218 = 1;
-                    Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_218);
-                    I64 _va_Array_14_ek = 0;
-                    U32 hoisted__U32_219 = 0;
-                    Array__Str_set(&_va_Array_14, hoisted__U32_219, &_til_str_lits.h4d3ab87300de, &_va_Array_14_ek);
-                    panic(&_va_Array_14, &hoisted__Str_self_typer_infer_assign_stmt_221);
+            if (_m_Bool_222) {
+                Type *hoisted__Type_243 = Expr_til_type(rhs);
+                Expr mc = make_clone_call(&tname, DEREF(hoisted__Type_243), rhs, stmt, &ctx->symbols);
+                U32 hoisted__U32_244 = 0;
+                Vec__Expr_set(&stmt->children, hoisted__U32_244, &mc, &_err_kind);
+                I64 hoisted__I64_245 = 1;
+                Bool hoisted__Bool_246 = ((Bool)(_err_kind == hoisted__I64_245));
+                if (hoisted__Bool_246) {
+                    I64 hoisted__I64_238 = 0;
+                    _err_kind = hoisted__I64_238;
+                    U32 hoisted__U32_239 = 1;
+                    Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_239);
+                    I64 _va_Array_15_ek = 0;
+                    U32 hoisted__U32_240 = 0;
+                    Array__Str_set(&_va_Array_15, hoisted__U32_240, &_til_str_lits.h4d3ab87300de, &_va_Array_15_ek);
+                    panic(&_va_Array_15, &hoisted__Str_self_typer_infer_assign_stmt_242);
                 }
             }
             Str_delete(&tname, 0);
@@ -105411,6 +106056,116 @@ static void priv___src_self_typer_til__collect_direct_return_borrow_source(TypeS
     Vec__BorrowRoot_delete(&roots, 0);
 }
 
+static Bool priv___src_self_typer_til__fcall_is_interface_clone(Expr * e, TypeScope * scope, SymbolPool * symbols) {
+    I64 _err_kind = 0;
+    Bool hoisted__Bool_37 = ((Bool)((((NodeType *)(&e->node_type))->tag) == NodeType_TAG_FCall));
+    Bool hoisted__Bool_38 = ((Bool)(!(hoisted__Bool_37)));
+    if (hoisted__Bool_38) {
+        Bool hoisted__Bool_0 = 0;
+        return hoisted__Bool_0;
+    }
+    U32 hoisted__U32_39 = (e->children.count);
+    U32 hoisted__U32_40 = 0;
+    Bool hoisted__Bool_41 = ((Bool)(hoisted__U32_39 == hoisted__U32_40));
+    if (hoisted__Bool_41) {
+        Bool hoisted__Bool_1 = 0;
+        return hoisted__Bool_1;
+    }
+    U32 hoisted__U32_42 = 0;
+    Expr *callee = (((Bool)((U32)(hoisted__U32_42) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_42))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_43 = 1;
+    Bool hoisted__Bool_44 = ((Bool)(_err_kind == hoisted__I64_43));
+    if (hoisted__Bool_44) {
+        I64 hoisted__I64_2 = 0;
+        _err_kind = hoisted__I64_2;
+        U32 hoisted__U32_3 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_3);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_4 = 0;
+        Array__Str_set(&_va_Array_0, hoisted__U32_4, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_self_typer_fcall_is_interface_clone_6);
+    }
+    switch ((callee->node_type).tag) {
+    case NodeType_TAG_FieldAccess: {
+        FieldAccessData *fad = ((void *)((U8 *)(&callee->node_type) + offsetof(NodeType, data)));
+        Str *hoisted__Str_self_typer_fcall_is_interface_clone_22 = FieldAccessData_field_access_name(fad, &symbols->names);
+        Bool hoisted__Bool_24 = Str_neq(hoisted__Str_self_typer_fcall_is_interface_clone_22, &_til_str_lits.h00310f3b99b6);
+        if (hoisted__Bool_24) {
+            Bool hoisted__Bool_7 = 0;
+            return hoisted__Bool_7;
+        }
+        U32 hoisted__U32_25 = (callee->children.count);
+        U32 hoisted__U32_26 = 0;
+        Bool hoisted__Bool_27 = ((Bool)(hoisted__U32_25 == hoisted__U32_26));
+        if (hoisted__Bool_27) {
+            Bool hoisted__Bool_8 = 0;
+            return hoisted__Bool_8;
+        }
+        U32 hoisted__U32_28 = 0;
+        Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_28) < callee->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(callee->children.data) + (((U64)(((U64)((U32)(hoisted__U32_28))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_29 = 1;
+        Bool hoisted__Bool_30 = ((Bool)(_err_kind == hoisted__I64_29));
+        if (hoisted__Bool_30) {
+            I64 hoisted__I64_9 = 0;
+            _err_kind = hoisted__I64_9;
+            U32 hoisted__U32_10 = 1;
+            Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_10);
+            I64 _va_Array_1_ek = 0;
+            U32 hoisted__U32_11 = 0;
+            Array__Str_set(&_va_Array_1, hoisted__U32_11, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
+            panic(&_va_Array_1, &hoisted__Str_self_typer_fcall_is_interface_clone_13);
+        }
+        switch ((_bang_ret_0->node_type).tag) {
+        case NodeType_TAG_Ident: {
+            IdentData *tid = ((void *)((U8 *)(&_bang_ret_0->node_type) + offsetof(NodeType, data)));
+            Str *hoisted__Str_self_typer_fcall_is_interface_clone_15 = IdentData_ident_name(tid, &symbols->names);
+            Bool hoisted__Bool_16 = priv___src_self_typer_til__name_is_interface(hoisted__Str_self_typer_fcall_is_interface_clone_15, scope, symbols);
+            if (hoisted__Bool_16) {
+                Bool hoisted__Bool_14 = 1;
+                return hoisted__Bool_14;
+            }
+            break;
+        }
+        default: {
+            break;
+        }
+        }
+        U32 hoisted__U32_31 = 0;
+        Expr *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_31) < callee->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(callee->children.data) + (((U64)(((U64)((U32)(hoisted__U32_31))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_32 = 1;
+        Bool hoisted__Bool_33 = ((Bool)(_err_kind == hoisted__I64_32));
+        if (hoisted__Bool_33) {
+            I64 hoisted__I64_17 = 0;
+            _err_kind = hoisted__I64_17;
+            U32 hoisted__U32_18 = 1;
+            Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_18);
+            I64 _va_Array_2_ek = 0;
+            U32 hoisted__U32_19 = 0;
+            Array__Str_set(&_va_Array_2, hoisted__U32_19, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
+            panic(&_va_Array_2, &hoisted__Str_self_typer_fcall_is_interface_clone_21);
+        }
+        Type *hoisted__Type_34 = Expr_til_type(_bang_ret_1);
+        Bool hoisted__Bool_35 = priv___src_self_typer_til__type_is_interface(hoisted__Type_34, scope, symbols);
+        return hoisted__Bool_35;
+    }
+    default: {
+        Bool hoisted__Bool_36 = 0;
+        return hoisted__Bool_36;
+    }
+    }
+    __builtin_unreachable();
+}
+
+static Bool priv___src_self_typer_til__value_field_carries_borrow(TypeScope * scope, Declaration * fld, SymbolPool * symbols) {
+    Bool hoisted__Bool_1 = priv___src_self_typer_til__type_is_interface(&fld->til_type, scope, symbols);
+    if (hoisted__Bool_1) {
+        Bool hoisted__Bool_0 = 0;
+        return hoisted__Bool_0;
+    }
+    Bool hoisted__Bool_2 = type_carries_borrow_t(scope, &fld->til_type, symbols);
+    return hoisted__Bool_2;
+}
+
 static priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__return_escape_roots(TypeScope * scope, Expr * e, SymbolPool * symbols) {
     I64 _err_kind = 0;
     priv___src_self_typer_til__ReturnEscapeRoots out = {0};
@@ -105448,16 +106203,20 @@ static priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__r
         break;
     }
     case NodeType_TAG_FCall: {
-        Option__ref_Expr enum_arg_o = enum_ref_payload_ctor_arg(e, scope, symbols);
-        Bool hoisted__Bool_100 = Option__ref_Expr_is_some(enum_arg_o);
+        Bool hoisted__Bool_100 = priv___src_self_typer_til__fcall_is_interface_clone(e, scope, symbols);
         if (hoisted__Bool_100) {
+            return out;
+        }
+        Option__ref_Expr enum_arg_o = enum_ref_payload_ctor_arg(e, scope, symbols);
+        Bool hoisted__Bool_101 = Option__ref_Expr_is_some(enum_arg_o);
+        if (hoisted__Bool_101) {
             Expr *hoisted__Expr_8 = Option__ref_Expr_unwrap(&enum_arg_o);
             priv___src_self_typer_til__collect_direct_return_borrow_source(scope, hoisted__Expr_8, symbols, &out);
             return out;
         }
         Option__ref_Expr ctor_o = priv___src_self_typer_til__fcall_struct_ctor_def(e, scope, symbols);
-        Bool hoisted__Bool_101 = Option__ref_Expr_is_some(ctor_o);
-        if (hoisted__Bool_101) {
+        Bool hoisted__Bool_102 = Option__ref_Expr_is_some(ctor_o);
+        if (hoisted__Bool_102) {
             {
                 U32 _re_U32_9 = (e->children.count);
                 U32 _rc_U32_9 = 1;
@@ -105497,7 +106256,7 @@ static priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__r
                         if (hoisted__Bool_33) {
                             priv___src_self_typer_til__collect_direct_return_borrow_source(scope, source, symbols, &out);
                         } else {
-                            Bool hoisted__Bool_26 = type_carries_borrow_t(scope, &fld->til_type, symbols);
+                            Bool hoisted__Bool_26 = priv___src_self_typer_til__value_field_carries_borrow(scope, fld, symbols);
                             if (hoisted__Bool_26) {
                                 priv___src_self_typer_til__ReturnEscapeRoots nested = priv___src_self_typer_til__return_escape_roots(scope, source, symbols);
                                 {
@@ -105571,7 +106330,7 @@ static priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__r
                         if (hoisted__Bool_57) {
                             priv___src_self_typer_til__collect_direct_return_borrow_source(scope, source, symbols, &out);
                         } else {
-                            Bool hoisted__Bool_50 = type_carries_borrow_t(scope, &fld->til_type, symbols);
+                            Bool hoisted__Bool_50 = priv___src_self_typer_til__value_field_carries_borrow(scope, fld, symbols);
                             if (hoisted__Bool_50) {
                                 priv___src_self_typer_til__ReturnEscapeRoots nested = priv___src_self_typer_til__return_escape_roots(scope, source, symbols);
                                 {
@@ -105615,8 +106374,8 @@ static priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__r
             return out;
         }
         Option__ref_Expr fd_o = fcall_callee_fdef(e, scope, symbols);
-        Bool hoisted__Bool_102 = Option__ref_Expr_is_none(fd_o);
-        if (hoisted__Bool_102) {
+        Bool hoisted__Bool_103 = Option__ref_Expr_is_none(fd_o);
+        if (hoisted__Bool_103) {
             return out;
         }
         {
@@ -109348,17 +110107,21 @@ static Vec__BorrowRoot priv___src_self_typer_til__expr_borrow_roots(TypeScope * 
         return hoisted__Vec__BorrowRoot_28;
     }
     case NodeType_TAG_FCall: {
-        Option__ref_Expr rso = priv___src_self_typer_til__raw_borrow_source(e, symbols);
-        Bool hoisted__Bool_219 = Option__ref_Expr_is_some(rso);
+        Bool hoisted__Bool_219 = priv___src_self_typer_til__fcall_is_interface_clone(e, scope, symbols);
         if (hoisted__Bool_219) {
+            return out;
+        }
+        Option__ref_Expr rso = priv___src_self_typer_til__raw_borrow_source(e, symbols);
+        Bool hoisted__Bool_220 = Option__ref_Expr_is_some(rso);
+        if (hoisted__Bool_220) {
             Expr *hoisted__Expr_29 = Option__ref_Expr_unwrap(&rso);
             Vec__BorrowRoot hoisted__Vec__BorrowRoot_30 = priv___src_self_typer_til__expr_borrow_roots(scope, hoisted__Expr_29, symbols);
             Vec__BorrowRoot_delete(&out, 0);
             return hoisted__Vec__BorrowRoot_30;
         }
         Option__ref_Expr enum_arg_o = enum_ref_payload_ctor_arg(e, scope, symbols);
-        Bool hoisted__Bool_220 = Option__ref_Expr_is_some(enum_arg_o);
-        if (hoisted__Bool_220) {
+        Bool hoisted__Bool_221 = Option__ref_Expr_is_some(enum_arg_o);
+        if (hoisted__Bool_221) {
             Expr *hoisted__Expr_37 = Option__ref_Expr_unwrap(&enum_arg_o);
             Vec__BorrowRoot sub = priv___src_self_typer_til__expr_borrow_roots(scope, hoisted__Expr_37, symbols);
             {
@@ -109385,8 +110148,8 @@ static Vec__BorrowRoot priv___src_self_typer_til__expr_borrow_roots(TypeScope * 
             return out;
         }
         Option__ref_Expr fd_o = fcall_callee_fdef(e, scope, symbols);
-        Bool hoisted__Bool_221 = Option__ref_Expr_is_none(fd_o);
-        if (hoisted__Bool_221) {
+        Bool hoisted__Bool_222 = Option__ref_Expr_is_none(fd_o);
+        if (hoisted__Bool_222) {
             Option__ref_Expr ctor_o = priv___src_self_typer_til__fcall_struct_ctor_def(e, scope, symbols);
             Bool hoisted__Bool_178 = Option__ref_Expr_is_some(ctor_o);
             if (hoisted__Bool_178) {
@@ -109427,7 +110190,7 @@ static Vec__BorrowRoot priv___src_self_typer_til__expr_borrow_roots(TypeScope * 
                             Bool crosses = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
                             Bool hoisted__Bool_103 = ((Bool)(!(crosses)));
                             if (hoisted__Bool_103) {
-                                Bool hoisted__Bool_45 = type_carries_borrow_t(scope, &fld->til_type, symbols);
+                                Bool hoisted__Bool_45 = priv___src_self_typer_til__value_field_carries_borrow(scope, fld, symbols);
                                 crosses = hoisted__Bool_45;
                             }
                             Bool hoisted__Bool_104 = ((Bool)(!(crosses)));
@@ -109607,7 +110370,7 @@ static Vec__BorrowRoot priv___src_self_typer_til__expr_borrow_roots(TypeScope * 
                             Bool crosses = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
                             Bool hoisted__Bool_172 = ((Bool)(!(crosses)));
                             if (hoisted__Bool_172) {
-                                Bool hoisted__Bool_114 = type_carries_borrow_t(scope, &fld->til_type, symbols);
+                                Bool hoisted__Bool_114 = priv___src_self_typer_til__value_field_carries_borrow(scope, fld, symbols);
                                 crosses = hoisted__Bool_114;
                             }
                             Bool hoisted__Bool_173 = ((Bool)(!(crosses)));
@@ -111787,6 +112550,110 @@ static Bool priv___src_self_typer_til__summary_fdef_return_carries_borrow(Functi
     return hoisted__Bool_15;
 }
 
+static Bool priv___src_self_typer_til__summary_fieldassign_target_is_value_iface(Expr * e, TypeScope * scope, Str * self_type, Vec__Declaration * params, SymbolPool * symbols) {
+    I64 _err_kind = 0;
+    U32 hoisted__U32_25 = 0;
+    Expr *target = (((Bool)((U32)(hoisted__U32_25) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_25))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_26 = 1;
+    Bool hoisted__Bool_27 = ((Bool)(_err_kind == hoisted__I64_26));
+    if (hoisted__Bool_27) {
+        I64 hoisted__I64_0 = 0;
+        _err_kind = hoisted__I64_0;
+        U32 hoisted__U32_1 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_1);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_2 = 0;
+        Array__Str_set(&_va_Array_0, hoisted__U32_2, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_self_typer_summary_fieldassign_target_is_value_iface_4);
+    }
+    Bool hoisted__Bool_28 = ((Bool)((((NodeType *)(&target->node_type))->tag) == NodeType_TAG_FieldAccess));
+    Bool hoisted__Bool_29 = ((Bool)(!(hoisted__Bool_28)));
+    if (hoisted__Bool_29) {
+        Bool hoisted__Bool_5 = 0;
+        return hoisted__Bool_5;
+    }
+    U32 hoisted__U32_30 = (target->children.count);
+    U32 hoisted__U32_31 = 0;
+    Bool hoisted__Bool_32 = ((Bool)(hoisted__U32_30 == hoisted__U32_31));
+    if (hoisted__Bool_32) {
+        Bool hoisted__Bool_6 = 0;
+        return hoisted__Bool_6;
+    }
+    U32 hoisted__U32_33 = 0;
+    Expr *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_33) < target->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(target->children.data) + (((U64)(((U64)((U32)(hoisted__U32_33))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+    I64 hoisted__I64_34 = 1;
+    Bool hoisted__Bool_35 = ((Bool)(_err_kind == hoisted__I64_34));
+    if (hoisted__Bool_35) {
+        I64 hoisted__I64_7 = 0;
+        _err_kind = hoisted__I64_7;
+        U32 hoisted__U32_8 = 1;
+        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_8);
+        I64 _va_Array_1_ek = 0;
+        U32 hoisted__U32_9 = 0;
+        Array__Str_set(&_va_Array_1, hoisted__U32_9, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
+        panic(&_va_Array_1, &hoisted__Str_self_typer_summary_fieldassign_target_is_value_iface_11);
+    }
+    Str btn = priv___src_self_typer_til__summary_receiver_type(_bang_ret_0, scope, self_type, params, symbols);
+    U32 hoisted__U32_36 = (btn.count);
+    U32 hoisted__U32_37 = 0;
+    Bool hoisted__Bool_38 = ((Bool)(hoisted__U32_36 == hoisted__U32_37));
+    if (hoisted__Bool_38) {
+        Bool hoisted__Bool_12 = 0;
+        Str_delete(&btn, 0);
+        return hoisted__Bool_12;
+    }
+    Option__ref_Expr bdef_o = TypeScope_get_struct(scope, &btn, symbols);
+    Bool hoisted__Bool_39 = Option__ref_Expr_is_none(bdef_o);
+    if (hoisted__Bool_39) {
+        Bool hoisted__Bool_13 = 0;
+        Str_delete(&btn, 0);
+        return hoisted__Bool_13;
+    }
+    {
+        Bool hoisted__Bool_24 = ((Bool)((((NodeType *)(&Option__ref_Expr_unwrap(&bdef_o)->node_type))->tag) == NodeType_TAG_StructDef));
+        if (hoisted__Bool_24) {
+            StructDef *bsd = ((void *)((U8 *)(&Option__ref_Expr_unwrap(&bdef_o)->node_type) + offsetof(NodeType, data)));
+            switch ((target->node_type).tag) {
+            case NodeType_TAG_FieldAccess: {
+                FieldAccessData *fad = ((void *)((U8 *)(&target->node_type) + offsetof(NodeType, data)));
+                Str *hoisted__Str_self_typer_summary_fieldassign_target_is_value_iface_22 = FieldAccessData_field_access_name(fad, &symbols->names);
+                Option__ref_Declaration fo = member_get(bsd->fields_index, bsd->fields, hoisted__Str_self_typer_summary_fieldassign_target_is_value_iface_22);
+                Bool hoisted__Bool_23 = Option__ref_Declaration_is_none(fo);
+                if (hoisted__Bool_23) {
+                    Bool hoisted__Bool_14 = 0;
+                    Str_delete(&btn, 0);
+                    return hoisted__Bool_14;
+                }
+                Declaration *tfd = Option__ref_Declaration_unwrap(&fo);
+                Bool _m_Bool_15 = 0;
+                {
+                    Bool hoisted__Bool_19 = ((Bool)((((OwnType *)(&tfd->own_type))->tag) == OwnType_TAG_Ref));
+                    Bool _sw_Bool_16 = ((Bool)(!(hoisted__Bool_19)));
+                    Bool hoisted__Bool_20 = 1;
+                    Bool hoisted__Bool_21 = ((Bool)(_sw_Bool_16 == hoisted__Bool_20));
+                    if (hoisted__Bool_21) {
+                        Bool hoisted__Bool_17 = priv___src_self_typer_til__type_is_interface(&tfd->til_type, scope, symbols);
+                        _m_Bool_15 = hoisted__Bool_17;
+                    } else {
+                        Bool hoisted__Bool_18 = 0;
+                        _m_Bool_15 = hoisted__Bool_18;
+                    }
+                }
+                Str_delete(&btn, 0);
+                return _m_Bool_15;
+            }
+            default: {
+                break;
+            }
+            }
+        } else {
+        }
+    }
+    Str_delete(&btn, 0);
+    Bool hoisted__Bool_40 = 0;
+    return hoisted__Bool_40;
+}
+
 static RootBits priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_RootBits * roots, TypeScope * scope, Str * self_type, Vec__Declaration * params, SymbolPool * symbols, Context * ctx) {
     I64 _err_kind = 0;
     switch ((e->node_type).tag) {
@@ -111922,160 +112789,171 @@ static RootBits priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_
         return base;
     }
     case NodeType_TAG_FCall: {
+        Bool hoisted__Bool_171 = priv___src_self_typer_til__fcall_is_interface_clone(e, scope, symbols);
+        if (hoisted__Bool_171) {
+            U64 hoisted__U64_54 = 0ULL;
+            U64 hoisted__U64_55 = 0ULL;
+            U64 hoisted__U64_56 = 0ULL;
+            RootBits hoisted__RootBits_57 = {0};
+            hoisted__RootBits_57.alias = hoisted__U64_54;
+            hoisted__RootBits_57.into = hoisted__U64_55;
+            hoisted__RootBits_57.carried = hoisted__U64_56;
+            return hoisted__RootBits_57;
+        }
         Option__ref_Expr rso = priv___src_self_typer_til__raw_borrow_source(e, symbols);
-        Bool hoisted__Bool_167 = Option__ref_Expr_is_some(rso);
-        if (hoisted__Bool_167) {
-            Expr *hoisted__Expr_54 = Option__ref_Expr_unwrap(&rso);
-            RootBits hoisted__RootBits_55 = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_54, roots, scope, self_type, params, symbols, ctx);
-            return hoisted__RootBits_55;
+        Bool hoisted__Bool_172 = Option__ref_Expr_is_some(rso);
+        if (hoisted__Bool_172) {
+            Expr *hoisted__Expr_58 = Option__ref_Expr_unwrap(&rso);
+            RootBits hoisted__RootBits_59 = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_58, roots, scope, self_type, params, symbols, ctx);
+            return hoisted__RootBits_59;
         }
         Option__ref_Expr enum_arg_o = enum_ref_payload_ctor_arg(e, scope, symbols);
-        Bool hoisted__Bool_168 = Option__ref_Expr_is_none(enum_arg_o);
-        if (hoisted__Bool_168) {
+        Bool hoisted__Bool_173 = Option__ref_Expr_is_none(enum_arg_o);
+        if (hoisted__Bool_173) {
             { Option__ref_Expr _new = priv___src_self_typer_til__summary_generic_ref_ctor_arg(e, ctx); Option__ref_Expr_delete(&enum_arg_o, (Bool){0}); enum_arg_o = _new; }
         }
-        Bool hoisted__Bool_169 = Option__ref_Expr_is_some(enum_arg_o);
-        if (hoisted__Bool_169) {
-            Expr *hoisted__Expr_56 = Option__ref_Expr_unwrap(&enum_arg_o);
-            RootBits hoisted__RootBits_57 = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_56, roots, scope, self_type, params, symbols, ctx);
-            RootBits hoisted__RootBits_58 = priv___src_self_typer_til__summary_ctor_wrap(&hoisted__RootBits_57);
-            return hoisted__RootBits_58;
+        Bool hoisted__Bool_174 = Option__ref_Expr_is_some(enum_arg_o);
+        if (hoisted__Bool_174) {
+            Expr *hoisted__Expr_60 = Option__ref_Expr_unwrap(&enum_arg_o);
+            RootBits hoisted__RootBits_61 = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_60, roots, scope, self_type, params, symbols, ctx);
+            RootBits hoisted__RootBits_62 = priv___src_self_typer_til__summary_ctor_wrap(&hoisted__RootBits_61);
+            return hoisted__RootBits_62;
         }
         Option__ref_Expr fd_o = fcall_callee_fdef(e, scope, symbols);
-        Bool hoisted__Bool_170 = Option__ref_Expr_is_none(fd_o);
-        if (hoisted__Bool_170) {
+        Bool hoisted__Bool_175 = Option__ref_Expr_is_none(fd_o);
+        if (hoisted__Bool_175) {
             { Option__ref_Expr _new = priv___src_self_typer_til__summary_self_method(e, scope, self_type, params, symbols); Option__ref_Expr_delete(&fd_o, (Bool){0}); fd_o = _new; }
         }
-        Bool hoisted__Bool_171 = Option__ref_Expr_is_none(fd_o);
-        if (hoisted__Bool_171) {
+        Bool hoisted__Bool_176 = Option__ref_Expr_is_none(fd_o);
+        if (hoisted__Bool_176) {
             { Option__ref_Expr _new = priv___src_self_typer_til__summary_param_method(e, scope, params, symbols); Option__ref_Expr_delete(&fd_o, (Bool){0}); fd_o = _new; }
         }
-        Bool hoisted__Bool_172 = Option__ref_Expr_is_none(fd_o);
-        if (hoisted__Bool_172) {
-            U64 hoisted__U64_103 = 0ULL;
-            U64 hoisted__U64_104 = 0ULL;
-            U64 hoisted__U64_105 = 0ULL;
+        Bool hoisted__Bool_177 = Option__ref_Expr_is_none(fd_o);
+        if (hoisted__Bool_177) {
+            U64 hoisted__U64_107 = 0ULL;
+            U64 hoisted__U64_108 = 0ULL;
+            U64 hoisted__U64_109 = 0ULL;
             RootBits cbits = {0};
-            cbits.alias = hoisted__U64_103;
-            cbits.into = hoisted__U64_104;
-            cbits.carried = hoisted__U64_105;
+            cbits.alias = hoisted__U64_107;
+            cbits.into = hoisted__U64_108;
+            cbits.carried = hoisted__U64_109;
             Option__ref_Expr ctor_o = priv___src_self_typer_til__fcall_struct_ctor_def(e, scope, symbols);
-            Bool hoisted__Bool_106 = Option__ref_Expr_is_some(ctor_o);
-            if (hoisted__Bool_106) {
+            Bool hoisted__Bool_110 = Option__ref_Expr_is_some(ctor_o);
+            if (hoisted__Bool_110) {
                 {
-                    U32 _re_U32_59 = (e->children.count);
-                    U32 _rc_U32_59 = 1;
-                    Bool hoisted__Bool_102 = ((Bool)(_rc_U32_59 <= _re_U32_59));
-                    if (hoisted__Bool_102) {
+                    U32 _re_U32_63 = (e->children.count);
+                    U32 _rc_U32_63 = 1;
+                    Bool hoisted__Bool_106 = ((Bool)(_rc_U32_63 <= _re_U32_63));
+                    if (hoisted__Bool_106) {
                         while (1) {
-                            Bool _wcond_Bool_60 = ((Bool)(_rc_U32_59 < _re_U32_59));
-                            if (!(_wcond_Bool_60)) {
+                            Bool _wcond_Bool_64 = ((Bool)(_rc_U32_63 < _re_U32_63));
+                            if (!(_wcond_Bool_64)) {
                                 break;
                             }
-                            U32 ai = (_rc_U32_59);
-                            (++_rc_U32_59);
+                            U32 ai = (_rc_U32_63);
+                            (++_rc_U32_63);
                             Expr *arg = (((Bool)((U32)(ai) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ai))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                            I64 hoisted__I64_71 = 1;
-                            Bool hoisted__Bool_72 = ((Bool)(_err_kind == hoisted__I64_71));
-                            if (hoisted__Bool_72) {
-                                I64 hoisted__I64_61 = 0;
-                                _err_kind = hoisted__I64_61;
-                                U32 hoisted__U32_62 = 1;
-                                Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_62);
-                                I64 _va_Array_3_ek = 0;
-                                U32 hoisted__U32_63 = 0;
-                                Array__Str_set(&_va_Array_3, hoisted__U32_63, &_til_str_lits.h4d3ab87300de, &_va_Array_3_ek);
-                                panic(&_va_Array_3, &hoisted__Str_self_typer_summary_expr_bits_65);
-                            }
-                            U32 hoisted__U32_73 = 1;
-                            Expr *hoisted__Expr_74 = Option__ref_Expr_unwrap(&ctor_o);
-                            U32 hoisted__U32_75 = ((U32)(ai - hoisted__U32_73));
-                            Option__ref_Declaration fld_o = priv___src_self_typer_til__ctor_arg_field_decl(hoisted__Expr_74, arg, &hoisted__U32_75);
-                            Bool hoisted__Bool_76 = Option__ref_Declaration_is_none(fld_o);
+                            I64 hoisted__I64_75 = 1;
+                            Bool hoisted__Bool_76 = ((Bool)(_err_kind == hoisted__I64_75));
                             if (hoisted__Bool_76) {
+                                I64 hoisted__I64_65 = 0;
+                                _err_kind = hoisted__I64_65;
+                                U32 hoisted__U32_66 = 1;
+                                Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_66);
+                                I64 _va_Array_3_ek = 0;
+                                U32 hoisted__U32_67 = 0;
+                                Array__Str_set(&_va_Array_3, hoisted__U32_67, &_til_str_lits.h4d3ab87300de, &_va_Array_3_ek);
+                                panic(&_va_Array_3, &hoisted__Str_self_typer_summary_expr_bits_69);
+                            }
+                            U32 hoisted__U32_77 = 1;
+                            Expr *hoisted__Expr_78 = Option__ref_Expr_unwrap(&ctor_o);
+                            U32 hoisted__U32_79 = ((U32)(ai - hoisted__U32_77));
+                            Option__ref_Declaration fld_o = priv___src_self_typer_til__ctor_arg_field_decl(hoisted__Expr_78, arg, &hoisted__U32_79);
+                            Bool hoisted__Bool_80 = Option__ref_Declaration_is_none(fld_o);
+                            if (hoisted__Bool_80) {
                                 continue;
                             }
                             Declaration *fld = Option__ref_Declaration_unwrap(&fld_o);
                             Bool crosses = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
-                            Bool hoisted__Bool_77 = ((Bool)(!(crosses)));
-                            if (hoisted__Bool_77) {
-                                Bool hoisted__Bool_66 = type_carries_borrow_t(scope, &fld->til_type, symbols);
-                                crosses = hoisted__Bool_66;
+                            Bool hoisted__Bool_81 = ((Bool)(!(crosses)));
+                            if (hoisted__Bool_81) {
+                                Bool hoisted__Bool_70 = priv___src_self_typer_til__value_field_carries_borrow(scope, fld, symbols);
+                                crosses = hoisted__Bool_70;
                             }
-                            Bool hoisted__Bool_78 = ((Bool)(!(crosses)));
-                            if (hoisted__Bool_78) {
+                            Bool hoisted__Bool_82 = ((Bool)(!(crosses)));
+                            if (hoisted__Bool_82) {
                                 continue;
                             }
-                            Expr *hoisted__Expr_79 = priv___src_self_typer_til__ctor_arg_value(arg);
-                            RootBits ab = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_79, roots, scope, self_type, params, symbols, ctx);
-                            Bool hoisted__Bool_80 = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
-                            if (hoisted__Bool_80) {
-                                RootBits hoisted__RootBits_67 = priv___src_self_typer_til__summary_ctor_wrap(&ab);
-                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_67); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
+                            Expr *hoisted__Expr_83 = priv___src_self_typer_til__ctor_arg_value(arg);
+                            RootBits ab = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_83, roots, scope, self_type, params, symbols, ctx);
+                            Bool hoisted__Bool_84 = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
+                            if (hoisted__Bool_84) {
+                                RootBits hoisted__RootBits_71 = priv___src_self_typer_til__summary_ctor_wrap(&ab);
+                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_71); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
                             } else {
-                                U64 hoisted__U64_68 = 0ULL;
-                                U64 hoisted__U64_69 = ((U64)(ab.alias | ab.carried));
-                                RootBits hoisted__RootBits_70 = {0};
-                                hoisted__RootBits_70.alias = hoisted__U64_68;
-                                hoisted__RootBits_70.into = ab.into;
-                                hoisted__RootBits_70.carried = hoisted__U64_69;
-                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_70); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
+                                U64 hoisted__U64_72 = 0ULL;
+                                U64 hoisted__U64_73 = ((U64)(ab.alias | ab.carried));
+                                RootBits hoisted__RootBits_74 = {0};
+                                hoisted__RootBits_74.alias = hoisted__U64_72;
+                                hoisted__RootBits_74.into = ab.into;
+                                hoisted__RootBits_74.carried = hoisted__U64_73;
+                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_74); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
                             }
                         }
                     } else {
                         while (1) {
-                            Bool _wcond_Bool_81 = ((Bool)(_rc_U32_59 > _re_U32_59));
-                            if (!(_wcond_Bool_81)) {
+                            Bool _wcond_Bool_85 = ((Bool)(_rc_U32_63 > _re_U32_63));
+                            if (!(_wcond_Bool_85)) {
                                 break;
                             }
-                            U32 ai = (_rc_U32_59);
-                            (--_rc_U32_59);
+                            U32 ai = (_rc_U32_63);
+                            (--_rc_U32_63);
                             Expr *arg = (((Bool)((U32)(ai) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ai))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                            I64 hoisted__I64_92 = 1;
-                            Bool hoisted__Bool_93 = ((Bool)(_err_kind == hoisted__I64_92));
-                            if (hoisted__Bool_93) {
-                                I64 hoisted__I64_82 = 0;
-                                _err_kind = hoisted__I64_82;
-                                U32 hoisted__U32_83 = 1;
-                                Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_83);
-                                I64 _va_Array_4_ek = 0;
-                                U32 hoisted__U32_84 = 0;
-                                Array__Str_set(&_va_Array_4, hoisted__U32_84, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
-                                panic(&_va_Array_4, &hoisted__Str_self_typer_summary_expr_bits_86);
-                            }
-                            U32 hoisted__U32_94 = 1;
-                            Expr *hoisted__Expr_95 = Option__ref_Expr_unwrap(&ctor_o);
-                            U32 hoisted__U32_96 = ((U32)(ai - hoisted__U32_94));
-                            Option__ref_Declaration fld_o = priv___src_self_typer_til__ctor_arg_field_decl(hoisted__Expr_95, arg, &hoisted__U32_96);
-                            Bool hoisted__Bool_97 = Option__ref_Declaration_is_none(fld_o);
+                            I64 hoisted__I64_96 = 1;
+                            Bool hoisted__Bool_97 = ((Bool)(_err_kind == hoisted__I64_96));
                             if (hoisted__Bool_97) {
+                                I64 hoisted__I64_86 = 0;
+                                _err_kind = hoisted__I64_86;
+                                U32 hoisted__U32_87 = 1;
+                                Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_87);
+                                I64 _va_Array_4_ek = 0;
+                                U32 hoisted__U32_88 = 0;
+                                Array__Str_set(&_va_Array_4, hoisted__U32_88, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
+                                panic(&_va_Array_4, &hoisted__Str_self_typer_summary_expr_bits_90);
+                            }
+                            U32 hoisted__U32_98 = 1;
+                            Expr *hoisted__Expr_99 = Option__ref_Expr_unwrap(&ctor_o);
+                            U32 hoisted__U32_100 = ((U32)(ai - hoisted__U32_98));
+                            Option__ref_Declaration fld_o = priv___src_self_typer_til__ctor_arg_field_decl(hoisted__Expr_99, arg, &hoisted__U32_100);
+                            Bool hoisted__Bool_101 = Option__ref_Declaration_is_none(fld_o);
+                            if (hoisted__Bool_101) {
                                 continue;
                             }
                             Declaration *fld = Option__ref_Declaration_unwrap(&fld_o);
                             Bool crosses = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
-                            Bool hoisted__Bool_98 = ((Bool)(!(crosses)));
-                            if (hoisted__Bool_98) {
-                                Bool hoisted__Bool_87 = type_carries_borrow_t(scope, &fld->til_type, symbols);
-                                crosses = hoisted__Bool_87;
+                            Bool hoisted__Bool_102 = ((Bool)(!(crosses)));
+                            if (hoisted__Bool_102) {
+                                Bool hoisted__Bool_91 = priv___src_self_typer_til__value_field_carries_borrow(scope, fld, symbols);
+                                crosses = hoisted__Bool_91;
                             }
-                            Bool hoisted__Bool_99 = ((Bool)(!(crosses)));
-                            if (hoisted__Bool_99) {
+                            Bool hoisted__Bool_103 = ((Bool)(!(crosses)));
+                            if (hoisted__Bool_103) {
                                 continue;
                             }
-                            Expr *hoisted__Expr_100 = priv___src_self_typer_til__ctor_arg_value(arg);
-                            RootBits ab = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_100, roots, scope, self_type, params, symbols, ctx);
-                            Bool hoisted__Bool_101 = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
-                            if (hoisted__Bool_101) {
-                                RootBits hoisted__RootBits_88 = priv___src_self_typer_til__summary_ctor_wrap(&ab);
-                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_88); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
+                            Expr *hoisted__Expr_104 = priv___src_self_typer_til__ctor_arg_value(arg);
+                            RootBits ab = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_104, roots, scope, self_type, params, symbols, ctx);
+                            Bool hoisted__Bool_105 = ((Bool)((((OwnType *)(&fld->own_type))->tag) == OwnType_TAG_Ref));
+                            if (hoisted__Bool_105) {
+                                RootBits hoisted__RootBits_92 = priv___src_self_typer_til__summary_ctor_wrap(&ab);
+                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_92); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
                             } else {
-                                U64 hoisted__U64_89 = 0ULL;
-                                U64 hoisted__U64_90 = ((U64)(ab.alias | ab.carried));
-                                RootBits hoisted__RootBits_91 = {0};
-                                hoisted__RootBits_91.alias = hoisted__U64_89;
-                                hoisted__RootBits_91.into = ab.into;
-                                hoisted__RootBits_91.carried = hoisted__U64_90;
-                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_91); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
+                                U64 hoisted__U64_93 = 0ULL;
+                                U64 hoisted__U64_94 = ((U64)(ab.alias | ab.carried));
+                                RootBits hoisted__RootBits_95 = {0};
+                                hoisted__RootBits_95.alias = hoisted__U64_93;
+                                hoisted__RootBits_95.into = ab.into;
+                                hoisted__RootBits_95.carried = hoisted__U64_94;
+                                { RootBits _new = RootBits_bor(&cbits, &hoisted__RootBits_95); RootBits_delete(&cbits, (Bool){0}); cbits = _new; }
                             }
                         }
                     }
@@ -112083,34 +112961,21 @@ static RootBits priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_
             }
             return cbits;
         }
-        U64 hoisted__U64_173 = 0ULL;
-        U64 hoisted__U64_174 = 0ULL;
-        U64 hoisted__U64_175 = 0ULL;
+        U64 hoisted__U64_178 = 0ULL;
+        U64 hoisted__U64_179 = 0ULL;
+        U64 hoisted__U64_180 = 0ULL;
         RootBits bits = {0};
-        bits.alias = hoisted__U64_173;
-        bits.into = hoisted__U64_174;
-        bits.carried = hoisted__U64_175;
+        bits.alias = hoisted__U64_178;
+        bits.into = hoisted__U64_179;
+        bits.carried = hoisted__U64_180;
         {
-            Bool hoisted__Bool_166 = ((Bool)((((NodeType *)(&Option__ref_Expr_unwrap(&fd_o)->node_type))->tag) == NodeType_TAG_FuncDef));
-            if (hoisted__Bool_166) {
+            Bool hoisted__Bool_170 = ((Bool)((((NodeType *)(&Option__ref_Expr_unwrap(&fd_o)->node_type))->tag) == NodeType_TAG_FuncDef));
+            if (hoisted__Bool_170) {
                 FunctionDef *cfd = ((void *)((U8 *)(&Option__ref_Expr_unwrap(&fd_o)->node_type) + offsetof(NodeType, data)));
                 if (cfd->is_enum_variant_ctor) {
                     Option__ref_Expr edef_o = TypeScope_get_struct(scope, &cfd->sig.return_type, symbols);
-                    Bool hoisted__Bool_137 = Option__ref_Expr_is_none(edef_o);
-                    if (hoisted__Bool_137) {
-                        U64 hoisted__U64_107 = 0ULL;
-                        U64 hoisted__U64_108 = 0ULL;
-                        U64 hoisted__U64_109 = 0ULL;
-                        RootBits hoisted__RootBits_110 = {0};
-                        hoisted__RootBits_110.alias = hoisted__U64_107;
-                        hoisted__RootBits_110.into = hoisted__U64_108;
-                        hoisted__RootBits_110.carried = hoisted__U64_109;
-                        return hoisted__RootBits_110;
-                    }
-                    Expr *hoisted__Expr_138 = Option__ref_Expr_unwrap(&edef_o);
-                    Bool hoisted__Bool_139 = enum_has_ref_payload(hoisted__Expr_138);
-                    Bool hoisted__Bool_140 = ((Bool)(!(hoisted__Bool_139)));
-                    if (hoisted__Bool_140) {
+                    Bool hoisted__Bool_141 = Option__ref_Expr_is_none(edef_o);
+                    if (hoisted__Bool_141) {
                         U64 hoisted__U64_111 = 0ULL;
                         U64 hoisted__U64_112 = 0ULL;
                         U64 hoisted__U64_113 = 0ULL;
@@ -112120,119 +112985,132 @@ static RootBits priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_
                         hoisted__RootBits_114.carried = hoisted__U64_113;
                         return hoisted__RootBits_114;
                     }
+                    Expr *hoisted__Expr_142 = Option__ref_Expr_unwrap(&edef_o);
+                    Bool hoisted__Bool_143 = enum_has_ref_payload(hoisted__Expr_142);
+                    Bool hoisted__Bool_144 = ((Bool)(!(hoisted__Bool_143)));
+                    if (hoisted__Bool_144) {
+                        U64 hoisted__U64_115 = 0ULL;
+                        U64 hoisted__U64_116 = 0ULL;
+                        U64 hoisted__U64_117 = 0ULL;
+                        RootBits hoisted__RootBits_118 = {0};
+                        hoisted__RootBits_118.alias = hoisted__U64_115;
+                        hoisted__RootBits_118.into = hoisted__U64_116;
+                        hoisted__RootBits_118.carried = hoisted__U64_117;
+                        return hoisted__RootBits_118;
+                    }
                     {
-                        U32 _re_U32_115 = (e->children.count);
-                        U32 _rc_U32_115 = 1;
-                        Bool hoisted__Bool_136 = ((Bool)(_rc_U32_115 <= _re_U32_115));
-                        if (hoisted__Bool_136) {
+                        U32 _re_U32_119 = (e->children.count);
+                        U32 _rc_U32_119 = 1;
+                        Bool hoisted__Bool_140 = ((Bool)(_rc_U32_119 <= _re_U32_119));
+                        if (hoisted__Bool_140) {
                             while (1) {
-                                Bool _wcond_Bool_116 = ((Bool)(_rc_U32_115 < _re_U32_115));
-                                if (!(_wcond_Bool_116)) {
+                                Bool _wcond_Bool_120 = ((Bool)(_rc_U32_119 < _re_U32_119));
+                                if (!(_wcond_Bool_120)) {
                                     break;
                                 }
-                                U32 ai = (_rc_U32_115);
-                                (++_rc_U32_115);
+                                U32 ai = (_rc_U32_119);
+                                (++_rc_U32_119);
                                 Expr *_bang_ret_2 = (((Bool)((U32)(ai) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ai))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                I64 hoisted__I64_122 = 1;
-                                Bool hoisted__Bool_123 = ((Bool)(_err_kind == hoisted__I64_122));
-                                if (hoisted__Bool_123) {
-                                    I64 hoisted__I64_117 = 0;
-                                    _err_kind = hoisted__I64_117;
-                                    U32 hoisted__U32_118 = 1;
-                                    Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_118);
+                                I64 hoisted__I64_126 = 1;
+                                Bool hoisted__Bool_127 = ((Bool)(_err_kind == hoisted__I64_126));
+                                if (hoisted__Bool_127) {
+                                    I64 hoisted__I64_121 = 0;
+                                    _err_kind = hoisted__I64_121;
+                                    U32 hoisted__U32_122 = 1;
+                                    Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_122);
                                     I64 _va_Array_5_ek = 0;
-                                    U32 hoisted__U32_119 = 0;
-                                    Array__Str_set(&_va_Array_5, hoisted__U32_119, &_til_str_lits.h4d3ab87300de, &_va_Array_5_ek);
-                                    panic(&_va_Array_5, &hoisted__Str_self_typer_summary_expr_bits_121);
+                                    U32 hoisted__U32_123 = 0;
+                                    Array__Str_set(&_va_Array_5, hoisted__U32_123, &_til_str_lits.h4d3ab87300de, &_va_Array_5_ek);
+                                    panic(&_va_Array_5, &hoisted__Str_self_typer_summary_expr_bits_125);
                                 }
-                                RootBits hoisted__RootBits_124 = priv___src_self_typer_til__summary_expr_bits(_bang_ret_2, roots, scope, self_type, params, symbols, ctx);
-                                RootBits hoisted__RootBits_125 = priv___src_self_typer_til__summary_ctor_wrap(&hoisted__RootBits_124);
-                                { RootBits _new = RootBits_bor(&bits, &hoisted__RootBits_125); RootBits_delete(&bits, (Bool){0}); bits = _new; }
+                                RootBits hoisted__RootBits_128 = priv___src_self_typer_til__summary_expr_bits(_bang_ret_2, roots, scope, self_type, params, symbols, ctx);
+                                RootBits hoisted__RootBits_129 = priv___src_self_typer_til__summary_ctor_wrap(&hoisted__RootBits_128);
+                                { RootBits _new = RootBits_bor(&bits, &hoisted__RootBits_129); RootBits_delete(&bits, (Bool){0}); bits = _new; }
                             }
                         } else {
                             while (1) {
-                                Bool _wcond_Bool_126 = ((Bool)(_rc_U32_115 > _re_U32_115));
-                                if (!(_wcond_Bool_126)) {
+                                Bool _wcond_Bool_130 = ((Bool)(_rc_U32_119 > _re_U32_119));
+                                if (!(_wcond_Bool_130)) {
                                     break;
                                 }
-                                U32 ai = (_rc_U32_115);
-                                (--_rc_U32_115);
+                                U32 ai = (_rc_U32_119);
+                                (--_rc_U32_119);
                                 Expr *_bang_ret_2 = (((Bool)((U32)(ai) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(ai))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                                I64 hoisted__I64_132 = 1;
-                                Bool hoisted__Bool_133 = ((Bool)(_err_kind == hoisted__I64_132));
-                                if (hoisted__Bool_133) {
-                                    I64 hoisted__I64_127 = 0;
-                                    _err_kind = hoisted__I64_127;
-                                    U32 hoisted__U32_128 = 1;
-                                    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_128);
+                                I64 hoisted__I64_136 = 1;
+                                Bool hoisted__Bool_137 = ((Bool)(_err_kind == hoisted__I64_136));
+                                if (hoisted__Bool_137) {
+                                    I64 hoisted__I64_131 = 0;
+                                    _err_kind = hoisted__I64_131;
+                                    U32 hoisted__U32_132 = 1;
+                                    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_132);
                                     I64 _va_Array_6_ek = 0;
-                                    U32 hoisted__U32_129 = 0;
-                                    Array__Str_set(&_va_Array_6, hoisted__U32_129, &_til_str_lits.h4d3ab87300de, &_va_Array_6_ek);
-                                    panic(&_va_Array_6, &hoisted__Str_self_typer_summary_expr_bits_131);
+                                    U32 hoisted__U32_133 = 0;
+                                    Array__Str_set(&_va_Array_6, hoisted__U32_133, &_til_str_lits.h4d3ab87300de, &_va_Array_6_ek);
+                                    panic(&_va_Array_6, &hoisted__Str_self_typer_summary_expr_bits_135);
                                 }
-                                RootBits hoisted__RootBits_134 = priv___src_self_typer_til__summary_expr_bits(_bang_ret_2, roots, scope, self_type, params, symbols, ctx);
-                                RootBits hoisted__RootBits_135 = priv___src_self_typer_til__summary_ctor_wrap(&hoisted__RootBits_134);
-                                { RootBits _new = RootBits_bor(&bits, &hoisted__RootBits_135); RootBits_delete(&bits, (Bool){0}); bits = _new; }
+                                RootBits hoisted__RootBits_138 = priv___src_self_typer_til__summary_expr_bits(_bang_ret_2, roots, scope, self_type, params, symbols, ctx);
+                                RootBits hoisted__RootBits_139 = priv___src_self_typer_til__summary_ctor_wrap(&hoisted__RootBits_138);
+                                { RootBits _new = RootBits_bor(&bits, &hoisted__RootBits_139); RootBits_delete(&bits, (Bool){0}); bits = _new; }
                             }
                         }
                     }
                     return bits;
                 }
                 {
-                    U32 _re_U32_141 = (cfd->sig.params.count);
-                    U32 _rc_U32_141 = 0;
+                    U32 _re_U32_145 = (cfd->sig.params.count);
+                    U32 _rc_U32_145 = 0;
                     while (1) {
-                        Bool _wcond_Bool_142 = ((Bool)(_rc_U32_141 < _re_U32_141));
-                        if (!(_wcond_Bool_142)) {
+                        Bool _wcond_Bool_146 = ((Bool)(_rc_U32_145 < _re_U32_145));
+                        if (!(_wcond_Bool_146)) {
                             break;
                         }
-                        U32 pi = (_rc_U32_141);
-                        (++_rc_U32_141);
+                        U32 pi = (_rc_U32_145);
+                        (++_rc_U32_145);
                         U64 pb = summary_param_bit(pi);
                         U64 relevant = ((U64)(cfd->ref_return_params & pb));
-                        U64 hoisted__U64_149 = ((U64)(cfd->ref_return_into_params & pb));
-                        U64 hoisted__U64_150 = ((U64)(relevant | hoisted__U64_149));
-                        relevant = hoisted__U64_150;
-                        U64 hoisted__U64_151 = ((U64)(cfd->ref_return_carried_params & pb));
-                        U64 hoisted__U64_152 = ((U64)(relevant | hoisted__U64_151));
-                        relevant = hoisted__U64_152;
-                        U64 hoisted__U64_153 = 0ULL;
-                        Bool hoisted__Bool_154 = ((Bool)(relevant == hoisted__U64_153));
-                        if (hoisted__Bool_154) {
+                        U64 hoisted__U64_153 = ((U64)(cfd->ref_return_into_params & pb));
+                        U64 hoisted__U64_154 = ((U64)(relevant | hoisted__U64_153));
+                        relevant = hoisted__U64_154;
+                        U64 hoisted__U64_155 = ((U64)(cfd->ref_return_carried_params & pb));
+                        U64 hoisted__U64_156 = ((U64)(relevant | hoisted__U64_155));
+                        relevant = hoisted__U64_156;
+                        U64 hoisted__U64_157 = 0ULL;
+                        Bool hoisted__Bool_158 = ((Bool)(relevant == hoisted__U64_157));
+                        if (hoisted__Bool_158) {
                             continue;
                         }
                         Option__ref_Expr arg_o = priv___src_self_typer_til__summary_fcall_arg_for_param(e, cfd, &pi, scope, symbols);
-                        Bool hoisted__Bool_155 = Option__ref_Expr_is_none(arg_o);
-                        if (hoisted__Bool_155) {
+                        Bool hoisted__Bool_159 = Option__ref_Expr_is_none(arg_o);
+                        if (hoisted__Bool_159) {
                             continue;
                         }
-                        Expr *hoisted__Expr_156 = Option__ref_Expr_unwrap(&arg_o);
-                        RootBits ab = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_156, roots, scope, self_type, params, symbols, ctx);
-                        U64 hoisted__U64_157 = ((U64)(cfd->ref_return_params & pb));
-                        U64 hoisted__U64_158 = 0ULL;
-                        Bool hoisted__Bool_159 = ((Bool)(hoisted__U64_157 != hoisted__U64_158));
-                        if (hoisted__Bool_159) {
+                        Expr *hoisted__Expr_160 = Option__ref_Expr_unwrap(&arg_o);
+                        RootBits ab = priv___src_self_typer_til__summary_expr_bits(hoisted__Expr_160, roots, scope, self_type, params, symbols, ctx);
+                        U64 hoisted__U64_161 = ((U64)(cfd->ref_return_params & pb));
+                        U64 hoisted__U64_162 = 0ULL;
+                        Bool hoisted__Bool_163 = ((Bool)(hoisted__U64_161 != hoisted__U64_162));
+                        if (hoisted__Bool_163) {
                             { RootBits _new = RootBits_bor(&bits, &ab); RootBits_delete(&bits, (Bool){0}); bits = _new; }
                         }
-                        U64 hoisted__U64_160 = ((U64)(cfd->ref_return_into_params & pb));
-                        U64 hoisted__U64_161 = 0ULL;
-                        Bool hoisted__Bool_162 = ((Bool)(hoisted__U64_160 != hoisted__U64_161));
-                        if (hoisted__Bool_162) {
-                            U64 hoisted__U64_143 = ((U64)(bits.into | ab.alias));
-                            U64 hoisted__U64_144 = ((U64)(hoisted__U64_143 | ab.into));
-                            bits.into = hoisted__U64_144;
-                            U64 hoisted__U64_145 = ((U64)(bits.carried | ab.carried));
-                            bits.carried = hoisted__U64_145;
+                        U64 hoisted__U64_164 = ((U64)(cfd->ref_return_into_params & pb));
+                        U64 hoisted__U64_165 = 0ULL;
+                        Bool hoisted__Bool_166 = ((Bool)(hoisted__U64_164 != hoisted__U64_165));
+                        if (hoisted__Bool_166) {
+                            U64 hoisted__U64_147 = ((U64)(bits.into | ab.alias));
+                            U64 hoisted__U64_148 = ((U64)(hoisted__U64_147 | ab.into));
+                            bits.into = hoisted__U64_148;
+                            U64 hoisted__U64_149 = ((U64)(bits.carried | ab.carried));
+                            bits.carried = hoisted__U64_149;
                         }
-                        U64 hoisted__U64_163 = ((U64)(cfd->ref_return_carried_params & pb));
-                        U64 hoisted__U64_164 = 0ULL;
-                        Bool hoisted__Bool_165 = ((Bool)(hoisted__U64_163 != hoisted__U64_164));
-                        if (hoisted__Bool_165) {
-                            U64 hoisted__U64_146 = ((U64)(bits.into | ab.into));
-                            bits.into = hoisted__U64_146;
-                            U64 hoisted__U64_147 = ((U64)(bits.carried | ab.carried));
-                            U64 hoisted__U64_148 = ((U64)(hoisted__U64_147 | ab.alias));
-                            bits.carried = hoisted__U64_148;
+                        U64 hoisted__U64_167 = ((U64)(cfd->ref_return_carried_params & pb));
+                        U64 hoisted__U64_168 = 0ULL;
+                        Bool hoisted__Bool_169 = ((Bool)(hoisted__U64_167 != hoisted__U64_168));
+                        if (hoisted__Bool_169) {
+                            U64 hoisted__U64_150 = ((U64)(bits.into | ab.into));
+                            bits.into = hoisted__U64_150;
+                            U64 hoisted__U64_151 = ((U64)(bits.carried | ab.carried));
+                            U64 hoisted__U64_152 = ((U64)(hoisted__U64_151 | ab.alias));
+                            bits.carried = hoisted__U64_152;
                         }
                     }
                 }
@@ -112245,14 +113123,14 @@ static RootBits priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_
         break;
     }
     }
-    U64 hoisted__U64_176 = 0ULL;
-    U64 hoisted__U64_177 = 0ULL;
-    U64 hoisted__U64_178 = 0ULL;
-    RootBits hoisted__RootBits_179 = {0};
-    hoisted__RootBits_179.alias = hoisted__U64_176;
-    hoisted__RootBits_179.into = hoisted__U64_177;
-    hoisted__RootBits_179.carried = hoisted__U64_178;
-    return hoisted__RootBits_179;
+    U64 hoisted__U64_181 = 0ULL;
+    U64 hoisted__U64_182 = 0ULL;
+    U64 hoisted__U64_183 = 0ULL;
+    RootBits hoisted__RootBits_184 = {0};
+    hoisted__RootBits_184.alias = hoisted__U64_181;
+    hoisted__RootBits_184.into = hoisted__U64_182;
+    hoisted__RootBits_184.carried = hoisted__U64_183;
+    return hoisted__RootBits_184;
 }
 
 static Bool priv___src_self_typer_til__fdef_may_deposit(FunctionDef * fd) {
@@ -113076,65 +113954,78 @@ static RootBits priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_RootB
         break;
     }
     case NodeType_TAG_FieldAssign: {
-        U32 hoisted__U32_212 = (e->children.count);
-        U32 hoisted__U32_213 = 2;
-        Bool hoisted__Bool_214 = ((Bool)(hoisted__U32_212 >= hoisted__U32_213));
-        if (hoisted__Bool_214) {
-            U32 hoisted__U32_207 = 1;
-            Expr *_bang_ret_12 = (((Bool)((U32)(hoisted__U32_207) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_207))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-            I64 hoisted__I64_208 = 1;
-            Bool hoisted__Bool_209 = ((Bool)(_err_kind == hoisted__I64_208));
-            if (hoisted__Bool_209) {
-                I64 hoisted__I64_181 = 0;
-                _err_kind = hoisted__I64_181;
-                U32 hoisted__U32_182 = 1;
-                Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_182);
+        Bool _m_Bool_181 = 0;
+        {
+            U32 hoisted__U32_186 = (e->children.count);
+            U32 hoisted__U32_187 = 2;
+            Bool _sw_Bool_182 = ((Bool)(hoisted__U32_186 >= hoisted__U32_187));
+            Bool hoisted__Bool_188 = 1;
+            Bool hoisted__Bool_189 = ((Bool)(_sw_Bool_182 == hoisted__Bool_188));
+            if (hoisted__Bool_189) {
+                Bool hoisted__Bool_183 = priv___src_self_typer_til__summary_fieldassign_target_is_value_iface(e, scope, self_type, params, symbols);
+                Bool hoisted__Bool_184 = ((Bool)(!(hoisted__Bool_183)));
+                _m_Bool_181 = hoisted__Bool_184;
+            } else {
+                Bool hoisted__Bool_185 = 0;
+                _m_Bool_181 = hoisted__Bool_185;
+            }
+        }
+        if (_m_Bool_181) {
+            U32 hoisted__U32_216 = 1;
+            Expr *_bang_ret_12 = (((Bool)((U32)(hoisted__U32_216) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_216))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+            I64 hoisted__I64_217 = 1;
+            Bool hoisted__Bool_218 = ((Bool)(_err_kind == hoisted__I64_217));
+            if (hoisted__Bool_218) {
+                I64 hoisted__I64_190 = 0;
+                _err_kind = hoisted__I64_190;
+                U32 hoisted__U32_191 = 1;
+                Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_191);
                 I64 _va_Array_15_ek = 0;
-                U32 hoisted__U32_183 = 0;
-                Array__Str_set(&_va_Array_15, hoisted__U32_183, &_til_str_lits.h4d3ab87300de, &_va_Array_15_ek);
-                panic(&_va_Array_15, &hoisted__Str_self_typer_summary_walk_185);
+                U32 hoisted__U32_192 = 0;
+                Array__Str_set(&_va_Array_15, hoisted__U32_192, &_til_str_lits.h4d3ab87300de, &_va_Array_15_ek);
+                panic(&_va_Array_15, &hoisted__Str_self_typer_summary_walk_194);
             }
             RootBits src_bits = priv___src_self_typer_til__summary_expr_bits(_bang_ret_12, roots, scope, self_type, params, symbols, ctx);
-            Bool hoisted__Bool_210 = RootBits_is_zero(&src_bits);
-            Bool hoisted__Bool_211 = ((Bool)(!(hoisted__Bool_210)));
-            if (hoisted__Bool_211) {
-                U32 hoisted__U32_196 = 0;
-                Expr *_bang_ret_13 = (((Bool)((U32)(hoisted__U32_196) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_196))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_197 = 1;
-                Bool hoisted__Bool_198 = ((Bool)(_err_kind == hoisted__I64_197));
-                if (hoisted__Bool_198) {
-                    I64 hoisted__I64_186 = 0;
-                    _err_kind = hoisted__I64_186;
-                    U32 hoisted__U32_187 = 1;
-                    Array__Str _va_Array_16 = Array__Str_new(hoisted__U32_187);
+            Bool hoisted__Bool_219 = RootBits_is_zero(&src_bits);
+            Bool hoisted__Bool_220 = ((Bool)(!(hoisted__Bool_219)));
+            if (hoisted__Bool_220) {
+                U32 hoisted__U32_205 = 0;
+                Expr *_bang_ret_13 = (((Bool)((U32)(hoisted__U32_205) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_205))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_206 = 1;
+                Bool hoisted__Bool_207 = ((Bool)(_err_kind == hoisted__I64_206));
+                if (hoisted__Bool_207) {
+                    I64 hoisted__I64_195 = 0;
+                    _err_kind = hoisted__I64_195;
+                    U32 hoisted__U32_196 = 1;
+                    Array__Str _va_Array_16 = Array__Str_new(hoisted__U32_196);
                     I64 _va_Array_16_ek = 0;
-                    U32 hoisted__U32_188 = 0;
-                    Array__Str_set(&_va_Array_16, hoisted__U32_188, &_til_str_lits.h4d3ab87300de, &_va_Array_16_ek);
-                    panic(&_va_Array_16, &hoisted__Str_self_typer_summary_walk_190);
+                    U32 hoisted__U32_197 = 0;
+                    Array__Str_set(&_va_Array_16, hoisted__U32_197, &_til_str_lits.h4d3ab87300de, &_va_Array_16_ek);
+                    panic(&_va_Array_16, &hoisted__Str_self_typer_summary_walk_199);
                 }
                 RootBits sink_bits = priv___src_self_typer_til__summary_expr_bits(_bang_ret_13, roots, scope, self_type, params, symbols, ctx);
-                U64 hoisted__U64_199 = RootBits_all(&sink_bits);
-                U64 hoisted__U64_200 = RootBits_all(&src_bits);
-                U64 hoisted__U64_201 = priv___src_self_typer_til__deposit_cross(hoisted__U64_199, hoisted__U64_200);
-                U64 hoisted__U64_202 = ((U64)(acc->m | hoisted__U64_201));
-                acc->m = hoisted__U64_202;
-                U32 hoisted__U32_203 = 0;
-                Expr *_bang_ret_14 = (((Bool)((U32)(hoisted__U32_203) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_203))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_204 = 1;
-                Bool hoisted__Bool_205 = ((Bool)(_err_kind == hoisted__I64_204));
-                if (hoisted__Bool_205) {
-                    I64 hoisted__I64_191 = 0;
-                    _err_kind = hoisted__I64_191;
-                    U32 hoisted__U32_192 = 1;
-                    Array__Str _va_Array_17 = Array__Str_new(hoisted__U32_192);
+                U64 hoisted__U64_208 = RootBits_all(&sink_bits);
+                U64 hoisted__U64_209 = RootBits_all(&src_bits);
+                U64 hoisted__U64_210 = priv___src_self_typer_til__deposit_cross(hoisted__U64_208, hoisted__U64_209);
+                U64 hoisted__U64_211 = ((U64)(acc->m | hoisted__U64_210));
+                acc->m = hoisted__U64_211;
+                U32 hoisted__U32_212 = 0;
+                Expr *_bang_ret_14 = (((Bool)((U32)(hoisted__U32_212) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(e->children.data) + (((U64)(((U64)((U32)(hoisted__U32_212))) * 184ULL)))))) : (_err_kind = 1, (Expr *)NULL));
+                I64 hoisted__I64_213 = 1;
+                Bool hoisted__Bool_214 = ((Bool)(_err_kind == hoisted__I64_213));
+                if (hoisted__Bool_214) {
+                    I64 hoisted__I64_200 = 0;
+                    _err_kind = hoisted__I64_200;
+                    U32 hoisted__U32_201 = 1;
+                    Array__Str _va_Array_17 = Array__Str_new(hoisted__U32_201);
                     I64 _va_Array_17_ek = 0;
-                    U32 hoisted__U32_193 = 0;
-                    Array__Str_set(&_va_Array_17, hoisted__U32_193, &_til_str_lits.h4d3ab87300de, &_va_Array_17_ek);
-                    panic(&_va_Array_17, &hoisted__Str_self_typer_summary_walk_195);
+                    U32 hoisted__U32_202 = 0;
+                    Array__Str_set(&_va_Array_17, hoisted__U32_202, &_til_str_lits.h4d3ab87300de, &_va_Array_17_ek);
+                    panic(&_va_Array_17, &hoisted__Str_self_typer_summary_walk_204);
                 }
-                Str hoisted__Str_self_typer_summary_walk_206 = priv___src_self_typer_til__summary_deposit_base_name(_bang_ret_14, symbols);
-                priv___src_self_typer_til__summary_note_local_deposit(&hoisted__Str_self_typer_summary_walk_206, &src_bits, roots);
-                Str_delete(&hoisted__Str_self_typer_summary_walk_206, 0);
+                Str hoisted__Str_self_typer_summary_walk_215 = priv___src_self_typer_til__summary_deposit_base_name(_bang_ret_14, symbols);
+                priv___src_self_typer_til__summary_note_local_deposit(&hoisted__Str_self_typer_summary_walk_215, &src_bits, roots);
+                Str_delete(&hoisted__Str_self_typer_summary_walk_215, 0);
             }
         }
         break;
@@ -113147,28 +114038,28 @@ static RootBits priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_RootB
         break;
     }
     }
-    U64 hoisted__U64_221 = 0ULL;
-    U64 hoisted__U64_222 = 0ULL;
-    U64 hoisted__U64_223 = 0ULL;
+    U64 hoisted__U64_227 = 0ULL;
+    U64 hoisted__U64_228 = 0ULL;
+    U64 hoisted__U64_229 = 0ULL;
     RootBits bits = {0};
-    bits.alias = hoisted__U64_221;
-    bits.into = hoisted__U64_222;
-    bits.carried = hoisted__U64_223;
+    bits.alias = hoisted__U64_227;
+    bits.into = hoisted__U64_228;
+    bits.carried = hoisted__U64_229;
     {
-        Vec__Expr *_fc_Vec__Expr_215 = &e->children;
-        USize _fi_USize_215 = 0;
+        Vec__Expr *_fc_Vec__Expr_221 = &e->children;
+        USize _fi_USize_221 = 0;
         while (1) {
-            U32 hoisted__U32_217 = (_fc_Vec__Expr_215->count);
-            Bool _wcond_Bool_216 = ((Bool)(_fi_USize_215 < hoisted__U32_217));
-            if (!(_wcond_Bool_216)) {
+            U32 hoisted__U32_223 = (_fc_Vec__Expr_221->count);
+            Bool _wcond_Bool_222 = ((Bool)(_fi_USize_221 < hoisted__U32_223));
+            if (!(_wcond_Bool_222)) {
                 break;
             }
-            Expr *c = ((Expr *)((void *)((U8 *)(_fc_Vec__Expr_215->data) + (((U64)(((U64)(_fi_USize_215)) * 184ULL))))));
-            U32 hoisted__U32_218 = 1;
-            U32 hoisted__U32_219 = ((U32)(_fi_USize_215 + hoisted__U32_218));
-            _fi_USize_215 = hoisted__U32_219;
-            RootBits hoisted__RootBits_220 = priv___src_self_typer_til__summary_walk(c, roots, acc, scope, self_type, params, symbols, ctx);
-            { RootBits _new = RootBits_bor(&bits, &hoisted__RootBits_220); RootBits_delete(&bits, (Bool){0}); bits = _new; }
+            Expr *c = ((Expr *)((void *)((U8 *)(_fc_Vec__Expr_221->data) + (((U64)(((U64)(_fi_USize_221)) * 184ULL))))));
+            U32 hoisted__U32_224 = 1;
+            U32 hoisted__U32_225 = ((U32)(_fi_USize_221 + hoisted__U32_224));
+            _fi_USize_221 = hoisted__U32_225;
+            RootBits hoisted__RootBits_226 = priv___src_self_typer_til__summary_walk(c, roots, acc, scope, self_type, params, symbols, ctx);
+            { RootBits _new = RootBits_bor(&bits, &hoisted__RootBits_226); RootBits_delete(&bits, (Bool){0}); bits = _new; }
         }
     }
     return bits;
@@ -120268,10 +121159,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope 
     Declaration hoisted__Declaration_356 = decl_typed(&ctx->symbols, &idx_type, &idx_name, &_til_str_lits.h000000001505, hoisted__Bool_352, hoisted__Bool_353, hoisted__Bool_354, hoisted__Bool_355, &(OwnType){.tag = OwnType_TAG_Shallow});
     NodeType hoisted__NodeType_357 = NodeType_Decl(&hoisted__Declaration_356);
     Expr idx_decl = Expr_new(&hoisted__NodeType_357, line, col);
-    LiteralNumData hoisted__LiteralNumData_g109 = {0};
-    hoisted__LiteralNumData_g109.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g109.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_359 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g109) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g110 = {0};
+    hoisted__LiteralNumData_g110.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g110.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_359 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g110) })[0]);
     Expr zero = Expr_new(&hoisted__NodeType_359, line, col);
     Expr_add_child(&idx_decl, &zero);
     Expr_add_child(&block, &idx_decl);
@@ -120541,10 +121432,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope 
     NodeType hoisted__NodeType_389 = ident_node(hoisted__U32_388);
     Expr idx_ident_inc = Expr_new(&hoisted__NodeType_389, line, col);
     Expr add_call = make_method_call_fcall(&idx_ident_inc, &_til_str_lits.h00000b885cce, line, col, &ctx->symbols);
-    LiteralNumData hoisted__LiteralNumData_g110 = {0};
-    hoisted__LiteralNumData_g110.text = _til_str_lits.h00000002b5d6;
-    hoisted__LiteralNumData_g110.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_392 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g110) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g111 = {0};
+    hoisted__LiteralNumData_g111.text = _til_str_lits.h00000002b5d6;
+    hoisted__LiteralNumData_g111.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_392 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g111) })[0]);
     Expr one = Expr_new(&hoisted__NodeType_392, line, col);
     Expr_add_child(&add_call, &one);
     Expr_add_child(&idx_assign, &add_call);
@@ -120923,10 +121814,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope,
     Declaration hoisted__Declaration_161 = decl_typed(&ctx->symbols, &_til_str_lits.h00310e307535, &idx_name, &_til_str_lits.h000000001505, hoisted__Bool_157, hoisted__Bool_158, hoisted__Bool_159, hoisted__Bool_160, &(OwnType){.tag = OwnType_TAG_Shallow});
     NodeType hoisted__NodeType_162 = NodeType_Decl(&hoisted__Declaration_161);
     Expr idx_decl = Expr_new(&hoisted__NodeType_162, line, col);
-    LiteralNumData hoisted__LiteralNumData_g111 = {0};
-    hoisted__LiteralNumData_g111.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g111.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_164 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g111) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g112 = {0};
+    hoisted__LiteralNumData_g112.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g112.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_164 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g112) })[0]);
     Expr hoisted__Expr_165 = Expr_new(&hoisted__NodeType_164, line, col);
     Expr_add_child(&idx_decl, &hoisted__Expr_165);
     Expr_add_child(&block, &idx_decl);
@@ -121012,10 +121903,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope,
     NodeType hoisted__NodeType_190 = ident_node(hoisted__U32_189);
     Expr idx_ident_inc_kv = Expr_new(&hoisted__NodeType_190, line, col);
     Expr add_call_kv = make_method_call_fcall(&idx_ident_inc_kv, &_til_str_lits.h00000b885cce, line, col, &ctx->symbols);
-    LiteralNumData hoisted__LiteralNumData_g112 = {0};
-    hoisted__LiteralNumData_g112.text = _til_str_lits.h00000002b5d6;
-    hoisted__LiteralNumData_g112.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_193 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g112) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g113 = {0};
+    hoisted__LiteralNumData_g113.text = _til_str_lits.h00000002b5d6;
+    hoisted__LiteralNumData_g113.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_193 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g113) })[0]);
     Expr hoisted__Expr_194 = Expr_new(&hoisted__NodeType_193, line, col);
     Expr_add_child(&add_call_kv, &hoisted__Expr_194);
     Expr_add_child(&idx_assign_kv, &add_call_kv);
@@ -125313,10 +126204,10 @@ static Expr make_default_value_expr(Str * type_name, U32 line, U32 col, SymbolPo
             _fi_USize_19 = hoisted__U32_26;
             Bool hoisted__Bool_27 = Str_eq(type_name, prim_name);
             if (hoisted__Bool_27) {
-                LiteralNumData hoisted__LiteralNumData_g113 = {0};
-                hoisted__LiteralNumData_g113.text = _til_str_lits.h00000002b5d5;
-                hoisted__LiteralNumData_g113.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-                NodeType hoisted__NodeType_22 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g113) })[0]);
+                LiteralNumData hoisted__LiteralNumData_g114 = {0};
+                hoisted__LiteralNumData_g114.text = _til_str_lits.h00000002b5d5;
+                hoisted__LiteralNumData_g114.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+                NodeType hoisted__NodeType_22 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g114) })[0]);
                 Expr hoisted__Expr_23 = Expr_new(&hoisted__NodeType_22, line, col);
                 return hoisted__Expr_23;
             }
@@ -135615,10 +136506,10 @@ static void priv___src_self_desugarer_til__build_variadic_err_slots(Str * va_nam
     Type hoisted__Type_10 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I64});
     Expr_set_til_type(&ek, hoisted__Type_10);
     Type_delete(&hoisted__Type_10, 0);
-    LiteralNumData hoisted__LiteralNumData_g114 = {0};
-    hoisted__LiteralNumData_g114.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g114.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_12 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g114) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g115 = {0};
+    hoisted__LiteralNumData_g115.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g115.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_12 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g115) })[0]);
     Expr ek_init = Expr_new(&hoisted__NodeType_12, line, col);
     Type hoisted__Type_13 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I64});
     Expr_set_til_type(&ek_init, hoisted__Type_13);
@@ -294773,13 +295664,13 @@ static void priv___src_self_interpreter_til__clone_str_storage_into(void * dst, 
 
 static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx) {
     I64 _err_kind = 0;
-    Option__ref_Expr hoisted__Option__ref_Expr_79 = lookup_interp_type_def(struct_name, ctx);
-    Expr *struct_def = Option__ref_Expr_unwrap(&hoisted__Option__ref_Expr_79);
-    StructDef *sdef_data = structdef_of(struct_def, &hoisted__Str_self_interpreter_heap_clone_80);
+    Option__ref_Expr hoisted__Option__ref_Expr_84 = lookup_interp_type_def(struct_name, ctx);
+    Expr *struct_def = Option__ref_Expr_unwrap(&hoisted__Option__ref_Expr_84);
+    StructDef *sdef_data = structdef_of(struct_def, &hoisted__Str_self_interpreter_heap_clone_85);
     U32 sz = ctx_total_size(struct_name, ctx);
     void * dst_data = EvalHeap_heap_alloc(sz);
-    Bool hoisted__Bool_81 = priv___src_self_interpreter_til__ffi_place_is_foreign(data, ctx);
-    if (hoisted__Bool_81) {
+    Bool hoisted__Bool_86 = priv___src_self_interpreter_til__ffi_place_is_foreign(data, ctx);
+    if (hoisted__Bool_86) {
         Bool hoisted__Bool_1 = 0;
         Bool hoisted__Bool_2 = 1;
         priv___src_self_interpreter_til__ffi_copy_struct_into(struct_name, data, hoisted__Bool_1, dst_data, hoisted__Bool_2, ctx);
@@ -294793,8 +295684,8 @@ static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, voi
         return cloned;
     }
     memcpy(dst_data, data, sz);
-    Bool hoisted__Bool_83 = Str_eq(struct_name, &_til_str_lits.h00000b88235e);
-    if (hoisted__Bool_83) {
+    Bool hoisted__Bool_88 = Str_eq(struct_name, &_til_str_lits.h00000b88235e);
+    if (hoisted__Bool_88) {
         priv___src_self_interpreter_til__clone_str_storage_into(dst_data, data, ctx);
     } else {
         Bool hoisted__Bool_72 = Str_eq(struct_name, &_til_str_lits.h0652af49316e);
@@ -294976,23 +295867,28 @@ static void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, voi
         }
     }
     if (sdef_data->is_interface) {
-        FieldLayout *owned_fl = ctx_field_layout(struct_name, &_til_str_lits.hcc92ffb1e559, ctx);
-        Bool *owned = ((void *)((U8 *)(data) + (owned_fl->offset)));
-        if (DEREF(owned)) {
-            FieldLayout *type_fl = ctx_field_layout(struct_name, &_til_str_lits.hdf075f30c45e, ctx);
-            Str *type_name = ((void *)((U8 *)(data) + (type_fl->offset)));
+        FieldLayout *type_fl = ctx_field_layout(struct_name, &_til_str_lits.hdf075f30c45e, ctx);
+        Str *type_name = ((void *)((U8 *)(data) + (type_fl->offset)));
+        U32 hoisted__U32_81 = (type_name->count);
+        U32 hoisted__U32_82 = 0;
+        Bool hoisted__Bool_83 = ((Bool)(hoisted__U32_81 > hoisted__U32_82));
+        if (hoisted__Bool_83) {
             FieldLayout *val_fl = ctx_field_layout(struct_name, &_til_str_lits.hcbc3f47b36df, ctx);
-            void *hoisted__v_75 = ((void *)((U8 *)(data) + (val_fl->offset)));
-            void *src_val = deref(hoisted__v_75);
-            Type hoisted__Type_76 = type_from_name_init_name(type_name, &ctx->scope, &ctx->symbols);
-            void * cloned_val = priv___src_self_interpreter_til__heap_clone_by_type(hoisted__Type_76, src_val, ctx);
-            Type_delete(&hoisted__Type_76, 0);
-            void *hoisted__v_77 = ((void *)((U8 *)(dst_data) + (val_fl->offset)));
-            write_ptr(hoisted__v_77, cloned_val);
+            void *hoisted__v_74 = ((void *)((U8 *)(data) + (val_fl->offset)));
+            void *src_val = deref(hoisted__v_74);
+            Type hoisted__Type_75 = type_from_name_init_name(type_name, &ctx->scope, &ctx->symbols);
+            void * cloned_val = priv___src_self_interpreter_til__heap_clone_by_type(hoisted__Type_75, src_val, ctx);
+            Type_delete(&hoisted__Type_75, 0);
+            void *hoisted__v_76 = ((void *)((U8 *)(dst_data) + (val_fl->offset)));
+            write_ptr(hoisted__v_76, cloned_val);
+            FieldLayout *owned_fl = ctx_field_layout(struct_name, &_til_str_lits.hcc92ffb1e559, ctx);
+            void *hoisted__v_78 = ((void *)((U8 *)(dst_data) + (owned_fl->offset)));
+            Bool hoisted__Bool_79 = 1;
+            write_bool(hoisted__v_78, hoisted__Bool_79);
         }
     }
-    Bool hoisted__Bool_85 = Str_eq(struct_name, &_til_str_lits.h00310e311d8f);
-    if (hoisted__Bool_85) {
+    Bool hoisted__Bool_90 = Str_eq(struct_name, &_til_str_lits.h00310e311d8f);
+    if (hoisted__Bool_90) {
         priv___src_self_interpreter_til__clone_tuple_buffer(data, dst_data, ctx);
     }
     return dst_data;

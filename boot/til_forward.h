@@ -1885,6 +1885,8 @@ typedef struct TypeBinding {
     Bool is_param;
     OwnType own_type;
     Bool is_alias;
+    Bool iface_payload_borrowed;
+    Bool iface_borrow_explicit;
     Bool is_type_alias;
     Bool is_func_decl;
     Str alias_target;

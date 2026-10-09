@@ -251,15 +251,19 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         }
     }
     if sdef_data.is_interface {
-        ref owned_fl : FieldLayout = ctx_field_layout(struct_name, "iface_owned", ctx)
-        ref owned : Bool = ptr_add(data, owned_fl.offset)
-        if owned {
-            ref type_fl : FieldLayout = ctx_field_layout(struct_name, "iface_type_name", ctx)
-            ref type_name : Str = ptr_add(data, type_fl.offset)
+        // #432: a copy of an interface box OWNS its payload, whether the
+        // source box owned or borrowed its concrete -- the same deep copy
+        // gen_interface_clone_delete_for_stmt generates. Only the empty
+        // Iface() box (no concrete, no payload) copies as is.
+        ref type_fl : FieldLayout = ctx_field_layout(struct_name, "iface_type_name", ctx)
+        ref type_name : Str = ptr_add(data, type_fl.offset)
+        if type_name.len() > 0 {
             ref val_fl : FieldLayout = ctx_field_layout(struct_name, "iface_val", ctx)
             ref src_val : Dynamic = deref(ptr_add(data, val_fl.offset))
             cloned_val : Dynamic = heap_clone_by_type(type_from_name_init_name(type_name, ctx.scope, ctx.symbols), src_val, ctx)
             write_ptr(ptr_add(dst_data, val_fl.offset), cloned_val)
+            ref owned_fl : FieldLayout = ctx_field_layout(struct_name, "iface_owned", ctx)
+            write_bool(ptr_add(dst_data, owned_fl.offset), true)
         }
     }
     if struct_name == "Tuple" {
