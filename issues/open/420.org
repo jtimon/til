@@ -39,7 +39,7 @@ Observed on master d9976ce by cross-building examples/sender.til (nng,
 | raylib + tinyfd | native host, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, wasm32, macos (cross via the mac CI archives) | linux-arm64 cross (only a native arm64 host works), linux-riscv64 (no ~target_gui_libs~ entry at all) |
 | libffi (runtime ext_func dispatch only) | linux-x64, windows-x64, windows-x86; linux-arm64 and macos only on a matching native host | linux-riscv64, linux-x86, linux-arm32, linux-riscv32, wasm32; linux-arm64 and macos cross from another host |
 | libsecp256k1 | every native target, both windows, wasm32 (emcc), til.exe interpreting | linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
-| windows-host twins (til.exe interpreting) | libsecp256k1 (~libsecp256k1.dll~) | nng, raylib, tinyfd |
+| windows-host twins (til.exe interpreting) | libsecp256k1, raylib, tinyfd (~.dll~ twins) | nng (moved to #422) |
 
 How each fails today:
 
@@ -102,7 +102,14 @@ How each fails today:
   - [ ] libsecp256k1 for linux-x64 from a non-linux-x64 host (needs a
     linux-x64 cross compiler choice, e.g. the ~--cc~ the mac-host CI job
     passes).
-  - [ ] windows-host DLL twins for nng, raylib and tinyfd, built by
-    ~build_win_host~ like ~libsecp256k1.dll~.
+  - [X] windows-host DLL twins for raylib and tinyfd: ~build_win_host~
+    now also builds ~vendor/raylib/src/libraylib.dll~ and
+    ~vendor/tinyfiledialogs/libtinyfd.dll~ from the win64 archives (one
+    ~build_win_twin~ helper, shared with ~libsecp256k1.dll~, links each
+    with the windows system libraries it calls; both import only system
+    DLLs). ~til.exe interpret test/gui_interp.til~ passes under wine, with
+    or without an X server, and panics naming the DLL when it is removed;
+    CI's windows-host job runs it on the windows runner. nng's twin moves
+    with nng to #422.
   - [ ] CI: one build-and-run step per new archive, in the existing
     cross jobs.

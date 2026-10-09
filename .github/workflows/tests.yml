@@ -464,6 +464,18 @@ jobs:
           path: |
             vendor/secp256k1/libsecp256k1.dll
             vendor/secp256k1/build-win64/lib/libsecp256k1.a
+      # Issue #420: the same for mode gui -- the raylib and tinyfd DLL
+      # twins build_win_host made, plus the win64 archives a windows
+      # host's tree holds at the canonical paths.
+      - name: Upload the windows-host gui libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-windows-host
+          path: |
+            vendor/raylib/src/libraylib.dll
+            vendor/raylib/src/libraylib-win64.a
+            vendor/tinyfiledialogs/libtinyfd.dll
+            vendor/tinyfiledialogs/libtinyfd-win64.a
 
   windows-x64-host-run:
     name: windows-x64 host (run til.exe + nng on windows)
@@ -499,6 +511,23 @@ jobs:
         run: |
           cp vendor/secp256k1/build-win64/lib/libsecp256k1.a vendor/secp256k1/libsecp256k1.a
           ./winhost/til.exe interpret test/crypto.til
+      - name: Download the windows-host gui libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: gui-windows-host
+          path: vendor
+      # Issue #420: interpret mode gui ON windows. test/gui_interp.til is
+      # windowless (pure-CPU raylib calls through libffi: scalar and
+      # by-value struct arguments, Bool returns, string arguments), so it
+      # needs the DLL twins but no display. Same layout as std/crypto
+      # above: the win64 archives at the canonical paths, the DLLs beside
+      # them. The test panics on any wrong answer.
+      - name: Interpret the windowless gui test on windows
+        shell: bash
+        run: |
+          cp vendor/raylib/src/libraylib-win64.a vendor/raylib/src/libraylib.a
+          cp vendor/tinyfiledialogs/libtinyfd-win64.a vendor/tinyfiledialogs/libtinyfd.a
+          ./winhost/til.exe interpret test/gui_interp.til
       # Issue #349: first-ever execution of Cmd's windows side. The
       # driver spawns echo_argv.exe THROUGH Cmd (win_quote_arg's
       # CommandLineToArgvW rules, the CreateProcessA command line,

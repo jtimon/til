@@ -51,6 +51,8 @@ SECP256K1_SO := "vendor/secp256k1/libsecp256k1.so"
 SECP256K1_WIN64_LIB := "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
 SECP256K1_WIN32_LIB := "vendor/secp256k1/build-win32/lib/libsecp256k1.a"
 SECP256K1_WIN64_DLL := "vendor/secp256k1/libsecp256k1.dll"
+RAYLIB_WIN64_DLL := "vendor/raylib/src/libraylib.dll"
+TINYFD_WIN64_DLL := "vendor/tinyfiledialogs/libtinyfd.dll"
 LIBFFI_DIR := "vendor/libffi"
 LIBFFI_STAMP := "vendor/libffi/.built"
 LIBFFI_WIN64_LIB := "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
@@ -1368,12 +1370,45 @@ build_secp256k1_cross := proc(mut b: Build, dir: Str) {
 build_secp256k1_win_twin := proc(mut b: Build) {
     if b.begin("secp256k1_win_twin").not() { return }
     secp256k1_win64(b)
+    build_win_twin(SECP256K1_WIN64_LIB, SECP256K1_WIN64_DLL, "")
+}
+
+/// The windows-host twins of the mode gui archives (issue #420): what
+/// til.exe's interpreter loads for a mode gui program, beside the
+/// canonical libraylib.a / libtinyfd.a the gui support file links (on a
+/// windows host those hold the win64 archives; CI's windows-host job lays
+/// the tree out so). A DLL must resolve everything at link time, so each
+/// one names the windows system libraries its archive calls into -- the
+/// same libraries target_gui_libs links a windows gui program against.
+build_gui_win_twins := proc(mut b: Build) {
+    if b.begin("gui_win_twins").not() { return }
+    build_gui_pair(b, "win64")
+    t := gui_target(b, "win64")
+    build_win_twin(t.raylib_lib(), RAYLIB_WIN64_DLL, "-lgdi32 -lopengl32 -lwinmm")
+    build_win_twin(t.tinyfd_lib(), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
+}
+
+/// Force-link a win64 archive into a DLL with every symbol exported, plus
+/// the system libraries it needs (space-separated -l flags). The static
+/// archives carry no dllexport annotations, so --export-all-symbols is
+/// what exports them; spelled out rather than left to ld's default.
+build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str) {
     mut inputs := Vec(Str).new()
-    inputs.push(own SECP256K1_WIN64_LIB.clone())
-    if needs_rebuild(SECP256K1_WIN64_DLL, inputs).not() { return }
-    run("x86_64-w64-mingw32-gcc", "-shared", "-o", SECP256K1_WIN64_DLL,
-        "-Wl,--export-all-symbols",
-        "-Wl,--whole-archive", SECP256K1_WIN64_LIB, "-Wl,--no-whole-archive")
+    inputs.push(own archive.clone())
+    if needs_rebuild(dll, inputs).not() { return }
+    mut argv := Vec(Str).new()
+    argv.push(own "x86_64-w64-mingw32-gcc")
+    argv.push(own "-shared")
+    argv.push(own "-o")
+    argv.push(own dll.clone())
+    argv.push(own "-Wl,--export-all-symbols")
+    argv.push(own "-Wl,--whole-archive")
+    argv.push(own archive.clone())
+    argv.push(own "-Wl,--no-whole-archive")
+    for lib : Str in sys_libs.split(" ") {
+        if lib.is_empty().not() { argv.push(own lib.clone()) }
+    }
+    run_argv(argv)
 }
 
 /// The nng custom-mode examples, consumed via --extra-modes and
@@ -1519,8 +1554,9 @@ build_win_host := proc(mut b: Build) {
     build_til(b)
     build_libffi_cross(b, "x86_64-w64-mingw32", LIBFFI_WIN64_LIB)
     build_nng_win(b)
-    // Not linked into til.exe: the interpreter loads it at run time.
+    // Not linked into til.exe: the interpreter loads these at run time.
     build_secp256k1_win_twin(b)
+    build_gui_win_twins(b)
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     inputs.push(own LIBFFI_WIN64_LIB.clone())
@@ -1889,6 +1925,8 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = SECP256K1_WIN64_LIB, is_path = true, go = secp256k1_win64,
         about = "windows-x64 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))
+    out.push(own Command(name = RAYLIB_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
+    out.push(own Command(name = TINYFD_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
     out.push(own Command(name = SECP256K1_WIN32_LIB, is_path = true, go = secp256k1_win32,
         about = "windows-x86 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_arm64,
