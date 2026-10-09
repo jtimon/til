@@ -100,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu qemu-user cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -109,6 +109,15 @@ jobs:
         run: |
           ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64 examples/hello_script.til
           file bin/hello_script_arm64 | grep -q "aarch64"
+      # Issue #235: std/crypto cross-built for this target. libsecp256k1
+      # builds from the vendored source into this target's own archive
+      # (the builder links it instead of the host's), and test/crypto.til
+      # -- the FIPS 180-4 SHA-256 and BIP-340 vectors -- runs under qemu.
+      - name: Cross-compile and run the std/crypto test for linux-arm64
+        run: |
+          make vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a
+          ./bin/til build --target=linux-arm64 -o bin/crypto_arm64 test/crypto.til
+          qemu-aarch64 -L /usr/aarch64-linux-gnu bin/crypto_arm64
 
   linux-riscv64:
     name: linux-riscv64
@@ -116,7 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu qemu-user cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -125,6 +134,15 @@ jobs:
         run: |
           ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 examples/hello_script.til
           file bin/hello_script_riscv64 | grep -q "RISC-V"
+      # Issue #235: std/crypto cross-built for this target. libsecp256k1
+      # builds from the vendored source into this target's own archive
+      # (the builder links it instead of the host's), and test/crypto.til
+      # -- the FIPS 180-4 SHA-256 and BIP-340 vectors -- runs under qemu.
+      - name: Cross-compile and run the std/crypto test for linux-riscv64
+        run: |
+          make vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a
+          ./bin/til build --target=linux-riscv64 -o bin/crypto_riscv64 test/crypto.til
+          qemu-riscv64 -L /usr/riscv64-linux-gnu bin/crypto_riscv64
 
   linux-x86:
     name: linux-x86
@@ -143,6 +161,15 @@ jobs:
           file bin/hello_script_x86 | grep -q "80386"
           qemu-i386 bin/hello_script_x86
           qemu-i386 bin/hello_script_x86 | grep -q "Hello World"
+      # Issue #235: std/crypto cross-built for this target. libsecp256k1
+      # builds from the vendored source into this target's own archive
+      # (the builder links it instead of the host's), and test/crypto.til
+      # -- the FIPS 180-4 SHA-256 and BIP-340 vectors -- runs under qemu.
+      - name: Cross-compile and run the std/crypto test for linux-x86
+        run: |
+          make vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a
+          ./bin/til build --target=linux-x86 -o bin/crypto_x86 test/crypto.til
+          qemu-i386 bin/crypto_x86
       # Issue #232: 32-bit linux GUI. raylib compiles -m32 against the
       # vendored X11 headers and GLFW dlopens libX11 at runtime, so
       # BUILDING needs only gcc-multilib (installed above) -- no 32-bit
@@ -183,6 +210,15 @@ jobs:
         run: |
           qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32
           qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32 | grep -q "Hello World"
+      # Issue #235: std/crypto cross-built for this target. libsecp256k1
+      # builds from the vendored source into this target's own archive
+      # (the builder links it instead of the host's), and test/crypto.til
+      # -- the FIPS 180-4 SHA-256 and BIP-340 vectors -- runs under qemu.
+      - name: Cross-compile and run the std/crypto test for linux-arm32
+        run: |
+          make vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a
+          ./bin/til build --target=linux-arm32 -o bin/crypto_arm32 test/crypto.til
+          qemu-arm -L /usr/arm-linux-gnueabihf bin/crypto_arm32
       # Issue #232: arm32 GUI. Same recipe as linux-x86 gui (vendored X11
       # headers for the compile, GLFW dlopens libX11 on the target device
       # at runtime), with the same cross gcc the CLI step already uses.
@@ -229,6 +265,18 @@ jobs:
           SYSROOT=$("$RISCV32_CC" -print-sysroot)
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32 | grep -q "Hello World"
+      # Issue #235: std/crypto cross-built for this target. libsecp256k1
+      # builds (with the Bootlin compiler) from the vendored source into this target's own archive
+      # (the builder links it instead of the host's), and test/crypto.til
+      # -- the FIPS 180-4 SHA-256 and BIP-340 vectors -- runs under qemu.
+      - name: Cross-compile and run the std/crypto test for linux-riscv32
+        run: |
+          RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)
+          make RISCV32_CC="$RISCV32_CC" vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a
+          ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" \
+            -o bin/crypto_riscv32 test/crypto.til
+          SYSROOT=$("$RISCV32_CC" -print-sysroot)
+          qemu-riscv32 -L "$SYSROOT" bin/crypto_riscv32
       # Issue #232: riscv32 GUI, same shape as the arm32 gui step. No
       # distro ships a riscv32 gcc, so the raylib/tinyfd recipes take the
       # Bootlin compiler as RISCV32_CC. Build + file check only (no
@@ -713,7 +761,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang lld
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang lld llvm cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -724,6 +772,18 @@ jobs:
           file bin/hello_script-macos-arm64 | grep -q "Mach-O 64-bit arm64"
           ./bin/til build --target=macos-x64 -o bin/hello_script-macos-x64 examples/hello_script.til
           file bin/hello_script-macos-x64 | grep -q "Mach-O 64-bit x86_64"
+      # Issue #235: std/crypto for both mac arches. libsecp256k1 builds
+      # from the vendored source against the SDK-less headers (clang +
+      # llvm-ar, like the mac gui archives); the binaries run on the mac
+      # runners below. Built before the corpus sweep so test/crypto.til
+      # links there too.
+      - name: Cross-compile the std/crypto test for macos-arm64 and macos-x64
+        run: |
+          make vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a
+          ./bin/til build --target=macos-arm64 -o bin/crypto-macos-arm64 test/crypto.til
+          file bin/crypto-macos-arm64 | grep -q "Mach-O 64-bit arm64"
+          ./bin/til build --target=macos-x64 -o bin/crypto-macos-x64 test/crypto.til
+          file bin/crypto-macos-x64 | grep -q "Mach-O 64-bit x86_64"
       # Issue #369: put clang over the WHOLE corpus on linux, not just the
       # one example above. Every linux job compiles the generated C with gcc
       # (toolchain_command hardcodes it), so clang first saw the corpus on
@@ -766,6 +826,8 @@ jobs:
           path: |
             bin/hello_script-macos-arm64
             bin/hello_script-macos-x64
+            bin/crypto-macos-arm64
+            bin/crypto-macos-x64
 
   macos-arm64-cross-run:
     name: macos-arm64 (run cross binary on mac)
@@ -781,6 +843,10 @@ jobs:
           chmod +x hello_script-macos-arm64
           ./hello_script-macos-arm64
           ./hello_script-macos-arm64 | grep -q "Hello World"
+      - name: Run the cross-built std/crypto test
+        run: |
+          chmod +x crypto-macos-arm64
+          ./crypto-macos-arm64
 
   macos-x64-cross-run:
     name: macos-x64 (run cross binary on mac)
@@ -796,6 +862,10 @@ jobs:
           chmod +x hello_script-macos-x64
           ./hello_script-macos-x64
           ./hello_script-macos-x64 | grep -q "Hello World"
+      - name: Run the cross-built std/crypto test
+        run: |
+          chmod +x crypto-macos-x64
+          ./crypto-macos-x64
 
   # Issue #25: macOS as a HOST cross-compiling to the OTHER OSes (the
   # last two matrix cells). The mac runner builds bin/til natively, then

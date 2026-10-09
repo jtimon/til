@@ -1,0 +1,72 @@
+# priority: low
+# category: features
+** OPEN #419 mode const_time: a constant-time dialect for cryptographic primitives
+
+Split out of #235, where the user-facing crypto API landed as an
+ordinary std module (~src/std/crypto.til~: SHA-256 and BIP-340 over
+the vendored libsecp256k1). This issue is the mode itself, named
+~const_time~ (first discussed as "mode crypto") because the rules are
+about timing, not about cryptography as such: any code handling secrets
+can use them.
+
+*** What the mode is for
+
+  Constant-time cryptography is a design method that ensures code
+  execution time and resource usage do not depend on secret data (like
+  private keys), preventing attackers from measuring timing variations
+  to steal information. ~mode const_time~ makes that method a property
+  the typer checks rather than a discipline reviewers have to verify by
+  hand.
+
+  The mode is NOT the packaging of the API (that is ~src/std/crypto.til~,
+  an ordinary std module any mode can import). ~mode const_time~ is the
+  dialect cryptographic PRIMITIVES are written in: code whose timing and
+  memory access pattern must not depend on the data it handles, enforced
+  by the typer the way ~is_pure~ is enforced for ~mode theme~. The point
+  is that the branch cannot be written, and the error teaches the idiom
+  instead of just refusing:
+
+  - ~if~ / ~else~ / ~switch~ on anything: "no branching in mode const_time;
+    select with arithmetic: r = a * mask + b * (1 - mask), where mask is
+    0 or 1 -- think harder about this".
+  - ~while~, and ~for~ over a range that is not a literal or a constant:
+    every loop has a fixed trip count.
+  - indexing with a data-derived value: only a loop variable or a
+    constant may index, because a data-dependent index is a cache-timing
+    branch.
+  - short-circuit ~and~ / ~or~: spell them ~band~ / ~bor~ on masks.
+  - calling out of the mode with secret arguments. The simplest rule
+    treats every value in a const_time file as secret, so a const_time
+    function may call only other const_time functions and the arithmetic core. A
+    secret/public distinction in the type system is the open design
+    question; it is not needed for the first files.
+
+  Two facts bound what the mode can promise. Source discipline is not
+  machine discipline: the C compiler may turn a mask select back into a
+  branch, so the backend owes the same care (libsecp256k1 checks this
+  with valgrind-based ctime tests rather than language rules), and the
+  interpreter is not constant-time at all -- it runs the rules for
+  development, never for secrets. And nothing shipped so far needs the
+  mode: the constant-time work of the std API happens inside
+  libsecp256k1, and the til SHA-256 is branch-free by construction (fixed
+  loops, no data-dependent control flow or indexing), which makes it the
+  first file to move under the mode as the proof that the rules hold.
+
+  A pure-til curve implementation (#339) is what the mode is ultimately
+  for: the invitation for cryptography reviewers mentioned below.
+
+*** Warning
+
+  Anything written under ~mode const_time~ is as experimental as
+  ~src/std/crypto.til~ and must carry the same warning (#235's "Required
+  warning" section has the exact text): selecting the mode and its
+  generated documentation say it prominently.
+
+*** Plan
+
+  - [ ] The typer rules above, as a mode flag checked like ~is_pure~,
+    each with an error message that teaches the replacement idiom.
+  - [ ] Move ~sha256~ (src/std/crypto.til) into a ~mode const_time~ file as
+    the first file under the rules; std/crypto keeps exposing it.
+  - [ ] Tests: one rejected program per rule (the error text pinned),
+    and test/crypto.til unchanged and passing on both backends.

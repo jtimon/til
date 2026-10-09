@@ -36,6 +36,7 @@
 *** [[./open/370.org][#370]] til embeds in the lua/lisp sense: host program, guest til
 *** [[./open/384.org][#384]] Allow explicit inc/dec step arguments
 *** [[./open/410.org][#410]] SIMD shuffles, masked memory, gather/scatter and explicit FMA
+*** [[./open/419.org][#419]] mode const_time: a constant-time dialect for cryptographic primitives
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests

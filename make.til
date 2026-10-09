@@ -1220,23 +1220,114 @@ build_nng_win := proc(mut b: Build) {
     run("cmake", "--build", "vendor/nng/build-win64", "--parallel")
 }
 
-/// libsecp256k1 for a mingw triple (issue #235), so a --target=windows-*
-/// program importing std/crypto links. Unlike nng it needs no shims: the
-/// library is plain C99 with no system dependencies, so the mingw
-/// compiler is the whole toolchain change. Static, so upstream's header
-/// selects plain `extern` for every API symbol -- and til emits its own
-/// prototypes anyway, never the header's dllimport form. Built in its own
-/// directory, like the windows nng, so the native build is untouched.
-build_secp256k1_win := proc(mut b: Build, triple: Str, build_dir: Str, output: Str) {
-    if b.begin(format("secp256k1-", triple)).not() { return }
+/// One libsecp256k1 cross archive (issue #235): what a program importing
+/// std/crypto links when built for a target other than the host. The
+/// archive is <dir>/lib/libsecp256k1.a, the path src/self/targets.til's
+/// target_secp256k1_lib names for that target -- keep the two tables in
+/// step. The library is plain C99 with no system dependencies, so the
+/// compiler is the whole toolchain change; static, so upstream's header
+/// selects plain `extern` for every API symbol (til emits its own
+/// prototypes anyway, never the header's dllimport form). Each archive
+/// builds in its own directory, so the native build is untouched.
+SecpCross := struct {
+    dir := ""
+    // CMAKE_SYSTEM_NAME and CMAKE_SYSTEM_PROCESSOR.
+    system := ""
+    processor := ""
+    // Empty only for riscv32 before --riscv32-cc is given.
+    cc := ""
+    // CMAKE_C_FLAGS: -m32 for linux-x86, the SDK-less header path for a
+    // mac cross build.
+    cflags := ""
+    // CMAKE_C_COMPILER_TARGET: clang's triple for the mac archives.
+    clang_target := ""
+    // Mac archives from a non-mac host: Mach-O objects need llvm-ar, and
+    // cmake's compiler probe must not try to link (there is no SDK).
+    sdkless_mac := false
+
+namespace:
+    lib := func(self: SecpCross) returns Str {
+        return format(self.dir, "/lib/libsecp256k1.a")
+    }
+}
+
+/// Every libsecp256k1 cross archive, as data.
+secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
+    mut out := Vec(SecpCross).new()
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-win64",
+        system = "Windows", processor = "x86_64", cc = "x86_64-w64-mingw32-gcc"))
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-win32",
+        system = "Windows", processor = "i686", cc = "i686-w64-mingw32-gcc"))
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-arm64",
+        system = "Linux", processor = "aarch64", cc = "aarch64-linux-gnu-gcc"))
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-riscv64",
+        system = "Linux", processor = "riscv64", cc = "riscv64-linux-gnu-gcc"))
+    // The host gcc in 32-bit mode, like every linux-x86 build here: only
+    // gcc-multilib is needed.
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-x86",
+        system = "Linux", processor = "i686", cc = "gcc", cflags = "-m32"))
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-arm32",
+        system = "Linux", processor = "arm", cc = "arm-linux-gnueabihf-gcc"))
+    // No distro ships a riscv32 gcc: --riscv32-cc / RISCV32_CC, as for
+    // the riscv32 gui archives.
+    out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-riscv32",
+        system = "Linux", processor = "riscv32", cc = b.riscv32_cc.clone()))
+    for arch : Str in MAC_ARCHES.split(" ") {
+        // The deployment targets til links mac programs for
+        // (targets.til's target_prefix_args), not mac_triple's macos11:
+        // an x64 archive built for 11 makes ld64.lld warn on every link
+        // of a program targeting 10.12.
+        mut t := SecpCross(dir = format("vendor/secp256k1/build-macos-", arch),
+            system = "Darwin", cc = "clang",
+            processor = "x86_64", clang_target = "x86_64-apple-macos10.12")
+        if arch == "arm64" {
+            t.processor = "arm64"
+            t.clang_target = "arm64-apple-macos11"
+        }
+        // On a mac the real SDK serves the other arch too; elsewhere the
+        // vendored SDK-less headers, like the mac gui archives.
+        if b.host.is_mac().not() {
+            t.cflags = format("-nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
+            t.sdkless_mac = true
+        }
+        out.push(own t)
+    }
+    return out
+}
+
+build_secp256k1_cross := proc(mut b: Build, dir: Str) {
+    if b.begin(format("secp256k1-", dir)).not() { return }
+    mut found := false
+    mut t := SecpCross()
+    for c : SecpCross in secp256k1_cross_targets(b) {
+        if c.dir == dir {
+            t = c.clone()
+            found = true
+        }
+    }
+    if found.not() { panic("no libsecp256k1 cross archive builds in ", dir) }
+    if t.cc.is_empty() {
+        panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
+    }
+    if t.sdkless_mac { check_mac_cross_tools(b) }
     mut inputs := Vec(Str).new()
     inputs.push(own SELF_SRC.clone())
-    if needs_rebuild(output, inputs).not() { return }
-    mut argv := secp256k1_cmake_configure(build_dir)
-    argv.push(own "-DCMAKE_SYSTEM_NAME=Windows")
-    argv.push(own format("-DCMAKE_C_COMPILER=", triple, "-gcc"))
+    if needs_rebuild(t.lib(), inputs).not() { return }
+    mut argv := secp256k1_cmake_configure(t.dir)
+    argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
+    argv.push(own format("-DCMAKE_SYSTEM_PROCESSOR=", t.processor))
+    argv.push(own format("-DCMAKE_C_COMPILER=", t.cc))
+    if t.cflags.is_empty().not() { argv.push(own format("-DCMAKE_C_FLAGS=", t.cflags)) }
+    if t.clang_target.is_empty().not() {
+        argv.push(own format("-DCMAKE_C_COMPILER_TARGET=", t.clang_target))
+    }
+    if t.sdkless_mac {
+        argv.push(own "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
+        argv.push(own "-DCMAKE_AR=llvm-ar")
+        argv.push(own "-DCMAKE_RANLIB=llvm-ranlib")
+    }
     run_argv(argv)
-    run("cmake", "--build", build_dir, "--parallel")
+    run("cmake", "--build", t.dir, "--parallel")
 }
 
 /// The windows-HOST twin of the win64 archive: what til.exe's interpreter
@@ -1668,12 +1759,15 @@ libffi_win64 := proc(mut b: Build) {
 libffi_win32 := proc(mut b: Build) {
     build_libffi_cross(b, "i686-w64-mingw32", LIBFFI_WIN32_LIB)
 }
-secp256k1_win64 := proc(mut b: Build) {
-    build_secp256k1_win(b, "x86_64-w64-mingw32", "vendor/secp256k1/build-win64", SECP256K1_WIN64_LIB)
-}
-secp256k1_win32 := proc(mut b: Build) {
-    build_secp256k1_win(b, "i686-w64-mingw32", "vendor/secp256k1/build-win32", SECP256K1_WIN32_LIB)
-}
+secp256k1_win64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win64") }
+secp256k1_win32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win32") }
+secp256k1_linux_arm64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-arm64") }
+secp256k1_linux_riscv64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-riscv64") }
+secp256k1_linux_x86 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-x86") }
+secp256k1_linux_arm32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-arm32") }
+secp256k1_linux_riscv32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-riscv32") }
+secp256k1_macos_arm64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-macos-arm64") }
+secp256k1_macos_x64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-macos-x64") }
 
 commands := func() returns Vec(Command) {
     mut out := Vec(Command).new()
@@ -1766,6 +1860,20 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))
     out.push(own Command(name = SECP256K1_WIN32_LIB, is_path = true, go = secp256k1_win32,
         about = "windows-x86 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_arm64,
+        about = "linux-arm64 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_riscv64,
+        about = "linux-riscv64 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_x86,
+        about = "linux-x86 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_arm32,
+        about = "linux-arm32 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a", is_path = true, go = secp256k1_linux_riscv32,
+        about = "linux-riscv32 libsecp256k1 (needs --riscv32-cc=), for std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a", is_path = true, go = secp256k1_macos_arm64,
+        about = "macos-arm64 libsecp256k1, for programs importing std/crypto"))
+    out.push(own Command(name = "vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a", is_path = true, go = secp256k1_macos_x64,
+        about = "macos-x64 libsecp256k1, for programs importing std/crypto"))
     out.push(own Command(name = "vendor/raylib/src/libraylib-win64.a", alias_of = "build_win", is_path = true, go = gui_raylib_win64))
     out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-win64.a", alias_of = "build_win", is_path = true, go = gui_tinyfd_win64))
     out.push(own Command(name = "vendor/raylib/src/libraylib-win32.a", alias_of = "build_win32", is_path = true, go = gui_raylib_win32))

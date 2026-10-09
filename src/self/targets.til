@@ -92,8 +92,7 @@ priv target_is_32bit := func(target: Target) returns Bool {
 
 // True for any Windows target (x64 or x86). The builder uses it to gate
 // the mingw-specific link handling (--export-all-symbols, the linux->win
-// link-flag rewrite, the nng and libsecp256k1 swaps) on all Windows
-// targets at once.
+// link-flag rewrite, the nng swap) on all Windows targets at once.
 is_windows_target := func(target: Target) returns Bool {
     return target.is(Target.WindowsX64).or(target.is(Target.WindowsX86))
 }
@@ -340,6 +339,39 @@ target_ffi_build_hint := func(target: Target) returns Str {
     case .MacosX64, .MacosArm64: return "make, on a mac host (the bootstrap stable-copies the archive)"
     case .Jvm: panic("JVM target has no C libffi build")
     case: return "this target has no vendored libffi build"
+    }
+    return ""
+}
+
+// Is `target` the platform this compiler itself runs on? The vendored
+// archives at their canonical paths are built for the host, so they are
+// the right archives exactly when this holds.
+target_is_host := proc(target: Target) returns Bool {
+    return target_to_str(target) == target_to_str(detect_current_target())
+}
+
+// The libsecp256k1 archive a program importing std/crypto links when
+// built for `target` from a different host (issue #235). The canonical
+// vendor/secp256k1/libsecp256k1.a is the HOST's own archive -- make builds
+// it natively, and a windows host's tree lays its win64 archive out there
+// too -- so the builder consults this table only when `target` is not
+// the host (target_is_host). Each path is a bin/make goal (make.til's
+// secp256k1_cross_targets builds them; keep the two in step). "" means no
+// cross archive exists for the target, which the builder reports instead
+// of linking the host's archive.
+target_secp256k1_lib := func(target: Target) returns Str {
+    switch target {
+    case .WindowsX64:   return "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
+    case .WindowsX86:   return "vendor/secp256k1/build-win32/lib/libsecp256k1.a"
+    case .LinuxArm64:   return "vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a"
+    case .LinuxRiscv64: return "vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a"
+    case .LinuxX86:     return "vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a"
+    case .LinuxArm32:   return "vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a"
+    case .LinuxRiscv32: return "vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a"
+    case .MacosX64:     return "vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a"
+    case .MacosArm64:   return "vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a"
+    // linux-x64 from another host, wasm32, TempleOS, JVM: none.
+    case: return ""
     }
     return ""
 }

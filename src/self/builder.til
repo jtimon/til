@@ -478,24 +478,44 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
                 new_lf = new_lf.format(" vendor/nng/build-win64/libnng.a")
                 continue
             }
-            // Windows libsecp256k1 (issue #235): the same swap, per arch,
-            // for the std/crypto link(). The mingw archives are the
-            // bin/make path goals vendor/secp256k1/build-win{64,32}/lib/
-            // libsecp256k1.a; resolved like the gui/ffi archives so an
-            // installed tree finds them under its root. No system libs
-            // follow: the library is plain C with no dependencies.
-            if is_win.and(t.ends_with("libsecp256k1.a")) {
-                mut secp_win := "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
-                if target.is(Target.WindowsX86) { secp_win = "vendor/secp256k1/build-win32/lib/libsecp256k1.a" }
-                new_lf = new_lf.format(" ", resolve_target_archives(secp_win, ext_c_path))
-                continue
-            }
             new_lf = new_lf.format(" ", t)
         }
         if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32") }
         lf = new_lf
     }
     if wasm_gui { lf = "" }
+
+    // libsecp256k1 (issue #235): std/crypto's link() names the canonical
+    // archive, which is the HOST's. For any other target swap the token
+    // for that target's cross archive (target_secp256k1_lib), resolved
+    // like the gui/ffi archives so an installed tree finds it under its
+    // root. A missing archive is reported with the command that builds it
+    // rather than left to the linker, and a target with no cross archive
+    // is refused rather than linked against the host's. No system libs
+    // follow: the library is plain C with no dependencies.
+    if lf.contains("libsecp256k1.a").and(target_is_host(target).not()) {
+        mut secp_lf := ""
+        for st : Str in lf.split(" ") {
+            if st.len() == 0 { continue }
+            if st.ends_with("libsecp256k1.a") {
+                secp_lib := target_secp256k1_lib(target)
+                if secp_lib.is_empty() {
+                    println("error: std/crypto (libsecp256k1) has no cross build for this --target from this host")
+                    return 1
+                }
+                secp_resolved := resolve_target_archives(secp_lib, ext_c_path)
+                if realpath_str(secp_resolved).len() == 0 {
+                    println(format("error: this program links libsecp256k1 (std/crypto), and this target's archive is not built: ", secp_lib))
+                    println(format("  build it first: bin/make ", secp_lib))
+                    return 1
+                }
+                secp_lf = secp_lf.format(" ", secp_resolved)
+                continue
+            }
+            secp_lf = secp_lf.format(" ", st)
+        }
+        lf = secp_lf
+    }
 
     // Per-target system + ffi + (gui) link flags. Tables in
     // src/self/targets.til. Include them when gui.til was actually loaded,
