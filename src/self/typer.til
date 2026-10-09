@@ -9640,26 +9640,40 @@ type_prefix := func(t: Type, symbols: SymbolPool) returns Str {
     }
 }
 
-type_to_name := func(t: Type, symbols: SymbolPool) returns Str {
-    // #397: through type_name_ref so the Sym twins answer with their
-    // spelling too. Still returns owned -- the 65 call sites hand the
-    // name to error messages, format() and maps, which keep it.
-    ref name : Str = type_name_ref(t, symbols)
-    if name.len() > 0 { return Str.clone(name) }
+priv TTN_BODY := "Body"
+
+// type_to_name, borrowed: a named type's spelling (payload or pool), a
+// primitive's from the *Name globals above, "Body", or "" for the rest.
+// For the callers that only test or compare the name -- most of the
+// garbager's, once per local per statement.
+type_to_name_ref := func(t: Type, symbols: SymbolPool) returns ref Str {
     switch t {
-    case .Primitive(Primitive.I64): return I64Name.clone()
-    case .Primitive(Primitive.U8): return U8Name.clone()
-    case .Primitive(Primitive.I8): return I8Name.clone()
-    case .Primitive(Primitive.I16): return I16Name.clone()
-    case .Primitive(Primitive.U16): return U16Name.clone()
-    case .Primitive(Primitive.I32): return I32Name.clone()
-    case .Primitive(Primitive.U32): return U32Name.clone()
-    case .Primitive(Primitive.U64): return U64Name.clone()
-    case .Primitive(Primitive.F32): return F32Name.clone()
-    case .Primitive(Primitive.F64): return F64Name.clone()
-    case .Primitive(Primitive.Bool): return BoolName.clone()
-    case .Body: return "Body"
-    case: return ""
+    case .Primitive(p):
+        switch p {
+        case .I64: return I64Name
+        case .U8: return U8Name
+        case .I8: return I8Name
+        case .I16: return I16Name
+        case .U16: return U16Name
+        case .I32: return I32Name
+        case .U32: return U32Name
+        case .U64: return U64Name
+        case .F32: return F32Name
+        case .F64: return F64Name
+        case .Bool: return BoolName
+        }
+    case .Body: return TTN_BODY
+    case: return type_name_ref(t, symbols)
+    }
+}
+
+type_to_name := func(t: Type, symbols: SymbolPool) returns Str {
+    // Named types own a copy (callers hand it to maps and messages that
+    // keep it); the fixed spellings are views of stable globals, so the
+    // primitive names stop costing a malloc each.
+    switch t {
+    case .Primitive, .Body: return type_to_name_ref(t, symbols).borrowed_view()
+    case: return type_to_name_ref(t, symbols).clone()
     }
 }
 
@@ -13968,7 +13982,7 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
         rt_bind_o := scope.get_binding_name(result_temp, ctx.symbols)
         if rt_bind_o.is_some() {
             ref rt_bind : TypeBinding = rt_bind_o.unwrap()
-            subject_shares_temp = type_to_name(rt_bind.type, ctx.symbols) == type_to_name(sw_expr.til_type(), ctx.symbols)
+            subject_shares_temp = type_to_name_ref(rt_bind.type, ctx.symbols) == type_to_name_ref(sw_expr.til_type(), ctx.symbols)
         }
     }
     if subject_shares_temp {

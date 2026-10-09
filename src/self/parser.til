@@ -3032,33 +3032,75 @@ expr_type_name_ref := func(e: Expr, symbols: SymbolPool) returns Option(ref Str)
     }
 }
 
-til_type_name_c := func(t: Type, symbols: SymbolPool) returns Str {
+// Stable storage for til_type_name_c_ref's fixed answers (it returns a
+// ref, so they cannot be literals riding the return path).
+priv TTC_I64 : Str = "I64"
+priv TTC_U8 : Str = "U8"
+priv TTC_I8 : Str = "I8"
+priv TTC_I16 : Str = "I16"
+priv TTC_U16 : Str = "U16"
+priv TTC_I32 : Str = "I32"
+priv TTC_U32 : Str = "U32"
+priv TTC_U64 : Str = "U64"
+priv TTC_F32 : Str = "F32"
+priv TTC_F64 : Str = "F64"
+priv TTC_BOOL : Str = "Bool"
+priv TTC_UNKNOWN : Str = "unknown"
+priv TTC_NONE : Str = "None"
+priv TTC_STRUCT : Str = "Struct"
+priv TTC_STRUCTDEF : Str = "StructDef"
+priv TTC_ENUM : Str = "Enum"
+priv TTC_ENUMDEF : Str = "EnumDef"
+priv TTC_FUNCTIONDEF : Str = "FunctionDef"
+priv TTC_FN : Str = "Fn"
+priv TTC_BODY : Str = "Body"
+priv TTC_DYNAMIC : Str = "Dynamic"
+
+// The C-type-name table, borrowed: the Custom name from its payload or the
+// pool, everything else from the stable table above. The Primitive kinds
+// are a nested switch -- a `.Primitive(Primitive.X)` sub-pattern makes the
+// builder lower the whole switch to a sequential if/else chain (38 tests,
+// ~215 instructions a call), the same trap Expr.til_type fell into.
+til_type_name_c_ref := func(t: Type, symbols: SymbolPool) returns ref Str {
     switch t {
-    case .Unknown:   return "unknown"
-    case .None:      return "None"
-    case .Primitive(Primitive.I64):       return "I64"
-    case .Primitive(Primitive.U8):        return "U8"
-    case .Primitive(Primitive.I8):        return "I8"
-    case .Primitive(Primitive.I16):       return "I16"
-    case .Primitive(Primitive.U16):       return "U16"
-    case .Primitive(Primitive.I32):       return "I32"
-    case .Primitive(Primitive.U32):       return "U32"
-    case .Primitive(Primitive.U64):       return "U64"
-    case .Primitive(Primitive.F32):       return "F32"
-    case .Primitive(Primitive.F64):       return "F64"
-    case .Primitive(Primitive.Bool):      return "Bool"
-    case .Struct, .StructSym:    return "Struct"
-    case .StructDef: return "StructDef"
-    case .Enum, .EnumSym:      return "Enum"
-    case .EnumDef:   return "EnumDef"
-    case .FuncDef:   return "FunctionDef"
-    case .FuncPtr, .FuncPtrSig, .FuncPtrSigSym: return "Fn"
+    case .Unknown:   return TTC_UNKNOWN
+    case .None:      return TTC_NONE
+    case .Primitive(p):
+        switch p {
+        case .I64: return TTC_I64
+        case .U8: return TTC_U8
+        case .I8: return TTC_I8
+        case .I16: return TTC_I16
+        case .U16: return TTC_U16
+        case .I32: return TTC_I32
+        case .U32: return TTC_U32
+        case .U64: return TTC_U64
+        case .F32: return TTC_F32
+        case .F64: return TTC_F64
+        case .Bool: return TTC_BOOL
+        }
+    case .Struct, .StructSym:    return TTC_STRUCT
+    case .StructDef: return TTC_STRUCTDEF
+    case .Enum, .EnumSym:      return TTC_ENUM
+    case .EnumDef:   return TTC_ENUMDEF
+    case .FuncDef:   return TTC_FUNCTIONDEF
+    case .FuncPtr, .FuncPtrSig, .FuncPtrSigSym: return TTC_FN
     // #397: the Sym twins are the same C types as the Str forms; a
     // Custom's name is the whole answer, resolved for the twin.
-    case .CustomSym(sym): return symbols.resolve(sym).clone()
-    case .Body:      return "Body"
-    case .Dynamic:   return "Dynamic"
-    case .Custom(name): return name.clone()
+    case .CustomSym(sym): return symbols.resolve(sym)
+    case .Body:      return TTC_BODY
+    case .Dynamic:   return TTC_DYNAMIC
+    case .Custom(name): return name
+    }
+}
+
+// Owned form of til_type_name_c_ref. A Custom name is cloned; every other
+// answer is a view of the table's stable storage -- no allocation, the
+// same cost the literals this used to return had.
+til_type_name_c := func(t: Type, symbols: SymbolPool) returns Str {
+    switch t {
+    case .Custom, .CustomSym: return til_type_name_c_ref(t, symbols).clone()
+    case: return til_type_name_c_ref(t, symbols).borrowed_view()
     }
 }
 

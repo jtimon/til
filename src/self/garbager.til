@@ -1390,7 +1390,7 @@ priv rhs_depends_on_var := func(rhs: Expr, vname: Str, target_bit: I64, facts: B
 // contents always own, and for them the elision is a real leak fix
 // (Context_clone via load_program; the #256 own-field move).
 priv clone_arg_may_be_view := func(local: LocalInfo, symbols: SymbolPool) returns Bool {
-    return type_to_name(local.type, symbols) == "Str"
+    return type_to_name_ref(local.type, symbols) == "Str"
 }
 
 // A def RHS that provably yields an owning-or-static Str value:
@@ -2487,7 +2487,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 // shape -- and it makes Return a CFG leaf (a stage-3
                 // precondition) that the builder emits without the per-shape
                 // `{ T _ret = <expr>; <deletes>; return _ret; }` wrapper.
-                if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
+                if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
                     del_o := gc_make_delete(local, stmt, ctx.symbols)
                     if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
                 } else if local.is_heap {
@@ -2620,7 +2620,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
         st = root_flow[li.mul(root_stmts).add(stmt_idx)]
         if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i64()).or(local.last_use.eq(-1)) {
-            if local.raw_alloc.not().and(type_to_name(local.type, symbols).len().gt(0)) {
+            if local.raw_alloc.not().and(type_to_name_ref(local.type, symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
@@ -2675,7 +2675,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             if local.own_transfer.eq(stmt_idx.to_i64()).and(heap_local_is_callable(local)) { continue }
             if local.is_heap.and(is_aggregate(local.type)) {
                 if local.own_transfer == stmt_idx.to_i64() {
-                    if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
+                    if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
                         // own destructor frees the inner data, but nothing
@@ -2807,7 +2807,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
                     }
                 }
             }
-            if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
+            if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
@@ -2816,7 +2816,7 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             }
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i64())) {
-            if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
+            if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
             } else if local.is_heap {
@@ -2895,7 +2895,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                     ad.save_old_delete = true
                     stmt.set_til_type(local.type.clone())
                 } else {
-                    if local.raw_alloc.not().and(type_to_name(local.type, symbols).len().gt(0)) {
+                    if local.raw_alloc.not().and(type_to_name_ref(local.type, symbols).len().gt(0)) {
                         del_o := gc_make_delete(local, stmt, symbols)
                         if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
                     } else if local.is_heap {
@@ -2926,7 +2926,7 @@ priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr,
     // local is a bare heap block (free, never a deep delete); everything
     // else typed goes through gc_make_delete.
     mut del_o := Option(Expr).None
-    if local.raw_alloc.not().and(type_to_name(local.type, ctx.symbols).len().gt(0)) {
+    if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
         del_o = gc_make_delete(local, src, ctx.symbols)
     } else if local.is_heap {
         del_o = Option(Expr).Some(make_free_call(local.name, local.type, src, ctx.symbols))
@@ -3106,7 +3106,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         // boxed copy only on the path that actually transfers ownership.
         // Callables and other unnamed types still stand down.
         if is_aggregate(local.type).or(local.type.is(Type.Primitive)).not() { continue }
-        if type_to_name(local.type, ctx.symbols).len() == 0 { continue }
+        if type_to_name_ref(local.type, ctx.symbols).len() == 0 { continue }
         if local.own_transfer >= body.children.len().to_i64() { continue }
         // #302 stage 3: the DATAFLOW decides whether a graft is needed,
         // for every container kind. Mixed at exit means some path leaves

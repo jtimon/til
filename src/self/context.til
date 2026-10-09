@@ -397,9 +397,17 @@ namespace:
         if n == 0 { return SymMap(V).new() }
         mut cap : USize = 16
         while n * 2 > cap { cap = cap * 2 }
-        mut m := SymMap(V)(keys = Vec(Sym).with_capacity(n), values = Vec(V).with_capacity(n), slots = Vec(U32).with_capacity(cap))
-        for _ in 0..cap { m.slots.push(own 0) }
-        return m
+        return SymMap(V)(keys = Vec(Sym).with_capacity(n), values = Vec(V).with_capacity(n), slots = SymMap(V).empty_slots(cap))
+    }
+
+    // A slot array of ~cap~ empty (zero) slots in one allocation and one
+    // memset. Filling it by pushing zeros cost ~96 instructions a slot at
+    // -O0, and every scope's first insert reindexes into 16 of them.
+    empty_slots := func(cap: USize) returns Vec(U32) {
+        mut v := Vec(U32).with_capacity(cap)
+        memset(ptr_add(v.data, 0), 0, cap.to_uptr().mul(U32.size().to_uptr()))
+        v.count = cap
+        return v
     }
 
     len := func(self: SymMap(V)) returns USize { return self.keys.count }
@@ -436,8 +444,8 @@ namespace:
     // Rebuild the index over the dense pair at ~cap~ slots (a power of two):
     // on growth, and after a removal shifted the positions.
     reindex := func(mut self: SymMap(V), cap: USize) {
-        self.slots.clear()
-        for _ in 0..cap { self.slots.push(own 0) }
+        mut fresh := SymMap(V).empty_slots(cap)
+        swap(Vec(U32), self.slots, fresh)
         for i in 0..self.keys.count {
             mut si : USize = self.keys.unsafe_get(i).cast(U64).mul(SYMMAP_MIX).to_usize().band(cap - 1)
             while self.slots.unsafe_get(si) != 0 { si = si.add(1).band(cap - 1) }
@@ -454,6 +462,13 @@ namespace:
             self.values.unsafe_set(pos.to_usize(), own val)
             return
         }
+        self.insert_absent(key, own val)
+    }
+
+    /// Append ~key~ -> ~val~ for a key the caller has just found absent
+    /// (find() < 0), skipping set's own search. Inserting a key that is
+    /// already present would shadow it: find returns the first match.
+    insert_absent := func(mut self: SymMap(V), key: Sym, own val: V) {
         self.keys.push(own key.clone())
         self.values.push(own val)
         // Keep the load under one half so probe runs stay short.
@@ -876,8 +891,9 @@ namespace:
         line: U32, col: U32,
         is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool) {
             sym := symbols.intern(name)
-            if self.bindings.has(sym) {
-                ref mut b : TypeBinding = self.bindings.get(sym)!
+            existing := self.bindings.find(sym)
+            if existing >= 0 {
+                ref mut b : TypeBinding = self.bindings.values.unsafe_get(existing.to_usize())
                 b.type = type
                 b.is_mut = is_mut
                 // path/line/col are declaration-site identity. Preserve them
@@ -892,7 +908,7 @@ namespace:
                 path = path.clone(),
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
-            self.bindings.set(sym, own nb)
+            self.bindings.insert_absent(sym, own nb)
         }
 }
 

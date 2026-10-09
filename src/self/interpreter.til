@@ -2964,6 +2964,17 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                 return_raw = moved_word
                             }
                         }
+                    } else if c.eval.interp_ret_is_ref.and(return_hb.is_static_callable.not())
+                        .and(heap_type_is_callable(hb_type(return_hb)).not()) {
+                        // A `returns ref` function returning a binding that
+                        // outlives the call (a global, an enclosing scope's)
+                        // lends that binding's storage -- what the compiled
+                        // backend returns. Reading it would CLONE the value,
+                        // and the reframe below would then pass that fresh
+                        // clone to the caller as a borrow nobody frees: a
+                        // `return SOME_GLOBAL_STR` leaked one header a call.
+                        return_raw = to_ptr(return_hb.ptr)
+                        return_source_is_ref = true
                     } else {
                         return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(ctx.symbols.names), ctx)
                     }

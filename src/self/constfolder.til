@@ -119,7 +119,7 @@ priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut introduced: V
             case .Ident(id):
                 fdef_o = ctx.scope.lookup_func_name(id.ident_name(ctx.symbols.names), ctx.symbols)
             case .FieldAccess(member):
-                sname := fa_recv_type_name(callee, ctx)
+                ref sname : Str = fa_recv_type_name(callee, ctx)
                 if sname.len() > 0 { fdef_o = ns_func_def(sname, member.field_access_name(ctx.symbols.names), ctx) }
             case:
             }
@@ -880,17 +880,20 @@ priv ns_lookup_flat := func(name: Str, mut ctx: Context) returns Option(ref Expr
 // to dispatch on. If recv is an Ident that names a struct/enum (e.g.
 // `Str.size`), use the Ident text. Otherwise fall back to recv.til_type()
 // so method calls on values (`x.add(y)` where x: I64) still resolve.
-priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns Str {
-    if callee.children.len() == 0 { return "" }
+// Borrowed: every caller only tests the name and passes it on, so the
+// clone this used to return (48K per first_class translate) bought
+// nothing. The ref points into the pool or the receiver's stamp.
+priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns ref Str {
+    if callee.children.len() == 0 { return NO_TYPE_NAME }
     ref recv : Expr = callee.children[0]
     switch recv.node_type {
     case .Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
-        if ns_func_def_sym(ident.ident_sym(), "size", ctx).is_some() { return Str.clone(ident.ident_name(ctx.symbols.names)) }
+        if ns_func_def_sym(ident.ident_sym(), "size", ctx).is_some() { return ident.ident_name(ctx.symbols.names) }
     case:
     }
-    return til_type_name_c(recv.til_type(), ctx.symbols)
+    return til_type_name_c_ref(recv.til_type(), ctx.symbols)
 }
 
 priv constfolder_virtual_interface_member := func(callee: Expr, ctx: Context) returns Bool {
@@ -944,7 +947,7 @@ priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, mut ctx: Context)
         }
     case .FieldAccess(mn):
         if fc_callee.children.len() > 0 {
-            sn := fa_recv_type_name(fc_callee, ctx)
+            ref sn : Str = fa_recv_type_name(fc_callee, ctx)
             if sn.is_empty().not() {
                 fc_fdef_o = ns_func_def(sn, mn.field_access_name(ctx.symbols.names), ctx)
             }
@@ -999,7 +1002,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                 }
             case:
             }
-            sname := fa_recv_type_name(callee, ctx)
+            ref sname : Str = fa_recv_type_name(callee, ctx)
             if sname.is_empty().not() {
                 fdef_o = ns_func_def(sname, mname.field_access_name(ctx.symbols.names), ctx)
             }
@@ -1275,7 +1278,7 @@ is_macro_call := func(e: Expr, mut ctx: Context) returns Bool {
     case .Ident(cname):
         return constfolder_has_macro(ctx, cname.ident_name(ctx.symbols.names))
     case .FieldAccess(mname):
-        sname := fa_recv_type_name(callee, ctx)
+        ref sname : Str = fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
         return constfolder_has_macro_q(ctx, sname, mname.field_access_name(ctx.symbols.names))
     case:
@@ -1292,7 +1295,7 @@ priv is_func_call := func(e: Expr, mut ctx: Context) returns Bool {
     case .Ident(cname):
         return constfolder_has_func(ctx, cname.ident_name(ctx.symbols.names))
     case .FieldAccess(mname):
-        sname := fa_recv_type_name(callee, ctx)
+        ref sname : Str = fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
         return constfolder_has_func_q(ctx, sname, mname.field_access_name(ctx.symbols.names))
     case:
