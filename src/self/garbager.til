@@ -1015,6 +1015,138 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     return table
 }
 
+// #415: what each reassignment of `local` finds in it, from the same CFG
+// dataflow the exit deletes read -- root statements and nested ones
+// alike, since the CFG spans every nested body of this view (not nested
+// FuncDefs). A reassignment's old value is CONSUMED, and must not be
+// deleted again, when an earlier own transfer moved it on every path in
+// (state Moved) or when the reassignment's own RHS transfers it
+// (`x = replace(own x)`). Mixed -- moved on some paths, owned on others --
+// needs a path-sensitive delete, which the sink grafts.
+priv GcAssignVerdicts := struct {
+    mixed := false
+    // The first Mixed site's address (gc_assign_key).
+    mixed_key : UPtr = 0
+    mixed_line : U32 = 0
+    mixed_col : U32 = 0
+}
+
+priv gc_assign_key := func(stmt: Expr) returns UPtr {
+    return word_bits(to_ptr(stmt)).cast(UPtr)
+}
+
+// Adds the consumed Assigns' addresses to `consumed`.
+priv gc_flow_assign_verdicts := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex, mut consumed: Set(UPtr)) returns GcAssignVerdicts {
+    mut v := GcAssignVerdicts()
+    mut blocks := Vec(GcCfgBlock).new()
+    cfg_build(blocks, body)
+    n := blocks.len()
+    mut offsets := Array(USize).new(n)
+    cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
+    bit := fact_bit_req(fi, local.name)
+    mut ins := Array(U8).new(n)
+    mut outs := Array(U8).new(n)
+    // A binding with no Decl in this view (a param) is owned on arrival.
+    mut entry := FLOW_UNINIT
+    if local.decl_index < 0 { entry = FLOW_OWNED }
+    gc_flow_solve(blocks, entry, bit, cfg_facts, offsets, ins, outs)
+    for bi in 0..n {
+        if ins[bi].eq(FLOW_UNREACHED) { continue }
+        ref b : GcCfgBlock = blocks[bi]
+        switch b.body {
+        case .Some(bbody):
+            mut st : U8 = FLOW_UNREACHED
+            st = ins[bi]
+            for j in b.start.to_usize()..b.end.to_usize() {
+                ref stmt : Expr = bbody.children[j]
+                row := offsets[bi].add(j.sub(b.start.to_usize()))
+                switch stmt.node_type {
+                case .Assign(ad):
+                    if ad.name == local.name {
+                        rhs_transfers := fact_bit_test(cfg_facts.transfers, row.mul(cfg_facts.words), bit)
+                        if rhs_transfers.or(st == FLOW_MOVED) {
+                            consumed.add(own gc_assign_key(stmt))
+                        } else if st == FLOW_MIXED {
+                            if v.mixed.not() {
+                                v.mixed = true
+                                v.mixed_key = gc_assign_key(stmt)
+                                v.mixed_line = stmt.line
+                                v.mixed_col = stmt.col
+                            }
+                        }
+                    }
+                case:
+                }
+                st = gc_flow_stmt_effect(cfg_facts, row, bit, st)
+            }
+        case .None:
+            // The synthetic exit block has no statements.
+        }
+    }
+    return v
+}
+
+// Whether any statement of this body (its subtree, nested bodies
+// included) reassigns `name` -- the only bindings the verdicts concern.
+priv gc_body_reassigns := func(body: Expr, name: Str, facts: BodyFacts, fi: FactIndex) returns Bool {
+    bit_o := fact_bit_search(fi.idx, name)
+    if bit_o < 0 { return false }
+    bit := bit_o.to_usize()
+    for s in 0..body.children.len() {
+        if fact_bit_test(facts.reassigns, s.mul(facts.words), bit) { return true }
+    }
+    return false
+}
+
+// Whether `e` is, or contains outside nested FuncDefs, the node `key`.
+priv gc_subtree_has_key := func(e: Expr, key: UPtr) returns Bool {
+    if gc_assign_key(e) == key { return true }
+    if e.node_type.is(NodeType.FuncDef) { return false }
+    for c : Expr in e.children {
+        if gc_subtree_has_key(c, key) { return true }
+    }
+    return false
+}
+
+// The top-level statement whose conditional transfer leaves `local`
+// Mixed at the reassignment `key`: the nearest compound before the
+// reassignment's own top-level statement that transfers it on some path.
+// -1 when there is none the sink can graft into (a transfer under a
+// loop belongs to another iteration than any grafted path).
+priv gc_mixing_transfer_index := func(body: Expr, local: LocalInfo, key: UPtr, scope: TypeScope, ctx: Context) returns I64 {
+    mut site : I64 = -1
+    for r in 0..body.children.len() {
+        if gc_subtree_has_key(body.children[r], key) { site = r.to_i64(); break }
+    }
+    if site < 0 { return -1 }
+    mut j := site
+    while j > 0 {
+        j = j - 1
+        ref cand : Expr = body.children[j.to_usize()]
+        if cand.node_type.is(NodeType.If).or(cand.node_type.is(NodeType.Switch)).or(cand.node_type.is(NodeType.Body)).not() { continue }
+        if expr_transfers_own(cand, local.name, scope, ctx).not() { continue }
+        if cand.node_type.is(NodeType.Body).and(transfer_lex_inside_while(cand, local.name, scope, ctx)) { return -1 }
+        return j
+    }
+    return -1
+}
+
+// Clears save_old_delete on the nested Assigns whose old value the
+// dataflow found consumed. The nested bodies' own passes ran first (the
+// walk is post-order) and flagged every rebind of an outer binding
+// (flag_outer_assign_rebinds); only this view, which owns the binding,
+// sees the paths into them.
+priv gc_clear_consumed_assigns := func(mut e: Expr, consumed: Set(UPtr)) {
+    switch e.node_type {
+    case .Assign(ad):
+        if consumed.has(gc_assign_key(e)) { ad.save_old_delete = false }
+    case .FuncDef:
+        return
+    case:
+    }
+    for mut c : Expr in e.children { gc_clear_consumed_assigns(c, consumed) }
+}
+
 // True when the binding leaves this body view still OWNED on at least
 // one path AND MOVED on at least one other -- the partial-transfer
 // state whose cleanup must be path-sensitive. Computed from the exit
@@ -2880,9 +3012,17 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
     }
 }
 
-priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize, mut symbols: SymbolPool) {
+priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize, consumed: Set(UPtr), mut symbols: SymbolPool) {
     switch stmt.node_type {
     case .Assign(ad):
+        // #415: the old value was already consumed -- moved away earlier
+        // on every path in, or by this very RHS (`x = f(own x)`). Deleting
+        // it again (here, or via save_old_delete in the backend) frees
+        // what the new owner holds.
+        if consumed.has(gc_assign_key(stmt)) {
+            ad.save_old_delete = false
+            return
+        }
         vname := ad.name
         mut is_body_local := false
         for local : LocalInfo in locals {
@@ -3097,6 +3237,27 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
+        // #415: Mixed at a REASSIGNMENT is the exit's path problem moved
+        // earlier: on the paths that still own the old value it must be
+        // deleted, on the others it is already gone. Grafting the delete
+        // onto the owning paths of the transferring compound leaves the
+        // binding uniformly Moved at the reassignment. Checked before the
+        // own_transfer gate: a reassignment re-owns the binding, which is
+        // exactly when check_use_after_own_transfer clears that record.
+        if local.has_transfer.and(is_aggregate(local.type).or(local.type.is(Type.Primitive)))
+            .and(type_to_name(local.type, ctx.symbols).len() > 0)
+            .and(gc_body_reassigns(body, local.name, facts, fi)) {
+            mut scratch := Set(UPtr).new()
+            av := gc_flow_assign_verdicts(body, local, scope, ctx, facts, fi, scratch)
+            if av.mixed {
+                tidx := gc_mixing_transfer_index(body, local, av.mixed_key, scope, ctx)
+                if tidx >= 0 {
+                    sink_nontransfer_paths(body.children[tidx.to_usize()], local, scope, ctx)
+                    grafted = true
+                    facts = body_stmt_facts(body, scope, true, fi, ctx.symbols)
+                }
+            }
+        }
         // Index guard, not a semantic one: own_transfer is the statement
         // index read below, and -1 would index out of bounds.
         if local.own_transfer < 0 { continue }
@@ -3580,6 +3741,28 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     // statement that reads a hoisted view aliasing its buffer. See #250.
     extend_hoist_view_lifetimes(body, locals_vec, facts, fidx)
 
+    // #415: settle every reassignment's old-value cleanup against the
+    // dataflow, after the sink's grafts (which turn Mixed into Moved on
+    // the transfer paths). Root Assigns are skipped by insert_assign_delete
+    // below; nested ones have their save_old_delete cleared here.
+    mut consumed_assigns := Set(UPtr).new()
+    for clocal : LocalInfo in locals_vec {
+        if clocal.has_transfer.not() { continue }
+        if gc_body_reassigns(body, clocal.name, facts, fidx).not() { continue }
+        cv := gc_flow_assign_verdicts(body, clocal, scope, ctx, facts, fidx, consumed_assigns)
+        // REM: a Mixed reassignment the sink could not graft (a transfer
+        // under a loop back edge) is what #365's "transferred inside a
+        // loop" error already rejects; a rejected unit is never emitted,
+        // so only an ACCEPTED program reaching it is a garbager bug.
+        if cv.mixed.and(ctx.errors == 0) {
+            panic(__LOC__, ": ", ctx.path, ":", cv.mixed_line.to_str(), ":", cv.mixed_col.to_str(),
+                ": reassignment of '", clocal.name, "' whose old value is moved on some paths only")
+        }
+    }
+    if consumed_assigns.len() > 0 {
+        for mut cstmt : Expr in body.children { gc_clear_consumed_assigns(cstmt, consumed_assigns) }
+    }
+
     // #302 stage 0: decision audit. The analysis above has settled every
     // per-binding decision; the dump itself runs after the insertion loop
     // so the site walk sees the final body. Cost when disabled: one env
@@ -3645,7 +3828,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         if rebuilding {
             insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch, ctx.symbols)
             insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-            insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, ctx.symbols)
+            insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, consumed_assigns, ctx.symbols)
             mut post_deletes := Vec(Expr).new()
             insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
             new_ch.push_take(old, i)
@@ -3659,7 +3842,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         mut pre_deletes := Vec(Expr).new()
         insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, pre_deletes, ctx.symbols)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-        insert_assign_delete(stmt, locals_vec, pre_deletes, taint_facts, fidx, i, ctx.symbols)
+        insert_assign_delete(stmt, locals_vec, pre_deletes, taint_facts, fidx, i, consumed_assigns, ctx.symbols)
         mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, pre_deletes)
         if pre_deletes.len().eq(0).and(post_deletes.len().eq(0)) { continue }

@@ -664,3 +664,182 @@ own_local_batched_flow_paths := test() {
     assert_eq(USize, flow_reassign_after_consume(true), 4)
     assert_eq(USize, flow_reassign_after_consume(false), 3)
 }
+
+// --- #415: reassigning a binding whose old value is already consumed ----
+//
+// The old value of `x = ...` can already be gone: moved away by an own
+// transfer on every path in, or by the reassignment's own RHS
+// (`x = f(own x)`). Deleting it again freed what its new owner held
+// (heap-use-after-free, double free); on a path where it is still owned
+// it must be deleted exactly once. Each shape runs with a heap-backed Str
+// (for ASAN) and with Counted415, whose delete counts: a duplicate or a
+// missing cleanup shows up as a wrong count even where a literal or null
+// sentinel would hide it from ASAN.
+
+heap415 := proc(s: Str) returns Str {
+    noop_proc()
+    mut out := Str.with_capacity(8)
+    out.push_str(s)
+    return out
+}
+
+replace415 := proc(own s: Str) returns Str {
+    assert_eq(USize, s.len(), 4)
+    return heap415("next")
+}
+
+// The RHS consumes the old value.
+str415_rhs := proc() {
+    mut text := heap415("head")
+    text = replace415(own text)
+    assert_eq(Str, text, "next")
+}
+
+// An earlier statement consumes it.
+str415_earlier := proc() {
+    mut sink := Vec(Str).new()
+    mut text := heap415("head")
+    sink.push(own text)
+    text = heap415("next")
+    assert_eq(Str, sink[0], "head")
+    assert_eq(Str, text, "next")
+}
+
+// Only one path consumes it: the other must still delete it.
+str415_mixed := proc(flag: Bool) {
+    mut sink := Vec(Str).new()
+    mut text := heap415("head")
+    if flag { sink.push(own text) }
+    text = heap415("next")
+    assert_eq(Str, text, "next")
+    if flag { assert_eq(Str, sink[0], "head") }
+}
+
+// A nested reassignment whose RHS consumes the outer binding.
+str415_nested_rhs := proc(flag: Bool) {
+    mut text := heap415("head")
+    if flag { text = replace415(own text) }
+    if flag { assert_eq(Str, text, "next") } else { assert_eq(Str, text, "head") }
+}
+
+// A nested body consumes, then reassigns, the outer binding.
+str415_nested_consume := proc(flag: Bool) {
+    mut sink := Vec(Str).new()
+    mut text := heap415("head")
+    if flag {
+        sink.push(own text)
+        text = heap415("next")
+    }
+    if flag { assert_eq(Str, text, "next") } else { assert_eq(Str, text, "head") }
+}
+
+// Consumed before a nested reassignment on every path.
+str415_consume_then_nested := proc(flag: Bool) {
+    mut sink := Vec(Str).new()
+    mut text := heap415("head")
+    sink.push(own text)
+    if flag { text = heap415("next") } else { text = heap415("else") }
+    assert_eq(Str, sink[0], "head")
+    assert_eq(USize, text.len(), 4)
+}
+
+// A loop consumes and reassigns on every pass.
+str415_loop := proc() {
+    mut sink := Vec(Str).new()
+    mut text := heap415("head")
+    for _ in 0..3 {
+        sink.push(own text)
+        text = heap415("next")
+    }
+    assert_eq(USize, sink.len(), 3)
+    assert_eq(Str, text, "next")
+}
+
+own415_reassign_after_consume_str := test() {
+    str415_rhs()
+    str415_earlier()
+    for flag in array(Bool, true, false) {
+        str415_mixed(flag)
+        str415_nested_rhs(flag)
+        str415_nested_consume(flag)
+        str415_consume_then_nested(flag)
+    }
+    str415_loop()
+}
+
+Counted415 := struct {
+    id := 0
+    namespace:
+    mut deletes := 0
+    delete := func(own self: Counted415, call_free: Bool = true) {
+        Counted415.deletes = Counted415.deletes.add(1)
+        if call_free { free(own self) }
+    }
+}
+
+replace_counted415 := func(own c: Counted415) returns Counted415 {
+    return Counted415(id = c.id.add(1))
+}
+
+counted415_rhs := func() {
+    mut c := Counted415(id = 1)
+    c = replace_counted415(own c)
+    assert_eq(I64, c.id, 2)
+}
+
+counted415_earlier := func() {
+    mut sink := Vec(Counted415).new()
+    mut c := Counted415(id = 1)
+    sink.push(own c)
+    c = Counted415(id = 2)
+    assert_eq(I64, sink[0].id + c.id, 3)
+}
+
+counted415_mixed := func(flag: Bool) {
+    mut sink := Vec(Counted415).new()
+    mut c := Counted415(id = 1)
+    if flag { sink.push(own c) }
+    c = Counted415(id = 2)
+    assert_eq(I64, c.id, 2)
+}
+
+counted415_nested_consume := func(flag: Bool) {
+    mut sink := Vec(Counted415).new()
+    mut c := Counted415(id = 1)
+    if flag {
+        sink.push(own c)
+        c = Counted415(id = 2)
+    }
+    assert(c.id > 0)
+}
+
+counted415_loop := func() {
+    mut sink := Vec(Counted415).new()
+    mut c := Counted415(id = 1)
+    for i in 0..3 {
+        sink.push(own c)
+        c = Counted415(id = i.add(2))
+    }
+    assert_eq(I64, c.id, 4)
+}
+
+// Every value is deleted exactly once: no duplicate, no leak.
+own415_reassign_after_consume_counted := test() {
+    Counted415.deletes = 0
+    counted415_rhs()
+    assert_eq(I64, Counted415.deletes, 2)
+    Counted415.deletes = 0
+    counted415_earlier()
+    assert_eq(I64, Counted415.deletes, 2)
+    for flag in array(Bool, true, false) {
+        Counted415.deletes = 0
+        counted415_mixed(flag)
+        assert_eq(I64, Counted415.deletes, 2)
+        Counted415.deletes = 0
+        counted415_nested_consume(flag)
+        if flag { assert_eq(I64, Counted415.deletes, 2) } else { assert_eq(I64, Counted415.deletes, 1) }
+    }
+    Counted415.deletes = 0
+    counted415_loop()
+    assert_eq(I64, Counted415.deletes, 4)
+}

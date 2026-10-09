@@ -2758,6 +2758,15 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 }
                 _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx, drop_old)
             } else {
+                // #415: the garbager asks for the old value's teardown only
+                // where the dataflow says it is still owned. A request on a
+                // binding whose value was moved away is a wrong cleanup
+                // decision -- compiled code frees what the new owner holds
+                // -- so it fails here instead of being skipped.
+                if ad.save_old_delete.and(assign_hb.moved_out) {
+                    panic(__LOC__, ": ", stmt.line.to_str(), ":", stmt.col.to_str(),
+                        ": save_old_delete on '", ad.name, "', whose value was moved away")
+                }
                 scope_drop_existing_heap_slot(scope_get_binding_scope(scope, ad.name), ad.name, ad.save_old_delete)
                 assign_hb.ptr = to_ptr(new_raw)
             }

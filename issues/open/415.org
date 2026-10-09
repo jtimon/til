@@ -1,6 +1,6 @@
 # priority: high
 # category: bugs
-** OPEN #415 Own-consuming reassignment double-deletes; audit cleanup masking
+** WIP #415 Own-consuming reassignment double-deletes; audit cleanup masking
 
 *** Required ownership behavior
 
@@ -146,7 +146,7 @@ their contracts rather than assuming they are all necessary or all defensive.
 
 *** Scope / acceptance criteria
 
-- [ ] Fix the garbager's assignment/replacement cleanup decision so an RHS
+- [X] Fix the garbager's assignment/replacement cleanup decision so an RHS
   ownership transfer of the old target suppresses its caller-side destruction.
   Inspect ~insert_assign_delete~, ~flag_outer_assign_rebinds~, and the emitted
   ~save_old_delete~ path. Preserve destruction when the RHS only borrows the
@@ -164,10 +164,56 @@ their contracts rather than assuming they are all necessary or all defensive.
   documented contract (for example a lazy-empty container, None, or transfer
   metadata). Unexpected repeated owning destruction must fail at its source,
   not silently become a no-op. Audit and explain each retained case.
-- [ ] Add heap-backed ASAN regressions for self-consuming reassignment and
+- [X] Add heap-backed ASAN regressions for self-consuming reassignment and
   surrounding control-flow shapes, in interpreted and compiled modes. Verify
   the emitted cleanup counts and real destructor side effects, so nulling or
   literal/view sentinels cannot conceal a duplicate owning cleanup.
-- [ ] Run the full required clean suite. The existing passing suite lacked
+- [X] Run the full required clean suite. The existing passing suite lacked
   this self-consuming reassignment shape; passing counts alone did not prove
   its ownership handoff correct.
+
+*** Progress
+
+2026-10-09, the decision fix. Every reassignment of a local is now
+settled against the garbager's own ownership dataflow -- the CFG
+solve the exit deletes already used, which spans the nested bodies of
+a view -- instead of being decided by RHS shape alone:
+
+- ~gc_flow_assign_verdicts~ gives each Assign to a binding, root or
+  nested, its entry state. Its old value is CONSUMED when an own
+  transfer moved it on every path in (Moved), or when the Assign's own
+  RHS transfers it (~x = f(own x)~). A consumed root Assign gets no
+  delete from ~insert_assign_delete~ and no ~save_old_delete~; a nested
+  one has the ~save_old_delete~ that ~flag_outer_assign_rebinds~ set in
+  the nested pass cleared by the owning view's pass
+  (~gc_clear_consumed_assigns~; the walk is post-order, so the owner
+  runs last and is the one that sees the paths).
+- Mixed at a reassignment (moved on some paths only) is the exit's
+  conditional-transfer problem moved earlier: the sink grafts the delete
+  onto the owning paths of the transferring compound
+  (~gc_mixing_transfer_index~), leaving the binding uniformly Moved
+  there. This runs before the ~own_transfer~ gate, which
+  ~check_use_after_own_transfer~ clears exactly when a reassignment
+  re-owns the binding. A Mixed reassignment left after the sink panics,
+  unless the unit is already rejected (#365's "transferred inside a
+  loop" is that shape).
+- Interpreter: an Assign whose ~save_old_delete~ names a moved-out
+  binding used to skip the delete silently
+  (~scope_drop_existing_heap_slot~ returns on ~moved_out~ for its other
+  caller, a rebind); the Assign site now panics on it.
+
+Regressions in test/ownership_shapes.til, both backends and ASAN: seven
+shapes (RHS consumes; earlier statement consumes; one branch consumes;
+nested RHS consumes the outer binding; nested consume-then-reassign;
+consume then nested reassign on every branch; loop consume-and-reassign)
+with a heap-backed Str (~own415_reassign_after_consume_str~) and with a
+struct whose ~delete~ counts (~own415_reassign_after_consume_counted~),
+so a duplicate or missing cleanup is a wrong count even where a literal
+sentinel hides it from ASAN. Master's compiler fails them (interpreter
+panic on the moved binding; ASAN use-after-free / double free).
+
+Still open: captures and field/payload replacement paths (the fix covers
+body locals and outer-scope targets reached through nested bodies), and
+the null-guard / post-free-zeroing inventory and removal across
+generated and hand-written destructors, interpreter teardown and backend
+adapters.

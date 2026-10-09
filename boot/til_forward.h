@@ -377,6 +377,7 @@ typedef struct Vec__PendingRefBinding Vec__PendingRefBinding;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
 typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbager_til__GcFlowKills;
+typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__Bool Array__Bool;
@@ -384,6 +385,7 @@ typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
+typedef struct Set__UPtr Set__UPtr;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
 typedef struct Option__ref_FunctionDef Option__ref_FunctionDef;
 typedef struct Option__ref_Scope Option__ref_Scope;
@@ -1206,6 +1208,14 @@ typedef struct priv___src_self_garbager_til__GcFlowKills {
 } priv___src_self_garbager_til__GcFlowKills;
 
 
+typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
+    Bool mixed;
+    UPtr mixed_key;
+    U32 mixed_line;
+    U32 mixed_col;
+} priv___src_self_garbager_til__GcAssignVerdicts;
+
+
 typedef struct priv___src_self_garbager_til__BodyFacts {
     USize words;
     USize n_stmts;
@@ -1258,6 +1268,13 @@ typedef struct Vec__priv___src_self_garbager_til__LocalInfo {
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__LocalInfo;
+
+
+typedef struct Set__UPtr {
+    U8 *data;
+    USize count;
+    USize cap;
+} Set__UPtr;
 
 
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
