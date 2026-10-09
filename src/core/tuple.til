@@ -71,8 +71,8 @@ namespace:
     /// a splatted array stays usable at the call site.
     push_all_dynamic := func(mut self: Tuple, arr: Array(Dynamic)) {
         for i in 0..arr.len() {
-            mut val : U8 = malloc(8)
-            memcpy(val, arr.unsafe_get(i), 8)
+            mut val : U8 = malloc(Dynamic.size())
+            memcpy(val, arr.unsafe_get(i), Dynamic.size())
             self.push_type_name(own "Dynamic", own val)
         }
     }

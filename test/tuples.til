@@ -71,7 +71,8 @@ test_tuple_type_at := test() {
 // early, so this pins the size AND a second element landing after it.
 test_tuple_dynamic_word := test() {
     mut t := Tuple.new()
-    t.push(Dynamic, own 4242)
+    word_value : UPtr = 4242
+    t.push(Dynamic, own word_value)
     t.push(I64, own 77)
 
     ref tn : Str = t.type_at(0)
@@ -79,9 +80,9 @@ test_tuple_dynamic_word := test() {
     ref sz : USize = t.size_at(0)
     assert_eq(USize, sz, Dynamic.size())
 
-    ref word : I64 = t.get(0)
+    ref word : UPtr = t.get(0)
     ref after : I64 = t.get(1)
-    assert_eq(I64, word, 4242)
+    assert_eq(UPtr, word, 4242)
     assert_eq(I64, after, 77)
 }
 

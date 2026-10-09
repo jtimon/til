@@ -2201,6 +2201,7 @@ typedef struct Context {
     Str target_uptr_pname;
     USize target_usize_bytes;
     USize target_simd_bits;
+    USize target_scalar64_align;
     I64 anon_type_counter;
     Bool compile_mode;
     Map__Str_FuncType constfolder_foldables;

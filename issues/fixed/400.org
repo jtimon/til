@@ -1,6 +1,46 @@
 # priority: low
 # category: bugs
-** OPEN #400 Dynamic's width is written down twice, and only one copy follows the target
+** FIXED #400 Dynamic's width is written down twice, and only one copy follows the target
+
+*** Post-mortem
+
+Dynamic's core size, Tuple copies, and typer word limit were fixed at eight
+bytes while the C runtime dispatcher used the target pointer size. The
+typer also skipped primitive slot operands entirely and used host aggregate
+layouts for target decisions.
+
+Core now spells the width as ~UPtr.size()~ and Tuple uses ~Dynamic.size()~.
+Initialization normalizes Dynamic's size method through the existing
+generated-size mechanism: interpretation uses host pointer width, while
+width-mismatched C emission uses ~sizeof(void *)~. This preserves actual
+host pointers during compile-time execution instead of shrinking their
+storage to the target width. Callable runtime sizes use host ~UPtr.size()~.
+
+The typer derives its word width from ~ctx.target_uptr_pname~ and computes
+target sizes/alignment directly from declarations, including nested
+aggregates, pointer fields, and tagged/niche enums. It does not alter or
+duplicate the interpreter's layout cache. The loader supplies the i386
+SysV 64-bit scalar alignment exception. Both raw-slot overflow checks and
+auto-shallow classification use these target sizes; scalar operands now
+participate in overflow checks too.
+
+Regression coverage: ~check_dynamic_widths~ in test/cpu_options.til checks
+native interpreted/compiled Array/Vec/Tuple round-trips at both USize
+widths; all five 32-bit C targets check the Dynamic size emission, nested
+one-word acceptance, U64 literal/push and two-word aggregate rejection,
+and auto-shallow parameter ABI. ~test_dyn_size_of~,
+~test_func_ns_method_size~, and ~test_tuple_dynamic_word~ now assert/use
+pointer width rather than an assumed eight-byte word. Linux x86 runtime
+probes also passed for the container/Tuple round-trip and nested-word case.
+~make clean && make test_two_pass~ passed all 507 tests, including the ASAN
+suite and self-translation comparison. The two-pass build records the
+normalized Dynamic size method in the self-applied bootstrap output.
+
+The cross-target checks use native USize. The separate existing
+~--usize=64~ / 32-bit-pointer combination fails at ~usize_to_uptr~'s
+narrowing cast in core/numbers.til, before these probes can run.
+
+The analysis below records the pre-fix state.
 
 *** Re-analysis (2026-10-07)
 

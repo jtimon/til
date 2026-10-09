@@ -7479,7 +7479,7 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     // no size() of their own, so dyn_size_of("USize") used to die with
     // "USize has no size() method" while every concrete name worked.
     type_name := resolve_type_alias(ctx.scope, eval_str_owned(s, e.children[1], ctx), ctx.symbols).clone()
-    mut sz : USize = 8
+    mut sz : USize = UPtr.size()
     if type_name_is_callable_storage(type_name, ctx).not() {
         // The emitted dispatcher is one `if (name == T) return sizeof(T);`
         // per known type and says "dyn_size_of: unknown type T" when it

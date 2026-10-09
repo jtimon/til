@@ -80,11 +80,10 @@ test_func_str := test() {
     assert_eq(Str, greet("til"), "hi til")
 }
 
-# #136: Dynamic.size() is defined as `func() returns USize { return 8 }`
-# in dyn.til; before the fix, the builder's size() override emitted
-# sizeof(Dynamic) = 1 (Dynamic is `struct { char _; }` in C).
+# #136/#400: Dynamic.size() is a pointer width, not the sizeof of the empty
+# StructDef used for its namespace, and not a fixed eight bytes.
 test_func_ns_method_size := test() {
-    assert_eq(USize, Dynamic.size(), 8)
+    assert_eq(USize, Dynamic.size(), UPtr.size())
 }
 
 # --- #285: macro args accept foldable namespace-method calls ---

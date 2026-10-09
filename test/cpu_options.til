@@ -48,10 +48,52 @@ write_c_probe := proc(width: USize, optimized: Bool) {
         "#include <stdint.h>\nint64_t compiler_width(void) { return ", width.to_str(), "; }\n"))
 }
 
+// #400: target word checks must not read the host layout cache. Pointer-only
+// aggregates shrink, while fixed U64 values and two-word aggregates do not fit.
+priv check_dynamic_widths := proc(compiler: Str) {
+    File.writefile(format(WORK, "/dynamic_fit.til"),
+        "mode script\nWord := struct { bits: UPtr }\nNested := struct { word: Word }\nx := Nested(word = Word(bits = 123))\na := array(Dynamic, x)\nprintln(a.len().to_str())\n")
+    File.writefile(format(WORK, "/dynamic_wide.til"),
+        "mode script\nx : U64 = 123\na := array(Dynamic, x)\nprintln(a.len().to_str())\n")
+    File.writefile(format(WORK, "/dynamic_wide_push.til"),
+        "mode script\nx : U64 = 123\nmut v := Vec(Dynamic).new()\nv.push(own x)\nprintln(v.len().to_str())\n")
+    File.writefile(format(WORK, "/dynamic_pair.til"),
+        "mode script\nPair := struct { a: UPtr; b: UPtr }\nx := Pair(a = 1, b = 2)\na := array(Dynamic, x)\nprintln(a.len().to_str())\n")
+    File.writefile(format(WORK, "/dynamic_shallow.til"),
+        "mode lib\nWord := struct { bits: UPtr }\nNested := struct { word: Word }\nPair := struct { a: U32; b: U32 }\nread_word := func(x: Nested) returns UPtr { return x.word.bits }\nread_pair := func(x: Pair) returns U32 { return x.a + x.b }\n")
+    File.writefile(format(WORK, "/dynamic_width.til"),
+        "mode cli\nmain := proc(name: Str) {\nif Dynamic.size() != UPtr.size() { panic(\"Dynamic width\") }\nif dyn_size_of(name) != Dynamic.size() { panic(\"runtime width\") }\nx : UPtr = 123\ny : UPtr = 456\na := array(Dynamic, x, y)\nmut v := Vec(Dynamic).new()\nv.push(own x)\nv.push(own y)\nmut t := Tuple.new()\nt.push_all_dynamic(a)\nref first : UPtr = t.get(0)\nref second : UPtr = t.get(1)\nref last : UPtr = v.unsafe_get(1)\nif first != 123 || second != 456 || last != 456 { panic(\"word copy/stride\") }\nif t.size_at(0) != Dynamic.size() { panic(\"tuple width\") }\nprintln(\"dynamic widths passed\")\n}\n")
+    for width : Str in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        expect_output(Cmd.new(compiler, "run", flag, "dynamic_width.til", "Dynamic"), "dynamic widths passed\n")
+        expect_output(Cmd.new(compiler, "interpret", flag, "dynamic_width.til", "Dynamic"), "dynamic widths passed\n")
+    }
+    // Native-width 32-bit targets. USize=64/UPtr=32 currently fails the
+    // unrelated usize_to_uptr narrowing cast in core/numbers.til.
+    for target : Str in array(Str, "linux-x86", "linux-arm32", "linux-riscv32", "windows-x86", "wasm32") {
+        tf := format("--target=", target)
+        _fit := execute(Cmd.new(compiler, "translate", tf, "dynamic_fit.til"))
+        reject(Cmd.new(compiler, "translate", tf, "dynamic_wide.til"), "one 4-byte word")
+        reject(Cmd.new(compiler, "translate", tf, "dynamic_wide_push.til"), "one 4-byte word")
+        reject(Cmd.new(compiler, "translate", tf, "dynamic_pair.til"), "one 4-byte word")
+        _shallow := execute(Cmd.new(compiler, "translate", tf, "-c", "dynamic_shallow.c", "dynamic_shallow.til"))
+        signatures := File.readfile(format(WORK, "/dynamic_shallow.c"))
+        if signatures.contains("read_word(Nested x)").and(signatures.contains("read_pair(Pair * x)")).not() {
+            panic("target auto-shallow classification: ", target)
+        }
+        _translated := execute(Cmd.new(compiler, "translate", tf, "-c", "dynamic_width.c", "dynamic_width.til"))
+        emitted := File.readfile(format(WORK, "/dynamic_width.c"))
+        if emitted.contains("Dynamic_size(void) {\n    return sizeof(void *);").not() {
+            panic("Dynamic.size lost target sizeof: ", target)
+        }
+    }
+}
+
 main := proc(args: ..Str) {
     compiler := realpath_str(args[0])
     File.remove_tree(WORK)
     mkdir_p(WORK)
+    check_dynamic_widths(compiler)
     File.writefile(format(WORK, "/width.til"),
         "mode script\nV := Simd(U32, simd_width(U32))\nv := V.splat(3)\nprintln(v.len().to_str())\nprintln((v + v).reduce_add().to_str())\n")
     File.writefile(format(WORK, "/probe.til"),

@@ -4107,6 +4107,8 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
     lp.cpu = resolve_target_cpu(lp.target, lp.cpu.name)
     lp.ctx.target_simd_bits = lp.cpu.simd_bits
+    lp.ctx.target_scalar64_align = 8
+    if lp.target.is(Target.LinuxX86) { lp.ctx.target_scalar64_align = 4 }
 
     // #192: register target-dependent USize/UPtr widths before any
     // init/typer resolution, so every position resolves them uniformly
@@ -4360,6 +4362,8 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
     lp.run_tests = lp.cur_mode.run_tests
     lp.cpu = resolve_target_cpu(lp.target, lp.cpu.name)
     lp.ctx.target_simd_bits = lp.cpu.simd_bits
+    lp.ctx.target_scalar64_align = 8
+    if lp.target.is(Target.LinuxX86) { lp.ctx.target_scalar64_align = 4 }
     context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref iu : ImportUnit = lp.ctx.imported[root.path]

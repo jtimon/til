@@ -1695,11 +1695,15 @@ gen_struct_size_method_for_stmt := func(mut stmt: Expr, ctx: Context) {    if st
     mut sname := ""
     ref sdecl : Declaration = decl_of(stmt)
     sname = sdecl.name
-    if is_dynamic_type(sname) { return }
     ref mut sz_sdd : StructDef = structdef_of(def)
-    if sz_sdd.ns_index.has("size") { return }
+    if sz_sdd.ns_index.has("size").and(is_dynamic_type(sname).not()) { return }
 
-    sz_text := ctx_total_size(sname, ctx).to_str()
+    mut sz := ctx_total_size(sname, ctx)
+    // Dynamic's empty StructDef is a namespace, not its representation.
+    // Normalize its core size method through the same host-interpreter /
+    // target-sizeof path as generated aggregate sizes (#400).
+    if is_dynamic_type(sname) { sz = UPtr.size() }
+    sz_text := sz.to_str()
 
     mut func_body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
     mut size_expr := Expr.new(own literal_num_node(sz_text), stmt.line, stmt.col)
@@ -1716,7 +1720,13 @@ gen_struct_size_method_for_stmt := func(mut stmt: Expr, ctx: Context) {    if st
     mut func_def := Expr.new(own NodeType.FuncDef(func_decl), stmt.line, stmt.col)
     func_def.add_child(own func_body)
 
-    sz_sdd.push_member(own Declaration(name = "size", default_value = Option(Expr).Some(own func_def)))
+    if is_dynamic_type(sname) {
+        ref mut size_decl : Declaration = sz_sdd.ns_decls[sz_sdd.ns_index["size"]]
+        ref mut size_def : Expr = size_decl.default_expr()
+        swap(Expr, size_def, func_def)
+    } else {
+        sz_sdd.push_member(own Declaration(name = "size", default_value = Option(Expr).Some(own func_def)))
+    }
 }
 
 gen_enum_size_method_for_stmt := proc(mut stmt: Expr, mut scope: TypeScope, mut ctx: Context) {

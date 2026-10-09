@@ -196,6 +196,7 @@ test_dyn_size_of := test() {
     assert_eq(USize, sz_u8, 1)
     assert_eq(USize, sz_str, Str.size())
     assert_eq(USize, sz_dynamic, Dynamic.size())
+    assert_eq(USize, sz_dynamic, UPtr.size())
 
     elem_type : Str = "I64"
     via_var : USize = dyn_size_of(elem_type)

@@ -1683,16 +1683,15 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 // reported. Tuple is the container that keeps each element's
                 // true size, so it is where a wide value belongs.
                 if name_is_raw_dynamic_container(fcall_namespace_name(e, ctx.symbols)) {
+                    mut arg_name := til_type_name_c(e.children[ci].til_type(), ctx.symbols)
                     arg_name_o := expr_type_name_ref(e.children[ci], ctx.symbols)
-                    if arg_name_o.is_some() {
-                        ref arg_name : Str = arg_name_o.unwrap()
-                        over := dynamic_slot_overflow(arg_name, scope, ctx)
-                        if over > 0 {
-                            e.children[ci].type_error(format("a Dynamic element slot holds one ",
-                                PTR_SIZE_BYTES.to_str(), "-byte word, but '", arg_name, "' is ", over.to_str(),
-                                " bytes, so parameter '", param2.name,
-                                "' would keep only its first word and lose the rest; store a pointer, or use a Tuple, which keeps every element at its true size"), ctx)
-                        }
+                    if arg_name_o.is_some() { arg_name = arg_name_o.unwrap().clone() }
+                    over := dynamic_slot_overflow(arg_name, scope, ctx)
+                    if over > 0 {
+                        e.children[ci].type_error(format("a Dynamic element slot holds one ",
+                            unsigned_prim_width_for_name(ctx.target_uptr_pname).to_str(), "-byte word, but '", arg_name, "' is ", over.to_str(),
+                            " bytes, so parameter '", param2.name,
+                            "' would keep only its first word and lose the rest; store a pointer, or use a Tuple, which keeps every element at its true size"), ctx)
                     }
                 }
                 ci++
@@ -3233,19 +3232,18 @@ priv infer_array_vec_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str,
             // variadic machinery, so it was the one way left in. Same rule,
             // same remedy: build a Tuple, which keeps every element at its
             // true size.
+            mut elem_name := til_type_name_c(e.children[si].til_type(), ctx.symbols)
             elem_name_o := expr_type_name_ref(e.children[si], ctx.symbols)
-            if elem_name_o.is_some() {
-                ref elem_name : Str = elem_name_o.unwrap()
-                over := dynamic_slot_overflow(elem_name, scope, ctx)
-                if over > 0 {
-                    // Not the words "literal element": that phrase is the
-                    // needle counting #358's element-TYPE mismatches, and
-                    // this is a different check with a different remedy.
-                    e.children[si].type_error(format("a Dynamic element slot holds one ",
-                        PTR_SIZE_BYTES.to_str(), "-byte word, but this element of an ", name,
-                        "() literal is '", elem_name, "' (", over.to_str(),
-                        " bytes), so it would keep only its first word and lose the rest; store a pointer, or build a Tuple, which keeps every element at its true size"), ctx)
-                }
+            if elem_name_o.is_some() { elem_name = elem_name_o.unwrap().clone() }
+            over := dynamic_slot_overflow(elem_name, scope, ctx)
+            if over > 0 {
+                // Not the words "literal element": that phrase is the
+                // needle counting #358's element-TYPE mismatches, and
+                // this is a different check with a different remedy.
+                e.children[si].type_error(format("a Dynamic element slot holds one ",
+                    unsigned_prim_width_for_name(ctx.target_uptr_pname).to_str(), "-byte word, but this element of an ", name,
+                    "() literal is '", elem_name, "' (", over.to_str(),
+                    " bytes), so it would keep only its first word and lose the rest; store a pointer, or build a Tuple, which keeps every element at its true size"), ctx)
             }
         }
     }
@@ -5107,7 +5105,6 @@ priv typer_body_binding_count := func(body: Expr) returns USize {
 //     size-8 struct embeds a deep struct inline.
 // Enums are not covered here (revisit separately). Mirrors builder's
 // is_pod_struct field rules, plus the size gate.
-PTR_SIZE_BYTES : USize = 8
 priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len() == 0 { return false }
     sdef_o := scope.get_struct(type_name, ctx.symbols)
@@ -5122,7 +5119,7 @@ priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) r
         return enum_is_niche(sdef)
     case .StructDef(sdd):
         if sdd.simd_width == 0 {
-            if ctx_total_size(type_name, ctx) > PTR_SIZE_BYTES { return false }
+            if target_value_size(type_name, scope, ctx) > unsigned_prim_width_for_name(ctx.target_uptr_pname) { return false }
         }
         if sdd.fields.len() == 0 { return false }
         for fd : Declaration in sdd.fields {
@@ -7240,7 +7237,7 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
             // Size only for the message. A name with no registered layout
             // reports 0, and stage B's caution holds: an unknown size is not
             // evidence of a problem, and there is no number to print.
-            sz := ctx_total_size(resolve_type_alias(scope, val_name, ctx.symbols), ctx)
+            sz := target_value_size(val_name, scope, ctx)
             if sz > 0 {
                 // The remedy is spelled the way it actually works: `ref`.
                 // Stage B's wording said "bind a pointer to it (to_ptr)",
@@ -7248,7 +7245,7 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
                 // ref-returning-result rule two checks down -- the working
                 // spellings are `ref p : Dynamic = to_ptr(e)` and, more
                 // directly, `ref` on the binding itself.
-                at.type_error(format("'", name, "' is Dynamic -- one ", PTR_SIZE_BYTES.to_str(),
+                at.type_error(format("'", name, "' is Dynamic -- one ", unsigned_prim_width_for_name(ctx.target_uptr_pname).to_str(),
                     "-byte word -- but '", val_name, "' (", sz.to_str(),
                     " bytes) is an aggregate, not a word; write 'ref ", name,
                     "' to bind its address, or declare '", name, "' as ", val_name), ctx)
@@ -9992,22 +9989,95 @@ priv vec_instance_elem_type_name := func(container_name: Str) returns Str {
     return container_name.substr(prefix.len(), container_name.len().sub(prefix.len()))
 }
 
+// #400: compute target value layout from declarations, not ctx.struct_layouts,
+// which describes live HOST interpreter buffers. These word-fit queries do
+// not cache another layout. Pointer fields stop recursion; inline recursive
+// types are rejected during initialization.
+priv target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
+    ref name : Str = resolve_type_alias(scope, type_name, ctx.symbols)
+    word := unsigned_prim_width_for_name(ctx.target_uptr_pname)
+    if name == "Dynamic" { sz = word; al = word; return }
+    mut prim := Primitive.U8
+    if builtin_primitive_from_name(name, prim) {
+        builtin_primitive_size_align(prim, sz, al)
+        if sz == 8 { al = ctx.target_scalar64_align }
+        return
+    }
+    resolved := type_from_name_init_name(name, scope, ctx.symbols)
+    if resolved.is_funcptr().or(resolved.is(Type.Body)) { sz = word; al = word; return }
+    def_o := scope.get_struct(name, ctx.symbols)
+    // An unresolved type has no layout yet: retain the unknown-size contract.
+    if def_o.is_none() { sz = 0; al = 1; return }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sd):
+        sz = 0
+        al = 1
+        for field : Declaration in sd.fields {
+            mut fs := word
+            mut fa := word
+            if field.own_type.is(OwnType.Shallow) {
+                target_value_size_align(decl_type_name(field, ctx.symbols), scope, ctx, fs, fa)
+                if fs == 0 { sz = 0; al = 1; return }
+            }
+            sz = align_up(sz, fa) + fs
+            if fa > al { al = fa }
+        }
+        sz = align_up(sz, al)
+        if sz == 0 { sz = 1 }
+    case .EnumDef(ed):
+        if enum_is_niche(def) { sz = word; al = word; return }
+        sz = enum_tag_size(def)
+        al = sz
+        if sz == 8 { al = ctx.target_scalar64_align }
+        if enum_has_payloads(def) {
+            // Match the emitted union, including its void* alignment member.
+            mut payload_size := word
+            mut payload_align := word
+            for vi in 0..ed.variants.len() {
+                vt := enum_variant_type(def, vi.to_i32())
+                if vt.len() == 0 { continue }
+                mut ps := word
+                mut pa := word
+                if enum_variant_payload_ref(def, vi.to_i32()).not() {
+                    target_value_size_align(vt, scope, ctx, ps, pa)
+                    if ps == 0 { sz = 0; al = 1; return }
+                }
+                if ps > payload_size { payload_size = ps }
+                if pa > payload_align { payload_align = pa }
+            }
+            sz = align_up(sz, payload_align) + align_up(payload_size, payload_align)
+            if payload_align > al { al = payload_align }
+            sz = align_up(sz, al)
+        }
+    case:
+        panic("target_value_size_align: expected a struct or enum: ", name)
+    }
+}
+
+priv target_value_size := func(type_name: Str, scope: TypeScope, ctx: Context) returns USize {
+    mut sz : USize = 0
+    mut al : USize = 1
+    target_value_size_align(type_name, scope, ctx, sz, al)
+    return sz
+}
+
 // #392 stage B: how many bytes a value of this type occupies, when that is
 // MORE than the single word a raw Dynamic slot holds -- 0 otherwise, which is
 // also the answer for a name with no registered layout, since an unknown size
 // is not evidence of a problem. A Dynamic IS til's void *: one word, no record
 // of what was put in it, so a wider value stored into one keeps its first
-// eight bytes and loses the rest with nothing left to say it happened.
+// word and loses the rest with nothing left to say it happened.
 priv dynamic_slot_overflow := func(type_name: Str, scope: TypeScope, ctx: Context) returns USize {
     if type_name.len() == 0 { return 0 }
-    sz := ctx_total_size(resolve_type_alias(scope, type_name, ctx.symbols), ctx)
-    if sz > PTR_SIZE_BYTES { return sz }
+    sz := target_value_size(type_name, scope, ctx)
+    if sz > unsigned_prim_width_for_name(ctx.target_uptr_pname) { return sz }
     return 0
 }
 
 // #392 stage B: a container instantiated over Dynamic ("Array__Dynamic",
 // "Vec__Dynamic") gives each element ONE WORD and records nothing about what
-// went into it -- its `adopt` copies Dynamic.size() = 8 bytes out of the box
+// went into it -- its `adopt` copies Dynamic.size() bytes out of the box
 // it was handed and then frees that box, so a wider value loses its only
 // owner. That is the raw slot this stage rejects wide values for, and
 // deliberately NOT "any Dynamic parameter": most of those are ADDRESSES
