@@ -1160,22 +1160,17 @@ static Bool Color_eq(Color * self, Color * other) {
 }
 
 static Color Color_clone(Color * self) {
-    Bool hoisted__Bool_0 = ((Bool)((((Color *)(self))->tag) == Color_TAG_Red));
-    if (hoisted__Bool_0) {
+    switch ((DEREF(self)).tag) {
+    case Color_TAG_Red: {
         return (Color){.tag = Color_TAG_Red};
     }
-    Bool hoisted__Bool_1 = ((Bool)((((Color *)(self))->tag) == Color_TAG_Green));
-    if (hoisted__Bool_1) {
+    case Color_TAG_Green: {
         return (Color){.tag = Color_TAG_Green};
     }
-    Bool hoisted__Bool_2 = ((Bool)((((Color *)(self))->tag) == Color_TAG_Blue));
-    if (hoisted__Bool_2) {
+    default: {
         return (Color){.tag = Color_TAG_Blue};
     }
-    U64 hoisted__U64_3 = 0ULL;
-    Array__Str _va_Array_0 = Array__Str_new(hoisted__U64_3);
-    static Str hoisted__Str_Color_clone_4 = (Str){.c_str = (void *)"Color.clone:245:1", .count = 17ULL, .cap = TIL_CAP_LIT};
-    UNREACHABLE(&_va_Array_0, &hoisted__Str_Color_clone_4);
+    }
     __builtin_unreachable();
 }
 
@@ -1225,10 +1220,15 @@ static Token Token_Num(I64 * val) {
     return r;
 }
 static void Token_delete(Token * self, Bool call_free) {
-    Bool hoisted__Bool_1 = ((Bool)((((Token *)(self))->tag) == Token_TAG_Name));
-    if (hoisted__Bool_1) {
+    switch ((DEREF(self)).tag) {
+    case Token_TAG_Name: {
         Str *hoisted__Str_Token_delete_0 = ((void *)((U8 *)(self) + offsetof(Token, data)));
         Str_delete(hoisted__Str_Token_delete_0, 0);
+        break;
+    }
+    default: {
+        break;
+    }
     }
     if (call_free) {
         free(self);
@@ -1278,13 +1278,17 @@ static void WideToken_delete(WideToken * self, Bool call_free) {
 }
 
 static WideToken WideToken_clone(WideToken * self) {
-    Bool hoisted__Bool_1 = ((Bool)((((WideToken *)(self))->tag) == WideToken_TAG_Num));
-    if (hoisted__Bool_1) {
+    switch ((DEREF(self)).tag) {
+    case WideToken_TAG_Num: {
         I64 *_clone_payload_Num_0 = ((void *)((U8 *)(self) + offsetof(WideToken, data)));
         WideToken hoisted__WideToken_0 = WideToken_Num(_clone_payload_Num_0);
         return hoisted__WideToken_0;
     }
-    return (WideToken){.tag = WideToken_TAG_Eof};
+    default: {
+        return (WideToken){.tag = WideToken_TAG_Eof};
+    }
+    }
+    __builtin_unreachable();
 }
 
 
@@ -1294,10 +1298,15 @@ static NestedToken NestedToken_Inner(WideToken * val) {
     return r;
 }
 static void NestedToken_delete(NestedToken * self, Bool call_free) {
-    Bool hoisted__Bool_1 = ((Bool)((((NestedToken *)(self))->data != NULL) == 1));
-    if (hoisted__Bool_1) {
+    switch ((int)((DEREF(self)).data != NULL)) {
+    case 1: {
         WideToken *hoisted__WideToken_0 = ((void *)((NestedToken *)(self))->data);
         WideToken_delete(hoisted__WideToken_0, 1);
+        break;
+    }
+    default: {
+        break;
+    }
     }
     if (call_free) {
         free(self);

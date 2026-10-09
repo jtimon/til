@@ -1006,6 +1006,14 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
         if niche_payload_is_owned_box(nvt) { nfl_boxed = nfl_boxed + 1 }
     }
     payload_in_slot := variant_types.len().eq(2).and(nfl_payload_less == 1).and(nfl_boxed == 1)
+    // One `switch self` over the variants whose payload needs a delete,
+    // with a default `case:` for the rest -- not an `if self.is(V)` per
+    // variant, which the builder can only lower to a chain of tag tests
+    // (NodeType.delete tested up to 16 tags per call). Tag-only patterns
+    // lower to a C switch.
+    mut del_sw := Expr.new(own NodeType.Switch, line, col)
+    del_sw.add_child(own Expr.new(own ident_node(symbols.intern("self")), line, col))
+    mut del_arms : USize = 0
     if has_payloads {
         for j in 0..variant_names.len() {
             ref vtype : Str = variant_types[j]
@@ -1021,8 +1029,6 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             // -- do nothing. In a niche's pointer slot the payload IS a
             // box and call_free is true, so that one keeps its arm.
             if init_delete_is_noop(vtype, scope, symbols).and(payload_in_slot.not()) { continue }
-
-            mut is_call := make_is_tag_check_fcall("self", ename, variant_names[j], enum_tag_size(enum_def), line, col, symbols)
 
             mut then_body := Expr.new(own NodeType.Body, line, col)
 
@@ -1049,11 +1055,26 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)
 
-            mut if_node2 := Expr.new(own NodeType.If, line, col)
-            if_node2.add_child(own is_call)
-            if_node2.add_child(own then_body)
-            proc_body.add_child(own if_node2)
+            mut pat_ename := Expr.new(own ident_node(symbols.intern(ename)), line, col)
+            mut pat := Expr.new(own field_access_node(symbols.intern(variant_names[j])), line, col)
+            pat.add_child(own pat_ename)
+            mut arm := Expr.new(own NodeType.Case(CaseData()), line, col)
+            arm.add_child(own pat)
+            arm.add_child(own then_body)
+            del_sw.add_child(own arm)
+            del_arms = del_arms + 1
         }
+    }
+    if del_arms > 0 {
+        // The default arm only when some variant has no arm: the switch
+        // must be exhaustive, and a default over fully covered variants is
+        // a type error ("unnecessary default").
+        if del_arms < variant_names.len() {
+            mut dflt := Expr.new(own NodeType.Case(CaseData(pattern_count = 0)), line, col)
+            dflt.add_child(own Expr.new(own NodeType.Body, line, col))
+            del_sw.add_child(own dflt)
+        }
+        proc_body.add_child(own del_sw)
     }
 
     mut cond := Expr.new(own ident_node(symbols.intern("call_free")), line, col)
@@ -1243,17 +1264,17 @@ priv init_payload_is_pod_enum := func(vtype: Str, scope: TypeScope, symbols: Sym
     return enum_has_payloads(pod_def).not()
 }
 
-priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope, mut symbols: SymbolPool) {
+priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope, mut symbols: SymbolPool) {
     mut func_body := Expr.new(own NodeType.Body, line, col)
-    // Tag-only enums (no variant carries a payload) need an if-guard
-    // for every variant so the auto-gen body always reads ~self~ at
-    // least once -- otherwise check_unused_params rejects the
-    // generated clone for a single-variant enum, where the existing
-    // "last variant" branch below would otherwise emit just an
-    // unconditional return. The trailing UNREACHABLE/return after
-    // the loop satisfies C's -Wreturn-type without changing
-    // observable behaviour (the enum is exhaustive).
-    guard_every := has_payloads.not()
+    // One `switch self { case E.V: ... }` with a tag-only pattern per
+    // variant, not an `if self.is(V)` per variant: the builder lowers a
+    // switch whose arms carry no sub-patterns to a C switch, where the if
+    // chain tested every earlier tag in turn (Type.clone, 17 variants, was
+    // 0.8% of a self-translate). The switch reads `self` unconditionally,
+    // so even a single-variant tag-only enum's clone uses its param, and
+    // an exhaustive switch whose arms all return needs no trailing return.
+    mut sw := Expr.new(own NodeType.Switch, line, col)
+    sw.add_child(own Expr.new(own ident_node(symbols.intern("self")), line, col))
     for j in 0..variant_names.len() {
         ref vname : Str = variant_names[j]
 
@@ -1261,9 +1282,8 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
         mut ctor_acc := Expr.new(own field_access_node(symbols.intern(vname)), line, col)
         ctor_acc.add_child(own ename_id)
 
+        mut case_body := Expr.new(own NodeType.Body, line, col)
         mut ctor_expr := Expr.new(own NodeType.Literal(Literal.Null), line, col)
-        mut pd := Expr.new(own NodeType.Body, line, col)
-        mut has_pd := false
         ref vtype : Str = variant_types[j]
         if vtype.len() > 0 {
             pn := format("_clone_payload_", vname, "_", j.to_str())
@@ -1276,8 +1296,7 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
             payload_is_borrowed := enum_variant_payload_ref(enum_def, j.to_i32())
 
             mut self_arg := Expr.new(own ident_node(symbols.intern("self")), line, col)
-            pd = make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, symbols, payload_in_slot)
-            has_pd = true
+            case_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, symbols, payload_in_slot))
 
             mut ctor_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
             ctor_call.add_child(own ctor_acc)
@@ -1309,49 +1328,17 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
 
         mut ret := Expr.new(own NodeType.Return, line, col)
         ret.add_child(own ctor_expr)
+        case_body.add_child(own ret)
 
-        emit_guard := guard_every.or(j.lt(variant_names.len() - 1))
-        if emit_guard {
-            mut cond := make_is_tag_check_fcall("self", ename, vname, enum_tag_size(enum_def), line, col, symbols)
-
-            mut then_body := Expr.new(own NodeType.Body, line, col)
-            if has_pd {
-                then_body.add_child(own pd.clone())
-            }
-            then_body.add_child(own ret)
-
-            mut if_node := Expr.new(own NodeType.If, line, col)
-            if_node.add_child(own cond)
-            if_node.add_child(own then_body)
-            func_body.add_child(own if_node)
-        } else {
-            if has_pd {
-                func_body.add_child(own pd.clone())
-            }
-            func_body.add_child(own ret)
-        }
+        mut pat_ename := Expr.new(own ident_node(symbols.intern(ename)), line, col)
+        mut pat := Expr.new(own field_access_node(symbols.intern(vname)), line, col)
+        pat.add_child(own pat_ename)
+        mut cs := Expr.new(own NodeType.Case(CaseData()), line, col)
+        cs.add_child(own pat)
+        cs.add_child(own case_body)
+        sw.add_child(own cs)
     }
-    if guard_every {
-        // ~__LOC__~ is a parser-time directive; we're past parse, so
-        // emit a synthetic loc string directly.
-        loc_text := format(ename, ".clone:", line.to_str(), ":", col.to_str())
-        mut unr_id := Expr.new(own ident_node(symbols.intern("UNREACHABLE")), line, col)
-        // Named, not positional: UNREACHABLE's first param is the variadic
-        // message block, so a positional string would become a message part.
-        mut loc_named := Expr.new(own NodeType.NamedArg("loc"), line, col)
-        loc_named.add_child(own Expr.new(own NodeType.Literal(Literal.Str(loc_text)), line, col))
-        mut unr_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
-        unr_call.add_child(own unr_id)
-        unr_call.add_child(own loc_named)
-        func_body.add_child(own unr_call)
-
-        mut tail_ename_id := Expr.new(own ident_node(symbols.intern(ename)), line, col)
-        mut tail_ctor := Expr.new(own field_access_node(symbols.intern(variant_names[0])), line, col)
-        tail_ctor.add_child(own tail_ename_id)
-        mut tail_ret := Expr.new(own NodeType.Return, line, col)
-        tail_ret.add_child(own tail_ctor)
-        func_body.add_child(own tail_ret)
-    }
+    func_body.add_child(own sw)
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.sig.func_type = FuncType.Func
@@ -1460,7 +1447,7 @@ gen_missing_enum_clone_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut sy
         mut variant_types := Vec(Str).new()
         mut has_payloads := false
         collect_enum_variants(stmt.children[0], variant_names, variant_types, has_payloads)
-        generate_enum_clone_method(stmt.children[0], ename, stmt.line, stmt.col, variant_names, variant_types, has_payloads, scope, symbols)
+        generate_enum_clone_method(stmt.children[0], ename, stmt.line, stmt.col, variant_names, variant_types, scope, symbols)
     }
 }
 
