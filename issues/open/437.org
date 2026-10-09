@@ -1,0 +1,47 @@
+# priority: low
+# category: backends
+** OPEN #437 wasm32 follow-ups to #424: an html console page, and mode lib as a JS module
+
+#424 made every non-gui wasm32 program a single node-runnable ~.js~
+(wasm embedded, ~-sSINGLE_FILE~), beside mode gui's single-file
+~.html~. Its post-mortem recorded two follow-ups that need design
+decisions before any code; this issue tracks them. Both are proposals,
+not agreed designs.
+
+*** 1. A browser console page for non-gui programs
+
+Today a non-gui wasm32 program runs only under node (~til run
+--target=wasm32~ runs ~node prog.js~). Emscripten can also emit a
+single ~.html~ whose page shows stdout/stderr, so a cli/script program
+could be opened in a browser as one file, like mode gui's page.
+
+Open questions:
+- How the user asks for it. A new output choice is a new CLI surface
+  (a flag, or keying on ~-o prog.html~), which needs explicit approval.
+- Which shell page: emscripten's default (heavy, with its own chrome)
+  or a minimal vendored one in the style of mode gui's.
+- What a browser page does with stdin, argv and the exit status.
+
+*** 2. ~mode lib~ for wasm32 as a JS library
+
+A ~mode lib~ build for ~--target=wasm32~ currently takes the native
+library path and "succeeds" with output that cannot be used from JS:
+~gen/lib/libaddlib.so~ (a wasm module named like an ELF object, from
+~emcc -shared~), ~gen/lib/libaddlib.a~, and a ctypes Python binding
+~gen/til/addlib.py~. Seen on master c647cd8 with a one-function
+library and the vendored emsdk's emcc.
+
+Proposal: build an ES module (~-sMODULARIZE -sEXPORT_ES6~, single-file
+like #424, ~-sEXPORTED_FUNCTIONS~ from the library's public functions)
+plus a generated JS wrapper -- the JS counterpart of the ~.py~ binding
+generator -- so other JS code can ~import~ it.
+
+Open questions:
+- Marshalling: numbers map directly; ~Str~, structs and ~Dynamic~ need
+  the wrapper to copy through the wasm heap, and who frees what (the
+  same ownership questions the Python binding answers with its own
+  conventions).
+- Output names and layout (~.mjs~? a ~.d.ts~ for TypeScript users?),
+  and what ~til install~ does with them.
+- Until this exists, should a wasm32 ~mode lib~ build fail loudly
+  instead of producing the unusable native-shaped artifacts above?

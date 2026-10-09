@@ -1,0 +1,46 @@
+# priority: low
+# category: cleanups
+** OPEN #435 Build tooling papercuts: unignored libffi copies, bin/make help spacing, missing cross-compiler hints
+
+Three small things found while working on #420, none of them filed
+until now.
+
+*** 1. The libffi stable-path copies are not gitignored
+
+On a native mac host the Makefile copies the bootstrap's libffi to
+~vendor/libffi/libffi-macos.a~, and on a native arm64 linux host to
+~vendor/libffi/libffi-linux-arm64.a~ (targets.til's ~target_ffi_lib~
+names those paths). ~.gitignore~ only covers the per-triple build
+directories (~vendor/libffi/*-*-*/~), so both copies show up as
+untracked files in ~git status~ on those hosts. Seen here by making
+the arm64 copy by hand. Fix: ignore ~vendor/libffi/libffi-*.a~.
+
+*** 2. ~bin/make help~ runs long path goals into their description
+
+make.til's ~cmd_help~ pads each goal name to 22 columns with ~pad~,
+which never adds a separator once the name is longer, so every path
+goal prints glued to its text:
+
+#+begin_example
+  vendor/secp256k1/build-linux-x64/lib/libsecp256k1.alinux-x64 libsecp256k1 from another host (--linux-x64-cc=), for std/crypto
+#+end_example
+
+Fix: always emit at least one space (or put long names on their own
+line).
+
+*** 3. No actionable message when a cross target's compiler is missing
+
+- ~bin/make vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a~ on a
+  host without ~x86_64-linux-gnu-gcc~ (a mac without messense's tap)
+  fails inside cmake with "compiler not found" instead of saying to pass
+  ~--linux-x64-cc=<path>~ (or ~LINUX_X64_CC~), the way the riscv32
+  recipes panic asking for ~--riscv32-cc~.
+- ~bin/til build~'s missing-archive report for libsecp256k1
+  (src/self/builder.til) prints ~build it first: bin/make <path>~ for
+  every target, so for linux-riscv32 and linux-x64 it omits the compiler
+  option that path goal needs (target_ffi_build_hint already names
+  ~--riscv32-cc~ for libffi).
+
+Fix: check the compiler exists (~have_tool~) before configuring and
+panic naming the option; keep the builder's hint next to the target
+table, like ~target_ffi_build_hint~.

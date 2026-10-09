@@ -1,0 +1,35 @@
+# priority: low
+# category: bugs
+** OPEN #436 linux-x86 compiles put /usr/include/x86_64-linux-gnu ahead of every include path
+
+targets.til's ~target_prefix_args~ gives linux-x86
+~-m32 -I/usr/include/x86_64-linux-gnu~. The ~-I~ exists because,
+without gcc-multilib's ~/usr/include/asm~ link, a 32-bit compile
+cannot find ~asm/types.h~ (and friends). But ~-I~ puts that 64-bit
+multiarch directory AHEAD of the program's own include paths and of
+the system's, so any header that also exists there is taken from the
+x86_64 directory.
+
+*** Seen
+
+Building the vendored libffi for linux-x86 with the same flag (#420)
+failed: ~/usr/include/x86_64-linux-gnu/ffi.h~ (libffi-dev's x86_64
+header) shadowed libffi's own ~include/ffi.h~, and ~src/prep_cif.c~
+stopped compiling (~unknown type name 'ffi_call_plan'~). make.til's
+libffi recipe now uses ~-idirafter /usr/include/x86_64-linux-gnu~
+instead, which only fills in what nothing else provides.
+
+*** Hazard
+
+til's own linux-x86 compiles still use ~-I~: a ~link_c~ file, or a
+vendored library compiled through the builder, that includes a header
+present in that directory (an x86_64 ~ffi.h~, other ~-dev~ packages'
+arch-specific headers) silently gets the 64-bit copy. Nothing in the
+suite or CI hits it today.
+
+*** Fix
+
+Use ~-idirafter~ in ~target_prefix_args~ as the libffi recipe does
+(or drop the flag where gcc-multilib is installed, as CI's linux-x86
+job does). Regression: a linux-x86 build of a ~link_c~ file that
+includes a header present in both places.
