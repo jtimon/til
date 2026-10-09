@@ -1024,6 +1024,9 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
 // (`x = replace(own x)`). Mixed -- moved on some paths, owned on others --
 // needs a path-sensitive delete, which the sink grafts.
 priv GcAssignVerdicts := struct {
+    // Addresses (gc_assign_key) of the Assigns whose old value is
+    // consumed.
+    consumed := Set(UPtr).new()
     mixed := false
     // The first Mixed site's address (gc_assign_key).
     mixed_key : UPtr = 0
@@ -1035,8 +1038,7 @@ priv gc_assign_key := func(stmt: Expr) returns UPtr {
     return word_bits(to_ptr(stmt)).cast(UPtr)
 }
 
-// Adds the consumed Assigns' addresses to `consumed`.
-priv gc_flow_assign_verdicts := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex, mut consumed: Set(UPtr)) returns GcAssignVerdicts {
+priv gc_flow_assign_verdicts := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns GcAssignVerdicts {
     mut v := GcAssignVerdicts()
     mut blocks := Vec(GcCfgBlock).new()
     cfg_build(blocks, body)
@@ -1065,7 +1067,7 @@ priv gc_flow_assign_verdicts := func(body: Expr, local: LocalInfo, scope: TypeSc
                     if ad.name == local.name {
                         rhs_transfers := fact_bit_test(cfg_facts.transfers, row.mul(cfg_facts.words), bit)
                         if rhs_transfers.or(st == FLOW_MOVED) {
-                            consumed.add(own gc_assign_key(stmt))
+                            v.consumed.add(own gc_assign_key(stmt))
                         } else if st == FLOW_MIXED {
                             if v.mixed.not() {
                                 v.mixed = true
@@ -3254,8 +3256,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         if local.has_transfer.and(is_aggregate(local.type).or(local.type.is(Type.Primitive)))
             .and(type_to_name(local.type, ctx.symbols).len() > 0)
             .and(gc_body_reassigns(body, local.name, facts, fi)) {
-            mut scratch := Set(UPtr).new()
-            av := gc_flow_assign_verdicts(body, local, scope, ctx, facts, fi, scratch)
+            av := gc_flow_assign_verdicts(body, local, scope, ctx, facts, fi)
             if av.mixed {
                 tidx := gc_mixing_transfer_index(body, local, av.mixed_key, scope, ctx)
                 if tidx >= 0 {
@@ -3756,7 +3757,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     for clocal : LocalInfo in locals_vec {
         if clocal.has_transfer.not() { continue }
         if gc_body_reassigns(body, clocal.name, facts, fidx).not() { continue }
-        cv := gc_flow_assign_verdicts(body, clocal, scope, ctx, facts, fidx, consumed_assigns)
+        cv := gc_flow_assign_verdicts(body, clocal, scope, ctx, facts, fidx)
         // REM: a Mixed reassignment the sink could not graft (a transfer
         // under a loop back edge) is what #365's "transferred inside a
         // loop" error already rejects; a rejected unit is never emitted,
@@ -3765,6 +3766,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
             panic(__LOC__, ": ", ctx.path, ":", cv.mixed_line.to_str(), ":", cv.mixed_col.to_str(),
                 ": reassignment of '", clocal.name, "' whose old value is moved on some paths only")
         }
+        for ck : UPtr in cv.consumed { consumed_assigns.add(own ck.clone()) }
     }
     if consumed_assigns.len() > 0 {
         for mut cstmt : Expr in body.children { gc_clear_consumed_assigns(cstmt, consumed_assigns) }

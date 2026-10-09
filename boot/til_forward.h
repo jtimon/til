@@ -1210,14 +1210,6 @@ typedef struct priv___src_self_garbager_til__GcFlowKills {
 } priv___src_self_garbager_til__GcFlowKills;
 
 
-typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
-    Bool mixed;
-    UPtr mixed_key;
-    U32 mixed_line;
-    U32 mixed_col;
-} priv___src_self_garbager_til__GcAssignVerdicts;
-
-
 typedef struct priv___src_self_garbager_til__BodyFacts {
     USize words;
     USize n_stmts;
@@ -2039,6 +2031,15 @@ typedef struct Map__Str_RootBits {
     Vec__Str keys;
     Vec__RootBits values;
 } Map__Str_RootBits;
+
+
+typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
+    Set__UPtr consumed;
+    Bool mixed;
+    UPtr mixed_key;
+    U32 mixed_line;
+    U32 mixed_col;
+} priv___src_self_garbager_til__GcAssignVerdicts;
 
 
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
