@@ -1,0 +1,74 @@
+# priority: medium
+# category: bugs
+** OPEN #431 til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
+
+~UPtr~ is pointer-sized per TARGET (#81: ~target_uptr_name~ retargets
+the alias per build, U32 on the 32-bit targets), and ~USize~ follows the
+target too, with ~--usize=32~ allowed on a 64-bit target but not the
+other way round (#192, #309; #400 for Dynamic). That is what lets one
+til source build for linux-x86, linux-arm32, linux-riscv32 and
+windows-x86 (#232). The mechanism still works -- the errors below are
+the typer correctly rejecting a U64 -> U32 narrowing -- but code added
+since 2026-09-25 narrows into ~UPtr~ unconditionally, so the compiler
+itself no longer builds for any 32-bit target.
+
+*** Reproducer (master b7ac5f1)
+
+#+begin_example
+$ bin/til build --target=linux-x86 -o tmp/til_x86 src/til.til
+./src/self/garbager.til:1038: error: cast only supports same-size integer reinterpret (any signedness) and same-signedness widening; cannot cast U64 to UPtr
+./src/self/c_codegen.til:11614: error: ... cannot cast U64 to UPtr
+./src/self/interpreter.til:47: error: ... cannot cast U64 to UPtr
+... (36 type errors: 10 casts, the rest their cascade)
+#+end_example
+
+The same for linux-arm32, linux-riscv32 and windows-x86.
+
+*** Regression
+
+The first narrowing cast arrived in 8e14656 (2026-09-25, "Preserve
+cross-width FFI references and aggregate globals"). Its parent e923e36
+type-checks and compiles src/til.til for linux-x86; it only failed to
+link for want of a linux-x86 libffi archive, which #420 has since added
+(~vendor/libffi/build-linux-x86~). Every later site has the same shape,
+~word_bits(x).cast(UPtr)~ -- ~word_bits~ returns the interpreter's
+64-bit word as U64:
+
+- src/self/interpreter.til: 47, 1494, 1530, 1537, 1581, 3319, 3368,
+  5216 (8e14656, 675a5bd, 37110a9 on 2026-09-25; 454093e on 2026-10-07)
+- src/self/c_codegen.til:11614 (639df92, 2026-10-03)
+- src/self/garbager.til:1038 (c3efbec, 2026-10-09)
+
+The fix is not to relax the cast rule: on a 32-bit target the word's
+high half is zero (it holds a host pointer), so the conversion wants a
+checked or target-width one -- ~U64.to_uptr()~ already exists in
+src/core/numbers.til -- or a ~word_bits~ sibling that returns ~UPtr~.
+
+*** Running it, not only building it
+
+Even at e923e36 the 32-bit til never ran (in the history this clone
+has, from 2026-08-27): linked with the linux-x86 libffi it panics on its
+first ext_func, because ~ffi_host_default_abi~ (src/self/interpreter.til)
+audits only x64, arm64 and (since #420) riscv64. With x86's value added
+(FFI_SYSV = 1, src/x86/ffitarget.h) it segfaults under qemu-i386
+interpreting examples/hello_script.til. Known suspects:
+
+- vendor/bindings/libffi.til's ~ffi_type~ mirror pins ~size~ to U64 (the
+  64-bit host layout); C's ~size_t~ is 4 bytes on these targets, so
+  every til-built struct descriptor is laid out wrong.
+- arm32's ABI value (FFI_VFP = 2 for gnueabihf) and riscv32's
+  (FFI_SYSV = 1) are not audited either.
+
+*** Plan
+
+- [ ] Replace the ten narrowing casts with a target-width conversion, so
+  ~bin/til build --target=linux-x86 src/til.til~ (and arm32, riscv32,
+  windows-x86) type-checks again.
+- [ ] Audit ~ffi_host_default_abi~ for x86, arm32 and riscv32, and make
+  the libffi binding's ~ffi_type~ follow the target's ~size_t~.
+- [ ] Find and fix whatever else makes the 32-bit til segfault, until
+  it interprets hello_script, test/ext_libc.til and test/structs.til
+  under qemu.
+- [ ] CI: cross-build til in the linux-x86 job (libffi archive from
+  #420) and interpret those programs under qemu-i386, so the build
+  cannot silently regress again.
