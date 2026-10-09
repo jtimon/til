@@ -1934,6 +1934,125 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
     }
 }
 
+// #430: who frees the value a callable local holds depends on where that
+// value came from, and an ASSIGNMENT can bring a different kind than the
+// Decl did. OWNED: a capturing closure, a Body value, or a call returning
+// callable storage -- this local must release it. STATIC: a named function
+// (or a capture-free lambda), a static TilClosure whose release is a no-op
+// on every backend. BORROWED: anything else -- another callable local, a
+// param, a field -- which its owner releases.
+priv CallableSource := enum { Owned, Static, Borrowed }
+
+priv callable_source_of := func(rhs: Expr, scope: TypeScope) returns CallableSource {
+    switch rhs.node_type {
+    case .FuncDef(fd):
+        if fd.captures.len() > 0 { return CallableSource.Owned }
+        return CallableSource.Static
+    case .BodyValue: return CallableSource.Owned
+    case .FCall: return CallableSource.Owned
+    case .Ident(id):
+        sf := scope.find_sym(id.ident_sym())
+        switch sf {
+        case .Found(b):
+            if b.is_func_decl { return CallableSource.Static }
+        case:
+        }
+    case:
+    }
+    return CallableSource.Borrowed
+}
+
+// Visit every Assign to `name` reachable from `e` without entering a nested
+// function or closure body (its own view) or passing a Decl that shadows
+// `name` for the rest of its block. `mark` sets save_old_delete on each;
+// otherwise the sources are only classified into `owned` / the first
+// borrowed site.
+priv walk_callable_assigns := proc(mut e: Expr, name: Str, local_type: Type, scope: TypeScope, mark: Bool,
+        mut owned: Bool, mut borrowed: Bool, mut borrowed_line: U32, mut borrowed_col: U32) {
+    switch e.node_type {
+    case .FuncDef, .BodyValue: return
+    case .Body:
+        for mut c : Expr in e.children {
+            walk_callable_assigns(c, name, local_type, scope, mark, owned, borrowed, borrowed_line, borrowed_col)
+            switch c.node_type {
+            case .Decl(cd):
+                if cd.name == name { return }
+            case:
+            }
+        }
+        return
+    case .Assign(ad):
+        if (ad.name == name).and(e.children.len().gt(0)) {
+            if mark {
+                ad.save_old_delete = true
+                e.set_til_type(local_type.clone())
+            } else {
+                switch callable_source_of(e.children[0], scope) {
+                case .Owned: owned = true
+                case .Static:
+                case .Borrowed:
+                    if borrowed.not() {
+                        borrowed = true
+                        borrowed_line = e.line
+                        borrowed_col = e.col
+                    }
+                }
+            }
+        }
+    case:
+    }
+    for mut c : Expr in e.children {
+        walk_callable_assigns(c, name, local_type, scope, mark, owned, borrowed, borrowed_line, borrowed_col)
+    }
+}
+
+// #430: a callable local that is ever given an OWNED value owns what it
+// holds: is_heap schedules its scope-end release, and every assignment to
+// it -- nested blocks included -- releases the old value after evaluating
+// the new one (save_old_delete; #415's consumed set later clears the ones
+// whose old value was moved away). A static value's release is a no-op, so
+// mixing owned and static is fine. A BORROWED value cannot be told apart
+// from an owned one at the release, so mixing those is rejected.
+priv settle_callable_local_ownership := proc(mut body: Expr, mut locals_vec: Vec(LocalInfo), scope: TypeScope, mut ctx: Context) {
+    for mut li : LocalInfo in locals_vec {
+        if li.decl_index < 0 { continue }
+        if li.type.is_funcptr().or(li.type.is(Type.Body)).not() { continue }
+        ref decl_stmt : Expr = body.children[li.decl_index.to_usize()]
+        if decl_stmt.node_type.is(NodeType.Decl).not() { continue }
+        if decl_of(decl_stmt).own_type.is(OwnType.Ref) { continue }
+        mut owned := false
+        mut borrowed := false
+        mut borrowed_line : U32 = 0
+        mut borrowed_col : U32 = 0
+        if decl_stmt.children.len() > 0 {
+            switch callable_source_of(decl_stmt.children[0], scope) {
+            case .Owned: owned = true
+            case .Static:
+            case .Borrowed:
+                borrowed = true
+                borrowed_line = decl_stmt.line
+                borrowed_col = decl_stmt.col
+            }
+        }
+        start := li.decl_index.add(1).to_usize()
+        for j in start..body.children.len() {
+            walk_callable_assigns(body.children[j], li.name, li.type, scope, false, owned, borrowed, borrowed_line, borrowed_col)
+        }
+        if owned.not() { continue }
+        if borrowed {
+            context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Error, ctx.path, borrowed_line, borrowed_col,
+                format("'", li.name, "' holds an owned closure elsewhere, but borrows a callable here; ",
+                "its release could not tell which one it holds"))
+            ctx.errors++
+            continue
+        }
+        li.is_heap = true
+        for j in start..body.children.len() {
+            walk_callable_assigns(body.children[j], li.name, li.type, scope, true, owned, borrowed, borrowed_line, borrowed_col)
+        }
+    }
+}
+
 priv sort_locals_by_name := func(mut locals: Vec(LocalInfo)) {
     if locals.len() < 2 { return }
     for i in 1..locals.len() {
@@ -3723,6 +3842,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     fidx := fact_universe(body, scope)
     mut facts := body_stmt_facts(body, scope, true, fidx, ctx.symbols)
     collect_scope_locals(ctx, body, scope, is_program_scope, facts, fidx, stack_own_params, locals_vec)
+    settle_callable_local_ownership(body, locals_vec, scope, ctx)
     sort_locals_by_name(locals_vec)
     if locals_vec.len() > 0 {
         extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)

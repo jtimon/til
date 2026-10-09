@@ -672,6 +672,17 @@ typedef struct {
     void *(*clone)(void *);
 } TilClosureExt;
 
+/* #430: the one release of a closure value, for til_closure_delete,
+ * til_closure_slot_delete and an owning callable local's reassignment. A
+ * named function's value is a static TilClosure with no drop, so releasing
+ * one is a no-op. Out of line on purpose: inlined, gcc can see a slot
+ * that may still hold that static object and reports -Wfree-nonheap-object
+ * on the (dead) free, at every optimization level. */
+void til_closure_release(void *closure) {
+    TilClosureExt *c = closure;
+    if (c && c->drop) { c->drop(c->env); free(c); }
+}
+
 void *til_closure_slot_clone(void *slot) {
     TilClosureExt *src = *(TilClosureExt **)slot;
     TilClosureExt **holder = malloc(sizeof(*holder));

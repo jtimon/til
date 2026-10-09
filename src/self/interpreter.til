@@ -2771,6 +2771,11 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 }
                 scope_drop_existing_heap_slot(scope_get_binding_scope(scope, ad.name), ad.name, ad.save_old_delete)
                 assign_hb.ptr = to_ptr(new_raw)
+                // #430: is_static_callable describes the VALUE, so it
+                // follows the new one. Left stale, a slot declared from a
+                // named function and then given a closure kept `true`, and
+                // the next save_old_delete skipped releasing that closure.
+                assign_hb.is_static_callable = heap_slot_is_static_callable(hb_type(assign_hb), new_raw)
             }
             assign_hb.moved_out = false
         case .FieldAssign(fad):

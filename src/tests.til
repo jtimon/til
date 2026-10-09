@@ -2893,6 +2893,14 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_global_escape_error_build", "typer",
         "borrows captured local", 2,
         format(til_bin, " build", asan_flag, " test/capture_global_escape_error.til"))
+    // #430: a callable local that owns a closure on one assignment cannot
+    // borrow a callable on another.
+    add_count(tests, "callable_mixed_ownership_error_interp", "typer",
+        "borrows a callable here", 2,
+        format(til_bin, " interpret test/callable_mixed_ownership_error.til"))
+    add_count(tests, "callable_mixed_ownership_error_build", "typer",
+        "borrows a callable here", 2,
+        format(til_bin, " build", asan_flag, " test/callable_mixed_ownership_error.til"))
     // #54: and via a global's FIELD.
     add_count(tests, "capture_global_field_escape_error_interp", "typer",
         "borrows captured local", 1,

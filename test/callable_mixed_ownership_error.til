@@ -1,0 +1,27 @@
+mode script
+
+// Negative test (issue #430): a callable local that holds an OWNED closure
+// on some assignment releases what it holds, so it cannot also BORROW a
+// callable (a param, another local) -- at the release it cannot tell which
+// of the two it holds. Both orders are rejected.
+
+Thunk := func() returns I64
+
+borrow_then_own := func(f: Thunk, n: I64) returns I64 {
+    local := n
+    mut g : Thunk = f
+    g = func() returns I64 [local] { return local }
+    return g()
+}
+
+own_then_borrow := func(f: Thunk, n: I64) returns I64 {
+    local := n
+    mut g : Thunk = func() returns I64 [local] { return local }
+    if n > 3 {
+        g = f
+    }
+    return g()
+}
+
+println(borrow_then_own(func() returns I64 { return 1 }, 2).to_str())
+println(own_then_borrow(func() returns I64 { return 1 }, 2).to_str())

@@ -2835,6 +2835,17 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 f.write(";\n"); return
             }
         }
+        // #430: an owning callable local. Evaluate the new value first (it
+        // may read the old one), release the old closure, then store. A
+        // named function's static TilClosure has no drop, so releasing one
+        // is a no-op (see til_closure_release in ext.c).
+        if ad.save_old_delete.and(e.til_type().is_funcptr().or(e.til_type().is(Type.Body))) {
+            f.write("{ ").write(c_type_name(e.til_type(), e_sname, ctx)).write(" _new = ")
+            emit_expr(f, rhs, depth, ctx)
+            f.write("; til_closure_release(").write(acname).write("); ")
+            f.write(acname).write(" = _new; }\n")
+            return
+        }
         // A payload alias with the flag takes its OWN arm below: the old
         // value lives in the enum's payload storage, so the generic branch
         // here -- rebind the pointer, free the old box -- would free
@@ -3062,9 +3073,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             case .Ident(cname0):
                 if cname0.ident_name(ctx.symbols.names) == "til_closure_delete" {
                     if e.children.len() >= 2 {
-                        f.write("{ TilClosure *til_closure = ")
+                        f.write("til_closure_release(")
                         emit_expr(f, e.children[1], depth, ctx)
-                        f.write("; if (til_closure && til_closure->drop) { til_closure->drop(til_closure->env); free(til_closure); } }\n")
+                        f.write(");\n")
                         return
                     }
                 }
@@ -3072,7 +3083,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                     if e.children.len() >= 2 {
                         f.write("{ TilClosure **til_closure_slot = (TilClosure **)(")
                         emit_expr(f, e.children[1], depth, ctx)
-                        f.write("); TilClosure *til_closure = *til_closure_slot; if (til_closure && til_closure->drop) { til_closure->drop(til_closure->env); free(til_closure); } *til_closure_slot = NULL; }\n")
+                        f.write("); til_closure_release(*til_closure_slot); *til_closure_slot = NULL; }\n")
                         return
                     }
                 }

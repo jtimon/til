@@ -1,6 +1,48 @@
 # priority: medium
 # category: bugs
-** OPEN #430 Assigning a capturing closure to an existing function-pointer local leaks it
+** FIXED #430 Assigning a capturing closure to an existing function-pointer local leaks it
+
+*** Post-mortem
+
+Root cause: the garbager decided a callable local's ownership from its
+Decl alone (collect_scope_locals: is_heap only for a capturing FuncDef,
+a BodyValue or a callable-returning call as the Decl's RHS). An
+ASSIGNMENT of a capturing closure was never considered, so a local
+declared from a named function got no scope-end release, and no
+assignment to a callable local released the value it replaced -- the
+existing save_old_delete machinery was aggregate-only. The interpreter
+also cached HeapBinding.is_static_callable at binding creation and never
+refreshed it on assignment.
+
+Fix:
+- src/self/garbager.til: settle_callable_local_ownership classifies every
+  value a callable local receives (Decl and every Assign, nested blocks
+  included, stopping at a shadowing Decl and at nested function bodies)
+  as owned, static (a named function) or borrowed. One owned source makes
+  the local owning: is_heap, and save_old_delete on every assignment to
+  it (#415's consumed set still clears the ones whose old value moved).
+  Owned plus borrowed is rejected ("'g' holds an owned closure
+  elsewhere, but borrows a callable here"): the release cannot tell them
+  apart.
+- src/self/c_codegen.til: a callable arm for save_old_delete (evaluate,
+  release the old closure, store). til_closure_delete and
+  til_closure_slot_delete now call the same release.
+- src/c/ext.c / ext.h: til_closure_release, the one out-of-line closure
+  release. Inlined at a site where gcc can see a slot may still hold a
+  named function's static TilClosure, the (dead) free trips
+  -Wfree-nonheap-object at every optimization level; out of line it
+  cannot. A static value's release is a no-op (no drop).
+- src/self/interpreter.til: the Assign path refreshes is_static_callable
+  for the new value.
+- src/self/jvm_codegen.til: jvm_delete_value releases a callable with
+  TilRuntime.releaseClosure instead of `.delete()`.
+
+Regression: test_assign_capturing_closure_to_local in test/closures.til
+(over a named function, over another closure, nested block, one branch,
+loop), shadow_set_nested moved back from the #54 error fixture into
+test_local_shadowing_global_is_not_an_escape as a runtime test, and
+test/callable_mixed_ownership_error.til for the mixed rejection (both
+backends).
 
 A ~mut~ function-pointer local that is later ASSIGNED a capturing closure
 never has that closure dropped, on both backends. Declaring the local

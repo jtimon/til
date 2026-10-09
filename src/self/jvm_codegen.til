@@ -2672,6 +2672,8 @@ priv jvm_str_field_write := func(field_t: Type, expr: Str, lp: LoadedProgram) re
 // destructors' field cleanup already spells it.
 priv jvm_delete_value := func(t: Type, value: Str, lp: LoadedProgram) returns Str {
     if jvm_is_runtime_str(t, lp) { return format("TilRuntime.deleteStr(", value, ")") }
+    // #430: an owning callable local's old value (til_closure_delete's twin).
+    if t.is_funcptr().or(t.is(Type.Body)) { return format("TilRuntime.releaseClosure(", value, ")") }
     return format(value, ".delete()")
 }
 

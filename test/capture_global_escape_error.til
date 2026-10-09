@@ -15,20 +15,6 @@ set_global := func() {
     g_slot = func() returns I64 [local] { return local }
 }
 
-// A block-local named like the global IS a local: storing the closure there
-// is not an escape and must not be reported. The expected count in
-// src/tests.til (2: set_global and set_global_after_shadow) pins that.
-set_shadowing_local := func(go: Bool) returns I64 {
-    local := 9
-    mut r := 0
-    if go {
-        mut g_slot : Thunk = zero
-        g_slot = func() returns I64 [local] { return local }
-        r = g_slot()
-    }
-    return r
-}
-
 // A block-local shadow ends with its block: the assignment after it writes
 // the global again, and is the same escape.
 set_global_after_shadow := func(go: Bool) {

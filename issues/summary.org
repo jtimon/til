@@ -4,7 +4,6 @@
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/426.org][#426]] A function with the wrong signature is accepted for a function-typed parameter
-*** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it
 *** [[./open/431.org][#431]] til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
 ** Low
 *** [[./open/425.org][#425]] A function-generator alias cannot be used as a function value

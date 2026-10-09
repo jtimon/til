@@ -379,6 +379,12 @@ typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager
 typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbager_til__GcFlowKills;
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
+enum {
+    priv___src_self_garbager_til__CallableSource_TAG_Owned,
+    priv___src_self_garbager_til__CallableSource_TAG_Static,
+    priv___src_self_garbager_til__CallableSource_TAG_Borrowed
+};
+typedef struct priv___src_self_garbager_til__CallableSource priv___src_self_garbager_til__CallableSource;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__Bool Array__Bool;
 typedef struct Array__USize Array__USize;
@@ -1224,6 +1230,10 @@ typedef struct priv___src_self_garbager_til__BodyFacts {
     Vec__Bool directives;
 } priv___src_self_garbager_til__BodyFacts;
 
+
+struct priv___src_self_garbager_til__CallableSource {
+    U8 tag;
+};
 
 typedef struct priv___src_self_garbager_til__GcBorrowEdge {
     Str owner;

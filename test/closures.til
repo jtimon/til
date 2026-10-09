@@ -238,10 +238,10 @@ test_dce_literal_capture := test() {
 }
 
 // #54 follow-up: a LOCAL named like a global is not the global. Storing a
-// borrowed parameter into it does not escape, whether the local is declared
-// at the top of the body or in a nested block. The closure-store twin is
-// pinned in test/capture_global_escape_error.til, together with the shadow
-// ending at its block.
+// borrowed parameter or a borrowed-capture closure into it does not escape,
+// whether the local is declared at the top of the body or in a nested
+// block (test/capture_global_escape_error.til pins that the shadow ends
+// with its block).
 ShadowThunk := func() returns I64
 shadow_zero := func() returns I64 { return 0 }
 mut shadow_slot : ShadowThunk = shadow_zero
@@ -262,10 +262,85 @@ shadow_stash_nested := func(f: ShadowThunk, go: Bool) returns I64 {
     return r
 }
 
+shadow_set_nested := func(go: Bool) returns I64 {
+    local := 43
+    mut r := 0
+    if go {
+        mut shadow_slot : ShadowThunk = shadow_zero
+        shadow_slot = func() returns I64 [local] { return local }
+        r = shadow_slot()
+    }
+    return r
+}
+
 shadow_seven := func() returns I64 { return 7 }
 
 test_local_shadowing_global_is_not_an_escape := test() {
     assert_eq(I64, shadow_stash_local(shadow_seven), 7)
     assert_eq(I64, shadow_stash_nested(shadow_seven, true), 7)
+    assert_eq(I64, shadow_set_nested(true), 43)
     assert_eq(I64, shadow_slot(), 0)
+}
+
+// #430: a callable local ASSIGNED a capturing closure owns it. The ASAN
+// suite pins that each shape releases every closure exactly once: over a
+// named function (a static value, whose release is a no-op), over another
+// closure, inside a nested block, on one branch only, and once per loop
+// iteration. Constant arguments let the constfolder run these at compile
+// time too, so the interpreter path is covered by the build as well.
+Thunk430 := func() returns I64
+zero430 := func() returns I64 { return 0 }
+
+assign_over_static430 := func(n: I64) returns I64 {
+    local := n
+    mut slot : Thunk430 = zero430
+    slot = func() returns I64 [local] { return local }
+    return slot()
+}
+
+assign_over_closure430 := func(n: I64) returns I64 {
+    local := n
+    mut slot : Thunk430 = func() returns I64 [local] { return local + 1 }
+    slot = func() returns I64 [local] { return local }
+    return slot()
+}
+
+assign_nested430 := func(n: I64) returns I64 {
+    local := n
+    mut r := 0
+    if n > 0 {
+        mut slot : Thunk430 = zero430
+        slot = func() returns I64 [local] { return local }
+        r = slot()
+    }
+    return r
+}
+
+assign_one_branch430 := func(n: I64, go: Bool) returns I64 {
+    local := n
+    mut slot : Thunk430 = zero430
+    if go {
+        slot = func() returns I64 [local] { return local }
+    }
+    return slot()
+}
+
+assign_in_loop430 := func(n: I64) returns I64 {
+    local := n
+    mut slot : Thunk430 = zero430
+    mut i := 0
+    while i < 3 {
+        slot = func() returns I64 [local] { return local + 3 }
+        i = i + 1
+    }
+    return slot()
+}
+
+test_assign_capturing_closure_to_local := test() {
+    assert_eq(I64, assign_over_static430(6), 6)
+    assert_eq(I64, assign_over_closure430(6), 6)
+    assert_eq(I64, assign_nested430(6), 6)
+    assert_eq(I64, assign_one_branch430(6, true), 6)
+    assert_eq(I64, assign_one_branch430(6, false), 0)
+    assert_eq(I64, assign_in_loop430(6), 9)
 }
