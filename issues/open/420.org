@@ -1,0 +1,88 @@
+# priority: low
+# category: backends
+** OPEN #420 Missing cross builds of the vendored libraries
+
+The vendored libraries do not cover every target. #235 fixed this for
+libsecp256k1 (std/crypto); the same gap remains for nng, raylib +
+tinyfd and libffi, plus a few libsecp256k1 targets and the windows-host
+interpreter twins. Most of these fail only at the final link, with the
+host's x64 archive handed to a cross linker.
+
+*** The pattern to reuse (from #235)
+
+libsecp256k1's cross support is the template for every row below:
+
+- ~make.til~: one data table of cross archives (~secp256k1_cross_targets~),
+  each built with the target's compiler into its own directory
+  (~vendor/<lib>/build-<target>/...~), one bin/make path goal per archive.
+- ~src/self/targets.til~: a per-target archive table
+  (~target_secp256k1_lib~) and ~target_is_host~.
+- ~src/self/builder.til~: keep the canonical archive only when the
+  target IS the host; otherwise swap the link() token for the target's
+  archive, report a missing archive with its bin/make goal before the
+  link, and refuse a target with no archive instead of linking the
+  host's.
+- CI: build the archive and run a test program for the target under
+  qemu / wine / the mac and windows runners.
+- Interpreter on a windows host: a ~.dll~ twin beside the canonical
+  archive (~build_secp256k1_win_twin~), loaded by ~ffi_load_archive_twin~.
+
+*** Missing builds
+
+Observed on master d9976ce by cross-building examples/sender.til (nng,
+~--extra-modes=examples/custom_modes.til~) and examples/hello_gui.til
+(raylib + tinyfd); libffi from ~target_ffi_lib~.
+
+| Library | Works today | Missing |
+|---------+-------------+---------|
+| nng | native host, windows-x64 | linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x86, macos-x64, macos-arm64 (cross), wasm32 |
+| raylib + tinyfd | native host, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, wasm32, macos (cross via the mac CI archives) | linux-arm64 cross (only a native arm64 host works), linux-riscv64 (no ~target_gui_libs~ entry at all) |
+| libffi (runtime ext_func dispatch only) | linux-x64, windows-x64, windows-x86; linux-arm64 and macos only on a matching native host | linux-riscv64, linux-x86, linux-arm32, linux-riscv32, wasm32; linux-arm64 and macos cross from another host |
+| libsecp256k1 | every native target, both windows, til.exe interpreting | wasm32; linux-x64 cross-built from a non-linux-x64 host (e.g. a mac) |
+| windows-host twins (til.exe interpreting) | libsecp256k1 (~libsecp256k1.dll~) | nng, raylib, tinyfd |
+
+How each fails today:
+
+- nng, linux cross targets: the builder passes the host's
+  ~vendor/nng/libnng.a~ through, and the cross ld rejects it:
+  #+begin_example
+  .../aarch64-linux-gnu/bin/ld: /home/user/til/vendor/nng/libnng.a: error adding symbols: file in wrong format
+  #+end_example
+  Same for linux-riscv64 and linux-arm32 (linux-x86 and linux-riscv32
+  take the same path).
+- nng, windows-x86: the linux archive is dropped by the windows
+  rewrite but only a win64 nng exists:
+  ~undefined reference to `nng_strerror'~.
+- nng, macos cross: the archive token is dropped on the cross host:
+  ~ld64.lld: error: undefined symbol: nng_close~.
+- raylib, linux-arm64 / linux-riscv64 cross: the host's
+  ~vendor/raylib/src/libraylib.a~ reaches the cross ld:
+  ~error adding symbols: file in wrong format~.
+- libffi: already reported before the link by compile_c (the generated
+  C calls ~ffi_prep_cif~ and the target's archive does not exist), with
+  ~target_ffi_build_hint~'s command -- but for the targets listed there
+  is no command that builds one.
+- libsecp256k1: refused before the link with
+  ~std/crypto (libsecp256k1) has no cross build for this --target from this host~.
+- windows-host twins: ~ffi_load_archive_twin~ panics naming the missing
+  ~.dll~.
+
+*** Plan
+
+  - [ ] nng: per-target cross archives (cmake, like the windows nng, with
+    its winsock/shim notes) for the linux cross targets, windows-x86 and
+    the mac cross targets; builder swap through a ~target_nng_lib~ table.
+  - [ ] raylib + tinyfd: linux-arm64 and linux-riscv64 cross archives
+    (the ~GuiTarget~ data in make.til already covers x86/arm32/riscv32
+    the same way), and the ~target_gui_libs~ entries; drop the host
+    archive tokens for those targets as the linux32 rewrite does.
+  - [ ] libffi: cross configure for the missing linux triples (as
+    ~build_libffi_cross~ does for mingw) and stable-path entries so
+    linux-arm64 / macos work from any host.
+  - [ ] libsecp256k1: wasm32 via emscripten (the vendored emsdk), and
+    linux-x64 from a non-linux-x64 host (needs a linux-x64 cross
+    compiler choice, e.g. the ~--cc~ the mac-host CI job passes).
+  - [ ] windows-host DLL twins for nng, raylib and tinyfd, built by
+    ~build_win_host~ like ~libsecp256k1.dll~.
+  - [ ] CI: one build-and-run step per new archive, in the existing
+    cross jobs.

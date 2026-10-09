@@ -1,6 +1,37 @@
 # priority: low
 # category: features
-** WIP #235 Vendor libsecp256k1 for experimental BIP-340 signatures
+** FIXED #235 Vendor libsecp256k1 for experimental BIP-340 signatures
+
+*** Post-mortem
+
+Feature, landed over several merges. Upstream libsecp256k1 v0.8.0 is
+vendored under ~vendor/secp256k1~ (MIT, ~LICENSE/secp256k1.txt~), built by
+make.til with only the extrakeys + schnorrsig modules, natively plus a
+~.so~ twin for the interpreter. ~vendor/bindings/secp256k1.til~ is
+generated and hand-audited (doc/ffi.org). Two compiler fixes came with
+the import: the binder strips trailing ~__attribute__ ((...))~ groups by
+paren depth, and the interpreter gives a field-less ext_struct a one-byte
+libffi layout so a ref binding to an opaque library object works.
+
+The user-facing surface is ~src/std/crypto.til~ rather than the mode the
+issue first described: a til SHA-256 returning the new core ~U256~, and
+BIP-340 ~schnorr_pubkey~ / ~schnorr_sign~ / ~schnorr_verify~ over U256
+and a 64-byte ~Signature~, with self-verification after signing, zeroed
+keypair temporaries and the required warning in the module header. It
+stays separate from HashMap's 64-bit ~HashFn~ interface on purpose. The
+constant-time dialect the issue called ~mode crypto~ moved to #419
+(~mode const_time~).
+
+Targets: every native cross target links its own archive (make.til's
+~secp256k1_cross_targets~, the builder swap via ~target_secp256k1_lib~
+and ~target_is_host~), and ~til.exe~ interprets std/crypto through a DLL
+twin. Not available: wasm32, TempleOS, JVM, and linux-x64 cross-built
+from a non-linux-x64 host; the builder refuses those with a clear error.
+
+Regression tests: ~test/crypto.til~ (FIPS 180-4 SHA-256 and BIP-340
+vectors 0-14, both backends) and ~test/u256.til~; CI runs test/crypto.til
+cross-built under qemu for the five linux cross targets, under the
+windows and mac runners, and interpreted by til.exe on windows.
 
 *** Progress
 

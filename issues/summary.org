@@ -24,7 +24,6 @@
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
-*** [[./open/235.org][#235]] Vendor libsecp256k1 for experimental BIP-340 signatures
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
 *** [[./open/279.org][#279]] Compound assignment operators (+=, -=, *=, ...) desugar a OP= b -> a = a OP b
 *** [[./open/290.org][#290]] Tooling gap: no regex / text-processing library for source-rewriting tasks
@@ -49,6 +48,7 @@
 *** [[./open/386.org][#386]] Lua backend alongside the C backend
 *** [[./open/387.org][#387]] Arduino target alongside hosted targets
 *** [[./open/411.org][#411]] Explicit GPU/device execution model for til
+*** [[./open/420.org][#420]] Missing cross builds of the vendored libraries
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
