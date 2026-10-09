@@ -11611,7 +11611,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     // name (`c`, `r`) declared across sibling bodies would look like a
     // shadowing conflict and defeat the stack check in every one of them.
     if e.node_type.is(NodeType.FuncDef) {
-        address := word_bits(e).cast(UPtr)
+        address := word_bits(e).to_uptr()
         if func_sites.has(address) {
             ref summary : BuilderFuncSites = func_sites[address]
             if summary.round_dependent.not() {

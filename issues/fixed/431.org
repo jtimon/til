@@ -1,6 +1,44 @@
 # priority: medium
 # category: bugs
-** OPEN #431 til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
+** FIXED #431 til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
+
+*** Post-mortem
+
+Root cause: two layers. (1) Since 8e14656 the interpreter, c_codegen
+and garbager narrowed the interpreter's 64-bit word into ~UPtr~ with
+~word_bits(x).cast(UPtr)~, which the typer (correctly) rejects when
+~UPtr~ is U32, so til stopped type-checking for every 32-bit target.
+(2) Underneath, the 32-bit til had never run: ~ffi_host_default_abi~
+panicked on x86/arm32/riscv32, and the interpreter's libffi glue
+assumed a 64-bit host -- the binding's ~ffi_type.size~ was U64 (C's
+~size_t~ is 4 bytes there, so til's own ~struct _ffi_type~ shifted
+alignment/type/elements by 4), ~ffi_get_struct_offsets~' size_t
+offsets were read as U64, and the ffi_type*/arg-pointer/marshal arrays
+used a hard-coded 8-byte stride while ~ext_dispatch_ffi~ allocated
+~args~/~arg_raws~ with ~UPtr.size()~ (half of what the 8- and 16-byte
+strides wrote on 32-bit).
+
+Fix: the ten casts use ~U64.to_uptr()~ (target-width; the word holds
+a host pointer, so its high half is zero on 32-bit).
+~ffi_host_default_abi~ adds the audited values from ffitarget.h:
+x86 FFI_SYSV=1 (windows-x86, X86_WIN32: FFI_MS_CDECL=5), arm32
+gnueabihf FFI_VFP=2, riscv32 FFI_SYSV=1. ~ffi_type.size~ is UPtr;
+the cached offsets buffer has a ~UPtr.size()~ stride; pointer arrays
+use ~Dynamic.size()~; ~args~ keeps explicit 8-byte value slots (a
+shallow I64/F64 still needs 8) and ~arg_raws~ its 16-byte records.
+Verified: ~bin/til build --target=linux-x86~ and ~linux-arm32~ build
+til, and both interpret examples/hello_script.til, test/ext_libc.til
+and test/structs.til (44/44) under qemu-i386 / qemu-arm.
+~linux-riscv32~ type-checks (~bin/til translate~); its run was not
+possible in the session (no riscv32 toolchain). ~windows-x86~
+type-checks and compiles, but the link wants the win64 nng archive
+(builder.til hard-codes ~vendor/nng/build-win64/libnng.a~ for every
+windows target) -- a separate, pre-existing gap.
+
+Regression test: the new "Cross-compile til for linux-x86 and
+interpret under qemu" step in the linux-x86 CI job, which builds til
+for linux-x86 and interprets those three programs under qemu-i386.
+
 
 ~UPtr~ is pointer-sized per TARGET (#81: ~target_uptr_name~ retargets
 the alias per build, U32 on the 32-bit targets), and ~USize~ follows the
@@ -61,14 +99,14 @@ interpreting examples/hello_script.til. Known suspects:
 
 *** Plan
 
-- [ ] Replace the ten narrowing casts with a target-width conversion, so
+- [X] Replace the ten narrowing casts with a target-width conversion, so
   ~bin/til build --target=linux-x86 src/til.til~ (and arm32, riscv32,
   windows-x86) type-checks again.
-- [ ] Audit ~ffi_host_default_abi~ for x86, arm32 and riscv32, and make
+- [X] Audit ~ffi_host_default_abi~ for x86, arm32 and riscv32, and make
   the libffi binding's ~ffi_type~ follow the target's ~size_t~.
-- [ ] Find and fix whatever else makes the 32-bit til segfault, until
+- [X] Find and fix whatever else makes the 32-bit til segfault, until
   it interprets hello_script, test/ext_libc.til and test/structs.til
   under qemu.
-- [ ] CI: cross-build til in the linux-x86 job (libffi archive from
+- [X] CI: cross-build til in the linux-x86 job (libffi archive from
   #420) and interpret those programs under qemu-i386, so the build
   cannot silently regress again.

@@ -218,13 +218,22 @@ jobs:
           qemu-i386 bin/crypto_x86
       # Issue #420: libffi for this target, built out of tree into
       # vendor/libffi/build-linux-x86; test/ffi_prep.til calls it directly.
-      # (til itself does not build for a 32-bit target, so no interpreter
-      # run here.)
       - name: Cross-compile and run a libffi program for linux-x86
         run: |
           make vendor/libffi/build-linux-x86/.libs/libffi.a
           ./bin/til build --target=linux-x86 -o bin/ffi_prep_x86 test/ffi_prep.til
           qemu-i386 bin/ffi_prep_x86 | grep -q "ffi_prep ok"
+      # Issue #431: til itself, cross-built for a 32-bit target (with the
+      # libffi archive above) and interpreting programs under qemu, so a
+      # U64 -> UPtr narrowing or a 64-bit FFI layout assumption cannot
+      # silently break the 32-bit compiler again.
+      - name: Cross-compile til for linux-x86 and interpret under qemu
+        run: |
+          ./bin/til build --target=linux-x86 -o bin/til_x86 src/til.til
+          file bin/til_x86 | grep -q "80386"
+          qemu-i386 bin/til_x86 interpret examples/hello_script.til | grep -q "Hello World"
+          qemu-i386 bin/til_x86 interpret test/ext_libc.til
+          qemu-i386 bin/til_x86 interpret test/structs.til
       # Issue #232: 32-bit linux GUI. raylib compiles -m32 against the
       # vendored X11 headers and GLFW dlopens libX11 at runtime, so
       # BUILDING needs only gcc-multilib (installed above) -- no 32-bit
@@ -276,8 +285,8 @@ jobs:
           qemu-arm -L /usr/arm-linux-gnueabihf bin/crypto_arm32
       # Issue #420: libffi for this target, built out of tree into
       # vendor/libffi/build-linux-arm32; test/ffi_prep.til calls it directly.
-      # (til itself does not build for a 32-bit target, so no interpreter
-      # run here.)
+      # (til itself, cross-built and interpreting under qemu, is covered by
+      # the linux-x86 job -- issue #431.)
       - name: Cross-compile and run a libffi program for linux-arm32
         run: |
           make vendor/libffi/build-linux-arm32/.libs/libffi.a
@@ -343,8 +352,9 @@ jobs:
           qemu-riscv32 -L "$SYSROOT" bin/crypto_riscv32
       # Issue #420: libffi for this target, built out of tree (with the
       # Bootlin compiler and binutils) into vendor/libffi/build-linux-riscv32;
-      # test/ffi_prep.til calls it directly. (til itself does not build for
-      # a 32-bit target, so no interpreter run here.)
+      # test/ffi_prep.til calls it directly. (til itself, cross-built and
+      # interpreting under qemu, is covered by the linux-x86 job -- issue
+      # #431.)
       - name: Cross-compile and run a libffi program for linux-riscv32
         run: |
           RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)

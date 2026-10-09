@@ -1035,7 +1035,7 @@ priv GcAssignVerdicts := struct {
 }
 
 priv gc_assign_key := func(stmt: Expr) returns UPtr {
-    return word_bits(to_ptr(stmt)).cast(UPtr)
+    return word_bits(to_ptr(stmt)).to_uptr()
 }
 
 priv gc_flow_assign_verdicts := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns GcAssignVerdicts {

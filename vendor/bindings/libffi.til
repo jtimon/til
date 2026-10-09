@@ -155,9 +155,12 @@ FFI_64_BIT_MAX : I64 = 9223372036854775807
 // field offset. build_struct_ffi_type's malloc(ffi_type.size()) then
 // under-allocated by 8 and its elements write landed past the block
 // (heap corruption; aborted ffi_prep_cif_machdep on the arm CI hosts).
-// U64 pins the mirror to the host layout.
+// UPtr pins the mirror to the host layout: size_t is pointer-sized on
+// every supported target -- 8 bytes on the 64-bit ones, 4 on linux-x86,
+// linux-arm32, linux-riscv32 and windows-x86, where a U64 here shifted
+// alignment/type/elements by 4 and libffi read garbage (issue #431).
 ffi_type := ext_struct("_ffi_type") {
-    size : U64 = 0
+    size : UPtr = 0
     alignment : U16 = 0
     type : U16 = 0
     // Hand-audited (#324), keep across regens: for the struct descriptors

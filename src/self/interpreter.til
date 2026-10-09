@@ -44,7 +44,7 @@ priv interp_eval_error := proc(e: Expr, msg: Str, mut ctx: Context) {
 
 priv interp_embedded_paths := func(e: Expr, path: Str, mut ctx: Context) {
     if e.node_type.is(NodeType.FuncDef) {
-        ctx.eval.function_paths.set(word_bits(to_ptr(e)).cast(UPtr), own path.clone())
+        ctx.eval.function_paths.set(word_bits(to_ptr(e)).to_uptr(), own path.clone())
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref decls : Vec(Declaration) = def_ns_decls(e)
@@ -1491,7 +1491,7 @@ priv ffi_clear_cleanup_dirty := func(ctx: Context) {
 }
 
 priv ffi_place_is_foreign := func(data: Dynamic, ctx: Context) returns Bool {
-    address := word_bits(data).cast(UPtr)
+    address := word_bits(data).to_uptr()
     if ctx.eval.foreign_places.has(address).not() { return false }
     ref place : ForeignPlace = ctx.eval.foreign_places[address]
     if ffi_place_in_flight(place).or(ffi_place_borrows(place) > 0) { return true }
@@ -1517,8 +1517,8 @@ priv place_field_layout := func(type_name: Str, field_name: Str, data: Dynamic, 
     ref sd : StructDef = structdef_of(def)
     ref index : USize = sd.fields_index[field_name]
     ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, false)
-    ref offset : U64 = ptr_add(layout.offsets, index.to_usize().mul(8))
-    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.to_usize().mul(8)))
+    ref offset : UPtr = ptr_add(layout.offsets, index.to_usize().mul(UPtr.size()))
+    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.to_usize().mul(Dynamic.size())))
     field.offset = offset.to_usize()
     field.size = field_type.size.to_usize()
     return field
@@ -1527,14 +1527,14 @@ priv place_field_layout := func(type_name: Str, field_name: Str, data: Dynamic, 
 priv ffi_borrow_place := proc(type_name: Str, data: Dynamic, mut ctx: Context) {
     if size_intrinsics_use_sizeof(ctx).not() { return }
     mut visited := Set(Str).new()
-    ffi_borrow_place_walk(type_name, data, word_bits(data).cast(UPtr), visited, ctx)
+    ffi_borrow_place_walk(type_name, data, word_bits(data).to_uptr(), visited, ctx)
 }
 
 priv ffi_refresh_external_place := proc(mut hb: HeapBinding, mut ctx: Context) {
     if hb.ext_target_layout.not() { return }
     ref place : Dynamic = to_ptr(hb.ptr)
     type_name := resolved_type_name(hb_type(hb), ctx.symbols)
-    address := word_bits(place).cast(UPtr)
+    address := word_bits(place).to_uptr()
     if ffi_place_is_foreign(place, ctx) {
         ref existing : ForeignPlace = ctx.eval.foreign_places[address]
         for known : Str in existing.names {
@@ -1578,7 +1578,7 @@ priv ffi_expire_unbound_places := func(mut ctx: Context) {
 }
 
 priv ffi_remember_place := func(type_name: Str, data: Dynamic, root: UPtr, mut ctx: Context) {
-    address := word_bits(data).cast(UPtr)
+    address := word_bits(data).to_uptr()
     if ctx.eval.foreign_places.has(address).not() {
         ctx.eval.foreign_places.set(address, own ForeignPlace(state = calloc(1, 8)))
     }
@@ -3316,7 +3316,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         if c.path.starts_with(display_path(format(c.import_support_dir, "/src/core/"), c.import_cwd)).not() {
             c.eval.failure_site = SourceDiagnostic(path = c.path.clone(), line = e.line, col = e.col)
         }
-        fn_address := word_bits(to_ptr(func_def)).cast(UPtr)
+        fn_address := word_bits(to_ptr(func_def)).to_uptr()
         context_enter_file(c, c.eval.function_paths[fn_address])
     }
     eval_body(call_scope, body, ctx)
@@ -3365,7 +3365,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     returned_foreign := callee_ret_is_ref.and(ffi_place_is_foreign(result, ctx))
     scope_free(own call_scope)
     if returned_foreign {
-        ref place : ForeignPlace = ctx.eval.foreign_places[word_bits(result).cast(UPtr)]
+        ref place : ForeignPlace = ctx.eval.foreign_places[word_bits(result).to_uptr()]
         if ffi_place_borrows(place) == 0 { ffi_place_set_in_flight(place, true) }
     }
     return result
@@ -5213,7 +5213,7 @@ scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: 
     scope_drop_existing_heap_slot(s, name)
     mut meta := HeapBinding(ptr = to_ptr(ptr), til_type_p = til_type_w, own_type = own_type, ctx = ctx, is_local = is_local, is_borrowed = is_borrowed, is_erased_dynamic = is_erased_dynamic, is_static_callable = is_static_callable, moved_out = false)
     if is_borrowed && ffi_place_is_foreign(ptr, ctx) {
-        address := word_bits(ptr).cast(UPtr)
+        address := word_bits(ptr).to_uptr()
         ref place : ForeignPlace = ctx.eval.foreign_places[address]
         ffi_place_add_borrow(place)
         meta.foreign_root = address
@@ -6806,8 +6806,8 @@ namespace:
         np := self.nparam
         mut alloc_np := np
         if alloc_np == 0 { alloc_np = 1 }
-        mut atypes : Dynamic = malloc(alloc_np.mul(8))
-        memcpy(atypes, self.arg_types, alloc_np.mul(8))
+        mut atypes : Dynamic = malloc(alloc_np.mul(Dynamic.size()))
+        memcpy(atypes, self.arg_types, alloc_np.mul(Dynamic.size()))
         mut pdynamics : Dynamic = malloc(alloc_np)
         memcpy(pdynamics, self.param_dynamics, alloc_np)
         mut pmutables : Dynamic = malloc(alloc_np)
@@ -6849,9 +6849,11 @@ FFITypePtrBox := struct {
     // ffi_type.elements), resetting the cache map reclaims everything
     // through ordinary drains; the manual free loop is gone.
     own ptr : ffi_type
-    // libffi writes size_t offsets, independent of this compiler's USize.
+    // libffi writes size_t offsets, independent of this compiler's USize;
+    // size_t is pointer-sized on every supported target, so the raw
+    // buffer holds UPtr elements (UPtr.size() stride).
     // Descriptor size/alignment and these offsets form one cached layout.
-    own offsets : U64
+    own offsets : U8
     layout_status : I32 = 0
 namespace:
     // Same REPL-clone story as FFIEntry.clone above: cloned boxes only
@@ -6877,8 +6879,8 @@ namespace:
         st.alignment = src.alignment
         st.type = src.type
         st.elements = elements
-        mut offsets : Dynamic = calloc(n.add(1), U64.size())
-        memcpy(offsets, self.offsets, n.add(1).mul(U64.size()))
+        mut offsets : Dynamic = calloc(n.add(1), UPtr.size())
+        memcpy(offsets, self.offsets, n.add(1).mul(UPtr.size()))
         return FFITypePtrBox(ptr = st, offsets = offsets, layout_status = self.layout_status)
     }
 }
@@ -6927,6 +6929,16 @@ priv ffi_host_default_abi := proc() returns I32 {
     // libffi writes only the first, riscv_nfixedargs -- the binding's
     // one trailing ffi_cif slot.
     if arch == "riscv64" { return 1 }
+    // Issue #431: the 32-bit targets. riscv32 and linux x86 default to
+    // FFI_SYSV=1 (src/riscv, src/x86 ffitarget.h); windows-x86 is
+    // X86_WIN32, whose default is FFI_MS_CDECL=5. arm32 is hard-float
+    // (gnueabihf, __ARM_PCS_VFP): FFI_VFP=2 (src/arm/ffitarget.h).
+    if arch == "riscv32" { return 1 }
+    if arch == "x86" {
+        if host_os() == "windows" { return 5 }
+        return 1
+    }
+    if arch == "arm32" { return 2 }
     panic(__LOC__, "FFI_DEFAULT_ABI not audited for this arch; add its value from vendor/libffi/src/<arch>/ffitarget.h")
     return 0
 }
@@ -8280,7 +8292,7 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
         // The extra slot also gives field-less structs a valid output buffer.
         // Keep a rejected layout cached: registration already defers unsupported
         // signatures until use; marshalling must report the layout failure.
-        mut offsets : Dynamic = calloc(nelements.add(1), U64.size())
+        mut offsets : Dynamic = calloc(nelements.add(1), UPtr.size())
         ref mut offsets_arg : USize = to_ptr(offsets)
         status := ffi_get_struct_offsets(ffi_host_default_abi(), st, offsets_arg)
         box := FFITypePtrBox(ptr = st, offsets = offsets, layout_status = status)
@@ -9089,7 +9101,7 @@ priv ffi_vec_str_field_slot := func(header: Dynamic, field_name: Str,
     ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
     ref index : USize = sd.fields_index[field_name]
     ref layout : FFITypePtrBox = ffi_cached_layout("Vec__Str", ctx, host_layout)
-    ref offset : U64 = ptr_add(layout.offsets, index.mul(8))
+    ref offset : UPtr = ptr_add(layout.offsets, index.mul(UPtr.size()))
     return ptr_add(header, offset.to_uptr())
 }
 
@@ -9098,7 +9110,7 @@ priv ffi_vec_str_usize_field := func(header: Dynamic, field_name: Str,
     ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
     ref index : USize = sd.fields_index[field_name]
     ref layout : FFITypePtrBox = ffi_cached_layout("Vec__Str", ctx, host_layout)
-    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.mul(8)))
+    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.mul(Dynamic.size())))
     slot : Dynamic = ffi_vec_str_field_slot(header, field_name, host_layout, ctx)
     if field_type.size == 4 { ref n : U32 = to_ptr(slot); return n.to_usize() }
     if field_type.size == 8 { ref n : U64 = to_ptr(slot); return n.to_usize() }
@@ -9140,15 +9152,15 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
         }
         // Map insertions can move the boxes, but their owned descriptor and
         // offset allocations remain stable across nested layout lookups.
-        ref src_offsets : U64 = src_layout.offsets
+        ref src_offsets : U8 = src_layout.offsets
         ref dst_layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, dst_host)
         if dst_layout.layout_status != FFI_OK {
             panic("libffi cannot compute destination layout for ", type_name)
         }
-        ref dst_offsets : U64 = dst_layout.offsets
+        ref dst_offsets : U8 = dst_layout.offsets
         for i in 0..sd.fields.len() {
-            ref src_offset : U64 = ptr_add(src_offsets, i.mul(8))
-            ref dst_offset : U64 = ptr_add(dst_offsets, i.mul(8))
+            ref src_offset : UPtr = ptr_add(src_offsets, i.mul(UPtr.size()))
+            ref dst_offset : UPtr = ptr_add(dst_offsets, i.mul(UPtr.size()))
             ref fd : Declaration = sd.fields[i]
             ref src_field : Dynamic = ptr_add(src, src_offset.to_usize())
             ref mut dst_field : Dynamic = ptr_add(dst, dst_offset.to_usize())
@@ -9157,7 +9169,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             } else if decl_type_name_ref(fd, ctx.symbols).eq("USize").or(decl_type_name_ref(fd, ctx.symbols).eq("UPtr")) {
                 ffi_copy_width_field(type_name, decl_type_name_ref(fd, ctx.symbols), sd.field_name_at(i), src_field, src_host, dst_field, dst_host, ctx)
             } else {
-                ref field_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
+                ref field_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(Dynamic.size())))
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
                     ffi_copy_struct_into(decl_type_name_ref(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx)
                 } else {
@@ -9242,18 +9254,20 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
     ref sd : StructDef = structdef_of(ctx.ffi.struct_defs[type_name].ptr)
     delta := word_bits(borrowed) - word_bits(converted)
     for i in 0..sd.fields.len() {
-        ref from_offset : U64 = ptr_add(from.offsets, i.mul(8))
-        ref into_offset : U64 = ptr_add(into.offsets, i.mul(8))
-        ref ft : ffi_type = deref(ptr_add(from.ptr.elements, i.mul(8)))
-        if delta.lt(from_offset).or(delta.gte(from_offset + ft.size)) { continue }
+        ref from_offset_ref : UPtr = ptr_add(from.offsets, i.mul(UPtr.size()))
+        ref into_offset_ref : UPtr = ptr_add(into.offsets, i.mul(UPtr.size()))
+        from_offset := from_offset_ref.to_u64()
+        into_offset := into_offset_ref.to_u64()
+        ref ft : ffi_type = deref(ptr_add(from.ptr.elements, i.mul(Dynamic.size())))
+        if delta.lt(from_offset).or(delta.gte(from_offset + ft.size.to_u64())) { continue }
         if ft.type == FFI_TYPE_STRUCT.to_u16() {
             return ffi_rebase_reference(decl_type_name_ref(sd.fields[i], ctx.symbols),
                 ptr_add(converted, from_offset.to_usize()), ptr_add(original, into_offset.to_usize()),
                 borrowed, converted_host, original_host, ctx)
         }
-        ref dt : ffi_type = deref(ptr_add(into.ptr.elements, i.mul(8)))
+        ref dt : ffi_type = deref(ptr_add(into.ptr.elements, i.mul(Dynamic.size())))
         within := delta - from_offset
-        if within >= dt.size { panic("FFI returned a reference into width-conversion padding") }
+        if within >= dt.size.to_u64() { panic("FFI returned a reference into width-conversion padding") }
         result : Dynamic = bits_word(word_bits(original) + into_offset + within)
         return result
     }
@@ -9376,9 +9390,11 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     nargs := e.children.len() - 1
     mut alloc_n := nargs
     if alloc_n == 0 { alloc_n = 1 }
-    // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
-    mut args : UPtr = malloc(alloc_n.mul(UPtr.size()))
-    mut arg_ptrs : UPtr = malloc(alloc_n.mul(UPtr.size()))
+    // args[i] = an 8-byte value slot per arg (a void*, or a shallow
+    // scalar up to I64/F64 -- 8 bytes even on 32-bit targets);
+    // arg_ptrs[i] = &args[i], a pointer-sized array.
+    mut args : UPtr = malloc(alloc_n.mul(8))
+    mut arg_ptrs : UPtr = malloc(alloc_n.mul(Dynamic.size()))
     // Per-arg flag: true when args[i] holds a scalar box WE malloc'd on
     // the deep path below. No ext callee takes `own` scalars (the C side
     // only borrows these boxes), so they must be freed after ffi_call --
@@ -9386,9 +9402,10 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     boxed_flags : U8 = calloc(alloc_n, 1)
     // Keep each raw result alive until ffi_call finishes because arg_ptrs may
     // point directly into aggregate storage.
-    mut arg_raws : UPtr = malloc(alloc_n.mul(UPtr.size()).mul(2))
-    mut marshaled_args : UPtr = calloc(alloc_n, UPtr.size())
-    mut marshal_sources : UPtr = calloc(alloc_n, UPtr.size())
+    // 16-byte record per arg: the raw pointer at 0, two Bools at 8 and 9.
+    mut arg_raws : UPtr = malloc(alloc_n.mul(16))
+    mut marshaled_args : UPtr = calloc(alloc_n, Dynamic.size())
+    mut marshal_sources : UPtr = calloc(alloc_n, Dynamic.size())
 
     for i in 0..nargs {
         ref mut arg_expr : Expr = e.children[i + 1]
@@ -9409,21 +9426,21 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             ref param_ffi_type : ffi_type = shallow_ffi_type(param_type, ctx, false)
             if param_ffi_type.type == FFI_TYPE_STRUCT.to_u16() {
                 ref param_own : Bool = ptr_add(fe.param_owns, i)
-                write_ptr(ptr_add(marshal_sources, i.mul(8)), arg_pointer)
+                write_ptr(ptr_add(marshal_sources, i.mul(Dynamic.size())), arg_pointer)
                 // Two arguments borrowing the same object must share one ABI
                 // conversion, so writes through either remain visible to both.
                 mut marshaled : Dynamic = 0
                 for prior in 0..i {
-                    ref source : Dynamic = deref(ptr_add(marshal_sources, prior.mul(8)))
+                    ref source : Dynamic = deref(ptr_add(marshal_sources, prior.mul(Dynamic.size())))
                     if source.ptr_eq(arg_pointer).and(fe.param_types[prior] == param_type) {
-                        marshaled = deref(ptr_add(marshaled_args, prior.mul(8)))
+                        marshaled = deref(ptr_add(marshaled_args, prior.mul(Dynamic.size())))
                         break
                     }
                 }
                 if marshaled.is_null() {
                     marshaled = ffi_marshal_struct(param_type, arg_pointer, source_host, fe.host_layout, ctx)
                 }
-                write_ptr(ptr_add(marshaled_args, i.mul(8)), marshaled)
+                write_ptr(ptr_add(marshaled_args, i.mul(Dynamic.size())), marshaled)
                 if param_own {
                     // The callee takes the converted Vec(Str) buffer and its
                     // elements. Drop only the old-stride source buffer; the
@@ -9444,18 +9461,18 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             is_shallow = ps
         }
         if is_shallow {
-            ref at : Dynamic = ptr_add(fe.arg_types, i.mul(8))
+            ref at : Dynamic = ptr_add(fe.arg_types, i.mul(Dynamic.size()))
             ref atype : Dynamic = deref(at)
             ref ffi_arg_type : ffi_type = to_ptr(atype)
             if ffi_arg_type.type == FFI_TYPE_STRUCT.to_u16() {
-                write_ptr(ptr_add(arg_ptrs, i.mul(8)), arg_pointer)
+                write_ptr(ptr_add(arg_ptrs, i.mul(Dynamic.size())), arg_pointer)
             } else {
                 ref mut dst : Dynamic = ptr_add(args, i.mul(8))
                 if ffi_write_shallow_arg(arg_pointer, arg_info, atype, dst, ctx).not() {
                     if arg_is_callable.and(callable_box_is(arg_pointer)) { panic("FFI cannot receive captured closures") }
                     write_ptr(dst, arg_pointer)
                 }
-                write_ptr(ptr_add(arg_ptrs, i.mul(8)), dst)
+                write_ptr(ptr_add(arg_ptrs, i.mul(Dynamic.size())), dst)
             }
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
@@ -9514,7 +9531,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                 ref mut bf : Bool = ptr_add(boxed_flags, i)
                 bf = true
             }
-            write_ptr(ptr_add(arg_ptrs, i.mul(8)), ptr_add(args, i.mul(8)))
+            write_ptr(ptr_add(arg_ptrs, i.mul(Dynamic.size())), ptr_add(args, i.mul(8)))
         }
     }
 
@@ -9601,13 +9618,13 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     }
     for i in 0..nargs {
         mut marshaled : Dynamic = 0
-        marshaled = deref(ptr_add(marshaled_args, i.mul(8)))
+        marshaled = deref(ptr_add(marshaled_args, i.mul(Dynamic.size())))
         if marshaled.is_null() { continue }
         ref param_own : Bool = ptr_add(fe.param_owns, i)
         ref param_mutable : Bool = ptr_add(fe.param_mutables, i)
         if param_mutable.and(param_own.not()) {
             mut source : Dynamic = 0
-            source = deref(ptr_add(marshal_sources, i.mul(8)))
+            source = deref(ptr_add(marshal_sources, i.mul(Dynamic.size())))
             if fe.param_types[i] == "Vec__Str" {
                 ffi_release_vec_str_buffer(source, ffi_place_is_foreign(source, ctx).not(), ctx)
             }
@@ -9620,17 +9637,17 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         mut borrowed : Dynamic = raw_ptr
         mut borrowed_host := fe.host_layout
         for i in 0..nargs {
-            ref converted : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
+            ref converted : Dynamic = deref(ptr_add(marshaled_args, i.mul(Dynamic.size())))
             if converted.is_null() { continue }
             ref layout : FFITypePtrBox = ffi_cached_layout(fe.param_types[i], ctx, fe.host_layout)
             address := word_bits(raw_ptr)
             start := word_bits(converted)
-            mut in_argument := address.gte(start).and(address.lt(start + layout.ptr.size))
+            mut in_argument := address.gte(start).and(address.lt(start + layout.ptr.size.to_u64()))
             if fe.param_types[i] == "Vec__Str" {
                 in_argument = in_argument.or(ffi_vec_str_reference_offset(converted, raw_ptr, fe.host_layout, ctx).is_some())
             }
             if in_argument.not() { continue } // References to other foreign storage stay foreign.
-            ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
+            ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(Dynamic.size())))
             borrowed_host = ffi_place_is_foreign(source, ctx).not()
             borrowed = ffi_rebase_reference(fe.param_types[i], converted, source, raw_ptr,
                 fe.host_layout, borrowed_host, ctx)
@@ -9642,11 +9659,11 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     // Copy every mutable view back before releasing any shared conversion.
     for i in 0..nargs {
         mut marshaled : Dynamic = 0
-        marshaled = deref(ptr_add(marshaled_args, i.mul(8)))
+        marshaled = deref(ptr_add(marshaled_args, i.mul(Dynamic.size())))
         if marshaled.is_null() { continue }
         mut shared := false
         for prior in 0..i {
-            ref earlier : Dynamic = deref(ptr_add(marshaled_args, prior.mul(8)))
+            ref earlier : Dynamic = deref(ptr_add(marshaled_args, prior.mul(Dynamic.size())))
             if earlier.ptr_eq(marshaled) { shared = true; break }
         }
         if shared.not() {
@@ -9681,7 +9698,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         mut release_moved_wrapper := false
         if i < fe.param_types.len() {
             ref param_own : Bool = ptr_add(fe.param_owns, i)
-            ref marshaled : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
+            ref marshaled : Dynamic = deref(ptr_add(marshaled_args, i.mul(Dynamic.size())))
             release_moved_wrapper = param_own.and(fe.param_types[i] == "Vec__Str")
                 .and(marshaled.is_null().not()).and(arg_is_ref)
         }
@@ -10189,8 +10206,8 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
     np := fd.sig.params.len()
     mut alloc_np := np
     if alloc_np == 0 { alloc_np = 1 }
-    // Build ffi_type* array (each element is a pointer = 8 bytes)
-    mut atypes : Dynamic = malloc(alloc_np.mul(8))
+    // Build ffi_type* array (each element is a pointer)
+    mut atypes : Dynamic = malloc(alloc_np.mul(Dynamic.size()))
     pdynamics : Dynamic = calloc(alloc_np, 1)
     mut pmutables : Dynamic = calloc(alloc_np, 1)
     powns : Dynamic = calloc(alloc_np, 1)
@@ -10206,10 +10223,10 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
         own_slot = pk.own_type.is(OwnType.Own)
         ptypes.push(own decl_type_name_ref(pk, ctx.symbols).clone())
         if pk.own_type.is(OwnType.Shallow) {
-            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(decl_type_name_ref(pk, ctx.symbols), ctx, host_layout))
+            write_ptr(ptr_add(atypes, k.mul(Dynamic.size())), shallow_ffi_type(decl_type_name_ref(pk, ctx.symbols), ctx, host_layout))
             has_shallow = true
         } else {
-            write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))
+            write_ptr(ptr_add(atypes, k.mul(Dynamic.size())), ffi_type_ref("ffi_type_pointer"))
         }
     }
     if has_shallow {

@@ -1516,7 +1516,7 @@ typedef struct Vec__DocEntry {
 
 
 typedef struct _ffi_type {
-    U64 size;
+    UPtr size;
     U16 alignment;
     U16 type;
     U8 *elements;
@@ -1602,7 +1602,7 @@ typedef struct ExprPtrBox {
 
 typedef struct FFITypePtrBox {
     ffi_type *ptr;
-    U64 *offsets;
+    U8 *offsets;
     I32 layout_status;
 } FFITypePtrBox;
 
