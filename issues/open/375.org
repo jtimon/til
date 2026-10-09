@@ -626,6 +626,40 @@ test/jvm_stage_e.til (a lender holding refs to two reassigned locals;
 values moved into a Vec, a callee, an enum payload and a field, then
 their old variables reassigned).
 
+vecs/arrays/strings/enums 2026-10-10: vecs and enums pass (sixteen
+programs). Fixed on the way:
+- ~dyn_size_of~: a generated ~Functions.dynSizeOf~ over C's name set
+  (primitives, width aliases, Dynamic, Fn/Body, every struct and enum),
+  sized by ~jvm_storage_size~ (which now sizes ~Dynamic~ as the layouts
+  do: the host's UPtr).
+- A value passed to a ~Dynamic~ parameter is boxed into a word-or-larger
+  block (~TilRuntime.box<Scalar>~ / ~boxObject~), as C passes a slot's
+  address; a raw ref, a call returning one, or an ~own~ scalar field
+  (~Str.c_str~) is passed as the address itself. A raw ref passed to a
+  value parameter, returned from a value-returning function (~Vec.pop~'s
+  malloc'd ~out~) or asserted is loaded first; a call returning a raw
+  ~ref T~ (~Vec.unsafe_get(i).x~) is a raw ref.
+- ~ptr_eq~ compares storages: a raw ref's address, a scalar's cell, an
+  aggregate's object (~TilRuntime.ptrEq(Object, Object)~).
+- A scalar type's namespace data (~I64.MAX~) is a static of core's I64
+  class, like struct namespace data.
+- A scalar type's til-written method (~I64.safe_div~) is emitted and
+  called like any function; only the natively lowered ones (arithmetic,
+  comparisons, conversions, clone/cmp/to_str, delete) are runtime-bound,
+  and the cell collector agrees with the emitter on its cell args (the
+  ~_err_kind~ of a ~?~ call in a switch guard).
+- Nested enum patterns test ~get_payload(outer).is(...)~ eagerly; a
+  payload view of another variant is the enum class's ~INACTIVE_VIEW~
+  (tag -1, which no ~is~ matches) instead of a failed cast.
+- ~swap_bytes~ on two runtime Strs trades their contents
+  (~TilRuntime.swapStr~).
+- Casts: no redundant ~(byte)~/~(short)~ double cast; ~get_payload~ and
+  raw-ref loads are parenthesized as field receivers.
+Still refused: strings (a module-level constant read inside a function:
+the JVM has no globals yet -- top-level declarations are main's locals),
+arrays (a ~ref~ scalar field holding a raw address, ~AccessorIndexView~'s
+~ref data : T = 0~ fed to ~ptr_add~).
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.

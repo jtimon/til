@@ -14,6 +14,10 @@ priv JvmEmitState := struct {
     // #375: namespace data members ("Type.member") the program reads or
     // writes; Main.main initializes exactly these (jvm_emit_ns_inits).
     ns_used := Set(Str).new()
+    // The current function returns a plain VALUE (not a raw Ptr, not a
+    // cell): a raw ref returned there is loaded first (Vec.pop's
+    // malloc'd `out`, C's `return *out`).
+    return_loads_raw := false
 }
 
 // #326: one method of an emitted class, keyed by the name a caller spells.
@@ -342,6 +346,10 @@ priv jvm_storage_size := func(t: Type, lp: LoadedProgram) returns USize {
     case .Primitive(Primitive.I64): return 8
     case .Primitive(Primitive.U64): return 8
     case .Primitive(Primitive.F64): return 8
+    // A raw pointer, sized as the struct layouts size a Dynamic field
+    // (initer's primitive_type_info: the host's UPtr) -- the 8 bytes
+    // TilRuntime.storePtr writes on a 64-bit host.
+    case .Dynamic: return UPtr.size()
     case .Struct(name): return ctx_total_size(name, lp.ctx)
     case .StructSym(size_ssym): return ctx_total_size(lp.ctx.symbols.resolve(size_ssym), lp.ctx)
     case .Enum(name): return ctx_total_size(name, lp.ctx)
@@ -525,8 +533,21 @@ priv jvm_narrow := func(t: Type, expr: Str) returns Str {
     }
 }
 
+// A scalar type's method this back end lowers natively (arithmetic and
+// comparisons, the ext conversions, clone/cmp/to_str, delete) rather than
+// calling its til body. Anything else (`I64.safe_div`) is an ordinary
+// til function and is emitted like one.
+priv jvm_scalar_method_is_native := func(name: Str) returns Bool {
+    if jvm_is_scalar_function_name(name).not() { return false }
+    sep := name.find("_").to_usize()
+    method := name.substr(sep + 1, name.len() - sep - 1)
+    return jvm_scalar_core_method(method).or(method.eq("clone")).or(method.eq("cmp"))
+        .or(method.eq("to_str")).or(method.eq("to_repr")).or(method.starts_with("to_"))
+        .or(method.eq("from_i64")).or(method.eq("delete"))
+}
+
 priv jvm_runtime_bound_function := func(name: Str) returns Bool {
-    if jvm_is_scalar_function_name(name) { return true }
+    if jvm_scalar_method_is_native(name) { return true }
     if name.eq("println").or(name.eq("print")).or(name.eq("eprintln"))
         .or(name.eq("eprint")).or(name.eq("print_single"))
         .or(name.eq("eprint_single")).or(name.eq("print_flush"))
@@ -537,7 +558,7 @@ priv jvm_runtime_bound_function := func(name: Str) returns Bool {
         .or(name.eq("ptr_add")).or(name.eq("memcpy")).or(name.eq("memmove"))
         .or(name.eq("memset")).or(name.eq("memcmp")).or(name.eq("ptr_eq"))
         .or(name.eq("is_null")).or(name.eq("deref")).or(name.eq("write_ptr"))
-        .or(name.starts_with("write_")).or(name.eq("panic")).or(name.eq("to_ptr")).or(name.eq("noop_proc"))
+        .or(name.starts_with("write_")).or(name.eq("panic")).or(name.eq("to_ptr")).or(name.eq("noop_proc")).or(name.eq("dyn_size_of"))
         .or(name.eq("assert")).or(name.starts_with("assert_eq__"))
         .or(name.eq("expect")) { return true }
     return false
@@ -1052,6 +1073,12 @@ priv jvm_collect_cells := proc(e: Expr, mut cells: Set(Str),
                     }
                 }
             }
+        }
+        // A scalar type's til-written method (`I64.safe_div`, whose
+        // throws lowering adds an `_err_kind` out-param) is emitted as an
+        // ordinary call with typed args (jvm_emit_typed_args), so its
+        // cell params need cell args here too.
+        if name.len() > 0 {
             fdef_o := jvm_find_fdef(name, lp)
             if fdef_o.is_some() {
                 ref fd : FunctionDef = funcdef_of(fdef_o.unwrap())
@@ -1196,8 +1223,11 @@ priv jvm_emit_cell_ref := proc(e: Expr, mut state: JvmEmitState,
 // global. "" when it is not namespace data (an instance field).
 priv jvm_ns_data_owner := func(receiver: Expr, member: Str, lp: LoadedProgram) returns Str {
     rt := jvm_concrete(receiver.til_type(), lp)
-    if is_struct_type(rt).or(is_enum_type(rt)).not() { return "" }
-    tname := Str.clone(type_name_ref(rt, lp.ctx.symbols))
+    mut tname := ""
+    if is_struct_type(rt).or(is_enum_type(rt)) { tname = Str.clone(type_name_ref(rt, lp.ctx.symbols)) }
+    // A scalar's namespace (`I64.MAX`) is core's I64 struct declaration.
+    else if is_primitive(rt) { tname = jvm_scalar_name(rt, lp) }
+    if tname.len() == 0 { return "" }
     def_o := lp.ctx.scope.get_struct(tname, lp.ctx.symbols)
     if def_o.is_none() { return "" }
     ref def : Expr = def_o.unwrap()
@@ -1225,6 +1255,16 @@ priv jvm_ns_static := proc(e: Expr, tname: Str, member: Str,
         mut cls := jvm_struct_class(tname)
         if def_o.unwrap().node_type.is(NodeType.EnumDef) { cls = jvm_enum_class(tname) }
         return format(cls, ".ns_", jvm_package_segment(member))
+}
+
+// An operand of ptr_eq is a STORAGE: a raw ref is its address, a scalar
+// binding its cell (two refs to one scalar share the cell), an aggregate
+// its object -- compared by identity (TilRuntime.ptrEq).
+priv jvm_ptr_eq_operand := proc(e: Expr, mut state: JvmEmitState,
+    lp: LoadedProgram) returns Str {
+        if jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names) { return jvm_emit_expr(e, state, lp) }
+        if jvm_is_scalar(e.til_type(), lp) { return jvm_emit_cell_ref(e, state, lp) }
+        return jvm_emit_expr(e, state, lp)
 }
 
 priv jvm_emit_struct_ctor := proc(e: Expr, name: Str,
@@ -1441,13 +1481,38 @@ priv jvm_emit_typed_args := proc(e: Expr, fd: FunctionDef,
             mut arg := ""
             if jvm_param_needs_cell(fd, pi, lp) {
                 arg = jvm_emit_cell_ref(e.children[i], state, lp)
-            } else if pi.lt(fd.sig.params.len()).and(fd.sig.params[pi].til_type.is(Type.Dynamic))
-                .and(jvm_expr_is_raw_ref(e.children[i], state, lp.ctx.symbols.names)) {
-                // A raw ref handed to a Dynamic parameter (`adopt`'s
-                // `dest`, Vec.unsafe_set's slot) is the address itself.
-                arg = jvm_emit_expr(e.children[i], state, lp)
+            } else if pi.lt(fd.sig.params.len()).and(fd.sig.params[pi].til_type.is(Type.Dynamic)) {
+                ref darg : Expr = e.children[i]
+                ref dt : Type = darg.til_type()
+                mut darg_is_raw := jvm_expr_is_raw_ref(darg, state, lp.ctx.symbols.names)
+                if darg.node_type.is(NodeType.FCall).and(jvm_fcall_returns_raw_ref(darg, lp)) { darg_is_raw = true }
+                switch darg.node_type {
+                case .FieldAccess(dfa):
+                    if darg.children.len() == 1 {
+                        if jvm_field_is_raw(darg.children[0].til_type(), dfa.field_access_name(lp.ctx.symbols.names), lp) {
+                            darg_is_raw = true
+                        }
+                    }
+                case:
+                }
+                if darg_is_raw {
+                    // A raw ref handed to a Dynamic parameter (`adopt`'s
+                    // `dest`, Vec.unsafe_set's slot) is the address itself.
+                    arg = jvm_emit_expr(darg, state, lp)
+                } else if jvm_is_scalar(dt, lp) {
+                    // A value where a Dynamic is expected: C passes the
+                    // address of a slot holding it; box it into one.
+                    arg = format("TilRuntime.box", jvm_scalar_name(dt, lp), "(", jvm_emit_value(darg, state, lp), ")")
+                } else if jvm_is_runtime_str(dt, lp).or(is_struct_type(dt)).or(is_enum_type(dt)) {
+                    arg = format("TilRuntime.boxObject(", jvm_emit_value(darg, state, lp), ", ",
+                        jvm_storage_size(dt, lp).to_str(), "L)")
+                } else {
+                    arg = jvm_emit_value(darg, state, lp)
+                }
             } else {
-                arg = jvm_emit_value(e.children[i], state, lp)
+                // A value parameter takes the value: a raw ref (a for-in
+                // binding into an Array) is loaded first.
+                arg = jvm_emit_compared(e.children[i], state, lp)
             }
             out = format(out, arg)
         }
@@ -1469,7 +1534,11 @@ priv jvm_emit_compared := proc(e: Expr, mut state: JvmEmitState,
 priv jvm_emit_value := proc(e: Expr, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         out := jvm_emit_expr(e, state, lp)
-        if jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names) {
+        mut is_raw := jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names)
+        // A call returning a raw `ref T` (Vec.unsafe_get) is typed T, not
+        // Dynamic, but hands back the slot's address all the same.
+        if e.node_type.is(NodeType.FCall).and(jvm_fcall_returns_raw_ref(e, lp)) { is_raw = true }
+        if is_raw {
             if is_struct_type(e.til_type()).or(is_enum_type(e.til_type())) {
                 return format("((", jvm_type_lp(e.til_type(), lp), ") TilRuntime.value(", out, ", ",
                     ctx_total_size(type_name_ref(e.til_type(), lp.ctx.symbols), lp.ctx).to_str(), "L))")
@@ -1599,6 +1668,11 @@ priv jvm_emit_conversion := func(target_in: Type, source_in: Str, value: Str, lp
         if source == "U64" { return format("TilRuntime.u64ToF64(", value, ")") }
         return format("(double) (", value, ")")
     }
+    // I8/I16: the narrowing IS the cast to byte/short; a second one is
+    // redundant (javac -Xlint:cast).
+    if type_is_primitive(target, Primitive.I8).or(type_is_primitive(target, Primitive.I16)) {
+        return jvm_narrow(target, value)
+    }
     return jvm_narrow(target, format("(", jt, ") (", value, ")"))
 }
 
@@ -1674,7 +1748,10 @@ priv jvm_emit_closure := proc(e: Expr, fd: FunctionDef,
                 params = format(params, jvm_var_name(param.name))
             }
         }
+        saved_closure_loads_raw := state.return_loads_raw
+        state.return_loads_raw = false
         body := format(prologue, jvm_emit_body(e.children[0], 1, state, lp))
+        state.return_loads_raw = saved_closure_loads_raw
         state.cells = saved_cells
         state.cell_types = saved_cell_types
         state.raw_refs = saved_raw_refs
@@ -1722,7 +1799,8 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
             ref sb_a : Expr = e.children[1]
             if is_struct_type(sb_a.til_type()).or(is_enum_type(sb_a.til_type())) {
                 if jvm_is_runtime_str(sb_a.til_type(), lp) {
-                    return jvm_fail_expr(e, "swap of a runtime Str", state, lp.ctx.symbols.names)
+                    return format("TilRuntime.swapStr(", jvm_emit_expr(sb_a, state, lp), ", ",
+                        jvm_emit_expr(e.children[2], state, lp), ")")
                 }
                 return format(jvm_emit_expr(sb_a, state, lp), ".swapContents(",
                     jvm_emit_expr(e.children[2], state, lp), ")")
@@ -1737,7 +1815,7 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
                 jvm_emit_expr(e.children[2], state, lp), ")")
         }
         if name == "assert" {
-            return format("TilRuntime.assertTrue(", jvm_emit_expr(e.children[1], state, lp), ", ",
+            return format("TilRuntime.assertTrue(", jvm_emit_compared(e.children[1], state, lp), ", ",
                 jvm_emit_expr(e.children[2], state, lp), ")")
         }
         if name == "expect" {
@@ -1796,8 +1874,12 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
             if jt.len() == 0 {
                 return jvm_fail_expr(e, "enum payload type", state, lp.ctx.symbols.names)
             }
-            return format("(", jt, ") TilRuntime.enumPayload(",
-                jvm_emit_expr(e.children[1], state, lp), ")")
+            if is_enum_type(jvm_concrete(e.til_type(), lp)) {
+                return format("TilRuntime.payloadView(", jvm_emit_expr(e.children[1], state, lp),
+                    ", ", jt, ".class, ", jt, ".INACTIVE_VIEW)")
+            }
+            return format("((", jt, ") TilRuntime.enumPayload(",
+                jvm_emit_expr(e.children[1], state, lp), "))")
         }
         if name == "dyn_type_to_str" {
             return format("TilRuntime.dynTypeToStr(",
@@ -1850,8 +1932,8 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
                 jvm_emit_expr(e.children[2], state, lp), ", ", jvm_emit_expr(e.children[3], state, lp), ")")
         }
         if name == "ptr_eq" {
-            return format("TilRuntime.ptrEq(", jvm_emit_expr(e.children[1], state, lp), ", ",
-                jvm_emit_expr(e.children[2], state, lp), ")")
+            return format("TilRuntime.ptrEq(", jvm_ptr_eq_operand(e.children[1], state, lp), ", ",
+                jvm_ptr_eq_operand(e.children[2], state, lp), ")")
         }
         if name == "is_null" {
             return format("(", jvm_emit_expr(e.children[1], state, lp), " == null)")
@@ -1901,6 +1983,9 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
                 jvm_emit_expr(e.children[2], state, lp), ")")
         }
         if name == "noop_proc" { return "TilRuntime.noopProc()" }
+        if name == "dyn_size_of" {
+            return format("Functions.dynSizeOf(", jvm_emit_expr(e.children[1], state, lp), ")")
+        }
         if name == "usize_to_uptr" {
             return format("Integer.toUnsignedLong(", jvm_emit_expr(e.children[1], state, lp), ")")
         }
@@ -2483,6 +2568,10 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
             }
             mut value := ""
             if state.return_cell { value = jvm_emit_cell_ref(e.children[0], state, lp) }
+            else if state.return_loads_raw.and(jvm_expr_is_raw_ref(e.children[0], state, lp.ctx.symbols.names)) {
+                if jvm_is_scalar(e.children[0].til_type(), lp) { value = jvm_emit_compared(e.children[0], state, lp) }
+                else { value = jvm_emit_value(e.children[0], state, lp) }
+            }
             else { value = jvm_emit_expr(e.children[0], state, lp) }
             return format(jvm_source_comment(e, state, depth), jvm_indent(depth), "return ", value, ";\n")
         case .Body:
@@ -2582,6 +2671,8 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
                 .and(is_struct_type(rt).or(is_enum_type(rt))) { ret = "TilRuntime.Ptr" }
             else { ret = jvm_decl_type(fexpr, rt, state, lp) }
         }
+        saved_return_loads_raw := state.return_loads_raw
+        state.return_loads_raw = ret.eq("void").or(ret.eq("TilRuntime.Ptr")).or(state.return_cell).not()
         mut pts := Vec(Str).new()
         mut sig_cells := Set(Str).new()
         for i in 0..fd.sig.params.len() {
@@ -2628,6 +2719,7 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
         state.raw_refs = saved_raw_refs
         state.callable_defs = saved_callable_defs
         state.return_cell = saved_return_cell
+        state.return_loads_raw = saved_return_loads_raw
         return out
 }
 
@@ -2675,8 +2767,27 @@ priv jvm_delete_value := func(t: Type, value: Str, lp: LoadedProgram) returns St
     return format(value, ".delete()")
 }
 
-priv jvm_field_is_cell := func(owner_type: Type, field_name: Str,
+// An `own` scalar field is a raw heap block (C's `I8 *c_str`): reading
+// it yields the block's ADDRESS, a TilRuntime.Ptr.
+priv jvm_field_is_raw := func(owner_type_in: Type, field_name: Str,
     lp: LoadedProgram) returns Bool {
+        owner_type := jvm_concrete(owner_type_in, lp)
+        if is_struct_type(owner_type).not() { return false }
+        def_o := lp.ctx.scope.get_struct(type_name_ref(owner_type, lp.ctx.symbols), lp.ctx.symbols)
+        if def_o.is_none() { return false }
+        ref def_expr : Expr = def_o.unwrap()
+        if def_expr.node_type.is(NodeType.StructDef).not() { return false }
+        ref sd : StructDef = structdef_of(def_expr)
+        if sd.fields_index.has(field_name).not() { return false }
+        ref field : Declaration = sd.field_at(sd.fields_index[field_name])
+        return jvm_is_scalar(field.til_type, lp).and(field.own_type.is(OwnType.Own))
+}
+
+priv jvm_field_is_cell := func(owner_type_in: Type, field_name: Str,
+    lp: LoadedProgram) returns Bool {
+        // A Custom spelling (a payload type, a type declared after its
+        // use) is the struct the scope resolves it to.
+        owner_type := jvm_concrete(owner_type_in, lp)
         if jvm_is_runtime_str(owner_type, lp) { return false }
         switch owner_type {
         case .StructSym(owner_ssym):
@@ -2928,6 +3039,7 @@ priv jvm_emit_enum := func(decl: Expr, package_name: Str, lp: LoadedProgram) ret
         "        this.tag = tag;\n",
         "        this.payload = payload;\n",
         "    }\n\n")
+    jvm_add_member(out, "INACTIVE_VIEW", format("    static final ", cls, " INACTIVE_VIEW = new ", cls, "(-1L, null);\n"))
     jvm_add_member(out, "tilTag", "    public long tilTag() { checkLive(); return tag; }\n")
     jvm_add_member(out, "tilOrdinal", format("    int tilOrdinal() {\n",
         "        checkLive();\n", ordinals, "    }\n"))
@@ -3193,6 +3305,50 @@ priv jvm_add_ns_fields := func(state: JvmEmitState, mut classes: Vec(JvmClassOut
         }
 }
 
+// dyn_size_of: a type's storage size by NAME, for the runtime-typed
+// containers (Tuple, the std dyn_* family). The same name set as C's
+// emit_dyn_size_of_body -- primitives, the width aliases, Dynamic, the
+// closure stand-ins, every struct and enum -- each sized as this back end
+// stores it (jvm_storage_size). An unknown name fails loudly, as in C.
+priv jvm_emit_dyn_size_of := func(lp: LoadedProgram) returns Str {
+    usize_t := type_from_name_init_name("USize", lp.ctx.scope, lp.ctx.symbols)
+    rt := jvm_type_lp(usize_t, lp)
+    mut arms := ""
+    mut seen := Set(Str).new()
+    mut names := Vec(Str).new()
+    for prim : Str in PRIM_NAMES { names.push(own prim.clone()) }
+    for alias_name : Str in WIDTH_ALIAS_NAMES { names.push(own alias_name.clone()) }
+    names.push(own "Dynamic")
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        for stmt : Expr in iu.ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            names.push(own decl_of(stmt).name.clone())
+        }
+    }
+    for tname : Str in names {
+        if seen.has(tname) { continue }
+        seen.add(own tname.clone())
+        t := type_from_name_init_name(tname, lp.ctx.scope, lp.ctx.symbols)
+        mut size : USize = 0
+        if tname == "Dynamic" { size = jvm_storage_size(Type.Dynamic, lp) }
+        else if is_primitive(jvm_concrete(t, lp)).or(is_struct_type(t)).or(is_enum_type(t)) {
+            size = jvm_storage_size(t, lp)
+        } else { continue }
+        arms = format(arms, "        case \"", tname, "\": return ", jvm_int_const(usize_t, size.to_str(), lp), ";\n")
+    }
+    // The closure stand-ins: a pointer-sized slot, as C's sizeof(TilClosure *).
+    ptr_size := jvm_int_const(usize_t, jvm_storage_size(Type.Dynamic, lp).to_str(), lp)
+    arms = format(arms, "        case \"Fn\": return ", ptr_size, ";\n",
+        "        case \"Body\": return ", ptr_size, ";\n")
+    return format("    static ", rt, " dynSizeOf(TilRuntime.Str typeName) {\n",
+        "        String name = TilRuntime.javaString(typeName);\n",
+        "        switch (name) {\n", arms,
+        "        default: throw new IllegalStateException(\"dyn_size_of: unknown type \" + name);\n",
+        "        }\n",
+        "    }\n")
+}
+
 priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
     mut state: JvmEmitState, lp: LoadedProgram) returns Str {
         ref iu : ImportUnit = lp.ctx.imported[root.path]
@@ -3402,6 +3558,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
                 }
             }
         }
+        jvm_add_member(functions_out, "dynSizeOf", jvm_emit_dyn_size_of(lp))
         functions_out.tail = "}\n"
         classes.push(own functions_out)
         mut main_out := JvmClassOut(name = "Main")

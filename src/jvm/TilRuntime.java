@@ -167,6 +167,16 @@ public final class TilRuntime {
         return ((EnumValue) value).tilTag() == ((EnumValue) other).tilTag();
     }
 
+    // A payload VIEW as an enum type: nested patterns test
+    // `outer.is(A).and(get_payload(outer).is(Inner.B))` eagerly -- harmless
+    // pointer arithmetic in C, a failed cast here when `outer` holds another
+    // variant. That view is the enum class's INACTIVE_VIEW instead: tag -1,
+    // which no `is` matches and any other use rejects as an invalid tag.
+    public static <T> T payloadView(Object value, Class<T> cls, T inactive) {
+        Object payload = ((EnumValue) value).tilPayload();
+        return cls.isInstance(payload) ? cls.cast(payload) : inactive;
+    }
+
     public static Object enumPayload(Object value) {
         return ((EnumValue) value).tilPayload();
     }
@@ -433,6 +443,12 @@ public final class TilRuntime {
         return new Ptr(block, (int) next);
     }
 
+    // Any other storage -- a scalar's cell, an aggregate's object -- is
+    // the same storage exactly when it is the same Java object.
+    public static boolean ptrEq(Object left, Object right) {
+        return left == right;
+    }
+
     public static boolean ptrEq(Ptr left, Ptr right) {
         return left == right || left != null && right != null
             && left.block == right.block && left.offset == right.offset;
@@ -545,6 +561,23 @@ public final class TilRuntime {
     public static void storeF64(Ptr ptr, double value) { storeI64(ptr, Double.doubleToRawLongBits(value)); }
     public static void storeBool(Ptr ptr, boolean value) { storeU8(ptr, value ? 1 : 0); }
 
+    // A value handed where a Dynamic is expected (`vec(Dynamic, true, 7)`):
+    // C passes the address of a slot holding it; the JVM boxes it into a
+    // block read back through the raw ref. The block is at least a
+    // Dynamic's width (a word), as a value that fits is stored IN the
+    // Dynamic slot and consumers copy the whole slot.
+    public static Ptr boxI8(byte value) { Ptr p = malloc(Long.BYTES); storeI8(p, value); return p; }
+    public static Ptr boxU8(int value) { Ptr p = malloc(Long.BYTES); storeU8(p, value); return p; }
+    public static Ptr boxI16(short value) { Ptr p = malloc(Long.BYTES); storeI16(p, value); return p; }
+    public static Ptr boxU16(int value) { Ptr p = malloc(Long.BYTES); storeU16(p, value); return p; }
+    public static Ptr boxI32(int value) { Ptr p = malloc(Long.BYTES); storeI32(p, value); return p; }
+    public static Ptr boxU32(int value) { Ptr p = malloc(Long.BYTES); storeU32(p, value); return p; }
+    public static Ptr boxI64(long value) { Ptr p = malloc(Long.BYTES); storeI64(p, value); return p; }
+    public static Ptr boxU64(long value) { Ptr p = malloc(Long.BYTES); storeU64(p, value); return p; }
+    public static Ptr boxF32(float value) { Ptr p = malloc(Long.BYTES); storeF32(p, value); return p; }
+    public static Ptr boxF64(double value) { Ptr p = malloc(Long.BYTES); storeF64(p, value); return p; }
+    public static Ptr boxBool(boolean value) { Ptr p = malloc(Long.BYTES); storeBool(p, value); return p; }
+
     public static Object loadObject(Ptr ptr, long size) {
         int width = checkedRange(ptr, size);
         ObjectSlot slot = ptr.block.objects.get(ptr.offset);
@@ -571,7 +604,7 @@ public final class TilRuntime {
     }
 
     public static Ptr boxObject(Object value, long size) {
-        Ptr ptr = malloc(size);
+        Ptr ptr = malloc(Math.max(size, Long.BYTES));
         storeObject(ptr, value, size);
         return ptr;
     }
@@ -594,6 +627,11 @@ public final class TilRuntime {
 
     public static Str makeStr(Ptr data, int count, int capacity) {
         return new Str(data, count, capacity);
+    }
+
+    // A til Str's bytes as a Java String (type names for reflection).
+    public static String javaString(Str value) {
+        return new String(value.bytes(), StandardCharsets.UTF_8);
     }
 
     private static Str hostStr(String value) {
@@ -669,6 +707,16 @@ public final class TilRuntime {
         target.count = value.count;
         target.capacity = value.capacity;
         target.deleted = false;
+    }
+
+    // swap_bytes on two Strs (a `mut` Str param's `param = rhs`): the two
+    // objects trade contents, so each keeps its identity -- what borrows
+    // it sees the new value, as C's byte swap leaves the storage in place.
+    public static void swapStr(Str a, Str b) {
+        Ptr data = a.data; a.data = b.data; b.data = data;
+        int count = a.count; a.count = b.count; b.count = count;
+        int capacity = a.capacity; a.capacity = b.capacity; b.capacity = capacity;
+        boolean deleted = a.deleted; a.deleted = b.deleted; b.deleted = deleted;
     }
 
     public static void deleteStr(Str value) {
