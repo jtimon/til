@@ -1,0 +1,85 @@
+# priority: low
+# category: bugs
+** FIXED #421 Returning a Str view of a file-level global is rejected as "of local"
+
+*** Post-mortem
+
+Root cause: view_return_base_local / view_base_owner (src/self/typer.til)
+treated every Str binding reached through the scope chain as an owned
+local of the returning frame. They exempted params, aliases, builtins and
+~ref~ bindings, but nothing distinguished a file-level binding, whose
+buffer is not freed before program exit. The diagnostic also printed the
+binding's ~name~, which for a ~priv~ global is the mangled
+~priv__<path>__<orig>~.
+
+Fix: a new resolves_at_file_scope walks the scope chain to the scope that
+actually binds the symbol (so a local shadowing a global is still a
+local). An immutable file-level binding now bottoms out as "" like a
+param, after the ~is_str_view~ chain is followed, so a file-level view of
+a ~mut~ global still reports. A ~mut~ global stays rejected, since
+reassigning it frees the buffer, with its own wording ("of mut global
+... which reassigning it frees -- .clone() the result"). Both messages
+use ~orig_name~ when the binding has one.
+
+Regression: test/strings.til ~test_view_return_of_global~ (literal, priv,
+computed, and file-level-view globals, both backends) and
+test/typer_errors.til ~terr421_view_of_mut_global~ /
+~terr421_view_of_priv_mut_global~ (needles "of mut global" and
+"of mut global 'TERR421_PRIV_MG'" in both typer_errors rows).
+
+check_str_view_of_local_return (src/self/typer.til) rejects returning a
+view (~substr~ and the other str_method_returns_view methods) of a
+FILE-LEVEL Str value, calling it a local whose buffer "dies with this
+call". A global's buffer lives for the whole program, so the return is
+safe. For a ~priv~ global the message also prints the mangled name.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+
+DIGITS := "0123456789abcdef"
+priv PDIGITS := "0123456789abcdef"
+
+digit := func(i: USize) returns Str {
+    return DIGITS.substr(i, 1)
+}
+
+pdigit := func(i: USize) returns Str {
+    return PDIGITS.substr(i, 1)
+}
+
+println(digit(10))
+println(pdigit(11))
+#+end_src
+
+Output on master 24203b4:
+
+#+begin_example
+a.til:7:5: error: cannot return 'substr' of local 'DIGITS': the result is a view sharing that local's buffer, which dies with this call -- return a param's view, or .clone() the result
+a.til:11:5: error: cannot return 'substr' of local 'priv__tmp_viewbug_a_til__PDIGITS': the result is a view sharing that local's buffer, which dies with this call -- return a param's view, or .clone() the result
+2 type error(s) found
+#+end_example
+
+Hit while writing the #418 regression test; the test copies into a
+fresh Str instead (the same workaround U256.to_hex in
+src/core/numbers.til uses with its local ~digits~ table).
+
+*** Likely cause
+
+view_return_base_local / view_base_owner treat any Str binding found
+through the scope chain as an owned local of the current frame. They
+skip params, aliases, builtins and ~ref~ bindings, but not bindings
+that resolve to the file (root) scope. The diagnostic also formats the
+binding's ~name~ rather than its ~orig_name~.
+
+*** Open question
+
+An immutable global is plainly safe. A ~mut~ global Str can be
+reassigned after the view is returned, freeing the buffer the view
+points into, so it may need to stay rejected (with a message that says
+"global", not "local") or be handled by whatever rule governs views of
+mutable storage generally.
+
+Regression: the reproducer on both backends (immutable plain and priv
+globals accepted), plus the mut-global case per the decision above.

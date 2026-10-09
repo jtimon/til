@@ -10121,7 +10121,11 @@ priv str_method_returns_view := func(name: Str) returns Bool {
 //     call and returning it is the normal borrowing idiom;
 //   - a `ref` binding or alias borrows storage this frame does not own,
 //     the same trust `returns ref` already extends;
-//   - a literal receiver is static.
+//   - a literal receiver is static;
+//   - #421: an immutable file-level binding is never freed before program
+//     exit, so a view of it outlives any call. A `mut` one is still
+//     reported: reassigning it frees the buffer a returned view points
+//     into.
 //
 // A local whose own initializer is a view is NOT owned storage either --
 // it aliases whatever its base was -- so it is followed back to that base
@@ -10146,8 +10150,20 @@ priv str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPo
     }
 }
 
+// #421: does `sym` resolve to the file (root) scope -- a global -- rather
+// than a binding of some enclosing block, function or captured frame? The
+// caller already found `sym`, so the walk always ends at its binding.
+priv resolves_at_file_scope := func(scope: TypeScope, sym: Sym) returns Bool {
+    if scope.has_local_binding_sym(sym) { return scope.parent.is_none() }
+    switch scope.parent {
+    case .Some(p): return resolves_at_file_scope(p, sym)
+    case .None: panic(__LOC__, "resolves_at_file_scope: binding not in any scope")
+    }
+    return false
+}
+
 // Walk a view chain by NAME to whoever owns the storage, and report that
-// owner only when it is an owned local of this frame. A param, a `ref`, an
+// owner only when it is an owned local of this frame (or a mut global). A param, a `ref`, an
 // alias or a builtin bottoms out as "" -- storage this frame did not
 // allocate and does not free.
 priv view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Str {
@@ -10162,6 +10178,7 @@ priv view_base_owner := func(name: Str, scope: TypeScope, symbols: SymbolPool) r
             return view_base_owner(b.str_view_base, scope, symbols)
         }
         if type_name_ref(b.type, symbols) != "Str" { return "" }
+        if b.is_mut.not().and(resolves_at_file_scope(scope, symbols.lookup(name).unwrap())) { return "" }
         return Str.clone(name)
     case: return ""
     }
@@ -10186,6 +10203,7 @@ priv view_return_base_local := func(recv: Expr, scope: TypeScope, symbols: Symbo
                 return view_base_owner(b.str_view_base, scope, symbols)
             }
             if type_name_ref(b.type, symbols) != "Str" { return "" }
+            if b.is_mut.not().and(resolves_at_file_scope(scope, rid.ident_sym())) { return "" }
             return Str.clone(rid.ident_name(symbols.names))
         case: return ""
         }
@@ -10221,8 +10239,21 @@ priv check_str_view_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ct
     if ret_val.children.len() < 2 { return }
     base := view_return_base_local(ret_val.children[1], scope, ctx.symbols)
     if base.len() == 0 { return }
+    base_sym := ctx.symbols.lookup(base).unwrap()
+    ref base_b : TypeBinding = scope.get_binding_sym(base_sym).unwrap()
+    // A priv global's binding name is mangled; report the source spelling.
+    mut shown := Str.clone(base)
+    if base_b.orig_name.len() > 0 { shown = base_b.orig_name.clone() }
+    if resolves_at_file_scope(scope, base_sym) {
+        stmt.type_error(format(
+            "cannot return '", method, "' of mut global '", shown,
+            "': the result is a view sharing that global's buffer, which reassigning it frees -- ",
+            ".clone() the result",
+        ), ctx)
+        return
+    }
     stmt.type_error(format(
-        "cannot return '", method, "' of local '", base,
+        "cannot return '", method, "' of local '", shown,
         "': the result is a view sharing that local's buffer, which dies with this call -- ",
         "return a param's view, or .clone() the result",
     ), ctx)

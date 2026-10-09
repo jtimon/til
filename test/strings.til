@@ -512,6 +512,30 @@ test_view_return_legal_shapes := test() {
     assert_eq(Str, "static".substr(0, 3), "sta")
 }
 
+// #421: an immutable file-level Str is never freed before exit, so a view
+// of it may be returned like a param's -- literal, priv (whose binding name
+// is mangled), computed, and a file-level view of a computed one. A `mut`
+// global stays rejected (pinned in test/typer_errors.til).
+STR421_DIGITS := "0123456789abcdef"
+priv STR421_PRIV_DIGITS := "0123456789abcdef"
+STR421_DAYS := format("Mon", "Tue", "Wed")
+STR421_TAIL := STR421_DAYS.substr(3, 6)
+
+str421_digit := func(i: USize) returns Str { return STR421_DIGITS.substr(i, 1) }
+
+str421_priv_digit := func(i: USize) returns Str { return STR421_PRIV_DIGITS.substr(i, 1) }
+
+str421_day := func(i: USize) returns Str { return STR421_DAYS.substr(i * 3, 3) }
+
+str421_tail_day := func() returns Str { return STR421_TAIL.trim().substr(3, 3) }
+
+test_view_return_of_global := test() {
+    assert_eq(Str, str421_digit(10), "a")
+    assert_eq(Str, str421_priv_digit(11), "b")
+    assert_eq(Str, str421_day(1), "Tue")
+    assert_eq(Str, str421_tail_day(), "Wed")
+}
+
 test_borrowed_view_in_container := test() {
     // The case this exists for: a set of names borrowed from strings that
     // outlive it. Teardown frees the set's boxes, not the shared bytes.

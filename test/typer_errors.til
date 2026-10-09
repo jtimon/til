@@ -1686,6 +1686,21 @@ terr372_chained_view := func(n: USize) returns Str {
     return base.trim().substr(0, 3)
 }
 
+// #421: an immutable global's view may be returned (test/strings.til), a
+// `mut` one may not: reassigning it frees the buffer the view points into.
+// The priv one pins that the message shows the source name, not the
+// mangled binding name.
+mut TERR421_MG := format("mut", "global")
+priv mut TERR421_PRIV_MG := format("mut", "global")
+
+terr421_view_of_mut_global := func() returns Str {
+    return TERR421_MG.substr(0, 3)
+}
+
+terr421_view_of_priv_mut_global := func() returns Str {
+    return TERR421_PRIV_MG.substr(0, 3)
+}
+
 // #373: dyn_call dispatching `delete` over an owned LOCAL releases it
 // twice -- the dispatched body runs, and the garbager's own scheduled
 // delete for the local runs as well (abort compiled, segfault
