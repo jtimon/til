@@ -4495,6 +4495,18 @@ priv infer_ident_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: Con
                 expr.set_til_type(Type.CustomSym(ctx.symbols.intern(resolved_name)))
             }
         }
+        // #425: a function-generator alias (`id_i64 := make_id(I64)`) is a
+        // type-alias binding of its monomorphization, not a value of its
+        // own. A call already rewrites the callee to the target
+        // (infer_fcall_expr); a value use must too, or the backends look
+        // for a function value named after the alias.
+        if ib.is_type_alias.and(ib.alias_target.is_empty().not())
+            .and(scope.lookup_func_by_sym(id_name.ident_sym(), ctx.symbols).is_some()) {
+            target_sym := ctx.symbols.intern(ib.alias_target)
+            alias_type := expr.til_type().clone()
+            expr.node_type = ident_node(target_sym)
+            expr.set_til_type(alias_type)
+        }
     }
 }
 

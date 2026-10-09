@@ -1,6 +1,30 @@
 # priority: low
 # category: bugs
-** OPEN #425 A function-generator alias cannot be used as a function value
+** FIXED #425 A function-generator alias cannot be used as a function value
+
+*** Post-mortem
+
+Root cause: ~register_type_alias_for_stmt~ (initer) registers a
+function-generator alias (~id_i64 := make_id__I64~ after
+~init_normalize_direct_type_gen_aliases~) as a TYPE-ALIAS binding
+(~is_type_alias~, ~alias_target = make_id__I64~), unlike a plain
+function alias, which is an ordinary value decl. The typer rewrote a
+CALLEE through that alias to its target (~infer_fcall_expr~), but a
+value use of the alias name kept the alias Ident, so the interpreter
+looked for a heap binding named ~id_i64~ and the C backend for an
+~id_i64__til_closure~ that is never emitted.
+
+Fix: ~infer_ident_expr~ (src/self/typer.til) rewrites an Ident whose
+binding is a type alias of a function to the alias target, keeping the
+inferred FuncPtr type, exactly like the call path does. Both backends
+then see the canonical monomorphization (~make_id__I64~) and its closure
+wrapper.
+
+Regression test: ~test_macro_func_gen_alias_as_value~
+(test/first_class.til) -- a type-param and a value-param generator alias
+bound to a funcsig local and passed as an ~Fn~ argument.
+
+*** Description
 
 A user alias of a hand-written FuncDef macro instance
 (~id_i64 := make_id(I64)~) can be CALLED, but using it as a function
