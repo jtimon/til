@@ -1,0 +1,115 @@
+# priority: medium
+# category: features
+** OPEN #439 Evaluate and coordinate the user-defined mode promise against real downstream applications
+
+Use this issue to judge what "user-defined modes" actually promises and
+coordinate the remaining work. An application author outside the Til repository
+should be able to define, distribute and use an execution environment through
+supported interfaces, rather than needing a new compiler special case for each
+application or native dependency. Record evidence and explicit boundaries, not
+just successful parsing of a new mode name.
+
+This is a coordination/acceptance issue, not approval of new syntax, metadata
+files, caches, package layouts or compiler hooks. Keep implementation in focused
+issues and use downstream acceptance programs to decide whether it delivers the
+agreed contract. Do not reopen [[../fixed/63.org][#63]] merely because its agreed loader scope
+did not include every possible platform feature.
+
+*** Observed baseline
+
+Reviewed Til master ~730e60642~ and Nostril ~56dedd5~; downstream builds currently
+use installed Til ~f24e6004c~. This review inspected source/documentation, not a
+new cross-platform verification run.
+
+- ~src/std/mode_type.til~ exposes needs_main, decls_only, auto_import,
+  is_library, is_pure, run_tests and debug_prints. Mode definitions are ordinary
+  ~mode mode~ files supplied through ~--extra-modes~.
+- #63 covers imported mode files, per-file support, resolution relative to the
+  defining file, initialization, diagnostics and declaration-only enforcement.
+  Support modules can compose ordinary imports and link/link_c declarations.
+- ~needs_main~ selects the existing entry contract. Arbitrary entry signatures
+  and output generators are not part of that schema. ~theme~ still selects a
+  compiler-owned generator by name; GUI target support is recognized through
+  the resolved built-in GUI support module. The tutorial's Roc-platform analogy
+  needs to be read alongside these actual limits.
+- A source mode is distinct from runtime backend selection, an editor's modal
+  keymap, and interpreter embedding. [[370.org][#370 / TilVm]] is relevant to dynamic guest
+  loading but is not itself a user-mode packaging or platform interface.
+
+*** Two downstream acceptance cases
+
+**** Tiled: baseline application environment
+
+[[https://github.com/jtimon/tiled][Tiled]] currently uses mode gui for its hosts, mode cli for its build/test
+drivers and mode lib for reusable components. Its own code owns editor state,
+commands/keymaps, terminal lifecycle, session persistence and native adapters.
+User configuration currently compiles a temporary GUI child; live configuration
+is a separate #370 dependency.
+
+Use it to check whether a third-party support prelude can combine GUI facilities,
+project-owned libraries and native bridges without making the compiler know
+Tiled by name. Its planned CLI host is also useful for detecting accidental GUI
+dependencies in supposedly reusable mode support. Tiled remains jtimon/tiled
+until an explicit repository transfer; do not invent a tilcorp remote.
+
+**** Nostril: the harder composition/dependency case
+
+[[https://github.com/jtimon/nostril][Nostril]] already has a root ~modes.til~ declaring ~nostril_client~ and
+~nostril_relay~, both with needs_main and project-relative support preludes.
+~lib/modes/nostril_nng.til~ brings together NNG bindings, generated native-link
+selection and the generated client-library interface. The GUI separately uses
+mode gui; the protocol library remains mode lib.
+
+Its build owns vendored NNG 1.11, a static archive and a shared interpreter twin.
+The current archive/twin preparation is Linux-specific. Existing local harnesses
+exercise inproc/IPC, REQ/EOSE/CLOSE and a layered pub/sub test. They are not proof
+of a complete NIP-01 public relay, event validation or remote interoperability.
+See Nostril's ~doc/build.org~ and ~doc/transports.org~.
+
+This stresses mode support beyond an imported convenience module: native build
+ownership, target selection, interpreter loading, protocol libraries shared by
+GUI/CLI/relay hosts, and future WebSocket/WebRTC or NIP-specific capabilities.
+Do not turn every transport/NIP into a different protocol implementation or
+pretend that a static source mode is a runtime transport negotiation mechanism.
+
+*** Evaluation and coordination checklist
+
+- [ ] Publish a capability matrix: what a mode author can express today, what
+  belongs in ordinary library/build code, what needs an approved extension, and
+  what is explicitly outside the promise. Include built-in-only behavior.
+- [ ] Prove installed-SDK consumption from an external project and another cwd:
+  imported mode definitions/support resolve predictably, initialize once, and
+  fail usefully on missing/conflicting definitions. Reuse #63 regressions.
+- [ ] Define distribution/relocation and ownership of source support, generated
+  bindings, native artifacts and runtime assets. The compiler checkout must not
+  be an application's implicit SDK or dependency store.
+- [ ] Resolve per-target native dependencies and per-host interpreter twins in
+  [[422.org][#422]], coordinated with [[420.org][#420]]. A third-party NNG-like mode must not need
+  edits to compiler-owned library tables. Diagnose missing/unsupported targets
+  before an opaque linker error; distinguish compile success from runtime tests.
+- [ ] Check interpreted/compiled agreement for support initialization, effects,
+  ownership, main/lifecycle behavior and cleanup. Document when mode-definition
+  or support code executes, and which native operations each backend supports.
+- [ ] Decide whether application-supplied entry adapters/output generation are
+  required, and specify their contract if so. Do not assume inheritance or a
+  new DSL is necessary where ordinary imports and host code suffice.
+- [ ] Keep embedding/guest callable lifetime requirements in #370 and any
+  restricted-mode policy in [[215.org][#215]]. Do not confuse convenience auto-imports
+  with a capability boundary or promise unsupported sandboxing.
+- [ ] Add small external-project acceptance fixtures modeled on Tiled and
+  Nostril, with native dependencies supplied by their owner. Exercise native
+  build/run and interpretation plus explicitly supported targets; report
+  unsupported combinations honestly instead of extrapolating from one host.
+
+*** Working method
+
+Maintain a short table of claim, evidence, blocker issue, owning session and
+next acceptance check as work lands. Application sessions provide concrete
+requirements/reproducers; Til sessions own compiler/SDK changes. Keep protocol
+and UI implementation in the downstream projects. Prefer the smallest complete
+external-project round trip over expanding the Mode record speculatively.
+
+References: [[file:../../doc/tutorial/2_modes.org][mode documentation]], [[../fixed/63.org][#63]], [[422.org][#422]], [[420.org][#420]], [[370.org][#370]], [[215.org][#215]],
+and the project-owned modes/preludes in Nostril. This issue remains open until
+the agreed promise has an explicit, verified contract and remaining exclusions
+are documented, rather than being implied by the word "mode".
