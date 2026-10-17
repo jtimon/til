@@ -53,6 +53,20 @@ both widths, and runs the Array/Vec/Tuple and nested-word cases under
 Follow-up verification: ~make clean && make test~ passed all 520 tests;
 the linux-x86 QEMU probe commands passed locally at both USize widths.
 
+*** Follow-up: avoid repeated compiler work in the probes
+
+The added coverage made ~cpu_options~ the suite's critical path. Build the
+byte-count executable once per width and batch successful runtime inputs;
+overflow cases still run separately. One failing translation checks all
+three distinct slot diagnostics, and one exported library per target/width
+covers word acceptance, ABI, and the runtime probe bodies. Native and QEMU
+wrappers call that same library. All five targets and both widths remain.
+
+With the same compiler binaries, the isolated test fell from 106.72s to
+65.73s (38%). All 520 suite tests and both QEMU widths passed. Concurrent
+master/worktree builds affected the full-suite timing, so that run is not
+a controlled wall-time comparison.
+
 The analysis below records the pre-fix state.
 
 *** Re-analysis (2026-10-07)
