@@ -59,7 +59,7 @@ priv check_dynamic_widths := proc(compiler: Str) {
     File.writefile(format(WORK, "/dynamic_wide.til"),
         "mode script\nx : U64 = 123\na := array(Dynamic, x)\nprintln(a.len().to_str())\ny : U64 = 456\nmut v := Vec(Dynamic).new()\nv.push(own y)\nprintln(v.len().to_str())\nPair := struct { a: UPtr; b: UPtr }\np := Pair(a = 1, b = 2)\npa := array(Dynamic, p)\nprintln(pa.len().to_str())\n")
     File.writefile(format(WORK, "/dynamic_shallow.til"),
-        format("mode lib\nWord := struct { bits: UPtr }\nNested := struct { word: Word }\nPair := struct { a: U32; b: U32 }\nread_word := func(x: Nested) returns UPtr { return x.word.bits }\nread_pair := func(x: Pair) returns U32 { return x.a + x.b }\nmake_words := func() returns Array(Dynamic) { x := Nested(word = Word(bits = 123)); return array(Dynamic, x) }\n",
+        format("mode lib\nWord := struct { bits: UPtr }\nNested := struct { word: Word }\nPair := struct { a: U32; b: U32 }\nread_word := func(x: Nested) returns UPtr { return x.word.bits }\nread_pair := func(x: Pair) returns U32 { return x.a + x.b }\nmake_words := func() returns Array(Dynamic) { x := Nested(word = Word(bits = 123)); return array(Dynamic, x) }\nconvert_count := func(count: USize) returns UPtr { return usize_to_uptr(count) }\n",
         "check_dynamic := proc(name: Str) {\nif Dynamic.size() != UPtr.size() { panic(\"Dynamic width\") }\nif dyn_size_of(name) != Dynamic.size() { panic(\"runtime width\") }\nx : UPtr = 123\ny : UPtr = 456\na := array(Dynamic, x, y)\nmut v := Vec(Dynamic).new()\nv.push(own x)\nv.push(own y)\nmut t := Tuple.new()\nt.push_all_dynamic(a)\nref first : UPtr = t.get(0)\nref second : UPtr = t.get(1)\nref last : UPtr = v.unsafe_get(1)\nif first != 123 || second != 456 || last != 456 { panic(\"word copy/stride\") }\nif t.size_at(0) != Dynamic.size() { panic(\"tuple width\") }\nprintln(\"dynamic widths passed\")\n}\n"))
     File.writefile(format(WORK, "/dynamic_width.til"),
         "mode cli\nimport(\"dynamic_shallow\")\nmain := proc(name: Str) { check_dynamic(name) }\n")
@@ -76,6 +76,11 @@ priv check_dynamic_widths := proc(compiler: Str) {
         // reason. Overflow cases still need separate processes: panic exits.
         _built := execute(Cmd.new(compiler, "build", flag, "pointer_count.til"))
         wide_native := width.eq("64").and(target_uptr_name(detect_current_target()) == "U64")
+        native_code := File.readfile(format(WORK, "/gen/til/pointer_count.c"))
+        needs_check := width.eq("64").and(wide_native.not())
+        if native_code.contains("usize_to_uptr: byte count exceeds pointer width") != needs_check {
+            panic("wrong native byte-count macro branch: ", flag)
+        }
         if wide_native {
             expected := "0\n4294967295\n4294967296\n18446744073709551615\n"
             expect_output(Cmd.new(count_executable, "0", "4294967295", "4294967296", "18446744073709551615"), expected)
@@ -117,6 +122,11 @@ priv check_dynamic_widths := proc(compiler: Str) {
             }
             if emitted.contains("Dynamic_size(void) {\n    return sizeof(void *);").not() {
                 panic("Dynamic.size lost target sizeof: ", target, " ", flag)
+            }
+            // Inspect C before optimization: only the narrowing specialization
+            // may contain the overflow path. Runtime tests below check its limits.
+            if emitted.contains("usize_to_uptr: byte count exceeds pointer width") != width.eq("64") {
+                panic("wrong target byte-count macro branch: ", target, " ", flag)
             }
             // Scalar conversions can be interpreted with target widths even
             // though pointer-bearing container storage stays host-sized.

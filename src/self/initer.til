@@ -2959,7 +2959,7 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), re
 // a branch deterministically once T's substitution is applied. Returns
 // 1 (true), 0 (false), or -1 (shape not understood, caller falls back
 // to leaving the macro un-expanded).
-priv init_macro_cond_eval := func(cond: Expr, symbols: SymbolPool) returns I32 {
+priv init_macro_cond_eval := func(cond: Expr, scope: TypeScope, symbols: SymbolPool) returns I32 {
     if cond.node_type.is(NodeType.FCall).not() { return -1 }
     if cond.children.len() != 2 { return -1 }
     ref callee : Expr = cond.children[0]
@@ -3006,7 +3006,17 @@ priv init_macro_cond_eval := func(cond: Expr, symbols: SymbolPool) returns I32 {
         case .Ident(p_arg_recv): if p_arg_recv.ident_name(symbols.names).eq("Primitive").not() { return -1 }
         case: return -1
         }
-        if lhs_name == prim_name { return 1 }
+        // Instance names and substituted signatures deliberately preserve
+        // USize/UPtr. A semantic type test must nevertheless compare their
+        // TARGET primitives, just as the typer does, not those spellings.
+        resolved := type_from_name_init_name(lhs_name, scope, symbols)
+        switch resolved {
+        case .Primitive(p):
+            mut expected := Primitive.U8
+            if builtin_primitive_from_name(prim_name, expected).not() { return -1 }
+            if p == expected { return 1 }
+        case:
+        }
         return 0
     }
     if arg.node_type.is(NodeType.FieldAccess).not() { return -1 }
@@ -3030,7 +3040,7 @@ priv init_macro_cond_eval := func(cond: Expr, symbols: SymbolPool) returns I32 {
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return; the caller falls back to leaving the macro un-expanded.
-priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), mut symbols: SymbolPool) returns Option(ref Expr) {
+priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: TypeScope, mut symbols: SymbolPool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
@@ -3060,13 +3070,13 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), mut symbol
         // which branch a `T.is(...)` condition picks.
         init_substitute_idents(cond_clone, subs, Set(Str).new(), symbols)
     }
-    res := init_macro_cond_eval(cond_clone, symbols)
+    res := init_macro_cond_eval(cond_clone, scope, symbols)
     if res < 0 { return Option(ref Expr).None }
     if res == 1 {
-        return init_macro_pick_return(s.children[1], subs, symbols)
+        return init_macro_pick_return(s.children[1], subs, scope, symbols)
     }
     if s.children.len() < 3 { return Option(ref Expr).None }
-    return init_macro_pick_return(s.children[2], subs, symbols)
+    return init_macro_pick_return(s.children[2], subs, scope, symbols)
 }
 
 priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
@@ -5046,7 +5056,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     case:
     }
 
-    ret_val_o := init_macro_pick_return(body, subs, ctx.symbols)
+    ret_val_o := init_macro_pick_return(body, subs, scope, ctx.symbols)
     if ret_val_o.is_none() { return false }
     ref ret_val : Expr = ret_val_o.unwrap()
     ret_val_ok := ret_val.node_type.is(NodeType.StructDef)

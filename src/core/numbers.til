@@ -865,17 +865,30 @@ USize := U64
 /// 32-bit targets before typecheck/codegen.
 UPtr := U64
 
+// Function generators select their return before typing the generated body.
+// These Type arguments resolve to TARGET primitives, unlike interpreter
+// size() queries. USize/UPtr currently select U32 or U64: only U64 -> U32
+// needs the checked body; every other combination emits just a conversion.
+make_usize_to_uptr := macro(SizeType: Type, PointerType: Type) returns FuncDef {
+    if PointerType.is(Type.Primitive(Primitive.U64)) {
+        return func(val: USize) returns UPtr { return val.to_uptr() }
+    } else if SizeType.is(Type.Primitive(Primitive.U32)) {
+        return func(val: USize) returns UPtr { return val.to_uptr() }
+    } else {
+        return func(val: USize) returns UPtr {
+            converted := val.to_uptr()
+            if converted.cast(U64) != val.cast(U64) {
+                panic("usize_to_uptr: byte count exceeds pointer width")
+            }
+            return converted
+        }
+    }
+}
+
 /// Convert a container-sized byte count to the target's pointer width.
 /// Panic if the byte count cannot fit; --usize=64 can exceed a 32-bit
-/// target's address range. Compare widened values after conversion rather
-/// than size() queries, which describe host storage in the interpreter.
-usize_to_uptr := func(val: USize) returns UPtr {
-    converted := val.to_uptr()
-    if converted.cast(U64) != val.cast(U64) {
-        panic("usize_to_uptr: byte count exceeds pointer width")
-    }
-    return converted
-}
+/// target's address range. Non-narrowing targets have no runtime check.
+usize_to_uptr := make_usize_to_uptr(USize, UPtr)
 
 /// 256-bit unsigned value (issue #235): the width of a SHA-256 digest, a
 /// secp256k1 secret key, an x-only public key and a BIP-340 message.

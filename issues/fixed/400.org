@@ -67,6 +67,24 @@ With the same compiler binaries, the isolated test fell from 106.72s to
 master/worktree builds affected the full-suite timing, so that run is not
 a controlled wall-time comparison.
 
+*** Follow-up: select the conversion body with a til macro
+
+~make_usize_to_uptr(USize, UPtr)~ is now a ~macro~ returning ~FuncDef~.
+The existing generator's compile-time type tests select a conversion-only
+body for U32->U32, U32->U64 and U64->U64; only U64->U32 retains the overflow
+check. Selection happens during initialization, before the generated body
+is typed, with no runtime size test and no dependence on C optimization.
+
+The generator's primitive-type condition evaluator now resolves aliases
+through the target type scope. Previously it compared the preserved
+~UPtr~ spelling against ~U64~ and chose the wrong branch. Instance names
+and substituted signatures still preserve width-alias spellings.
+
+~check_dynamic_widths~ additionally inspects emitted C: the overflow path
+must be absent on non-narrowing builds and present on narrowing builds.
+This reuses the existing compilations and target matrix. All 520 tests and
+the linux-x86 QEMU checks at both USize widths passed.
+
 The analysis below records the pre-fix state.
 
 *** Re-analysis (2026-10-07)
