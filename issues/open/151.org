@@ -96,8 +96,13 @@
     ~panic: null deref\n~ and throw that same exception.
   - Dynamic and typed raw pointers use one native pointer word. Typed scalar
     pointer reads check for null before loading. Borrowed/owned aggregate
-    fields and ref-returning functions use the aggregate pointer ABI;
-    function-pointer interfaces remain pending.
+    fields and ref-returning functions use the aggregate pointer ABI.
+  - Callable values are pointers to a four-word TilClosure descriptor:
+    call address, environment, drop callback, clone callback. Static functions
+    share ownerless descriptors; captures own an environment when present.
+    Generated typed trampolines prepend the environment to the lowered ABI,
+    retaining native out parameters for aggregate returns and pointers for
+    borrowed returns. Mutable/borrowed callable slots hold a descriptor pointer.
   - ~TilStr~ matches til's three-field value (~c_str~, ~count~, ~cap~), with
     counts/capacities and literal/view sentinels matching the resolved USize.
     Generated HolyC defines that width before including ~Ext.HC~. TempleOS rejects
@@ -153,7 +158,7 @@
   - [ ] Add TempleOS-native filesystem, timing, task, and other ~ext_func~
     primitives individually. Keep host ~link_c~, include flags, generic
     libffi, and unavailable primitives as explicit errors.
-  - [ ] Add function addresses, indirect calls, closures, ~dyn_fn~,
+  - [X] Add function addresses, indirect calls, closures, ~dyn_fn~,
     reflection, and callable cleanup only after the scalar and aggregate ABI
     is stable; these need a HolyC-specific callable representation.
   - [X] Make guest acceptance reproducible in the repository and CI:
@@ -615,6 +620,53 @@
   NUL, and repr round trips. The expanded raw-assignment corpus also passes
   natively at both widths. The clean hosted ASAN suite passes 496/496, and
   the complete TempleOS guest runner passes all 53 cases.
+
+*** Milestone 4: callable values, closures, and metadata
+
+  HolyC emits typed adapters for function values and indirect calls from the
+  shared FuncSig contracts. Capturing FuncDefs and Body values initialize
+  environment records with borrowed addresses or owned/private storage;
+  generated clone/drop callbacks preserve those modes. Callable values travel
+  through parameters, returns, struct fields, enum payloads, and the existing
+  dynamic containers' callable-slot operations. Temporary capturing arguments
+  are released after borrowed calls, and reassignment clones borrowed callable
+  sources before their hoisted temporaries are destroyed.
+
+  dyn_fn resolves counted type names and statically identified method names to
+  generated descriptors with the existing erased-method ABI. Clone/delete/cmp
+  adapters bridge ordinary element
+  storage to dynamic callers. dyn_has_method, dynamic size/storage-kind queries,
+  Type rendering, and struct/enum/FuncSig metadata primitives are emitted from
+  loaded definitions into the existing HolyC output; no separate metadata file
+  or persistent registry is introduced.
+
+  Shared acceptance exposed and fixed existing host-path bugs: C captured
+  aggregates were emitted as values but selected with ->; script-global capture
+  values were mistaken for function definitions; callable assignment could
+  retain a hoisted temporary's descriptor after its deletion. Interpretation
+  now invokes language destructors for owned capture payloads, preserves static
+  function-pointer slots when converting from Dynamic, and refreshes payload /
+  static-callable ownership markers after reassignment. Indirect throwing calls
+  resolve their FuncSig throw contract before hidden error arguments are lowered.
+  Capture teardown leaves primitive slots to raw environment cleanup and runs
+  aggregate payload destructors without freeing the outer slot; environment
+  cleanup then releases that slot once. FuncSig reflection excludes lowered
+  hidden error parameters, matching interpreter and C source-contract metadata.
+
+  The existing shared aggregate corpus now has 151 output lines. New runtime
+  checks cover named/indirect function values, captures, escaping owned returns,
+  destructor counts, dynamic-vector clone/delete, Body callbacks, ref returns,
+  throwing/catching indirect calls, field/payload invocation, reassignment,
+  temporary capture arguments, dyn_fn, and struct/enum/FuncSig metadata. Hosted
+  ASAN and native TempleOS agree at both USize widths. The clean hosted ASAN
+  suite passes 524/524, including clang validation, and the complete TempleOS
+  guest runner passes all 53 cases. build/run provisioning and native GUI remain
+  the next platform milestones.
+
+  Rebased acceptance preserves the named FuncPtrSig type token passed to
+  DynVec.new; the translation golden was refreshed for that shared frontend
+  change. The build dispatcher also borrows Build mutably, matching its stored
+  Handler signature under the callback mutability checks.
 
 *** QEMU validation
 

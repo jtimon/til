@@ -142,6 +142,16 @@ public class TilStrArray {
   TIL_USIZE cap;
 };
 
+// Function values share one descriptor shape; generated typed trampolines
+// adapt the call field to each lowered signature. Static functions have no
+// environment owner; capturing values own an environment and both callbacks.
+public class TilClosure {
+  U8 *call;
+  U8 *env;
+  U0 (*drop)(U8 *env);
+  U8 *(*clone)(U8 *env);
+};
+
 public U0 TilRawWriteUnchecked(U8 *data,U64 count)
 {
   U64 i=0;
@@ -248,6 +258,57 @@ public U0 TilFree(U8 *ptr)
 public U0 TilFloatDelete(U8 *ptr,Bool call_free)
 {
   if (call_free) Free(ptr);
+}
+
+public TilClosure *TilClosureNew(U8 *code,U8 *env,U8 *drop_fn,U8 *clone_fn)
+{
+  TilClosure *value=TilMAlloc(sizeof(TilClosure))(TilClosure *);
+  value->call=code;
+  value->env=env;
+  value->drop=drop_fn;
+  value->clone=clone_fn;
+  return value;
+}
+
+public U0 TilClosureDelete(TilClosure *value)
+{
+  // Zeroed container slots and empty/moved callable fields are expected.
+  if (value && value->drop) {
+    value->drop(value->env);
+    TilFree(value);
+  }
+}
+
+public TilClosure *TilClosureClone(TilClosure *value)
+{
+  // Empty slots stay empty; static descriptors are shared, never freed.
+  if (!value || !value->drop) return value;
+  return TilClosureNew(value->call,value->clone(value->env),value->drop,value->clone);
+}
+
+public U0 TilClosureSlotDelete(TilClosure **slot)
+{
+  TilClosureDelete(*slot);
+  *slot=NULL;
+}
+
+public U8 *TilClosureSlotClone(TilClosure **slot)
+{
+  TilClosure **out=TilMAlloc(sizeof(U8 *))(TilClosure **);
+  *out=TilClosureClone(*slot);
+  return out;
+}
+
+public U0 TilClosureSlotTake(TilClosure **slot,TilClosure *value)
+{
+  *slot=value;
+}
+
+public TilClosure *TilClosureSlotPop(TilClosure **slot)
+{
+  TilClosure *value=*slot;
+  *slot=NULL;
+  return value;
 }
 
 public U8 *TilMemCpy(U8 *dst,U8 *src,U64 count)
@@ -1136,6 +1197,12 @@ public U0 TilPrintln(TilStrArray *parts)
   TilRawWrite("\n",1);
 }
 
+public U0 TilStrTakeBox(TilStr *out,TilStr *box)
+{
+  TilStrCopyValue(out,box);
+  TilFree(box);
+}
+
 public U0 TilFormat(TilStr *out,TilStrArray *parts)
 {
   TIL_USIZE total=0,i=0;
@@ -1506,6 +1573,36 @@ public U64 TilFloatParse(TilStr *source,I64 width,Bool separators)
   TilFree(digits);
   TilFree(text);
   return sign|lo;
+}
+
+// Metadata dispatchers are generated from the same loaded definitions as
+// ordinary methods. Names remain counted strings, not C-string lookups.
+public Bool TilStrNameEq(TilStr *name,U8 *literal)
+{
+  I64 count=StrLen(literal);
+  return name->count==count && (!count || !MemCmp(name->c_str,literal,count));
+}
+
+public U0 TilReflectMissing(U8 *who,TilStr *name)
+{
+  TilRawWrite(who,StrLen(who));
+  TilRawWrite(": type '",8);
+  TilStrWrite(name);
+  TilRawWrite("' not found\n",12);
+  TilPanicZ("  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere\n");
+}
+
+public U0 TilReflectIndex(U8 *who,TilStr *name,I64 index)
+{
+  TilStr text;
+  TilRawWrite(who,StrLen(who));
+  TilRawWrite(": type '",8);
+  TilStrWrite(name);
+  TilRawWrite("' index ",8);
+  TilStrFromI64(&text,index);
+  TilStrWrite(&text);
+  TilStrDelete(&text,FALSE);
+  TilPanicZ(" out of range\n");
 }
 
 public I64 TilClockMs()

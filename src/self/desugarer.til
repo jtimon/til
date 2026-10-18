@@ -1578,7 +1578,21 @@ priv find_callee_throws_key := func(mut scope: TypeScope, mut ctx: Context, fcal
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case .Ident(n):
-        return registry_exact_key(ctx, n.ident_name(ctx.symbols.names))
+        ref name : Str = n.ident_name(ctx.symbols.names)
+        direct := registry_exact_key(ctx, name)
+        if direct.len() > 0 { return direct }
+        // Callable variables carry the throw contract of their FuncSig,
+        // not a free-function registry entry under the variable's name.
+        sig_name := guess_local_type(scope, body, name, ctx.symbols)
+        if sig_name.len() > 0 {
+            signature := registry_exact_key(ctx, sig_name)
+            if signature.len() > 0 { return signature }
+        }
+        ref func_state : TyperFuncState = scope.typer_func_state()
+        if func_state.lowering_param_types.has(name) {
+            return registry_exact_key(ctx, func_state.lowering_param_types[name])
+        }
+        return ""
     case .FieldAccess(fname):
         ref method : Str = fname.field_access_name(ctx.symbols.names)
         owner := callee_owning_type(scope, ctx, fcall, body)
@@ -1587,6 +1601,11 @@ priv find_callee_throws_key := func(mut scope: TypeScope, mut ctx: Context, fcal
             if exact_key.len() > 0 { return exact_key }
             scoped_key := register_method_throws_from_scope(ctx, owner, method)
             if scoped_key.len() > 0 { return scoped_key }
+            field_sig := struct_field_type(ctx, owner, method)
+            if field_sig.len() > 0 {
+                field_key := registry_exact_key(ctx, field_sig)
+                if field_key.len() > 0 { return field_key }
+            }
             marker := owner.find("__")
             if marker > 0 {
                 base_owner := owner.substr(0, marker.to_usize())

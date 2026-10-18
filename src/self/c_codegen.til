@@ -130,6 +130,9 @@ priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FCall).and(fcall_returns_c_value(obj, ctx)) { return true }
     switch obj.node_type {
     case .Ident(ident):
+        // Captures are emitted as *env->field, an aggregate value even
+        // though the environment keeps its storage through a pointer.
+        if ctx.closure_emit_captures.has(ident.ident_sym()) { return true }
         if is_stack_local(ident.ident_sym(), ctx) { return true }
         if is_value_global(ident.ident_sym(), ctx) { return true }
         // Value parameters, whether shallow or an owned aggregate, use '.'
@@ -164,12 +167,18 @@ priv is_ext_h_type := func(name: Str) returns Bool {
 // print_single / print_flush have hand-written prototypes emitted as
 // part of the standard prelude (see emit_header_defs_and_funcs_lp);
 // suppressing the ext_proc-side emission avoids a duplicate decl.
+priv builder_rhs_is_definition := func(rhs: Expr) returns Bool {
+    switch rhs.node_type {
+    case .FuncDef(fd): return fd.captures.len() == 0
+    case .StructDef, .EnumDef: return true
+    case: return false
+    }
+}
+
 priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     ref rhs : Expr = stmt.children[0]
-    if rhs.node_type.is(NodeType.FuncDef) { return false }
-    if rhs.node_type.is(NodeType.StructDef) { return false }
-    if rhs.node_type.is(NodeType.EnumDef) { return false }
+    if builder_rhs_is_definition(rhs) { return false }
     if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return false }
     }
@@ -2760,6 +2769,24 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // the old rewritten shape.
         if ad.is_move.and(rhs_is_clone_fcall(rhs, ctx.symbols)).and(rhs.children.len().gte(2)) {
             rhs = rhs.children[1]
+        }
+        if type_is_callable_storage(e.til_type()).and(ad.is_move.not())
+            .and(rhs.node_type.is(NodeType.Ident).or(rhs.node_type.is(NodeType.FieldAccess))) {
+            // A borrowed callable source must outlive neither the assignment
+            // nor a hoisted temporary's subsequent delete. Clone its owned
+            // environment using the same slot operation as containers.
+            f.write("{ TilClosure *callable_source = ")
+            emit_deref(f, rhs, depth, ctx)
+            f.write("; TilClosure **callable_copy = til_closure_slot_clone(&callable_source); ")
+            mut target := acname.clone()
+            if ctx.closure_emit_captures.has(assign_sym) { target = format("(*", ctx.closure_emit_env, "->", aname, ")") }
+            else if is_ref_local(assign_sym, ctx) { target = format("(*", acname, ")") }
+            if ad.save_old_delete {
+                f.write("TilClosure *callable_old = ").write(target)
+                f.write("; if (callable_old && callable_old->drop) { callable_old->drop(callable_old->env); free(callable_old); } ")
+            }
+            f.write(target).write(" = *callable_copy; free(callable_copy); }\n")
+            return
         }
         if ctx.closure_emit_captures.has(assign_sym) {
             // Writes THROUGH the env pointer into the captured local's
@@ -8399,6 +8426,7 @@ priv emit_funcsig_alias_typedef := proc(f: File, stmt: Expr, rhs: Expr, dd: Decl
 priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, mut lp: LoadedProgram) {
     switch rhs.node_type {
     case .FuncDef(fd):
+        if fd.captures.len() > 0 { return }
         if builder_is_type_gen_macro_def(rhs) { return }
         if rhs.children.len() == 0 { return }
         if mode.needs_main {
@@ -10186,7 +10214,7 @@ priv builder_script_main_leaves := func(mut lp: LoadedProgram) returns Bool {
             if bsl_stmt.node_type.is(NodeType.Decl) {
                 if global_decl_has_c_static_initializer(bsl_stmt, lp.ctx) { continue }
                 ref bsl_rhs : Expr = bsl_stmt.children[0]
-                if bsl_rhs.node_type.is(NodeType.FuncDef).or(bsl_rhs.node_type.is(NodeType.StructDef)).or(bsl_rhs.node_type.is(NodeType.EnumDef)) { continue }
+                if builder_rhs_is_definition(bsl_rhs) { continue }
             }
             bsl_last = safe_ref(bsl_stmt)
         }
@@ -10224,7 +10252,7 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
                 if gs.node_type.is(NodeType.Decl) {
                     if global_decl_has_c_static_initializer(gs, lp.ctx) { continue }
                     ref rhs : Expr = gs.children[0]
-                    if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
+                    if builder_rhs_is_definition(rhs) { continue }
                     if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                 } else if gs.node_type.is(NodeType.FCall).not() { continue }
                 emit_stmt(f, gs, 1, lp.ctx)
@@ -10238,7 +10266,7 @@ priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
             if stmt.node_type.is(NodeType.Decl) {
                 if global_decl_has_c_static_initializer(stmt, lp.ctx) { continue }
                 ref rhs : Expr = stmt.children[0]
-                if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
+                if builder_rhs_is_definition(rhs) { continue }
             }
             emit_stmt(f, stmt, 1, lp.ctx)
         }
@@ -10265,6 +10293,7 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
         f.write("\n")
         end_shared_core_definition(f, partitioned_enum)
     case .FuncDef(fd):
+        if fd.captures.len() > 0 { return }
         if builder_is_type_gen_macro_def(rhs) { return }
         if fd.sig.func_type.is_bodyless() { return }
         if rhs.children.len() == 0 { return }

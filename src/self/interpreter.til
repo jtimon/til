@@ -2776,6 +2776,12 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 assign_hb.ptr = to_ptr(new_raw)
             }
             assign_hb.moved_out = false
+            // This is a new live value even when the previous payload was
+            // explicitly deleted before assignment. Its cleanup owns it.
+            assign_hb.payload_released = false
+            if heap_type_is_callable(hb_type(assign_hb)) {
+                assign_hb.is_static_callable = heap_slot_is_static_callable(hb_type(assign_hb), to_ptr(assign_hb.ptr))
+            }
         case .FieldAssign(fad):
             fname := fad.name
             ref mut val_expr : Expr = stmt.children[1]
@@ -5452,6 +5458,28 @@ priv callable_box_free := func(mut ptr: Dynamic) {
     scope_free(own Option(Scope).take(own env_old))
     mut owned_ptr : Dynamic = ptr
     EvalHeap.heap_free(own owned_ptr)
+}
+
+// The callable's language-level delete owns capture teardown. Raw scope
+// cleanup only knows storage layouts; it cannot run a user destructor.
+priv eval_callable_capture_delete := proc(mut value: Dynamic, site: Expr, mut ctx: Context) {
+    if callable_box_is(value).not() { return } // Static function values own no environment.
+    ref mut box : InterpCallableBox = to_ptr(value)
+    ref mut env : Scope = callable_env(box)
+    for name in env.heap_bindings.keys {
+        ref mut hb : HeapBinding = env.heap_bindings[name]
+        if hb.is_borrowed.or(hb.moved_out).or(hb.payload_released) { continue }
+        ref mut data : Dynamic = to_ptr(hb.ptr)
+        if heap_type_is_callable(hb_type(hb)) {
+            eval_callable_capture_delete(deref(data), site, ctx)
+        } else if raw_type_is_prim(hb_type(hb), ctx).not() {
+            // The capture's slot belongs to the environment, like stack
+            // storage. Run its payload destructor here, then let
+            // scope_drop_owned_bindings free the slot exactly once.
+            eval_replacement_delete(env, hb_type(hb), data, false, site, ctx)
+            hb.payload_released = true
+        }
+    }
 }
 
 // Shared namespace test so both FieldAccess and
@@ -8442,7 +8470,7 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
         if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
             if hb.moved_out.not() {
                 ref mut stored : Dynamic = deref(hb.ptr)
-                if stored.is_null().not() { callable_storage_free(stored) }
+                if stored.is_null().not() { eval_callable_capture_delete(stored, e, ctx); callable_storage_free(stored) }
                 mut owned_slot : Dynamic = hb.ptr
                 EvalHeap.heap_free(own owned_slot)
                 hb.ptr = bits_word(0)
@@ -8454,6 +8482,7 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
         if hb.moved_out.not() {
             ref mut heap_data : Dynamic = to_ptr(hb.ptr)
             if hb.is_borrowed.not() {
+                eval_callable_capture_delete(deref(heap_data), e, ctx)
                 heap_drop_by_type(hb_type(hb), heap_data, hb.ctx)
                 mut owned_heap_data : Dynamic = heap_data
                 EvalHeap.heap_free(own owned_heap_data)
@@ -8480,7 +8509,7 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
                                 ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(ctx.symbols.names), ctx)
                                 ref mut slot : Dynamic = ptr_add(base, fl.offset.to_uptr())
                                 ref mut stored : Dynamic = deref(slot)
-                                if stored.is_null().not() { callable_storage_free(stored) }
+                                if stored.is_null().not() { eval_callable_capture_delete(stored, e, ctx); callable_storage_free(stored) }
                                 write_ptr(slot, bits_word(0))
                                 return true
                             }
@@ -8494,14 +8523,14 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
         mut info := raw_result_info_new()
         mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ref mut stored : Dynamic = deref(raw)
-        if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
+        if stored.is_null().not() { eval_callable_capture_delete(stored, e, ctx); callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
         raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     case:
         ref mut arg : Expr = e.children[1]
         mut info := raw_result_info_new()
         mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ref mut stored : Dynamic = deref(raw)
-        if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
+        if stored.is_null().not() { eval_callable_capture_delete(stored, e, ctx); callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
         raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     }
     return true
@@ -8514,6 +8543,7 @@ priv h_til_closure_slot_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, m
     mut slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     ref mut stored : Dynamic = deref(slot)
     if stored.is_null().not() {
+        eval_callable_capture_delete(stored, e, ctx)
         callable_storage_free(stored)
         write_ptr(slot, bits_word(0))
     }

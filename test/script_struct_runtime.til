@@ -1,4 +1,5 @@
 mode script
+import("../src/std/dyn_vec")
 
 StructSegment := struct {
     start := StructPoint()
@@ -652,3 +653,128 @@ ref reverse_first : ReverseTag = reverse_tags.keys.unsafe_get(0)
 if reverse_first.is(ReverseTag.Second) { println("custom enum order") }
 println(reverse_tags[ReverseTag.First].to_str())
 own reverse_tags.delete(false)
+
+// #151 milestone 4: callable values share signatures and ownership lowering
+// across interpretation, hosted C, and the native TempleOS guest.
+CallableUnary := func(I64) returns I64
+callable_inc := func(n: I64) returns I64 { return n + 1 }
+callable_apply := func(f: CallableUnary, n: I64) returns I64 { return f(n) }
+callable_value : CallableUnary = callable_inc
+println(callable_apply(callable_value, 4).to_str())
+mut callable_total := 10
+callable_add : CallableUnary = func(n: I64) returns I64 [mut callable_total] {
+    callable_total = callable_total + n
+    return callable_total
+}
+println(callable_add(3).to_str())
+println(callable_total.to_str())
+callable_make := func(seed: Str) returns CallableUnary {
+    copied := seed.clone()
+    return func(n: I64) returns I64 [own copied] { return copied.len().to_i64() + n }
+}
+callable_owned := callable_make("owned")
+println(callable_owned(2).to_str())
+CallableHolder := struct { call : CallableUnary }
+callable_holder := CallableHolder(call=callable_inc)
+callable_holder_copy := callable_holder.clone()
+println(callable_holder_copy.call(7).to_str())
+CallableStrGetter := func() returns Str
+callable_make_text := func(seed: Str) returns CallableStrGetter {
+    copied := seed.clone()
+    return func() returns Str [own copied] { return copied.clone() }
+}
+callable_text_getter := callable_make_text("returned")
+println(callable_text_getter())
+CallableCounts := struct { closed := 0; entered := 0 }
+CallableGuard := struct {
+    name := "guard"
+    ref counts : CallableCounts
+namespace:
+    delete := func(own self: CallableGuard, call_free: Bool = true) {
+        self.counts.closed = self.counts.closed + 1
+        own self.name.delete(false)
+        if call_free { free(own self) }
+    }
+}
+callable_exercise := func(mut counts: CallableCounts) returns I64 {
+    counts.entered = counts.entered + 1
+    guard := CallableGuard(counts=counts)
+    op : CallableUnary = func(n: I64) returns I64 [own guard] { return guard.name.len().to_i64() + n }
+    return op(4)
+}
+mut callable_counts := CallableCounts()
+println(callable_exercise(callable_counts).to_str())
+println(callable_counts.closed.to_str())
+callable_funcs := DynVec.new(CallableUnary)
+callable_funcs.push(own callable_inc)
+callable_funcs.push(own callable_make("vec"))
+ref callable_stored : CallableUnary = callable_funcs[1]
+println(callable_stored(3).to_str())
+callable_funcs_copy := callable_funcs.clone()
+own callable_funcs.delete()
+ref callable_stored_copy : CallableUnary = callable_funcs_copy[1]
+println(callable_stored_copy(4).to_str())
+own callable_funcs_copy.delete()
+mut callable_body_count := 1
+callable_body : Body = [mut callable_body_count] { callable_body_count = callable_body_count + 4 }
+callable_body()
+callable_run_body := proc(b: Body) { b() }
+callable_run_body(callable_body)
+println(callable_body_count.to_str())
+CallableError := struct { msg := "" }
+CallableThrower := func(I64) returns Str throws CallableError
+callable_throwing := func(n: I64) returns Str throws CallableError {
+    if n < 0 { throw CallableError(msg="indirect caught") }
+    return "indirect success"
+}
+callable_throw_fn : CallableThrower = callable_throwing
+println(callable_throw_fn(1)!)
+mut callable_outcome := ""
+callable_outcome = callable_throw_fn(-1)? catch (error: CallableError) { callable_outcome = error.msg.clone() }
+println(callable_outcome)
+mut callable_sig_name := "CallableUnary"
+println(func_sig_param_count(callable_sig_name).to_str())
+println(func_sig_param_type(callable_sig_name, 0))
+println(func_sig_return_type(callable_sig_name, 0))
+println(func_sig_return_own_type(callable_sig_name).to_str())
+mut callable_type_name := "CallableGuard"
+println(struct_field_count(callable_type_name).to_str())
+println(struct_field_name(callable_type_name, 0))
+println(struct_field_type(callable_type_name, 1))
+if dyn_has_method(callable_type_name, "delete") { println("method metadata") }
+mut callable_word_type := "Str"
+callable_cloner : CloneFn = dyn_fn(callable_word_type, "clone")
+CallableOwnedDeleter := func(own Dynamic, Bool)
+callable_deleter : CallableOwnedDeleter = dyn_fn(callable_word_type, "delete")
+callable_text := "dynamic"
+callable_copy_raw : Dynamic = callable_cloner(callable_text)
+ref callable_copied_text : Str = to_ptr(callable_copy_raw)
+println(callable_copied_text)
+callable_deleter(own callable_copy_raw, true)
+CallableRefGetter := func(mut I64) returns ref I64
+callable_borrow_number := func(mut value: I64) returns ref I64 { value.inc(); return value }
+callable_borrow_fn : CallableRefGetter = callable_borrow_number
+mut callable_number := 3
+ref mut callable_number_ref : I64 = callable_borrow_fn(callable_number)
+callable_number_ref = 8
+println(callable_number.to_str())
+mut callable_chosen : CallableUnary = callable_inc
+println(callable_chosen(1).to_str())
+callable_chosen = callable_make("replaced")
+println(callable_chosen(1).to_str())
+CallableAction := enum { Empty, Run: CallableUnary }
+callable_action := CallableAction.Run(callable_inc)
+switch callable_action {
+case .Run(callback): println(callback(4).to_str())
+case:
+}
+mut callable_enum_name := "CallableAction"
+println(enum_variant_count(callable_enum_name).to_str())
+println(enum_variant_name(callable_enum_name, 1))
+println(enum_variant_payload_type(callable_enum_name, 1))
+mut callable_thrower_name := "CallableThrower"
+println(func_sig_throw_count(callable_thrower_name).to_str())
+println(func_sig_throw_type(callable_thrower_name, 0))
+println(func_sig_param_count(callable_thrower_name).to_str())
+callable_inline_base := 5
+println(callable_apply(func(n: I64) returns I64 [callable_inline_base] { return callable_inline_base + n }, 2).to_str())

@@ -14,6 +14,12 @@ extern U8 *TilCheckPtr(U8 *ptr);
 #define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
 #include "/Home/Ext.HC"
 
+class Vec__Str {
+  TilStr *data;
+  U64 count;
+  U64 cap;
+};
+
 class File {
   U8 * handle;
   Bool is_write;
@@ -62,12 +68,6 @@ class Set__F32 {
   U64 cap;
 };
 
-class Vec__Str {
-  TilStr *data;
-  U64 count;
-  U64 cap;
-};
-
 extern U0 File_append(File *return_out, TilStr *path);
 extern U0 File_appendfile(TilStr *path, TilStr *content);
 extern U0 File_close(File *self);
@@ -92,6 +92,244 @@ extern U0 Dir_next(TilStr *return_out, Dir *self);
 extern U0 Dir_open(Dir *return_out, TilStr *path);
 extern U0 LanguageGuard_Delete(LanguageGuard *self, Bool call_free);
 extern I64 FloatPayload_Cmp(FloatPayload *a, FloatPayload *b);
+
+U0 Vec__Str_CopyValue(Vec__Str *out, Vec__Str *src)
+{
+  out->data = src->data;
+  out->count = src->count;
+  out->cap = src->cap;
+}
+
+U0 Vec__Str_New(Vec__Str *out)
+{
+  out->data = NULL;
+  out->count = 0;
+  out->cap = 0;
+}
+
+U0 Vec__Str_WithCapacity(Vec__Str *out, U64 cap)
+{
+  out->data = NULL;
+  if (cap && cap > I64_MAX / sizeof(TilStr)) TilPanicZ("til: allocation size overflow
+");
+  if (cap) out->data = (TilMAlloc(cap * sizeof(TilStr)))(TilStr *);
+  out->count = 0;
+  out->cap = cap;
+}
+
+U0 Vec__Str_Clone(Vec__Str *out, Vec__Str *src)
+{
+  out->data = (TilCAlloc(src->cap, sizeof(TilStr)))(TilStr *);
+  out->count = src->count;
+  out->cap = src->cap;
+  U64 i = 0;
+  while (i < src->count) {
+    TilStrClone(&out->data[i], &src->data[i]);
+    i++;
+  }
+}
+
+TilStr *Vec__Str_UnsafeGet(Vec__Str *self, U64 i)
+{
+  return &self->data[i];
+}
+
+U0 Vec__Str_UnsafeSet(Vec__Str *self, U64 i, TilStr *value)
+{
+  TilStrDelete(&self->data[i], FALSE);
+  TilMemCpy(&self->data[i], value, sizeof(TilStr));
+  TilMemSet(value, 0, sizeof(TilStr));
+}
+
+TilStr *Vec__Str_Get(Vec__Str *self, U64 i, I64 *err_kind)
+{
+  *err_kind = 0;
+  if (i >= self->count) {
+    *err_kind = 1;
+    return NULL;
+  }
+  return Vec__Str_UnsafeGet(self, i);
+}
+
+U0 Vec__Str_Set(Vec__Str *self, U64 i, TilStr *value, I64 *err_kind)
+{
+  *err_kind = 0;
+  if (i >= self->count) {
+    *err_kind = 1;
+    return;
+  }
+  Vec__Str_UnsafeSet(self, i, value);
+}
+
+U0 Vec__Str_Push(Vec__Str *self, TilStr *value)
+{
+  if (self->count == self->cap) {
+    if (self->cap > I64_MAX/2) TilPanicZ("Vec.push: capacity overflow
+");
+    U64 new_cap = self->cap * 2;
+    if (!new_cap) new_cap = 1;
+    if (new_cap > I64_MAX / sizeof(TilStr)) TilPanicZ("til: allocation size overflow
+");
+    self->data = (TilReAlloc(self->data, new_cap * sizeof(TilStr)))(TilStr *);
+    self->cap = new_cap;
+  }
+  TilMemCpy(&self->data[self->count], value, sizeof(TilStr));
+  TilMemSet(value, 0, sizeof(TilStr));
+  self->count++;
+}
+
+U0 Vec__Str_Pop(TilStr *out, Vec__Str *self)
+{
+  if (!self->count) TilPanicZ("Vec.pop: empty vec
+");
+  self->count--;
+  TilMemCpy(out, &self->data[self->count], sizeof(TilStr));
+  TilMemSet(&self->data[self->count], 0, sizeof(TilStr));
+}
+
+U0 Vec__Str_Clear(Vec__Str *self)
+{
+  U64 i = 0;
+  while (i < self->count) {
+    TilStrDelete(&self->data[i], FALSE);
+    i++;
+  }
+  self->count = 0;
+}
+
+U0 Vec__Str_Delete(Vec__Str *self, Bool call_free)
+{
+  Vec__Str_Clear(self);
+  TilFree(self->data);
+  self->data = NULL;
+  self->cap = 0;
+  self->count = 0;
+  if (call_free) TilFree(self);
+}
+
+U0 Vec__Str_Take(Vec__Str *out, Vec__Str *self)
+{
+  Vec__Str_CopyValue(out, self);
+  self->data = NULL;
+  self->count = 0;
+  self->cap = 0;
+}
+
+U0 Vec__Str_Append(Vec__Str *self, Vec__Str *other)
+{
+  if (!other->count) {
+    Vec__Str_Delete(other, FALSE);
+    return;
+  }
+  if (other->count > I64_MAX - self->count) TilPanicZ("Vec.append: size overflow
+");
+  U64 needed = self->count + other->count;
+  if (needed > self->cap) {
+    U64 next_cap = self->cap;
+    if (!next_cap) next_cap = 1;
+    while (next_cap < needed) {
+      if (next_cap > I64_MAX / 2) TilPanicZ("Vec.append: capacity overflow
+");
+      next_cap = next_cap * 2;
+    }
+    if (next_cap > I64_MAX / sizeof(TilStr)) TilPanicZ("Vec.append: allocation overflow
+");
+    self->data = (TilReAlloc(self->data, next_cap * sizeof(TilStr)))(TilStr *);
+    self->cap = next_cap;
+  }
+  TilMemCpy(&self->data[self->count], other->data, other->count * sizeof(TilStr));
+  self->count = needed;
+  other->count = 0;
+  Vec__Str_Delete(other, FALSE);
+}
+
+U0 Vec__Str_MoveTo(Vec__Str *src, Vec__Str *dest)
+{
+  Vec__Str_Delete(dest, FALSE);
+  Vec__Str_Take(dest, src);
+}
+
+U0 Vec__Str_Truncate(Vec__Str *self, U64 n)
+{
+  if (n > self->count) TilPanicZ("Vec.truncate: out of bounds
+");
+  U64 i = n;
+  while (i < self->count) {
+    TilStrDelete(&self->data[i], FALSE);
+    i++;
+  }
+  self->count = n;
+}
+
+U0 Vec__Str_RemoveAt(Vec__Str *self, U64 i, I64 *err_kind)
+{
+  *err_kind = 0;
+  if (i >= self->count) { *err_kind = 1; return; }
+  TilStrDelete(&self->data[i], FALSE);
+  U64 last = self->count - 1;
+  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(TilStr));
+  self->count = last;
+  TilMemSet(&self->data[last], 0, sizeof(TilStr));
+}
+
+U0 Vec__Str_PushTake(Vec__Str *self, Vec__Str *src, U64 i)
+{
+  if (i >= src->count) TilPanicZ("Vec.push_take: out of bounds
+");
+  if (self->count == self->cap) {
+    if (self->cap > I64_MAX/2) TilPanicZ("Vec.push_take: capacity overflow
+");
+    U64 next_cap = self->cap * 2;
+    if (!next_cap) next_cap = 1;
+    if (next_cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Vec.push_take: allocation overflow
+");
+    self->data = (TilReAlloc(self->data, next_cap*sizeof(TilStr)))(TilStr *);
+    self->cap = next_cap;
+  }
+  TilMemCpy(&self->data[self->count], &src->data[i], sizeof(TilStr));
+  TilMemSet(&src->data[i], 0, sizeof(TilStr));
+  self->count++;
+}
+
+U0 Vec__Str_TakePrefix(Vec__Str *out, Vec__Str *self, U64 n)
+{
+  if (n > self->count) TilPanicZ("Vec.take_prefix: out of bounds
+");
+  U64 cap = n;
+  if (!cap) cap = 1;
+  if (cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Vec.take_prefix: allocation overflow
+");
+  out->data = (TilMAlloc(cap*sizeof(TilStr)))(TilStr *);
+  out->count = n;
+  out->cap = cap;
+  if (n) TilMemCpy(out->data, self->data, n*sizeof(TilStr));
+  U64 tail = self->count - n;
+  if (tail) TilMemMove(self->data, &self->data[n], tail*sizeof(TilStr));
+  if (n) TilMemSet(&self->data[tail], 0, n*sizeof(TilStr));
+  self->count = tail;
+}
+
+U0 Vec__Str_DeleteMarked(Vec__Str *self, U8 *marks)
+{
+  U64 i = 0;
+  while (i < self->count) {
+    if (marks[i]) {
+      TilStrDelete(&self->data[i], FALSE);
+      TilMemSet(&self->data[i], 0, sizeof(TilStr));
+    }
+    i++;
+  }
+  U64 w = 0;
+  U64 r = 0;
+  while (r < self->count) {
+    if (!marks[r]) {
+      if (w != r) TilMemCpy(&self->data[w], &self->data[r], sizeof(TilStr));
+      w++;
+    }
+    r++;
+  }
+  self->count = w;
+}
 
 U0 File_Clone(File *out, File *src)
 {
@@ -385,244 +623,6 @@ Bool Set__F32_Remove(Set__F32 *self, F32 value)
   self->count = last;
   TilMemSet(&self->data[last], 0, sizeof(F32));
   return TRUE;
-}
-
-U0 Vec__Str_CopyValue(Vec__Str *out, Vec__Str *src)
-{
-  out->data = src->data;
-  out->count = src->count;
-  out->cap = src->cap;
-}
-
-U0 Vec__Str_New(Vec__Str *out)
-{
-  out->data = NULL;
-  out->count = 0;
-  out->cap = 0;
-}
-
-U0 Vec__Str_WithCapacity(Vec__Str *out, U64 cap)
-{
-  out->data = NULL;
-  if (cap && cap > I64_MAX / sizeof(TilStr)) TilPanicZ("til: allocation size overflow
-");
-  if (cap) out->data = (TilMAlloc(cap * sizeof(TilStr)))(TilStr *);
-  out->count = 0;
-  out->cap = cap;
-}
-
-U0 Vec__Str_Clone(Vec__Str *out, Vec__Str *src)
-{
-  out->data = (TilCAlloc(src->cap, sizeof(TilStr)))(TilStr *);
-  out->count = src->count;
-  out->cap = src->cap;
-  U64 i = 0;
-  while (i < src->count) {
-    TilStrClone(&out->data[i], &src->data[i]);
-    i++;
-  }
-}
-
-TilStr *Vec__Str_UnsafeGet(Vec__Str *self, U64 i)
-{
-  return &self->data[i];
-}
-
-U0 Vec__Str_UnsafeSet(Vec__Str *self, U64 i, TilStr *value)
-{
-  TilStrDelete(&self->data[i], FALSE);
-  TilMemCpy(&self->data[i], value, sizeof(TilStr));
-  TilMemSet(value, 0, sizeof(TilStr));
-}
-
-TilStr *Vec__Str_Get(Vec__Str *self, U64 i, I64 *err_kind)
-{
-  *err_kind = 0;
-  if (i >= self->count) {
-    *err_kind = 1;
-    return NULL;
-  }
-  return Vec__Str_UnsafeGet(self, i);
-}
-
-U0 Vec__Str_Set(Vec__Str *self, U64 i, TilStr *value, I64 *err_kind)
-{
-  *err_kind = 0;
-  if (i >= self->count) {
-    *err_kind = 1;
-    return;
-  }
-  Vec__Str_UnsafeSet(self, i, value);
-}
-
-U0 Vec__Str_Push(Vec__Str *self, TilStr *value)
-{
-  if (self->count == self->cap) {
-    if (self->cap > I64_MAX/2) TilPanicZ("Vec.push: capacity overflow
-");
-    U64 new_cap = self->cap * 2;
-    if (!new_cap) new_cap = 1;
-    if (new_cap > I64_MAX / sizeof(TilStr)) TilPanicZ("til: allocation size overflow
-");
-    self->data = (TilReAlloc(self->data, new_cap * sizeof(TilStr)))(TilStr *);
-    self->cap = new_cap;
-  }
-  TilMemCpy(&self->data[self->count], value, sizeof(TilStr));
-  TilMemSet(value, 0, sizeof(TilStr));
-  self->count++;
-}
-
-U0 Vec__Str_Pop(TilStr *out, Vec__Str *self)
-{
-  if (!self->count) TilPanicZ("Vec.pop: empty vec
-");
-  self->count--;
-  TilMemCpy(out, &self->data[self->count], sizeof(TilStr));
-  TilMemSet(&self->data[self->count], 0, sizeof(TilStr));
-}
-
-U0 Vec__Str_Clear(Vec__Str *self)
-{
-  U64 i = 0;
-  while (i < self->count) {
-    TilStrDelete(&self->data[i], FALSE);
-    i++;
-  }
-  self->count = 0;
-}
-
-U0 Vec__Str_Delete(Vec__Str *self, Bool call_free)
-{
-  Vec__Str_Clear(self);
-  TilFree(self->data);
-  self->data = NULL;
-  self->cap = 0;
-  self->count = 0;
-  if (call_free) TilFree(self);
-}
-
-U0 Vec__Str_Take(Vec__Str *out, Vec__Str *self)
-{
-  Vec__Str_CopyValue(out, self);
-  self->data = NULL;
-  self->count = 0;
-  self->cap = 0;
-}
-
-U0 Vec__Str_Append(Vec__Str *self, Vec__Str *other)
-{
-  if (!other->count) {
-    Vec__Str_Delete(other, FALSE);
-    return;
-  }
-  if (other->count > I64_MAX - self->count) TilPanicZ("Vec.append: size overflow
-");
-  U64 needed = self->count + other->count;
-  if (needed > self->cap) {
-    U64 next_cap = self->cap;
-    if (!next_cap) next_cap = 1;
-    while (next_cap < needed) {
-      if (next_cap > I64_MAX / 2) TilPanicZ("Vec.append: capacity overflow
-");
-      next_cap = next_cap * 2;
-    }
-    if (next_cap > I64_MAX / sizeof(TilStr)) TilPanicZ("Vec.append: allocation overflow
-");
-    self->data = (TilReAlloc(self->data, next_cap * sizeof(TilStr)))(TilStr *);
-    self->cap = next_cap;
-  }
-  TilMemCpy(&self->data[self->count], other->data, other->count * sizeof(TilStr));
-  self->count = needed;
-  other->count = 0;
-  Vec__Str_Delete(other, FALSE);
-}
-
-U0 Vec__Str_MoveTo(Vec__Str *src, Vec__Str *dest)
-{
-  Vec__Str_Delete(dest, FALSE);
-  Vec__Str_Take(dest, src);
-}
-
-U0 Vec__Str_Truncate(Vec__Str *self, U64 n)
-{
-  if (n > self->count) TilPanicZ("Vec.truncate: out of bounds
-");
-  U64 i = n;
-  while (i < self->count) {
-    TilStrDelete(&self->data[i], FALSE);
-    i++;
-  }
-  self->count = n;
-}
-
-U0 Vec__Str_RemoveAt(Vec__Str *self, U64 i, I64 *err_kind)
-{
-  *err_kind = 0;
-  if (i >= self->count) { *err_kind = 1; return; }
-  TilStrDelete(&self->data[i], FALSE);
-  U64 last = self->count - 1;
-  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(TilStr));
-  self->count = last;
-  TilMemSet(&self->data[last], 0, sizeof(TilStr));
-}
-
-U0 Vec__Str_PushTake(Vec__Str *self, Vec__Str *src, U64 i)
-{
-  if (i >= src->count) TilPanicZ("Vec.push_take: out of bounds
-");
-  if (self->count == self->cap) {
-    if (self->cap > I64_MAX/2) TilPanicZ("Vec.push_take: capacity overflow
-");
-    U64 next_cap = self->cap * 2;
-    if (!next_cap) next_cap = 1;
-    if (next_cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Vec.push_take: allocation overflow
-");
-    self->data = (TilReAlloc(self->data, next_cap*sizeof(TilStr)))(TilStr *);
-    self->cap = next_cap;
-  }
-  TilMemCpy(&self->data[self->count], &src->data[i], sizeof(TilStr));
-  TilMemSet(&src->data[i], 0, sizeof(TilStr));
-  self->count++;
-}
-
-U0 Vec__Str_TakePrefix(Vec__Str *out, Vec__Str *self, U64 n)
-{
-  if (n > self->count) TilPanicZ("Vec.take_prefix: out of bounds
-");
-  U64 cap = n;
-  if (!cap) cap = 1;
-  if (cap > I64_MAX/sizeof(TilStr)) TilPanicZ("Vec.take_prefix: allocation overflow
-");
-  out->data = (TilMAlloc(cap*sizeof(TilStr)))(TilStr *);
-  out->count = n;
-  out->cap = cap;
-  if (n) TilMemCpy(out->data, self->data, n*sizeof(TilStr));
-  U64 tail = self->count - n;
-  if (tail) TilMemMove(self->data, &self->data[n], tail*sizeof(TilStr));
-  if (n) TilMemSet(&self->data[tail], 0, n*sizeof(TilStr));
-  self->count = tail;
-}
-
-U0 Vec__Str_DeleteMarked(Vec__Str *self, U8 *marks)
-{
-  U64 i = 0;
-  while (i < self->count) {
-    if (marks[i]) {
-      TilStrDelete(&self->data[i], FALSE);
-      TilMemSet(&self->data[i], 0, sizeof(TilStr));
-    }
-    i++;
-  }
-  U64 w = 0;
-  U64 r = 0;
-  while (r < self->count) {
-    if (!marks[r]) {
-      if (w != r) TilMemCpy(&self->data[w], &self->data[r], sizeof(TilStr));
-      w++;
-    }
-    r++;
-  }
-  self->count = w;
 }
 
 U0 TilStrArrayClone(TilStrArray *out, TilStrArray *src)

@@ -2182,7 +2182,7 @@ pad := func(s: Str, width: USize) returns Str {
     return out
 }
 
-dispatch := proc(b: Build, name: Str) {
+dispatch := proc(mut b: Build, name: Str) {
     for c : Command in commands() {
         if c.name == name {
             c.go(b)

@@ -410,10 +410,14 @@ typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites Map__UP
 typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
-typedef struct Map__Str_call_Set_USize Map__Str_call_Set_USize;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
-typedef struct Vec__call_Set_USize Vec__call_Set_USize;
+typedef struct Map__Str_FuncSig Map__Str_FuncSig;
+typedef struct Map__Str_call_Set_Str Map__Str_call_Set_Str;
+typedef struct Map__Str_call_Set_USize Map__Str_call_Set_USize;
 typedef struct Vec__call_Map_Str_Bool Vec__call_Map_Str_Bool;
+typedef struct Vec__FuncSig Vec__FuncSig;
+typedef struct Vec__call_Set_Str Vec__call_Set_Str;
+typedef struct Vec__call_Set_USize Vec__call_Set_USize;
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
 typedef struct priv___src_self_jvm_codegen_til__JvmMember priv___src_self_jvm_codegen_til__JvmMember;
 typedef struct priv___src_self_jvm_codegen_til__JvmClassOut priv___src_self_jvm_codegen_til__JvmClassOut;
@@ -1410,14 +1414,9 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Set__Str str_array_pointer_names;
     Map__Str_Str struct_types;
     Map__Str_Str struct_pointer_types;
+    Map__Str_Str callable_sigs;
+    Set__Str callable_slot_names;
 } priv___src_self_holyc_codegen_til__HolyCLocalState;
-
-
-typedef struct Vec__call_Set_USize {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__call_Set_USize;
 
 
 typedef struct Vec__call_Map_Str_Bool {
@@ -1425,6 +1424,27 @@ typedef struct Vec__call_Map_Str_Bool {
     USize count;
     USize cap;
 } Vec__call_Map_Str_Bool;
+
+
+typedef struct Vec__FuncSig {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__FuncSig;
+
+
+typedef struct Vec__call_Set_Str {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__call_Set_Str;
+
+
+typedef struct Vec__call_Set_USize {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__call_Set_USize;
 
 
 typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
@@ -2056,16 +2076,28 @@ typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites {
 } Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
-typedef struct Map__Str_call_Set_USize {
-    Vec__Str keys;
-    Vec__call_Set_USize values;
-} Map__Str_call_Set_USize;
-
-
 typedef struct Map__Str_call_Map_Str_Bool {
     Vec__Str keys;
     Vec__call_Map_Str_Bool values;
 } Map__Str_call_Map_Str_Bool;
+
+
+typedef struct Map__Str_FuncSig {
+    Vec__Str keys;
+    Vec__FuncSig values;
+} Map__Str_FuncSig;
+
+
+typedef struct Map__Str_call_Set_Str {
+    Vec__Str keys;
+    Vec__call_Set_Str values;
+} Map__Str_call_Set_Str;
+
+
+typedef struct Map__Str_call_Set_USize {
+    Vec__Str keys;
+    Vec__call_Set_USize values;
+} Map__Str_call_Set_USize;
 
 
 typedef struct priv___src_self_jvm_codegen_til__JvmClassOut {
@@ -2357,6 +2389,24 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Bool needs_str_array_to_vec;
     Bool needs_str_array_copy;
     Bool needs_panic_parts;
+    Set__Str funcsig_names;
+    Map__Str_FuncSig callable_sigs;
+    Set__Str needed_call_sigs;
+    Set__Str needed_function_values;
+    Str closure_definitions;
+    Str closure_prototypes;
+    Str closure_classes;
+    Set__Str emitted_closures;
+    Set__Str reflection_uses;
+    Map__Str_call_Set_Str dyn_targets;
+    Str dyn_prototypes;
+    Str dyn_definitions;
+    Str dyn_initializers;
+    Str extra_function_prototypes;
+    Str extra_function_definitions;
+    Map__Str_Str inline_call_sigs;
+    Map__Str_call_Set_USize inline_cleanup;
+    Set__Str inline_indirect;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;
 
 
