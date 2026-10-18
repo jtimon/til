@@ -5263,14 +5263,76 @@ priv arg_is_bare_to_ptr := func(arg: Expr, symbols: SymbolPool) returns Bool {
     return arg.children[1].node_type.is(NodeType.Ident)
 }
 
+priv hoist_may_change_value := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FCall) {
+        callee := fcall_callee_fdef(e, scope, symbols)
+        // Stored/reflective calls may not have a concrete definition here.
+        // Preserve evaluation order unless the call contract proves it safe.
+        if callee.is_none() { return true }
+        ref fd : FunctionDef = funcdef_of(callee.unwrap())
+        if fd.sig.func_type.is_proc() { return true }
+        for param : Declaration in fd.sig.params {
+            if param.is_mut.or(param.own_type.is(OwnType.Own)) { return true }
+        }
+    }
+    if e.node_type.is(NodeType.Body).or(e.node_type.is(NodeType.FuncDef)) { return false }
+    for child : Expr in e.children {
+        if hoist_may_change_value(child, scope, symbols) { return true }
+    }
+    return false
+}
+
+priv hoist_numeric_value := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if is_primitive(e.til_type()) { return true }
+    definition := scope.get_struct(type_to_name(e.til_type(), symbols), symbols)
+    if definition.is_none() { return false }
+    switch definition.unwrap().node_type {
+    case .StructDef(sd): return sd.simd_width > 0
+    case: return false
+    }
+}
+
 priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     if expr.node_type.is(NodeType.FuncDef) { return }
     if expr.node_type.is(NodeType.StructDef) { return }
     if expr.node_type.is(NodeType.EnumDef) { return }
     if expr.node_type.is(NodeType.Body) { return }
 
-    for mut e_i : Expr in expr.children {
-        hoist_expr(ctx, e_i, hoisted, scope)
+    // A shallow core operand is a value read, not a borrowed location.
+    // Snapshot it before recursively hoisting a later argument's calls:
+    // x.fma(change(x), z) must read x before change runs. Waiting for the
+    // normal post-order argument loop has already moved change ahead of x.
+    mut core_def := Option(ref Expr).None
+    mut last_call : USize = 0
+    if expr.node_type.is(NodeType.FCall) {
+        candidate := fcall_callee_fdef(expr, scope, ctx.symbols)
+        if candidate.is_some() {
+            if funcdef_of(candidate.unwrap()).sig.func_type.is(FuncType.CoreFunc) {
+                core_def = candidate
+                for i in 1..expr.children.len() {
+                    if hoist_may_change_value(expr.children[i], scope, ctx.symbols) { last_call = i }
+                }
+            }
+        }
+    }
+    for i in 0..expr.children.len() {
+        hoist_expr(ctx, expr.children[i], hoisted, scope)
+        if i > 0 && i < last_call {
+            ref param : Declaration = funcdef_of(core_def.unwrap()).sig.params[i - 1]
+            if param.own_type.is(OwnType.Shallow).and(param.is_mut.not()) {
+                ref arg : Expr = expr.children[i]
+                if arg.node_type.is(NodeType.Literal).not().and(hoist_numeric_value(arg, scope, ctx.symbols)) {
+                    if arg.node_type.is(NodeType.FCall) {
+                        if fcall_returns_ref(arg, scope, ctx.symbols) != 0 {
+                            // First name the borrowed result, then copy its
+                            // value into a non-ref temp before later calls.
+                            expr.children[i] = hoist_slot_to_temp(ctx, expr.children, i, hoisted, scope, false)
+                        }
+                    }
+                    expr.children[i] = hoist_slot_to_temp(ctx, expr.children, i, hoisted, scope, false)
+                }
+            }
+        }
     }
     // An FCall in FieldAccess BASE position (`f().field`, and the
     // receiver of a chained method call `f().method(...)`) was never

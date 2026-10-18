@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <errno.h>
+#include <math.h>
 #include <fcntl.h>
 
 /* A shared runtime cannot retain relocations to one generated library's
@@ -709,6 +710,9 @@ U64 word_bits(const void *w) { return (U64)(uintptr_t)w; }
 void *bits_word(U64 b) { return (void *)(uintptr_t)b; }
 U64 f32_word(F32 f) { union { F32 f; U32 u; } x; x.f = f; return (U64)x.u; }
 F32 word_f32(U64 b) { union { F32 f; U32 u; } x; x.u = (U32)b; return x.f; }
+U64 f32_bits_fma(U64 a, U64 b, U64 c) {
+    return f32_word(fmaf(word_f32(a), word_f32(b), word_f32(c)));
+}
 /* F64 <-> U64 bit words and operate-on-bits helpers: the interpreter's
  * F64 arithmetic. Its til source is compiled by the previous bootstrap
  * compiler (no F64 type there yet), so values travel as U64 words and
@@ -719,6 +723,9 @@ U64 f64_bits_add(U64 a, U64 b) { return f64_word(word_f64(a) + word_f64(b)); }
 U64 f64_bits_sub(U64 a, U64 b) { return f64_word(word_f64(a) - word_f64(b)); }
 U64 f64_bits_mul(U64 a, U64 b) { return f64_word(word_f64(a) * word_f64(b)); }
 U64 f64_bits_div(U64 a, U64 b) { return f64_word(word_f64(a) / word_f64(b)); }
+U64 f64_bits_fma(U64 a, U64 b, U64 c) {
+    return f64_word(fma(word_f64(a), word_f64(b), word_f64(c)));
+}
 I64 f64_bits_cmp(U64 a, U64 b) { return F64_cmp(word_f64(a), word_f64(b)); }
 U64 str_parse_f64_bits(const Str *s) { return f64_word(str_parse_f64(s)); }
 Str *f64_bits_to_str(U64 b) { return F64_to_str(word_f64(b)); }

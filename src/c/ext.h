@@ -254,6 +254,7 @@ U64 word_bits(const void *w);
 void *bits_word(U64 b);
 U64 f32_word(F32 f);
 F32 word_f32(U64 b);
+U64 f32_bits_fma(U64 a, U64 b, U64 c);
 /* F64 <-> U64 bit words, plus operate-on-bits helpers. The til-side
  * interpreter binds THESE (U64-only signatures) rather than F64-typed
  * functions: its own source is compiled by the previous bootstrap
@@ -264,6 +265,7 @@ U64 f64_bits_add(U64 a, U64 b);
 U64 f64_bits_sub(U64 a, U64 b);
 U64 f64_bits_mul(U64 a, U64 b);
 U64 f64_bits_div(U64 a, U64 b);
+U64 f64_bits_fma(U64 a, U64 b, U64 c);
 I64 f64_bits_cmp(U64 a, U64 b);
 U64 str_parse_f64_bits(const Str *s);
 Str *f64_bits_to_str(U64 b);

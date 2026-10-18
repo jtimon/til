@@ -10044,6 +10044,18 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
     op_start := u_pos.add(1)
     op_str := name.substr(op_start, name.len().sub(op_start))
 
+    if op_str == "fma" {
+        av : Dynamic = scalar_read_arg(scope, e.children[1], scalar_type, ctx)
+        bv : Dynamic = scalar_read_arg(scope, e.children[2], scalar_type, ctx)
+        cv : Dynamic = scalar_read_arg(scope, e.children[3], scalar_type, ctx)
+        if cat == "f" {
+            write_u32(result, f32_bits_fma(word_bits(av), word_bits(bv), word_bits(cv)).to_u32())
+        } else if cat == "d" {
+            write_u64(result, f64_bits_fma(word_bits(av), word_bits(bv), word_bits(cv)))
+        } else { panic("fma requires floating-point operands") }
+        return true
+    }
+
     // eq/neq/lt/gt/lte/gte: binary comparison -> Bool. eq/neq are bit-equal
     // for both signednesses; the ordering ops use the category's signed,
     // unsigned, or float comparison.
@@ -10191,7 +10203,7 @@ priv simd_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut res
     mut split := name.rfind("_").to_usize()
     if name.ends_with("_reduce_min").or(name.ends_with("_reduce_max")) { split = name.len() - 11 }
     op := name.substr(split + 1, name.len() - split - 1)
-    if scalar_is_cmp(op).or(op.eq("add")).or(op.eq("sub")).or(op.eq("mul")).or(op.eq("band")).or(op.eq("bor")).or(op.eq("bxor")).or(op.eq("select")).or(op.eq("reduce_min")).or(op.eq("reduce_max")).or(op.eq("len")).not() { return false }
+    if scalar_is_cmp(op).or(op.eq("add")).or(op.eq("sub")).or(op.eq("mul")).or(op.eq("fma")).or(op.eq("band")).or(op.eq("bor")).or(op.eq("bxor")).or(op.eq("select")).or(op.eq("reduce_min")).or(op.eq("reduce_max")).or(op.eq("len")).not() { return false }
     type_name := name.substr(0, split)
     // Dispatch also sees ordinary constructors. A user's name can share the
     // generated prefix/suffix; only registered SIMD metadata identifies an op.
@@ -10244,6 +10256,31 @@ priv simd_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut res
         }
         scalar_word_store(lane_type, result, bits_word(lanes[0]), ctx)
         raw_result_drop(e.children[1].til_type(), input, input_info.is_ref, ctx)
+        return true
+    }
+    if op == "fma" {
+        mut ai := raw_result_info_new()
+        mut bi := raw_result_info_new()
+        mut ci := raw_result_info_new()
+        mut av : Dynamic = eval_expr_raw_info(scope, e.children[1], ctx, ai)
+        mut bv : Dynamic = eval_expr_raw_info(scope, e.children[2], ctx, bi)
+        mut cv : Dynamic = eval_expr_raw_info(scope, e.children[3], ctx, ci)
+        ap : Dynamic = raw_arg_pointer(av, ai, ctx)
+        bp : Dynamic = raw_arg_pointer(bv, bi, ctx)
+        cp : Dynamic = raw_arg_pointer(cv, ci, ctx)
+        for i in 0..simd.simd_width {
+            a := word_bits(scalar_word_load(lane_type, ptr_add(ap, i * stride), ctx))
+            b := word_bits(scalar_word_load(lane_type, ptr_add(bp, i * stride), ctx))
+            c := word_bits(scalar_word_load(lane_type, ptr_add(cp, i * stride), ctx))
+            if elem == "F32" {
+                write_u32(ptr_add(result, i * stride), f32_bits_fma(a, b, c).to_u32())
+            } else if elem == "F64" {
+                write_u64(ptr_add(result, i * stride), f64_bits_fma(a, b, c))
+            } else { panic("SIMD fma requires floating-point lanes") }
+        }
+        raw_result_drop(e.children[1].til_type(), av, ai.is_ref, ctx)
+        raw_result_drop(e.children[2].til_type(), bv, bi.is_ref, ctx)
+        raw_result_drop(e.children[3].til_type(), cv, ci.is_ref, ctx)
         return true
     }
     if op == "select" {

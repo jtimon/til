@@ -765,6 +765,9 @@ namespace:
     add := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
     sub := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
     mul := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
+    /// Fused a*b+c: one final rounding, unlike separate mul and add.
+    /// IEEE NaN/Inf/zero results; NaN payload and sign are unspecified.
+    fma := core_func(shallow a: F32, shallow b: F32, shallow c: F32) returns shallow F32 {}
     div := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
     eq := core_func(shallow a: F32, shallow b: F32) returns shallow Bool {}
     neq := core_func(shallow a: F32, shallow b: F32) returns shallow Bool {}
@@ -811,6 +814,9 @@ namespace:
     add := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
     sub := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
     mul := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
+    /// Fused a*b+c: one final rounding, unlike separate mul and add.
+    /// IEEE NaN/Inf/zero results; NaN payload and sign are unspecified.
+    fma := core_func(shallow a: F64, shallow b: F64, shallow c: F64) returns shallow F64 {}
     div := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
     eq := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
     neq := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}

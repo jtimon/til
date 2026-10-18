@@ -3894,6 +3894,52 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
         f.write("til_simd_a.lane0; })")
         return true
     }
+    if op == "fma" {
+        ref elem : Str = decl_type_name_ref(simd.fields[0], ctx.symbols)
+        mut builtin := "__builtin_fma"
+        if elem == "F32" { builtin = "__builtin_fmaf" }
+        f.write("({ ").write(sname).write(" til_simd_a = ")
+        emit_deref(f, e.children[1], depth, ctx)
+        f.write("; ").write(sname).write(" til_simd_b = ")
+        emit_deref(f, e.children[2], depth, ctx)
+        f.write("; ").write(sname).write(" til_simd_c = ")
+        emit_deref(f, e.children[3], depth, ctx)
+        f.write("; ").write(sname).write(" til_simd_result; ")
+        // Keep explicit register-sized vector values: scalar struct-field
+        // assignments made GCC miss SLP and emit one scalar FMA per lane.
+        // Use value construction rather than memcpy through vector addresses.
+        // The per-lane builtins retain genuine fused libm semantics when
+        // the target has no hardware FMA; ordinary mul/add never replaces it.
+        chunk_lanes := builder_simd_chunk_lanes(simd, ctx)
+        f.write("typedef ").write(elem).write(" til_simd_v __attribute__((vector_size(sizeof(").write(elem).write(") * ").write(chunk_lanes.to_str()).write("))); ")
+        for chunk in 0..(simd.simd_width / chunk_lanes) {
+            first := chunk * chunk_lanes
+            f.write("{ ")
+            for side : Str in array(Str, "a", "b", "c") {
+                f.write("til_simd_v til_simd_").write(side).write("_v = {")
+                for i in 0..chunk_lanes {
+                    if i > 0 { f.write(", ") }
+                    f.write("til_simd_").write(side).write(".lane").write((first + i).to_str())
+                }
+                f.write("}; ")
+            }
+            // Keep a fixed-trip inner loop for loop vectorization: unrolled
+            // scalar FMAs lose their grouping in an outer accumulation loop.
+            lane_loop := format("til_simd_v til_simd_z; for (USize til_simd_i = 0; til_simd_i < ", chunk_lanes.to_str(),
+                "; ++til_simd_i) { til_simd_z[til_simd_i] = ", builtin,
+                "(til_simd_a_v[til_simd_i], til_simd_b_v[til_simd_i], til_simd_c_v[til_simd_i]); } ")
+            // Clang's generic vector FMA preserves the grouping directly.
+            // Older compilers still use genuine fused scalar operations.
+            f.write("\n#if defined(__clang__)\n#if __has_builtin(__builtin_elementwise_fma)\ntil_simd_v til_simd_z = __builtin_elementwise_fma(til_simd_a_v, til_simd_b_v, til_simd_c_v);\n#else\n").write(lane_loop)
+            f.write("\n#endif\n#else\n").write(lane_loop).write("\n#endif\n")
+            for i in 0..chunk_lanes {
+                f.write("til_simd_result.lane").write((first + i).to_str()).write(" = til_simd_z[").write(i.to_str()).write("]; ")
+            }
+            f.write("} ")
+        }
+        f.write("til_simd_result; })")
+        return true
+    }
     if op == "select" {
         mask_name := simd_instance_name("Bool", simd.simd_width)
         f.write("({ ").write(mask_name).write(" til_simd_mask = ")
@@ -4117,7 +4163,17 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 // param width still happens at the call boundary (C
                 // conversion / the USIZE_REF / UPTR_REF boxing).
                 core_ret_c := inline_call_ret_ctype(e, flat, ctx)
-                if core_op == "to_uptr" {
+                if core_op == "fma" {
+                    mut builtin := "__builtin_fma"
+                    if core_ret_c == "F32" { builtin = "__builtin_fmaf" }
+                    f.write("({ ").write(core_ret_c).write(" til_fma_a = ")
+                    emit_deref(f, e.children[1], depth, ctx)
+                    f.write("; ").write(core_ret_c).write(" til_fma_b = ")
+                    emit_deref(f, e.children[2], depth, ctx)
+                    f.write("; ").write(core_ret_c).write(" til_fma_c = ")
+                    emit_deref(f, e.children[3], depth, ctx)
+                    f.write("; ").write(builtin).write("(til_fma_a, til_fma_b, til_fma_c); })")
+                } else if core_op == "to_uptr" {
                     f.write("((").write(core_ret_c).write(")(")
                     emit_deref(f, e.children[1], depth, ctx)
                     f.write("))")

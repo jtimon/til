@@ -180,7 +180,7 @@ main := proc(args: ..Str) {
             for line : Str in flags.split("\n") {
                 if line.len() == 0 { continue }
                 commands++
-                if line.contains(format("-march=", march, " -mtune=generic -O", level, " -ffp-contract=off")).not() {
+                if line.contains(format("-march=", march, " -mtune=generic -O", level, " -ffp-contract=off -fexcess-precision=standard")).not() {
                     panic("inconsistent program/link_c flags: ", line)
                 }
             }

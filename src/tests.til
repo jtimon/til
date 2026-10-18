@@ -2313,9 +2313,9 @@ main := proc(args: ..Str) {
     add_count(tests, "simd_holyc_unsupported", "typer",
         "SIMD is not supported by this backend", 1,
         format(til_bin, " translate --target=templeos-x86 test/simd.til"))
-    add_count(tests, "simd_errors_interp", "typer", "error:", 8,
+    add_count(tests, "simd_errors_interp", "typer", "error:", 12,
         format(til_bin, " interpret test/simd_errors.til"))
-    add_count(tests, "simd_errors_build", "typer", "error:", 8,
+    add_count(tests, "simd_errors_build", "typer", "error:", 12,
         format(til_bin, " build", asan_flag, " test/simd_errors.til"))
     add_count(tests, "simd_width_error_interp", "typer",
         "Simd width must be a power of two", 1,

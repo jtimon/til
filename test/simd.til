@@ -30,6 +30,132 @@ test_simd_arithmetic := test() {
     assert((a == b).any().not())
 }
 
+FMA_F32_FOLDED : F32 = F32.fma(1.00000011920928955078125, 0.99999988079071044921875, -1.0)
+FMA_F64_FOLDED : F64 = F64.fma(1.0000000000000002, 0.9999999999999998, -1.0)
+
+fma_runtime := proc(T: Type, a: T, b: T, c: T) returns T {
+    noop_proc()
+    return a.fma(b, c)
+}
+
+simd_fma_rounding := proc(T: Type, V: Type, delta: T, shape: V) {
+    noop_proc()
+    one := T.from_i64(1)
+    a := one + delta
+    b := one - delta
+    c := T.from_i64(-1)
+    expected := c * delta * delta
+    assert_eq(T, fma_runtime(T, a, b, c), expected)
+    assert_eq(T, a * b + c, T.from_i64(0))
+    mut x := V.splat(a)
+    mut y := V.splat(b)
+    mut z := V.splat(c)
+    fused := x.fma(y, z)
+    assert(fused.eq(V.splat(expected)).all())
+    assert((x * y + z).eq(V.zero()).all())
+    // A distinct last lane catches truncation/chunk-boundary mistakes.
+    last := shape.len() - 1
+    x.set(last, own T.from_i64(2))!
+    y.set(last, own T.from_i64(3))!
+    z.set(last, own T.from_i64(4))!
+    mixed := x.fma(y, z)
+    for i in 0..last { assert_eq(T, mixed[i], expected) }
+    assert_eq(T, mixed[last], T.from_i64(10))
+    // The exact product overflows the format, but the fused result does not.
+    cancelled := V.splat(T.MAX).fma(V.splat(T.from_i64(2)), V.splat(c * T.MAX))
+    assert(cancelled.eq(V.splat(T.MAX)).all())
+}
+
+test_fma_rounding := test() {
+    delta32 : F32 = 1.1920928955078125e-7
+    delta64 : F64 = 2.220446049250313e-16
+    assert_eq(F32, FMA_F32_FOLDED, delta32 * delta32 * F32.from_i64(-1))
+    assert_eq(F64, FMA_F64_FOLDED, -1.0 * delta64 * delta64)
+    simd_fma_rounding(F32, F4, delta32, F4.zero())
+    simd_fma_rounding(F32, Simd(F32, 32), delta32, Simd(F32, 32).zero())
+    simd_fma_rounding(F64, Simd(F64, 1), delta64, Simd(F64, 1).zero())
+    simd_fma_rounding(F64, F64x16, delta64, F64x16.zero())
+}
+
+test_fma_special_values := test() {
+    tiny32 := "1.401298464324817e-45".to_f32()
+    tiny64 := "4.9406564584124654e-324".to_f64()
+    assert_eq(F32, fma_runtime(F32, tiny32, 0.5, tiny32), tiny32 + tiny32)
+    assert_eq(F64, fma_runtime(F64, tiny64, 0.5, tiny64), tiny64 + tiny64)
+    assert_eq(Str, fma_runtime(F32, -0.0, 2.0, -0.0).to_repr(), "-0")
+    assert_eq(Str, fma_runtime(F64, -0.0, 2.0, 0.0).to_repr(), "0")
+    inf32 := "inf".to_f32()
+    inf64 := "inf".to_f64()
+    invalid32 := fma_runtime(F32, inf32, 0.0, 1.0)
+    invalid64 := fma_runtime(F64, inf64, 1.0, 0.0 - inf64)
+    assert(invalid32.neq(invalid32))
+    assert(invalid64.neq(invalid64))
+    propagated := fma_runtime(F64, 2.0, 3.0, "nan".to_f64())
+    assert(propagated.neq(propagated))
+    lanes := F4.new(tiny32, -0.0, inf32, inf32).fma(
+        F4.new(0.5, 2.0, 2.0, 0.0), F4.new(tiny32, -0.0, 1.0, 1.0))
+    assert_eq(F32, lanes[0], tiny32 + tiny32)
+    assert_eq(Str, lanes[1].to_repr(), "-0")
+    assert_eq(Str, lanes[2].to_repr(), "inf")
+    assert(lanes[3].neq(lanes[3]))
+}
+
+fma_counted := proc(mut calls: I64, digit: I64) returns F32 {
+    noop_proc()
+    calls = calls * 10 + digit
+    return digit.to_f32()
+}
+
+fma_vector_counted := proc(mut calls: I64, digit: I64) returns F4 {
+    return F4.splat(fma_counted(calls, digit))
+}
+
+fma_replace_source := proc(mut source: F4) returns F4 {
+    noop_proc()
+    source = F4.splat(99.0)
+    return F4.splat(3.0)
+}
+
+fma_replace_scalar := proc(mut source: F32) returns F32 {
+    noop_proc()
+    source = 99.0
+    return 3.0
+}
+
+test_fma_evaluation_order := test() {
+    mut calls : I64 = 0
+    value := fma_counted(calls, 2).fma(fma_counted(calls, 3), fma_counted(calls, 4))
+    assert_eq(I64, calls, 234)
+    assert_eq(F32, value, 10.0)
+    calls = 0
+    vector := fma_vector_counted(calls, 2).fma(fma_vector_counted(calls, 3), fma_vector_counted(calls, 4))
+    assert_eq(I64, calls, 234)
+    assert(vector.eq(F4.splat(10.0)).all())
+    mut source := F4.splat(2.0)
+    snapshot := source.fma(fma_replace_source(source), F4.splat(4.0))
+    assert(snapshot.eq(F4.splat(10.0)).all())
+    assert(source.eq(F4.splat(99.0)).all())
+    mut scalar : F32 = 2.0
+    scalar_snapshot := scalar.fma(fma_replace_scalar(scalar), 4.0)
+    assert_eq(F32, scalar_snapshot, 10.0)
+    assert_eq(F32, scalar, 99.0)
+    mut values := array(F4, F4.splat(2.0))
+    borrowed_snapshot := values.unsafe_get(0).fma(fma_replace_source(values.unsafe_get(0)), F4.splat(4.0))
+    assert(borrowed_snapshot.eq(F4.splat(10.0)).all())
+    assert(values[0].eq(F4.splat(99.0)).all())
+}
+
+test_simd_argument_snapshots := test() {
+    mut source := F4.splat(2.0)
+    sum := source + fma_replace_source(source)
+    assert(sum.eq(F4.splat(5.0)).all())
+    source = F4.splat(2.0)
+    mask := source.eq(source)
+    selected := mask.select(source, fma_replace_source(source))
+    assert(selected.eq(F4.splat(2.0)).all())
+    assert(source.eq(F4.splat(99.0)).all())
+}
+
 test_simd_masks := test() {
     a := I4.new(1, 5, 3, 8)
     b := I4.new(2, 4, 3, 9)

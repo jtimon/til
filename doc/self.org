@@ -100,7 +100,9 @@
   in ~--cc~, so til's ~-march~ and ~-O~ selections (including defaults) win
   over those options. Use ~--opt=2~, rather than ~--cc='gcc -O2'~, to request
   optimization. Floating-point contraction is explicitly disabled; these
-  controls enable neither fast-math nor implicit FMA/reassociation. Vendor
+  controls enable neither fast-math nor implicit FMA/reassociation.
+  ~-fexcess-precision=standard~ makes declared-format casts and assignments
+  round on x87 too, rather than retaining extended intermediates. Vendor
   archives and already-built external libraries are not rebuilt by the flags.
 
   Non-baseline shared runtime/core names and their C symbol namespaces add
@@ -110,6 +112,15 @@
   those variants, and generated bindings/linker references name the matching
   dependencies. Optimization levels share an identity; baseline names retain
   their previous spelling. There is no additional manifest or cache.
+
+  Explicit ~a.fma(b, c)~ is available on ~F32~, ~F64~, and floating-point
+  ~Simd(T, N)~ in the interpreter and C backend. It computes ~a*b+c~ with
+  one final rounding per scalar/lane; ordinary ~a*b+c~ keeps separate
+  rounding. Arguments have matching types/widths and are evaluated once in
+  source order. IEEE infinities, signed zero and NaN results are supported;
+  NaN payload/sign are unspecified and no til exception is thrown. C uses
+  fused builtins/libm, including on targets without hardware FMA. There is
+  no separate CPU flag or fast-math requirement for explicit fusion.
 
 ** Single-pass build
 

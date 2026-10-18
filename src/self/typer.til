@@ -5763,8 +5763,11 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         func_scope.typer_func.auto_gen_depth = parent_func_state.auto_gen_depth
         if fdef.sig.func_type.is(FuncType.Proc) { func_scope.typer_func.proc_def_depth = func_scope.typer_func.proc_def_depth + 1 }
         if fdef.auto_generated { func_scope.typer_func.auto_gen_depth = func_scope.typer_func.auto_gen_depth + 1 }
-        if is_func { func_scope.typer_func.typer_return_type_name = fdef.sig.return_type.clone() }
-        else if fdef.sig.return_type == "Dynamic" { func_scope.typer_func.typer_return_type_name = fdef.sig.return_type.clone() }
+        // Value-returning procs need the same expected return type as funcs:
+        // in particular, a bare float literal must narrow to a declared F32.
+        if is_func.or(fdef.sig.func_type.is(FuncType.Proc)).or(fdef.sig.return_type == "Dynamic") {
+            func_scope.typer_func.typer_return_type_name = fdef.sig.return_type.clone()
+        }
         if fdef.sig.return_type.len() > 0 {
             return_type_name := fdef.sig.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name, ctx.symbols)

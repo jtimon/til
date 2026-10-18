@@ -4910,6 +4910,10 @@ priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context
         if op.eq("eq").or(op.eq("neq")).or(op.eq("lt")).or(op.eq("lte")).or(op.eq("gt")).or(op.eq("gte")) { result = mask }
         source = format(source, op, " := core_func(shallow a: ", name, ", shallow b: ", name, ") returns shallow ", result, " {}\n")
     }
+    if elem.eq("F32").or(elem.eq("F64")) {
+        source = format(source, "fma := core_func(shallow a: ", name, ", shallow b: ", name,
+            ", shallow c: ", name, ") returns shallow ", name, " {}\n")
+    }
     if elem == "Bool" {
         for reduction : Str in array(Str, "all", "any") {
             mut expression := "self.lane0"

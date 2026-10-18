@@ -1,11 +1,297 @@
 # priority: low
 # category: features
-** OPEN #410 SIMD shuffles, masked memory, gather/scatter and explicit FMA
+** WIP #410 SIMD shuffles, masked memory, gather/scatter and explicit FMA
 
 Extend [[../fixed/318.org][#318]] with portable operations needed by real
 vector algorithms. Define their semantics once for the interpreter and C,
 with [[./317.org][#317]] and future GPU lowering as additional implementations.
 None of these operations inherently requires MLIR or GPU execution.
+
+*** Explicit FMA implemented (base e61ceecf3)
+
+Approved public methods: ~F32.fma(a: F32, b: F32, c: F32) returns F32~,
+the corresponding F64 method, and ~Simd(T, N).fma(a, b, c)~ for
+~T = F32|F64~ with three same-type/same-width vectors. Method-call syntax
+is ~a.fma(b, c)~. No integer/Bool FMA or implicit scalar broadcast.
+
+Each scalar/lane computes ~a*b+c~ with one final rounding. Operands are
+evaluated once in source order. IEEE NaN/infinity/signed-zero results are
+supported, NaN payload/sign are unspecified, and there is no thrown error.
+Ordinary multiply followed by add retains separate rounding. The interpreter
+and constant folder use the platform's genuine ~fmaf~/~fma~, also used by C
+builtins when hardware FMA is unavailable. No new runtime dependency is
+needed: the C targets already link their platform math library.
+
+The C backend uses register-sized vector chunks without ISA-specific
+intrinsics. A fixed-trip lane loop lets GCC vectorize explicit scalar fused
+builtins; writing those assignments unrolled made its accumulating dot loop
+scalarize. Clang uses ~__builtin_elementwise_fma~ when available, with the
+same genuine fused lane operations otherwise. Assembly confirms packed
+~vfmadd*ps~ in YMM/ZMM registers for v3/v4 and AArch64 ~fmla~. Baseline x86
+emits libm calls instead of requiring optional FMA instructions.
+
+The 32-bit x86 checks exposed excess x87 precision in ordinary arithmetic:
+the cancelling ~a*b+c~ case produced the fused answer even with contraction
+disabled. A reduced scalar/vector C probe identified GCC's default excess
+precision as the cause. The C driver now adds
+~-fexcess-precision=standard~ alongside ~-ffp-contract=off~; no special x87
+lowering or forced SIMD ISA is needed. ~test/cpu_options.til~ pins those
+flags. The rebase also required marking ~make.til~'s ~dispatch~ Build
+parameter ~mut~, matching its stored handler signature and mutable caller;
+the new master correctly diagnosed the previous immutable parameter.
+
+Aliasing regressions found two earlier pipeline defects. Argument hoisting
+moved a later mutating call ahead of an earlier scalar/SIMD value read.
+The shared hoister now snapshots shallow numeric core operands before later
+effectful, mutable/consuming, or unresolved calls, including ref-returning
+operands; proven pure calls do not need that extra snapshot. This fixes FMA,
+arithmetic and select in both interpreter and C. Also, declared return-type
+context was retained for funcs but omitted for non-Dynamic procs: a proc
+returning the literal ~3.0~ as F32 left an F64 word that the interpreter
+misread as F32. Procs now carry that context so ordinary literal narrowing
+applies. Neither fix adds a backend-specific workaround.
+
+Regression coverage in ~test/simd.til~: ~test_fma_rounding~ (folded and
+runtime, single and oversized vectors, cancellation and overflow
+cancellation), ~test_fma_special_values~ (subnormals, signed zero, NaN and
+infinity), ~test_fma_evaluation_order~ (including scalar/vector aliases and
+borrowed operands), and ~test_simd_argument_snapshots~.
+~test/simd_errors.til~ rejects
+integer/Bool FMA and mixed element types/widths.
+
+Clean ~make clean && make test_two_pass~ ASAN suite: 524/524.
+Final SIMD validation: 31/31 interpreted and compiled for GCC 13.3 and
+Clang 18.1.3 at O0/O2/O3, baseline/v3/v4; compiled children use ASAN.
+GCC AArch64, RISC-V64 and
+32-bit x86, plus Clang AArch64, pass 31/31 at O2 under QEMU. Native AArch64
+timing is still unmeasured. Remaining operations in this issue still need
+their contracts settled; the FMA approval does not approve them.
+
+*** Preann reference and first dot-product measurements
+
+Reviewed local preann ~src/sse2/~ and ~src/sse2_64/~, the XmmBuffer and
+XmmConnection layout/callers, ~src/cuda/calcOutputs.cu~, and
+~src/test/chronoCalculateAndAdd.cpp~. The 64-bit assembly changes the ABI,
+not the SSE2 algorithms. Reference checkout: ~b2c2010~; the
+~src/sse2_64/sse2_float.asm~ blob is
+~430bfe11fabee569245ec3a2bb31e41dec82b08b~.
+
+- Float: four running lane sums with separate multiply/add, then
+  ~(lane0+lane2)+(lane1+lane3)~. A til four-lane non-fused loop can match
+  that order exactly. Wider accumulators and explicit FMA are different
+  numerical variants, not bit-identical replacements.
+- Bit/sign: unsigned byte weights represent ~weight-128~. Bit inputs select
+  that weight or zero; bipolar inputs select it or its negation. SSE2 uses
+  masks and ~PSADBW~ widening sums. Its packed layout traverses the high bit
+  of each of 16 bytes, then the next bit plane, through 128-input blocks;
+  it is not the scalar/CUDA consecutive-bit representation. Padding and
+  conversion costs must be preserved/accounted for in a later comparison.
+- CUDA: the output-oriented kernel shares inputs within a block and assigns
+  outputs to threads; other reduction/inverted-matrix variants exist. A CPU
+  SIMD timing does not measure those execution or transfer costs.
+
+The scratch harness below links the UNCHANGED 64-bit float assembly. Its
+wrapper calls it only for positive complete blocks and handles the scalar
+tail, covering n=0..65 at offsets 0/1. Every variant is checked bit-for-bit
+against a C reference with its OWN lane count, reduction tree and fused/
+separate semantics, including the entire timed range. Thus separate4 checks
+the assembly's arithmetic; wider/FMA variants are not mislabeled equivalent.
+
+Native measurements: Ryzen 9 9950X3D, CPU-0 affinity, GCC 13.3/Clang 18.1.3,
+O2, baseline/v3/v4, no fast-math/LTO. Median of three rotated samples after
+calibration to >=50 ms. Inputs are deterministic finite pseudo-random F32
+values; offset 1 is unaligned. Two 33554432-element arrays occupy 256 MiB.
+These are dot-kernel timings, not whole-network or training benchmarks.
+
+ns/element at n=4096:
+
+| Compiler/profile | SSE2 asm | separate4 | separate16 | fused16 |
+|------------------+----------+-----------+------------+---------|
+| GCC baseline     |   0.0932 |    0.1458 |     0.0941 |  1.2636 |
+| GCC v3           |   0.0939 |    0.0975 |     0.0500 |  0.0500 |
+| GCC v4           |   0.0920 |    0.0983 |     0.0503 |  0.0563 |
+| Clang baseline   |   0.0914 |    0.0967 |     0.0603 |  0.9784 |
+| Clang v3         |   0.0913 |    0.0950 |     0.0362 |  0.0471 |
+| Clang v4         |   0.0915 |    0.0950 |     0.0261 |  0.0533 |
+
+The exact four-lane comparison is still slower: about 4-6% for Clang and
+more for GCC baseline. Wider variants can win substantially (Clang v4
+separate16 is 3.51x the SSE2 reference here), but change accumulation order.
+Explicit fusion is not automatically faster than separate operations:
+baseline libm calls are costly, and a dependent FMA chain has latency.
+Clang's fused4 still has unpack/shuffle work on the accumulator and measures
+0.3605/0.3636 at v3/v4, versus separate4's 0.0950/0.0950. Record that cost
+rather than calling packed instructions alone a speedup.
+
+At n=17 Clang v4 is 0.1311 (SSE2), 0.1632 (separate4), 0.1250
+(separate16), 0.1212 (fused16). At n=33554432 it is 0.1660, 0.1710,
+0.1529 and 0.1570 respectively: the large-input speedup is much smaller.
+GCC baseline large-input separate16 is slightly slower than SSE2
+(0.1956 vs 0.1937); fused16 is 1.3540. All six complete harness runs pass
+their correctness checks. Final artifacts/logs are
+~tmp/preann410-final-{gcc,clang}-{baseline,x86-64-v3,x86-64-v4}*~.
+
+**** Reproduction
+
+Save these two blocks as ~tmp/preann410.til~ and
+~tmp/preann410_harness.c~. Reuse ~tmp/reduce409_cc.py~ from [[./409.org][#409]]:
+it preserves the flags selected by til and defines ~SIMD409_SOURCE~ for
+the harness include. NASM is preann's existing assembly toolchain, not a
+new til build dependency. For example (change compiler/profile to repeat):
+
+#+begin_src sh
+nasm -f elf64 /home/jt/sync/data_common/code/jt/preann/src/sse2_64/sse2_float.asm -o tmp/preann410-sse2.o
+bin/til build --cpu=x86-64-v4 --opt=2 \
+  --cc="python3 tmp/reduce409_cc.py clang tmp/preann410.c tmp/preann410_harness.c tmp/preann410-sse2.o" \
+  -c tmp/preann410.c -o tmp/preann410 tmp/preann410.til
+taskset -c 0 tmp/preann410
+objdump -d tmp/preann410
+#+end_src
+
+#+begin_src til
+mode cli
+
+dot := macro(N: I64, fused: Bool) returns FuncDef {
+return func(a: Array(F32), b: Array(F32), start: USize, n: USize) returns F32 {
+    width := Simd(F32, N).zero().len()
+    bulk := n - n.mod(width)
+    mut accum := Simd(F32, N).zero()
+    mut i : USize = 0
+    while i < bulk {
+        x := Simd(F32, N).load(a, start + i)!
+        y := Simd(F32, N).load(b, start + i)!
+        if fused { accum = x.fma(y, accum) }
+        else { accum = accum + x * y }
+        i = i + width
+    }
+    mut result := accum.reduce_add()
+    while i < n {
+        ref x : F32 = a.unsafe_get(start + i)
+        ref y : F32 = b.unsafe_get(start + i)
+        if fused { result = x.fma(y, result) }
+        else { result = result + x * y }
+        i++
+    }
+    return result
+}
+}
+
+main := proc(n: USize) {
+    mut a := Array(F32).new(n + 1)
+    mut b := Array(F32).new(n + 1)
+    for i in 0..(n + 1) { a.set(i, own i.to_f32())!; b.set(i, own 0.5)! }
+    println(dot(4, false)(a, b, 1, n), " ", dot(8, false)(a, b, 1, n), " ", dot(16, false)(a, b, 1, n))
+    println(dot(4, true)(a, b, 1, n), " ", dot(8, true)(a, b, 1, n), " ", dot(16, true)(a, b, 1, n))
+}
+#+end_src
+
+#+begin_src c
+#define main til_original_main
+#include SIMD409_SOURCE
+#undef main
+#include <math.h>
+#include <time.h>
+
+extern void XMMreal(const float *a, unsigned blocks, const float *b, float *out);
+typedef float (*dot_fn)(Array__F32 *, Array__F32 *, U64, U64);
+static volatile float sink;
+static float sse_dot(Array__F32 *a, Array__F32 *b, U64 start, U64 n) {
+    float *x = (float *)a->data + start, *y = (float *)b->data + start;
+    float out = 0;
+    U64 bulk = n - n % 4;
+    if (bulk) XMMreal(x, (unsigned)(bulk / 4), y, &out);
+    for (U64 i = bulk; i < n; ++i) out = out + x[i] * y[i];
+    return out;
+}
+static const struct { const char *name; int width, fused; dot_fn fn; } kernels[] = {
+    {"sse2",4,0,sse_dot},
+    {"separate4",4,0,dot__n1_4_bfalse}, {"separate8",8,0,dot__n1_8_bfalse},
+    {"separate16",16,0,dot__n2_16_bfalse},
+    {"fused4",4,1,dot__n1_4_btrue}, {"fused8",8,1,dot__n1_8_btrue},
+    {"fused16",16,1,dot__n2_16_btrue}
+};
+enum { COUNT = sizeof kernels / sizeof kernels[0] };
+static float reference(Array__F32 *a, Array__F32 *b, U64 start, U64 n, int width, int fused) {
+    const float *x = (const float *)a->data + start, *y = (const float *)b->data + start;
+    float accum[16] = {0};
+    U64 bulk = n - n % width;
+    for (U64 i = 0; i < bulk; i += width)
+        for (int j = 0; j < width; ++j)
+            accum[j] = fused ? fmaf(x[i+j], y[i+j], accum[j]) : accum[j] + x[i+j] * y[i+j];
+    for (int half = width / 2; half; half /= 2)
+        for (int j = 0; j < half; ++j) accum[j] = accum[j] + accum[j+half];
+    float out = accum[0];
+    for (U64 i = bulk; i < n; ++i) out = fused ? fmaf(x[i], y[i], out) : out + x[i] * y[i];
+    return out;
+}
+static void verify(Array__F32 *a, Array__F32 *b, U64 start, U64 n) {
+    for (int k = 0; k < COUNT; ++k) {
+        float expected = reference(a, b, start, n, kernels[k].width, kernels[k].fused);
+        float got = kernels[k].fn(a,b,start,n);
+        if (memcmp(&expected, &got, sizeof got)) {
+            fprintf(stderr,"mismatch %s n=%llu start=%llu: %a != %a\n",
+                kernels[k].name,(unsigned long long)n,(unsigned long long)start,(double)got,(double)expected);
+            exit(1);
+        }
+    }
+}
+static U64 now(void) {
+    struct timespec t;
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &t)) { perror("clock"); exit(1); }
+    return (U64)t.tv_sec * 1000000000 + t.tv_nsec;
+}
+static double run(dot_fn fn, Array__F32 *a, Array__F32 *b, U64 n, U64 reps) {
+    dot_fn volatile call = fn;
+    U64 t = now();
+    for (U64 r=0; r<reps; ++r) sink = call(a,b,1,n);
+    return (double)(now()-t)/reps;
+}
+static int cmp(const void *a, const void *b) {
+    double x=*(const double *)a, y=*(const double *)b;
+    return (x>y)-(x<y);
+}
+int main(int argc, char **argv) {
+    int check = argc > 1 && !strcmp(argv[1],"check");
+    U64 cap = check ? 130 : 33554434;
+    Array__F32 a = {(U8 *)malloc(cap*sizeof(float)), cap};
+    Array__F32 b = {(U8 *)malloc(cap*sizeof(float)), cap};
+    if (!a.data || !b.data) { perror("allocation"); return 1; }
+    U32 state=1234567;
+    for (U64 i=0; i<cap; ++i) {
+        state=state*1664525U+1013904223U;
+        ((float *)a.data)[i] = ((int)(state%2001)-1000)*0.001f;
+        state=state*1664525U+1013904223U;
+        ((float *)b.data)[i] = ((int)(state%2001)-1000)*0.001f;
+    }
+    for (U64 n=0; n<66; ++n) { verify(&a,&b,0,n); verify(&a,&b,1,n); }
+    if (!check) {
+        const U64 sizes[] = {17,4096,33554432};
+        puts("n,variant,ns_per_element,min_ns,max_ns,repetitions");
+        for (int c=0; c<3; ++c) {
+            U64 n=sizes[c], reps[COUNT];
+            double times[COUNT][3];
+            verify(&a,&b,1,n);
+            for (int k=0;k<COUNT;++k) {
+                reps[k]=1;
+                while (run(kernels[k].fn,&a,&b,n,reps[k])*reps[k]<50000000.0) reps[k]*=2;
+            }
+            for (int r=0;r<3;++r) for (int j=0;j<COUNT;++j) {
+                int k=(j+3*r)%COUNT;
+                times[k][r]=run(kernels[k].fn,&a,&b,n,reps[k]);
+            }
+            for (int k=0;k<COUNT;++k) {
+                qsort(times[k],3,sizeof(double),cmp);
+                printf("%llu,%s,%.6f,%.0f,%.0f,%llu\n",(unsigned long long)n,kernels[k].name,
+                    times[k][1]/n,times[k][0],times[k][2],(unsigned long long)reps[k]);
+            }
+            fflush(stdout);
+        }
+    }
+    puts("correctness: passed");
+    free(a.data); free(b.data);
+    return 0;
+}
+#+end_src
 
 *** Contracts to settle before implementing the public surface
 

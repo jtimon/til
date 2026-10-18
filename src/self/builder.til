@@ -855,7 +855,9 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // Appended after --cc's embedded options, on every compile/link command,
     // including link_c, shared runtime/core and Emscripten. Keep FP contraction
     // off: selecting an optimizing ISA must not silently introduce FMA.
-    build_flags := format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off")
+    // Standard excess precision also makes x87 casts/assignments round to
+    // the declared format instead of retaining extended intermediates.
+    build_flags := format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard")
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
             lp.link_c_paths, lp.link_flags, lp.include_flags, target,

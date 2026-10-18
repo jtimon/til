@@ -17,3 +17,9 @@ if mask { println("a mask is not a Bool") }
 
 // Floating-to-integer casts have no approved out-of-range/NaN contract.
 _float_cast := f.cast(I32)
+
+// FMA is floating-only and requires matching lane types and widths.
+integer_fma := a.fma(a, a)
+bool_fma := mask.fma(mask, mask)
+mixed_fma := f.fma(f, a)
+width_fma := f.fma(Simd(F32, 2).zero(), f)
