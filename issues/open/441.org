@@ -1,0 +1,94 @@
+# priority: low
+# category: features
+** OPEN #441 Target-aware size comparisons in function-generator macro conditions
+
+Allow a til macro returning ~FuncDef~ to select a function body using a
+condition such as ~USize.size() <= UPtr.size()~. The decision belongs at
+compile time; runtime calls should execute only the selected function.
+
+The motivating case is #400's ~usize_to_uptr~ specialization. Its factory
+currently enumerates U32/U64 type combinations with ~Type.is~ tests. The
+desired spelling expresses the actual rule without enumerating widths:
+
+#+begin_src til
+make_usize_to_uptr := macro() returns FuncDef {
+    if USize.size() <= UPtr.size() {
+        return func(val: USize) returns UPtr {
+            return val.to_uptr()
+        }
+    } else {
+        return func(val: USize) returns UPtr {
+            converted := val.to_uptr()
+            if converted.cast(U64) != val.cast(U64) {
+                panic("usize_to_uptr: byte count exceeds pointer width")
+            }
+            return converted
+        }
+    }
+}
+
+usize_to_uptr := make_usize_to_uptr()
+#+end_src
+
+*** Current behavior and constraints
+
+- ~init_macro_cond_eval~ in src/self/initer.til recognizes type-test
+  conditions, not size comparisons. ~init_macro_pick_return~ chooses the
+  returned definition before the generated body is typed. This is earlier
+  than ordinary constfolding, although both are compile-time work.
+- Width aliases must resolve through the target type scope, as the type
+  tests now do. Existing interpreter size queries can describe HOST storage:
+  during #400 follow-up testing, ~UPtr.size()~ reported 8 while a conversion
+  under ~--target=linux-x86 --usize=64~ actually narrowed to U32. Wrapping
+  that same host-size query in a macro would still choose the wrong branch.
+- The interpreter's real pointer allocations and aggregate layout tables
+  must remain host-sized. This feature must not globally change those
+  queries to target sizes or introduce a second layout cache.
+- #440 tracks private generators being falsely reported unused. That is
+  independent; this feature can use the existing non-private factory.
+
+*** Implementation plan
+
+- [ ] Trace the parsed comparison shape and generator expansion order,
+  including parameter substitution, imported factories and target alias
+  registration. Establish which target facts are available before branch
+  selection; do not assume ordinary constfolding has already run.
+- [ ] Extend generator-condition evaluation to compare known target sizes.
+  Start with concrete primitive types, USize/UPtr and aliases to them,
+  including substituted Type parameters and integer byte-count literals.
+  Support the ordinary comparison operators (~<~, ~<=~, ~==~, ~!=~, ~>=~,
+  ~>~), using existing primitive-size and target-alias authorities rather
+  than a new width table or hard-coded U32/U64 combinations.
+- [ ] Keep this target-size evaluation distinct from interpreter storage
+  sizing. Establish semantics and initialization availability before accepting
+  aggregate sizes or user-defined size methods; never substitute a host
+  layout for a target size that cannot yet be evaluated. Preserve the
+  distinction between a false condition and an unsupported/unknown one,
+  with a useful diagnostic if expansion cannot complete.
+- [ ] Retain compile-time branch selection: only the chosen returned
+  definition becomes the generated function. Preserve existing Type.is
+  conditions and if/else-if behavior. Reuse the evaluator if other existing
+  definition-generating macros share this path; do not add new public
+  intrinsics, flags or persistent artifacts for this feature.
+- [ ] Rewrite ~make_usize_to_uptr~ to the size-based form above once target
+  comparisons work. Follow doc/self.org's bootstrap workflow: verify whether
+  old til_boot can build the combined change; if not, land condition support
+  as preparation before making core depend on it. Record the actual build
+  failure rather than assuming two passes can resolve a pass-1 rejection.
+- [ ] Add regressions and run the required bootstrap/full-suite checks.
+  Update the generator documentation with the supported condition forms
+  and their target-versus-host sizing contract.
+
+*** Acceptance and regression coverage
+
+- Native and cross-target USize/UPtr combinations select the right body:
+  32/32, 32/64 and 64/64 need no check; 64/32 keeps overflow checking.
+- Reuse test/cpu_options.til's existing target/width compilations to inspect
+  emitted C before C optimization. Preserve its batched probes so the new
+  coverage does not reintroduce #400's test wall-time regression.
+- Test true, false and equal-size comparisons, type-parameter substitution,
+  aliases and an imported generator. Existing Type.is generator tests must
+  continue to pass. Unsupported conditions must not silently select a branch.
+- Keep the existing interpreted and compiled conversion boundary tests:
+  zero, U32 maximum, the first overflowing value and U64 maximum. Run the
+  Linux x86 QEMU probes at both USize widths as well as the full suite.
