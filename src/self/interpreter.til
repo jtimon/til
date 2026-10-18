@@ -6195,6 +6195,99 @@ priv session_global := func(session: InterpSession) returns ref Scope {
     }
 }
 
+// Compare contracts from independently compiled host and guest programs.
+// Host reflection has no guest SymbolPool: resolve guest aliases, then turn
+// the pool's symbols back into the same core Type spelling reflection uses.
+// User-layout types need host registration before they can cross this boundary.
+priv interp_lookup_type := func(name: Str, ctx: Context) returns Str {
+    ref resolved : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
+    if is_scalar_type_name(resolved).or(resolved.eq("Str")) { return resolved.clone() }
+    return ""
+}
+
+priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Option(FuncSig) {
+    ref sig : FuncSig = fd.sig
+    mut out := sig.clone()
+    // Match source signatures, using the same tail rule as reflection.
+    // Lowered throw slots are invocation ABI details, not extra parameters.
+    out.params.truncate(interp_funcsig_param_count(fd))
+    for i in 0..out.params.len() {
+        ref mut p : Declaration = out.params[i]
+        mut name := interp_lookup_type(decl_type_name(p, ctx.symbols), ctx)
+        // The language inserts this core-owned slot for kwargs contracts.
+        // Recognize it only at the signature's kwargs index, not as an
+        // arbitrary record parameter or a supported native value argument.
+        if i.to_i32() == sig.kwargs_index && decl_type_name(p, ctx.symbols) == "KwargsMap" {
+            name = "KwargsMap"
+        }
+        if name.len() == 0 { return Option(FuncSig).None }
+        p.til_type = declaration_type_from_name(name)
+    }
+    if sig.return_type.len() > 0 {
+        name := interp_lookup_type(sig.return_type, ctx)
+        if name.len() == 0 { return Option(FuncSig).None }
+        out.return_type = name
+    }
+    return Option(FuncSig).Some(own out)
+}
+
+// Checked evaluator lookup, not a native function pointer. The returned
+// binding borrows the live session; its callable/environment and AST remain
+// under the session's existing ownership. Callers must not detach that borrow
+// into an untyped public handle. Validation errors do not reset/evaluate the VM.
+interp_session_lookup_function := proc(mut session: InterpSession, mut lp: LoadedProgram,
+    name: Str, expected: FuncSig) returns Option(ref HeapBinding) {
+    root := lp.units[lp.units.len() - 1].path.clone()
+    decl_o := lp.ctx.scope.get_binding_name(name, lp.ctx.symbols)
+    if decl_o.is_none() {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            root, 0, 0, format("guest function not found: ", name))
+        return Option(ref HeapBinding).None
+    }
+    ref declaration : TypeBinding = decl_o.unwrap()
+    mut user_unit := false
+    for unit in lp.units { if unit.path == declaration.path { user_unit = true } }
+    if declaration.is_priv.or(user_unit.not()) {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            root, 0, 0, format("guest function is not exported: ", name))
+        return Option(ref HeapBinding).None
+    }
+    binding_o := scope_lookup_heap_binding(session_global(session), name)
+    if binding_o.is_none() {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            declaration.path, declaration.line, declaration.col, format("guest callable has no live binding: ", name))
+        return Option(ref HeapBinding).None
+    }
+    ref binding : HeapBinding = binding_o.unwrap()
+    def_o := hb_func_def(binding)
+    if def_o.is_none() {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            declaration.path, declaration.line, declaration.col, format("guest binding is not a function: ", name))
+        return Option(ref HeapBinding).None
+    }
+    ref def : Expr = def_o.unwrap()
+    if def.node_type.is(NodeType.FuncDef).not().or(def.children.len() == 0) {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            declaration.path, declaration.line, declaration.col, format("guest binding has no function implementation: ", name))
+        return Option(ref HeapBinding).None
+    }
+    ref fd : FunctionDef = funcdef_of(def)
+    actual_o := interp_lookup_signature(fd, lp.ctx)
+    if actual_o.is_none() {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            declaration.path, declaration.line, declaration.col,
+            format("guest function needs registered host types: ", name))
+        return Option(ref HeapBinding).None
+    }
+    actual := actual_o.unwrap()
+    if actual.eq(expected).not() {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+            declaration.path, declaration.line, declaration.col, format("guest function signature mismatch: ", name))
+        return Option(ref HeapBinding).None
+    }
+    return binding_o
+}
+
 interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
     if session.global.is_some() {
         scope_drop_owned_bindings(session_global(session))
@@ -8067,6 +8160,9 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, mut r: Dynamic, ctx: Contex
             dispatch_write_str(r, "FunctionDef".c_str, 11, ctx)
             return true
         case enum_variant_tag(til_type_def, "FuncPtr"):
+            dispatch_write_str(r, "Fn".c_str, 2, ctx)
+            return true
+        case enum_variant_tag(til_type_def, "FuncPtrSig"):
             dispatch_write_str(r, "Fn".c_str, 2, ctx)
             return true
         case enum_variant_tag(til_type_def, "Body"):

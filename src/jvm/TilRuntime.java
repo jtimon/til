@@ -177,9 +177,9 @@ public final class TilRuntime {
         if (variant.equals("Primitive")) {
             variant = ((EnumValue) payload).tilVariantName();
         } else if (variant.equals("Struct") || variant.equals("Enum")
-                || variant.equals("Custom") || variant.equals("FuncPtrSig")) {
+                || variant.equals("Custom")) {
             return cloneStr((Str) payload);
-        } else if (variant.equals("FuncPtr") || variant.equals("FuncDef")) {
+        } else if (variant.equals("FuncPtr") || variant.equals("FuncPtrSig") || variant.equals("FuncDef")) {
             variant = "Fn";
         }
         return hostStr(variant);

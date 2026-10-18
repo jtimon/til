@@ -1762,10 +1762,11 @@ main := proc(args: ..Str) {
     // again. The exits already read type_name; the index-taking ones now
     // report the offending index too, so every parameter is genuinely
     // read and no cast survives. first_class.til retains the struct_field_*
-    // and enum_variant_* stubs; its func_sig_* Vec results fold statically.
+    // and enum_variant_* stubs; #370 also reflects a runtime signature Type
+    // argument, retaining the five indexed func_sig_* stubs alongside them.
     add_count(tests, "first_class_no_stub_param_casts", "build", "(void)type_name", 0,
         format(til_bin, " translate -c gen/c/fc_vc.c test/first_class.til '&&' cat gen/c/fc_vc.c"))
-    add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 9,
+    add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 14,
         format(til_bin, " translate -c gen/c/fc_ir.c test/first_class.til '&&' cat gen/c/fc_ir.c"))
     // Abstract methods now have typed dispatch definitions. The signature
     // survives to the backend rather than becoming an untyped dyn_call.

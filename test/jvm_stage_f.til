@@ -21,6 +21,8 @@ jvm_make_offset := func(offset: I64) returns JvmOffset {
 }
 
 main := proc() {
+    assert(til_type_name(JvmBinary) == "JvmBinary")
+    assert(dyn_type_to_str(JvmBinary) == "Fn")
     mut op : JvmBinary = jvm_add
     println(op(2, 3).to_str(), " ", jvm_apply(op, 4, 5).to_str())
     op = jvm_mul

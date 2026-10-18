@@ -178,6 +178,21 @@ test_dyn_type_to_str_funcsig := test() {
     assert_eq(Str, "Fn", dyn_type_to_str(Type.FuncPtr))
 }
 
+// #370: a Type argument preserves its named callable contract for lookup,
+// while the general dynamic storage classification remains "Fn".
+signature_of_type := func(signature: Type) returns FuncSig {
+    return func_sig_of(til_type_name(signature))
+}
+
+test_named_funcsig_type_token := test() {
+    sig := signature_of_type(BinaryOp)
+    assert_eq(USize, sig.params.len(), 2)
+    assert_eq(Str, sig.params[0].type_name(), "I64")
+    assert_eq(Str, sig.return_type, "I64")
+    assert_eq(Str, til_type_name(BinaryOp), "BinaryOp")
+    assert_eq(Str, dyn_type_to_str(BinaryOp), "Fn")
+}
+
 test_vec_funcsig_create := test() {
     ops := DynVec.new(BinaryOp)
     assert_eq(USize, ops.len(), 0)

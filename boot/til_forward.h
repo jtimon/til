@@ -442,8 +442,8 @@ typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
-typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
+typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
@@ -1618,12 +1618,12 @@ typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox {
 } Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 
 
-struct Option__ref_HeapBinding {
-    HeapBinding *data;
-};
-
 struct Option__ref_Dynamic {
     void *data;
+};
+
+struct Option__ref_HeapBinding {
+    HeapBinding *data;
 };
 
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox {

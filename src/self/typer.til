@@ -68,14 +68,12 @@ make_til_type_expr := func(src: Expr, t: Type, mut symbols: SymbolPool) returns 
     case .EnumDef:   variant_name = "EnumDef"
     case .FuncDef:   variant_name = "FuncDef"
     case .FuncPtr:   variant_name = "FuncPtr"
-    // Issue #58: FuncPtrSig carries a FuncSig alias name. For
-    // make_til_type_expr we emit it as the bare FuncPtr type token --
-    // the name isn't part of til's type-token surface (no user-visible
-    // `Type.FuncPtrSig("X")` constructor exists yet), and downstream
-    // consumers that care about the name read it from the binding's
-    // type via til_type_name. As migration progresses this can grow
-    // its own variant_name path.
-    case .FuncPtrSig, .FuncPtrSigSym: variant_name = "FuncPtr"
+    // A named function signature is a real type token. Keep its name for
+    // contract reflection; dyn_type_to_str still classifies it as "Fn".
+    case .FuncPtrSig(s):
+        variant_name = "FuncPtrSig"; payload_name = s.clone(); has_payload = true
+    case .FuncPtrSigSym(sym):
+        variant_name = "FuncPtrSig"; payload_name = Str.clone(symbols.resolve(sym)); has_payload = true
     // #397 step 3: reflection reports the twins as the RUNTIME variants
     // they stand in for, payload resolved to its spelling -- the
     // compile-time representation never leaks into a user-visible Type.

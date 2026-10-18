@@ -9475,6 +9475,12 @@ priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
             f.write(": return ")
             emit_str_lit_expr(f, display, lp.ctx)
             f.write(";\n")
+        } else if vn == "FuncPtrSig" {
+            // The token retains the contract name for til_type_name, while
+            // dynamic callable storage still belongs to the "Fn" family.
+            f.write("    case Type_TAG_FuncPtrSig: return ")
+            emit_str_lit_expr(f, "Fn", lp.ctx)
+            f.write(";\n")
         } else if vt == "Str" {
             f.write("    case Type_TAG_")
             f.write(vn)

@@ -310,7 +310,7 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
                     // would prune the enum/struct decl as unused.
                     if type_name.ident_name(symbols.names) == "Type" {
                         ref mn : Str = method.field_access_name(symbols.names)
-                        is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
+                        is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom")).or(mn.eq("FuncPtrSig"))
                         if is_named_type_ctor.and(e.children.len().gte(2)) {
                             switch e.children[1].node_type {
                             case .Literal(Literal.Str(tname)):

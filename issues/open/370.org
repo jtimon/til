@@ -65,6 +65,40 @@ Open questions:
   diagnostic-vector case also covers the C call inventory: children of
   a PrecomputedSequence describe static data, not runtime clone calls.
 
+*** Checked lookup foundation using existing function signatures
+
+- Named function-signature Type arguments retain their existing
+  ~Type.FuncPtrSig~ name, rather than becoming bare ~Type.FuncPtr~.
+  ~til_type_name(Signature)~ can therefore feed ~func_sig_of~; both
+  interpreted and compiled ~dyn_type_to_str~ still classify it as ~Fn~.
+  The scavenger keeps signatures reached through these type tokens.
+- ~interp_session_lookup_function~ checks a live guest callable against
+  the host's ordinary reflected ~FuncSig~. Guest aliases and symbol-pool
+  IDs are normalized to core type spellings; the existing ~FuncSig.eq~
+  checks parameter/result types, own/mut, func/proc, variadic/kwargs
+  indices, and ordered throws. Hidden throw ABI slots are excluded using
+  the same rule as function-signature reflection.
+- Lookup rejects missing/private/core names, non-callable values and
+  bodyless signature declarations with owned diagnostics. Function
+  aliases and capturing callable values use the actual live binding.
+  Failed validation does not evaluate code, reset the module, or discard
+  the session's globals. User-layout parameters/results require host
+  registration; matching an unregistered record's spelling is not proof
+  of its layout or ownership contract.
+- The result is an internal borrow of the session's HeapBinding. It
+  keeps the existing owner of code/captures; it is not exposed as a
+  native function pointer or a new public callable type. Public invocation
+  and its error/lifetime contract are the next boundary to implement.
+- ~test/first_class.til~ checks signature reflection through a Type
+  argument while preserving ~Fn~ classification. The installed ASAN
+  host in ~test/tilvm.til~ exercises successful and rejected lookups
+  with empty ~PATH~, including aliases, scalar widths, strings, ownership,
+  mutability, variadics, kwargs, throws, borrowed results, and captures.
+- ~make clean && make test_two_pass~ passed 520/520. Two-pass verification
+  makes the compiler's signature-token rewrite part of its self-applied
+  bootstrap output. JVM callable tests also retain the signature name
+  while preserving dynamic ~Fn~ classification.
+
 *** Findings from Tiled's startup implementation
 
 The separate [[https://github.com/jtimon/tiled][tiled repository]] now exercises this exact use case with

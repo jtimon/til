@@ -28,7 +28,127 @@ implicit_teardown := proc(root: Str) {
     // ASAP inserts TilVm.delete here, which calls its private close helper.
 }
 
+HostNumber := I64
+HostBinary := func(HostNumber, HostNumber) returns HostNumber
+HostSize := func(USize) returns USize
+HostScalars := func(Bool, I32, U64, F32, F64) returns Bool
+HostText := func(Str) returns Str
+HostOwned := func(own Str) returns Str
+HostMutable := proc(mut Str)
+HostRead := func(Str)
+HostVariadic := func(values: ..I64) returns I64
+HostKeywords := func(values: ...) returns I64
+HostThrow := struct {}
+HostThrowing := func(I64) returns I64 throws HostThrow
+HostBorrowed := func(Str) returns ref Str
+HostReader := func() returns Str
+
+lookup_contract := func(signature: Type) returns FuncSig {
+    return func_sig_of(til_type_name(signature))
+}
+
+lookup_failure := proc(mut session: InterpSession, mut program: LoadedProgram,
+    name: Str, signature: FuncSig, detail: Str) {
+    program.ctx.diagnostics = Vec(SourceDiagnostic).new()
+    result := interp_session_lookup_function(session, program, name, signature)
+    assert(result.is_none())
+    assert(program.ctx.diagnostics.len() == 1)
+    expect(program.ctx.diagnostics[0].message.contains(detail), program.ctx.diagnostics[0].render())
+    // A bad lookup is validation, not a failed guest invocation or reload.
+    assert(program.ctx.eval.eval_aborted.not())
+    assert(session.retained_programs.len() == 1)
+}
+
+// Exercise the evaluator seam through the installed SDK. The returned
+// binding is a session borrow, not a new public native-callable representation.
+checked_lookup := proc(root: Str) {
+    File.writefile("lookup_guest.til", format(
+        "mode lib\nGuestNumber := I64\n",
+        "binary := func(left: GuestNumber, right: GuestNumber) returns GuestNumber { return left + right }\n",
+        "size := func(value: USize) returns USize { return value }\n",
+        "scalars := func(flag: Bool, a: I32, b: U64, c: F32, d: F64) returns Bool { return flag && a >= 0 && b >= 0 && c <= d.to_f32() }\n",
+        "text := func(value: Str) returns Str { return value.clone() }\n",
+        "owned := func(own value: Str) returns Str { return value }\n",
+        "changed := proc(mut value: Str) { value = format(value, \"!\"); noop_proc() }\n",
+        "read := func(value: Str) { assert(value.len() >= 0) }\n",
+        "variadic := func(values: ..I64) returns I64 { return values.len().to_i64() }\n",
+        "keywords := func(values: ...) returns I64 { return values.len().to_i64() }\n",
+        "HostThrow := struct {}\nthrowing := func(value: I64) returns I64 throws HostThrow { if value < 0 { throw HostThrow() }; return value }\n",
+        "borrowed := func(value: Str) returns ref Str { return value }\n",
+        "GuestReader := func() returns Str\n",
+        "make_reader := func(value: Str) returns GuestReader { saved := value.clone(); return func() returns Str [own saved] { return saved.clone() } }\n",
+        "reader := make_reader(\"retained capture\")\n",
+        "priv helper := func(a: I64, b: I64) returns I64 { return a + b }\nhelper_alias := helper\n",
+        "alias := binary\nnumber := 7\nGuestSig := func(I64) returns I64\n",
+        "GuestRecord := struct { value := 0 }\nrecord := func(value: GuestRecord) returns I64 { return value.value }\n"))
+    mut lp := load_program("lookup_guest.til", realpath_str(root), realpath_str("."),
+        format(realpath_str(root), "/src/c/ext.c"), Vec(Str).new(), "", true)
+    assert(lp.load_errors == 0)
+    expect(init_and_type_program_errors(lp, false) == 0, "lookup guest should typecheck")
+    mut raw : Dynamic = interp_program_to_heap(own lp)
+    ref mut program : LoadedProgram = to_ptr(raw)
+    mut session := InterpSession()
+    interp_session_start(session, Vec(Str).new())
+    interp_session_retain_program(session, raw)
+    assert(interp_session_prepare_context(session, program, "") == 0)
+    interp_session_eval_core_once(session, program)
+    interp_session_eval_user_units(session, program)
+    assert(program.ctx.eval.eval_aborted.not())
+
+    binary := lookup_contract(HostBinary)
+    found := interp_session_lookup_function(session, program, "binary", binary)
+    assert(found.is_some())
+    assert(hb_func_def(found.unwrap()).is_some())
+    assert(interp_session_lookup_function(session, program, "alias", binary).is_some())
+    assert(interp_session_lookup_function(session, program, "helper_alias", binary).is_some())
+    assert(interp_session_lookup_function(session, program, "size", lookup_contract(HostSize)).is_some())
+    assert(interp_session_lookup_function(session, program, "scalars", lookup_contract(HostScalars)).is_some())
+    assert(interp_session_lookup_function(session, program, "text", lookup_contract(HostText)).is_some())
+    assert(interp_session_lookup_function(session, program, "owned", lookup_contract(HostOwned)).is_some())
+    assert(interp_session_lookup_function(session, program, "changed", lookup_contract(HostMutable)).is_some())
+    assert(interp_session_lookup_function(session, program, "read", lookup_contract(HostRead)).is_some())
+    assert(interp_session_lookup_function(session, program, "variadic", lookup_contract(HostVariadic)).is_some())
+    assert(interp_session_lookup_function(session, program, "keywords", lookup_contract(HostKeywords)).is_some())
+    assert(interp_session_lookup_function(session, program, "throwing", lookup_contract(HostThrowing)).is_some())
+    assert(interp_session_lookup_function(session, program, "borrowed", lookup_contract(HostBorrowed)).is_some())
+    reader := interp_session_lookup_function(session, program, "reader", lookup_contract(HostReader))
+    assert(reader.is_some())
+    reader_def := hb_func_def(reader.unwrap())
+    assert(funcdef_of(reader_def.unwrap()).captures.len() > 0)
+
+    // Even a caller who discovers a compiler-mangled private name cannot
+    // use it as an exported guest symbol. Exported aliases remain callable.
+    ref entry : ImportUnit = program.ctx.imported[program.units[program.units.len() - 1].path]
+    mut private_checked := false
+    for statement in entry.ast.children {
+        switch statement.node_type {
+        case .Decl(d):
+            if d.is_priv {
+                lookup_failure(session, program, d.name, binary, "not exported")
+                private_checked = true
+            }
+        case:
+        }
+    }
+    assert(private_checked)
+
+    lookup_failure(session, program, "missing", binary, "not found")
+    lookup_failure(session, program, "print_single", lookup_contract(HostRead), "not exported")
+    lookup_failure(session, program, "number", binary, "not a function")
+    lookup_failure(session, program, "GuestSig", binary, "no function implementation")
+    lookup_failure(session, program, "record", binary, "registered host types")
+    lookup_failure(session, program, "text", lookup_contract(HostOwned), "signature mismatch")
+    lookup_failure(session, program, "changed", lookup_contract(HostRead), "signature mismatch")
+    lookup_failure(session, program, "variadic", binary, "signature mismatch")
+    lookup_failure(session, program, "keywords", lookup_contract(HostVariadic), "signature mismatch")
+    lookup_failure(session, program, "binary", lookup_contract(HostThrowing), "signature mismatch")
+    lookup_failure(session, program, "text", lookup_contract(HostBorrowed), "signature mismatch")
+    assert(interp_session_lookup_function(session, program, "binary", binary).is_some())
+    interp_session_free(session)
+}
+
 main := proc(root: Str) returns I64 {
+    checked_lookup(root)
     mut vm := TilVm.new(root)
     expect_failure(vm, "mode lib\nbroken := func( {\n", "load", "expected", 2)
     expect_failure(vm, "mode lib\n/* unterminated\n", "load", "unterminated comment", 2)
