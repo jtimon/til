@@ -310,6 +310,32 @@ main := proc() returns I64 {
         panic("the gui program built by the installed til printed '", gui_run.out(), "'")
     }
 
+    // Use the installed crypto module from outside the checkout on both
+    // backends: the archive and interpreter twin must both be installed.
+    require(format(PREFIX, "/lib/til/vendor/bindings/secp256k1.til"))
+    require(format(PREFIX, "/lib/til/vendor/secp256k1/libsecp256k1.a"))
+    File.writefile(format(WORK, "/installed_crypto.til"), format(
+        "mode cli\nimport(\"std/crypto\")\n",
+        "main := proc() {\n",
+        "    digest := sha256_str(\"abc\")\n",
+        "    if digest.to_hex() != \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\" { panic(\"bad installed sha256\") }\n",
+        "    key := U256.from_hex(\"0000000000000000000000000000000000000000000000000000000000000003\")\n",
+        "    pubkey := schnorr_pubkey(key)!\n",
+        "    if pubkey.to_hex() != \"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\" { panic(\"bad installed pubkey\") }\n",
+        "    sig := schnorr_sign(key, digest, U256())!\n",
+        "    if schnorr_verify(pubkey, digest, sig)!.not() { panic(\"bad installed signature\") }\n",
+        "    println(\"installed crypto works\")\n",
+        "}\n"))
+    for backend : Str in vec(Str, "interpret", "run") {
+        crypto := Cmd.new(installed_til, backend, "installed_crypto.til")
+        crypto.cwd(WORK)
+        crypto.capture_out()
+        crypto.run_checked()
+        if crypto.out().contains("installed crypto works").not() {
+            panic("installed crypto failed on ", backend, ": ", crypto.out())
+        }
+    }
+
     // The missing-libffi report. Remove the installed archive in this fixture
     // (embedding now installs it), so this remains a place the check fires
     // hermetically on every host: a program whose generated C calls

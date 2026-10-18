@@ -69,23 +69,24 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc != 0 { return rc }
-    // What `mode gui` stands on (issue #348). src/modes/gui.til imports
+    // Native support for mode gui (issue #348) and std/crypto.
+    // src/modes/gui.til imports
     // ../../vendor/bindings/{raylib,tinyfd} and links the vendored
     // archives, and resolve_link_path's compiler-root candidate already
     // finds both under dst_root -- IF they are installed at their
     // source-relative paths. The bindings are the whole directory (small
     // text, and a custom mode may import any of them); the archives are
-    // exactly the two gui links, each with the .so twin the interpreter
+    // the gui and crypto links, each with the shared twin the interpreter
     // dlopens for repl/interpreted FFI. The archives are build products,
     // so require them prebuilt and fail loudly pointing at the build --
     // installing a compiler whose gui mode cannot load is how this issue
     // happened.
     rc = install_tree(format(root, "/vendor/bindings"), format(dst_root, "/vendor/bindings"), "install compiler FFI bindings")
     if rc != 0 { return rc }
-    for lib : Str in gui_link_artifacts() {
+    for lib : Str in support_link_artifacts() {
         src_path := format(root, "/", lib)
         if File.exists(src_path).not() {
-            println(format("error: '", src_path, "' is missing -- mode gui needs it; build the vendored libraries first (make, or bin/make vendor)"))
+            println(format("error: '", src_path, "' is missing -- installed compiler support needs it; build the vendored libraries first (make, or bin/make vendor)"))
             return 1
         }
         rc = install_file(src_path, format(dst_root, "/", lib), format("install ", lib))
@@ -100,18 +101,23 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     return 0
 }
 
-// The vendored artifacts an installed `mode gui` build/interpret needs,
+// The vendored artifacts installed mode gui and std/crypto need,
 // at their source-relative paths: each linked archive plus its
 // dlopen-able twin (see ffi_load_archive_twin -- the twin sits beside
 // the archive, and resolve_link_path finds both under the install
 // root). nng stays out: the server modes are --extra-modes user files
 // (examples/custom_modes.til), not installed built-ins.
-priv gui_link_artifacts := func() returns Vec(Str) {
+priv support_link_artifacts := proc() returns Vec(Str) {
+    // Match ffi_load_archive_twin, including its .so spelling on macOS.
+    mut twin_ext := ".so"
+    if host_os() == "windows" { twin_ext = ".dll" }
     mut out := Vec(Str).new()
     out.push(own "vendor/raylib/src/libraylib.a")
-    out.push(own "vendor/raylib/src/libraylib.so")
+    out.push(own format("vendor/raylib/src/libraylib", twin_ext))
     out.push(own "vendor/tinyfiledialogs/libtinyfd.a")
-    out.push(own "vendor/tinyfiledialogs/libtinyfd.so")
+    out.push(own format("vendor/tinyfiledialogs/libtinyfd", twin_ext))
+    out.push(own "vendor/secp256k1/libsecp256k1.a")
+    out.push(own format("vendor/secp256k1/libsecp256k1", twin_ext))
     return out
 }
 
