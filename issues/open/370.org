@@ -219,6 +219,38 @@ Host-function registration, guest value interchange and retained callbacks
 remain the next API decisions. The broader proposal below is still pending;
 its ~Interp~ spelling is superseded by ~TilVm~.
 
+*** Stored callback analysis (Tiled #5)
+
+Both reported limitations reproduced on master ~f24e6004c~, independently
+of the installed ~b444d7223~ compiler. Calls through stored proc pointers
+returned before procedure-effect checking. Field and expression callees
+also inferred arguments without running the normal signature validator,
+losing mutable-write evidence and permitting invalid arguments.
+
+The typer now accounts for the stored signature's proc effect and uses the
+ordinary argument validator for field, returned and cast callables. This
+both credits real writes and rejects immutable arguments. A proc cannot
+be stored in a func-typed slot to hide its effect; named-function signature
+checks now cover constructor fields as well. The interpreter dispatches
+its proc handlers directly inside its existing proc dispatcher rather than
+through a func wrapper that depended on the same checking hole.
+
+~test/stored_callbacks.til~ exercises parameter/local/field/nested-field/
+returned/cast calls, mutation of the original state, pure mutable callbacks,
+and contextual enum/generic arguments. ~test/stored_callbacks_error.til~
+checks purity, mutability, argument types, redundant mut and effect-erasing
+assignments on both backends. The existing ~test/fn_ptr.til~ helper now
+correctly spells ~proc~ because ~Fn(...)~ without a returns clause is a proc
+signature.
+
+Verification: ~make clean && make test~ passed 524/524, including the four
+new stored-callback runs and the existing function-pointer/ABI regressions.
+
+Tiled handoff: a proc wrapper containing only ~binding.action(state)~ can
+now retain its proc and mutable-state contracts without a dummy direct proc
+call or extracting the callable to a local. Application edits stay in the
+Tiled session; this compiler change adds no embedding API.
+
 *** API and ownership proposal against master b201ae5d5
 
 Design proposal, pending approval before adding public modules, APIs or

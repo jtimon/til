@@ -8937,16 +8937,6 @@ priv dispatch_init := func(mut ctx: Context) {
     ctx.ffi.dispatch_inited = true
 }
 
-priv ext_dispatch_builtin := func(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
-    ref dm : Map(Str, Dynamic) = ctx.ffi.dispatch_map
-    if dm.has(name) {
-        ref slot : Dynamic = dm[name]
-        ref fp : DispatchFn = to_ptr(slot)
-        return fp(scope, e, result, ctx)
-    }
-    return false
-}
-
 priv h_dyn_call := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
@@ -10281,7 +10271,14 @@ priv simd_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut res
 
 priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
     if ctx.ffi.dispatch_inited.not() { dispatch_init(ctx) }
-    if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
+    // The runtime handlers are procs. Keep their invocation in the proc
+    // dispatcher rather than hiding that effect inside a func wrapper.
+    ref dm : Map(Str, Dynamic) = ctx.ffi.dispatch_map
+    if dm.has(name) {
+        ref slot : Dynamic = dm[name]
+        ref fp : DispatchFn = to_ptr(slot)
+        if fp(scope, e, result, ctx) { return true }
+    }
     if scalar_core_op_eval(name, scope, e, result, ctx) { return true }
     if simd_core_op_eval(name, scope, e, result, ctx) { return true }
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }

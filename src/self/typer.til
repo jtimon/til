@@ -778,7 +778,7 @@ priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa
             }
             // Issue #58 / #147 step 5: read the FuncSig alias name from
             // fd.til_type's FuncPtrSig payload instead of a separate name.
-            ref fpf_sig_name : Str = type_name_ref(fd.til_type, ctx.symbols)
+            fpf_sig_name := type_name_ref(fd.til_type, ctx.symbols).clone()
             if fpf_sig_name.len() == 0 { return false }
             ftb_fd_o := scope.lookup_func_name(fpf_sig_name, ctx.symbols)
             if ftb_fd_o.is_none() { return false }
@@ -792,17 +792,7 @@ priv infer_func_ptr_field_call := proc(mut scope: TypeScope, mut e: Expr, mut fa
             if nargs != sig_fdef.sig.params.len() {
                 e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.sig.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
             }
-            mut ai : USize = 0
-            while ai < nargs {
-                if ai >= sig_fdef.sig.params.len() { break }
-                infer_expr(scope, e.children[ai + 1], in_func, ctx)
-                ai++
-            }
-            if sig_fdef.sig.return_type.len() > 0 {
-                e.set_til_type(type_from_name(sig_fdef.sig.return_type, scope, ctx))
-            } else {
-                e.set_til_type(Type.None)
-            }
+            infer_named_funcptr_call(scope, e, fpf_sig_name, in_func, ctx)
             return true
         }
     case:
@@ -1239,6 +1229,12 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         // already pairs each field's Declaration with its INFERRED value,
         // which is exactly what the shared rule needs.
         fld_slot_type := declaration_resolved_type(fld_decl, scope, ctx.symbols)
+        ctor_sig_diff := funcref_sig_mismatch(e.children[ai], fld_slot_type, scope, ctx.symbols)
+        if ctor_sig_diff.is_empty().not() {
+            e.children[ai].type_error(format("field '", ctor_sdd.field_name_at(fi),
+                "': function does not match ", decl_type_name_ref(fld_decl, ctx.symbols),
+                " (", ctor_sig_diff, ")"), ctx)
+        }
         if slot_takes_address(fld_decl.own_type, fld_slot_type).not() {
             ref carg : Expr = e.children[ai]
             if expr_is_address(carg, scope, ctx.symbols) {
@@ -1349,6 +1345,9 @@ priv funcref_sig_mismatch := func(val: Expr, expected: Type, scope: TypeScope, s
 }
 
 priv fdef_sig_mismatch := func(got: FunctionDef, want: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Str {
+    if got.sig.func_type.is_proc().and(want.sig.func_type.is_proc().not()) {
+        return "proc cannot fill a func signature"
+    }
     if want.sig.params.len() != got.sig.params.len() {
         return format("takes ", got.sig.params.len().to_str(), " params, expected ",
             want.sig.params.len().to_str())
@@ -1869,6 +1868,36 @@ priv infer_and_validate_fcall_args := proc(mut scope: TypeScope, mut e: Expr, ca
     infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
 }
 
+// A stored callable's signature is its effect contract, regardless of the
+// expression shape used to obtain it. These calls used to return before the
+// ordinary proc check, so a proc wrapper looked pure and a func could do I/O.
+priv check_funcptr_effect := proc(mut scope: TypeScope, e: Expr, sig: FunctionDef, in_func: I32, mut ctx: Context) {
+    if sig.sig.func_type.is_proc().not() { return }
+    ref mut state : TyperFuncState = scope.typer_func_state()
+    if in_func != 0 {
+        e.type_error("func cannot call proc through a function pointer", ctx)
+    } else if state.proc_def_depth > 0 {
+        state.proc_calls_count++
+    }
+}
+
+// Field and expression callees have no ordinary named-function binding, but
+// their named signature supplies the very same argument contract. Inference
+// may instantiate generics and move AST/scope storage: the normal helper
+// snapshots expectations and re-resolves the signature after that mutation.
+priv infer_named_funcptr_call := proc(mut scope: TypeScope, mut e: Expr, sig_name: Str, in_func: I32, mut ctx: Context) {
+    binding_o := scope.get_binding_name(sig_name, ctx.symbols)
+    mut sig_o := scope.lookup_func_name(sig_name, ctx.symbols)
+    infer_and_validate_fcall_args(scope, e, binding_o, sig_o, in_func, ctx)
+    ref sig : FunctionDef = funcdef_of(sig_o.unwrap())
+    check_funcptr_effect(scope, e, sig, in_func, ctx)
+    if sig.sig.return_type.len() > 0 {
+        e.set_til_type(type_from_name(sig.sig.return_type, scope, ctx))
+    } else {
+        e.set_til_type(Type.None)
+    }
+}
+
 priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: Str, callee_bind_o: Option(ref TypeBinding), fdef_o: Option(ref Expr), in_func: I32, mut ctx: Context) {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
@@ -1925,6 +1954,7 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                 if fdef_o.is_some() {
                     ref sig : Expr = fdef_o.unwrap()
                     ref sig_fdef : FunctionDef = funcdef_of(sig)
+                    check_funcptr_effect(scope, e, sig_fdef, in_func, ctx)
                     mut nargs : USize = e.children.len()
                     nargs--
                     if nargs != sig_fdef.sig.params.len() {
@@ -3246,14 +3276,7 @@ priv infer_funcptr_call_via_cast := proc(mut scope: TypeScope, mut e: Expr, in_f
             e.set_til_type(Type.Unknown)
             return true
         }
-        for ai in 1..e.children.len() {
-            infer_expr(scope, e.children[ai], in_func, ctx)
-        }
-        if sfd.sig.return_type.len() > 0 {
-            e.set_til_type(type_from_name(sfd.sig.return_type, scope, ctx))
-        } else {
-            e.set_til_type(Type.None)
-        }
+        infer_named_funcptr_call(scope, e, sig_name, in_func, ctx)
         return true
     case:
         return false

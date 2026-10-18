@@ -2828,6 +2828,26 @@ main := proc(args: ..Str) {
     add_count(tests, "bug426_error_build", "typer",
         "function does not match", 9,
         format(til_bin, " build", asan_flag, " test/bug426_error.til"))
+    // #370 / Tiled #5: stored proc effects and mutable argument provenance
+    // must survive named, field, returned and cast callback calls.
+    add_cli_pair(tests, "stored_callbacks", "test/stored_callbacks.til",
+        "", 0, "", til_bin, asan_flag)
+    add_counts(tests, "stored_callbacks_error_interp", "typer",
+        format(til_bin, " interpret test/stored_callbacks_error.til"),
+        CountCheck(needle = "func cannot call proc through a function pointer", expected_count = 5),
+        CountCheck(needle = "is an immutable binding", expected_count = 4),
+        CountCheck(needle = "argument type mismatch", expected_count = 3),
+        CountCheck(needle = "redundant 'mut'", expected_count = 1),
+        CountCheck(needle = "proc cannot fill a func signature", expected_count = 2),
+        CountCheck(needle = "error:", expected_count = 15))
+    add_counts(tests, "stored_callbacks_error_build", "typer",
+        format(til_bin, " build", asan_flag, " test/stored_callbacks_error.til"),
+        CountCheck(needle = "func cannot call proc through a function pointer", expected_count = 5),
+        CountCheck(needle = "is an immutable binding", expected_count = 4),
+        CountCheck(needle = "argument type mismatch", expected_count = 3),
+        CountCheck(needle = "redundant 'mut'", expected_count = 1),
+        CountCheck(needle = "proc cannot fill a func signature", expected_count = 2),
+        CountCheck(needle = "error:", expected_count = 15))
     add_count(tests, "dyn_fn_value_member_error_interp", "interp",
         "dyn_fn: no method", 1,
         format(til_bin, " interpret test/dyn_fn_value_member_error.til"))

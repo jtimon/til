@@ -24,7 +24,8 @@ apply2 := func(f: Fn(I64, I64) returns I64, a: I64, b: I64) returns I64 {
     return f(a, b)
 }
 
-mutate := func(f: Fn(mut I64), mut x: I64) {
+// Fn(...) without a returns clause is a proc signature.
+mutate := proc(f: Fn(mut I64), mut x: I64) {
     f(x)
 }
 

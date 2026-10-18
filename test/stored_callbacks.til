@@ -1,0 +1,72 @@
+mode cli
+
+import("std/dyn_vec")
+
+// Tiled's command shape: a stored proc edits host-owned state. Each wrapper
+// has ONLY an indirect call, so neither proc effects nor mut writes can be
+// credited to an unrelated direct call as a workaround.
+TextEdit := proc(mut text: Str)
+Binding := struct { action: TextEdit }
+NestedBinding := struct { binding: Binding }
+
+edit := proc(mut text: Str) {
+    print_flush()
+    text = format(text, "!")
+}
+pure_edit := func(mut text: Str) { text = format(text, "?") }
+
+call_parameter := proc(action: TextEdit, mut text: Str) { action(text) }
+call_local := proc(binding: Binding, mut text: Str) {
+    action := binding.action
+    action(text)
+}
+call_field := proc(binding: Binding, mut text: Str) { binding.action(text) }
+call_nested_field := proc(binding: NestedBinding, mut text: Str) { binding.binding.action(text) }
+pick := func() returns TextEdit { return edit }
+call_returned := proc(mut text: Str) { pick()(text) }
+call_cast := proc(raw: Dynamic, mut text: Str) { cast(raw, TextEdit)(text) }
+
+// Mutation is independent of proc effects: a func may mutate its explicit
+// mutable arguments, and the field-call path must retain that evidence too.
+CounterEdit := func(mut value: I64)
+CounterBinding := struct { action: CounterEdit }
+bump := func(mut value: I64) { value++ }
+call_counter := func(binding: CounterBinding, mut value: I64) { binding.action(value) }
+
+// Signature-driven argument inference also needs to preserve the ordinary
+// expected-type path (narrow literals, contextual enum variants and generics).
+Choice := enum { One, Two }
+Choose := func(value: Choice, amount: U8) returns U8
+Chooser := struct { action: Choose }
+choose := func(value: Choice, amount: U8) returns U8 {
+    if value.is(Choice.One) { return amount }
+    return 0
+}
+identity := func<T: Type>(value: T) returns T { return value }
+pick_chooser := func() returns Choose { return choose }
+
+main := proc() {
+    binding := Binding(action = edit)
+    mut text := "live"
+    call_parameter(binding.action, text)
+    call_local(binding, text)
+    call_field(binding, text)
+    call_nested_field(NestedBinding(binding = binding), text)
+    call_returned(text)
+    mut callbacks := DynVec.new(TextEdit)
+    callbacks.push(own edit)
+    ref raw : Dynamic = callbacks[0]
+    call_cast(raw, text)
+    assert_eq(Str, text, "live!!!!!!")
+    // A func may fill a proc slot; the forbidden direction is proc -> func.
+    call_parameter(pure_edit, text)
+    assert_eq(Str, text, "live!!!!!!?")
+
+    counter := CounterBinding(action = bump)
+    mut value : I64 = 10
+    call_counter(counter, value)
+    assert_eq(I64, value, 11)
+    chooser := Chooser(action = choose)
+    assert_eq(U8, chooser.action(.One, identity(7)), 7)
+    assert_eq(U8, pick_chooser()(.One, identity(9)), 9)
+}

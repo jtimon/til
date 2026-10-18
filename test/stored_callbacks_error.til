@@ -1,0 +1,40 @@
+mode lib
+
+TextEdit := proc(mut text: Str)
+Binding := struct { action: TextEdit }
+edit := proc(mut text: Str) { print_flush(); text = format(text, "!") }
+pick := func() returns TextEdit { return edit }
+
+// Calling a stored proc from a func must be rejected, in every callee shape.
+bad_parameter_effect := func(action: TextEdit, mut text: Str) { action(text) }
+bad_field_effect := func(binding: Binding, mut text: Str) { binding.action(text) }
+bad_returned_effect := func(mut text: Str) { pick()(text) }
+bad_cast_effect := func(raw: Dynamic, mut text: Str) { cast(raw, TextEdit)(text) }
+
+// The effect is legitimate in a proc; borrowing immutable state as mut is not.
+bad_parameter_mut := proc(action: TextEdit, text: Str) { action(text) }
+bad_field_mut := proc(binding: Binding, text: Str) { binding.action(text) }
+bad_returned_mut := proc(text: Str) { pick()(text) }
+bad_cast_mut := proc(raw: Dynamic, text: Str) { cast(raw, TextEdit)(text) }
+
+// Indirect-call arguments must be validated, not merely inferred.
+ReadInt := func(value: I64) returns I64
+Reader := struct { action: ReadInt }
+read_int := func(value: I64) returns I64 { return value }
+pick_reader := func() returns ReadInt { return read_int }
+bad_field_type := func(reader: Reader) returns I64 { return reader.action("wrong") }
+bad_returned_type := func() returns I64 { return pick_reader()("wrong") }
+bad_cast_type := func(raw: Dynamic) returns I64 { return cast(raw, ReadInt)("wrong") }
+
+// A read-only signature does not manufacture a mutable write.
+bad_redundant_mut := func(reader: Reader, mut value: I64) returns I64 { return reader.action(value) }
+
+// A proc must not lose its effect by being stored in a func-typed slot.
+PureEdit := func(mut text: Str)
+PureBinding := struct { action: PureEdit }
+bad_effect_slot := func() returns PureBinding { return PureBinding(action = edit) }
+bad_effect_local := func() {
+    action : PureEdit = edit
+    mut text := "live"
+    action(text)
+}
