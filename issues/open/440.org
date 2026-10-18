@@ -1,0 +1,54 @@
+# priority: low
+# category: bugs
+** OPEN #440 Used private function-generator macros are reported as unused
+
+A ~priv~ macro returning ~FuncDef~ can be called to generate a function and
+still be rejected as an unused private function. This was encountered while
+implementing the compile-time specialization of ~usize_to_uptr~ for #400.
+
+*** Observed reproducer
+
+In src/core/numbers.til, change the existing factory declaration to:
+
+#+begin_src til
+priv make_usize_to_uptr := macro(SizeType: Type, PointerType: Type) returns FuncDef {
+    // existing body unchanged
+}
+#+end_src
+
+Its existing use remains:
+
+#+begin_src til
+usize_to_uptr := make_usize_to_uptr(USize, UPtr)
+#+end_src
+
+The bootstrap build (~bin/til_boot build -o bin/make make.til~) reported:
+
+#+begin_example
+./src/core/numbers.til:872:6: error: unused priv func 'make_usize_to_uptr'; remove 'priv' to expose it
+#+end_example
+
+The factory really is used at compile time. Requiring it to be public is
+not an appropriate way to silence this diagnostic.
+
+*** Investigation and fix direction
+
+Function-generator calls are expanded during initialization, before the
+ordinary function-body usage checks. Inspect ~init_expand_type_gen_decl~,
+~init_lookup_type_gen_macro~, and the private-function usage accounting:
+the expanded-away call must still count as a use of its macro declaration.
+The exact missing bookkeeping edge has not yet been isolated.
+
+Preserve private visibility and unused diagnostics for genuinely unused
+factories. Also check imported/public generators and ordinary macros, but
+do not assume that every macro form has this bug.
+
+*** Workaround and regression coverage
+
+~make_usize_to_uptr~ is currently non-~priv~ and works. Once fixed, make
+that factory private again.
+
+Add a focused regression where a private generator returns a function,
+the generated function is called, and both interpretation and compilation
+succeed. Include an unused private generator that must still be rejected.
+Exercise the core factory through bootstrap as well as user-file expansion.
