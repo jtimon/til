@@ -1,5 +1,57 @@
 mode test
 
+StepCell := struct {
+    n: I64 = 10
+    small: U8 = 4
+namespace:
+    mut count: I16 = 3
+    step := func(mut self: StepCell) {
+        self.n++
+        self.small--
+    }
+}
+StepHolder := struct { cell: StepCell }
+
+test_field_inc_dec := test() {
+    mut value := StepHolder(cell = StepCell())
+    value.cell.n++
+    value.cell.small--
+    assert_eq(I64, value.cell.n, 11)
+    assert_eq(U8, value.cell.small, 3)
+    value.cell.step()
+    assert_eq(I64, value.cell.n, 12)
+    assert_eq(U8, value.cell.small, 2)
+    value.cell.n--
+    value.cell.small++
+    assert_eq(I64, value.cell.n, 11)
+    assert_eq(U8, value.cell.small, 3)
+    StepCell.count++
+    assert_eq(I16, StepCell.count, 4)
+    StepCell.count--
+    assert_eq(I16, StepCell.count, 3)
+}
+
+step_cell_ref := func(value: StepHolder, mut calls: I64) returns ref StepCell {
+    calls++
+    return value.cell
+}
+
+test_field_inc_dec_reference_once := test() {
+    mut value := StepHolder(cell = StepCell())
+    mut calls := 0
+    step_cell_ref(value, calls).n++
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, value.cell.n, 11)
+    step_cell_ref(value, calls).small--
+    assert_eq(I64, calls, 2)
+    assert_eq(U8, value.cell.small, 3)
+    ref mut alias: I64 = value.cell.n
+    alias++
+    assert_eq(I64, value.cell.n, 12)
+    alias--
+    assert_eq(I64, value.cell.n, 11)
+}
+
 test_arithmetic := test() {
     assert_eq(I64, 34.add(35), 69)
     assert_eq(I64, 10.sub(3), 7)

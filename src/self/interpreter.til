@@ -9978,32 +9978,32 @@ priv scalar_read_arg := proc(mut scope: Scope, mut arg: Expr, shallow target_typ
     return raw_coerce_value(raw, raw_result_source_type(info), target_type, ctx)
 }
 
-// Step a mut-local scalar in place by delta (+1 for inc, -1 for dec) -- the
-// interp side of the inc/dec core_funcs. Reads the receiver's current scalar,
-// adds delta, and writes the new value back into its binding. raw_to_i64 reads
+// Step scalar storage in place by delta (+1 for inc, -1 for dec) -- the
+// interp side of the inc/dec core_funcs. Resolve the receiver once, read its
+// current scalar, and write back to that same storage. raw_to_i64 reads
 // integer bytes bit-exactly; two's-complement add gives the correct wrap for
-// both signednesses, and scalar_write_raw narrows to the receiver's type. The
-// receiver is always a plain mut-local Ident (a range-loop counter from the
-// `for x in a..b` desugaring, the only numeric inc/dec caller), so no ref-mut
-// or payload-alias mirror is needed. A
-// non-Ident receiver would be a compiler bug and fails loud.
+// both signednesses, and scalar_write_raw narrows to the receiver's type.
 priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, delta: I64, mut ctx: Context) {
     ref mut arg : Expr = e.children[1]
     scalar_type := type_from_name_init_name(type_str, ctx.scope, ctx.symbols)
-    cur : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
-    nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
-    switch e.children[1].node_type {
+    mut storage : Dynamic = 0
+    switch arg.node_type {
     case .Ident(id):
         mut hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
         if hb_o.is_none() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name(ctx.symbols.names)) }
-        ref hb : HeapBinding = hb_o.unwrap()
+        ref mut hb : HeapBinding = hb_o.unwrap()
+        ffi_refresh_external_place(hb, ctx)
         if hb.moved_out { panic(__LOC__, ": inc/dec target moved: ", id.ident_name(ctx.symbols.names)) }
-        ref mut heap_data : Dynamic = to_ptr(hb.ptr)
+        storage = to_ptr(hb.ptr)
         if hb_type(hb).is(Type.Primitive).not() { panic(__LOC__, ": inc/dec target has non-primitive type: ", id.ident_name(ctx.symbols.names)) }
-        scalar_write_raw(type_str, heap_data, nv)
+    case .FieldAccess, .FCall:
+        storage = field_access_base(scope, arg, ctx).unwrap()
     case:
-        panic(__LOC__, ": inc/dec receiver is not an Ident")
+        panic(__LOC__, ": inc/dec receiver has no mutable storage")
     }
+    cur : Dynamic = scalar_word_load(scalar_type, storage, ctx)
+    nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
+    scalar_write_raw(type_str, storage, nv)
 }
 
 priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut result: Dynamic, mut ctx: Context) returns Bool {
