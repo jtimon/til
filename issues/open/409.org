@@ -40,6 +40,94 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Vector select follow-up (base ab4d0f668)
+
+AArch64 assembly review found a remaining scalarization boundary in the
+existing ~select~ operation. GCC 13.3 emitted a vector ~fcmgt~, extracted
+each comparison lane, then used scalar conditions and branches to select
+the floating values. The ordinary four-lane add and four-accumulator U32
+reduction already keep their hot values in NEON registers; the per-block
+horizontal reduction still uses scalar integer additions.
+
+Optimized GCC now lowers select to a register-sized unsigned bit blend.
+Each Bool lane becomes an all-zero/all-one word of the selected element's
+size; memcpy transfers operand/result representations without floating
+arithmetic or aliasing type-puns. Public scalar-aligned storage, eager
+argument evaluation, and mask semantics stay the same. As in arithmetic,
+64-byte chunks use value construction/extraction to avoid GCC/ASAN's
+under-aligned addressable vector locals.
+
+The AArch64 four-lane comparison/selection now consists of ~fcmgt~ and
+~bsl~, with no per-lane selection branches. Widths 8/16 use two/four such
+128-bit chunks. This is an assembly result, not a native ARM speed claim.
+
+O0 retains simple lane copies. Clang retains its existing ternaries: it
+already emits vector blends on AArch64, and explicitly blending regressed
+its x86 baseline width-8 selection from 0.1076 to 0.1264 ns/element in the
+initial experiment. That rejected Clang variant is not enabled.
+
+**** Native x86 measurements
+
+Ryzen 9950X3D, CPU-0 affinity, GCC 13.3, O2 with the existing CPU profiles
+and ~-ffp-contract=off~. Reused ~simd409_harness.c~ below: median of three
+samples after calibration to >=50 ms, widths 2/4/8/16, lengths 17/4096/
+33554432 and starts 0/1. The table uses the repeat run of each original
+and changed binary; all complete correctness checks passed.
+
+Select ns/element, N=4096/start=1:
+
+| Profile  | Width | Before | After  |
+|----------+-------+--------+--------|
+| baseline |     4 | 0.4595 | 0.2827 |
+| baseline |     8 | 0.2806 | 0.1271 |
+| baseline |    16 | 0.2476 | 0.0985 |
+| v3       |     8 | 0.3749 | 0.0987 |
+| v3       |    16 | 0.2185 | 0.0707 |
+| v4       |    16 | 0.2785 | 0.0947 |
+
+Baseline width 16 gains 2.51x and v4 width 16 gains 2.94x in this repeat.
+At N=17/start=1 the same cases improve 0.3354 -> 0.1803 and
+0.3461 -> 0.1504. At N=33554432 they improve 0.3909 -> 0.3445 and
+0.5062 -> 0.3225; memory-sized workloads benefit less. Results are not
+uniform: baseline width 8 at the large size is effectively flat
+(0.3713 -> 0.3715), while v4 width 2 gets slower (0.6662 -> 0.7837),
+despite improving at N=4096 (0.6159 -> 0.5668). Timings remain sensitive
+to system load and code layout; the first v4/16 cache-sized run measured
+0.2738 -> 0.0765 rather than the repeat's 0.2785 -> 0.0947.
+
+**** Verification and reproduction
+
+Clean ~make clean && make test~ ASAN suite: 508/508. All 27 SIMD tests
+pass interpreted and compiled with GCC/Clang ASAN at O2/O3 for all three
+x86 profiles. AArch64 GCC and Clang, RISC-V64 GCC and 32-bit x86 GCC O2
+binaries pass 27/27 under QEMU. Both AArch64 add/select benchmark builds
+and the GCC reduction harness pass their check-only runs.
+
+New ~test_simd_select_float_bits~ and ~test_simd_select_integer_bits~
+exercise independent runtime masks, all-false/all-true/mixed patterns,
+single-lane and oversized values, all lane byte sizes, and Bool selection.
+Byte comparisons cover signaling/quiet NaNs, signed zero, infinities,
+subnormals and integer high bits. Existing eager-evaluation coverage remains.
+
+Reuse the sources and compiler adapter below. Native before/after binaries
+and logs are ~tmp/simd409-select-{before,after}-gcc-{profile}~; repeat
+timings append ~.repeat.log~. Initial Clang experiment logs use the same
+names with ~clang~; those after logs describe the rejected variant.
+Final cross-build artifacts/assembly are ~tmp/simd409-select-arm-{gcc,clang}~
+and ~tmp/reduce409-select-arm-gcc~. Their ~check~ argument runs correctness
+without reporting emulated timing. For example:
+
+#+begin_src sh
+bin/til build --target=linux-arm64 --opt=2 \
+  --cc="python3 tmp/reduce409_cc.py aarch64-linux-gnu-gcc tmp/simd409-select-arm-gcc.c tmp/simd409_harness.c" \
+  -c tmp/simd409-select-arm-gcc.c -o tmp/simd409-select-arm-gcc tmp/simd409.til
+qemu-aarch64 -L /usr/aarch64-linux-gnu tmp/simd409-select-arm-gcc check
+aarch64-linux-gnu-objdump -d --disassemble=select_vector__n1_4 tmp/simd409-select-arm-gcc
+#+end_src
+
+Native AArch64 timing remains open. This follow-up changes the lowering of
+an existing operation and adds no public API, flag, dependency or layout.
+
 *** Aggregate-store and native-512 follow-up (base f930e58b0)
 
 GCC's SRA dump identified the remaining copies: the whole-struct memcpy

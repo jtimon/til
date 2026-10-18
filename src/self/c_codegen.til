@@ -3876,11 +3876,59 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
         f.write("; ").write(sname).write(" til_simd_b = ")
         emit_deref(f, e.children[3], depth, ctx)
         f.write("; ").write(sname).write(" til_simd_result; ")
+        // Keep the mask in vector form through selection. Scalar ternaries
+        // made GCC extract each comparison lane and branch on AArch64.
+        // Blend unsigned representations so floating NaNs and signed zero
+        // are copied exactly, without arithmetic or aliasing type-puns.
+        lane_bytes := builder_simd_lane_bytes(simd, ctx)
+        lane_c := format("U", (lane_bytes * 8).to_str())
+        chunk_lanes := builder_simd_chunk_lanes(simd, ctx)
+        f.write("\n#if defined(__OPTIMIZE__) && defined(__GNUC__) && !defined(__clang__)\ntypedef ").write(lane_c).write(" til_simd_v __attribute__((vector_size(sizeof(").write(lane_c).write(") * ").write(chunk_lanes.to_str()).write("))); ")
+        for chunk in 0..(simd.simd_width / chunk_lanes) {
+            first := chunk * chunk_lanes
+            offset := format("sizeof(", lane_c, ") * ", first.to_str())
+            f.write("{ ")
+            if chunk_lanes * lane_bytes >= 64 {
+                // As with arithmetic, avoid addressable 64-byte vector
+                // locals: GCC's ASAN fake stack can under-align them.
+                for side : Str in array(Str, "a", "b") {
+                    for i in 0..chunk_lanes {
+                        word := format("til_simd_", side, i.to_str())
+                        f.write(lane_c).write(" ").write(word).write("; memcpy(&").write(word).write(", &til_simd_").write(side).write(".lane").write((first + i).to_str()).write(", sizeof(").write(word).write(")); ")
+                    }
+                    f.write("til_simd_v til_simd_").write(side).write("_bits = {")
+                    for i in 0..chunk_lanes {
+                        if i > 0 { f.write(", ") }
+                        f.write("til_simd_").write(side).write(i.to_str())
+                    }
+                    f.write("}; ")
+                }
+            } else {
+                f.write("til_simd_v til_simd_a_bits, til_simd_b_bits; memcpy(&til_simd_a_bits, (const U8 *)&til_simd_a + ").write(offset).write(", sizeof(til_simd_a_bits)); memcpy(&til_simd_b_bits, (const U8 *)&til_simd_b + ").write(offset).write(", sizeof(til_simd_b_bits)); ")
+            }
+            f.write("til_simd_v til_simd_bits = {")
+            for i in 0..chunk_lanes {
+                if i > 0 { f.write(", ") }
+                f.write("(").write(lane_c).write(")-(").write(lane_c).write(")(til_simd_mask.lane").write((first + i).to_str()).write(" != 0)")
+            }
+            f.write("}; til_simd_v til_simd_z = (til_simd_a_bits & til_simd_bits) | (til_simd_b_bits & ~til_simd_bits); ")
+            if chunk_lanes * lane_bytes >= 64 {
+                for i in 0..chunk_lanes {
+                    f.write("{ ").write(lane_c).write(" til_simd_word = til_simd_z[").write(i.to_str()).write("]; memcpy(&til_simd_result.lane").write((first + i).to_str()).write(", &til_simd_word, sizeof(til_simd_word)); } ")
+                }
+            } else {
+                f.write("memcpy((U8 *)&til_simd_result + ").write(offset).write(", &til_simd_z, sizeof(til_simd_z)); ")
+            }
+            f.write("} ")
+        }
+        // At O0 retain simple lane copies. Clang already vectorizes the
+        // ternaries; explicit blends regressed its baseline wide selects.
+        f.write("\n#else\n")
         for i in 0..simd.simd_width {
             lane := format("lane", i.to_str())
             f.write("til_simd_result.").write(lane).write(" = til_simd_mask.").write(lane).write(" ? til_simd_a.").write(lane).write(" : til_simd_b.").write(lane).write("; ")
         }
-        f.write("til_simd_result; })")
+        f.write("\n#endif\ntil_simd_result; })")
         return true
     }
     mut lane_c := decl_type_name_ref(simd.fields[0], ctx.symbols).clone()

@@ -62,6 +62,69 @@ test_simd_selection := test() {
     assert((positive | positive.bnot()).all())
 }
 
+simd_select_bits := proc(T: Type, V: Type, M: Type, B: Type,
+    bits: Array(B), shape: V, mask_shape: M) {
+    noop_proc()
+    assert_eq(USize, T.size(), B.size())
+    width := shape.len()
+    bytes := T.size().to_uptr()
+    mut a := Array(T).new(width)
+    mut b := Array(T).new(width)
+    mut output := Array(T).new(width)
+    for i in 0..width {
+        memcpy(ptr_add(a.data, i.to_uptr() * bytes),
+            ptr_add(bits.data, (i % bits.len()).to_uptr() * bytes), bytes)
+        memcpy(ptr_add(b.data, i.to_uptr() * bytes),
+            ptr_add(bits.data, ((i + 1) % bits.len()).to_uptr() * bytes), bytes)
+    }
+    x := V.load(a, 0)!
+    y := V.load(b, 0)!
+    // Independent runtime masks, including all-false/all-true and patterns
+    // crossing register boundaries. Compare bytes, not floating equality.
+    for pattern in 0..5 {
+        mut mask := mask_shape
+        for i in 0..width {
+            mask.set(i, own (pattern == 1 || (pattern > 1 && i % 3 == (pattern - 2).to_usize())))!
+        }
+        selected := mask.select(x, y)
+        selected.store(output, 0)!
+        for i in 0..width {
+            if mask[i] {
+                assert_eq(I32, memcmp(ptr_add(output.data, i.to_uptr() * bytes), ptr_add(a.data, i.to_uptr() * bytes), bytes), 0)
+            } else {
+                assert_eq(I32, memcmp(ptr_add(output.data, i.to_uptr() * bytes), ptr_add(b.data, i.to_uptr() * bytes), bytes), 0)
+            }
+        }
+    }
+}
+
+test_simd_select_float_bits := test() {
+    f32bits := array(U32, 0x80000000, 0x7f800001, 0x7fc12345, 0xff800000,
+        0x7f800000, 1, 0x7f7fffff, 0)
+    f64bits := array(U64, 0x8000000000000000, 0x7ff0000000000001,
+        0x7ff8123456789abc, 0xfff0000000000000,
+        0x7ff0000000000000, 1, 0x7fefffffffffffff, 0)
+    simd_select_bits(F32, F4, Simd(Bool, 4), U32, f32bits, F4.zero(), Simd(Bool, 4).zero())
+    simd_select_bits(F32, Simd(F32, 32), Simd(Bool, 32), U32, f32bits,
+        Simd(F32, 32).zero(), Simd(Bool, 32).zero())
+    simd_select_bits(F64, Simd(F64, 1), Simd(Bool, 1), U64, f64bits,
+        Simd(F64, 1).zero(), Simd(Bool, 1).zero())
+    simd_select_bits(F64, F64x16, Simd(Bool, 16), U64, f64bits, F64x16.zero(), Simd(Bool, 16).zero())
+}
+
+test_simd_select_integer_bits := test() {
+    simd_select_bits(I8, Simd(I8, 32), Simd(Bool, 32), U8, array(U8, 0, 255, 128, 1),
+        Simd(I8, 32).zero(), Simd(Bool, 32).zero())
+    simd_select_bits(U16, Simd(U16, 16), Simd(Bool, 16), U16, array(U16, 0, 65535, 32768, 1),
+        Simd(U16, 16).zero(), Simd(Bool, 16).zero())
+    simd_select_bits(I32, I32x32, Simd(Bool, 32), U32, array(U32, 0, U32.MAX, 0x80000000, 1),
+        I32x32.zero(), Simd(Bool, 32).zero())
+    simd_select_bits(U64, Simd(U64, 16), Simd(Bool, 16), U64, array(U64, 0, U64.MAX, 0x8000000000000000, 1),
+        Simd(U64, 16).zero(), Simd(Bool, 16).zero())
+    simd_select_bits(Bool, Simd(Bool, 32), Simd(Bool, 32), Bool, array(Bool, false, true),
+        Simd(Bool, 32).zero(), Simd(Bool, 32).zero())
+}
+
 test_simd_memory := test() {
     mut values := array(I32, 10, 20, 30, 40, 50, 60)
     v := I4.load(values, 1)!
