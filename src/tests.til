@@ -1397,14 +1397,36 @@ main := proc(args: ..Str) {
         "error: --target is not supported with mode theme", 1,
         format(til_bin, " translate --target=jvm editor/themes/til-dark-theme.til"))
 
+    // Collect checks by fixture and output kind, then register one translation
+    // per group below. Keep each regression's explanation beside its check.
+    // Explicit-width and header checks have separate groups/commands.
+    mut dead_temps_checks := array(CountCheck)
+    mut fn_ptr_checks := array(CountCheck)
+    mut closures_checks := array(CountCheck)
+    mut structs_checks := array(CountCheck)
+    mut minimal_reach_checks := array(CountCheck)
+    mut cli_args_checks := array(CountCheck)
+    mut pure_checks := array(CountCheck)
+    mut dyn_vecs_checks := array(CountCheck)
+    mut enums_checks := array(CountCheck)
+    mut aliases_checks := array(CountCheck)
+    mut strings_checks := array(CountCheck)
+    mut hello_script_checks := array(CountCheck)
+    mut option_checks := array(CountCheck)
+    mut first_class_checks := array(CountCheck)
+    mut interfaces_checks := array(CountCheck)
+    mut vecs_checks := array(CountCheck)
+    mut errors_checks := array(CountCheck)
+    mut hello_cli_checks := array(CountCheck)
+
     // Issue #326: the generated C must be honest about liveness. The fixture
     // (test/dead_temps.til, run interpreted + compiled by the `both` entry
     // below) pins the BEHAVIOUR; these three pin the OUTPUT. A compiler temp
     // that goes dead has to be removed, not silenced with `(void)name;`; no
     // generated helper may exist only because __attribute__((unused)) lets it
     // compile; and the one cast that remains is on `_b`, the deliberately-
-    // unused param spelling issue #86 defines. Each translates to its own
-    // -c path so the three (and the `both` compile) never race on one file.
+    // unused param spelling issue #86 defines. The shared translation uses
+    // its own -c path so it and the `both` compile never race on one file.
     //
     // Category "build", NOT "self": self_ms/self_mem are reserved for the
     // self-translate BENCHMARK. Any extra test filed under "self" lands
@@ -1413,44 +1435,29 @@ main := proc(args: ..Str) {
     // which is what made self_mem jump 11.8GB -> 15.1GB when they were first
     // registered here. Measured on identical input, the compiler's own
     // self-translate was 29.07s/262.8MB before #326 and 29.40s/261.7MB after.
-    add_count(tests, "dead_temps_no_temp_casts", "build", "(void)hoisted__", 0,
-        format(til_bin, " translate -c gen/c/dead_temps_casts.c test/dead_temps.til '&&' cat gen/c/dead_temps_casts.c"))
-    add_count(tests, "dead_temps_no_unused_attrs", "build", "__attribute__((unused))", 0,
-        format(til_bin, " translate -c gen/c/dead_temps_attrs.c test/dead_temps.til '&&' cat gen/c/dead_temps_attrs.c"))
-    add_count(tests, "dead_temps_underscore_cast", "build", "(void)_b;", 1,
-        format(til_bin, " translate -c gen/c/dead_temps_uscore.c test/dead_temps.til '&&' cat gen/c/dead_temps_uscore.c"))
+    dead_temps_checks = dead_temps_checks.concat(array(CountCheck,
+        CountCheck(needle = "(void)hoisted__", expected_count = 0),
+        CountCheck(needle = "__attribute__((unused))", expected_count = 0),
+        CountCheck(needle = "(void)_b;", expected_count = 1)))
     // ...and it is the ONLY cast in the file. The `_` prefix says a cast is
     // ALLOWED where a binding is deliberately unread, not that one is
     // always needed: every other `_`-prefixed temp this fixture generates
     // is read, most of them on the very next line.
-    add_count(tests, "dead_temps_one_cast_total", "build", "(void)_", 1,
-        format(til_bin, " translate -c gen/c/dead_temps_one.c test/dead_temps.til '&&' cat gen/c/dead_temps_one.c"))
+    dead_temps_checks = dead_temps_checks.concat(array(CountCheck, CountCheck(needle = "(void)_", expected_count = 1)))
 
     // #346: ownership and C representation are separate. The ordinary
     // aggregate function, its closure wrapper and its FuncSig cast all return
     // ReturnBox346 by value; only the bodyless dyn_type_to_str boundary uses
     // the one pointer-to-value adapter.
-    add_count(tests, "aggregate_return_value_abi", "build",
-        "static ReturnBox346 make_return_box346(Str * value)", 2,
-        format(til_bin, " translate -c gen/c/aggregate_return_value.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_value.c"))
-    add_count(tests, "aggregate_return_no_pointer_abi", "build",
-        "static ReturnBox346 *make_return_box346", 0,
-        format(til_bin, " translate -c gen/c/aggregate_return_pointer.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_pointer.c"))
-    add_count(tests, "funcsig_aggregate_return_value_abi", "build",
-        "((ReturnBox346 (*)(void *, Str *))", 1,
-        format(til_bin, " translate -c gen/c/aggregate_return_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_funcsig.c"))
-    add_count(tests, "closure_aggregate_return_value_abi", "build",
-        "static ClosureBox346 closure_test_capturing_closure_owned_aggregate_return_0(void *til_env_raw)", 1,
-        format(til_bin, " translate -c gen/c/aggregate_return_closure.c test/closures.til '&&' cat gen/c/aggregate_return_closure.c"))
-    add_count(tests, "ext_owned_return_boundary_adapter", "build",
-        "Str *_hp = (Str *)dyn_type_to_str", 1,
-        format(til_bin, " translate -c gen/c/aggregate_return_ext.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_ext.c"))
-    add_count(tests, "aggregate_local_stack_storage", "build",
-        "StackValue346 value = {0};", 1,
-        format(til_bin, " translate -c gen/c/aggregate_local_stack.c test/structs.til '&&' cat gen/c/aggregate_local_stack.c"))
-    add_count(tests, "aggregate_own_param_pointer_return", "build",
-        "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", 2,
-        format(til_bin, " translate -c gen/c/aggregate_own_return.c test/structs.til '&&' cat gen/c/aggregate_own_return.c"))
+    fn_ptr_checks = fn_ptr_checks.concat(array(CountCheck,
+        CountCheck(needle = "static ReturnBox346 make_return_box346(Str * value)", expected_count = 2),
+        CountCheck(needle = "static ReturnBox346 *make_return_box346", expected_count = 0),
+        CountCheck(needle = "((ReturnBox346 (*)(void *, Str *))", expected_count = 1),
+        CountCheck(needle = "Str *_hp = (Str *)dyn_type_to_str", expected_count = 1)))
+    closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "static ClosureBox346 closure_test_capturing_closure_owned_aggregate_return_0(void *til_env_raw)", expected_count = 1)))
+    structs_checks = structs_checks.concat(array(CountCheck,
+        CountCheck(needle = "StackValue346 value = {0};", expected_count = 1),
+        CountCheck(needle = "static StackValue346 priv__test_structs_til__move_stack_value346(StackValue346 * value)", expected_count = 2)))
     // #209: a HAND-WRITTEN destructor call on storage its callee does not own
     // -- a closed-world own parameter's caller slot, a stack local, a module-level value --
     // reaches the C with call_free 0 because the garbager recorded it in the
@@ -1464,18 +1471,11 @@ main := proc(args: ..Str) {
         CountCheck(needle = "Shelf209_delete(&h, 0);", expected_count = 1),
         CountCheck(needle = "Shelf209_delete(&shelf209_global, 0);", expected_count = 1),
         CountCheck(needle = "Shelf209 *_oa = malloc", expected_count = 0))
-    add_count(tests, "aggregate_own_escape_boxes", "build",
-        "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", 1,
-        format(til_bin, " translate -c gen/c/aggregate_own_escape.c test/structs.til '&&' cat gen/c/aggregate_own_escape.c"))
-    add_count(tests, "funcsig_own_param_pointer_abi", "build",
-        "static U64 consume_owned_box346(ReturnBox346 * box)", 2,
-        format(til_bin, " translate -c gen/c/aggregate_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/aggregate_param_funcsig.c"))
-    add_count(tests, "funcsig_own_primitive_param_value_abi", "build",
-        "static I64 consume_owned_i64(I64 value)", 2,
-        format(til_bin, " translate -c gen/c/primitive_param_funcsig.c test/fn_ptr.til '&&' cat gen/c/primitive_param_funcsig.c"))
-    add_count(tests, "closure_own_param_pointer_abi", "build",
-        "static U64 closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", 1,
-        format(til_bin, " translate -c gen/c/aggregate_param_closure.c test/closures.til '&&' cat gen/c/aggregate_param_closure.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", expected_count = 1)))
+    fn_ptr_checks = fn_ptr_checks.concat(array(CountCheck,
+        CountCheck(needle = "static U64 consume_owned_box346(ReturnBox346 * box)", expected_count = 2),
+        CountCheck(needle = "static I64 consume_owned_i64(I64 value)", expected_count = 2)))
+    closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "static U64 closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", expected_count = 1)))
     add_count(tests, "self_method_own_param_pointer_abi", "build",
         "static void Expr_add_child(Expr * self, Expr * child)", 2,
         "cat boot/til.c")
@@ -1548,14 +1548,12 @@ main := proc(args: ..Str) {
     // field default reaches Expr, whose node_type reaches NodeType -- so one
     // needle guards the whole cluster. See test/minimal_reach.til; the
     // `both` entry below proves what survives still links and runs.
-    add_count(tests, "minimal_reach_no_ast_model", "build", "NodeType", 0,
-        format(til_bin, " translate -c gen/c/minimal_reach.c test/minimal_reach.til '&&' cat gen/c/minimal_reach.c"))
+    minimal_reach_checks = minimal_reach_checks.concat(array(CountCheck, CountCheck(needle = "NodeType", expected_count = 0)))
     // A reached type no longer roots all five of delete/clone/size/cmp/hash:
     // only the ones a real call site asks for survive. `hash` is the clearest
     // witness -- nothing in this fixture hashes anything, so every `_hash`
     // the old blanket rule emitted (ten of them, one per scalar) is gone.
-    add_count(tests, "minimal_reach_no_dead_lifecycle", "build", "_hash", 0,
-        format(til_bin, " translate -c gen/c/minimal_reach_lc.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_lc.c"))
+    minimal_reach_checks = minimal_reach_checks.concat(array(CountCheck, CountCheck(needle = "_hash", expected_count = 0)))
     // A user-unit top-level value used to be a blanket root: unread or not,
     // its global, its initializer and everything the initializer referenced
     // were emitted. Effect-free initializers (literal/ident) are ordinary
@@ -1583,10 +1581,9 @@ main := proc(args: ..Str) {
     // wildcard by construction. 3,130 -> 497 lines of C for this fixture.
     add_count(tests, "dyn_literal_no_ast_model", "build", "NodeType", 0,
         format(til_bin, " translate -c gen/c/dyn_literal.c test/dyn_literal.til '&&' cat gen/c/dyn_literal.c"))
-    add_count(tests, "minimal_reach_no_comptime_type", "build", "Primitive_TAG", 0,
-        format(til_bin, " translate -c gen/c/minimal_reach_ct.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_ct.c"))
-    add_count(tests, "minimal_reach_no_unread_global", "build", "UNREAD_GLOBAL", 0,
-        format(til_bin, " translate -c gen/c/minimal_reach_ug.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_ug.c"))
+    minimal_reach_checks = minimal_reach_checks.concat(array(CountCheck,
+        CountCheck(needle = "Primitive_TAG", expected_count = 0),
+        CountCheck(needle = "UNREAD_GLOBAL", expected_count = 0)))
     // No generated helper exists only because __attribute__((unused)) lets
     // it compile: every emitted static has a real C reference. first_class
     // is the fixture with the most closure machinery -- lifted lambdas,
@@ -1595,21 +1592,18 @@ main := proc(args: ..Str) {
     // needs. cli_args takes `..Str`, which parses inline to a Str_clone, so
     // none of the Str.to_* family may appear -- the whole family used to be
     // seeded for every CLI or GUI program.
-    add_count(tests, "cli_args_exact_argv_roots", "build", "Str_to_", 0,
-        format(til_bin, " translate -c gen/c/cli_args_roots.c examples/cli_args.til '&&' cat gen/c/cli_args_roots.c"))
+    cli_args_checks = cli_args_checks.concat(array(CountCheck, CountCheck(needle = "Str_to_", expected_count = 0)))
     // An accessor the builder splices at every call site gets no
     // out-of-line definition and no prototype. cli_args' `for a : Str in
     // args` loop calls Array.len and Array.unsafe_get on every iteration,
     // and both are inlined, so neither name may appear at all.
-    add_count(tests, "cli_args_no_inlined_accessors", "build", "Array__Str_unsafe_get", 0,
-        format(til_bin, " translate -c gen/c/cli_args_acc.c examples/cli_args.til '&&' cat gen/c/cli_args_acc.c"))
+    cli_args_checks = cli_args_checks.concat(array(CountCheck, CountCheck(needle = "Array__Str_unsafe_get", expected_count = 0)))
     // Issue #326: a library is scavenged like every other mode, with its
     // EXPORTED declarations as roots. test/pure.til is 43 lines and used to
     // emit 21,264 -- the whole of core and std, the compiler's own
     // Expr/NodeType model included -- because library mode skipped
     // scavenging outright.
-    add_count(tests, "pure_lib_no_ast_model", "build", "NodeType", 0,
-        format(til_bin, " translate -c gen/c/pure_reach.c test/pure.til '&&' cat gen/c/pure_reach.c"))
+    pure_checks = pure_checks.concat(array(CountCheck, CountCheck(needle = "NodeType", expected_count = 0)))
     // Issue #326: a variant's C constructor is emitted only where some
     // expression actually CONSTRUCTS it. Surviving the ns member sweep is not
     // enough -- an enum with any live value gets a generated
@@ -1619,8 +1613,7 @@ main := proc(args: ..Str) {
     // whose definitions the scavenger had already dropped: declared, never
     // defined, never called. `Type.Unknown` is the witness -- test/pure.til
     // reaches core's `Type` enum but never builds that variant.
-    add_count(tests, "pure_no_unbuilt_variant_ctor", "build", "Type_Unknown", 0,
-        format(til_bin, " translate -c gen/c/pure_variant.c test/pure.til '&&' cat gen/c/pure_variant.c"))
+    pure_checks = pure_checks.concat(array(CountCheck, CountCheck(needle = "Type_Unknown", expected_count = 0)))
     // The auto-generated `size` method is emitted from the namespace index,
     // which says the member exists -- not that any C calls it. At a matching
     // build width the constfolder folds every `T.size()` to a literal, so
@@ -1647,10 +1640,9 @@ main := proc(args: ..Str) {
     // other half: core writes `size` by hand for the primitives, the
     // constfolder folds every call to a literal, and the definition is
     // reachable only through the interpreter's `*.size` root.
-    add_count(tests, "dyn_vecs_no_uncalled_helpers", "build", "Array__Str_unsafe_get", 0,
-        format(til_bin, " translate -c gen/c/dyn_vecs_h.c test/dyn_vecs.til '&&' cat gen/c/dyn_vecs_h.c"))
-    add_count(tests, "dyn_vecs_no_uncalled_size", "build", "U8_size", 0,
-        format(til_bin, " translate -c gen/c/dyn_vecs_sz.c test/dyn_vecs.til '&&' cat gen/c/dyn_vecs_sz.c"))
+    dyn_vecs_checks = dyn_vecs_checks.concat(array(CountCheck,
+        CountCheck(needle = "Array__Str_unsafe_get", expected_count = 0),
+        CountCheck(needle = "U8_size", expected_count = 0)))
     add_count(tests, "match_no_uncalled_variant_ctor", "build", "Color_Red", 0,
         format(til_bin, " translate -c gen/c/match_ctor.c test/match.til '&&' cat gen/c/match_ctor.c"))
     // A core_func/ext_func namespace method has no emitted body -- an
@@ -1667,24 +1659,19 @@ main := proc(args: ..Str) {
     // referenced (the tag field is typed by its explicit width), so the
     // old `typedef enum {...} E_tag;` left one never-used typedef name per
     // enum -- zero uses across the whole corpus.
-    add_count(tests, "enums_no_dead_tag_typedef", "build", "_tag;", 0,
-        format(til_bin, " translate -c gen/c/enums_tt.c test/enums.til '&&' cat gen/c/enums_tt.c"))
-    add_count(tests, "aliases_pod_clone_value_abi", "build", "static Point Point_clone(Point * self)", 2,
-        format(til_bin, " translate -c gen/c/aliases_pc.c test/aliases.til '&&' cat gen/c/aliases_pc.c"))
-    add_count(tests, "structs_pod_clone_value_abi", "build", "static CmpPoint CmpPoint_clone(CmpPoint * self)", 2,
-        format(til_bin, " translate -c gen/c/structs_pc.c test/structs.til '&&' cat gen/c/structs_pc.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "_tag;", expected_count = 0)))
+    aliases_checks = aliases_checks.concat(array(CountCheck, CountCheck(needle = "static Point Point_clone(Point * self)", expected_count = 2)))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "static CmpPoint CmpPoint_clone(CmpPoint * self)", expected_count = 2)))
     // A swap_replace on a Str target never calls swap_bytes -- the builder
     // writes the delete-copy-free sequence instead -- so the callee is not
     // a reachability root there and the definition goes with it. Safe to
     // sweep only because scavenge_imported erases swept names from the
     // scope registries; the first attempt left check_fcall_mut_args
     // resolving the swept name into a freed Expr (ASAN-caught here).
-    add_count(tests, "strings_no_uncalled_swap_bytes", "build", "swap_bytes", 0,
-        format(til_bin, " translate -c gen/c/strings_sw.c test/strings.til '&&' cat gen/c/strings_sw.c"))
-    add_count(tests, "enums_no_uncalled_lifecycle", "build", "TagU8_delete", 0,
-        format(til_bin, " translate -c gen/c/enums_lc.c test/enums.til '&&' cat gen/c/enums_lc.c"))
-    add_count(tests, "enums_payload_clone_value_abi", "build", "static ColorG ColorG_clone(ColorG * self)", 2,
-        format(til_bin, " translate -c gen/c/enums_pc.c test/enums.til '&&' cat gen/c/enums_pc.c"))
+    strings_checks = strings_checks.concat(array(CountCheck, CountCheck(needle = "swap_bytes", expected_count = 0)))
+    enums_checks = enums_checks.concat(array(CountCheck,
+        CountCheck(needle = "TagU8_delete", expected_count = 0),
+        CountCheck(needle = "static ColorG ColorG_clone(ColorG * self)", expected_count = 2)))
     // #302 stage 4 / #326: a drain-only delete must still be emitted --
     // both the scavenger's reachability walk and the builder's lifecycle
     // gate have to see the conjured `T_delete(_old, ...)` site. Fails to
@@ -1705,8 +1692,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "static void WcKept_delete(", expected_count = 2))
     add_single(tests, "scavenge_dyn_wildcard", "build", 0, "",
         format(til_bin, " run test/scavenge_dyn_wildcard.til"))
-    add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
-        format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "Color_is", expected_count = 0)))
     // Clone calls now share the ordinary value-return ABI rather than a
     // POD-specific splice path.
     add_count(tests, "bug256_move_clone_value_abi", "build", "static Node Node_clone(Node * self)", 2,
@@ -1720,22 +1706,19 @@ main := proc(args: ..Str) {
     // Every prototype used to be emitted twice: the monolithic header and
     // emit_all_forward_declarations were two drifted copies of the same
     // four walks. One prototype, one definition, one mention at the call.
-    add_count(tests, "hello_no_duplicate_prototypes", "build", "void println(Array__Str * parts)", 2,
-        format(til_bin, " translate -c gen/c/hs_dp.c examples/hello_script.til '&&' cat gen/c/hs_dp.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "void println(Array__Str * parts)", expected_count = 2)))
     // The __builtin_unreachable terminator answers a GCC mis-fire that
     // needs a CFG it cannot follow. A body whose LAST statement is a plain
     // `return` has none: the marker there is a dead statement after an
     // unconditional return, and every function in this fixture ends that
     // way.
-    add_count(tests, "hello_no_unreachable_after_return", "build", "__builtin_unreachable", 0,
-        format(til_bin, " translate -c gen/c/hs_ur.c examples/hello_script.til '&&' cat gen/c/hs_ur.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "__builtin_unreachable", expected_count = 0)))
     // ...and the bodies that DO need it keep it: test/option.til's
     // Option arms return from every branch of an exhaustive switch, which
     // is exactly the CFG GCC stops following under -finstrument-functions.
     // 16: Option's generated clone is now a switch whose every arm
     // returns, so it keeps one too.
-    add_count(tests, "option_keeps_needed_unreachable", "build", "__builtin_unreachable", 16,
-        format(til_bin, " translate -c gen/c/opt_ur.c test/option.til '&&' cat gen/c/opt_ur.c"))
+    option_checks = option_checks.concat(array(CountCheck, CountCheck(needle = "__builtin_unreachable", expected_count = 16)))
     // dladdr sees exported symbols only. The profiler's Linux ELF fallback
     // must recover translation-unit-local generated functions such as
     // adopt__Str; TIL_PROF_TOP=0 puts every called function in both tables.
@@ -1754,8 +1737,7 @@ main := proc(args: ..Str) {
     // hoisting it manufactured a dead `Bool hoisted__Bool_N` binding at
     // every overridden site, cast away with the `(void)hoisted__` this
     // issue's invariant forbids (structs.til had the corpus's last 5).
-    add_count(tests, "structs_no_void_hoisted_cast", "build", "(void)hoisted__", 0,
-        format(til_bin, " translate -c gen/c/structs_vh.c test/structs.til '&&' cat gen/c/structs_vh.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "(void)hoisted__", expected_count = 0)))
     // The reflection stubs opened with a blanket `(void)` on every
     // parameter -- casting names their own dispatch arms and error exits
     // READ, which is the Str_size mis-cast from the post-mortem all over
@@ -1764,35 +1746,30 @@ main := proc(args: ..Str) {
     // read and no cast survives. first_class.til retains the struct_field_*
     // and enum_variant_* stubs; #370 also reflects a runtime signature Type
     // argument, retaining the five indexed func_sig_* stubs alongside them.
-    add_count(tests, "first_class_no_stub_param_casts", "build", "(void)type_name", 0,
-        format(til_bin, " translate -c gen/c/fc_vc.c test/first_class.til '&&' cat gen/c/fc_vc.c"))
-    add_count(tests, "first_class_index_in_range_error", "build", "index %lld out of range", 14,
-        format(til_bin, " translate -c gen/c/fc_ir.c test/first_class.til '&&' cat gen/c/fc_ir.c"))
+    first_class_checks = first_class_checks.concat(array(CountCheck,
+        CountCheck(needle = "(void)type_name", expected_count = 0),
+        CountCheck(needle = "index %lld out of range", expected_count = 14)))
     // Abstract methods now have typed dispatch definitions. The signature
     // survives to the backend rather than becoming an untyped dyn_call.
-    add_count(tests, "interfaces_typed_dispatcher", "build", "Drawable_draw(Drawable * self) {", 1,
-        format(til_bin, " translate -c gen/c/if_ap.c test/interfaces.til '&&' cat gen/c/if_ap.c"))
+    interfaces_checks = interfaces_checks.concat(array(CountCheck, CountCheck(needle = "Drawable_draw(Drawable * self) {", expected_count = 1)))
     // A generic template's body is not a reachability blob: methods root
     // per qualified name, so Array.to_vec's Vec reference must not keep
     // Vec -- nor Vec's adopt_from -- in a program that never builds one.
-    add_count(tests, "hello_no_template_blanket_root", "build", "adopt_from", 0,
-        format(til_bin, " translate -c gen/c/hs_tb.c examples/hello_script.til '&&' cat gen/c/hs_tb.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "adopt_from", expected_count = 0)))
     // The literal pool is registered by the same rules the emitters spend
     // it by: dyn_type_to_str's 18 metadata strings pool only when that
     // declaration survives the scavenge, and a dyn_call/dyn_has_method
     // METHOD literal -- spliced into the C symbol name at every site --
     // never pools at all. interfaces.til exercises both (its pool held 20
     // entries nothing indexed).
-    add_count(tests, "interfaces_pool_no_dead_metadata", "build", "(void *)\"StructDef\"", 0,
-        format(til_bin, " translate -c gen/c/if_pm.c test/interfaces.til '&&' cat gen/c/if_pm.c"))
+    interfaces_checks = interfaces_checks.concat(array(CountCheck, CountCheck(needle = "(void *)\"StructDef\"", expected_count = 0)))
     // A typedef no emitted C mentions is not emitted: Dynamic's every
     // value position lowers to void*, so a program with no reflection
     // never spells the typedef out -- and one WITH reflection needs it
     // for the sizeof arms, both directions pinned here. The vendor
     // binding structs follow the same rule (a gui program that uses no
     // Vector4-taking function carries no Vector4 typedef).
-    add_count(tests, "hello_no_dead_dynamic_typedef", "build", "} Dynamic;", 0,
-        format(til_bin, " translate -c gen/c/hs_dy.c examples/hello_script.til '&&' cat gen/c/hs_dy.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "} Dynamic;", expected_count = 0)))
     add_count(tests, "dynamic_keeps_dynamic_typedef", "build", "} Dynamic;", 1,
         format(til_bin, " translate -c gen/c/dyn_dy.c test/dynamic.til '&&' cat gen/c/dyn_dy.c"))
     add_count(tests, "gui_no_dead_vendor_typedef", "build", "} Vector4;", 0,
@@ -1800,8 +1777,7 @@ main := proc(args: ..Str) {
     // A NICHE enum has no tag field -- the emitted code tests the pointer
     // against NULL -- so its E_TAG_* enumerators are constants nothing can
     // name; the block is not emitted (121 of them across the corpus).
-    add_count(tests, "option_no_niche_tag_enumerators", "build", "Option__ref_OptSrc_TAG_None", 0,
-        format(til_bin, " translate -c gen/c/opt_nt.c test/option.til '&&' cat gen/c/opt_nt.c"))
+    option_checks = option_checks.concat(array(CountCheck, CountCheck(needle = "Option__ref_OptSrc_TAG_None", expected_count = 0)))
     // A CORE top-level function whose every call site sits inside a
     // definition the emit gates drop is not called by the emitted C.
     // UNREACHABLE is the witness: the initer plants a call in every
@@ -1817,18 +1793,15 @@ main := proc(args: ..Str) {
     // same predicate the emitter splices on, or the two disagree about
     // what exists and the definition is emitted with nothing calling it
     // (21 of them in til's own output the day the splice landed).
-    add_count(tests, "vecs_no_uncalled_checked_get", "build", "Vec__I64_get(", 0,
-        format(til_bin, " translate -c gen/c/vv_cg.c test/vecs.til '&&' cat gen/c/vv_cg.c"))
+    vecs_checks = vecs_checks.concat(array(CountCheck, CountCheck(needle = "Vec__I64_get(", expected_count = 0)))
     // USize-to-UPtr widening in container byte arithmetic is a native cast,
     // not an out-of-line call at every generated Vec/Array/Map access.
-    add_count(tests, "vecs_no_to_uptr_call", "build", "U64_to_uptr(", 0,
-        format(til_bin, " translate -c gen/c/vv_up.c test/vecs.til '&&' cat gen/c/vv_up.c"))
+    vecs_checks = vecs_checks.concat(array(CountCheck, CountCheck(needle = "U64_to_uptr(", expected_count = 0)))
     // The self-compiler keeps compact U32 collection metadata even though
     // programs it compiles remain target-width (U64 on this host) by default.
     add_count(tests, "self_compiler_usize32", "build", "#define TIL_USIZE32 1", 1,
         "cat boot/til_forward.h")
-    add_count(tests, "hello_funcs_are_tu_local", "build", "static void println(Array__Str * parts)", 2,
-        format(til_bin, " translate -c gen/c/hs_st.c examples/hello_script.til '&&' cat gen/c/hs_st.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "static void println(Array__Str * parts)", expected_count = 2)))
     // The GENERATED families join the audit too: a dyn wrapper exists
     // only to fill the closure value beside it, and the print prelude is
     // the program's own. Both bypassed emit_func_def, so both stayed
@@ -1851,16 +1824,12 @@ main := proc(args: ..Str) {
     // 152 generated files have none. Its four sources are asked instead --
     // a value's type, a capture, the dyn dispatch inventory that emits
     // `static TilClosure` values, and dyn_size_of's Fn/Body sizeof arms.
-    add_count(tests, "hello_no_closure_runtime", "build", "struct TilClosure {", 0,
-        format(til_bin, " translate -c gen/c/hs_cr.c examples/hello_script.til '&&' cat gen/c/hs_cr.c"))
-    add_count(tests, "closures_keep_closure_runtime", "build", "struct TilClosure {", 1,
-        format(til_bin, " translate -c gen/c/cl_cr.c test/closures.til '&&' cat gen/c/cl_cr.c"))
-    add_count(tests, "hello_no_unused_cstr_macro", "build", "#define TIL_CSTR", 0,
-        format(til_bin, " translate -c gen/c/hs_cs.c examples/hello_script.til '&&' cat gen/c/hs_cs.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "struct TilClosure {", expected_count = 0)))
+    closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "struct TilClosure {", expected_count = 1)))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "#define TIL_CSTR", expected_count = 0)))
     add_count(tests, "cstr_view_keeps_cstr_macro", "build", "#define TIL_CSTR", 1,
         format(til_bin, " translate -c gen/c/cv_cs.c test/cstr_view.til '&&' cat gen/c/cv_cs.c"))
-    add_count(tests, "hello_globals_are_tu_local", "build", "static U32 CAP_LIT;", 0,
-        format(til_bin, " translate -c gen/c/hs_gs.c examples/hello_script.til '&&' cat gen/c/hs_gs.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "static U32 CAP_LIT;", expected_count = 0)))
     // Counted against gen/til/til.c, which `make` ALREADY produced to
     // build bin/til -- the first version re-translated src/til.til here,
     // adding a second copy of the suite's single slowest job in a
@@ -1869,8 +1838,7 @@ main := proc(args: ..Str) {
     add_count(tests, "til_no_unneeded_reflect_family", "build", "static I64 enum_variant_count(", 0,
         "cat gen/til/til.c")
     // ...and a program that really does reflect still gets them.
-    add_count(tests, "first_class_keeps_reflect_family", "build", "static I64 enum_variant_count(", 2,
-        format(til_bin, " translate -c gen/c/fc_rf.c test/first_class.til '&&' cat gen/c/fc_rf.c"))
+    first_class_checks = first_class_checks.concat(array(CountCheck, CountCheck(needle = "static I64 enum_variant_count(", expected_count = 2)))
     // The wrapper is anchored on a type the file DECLARES and really does
     // dispatch by name (its DynVec(WordBox) does `dyn_fn("WordBox", "clone")`).
     // It used to name std/mode_type's Mode, which the file never mentions: the
@@ -1879,19 +1847,16 @@ main := proc(args: ..Str) {
     // reaches, a wrapper exists exactly where a dispatch can land.
     add_count(tests, "closures_dyn_wrapper_is_tu_local", "build", "static void *WordBox_clone_dyn(", 1,
         format(til_bin, " translate -c gen/c/ci_dw.c test/closures_interp.til '&&' cat gen/c/ci_dw.c"))
-    add_count(tests, "hello_print_prelude_is_tu_local", "build", "static void print_single(Str *s)", 2,
-        format(til_bin, " translate -c gen/c/hs_pp.c examples/hello_script.til '&&' cat gen/c/hs_pp.c"))
-    add_count(tests, "hello_ext_c_boundary_stays_extern", "build", "\nStr Str_clone(Str * val) {", 1,
-        format(til_bin, " translate -c gen/c/hs_sx.c examples/hello_script.til '&&' cat gen/c/hs_sx.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck,
+        CountCheck(needle = "static void print_single(Str *s)", expected_count = 2),
+        CountCheck(needle = "\nStr Str_clone(Str * val) {", expected_count = 1)))
     // A generated enum clone is an exhaustive switch and no longer ends in
     // an UNREACHABLE call, so nothing in aliases.til calls it and DCE drops
-    // it. The keep-when-called rule is pinned by enums_keeps_called_unreachable.
-    add_count(tests, "aliases_clone_needs_no_unreachable", "build", "void UNREACHABLE(", 0,
-        format(til_bin, " translate -c gen/c/al_ur.c test/aliases.til '&&' cat gen/c/al_ur.c"))
+    // it. The keep-when-called rule is pinned by the enums check below.
+    aliases_checks = aliases_checks.concat(array(CountCheck, CountCheck(needle = "void UNREACHABLE(", expected_count = 0)))
     // ...and it stays wherever a surviving body does call it: enums.til's
     // switch has a `case:` wildcard arm whose body calls UNREACHABLE.
-    add_count(tests, "enums_keeps_called_unreachable", "build", "void UNREACHABLE(", 2,
-        format(til_bin, " translate -c gen/c/en_ur.c test/enums.til '&&' cat gen/c/en_ur.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "void UNREACHABLE(", expected_count = 2)))
     // The literal exposed DCE's trivial-delete matcher to CONSUMING
     // deletes: Array.unsafe_set's `T.delete(own self.unsafe_get(i),
     // false)` hoists its receiver into a ref temp, and with call_free a
@@ -1904,132 +1869,110 @@ main := proc(args: ..Str) {
     // ascending copy is built now.
     add_count(tests, "flow_keeps_consuming_deletes", "build", "Str_delete(hoisted__", 2,
         format(til_bin, " translate -c gen/c/flow_cd.c test/flow.til '&&' cat gen/c/flow_cd.c"))
-    add_count(tests, "errors_clone_value_abi", "build", "static ErrorWithMessage ErrorWithMessage_clone(ErrorWithMessage * self)", 2,
-        format(til_bin, " translate -c gen/c/errors_mc.c test/errors.til '&&' cat gen/c/errors_mc.c"))
+    errors_checks = errors_checks.concat(array(CountCheck, CountCheck(needle = "static ErrorWithMessage ErrorWithMessage_clone(ErrorWithMessage * self)", expected_count = 2)))
     // Keep the by-value owned-cell vector clone ABI covered independently
     // of tilminal, whose application and terminal tests now live in Tiled.
     add_count(tests, "owned_vec_clone_value_abi", "build", "static Vec__CloneCell Vec__CloneCell_clone(Vec__CloneCell * self)", 2,
         format(til_bin, " translate -c gen/c/owned_vec_clone.c test/vec_clone_abi.til '&&' cat gen/c/owned_vec_clone.c"))
-    add_count(tests, "str_clone_value_abi", "build", "Str Str_clone(Str * val)", 2,
-        format(til_bin, " translate -c gen/c/hs_sc.c examples/hello_script.til '&&' cat gen/c/hs_sc.c"))
+    hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "Str Str_clone(Str * val)", expected_count = 2)))
     // Issue #326: the same for an enum's INLINE primitive payload -- the
     // generated destructor drops the whole arm (a tag compare, a payload
     // pointer, the call). Vec(I64).clear's per-element drop used to be the
     // one survivor in this fixture; the dead loop around it went too, so
     // nothing here deletes an I64 any more.
-    add_count(tests, "enums_primitive_payload_arm_dropped", "build", "I64_delete(hoisted__I64", 0,
-        format(til_bin, " translate -c gen/c/enums_pp.c test/enums.til '&&' cat gen/c/enums_pp.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "I64_delete(hoisted__I64", expected_count = 0)))
     // ...and a Str payload keeps its arm: that one has real cleanup.
-    add_count(tests, "enums_keeps_str_payload_delete", "build", "Str_delete(hoisted__Str_Token_delete", 1,
-        format(til_bin, " translate -c gen/c/enums_sp.c test/enums.til '&&' cat gen/c/enums_sp.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "Str_delete(hoisted__Str_Token_delete", expected_count = 1)))
     // Issue #326: the initer asks init_delete_is_noop -- "does deleting
     // this do anything?" -- rather than POD-ness, so an enum arm whose
     // payload is itself a payload-less enum is not generated either.
     // core's `Type.Primitive(Primitive)` is that shape.
-    add_count(tests, "aliases_no_enum_payload_delete_arm", "build", "Primitive_delete", 0,
-        format(til_bin, " translate -c gen/c/aliases_ep.c test/aliases.til '&&' cat gen/c/aliases_ep.c"))
+    aliases_checks = aliases_checks.concat(array(CountCheck, CountCheck(needle = "Primitive_delete", expected_count = 0)))
     // ...and a HAND-WRITTEN delete is never skipped, however POD-shaped
     // its type: DeleteCustom counts its own calls.
-    add_count(tests, "structs_keeps_hand_written_delete", "build", "DeleteCustom_delete", 10,
-        format(til_bin, " translate -c gen/c/structs_hw.c test/structs.til '&&' cat gen/c/structs_hw.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "DeleteCustom_delete", expected_count = 10)))
     // Issue #326: the no-op-delete gate reads the DESTRUCTOR BODY, so it
     // covers a POD struct field and a payload-less enum field too -- and
     // it is asked of the initer's `<place>.delete(false)` method shape,
     // not just the garbager's `T.delete(x, false)`. Once the last call
     // goes the definition goes with it: the site inventory asks the same
     // question. `DotShape` is a payload-less enum held as a field.
-    add_count(tests, "enums_drops_enum_field_delete", "build", "DotShape_delete", 0,
-        format(til_bin, " translate -c gen/c/enums_ef.c test/enums.til '&&' cat gen/c/enums_ef.c"))
-    add_count(tests, "structs_drops_pod_field_delete", "build", "DerivedFieldInner_delete", 0,
-        format(til_bin, " translate -c gen/c/structs_ef.c test/structs.til '&&' cat gen/c/structs_ef.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "DotShape_delete", expected_count = 0)))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "DerivedFieldInner_delete", expected_count = 0)))
     // Issue #326: a generated destructor's per-field cleanup skips a
     // BORROWED primitive field -- its delete is core's `if call_free {
     // free(own self) }` reached with call_free false. The all-POD
     // shortcut said as much for a struct whose fields are ALL like this;
     // `Person { name := "unknown", age := 0 }` got the dead call anyway.
-    add_count(tests, "structs_no_primitive_field_delete", "build", "I64_delete(&self->age, 0);", 0,
-        format(til_bin, " translate -c gen/c/structs_pf.c test/structs.til '&&' cat gen/c/structs_pf.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "I64_delete(&self->age, 0);", expected_count = 0)))
     // ...and a field whose type has real cleanup keeps its call.
-    add_count(tests, "structs_keeps_str_field_delete", "build", "Str_delete(&self->name, 0);", 3,
-        format(til_bin, " translate -c gen/c/structs_sf.c test/structs.til '&&' cat gen/c/structs_sf.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "Str_delete(&self->name, 0);", expected_count = 3)))
     // Issue #326: a destructor whose whole body is the `if call_free {
     // free(own self) }` tail -- every POD struct, every payload-less enum,
     // every primitive -- does nothing when call_free is false, so the call
     // is not emitted. til.c: 2,181 such calls -> 363, 1,824 lines.
-    add_count(tests, "structs_no_noop_pod_delete", "build", "Point_delete(&a, 0);", 0,
-        format(til_bin, " translate -c gen/c/structs_nd2.c test/structs.til '&&' cat gen/c/structs_nd2.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "Point_delete(&a, 0);", expected_count = 0)))
     // ...and where that call is the binding's ONLY reader, the binding
     // holds nothing to release either, so body DCE retires both together:
     // test_delete's `p := Point(x=3, y=7); Point.delete(own p)` and its
     // Line twin leave no declaration and no call behind.
-    add_counts(tests, "structs_no_sole_reader_delete", "build",
-        format(til_bin, " translate -c gen/c/structs_sr.c test/structs.til '&&' cat gen/c/structs_sr.c"),
+    structs_checks = structs_checks.concat(array(CountCheck,
         CountCheck(needle = "Point_delete(&p, 0);", expected_count = 0),
-        CountCheck(needle = "Line_delete(&l, 0);", expected_count = 0))
+        CountCheck(needle = "Line_delete(&l, 0);", expected_count = 0)))
     // The same for a value a lowered switch no longer reads
     // (test_rest_only's `case PointPat(..)` matches without looking)...
-    add_count(tests, "enums_no_sole_reader_delete", "build", "PointPat_delete(&p, 0);", 0,
-        format(til_bin, " translate -c gen/c/enums_sr.c test/enums.til '&&' cat gen/c/enums_sr.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "PointPat_delete(&p, 0);", expected_count = 0)))
     // ...and for an effectful call's result: the call stays, as a bare
     // statement, with no holder whose only job was a delete that does
     // nothing. The (void) is what keeps clang's -Wunused-value quiet when
     // the discarded call is a statement expression (the SIMD load path).
-    add_counts(tests, "errors_no_sole_reader_delete", "build",
-        format(til_bin, " translate -c gen/c/errors_sr.c test/errors.til '&&' cat gen/c/errors_sr.c"),
+    errors_checks = errors_checks.concat(array(CountCheck,
         CountCheck(needle = "    (void)make_fieldless_error(&calls);", expected_count = 1),
-        CountCheck(needle = "_disc", expected_count = 0))
+        CountCheck(needle = "_disc", expected_count = 0)))
     // Issue #326: a `_` binding the C never reads is dead weight, not a
     // place for an unused cast. A `_ := x.safe_add(y)` keeps only its call
     // (and the throw check after it)...
-    add_counts(tests, "errors_no_dead_discard_binding", "build",
-        format(til_bin, " translate -c gen/c/errors_db.c test/errors.til '&&' cat gen/c/errors_db.c"),
+    errors_checks = errors_checks.concat(array(CountCheck,
         CountCheck(needle = "(void)_;", expected_count = 0),
-        CountCheck(needle = "    U64_safe_add(max_u64, ", expected_count = 1))
+        CountCheck(needle = "    U64_safe_add(max_u64, ", expected_count = 1)))
     // ...a `for _ in a..b` declares no per-step copy of its counter...
     add_count(tests, "lazy_no_dead_loop_binder", "build", "(void)_;", 0,
         format(til_bin, " translate -c gen/c/lazy_lb.c test/lazy.til '&&' cat gen/c/lazy_lb.c"))
     // ...and an unread pattern binder (`case PointPat(x = _nx, y = _ny)`,
     // `case Some(_n)`) declares no pointer into the payload.
-    add_counts(tests, "enums_no_dead_pattern_binder", "build",
-        format(til_bin, " translate -c gen/c/enums_pb.c test/enums.til '&&' cat gen/c/enums_pb.c"),
+    enums_checks = enums_checks.concat(array(CountCheck,
         CountCheck(needle = "(void)_ny;", expected_count = 0),
-        CountCheck(needle = "(void)_n;", expected_count = 0))
+        CountCheck(needle = "(void)_n;", expected_count = 0)))
     // A destructor with real field work keeps every call.
-    add_count(tests, "errors_keeps_field_deletes", "build", "Str_delete(&self->msg, 0);", 6,
-        format(til_bin, " translate -c gen/c/errors_fd.c test/errors.til '&&' cat gen/c/errors_fd.c"))
+    errors_checks = errors_checks.concat(array(CountCheck, CountCheck(needle = "Str_delete(&self->msg, 0);", expected_count = 6)))
     // Issue #326: deleting an IMMUTABLE Str-literal local cannot do
     // anything. Both of Str.delete's branches test the cap, and such a
     // local IS the CAP_LIT wrapper -- its own file-scope static or a member
     // of the shared pool -- so the buffer is static and `call_free.and(cap
     // .neq(CAP_LIT))` is false whatever call_free says. 16,387 of the
     // corpus's 20,628 Str_delete calls were this; til.c lost 8,320 lines.
-    add_count(tests, "structs_no_pool_literal_deletes", "build", "Str_delete(&_til_str_lits", 0,
-        format(til_bin, " translate -c gen/c/structs_nd.c test/structs.til '&&' cat gen/c/structs_nd.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "Str_delete(&_til_str_lits", expected_count = 0)))
     // ...and a MUTABLE one keeps its delete: `mut out := "..."` is
     // reassigned, so by the delete the cap is whatever the last write left.
-    add_count(tests, "strings_keeps_mut_literal_delete", "build", "\n    Str_delete(&out, 0);", 2,
-        format(til_bin, " translate -c gen/c/strings_md.c test/strings.til '&&' cat gen/c/strings_md.c"))
+    strings_checks = strings_checks.concat(array(CountCheck, CountCheck(needle = "\n    Str_delete(&out, 0);", expected_count = 2)))
     // A `ref` decl's deliberately-unused (void) guard was written twice --
     // once in the Ref arm and once by the shared tail that runs for both
     // arms (840 duplicated statements across the corpus). Pinned on the
     // `ref` bindings that still need one: test/errors.til's `_v`/`_x` keep
     // a bounds-checked access body DCE cannot drop (enums' pattern binders,
     // which this used to count, are dead and gone, #326).
-    add_counts(tests, "errors_unused_guard_emitted_once", "build",
-        format(til_bin, " translate -c gen/c/errors_ug.c test/errors.til '&&' cat gen/c/errors_ug.c"),
+    errors_checks = errors_checks.concat(array(CountCheck,
         CountCheck(needle = "(void)_v;", expected_count = 1),
-        CountCheck(needle = "(void)_x;", expected_count = 1))
+        CountCheck(needle = "(void)_x;", expected_count = 1)))
     // Issue #326: an enum's auto-generated `eq` and its variant
     // constructors are ordinary namespace members, so the member walk
     // forward-declares them; the enum-auto-helper block that follows is
     // only for the enums whose members that walk SKIPS. It used to run
     // unconditionally -- 105 duplicate prototypes across the corpus, 38 in
     // this fixture alone. Two witnesses, one per family: the `eq`...
-    add_count(tests, "enums_eq_declared_once", "build", "static Bool Color_eq(Color", 2,
-        format(til_bin, " translate -c gen/c/enums_dp.c test/enums.til '&&' cat gen/c/enums_dp.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "static Bool Color_eq(Color", expected_count = 2)))
     // ...and a payload constructor (one prototype, one definition each).
-    add_count(tests, "enums_variant_ctor_declared_once", "build", "static Token Token_Num(I64", 2,
-        format(til_bin, " translate -c gen/c/enums_dc.c test/enums.til '&&' cat gen/c/enums_dc.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "static Token Token_Num(I64", expected_count = 2)))
     // The forward header is written BEFORE the .c, so it has to gate on
     // the same settled inventory -- it used to see an empty one and omit
     // every lifecycle method the .c then defined. ext.c compiles against
@@ -2040,12 +1983,12 @@ main := proc(args: ..Str) {
     // a prototype in the header advertises a symbol nothing can link --
     // 2,674 of boot/til_forward.h's 2,676. The header now declares only the
     // src/c/ext.c boundary, and that includes the two families that bypass
-    // emit_func_forward_decl: an enum's auto-generated `eq`...
-    add_count(tests, "enums_header_hides_enum_eq", "build", "Color_eq(", 0,
-        format(til_bin, " translate -c gen/c/en_hdr.c test/enums.til '&&' cat gen/c/en_hdr_forward.h"))
-    // ...and its variant constructors.
-    add_count(tests, "enums_header_hides_variant_ctors", "build", "Color_Red(", 0,
-        format(til_bin, " translate -c gen/c/en_hdrc.c test/enums.til '&&' cat gen/c/en_hdrc_forward.h"))
+    // emit_func_forward_decl: an enum's auto-generated `eq` and its variant
+    // constructors. These counts apply to the header, not the C bodies.
+    add_counts(tests, "enums_header_hides_helpers", "build",
+        format(til_bin, " translate -c gen/c/en_hdr.c test/enums.til '&&' cat gen/c/en_hdr_forward.h"),
+        CountCheck(needle = "Color_eq(", expected_count = 0),
+        CountCheck(needle = "Color_Red(", expected_count = 0))
     // A LIBRARY's header is its ABI: nothing is static there, so the same
     // two families stay declared.
     add_count(tests, "pure_lib_header_keeps_exports", "build", "Color_Red(", 1,
@@ -2061,22 +2004,18 @@ main := proc(args: ..Str) {
         "cat gen/til/til_forward.h")
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate --usize=32 -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
-    add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,
-        format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
-    add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,
-        format(til_bin, " translate -c gen/c/first_class_attrs.c test/first_class.til '&&' cat gen/c/first_class_attrs.c"))
+    first_class_checks = first_class_checks.concat(array(CountCheck,
+        CountCheck(needle = "unused_default_op", expected_count = 0),
+        CountCheck(needle = "__attribute__((unused))", expected_count = 0)))
     // Issue #326: the preamble's macro definitions are swept the same way its
     // functions and globals are. A program that never boxes a value on the
     // heap -- 128 of the corpus's 250 outputs -- got the TIL_BOX definition
     // anyway.
-    add_count(tests, "hello_cli_no_dead_box_macro", "build", "#define TIL_BOX", 0,
-        format(til_bin, " translate -c gen/c/hello_box.c examples/hello_cli.til '&&' cat gen/c/hello_box.c"))
+    hello_cli_checks = hello_cli_checks.concat(array(CountCheck, CountCheck(needle = "#define TIL_BOX", expected_count = 0)))
     // ...and the macro it DOES spell stays defined, in the same output.
-    add_count(tests, "hello_cli_keeps_deref_macro", "build", "#define DEREF", 1,
-        format(til_bin, " translate -c gen/c/hello_deref.c examples/hello_cli.til '&&' cat gen/c/hello_deref.c"))
+    hello_cli_checks = hello_cli_checks.concat(array(CountCheck, CountCheck(needle = "#define DEREF", expected_count = 1)))
     // A boxing program keeps both.
-    add_count(tests, "enums_keeps_box_macro", "build", "#define TIL_BOX", 1,
-        format(til_bin, " translate -c gen/c/enums_box.c test/enums.til '&&' cat gen/c/enums_box.c"))
+    enums_checks = enums_checks.concat(array(CountCheck, CountCheck(needle = "#define TIL_BOX", expected_count = 1)))
     // Issue #326: `Vec(T).clear` walks its elements and deletes each one.
     // With an element whose destructor is the `if call_free { free(own
     // self) }` tail -- every primitive, every POD struct, every
@@ -2085,12 +2024,10 @@ main := proc(args: ..Str) {
     // and 3,578 lines across the corpus, plus the O(n) they cost at
     // runtime. The block opener is the witness -- the body is the
     // `self.count = 0` tail alone.
-    add_count(tests, "structs_no_dead_element_loop", "build", "Vec__I64_clear(Vec__I64 * self) {\n    {", 0,
-        format(til_bin, " translate -c gen/c/structs_del.c test/structs.til '&&' cat gen/c/structs_del.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "Vec__I64_clear(Vec__I64 * self) {\n    {", expected_count = 0)))
     // ...and an element whose delete DOES something keeps its walk: Str's
     // frees the buffer whatever call_free says.
-    add_count(tests, "structs_keeps_live_element_loop", "build", "Vec__Str_clear(Vec__Str * self) {\n    {", 1,
-        format(til_bin, " translate -c gen/c/structs_sel.c test/structs.til '&&' cat gen/c/structs_sel.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "Vec__Str_clear(Vec__Str * self) {\n    {", expected_count = 1)))
     // Issue #326: a wildcard `case:` arm carries no pattern, so its BODY is
     // child 0 -- and the liveness walk skipped child 0 of every Case, which
     // made every read inside one invisible. A binding the arm used on the
@@ -2111,16 +2048,14 @@ main := proc(args: ..Str) {
     // after the return that hands it over, and a `!` propagation leaves its
     // own tail behind -- 34 such statements across the corpus, dead in the
     // C and dead in the interpreter alike.
-    add_count(tests, "errors_no_statement_after_return", "build", "return caught_b;\n    Bool hoisted__Bool", 0,
-        format(til_bin, " translate -c gen/c/errors_ar.c test/errors.til '&&' cat gen/c/errors_ar.c"))
+    errors_checks = errors_checks.concat(array(CountCheck, CountCheck(needle = "return caught_b;\n    Bool hoisted__Bool", expected_count = 0)))
     // Issue #326: a `delete` that does nothing is not consuming either --
     // reached with call_free false a free-only destructor neither frees nor
     // touches a field, so there is nothing left for `own` to hand over.
     // `Vec(T).unsafe_set` drops the old element before adopting the new
     // one, which for a POD element is that call and a pointer temp that
     // exists only to be handed to it: 349 such pairs across the corpus.
-    add_count(tests, "structs_no_noop_own_delete", "build", "I64_delete(hoisted__I64", 0,
-        format(til_bin, " translate -c gen/c/structs_od.c test/structs.til '&&' cat gen/c/structs_od.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "I64_delete(hoisted__I64", expected_count = 0)))
     // ...and main's fallthrough exit status is not written when main
     // already returned one -- `return 0;` under `return <status>;`.
     add_count(tests, "main_return_no_dead_exit_status", "build", "return 0;", 0,
@@ -2128,8 +2063,7 @@ main := proc(args: ..Str) {
     // ...and the guard macro follows every other generated helper family:
     // it is defined only when something spells it. The emitter cannot know
     // that when it writes the preamble, so the finished text decides.
-    add_count(tests, "structs_no_dead_lit_guard", "build", "#define TIL_LIT_GUARD", 0,
-        format(til_bin, " translate -c gen/c/structs_lg.c test/structs.til '&&' cat gen/c/structs_lg.c"))
+    structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "#define TIL_LIT_GUARD", expected_count = 0)))
     // Issue #326: a switch arm's `break` is what stops C falling into the
     // next one, and an arm that already left cannot reach it. 794 of those
     // in til's own output; the value-return wrapper is the witness, since
@@ -2142,6 +2076,61 @@ main := proc(args: ..Str) {
     // 2,130 times in til's own output.
     add_count(tests, "til_loop_condition_tests_the_exit", "build", "if (_wcond_Bool_", 0,
         "cat gen/til/til.c")
+
+    add_counts(tests, "dead_temps_codegen", "build",
+        format(til_bin, " translate -c gen/c/dead_temps_casts.c test/dead_temps.til '&&' cat gen/c/dead_temps_casts.c"),
+        ..dead_temps_checks)
+    add_counts(tests, "fn_ptr_codegen", "build",
+        format(til_bin, " translate -c gen/c/aggregate_return_value.c test/fn_ptr.til '&&' cat gen/c/aggregate_return_value.c"),
+        ..fn_ptr_checks)
+    add_counts(tests, "closures_codegen", "build",
+        format(til_bin, " translate -c gen/c/aggregate_return_closure.c test/closures.til '&&' cat gen/c/aggregate_return_closure.c"),
+        ..closures_checks)
+    add_counts(tests, "structs_codegen", "build",
+        format(til_bin, " translate -c gen/c/aggregate_local_stack.c test/structs.til '&&' cat gen/c/aggregate_local_stack.c"),
+        ..structs_checks)
+    add_counts(tests, "minimal_reach_codegen", "build",
+        format(til_bin, " translate -c gen/c/minimal_reach.c test/minimal_reach.til '&&' cat gen/c/minimal_reach.c"),
+        ..minimal_reach_checks)
+    add_counts(tests, "cli_args_codegen", "build",
+        format(til_bin, " translate -c gen/c/cli_args_roots.c examples/cli_args.til '&&' cat gen/c/cli_args_roots.c"),
+        ..cli_args_checks)
+    add_counts(tests, "pure_codegen", "build",
+        format(til_bin, " translate -c gen/c/pure_reach.c test/pure.til '&&' cat gen/c/pure_reach.c"),
+        ..pure_checks)
+    add_counts(tests, "dyn_vecs_codegen", "build",
+        format(til_bin, " translate -c gen/c/dyn_vecs_h.c test/dyn_vecs.til '&&' cat gen/c/dyn_vecs_h.c"),
+        ..dyn_vecs_checks)
+    add_counts(tests, "enums_codegen", "build",
+        format(til_bin, " translate -c gen/c/enums_tt.c test/enums.til '&&' cat gen/c/enums_tt.c"),
+        ..enums_checks)
+    add_counts(tests, "aliases_codegen", "build",
+        format(til_bin, " translate -c gen/c/aliases_pc.c test/aliases.til '&&' cat gen/c/aliases_pc.c"),
+        ..aliases_checks)
+    add_counts(tests, "strings_codegen", "build",
+        format(til_bin, " translate -c gen/c/strings_sw.c test/strings.til '&&' cat gen/c/strings_sw.c"),
+        ..strings_checks)
+    add_counts(tests, "hello_script_codegen", "build",
+        format(til_bin, " translate -c gen/c/hs_dp.c examples/hello_script.til '&&' cat gen/c/hs_dp.c"),
+        ..hello_script_checks)
+    add_counts(tests, "option_codegen", "build",
+        format(til_bin, " translate -c gen/c/opt_ur.c test/option.til '&&' cat gen/c/opt_ur.c"),
+        ..option_checks)
+    add_counts(tests, "first_class_codegen", "build",
+        format(til_bin, " translate -c gen/c/fc_vc.c test/first_class.til '&&' cat gen/c/fc_vc.c"),
+        ..first_class_checks)
+    add_counts(tests, "interfaces_codegen", "build",
+        format(til_bin, " translate -c gen/c/if_ap.c test/interfaces.til '&&' cat gen/c/if_ap.c"),
+        ..interfaces_checks)
+    add_counts(tests, "vecs_codegen", "build",
+        format(til_bin, " translate -c gen/c/vv_cg.c test/vecs.til '&&' cat gen/c/vv_cg.c"),
+        ..vecs_checks)
+    add_counts(tests, "errors_codegen", "build",
+        format(til_bin, " translate -c gen/c/errors_mc.c test/errors.til '&&' cat gen/c/errors_mc.c"),
+        ..errors_checks)
+    add_counts(tests, "hello_cli_codegen", "build",
+        format(til_bin, " translate -c gen/c/hello_box.c examples/hello_cli.til '&&' cat gen/c/hello_box.c"),
+        ..hello_cli_checks)
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
