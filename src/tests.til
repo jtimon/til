@@ -1235,6 +1235,12 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ", til_bin))
 
+    // Independent driver and scratch directory: the scheduler can overlap
+    // pointer-width checks with CPU-option checks within its normal -j limit.
+    add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/dynamic_widths -c gen/c/dynamic_widths.c test/dynamic_widths.til ", til_bin))
+
     // #151: Linux performs the frontend and emits HolyC; TempleOS is the
     // compiler/runtime. The first accepted subset is the fully lowered shape
     // of examples/hello_script.til, and build must stop before looking for a

@@ -222,12 +222,13 @@ jobs:
       - name: Run Dynamic and checked byte-count probes at both USize widths
         run: |
           ./bin/til run -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ./bin/til
+          ./bin/til run -o bin/c/dynamic_widths -c gen/c/dynamic_widths.c test/dynamic_widths.til ./bin/til
           for width in 32 64; do
-            ./bin/til build --target=linux-x86 --usize=$width -o tmp/dynamic_width_x86 tmp/cpu_options/dynamic_width.til
+            ./bin/til build --target=linux-x86 --usize=$width -o tmp/dynamic_width_x86 tmp/dynamic_widths/dynamic_width.til
             qemu-i386 tmp/dynamic_width_x86 Dynamic | grep -qx "dynamic widths passed"
-            ./bin/til build --target=linux-x86 --usize=$width -o tmp/dynamic_fit_x86 tmp/cpu_options/dynamic_fit.til
+            ./bin/til build --target=linux-x86 --usize=$width -o tmp/dynamic_fit_x86 tmp/dynamic_widths/dynamic_fit.til
             qemu-i386 tmp/dynamic_fit_x86 | grep -qx "1"
-            ./bin/til build --target=linux-x86 --usize=$width -o tmp/pointer_count_x86 tmp/cpu_options/pointer_count.til
+            ./bin/til build --target=linux-x86 --usize=$width -o tmp/pointer_count_x86 tmp/dynamic_widths/pointer_count.til
             qemu-i386 tmp/pointer_count_x86 0 | grep -qx "0"
             qemu-i386 tmp/pointer_count_x86 4294967295 | grep -qx "4294967295"
             if [ "$width" = 64 ]; then
