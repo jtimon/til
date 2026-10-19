@@ -19,6 +19,8 @@
 *** [[./open/429.org][#429]] no-shell-antipatterns.sh: tail -f check has false positives
 *** [[./open/435.org][#435]] Build tooling papercuts: unignored libffi copies, bin/make help spacing, missing cross-compiler hints
 * Optimizations
+** Medium
+*** [[./open/442.org][#442]] Reuse unchanged generated C and binaries using timestamp checks
 ** Low
 *** [[./open/405.org][#405]] Avoid owning Array(Str) and formatting allocations in panic
 *** [[./open/409.org][#409]] CPU SIMD feature targeting and performance validation

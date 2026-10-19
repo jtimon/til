@@ -1,0 +1,38 @@
+# priority: medium
+# category: optimizations
+** OPEN #442 Reuse unchanged generated C and binaries using timestamp checks
+
+Direct ~til translate~, ~til build~, and ~til run~ currently regenerate their
+outputs on every invocation. Restore reuse of existing .c files and binaries
+when nothing relevant has changed, using file modification times to decide
+whether translation or compilation is needed.
+
+~make.til~ already uses ~needs_rebuild~ to compare output timestamps with its
+declared inputs, but direct compiler commands do not use that build graph.
+Repeated commands therefore repeat work even when source and outputs are
+unchanged. Treat translation and compilation separately: current generated C
+can be reused even when the executable still needs to be compiled or linked.
+
+*** Correctness requirements
+
+- Analyze the full transitive dependency graph, not just the target source
+  file: recursively imported modules, their imports, mode/core/std sources,
+  compiler, linked C files, included headers, linked libraries, and other
+  relevant build inputs. Compare dependency timestamps with the outputs;
+  an unchanged target file is insufficient if any dependency changed.
+  Missing outputs require regeneration.
+- Reuse must also correspond to the same source, target and build options.
+  A newer output written by another program or compiler is not a cache hit.
+  Explicit ~-o~ / ~-c~ paths need the same correctness guarantees.
+- Preserve an explicit rebuild path through ~--force-rebuild~.
+- Account for compile-time inputs such as the compiler's embedded git revision;
+  source timestamps alone do not capture a change of HEAD.
+
+The old timestamp shortcut was removed in [[../fixed/406.org][#406]] because it
+accepted outputs belonging to another program and ignored compiler/options and
+linked-C changes. Retain ~test/build_outputs.til~'s stale-output regressions
+while adding checks that an identical second invocation leaves generated C
+and binary timestamps unchanged, and that changed inputs invalidate the
+appropriate phase. Include a dependency-only edit and a transitive-dependency
+edit with the target source left untouched. Measure cold and repeated-command
+times.
