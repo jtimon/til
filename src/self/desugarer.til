@@ -2969,6 +2969,23 @@ priv process_throw_catch_in_body := proc(
     body.children.move_from(own new_ch)
 }
 
+// The read-only root snapshot is used only for local-type lookup. Keep
+// declarations in the same depth-first order guess_local_type searches,
+// including their complete initializers (constructor/alias inference and
+// any nested declarations). Other nodes only lead us to declarations:
+// retaining their calls, conditions and return expressions makes every
+// lookup scan unrelated expression trees. Catch validation's old_snapshot
+// remains a full statement snapshot because it also inspects control flow.
+priv collect_local_type_declarations := func(e: Expr, mut out: Expr) {
+    if e.node_type.is(NodeType.Decl) {
+        out.add_child(own e.clone())
+        return
+    }
+    for child : Expr in e.children {
+        collect_local_type_declarations(child, out)
+    }
+}
+
 // Function-body wrapper for the single-walk consolidated processing.
 // Runs the per-body walk, then prepends slot decls for any throw
 // types touched and (for throwing functions) appends a fallback
@@ -3010,7 +3027,8 @@ process_throw_catch_in_func_body := proc(
         vec_str_push_uniq(types_to_declare, ft)
     }
 
-    root_body := body.clone()
+    mut root_body := Expr.new(own NodeType.Body, body.line, body.col)
+    collect_local_type_declarations(body, root_body)
     process_throw_catch_in_body(scope, ctx, body, root_body, fdef_throws, pending, seen, types_to_declare, ctx.path, return_type, return_own_type)
 
     // Final body-level validation: leftover pending types must be

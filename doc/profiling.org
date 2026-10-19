@@ -81,6 +81,48 @@ The independent TilVm job now overlaps the suite's busy early portion, so its
 installation driver. The gain is in the suite's finish time, not a claim that
 the individual checks became computationally cheaper.
 
+** Interpreter-session frontend work (2026-10-20)
+
+At ~9a505a44c~, temporary runtime markers and a timed C-compiler wrapper
+separated the ~interp_session~ row during a clean full-suite run:
+
+| Component                                      | Seconds |
+|------------------------------------------------+---------|
+| Frontend plus compiler startup/teardown (remainder) | 62.63 |
+| C compilation/linking                          |    9.25 |
+| Host main body                                 |   4.894 |
+| Whole suite row                                |   76.77 |
+
+The seven guest sessions spent about 0.54-0.59s each typing their input;
+guest execution itself took only 0-6ms per session. Splitting those cases
+into separately compiled interpreter hosts would duplicate the dominant work.
+A non-ASAN compiler built with ~--prof~ identified
+~guess_local_type~ as a repeated frontend walk: 10,867,388 recursive calls
+while translating this fixture. Function-profiler timings include tracing
+overhead and are not the ASAN wall times above.
+
+Throws lowering kept a deep copy of the entire function body solely for
+local-type lookup while rewriting the original. That snapshot now retains
+only declarations, in the original depth-first order, with their full
+initializers and nested declarations. Unrelated statement expressions are
+neither copied nor repeatedly searched. Catch validation still uses its full
+statement snapshot because it also reads control flow.
+
+An isolated ASAN frontend comparison on identical input took 25.09s before
+and 24.50s after. Generated C and forward headers were byte-identical for
+~interp_session~, ~errors~, ~fn_ptr~, and ~stored_callbacks~. The clean full
+ASAN suite passed all 456 rows with the optimization:
+
+| Metric          | Before (s) | After (s) |
+|-----------------+------------+-----------|
+| interp_session  |      76.77 |     75.48 |
+| Suite wall time |      77.25 |     75.96 |
+| Self-translate  |      79.28 |     77.12 |
+
+These are single-run measurements, a modest 1.7% measured suite wall-time
+reduction. All test coverage and ASAN settings remain unchanged. Temporary
+timing instrumentation and the compiler wrapper are not part of the suite.
+
 ** Sample profile: where the time goes
 
 ~bin/til build~ compiles the generated C with ~-g~ and no ~-O~, so there is
