@@ -79,6 +79,18 @@ jobs:
   linux-arm64-native:
     name: linux-arm64 (native)
     runs-on: ubuntu-24.04-arm
+    # GCC 13's libasan turns detect_stack_use_after_return on by default,
+    # and its fake-stack frames are pathologically slow on this aarch64
+    # runner: a hello_script translate by bin/til_asan takes 77s of pure
+    # user CPU (0.5s without ASAN, 3.5s under ASAN on linux-x64) and 1.2s
+    # with the fake stack off -- the same 1.2s as building the compiler
+    # with --param asan-use-after-return=0, while every other ASAN switch
+    # (stack redzones, use-after-scope, out-of-line checks, globals,
+    # unwinder, quarantine, leak check) leaves it at 65-82s. That 60x
+    # made the suite take 6h here, GitHub's per-job limit (runs 2723-2735
+    # cancelled). Only this job opts out; the x64 suite keeps the check.
+    env:
+      ASAN_OPTIONS: detect_stack_use_after_return=0
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
