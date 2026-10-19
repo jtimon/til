@@ -20,6 +20,67 @@ simultaneous RAM use.
 
 This doc covers the other question: WHERE does the time actually go?
 
+** Installation-test phases (2026-10-19)
+
+Measured at ~76f5674a3~ on the local Linux x86-64 machine, with temporary
+~clock_ms()~ markers in ~test/install.til~ during ~make clean && make test~.
+This is the normal concurrent full ASAN suite workload, not an isolated
+installation benchmark. The installation driver and the compiler it installs
+are uninstrumented; the installed TilVm host is built with ~--asan~.
+
+All 455 suite rows passed. Suite wall time was 85.14s; the installation row
+took 84.67s. Its timed main body accounted for 83.057s, leaving about 1.61s
+for building/launching the driver and runner overhead.
+
+| Installation phase                          | Elapsed seconds |
+|---------------------------------------------+-----------------|
+| Compiler build and install                  |          39.849 |
+| Installed TilVm host ASAN build             |          23.732 |
+| Installed TilVm host execution              |          10.661 |
+| TilVm private close/clone rejection checks  |           4.835 |
+| All other driver phases                    |           3.980 |
+| Total driver main body                     |          83.057 |
+
+The copy-only reinstall is just 0.043s of the remaining work. Other measured
+phases include the basic probe build (0.655s), shared-library build/install
+(0.464s), GUI interpretation/build/run (0.722s), crypto interpretation/run
+(0.674s), and REPL help (0.203s). Optimizing support-tree copying or these small
+probes cannot remove the two large sequential blocks.
+
+Installed TilVm coverage now runs as the independently scheduled ~install_tilvm~
+job, implemented by ~test/install_tilvm.til~. It has its own installation
+prefix (~tmp/install_tilvm~) and work directory (~tmp/install_tilvm_work~).
+Its setup uses the existing copy-only ~install_executable~ on the already-built
+~bin/til~, while the original installation job retains the full compiler
+build/install path and its other checks. This allows the compiler-install
+block to overlap the TilVm block without dropping coverage. The host remains
+ASAN-instrumented, runs with an empty PATH, and retains the private close/clone
+rejection checks. Isolation matters: the original driver deletes/recreates
+its prefix and later removes the installed libffi archive to exercise a
+missing-dependency error.
+
+These phase times do not predict the exact parallel speedup: concurrency and
+memory pressure change when jobs overlap. In this run ~interp_session~ took
+75.36s, so it is the next likely wall-time limit after splitting installation.
+The profiling markers were removed after measurement; there is no permanent
+profiling flag or extra test output.
+
+After splitting, another clean full ASAN run passed all 456 rows (one extra
+scheduled job, with the same checks). Measured wall time fell by 7.36s, or
+8.6%, and ~interp_session~ became the longest non-self job:
+
+| Suite job / metric     | Before (s) | After (s) |
+|------------------------+------------+-----------|
+| install                |      84.67 |     48.87 |
+| install_tilvm          |   included |     65.57 |
+| interp_session         |      75.36 |     77.30 |
+| Suite wall time        |      85.14 |     77.78 |
+
+The independent TilVm job now overlaps the suite's busy early portion, so its
+65.57s is not directly comparable to its old 39.228s phase late in the serial
+installation driver. The gain is in the suite's finish time, not a claim that
+the individual checks became computationally cheaper.
+
 ** Sample profile: where the time goes
 
 ~bin/til build~ compiles the generated C with ~-g~ and no ~-O~, so there is

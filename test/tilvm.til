@@ -3,7 +3,7 @@ mode cli
 import("std/tilvm")
 import("std/file")
 
-// A standalone host: test/install.til builds this against the installed SDK.
+// A standalone host: test/install_tilvm.til builds this against the installed SDK.
 // Run from an independent directory with an empty PATH. All guest files are
 // created AFTER host compilation; neither the Til nor C compiler is needed.
 expect_failure := proc(mut vm: TilVm, source: Str, phase: Str, detail: Str, line: U32) {

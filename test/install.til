@@ -111,33 +111,6 @@ main := proc() returns I64 {
         panic("the program built by the installed til printed '", run.out(), "'")
     }
 
-    // #370: the host imports only installed logical namespaces. Its config
-    // files do not exist until the compiled host creates them at runtime.
-    File.writefile(format(WORK, "/tilvm_host.til"), File.readfile("test/tilvm.til"))
-    vm_build := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_host", "tilvm_host.til")
-    vm_build.cwd(WORK)
-    vm_build.run_checked()
-    vm_run := Cmd.new("./bin/tilvm_host", "../install_test/lib/til")
-    vm_run.cwd(WORK)
-    vm_run.env("PATH", "")
-    vm_run.capture()
-    if vm_run.run() != 0 { panic("installed TilVm host failed: ", vm_run.out(), vm_run.err()) }
-    if vm_run.out().contains("TilVm host survived errors and teardown").not() {
-        panic("installed TilVm host did not finish: ", vm_run.out(), vm_run.err())
-    }
-    for method : Str in vec(Str, "close", "clone") {
-        File.writefile(format(WORK, "/tilvm_private.til"), format(
-            "mode cli\nimport(\"std/tilvm\")\nmain := proc(root: Str) {\n",
-            "    mut vm := TilVm.new(root)\n    vm.", method, "()\n}\n"))
-        private_build := Cmd.new(installed_til, "build", "tilvm_private.til")
-        private_build.cwd(WORK)
-        private_build.capture()
-        if private_build.run() == 0 { panic("TilVm.", method, " unexpectedly public") }
-        if private_build.out().contains("priv").not() {
-            panic("TilVm private-member rejection missing: ", private_build.out(), private_build.err())
-        }
-    }
-
     // #413: an isolated external project, a non-default install prefix,
     // nested imports and a cwd different from the entrypoint's directory.
     // Local std/core and a neighboring src tree must not shadow the selected
