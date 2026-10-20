@@ -63,6 +63,10 @@ dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b:
 /// convention to that FuncSig. The type name may be selected at runtime.
 /// Signatures with Dynamic parameters or results retain the erased collection
 /// convention (CloneFn, DeleteFn, etc.), as does an untyped Dynamic result.
+/// A result stored in Dynamic can later be bound or cast to a concrete FuncSig;
+/// that typed use selects the same adapter and rejects an incompatible method.
+/// A callable value and a ref to a collection's callable slot remain distinct:
+/// conversion loads the slot, while a returned ref continues to borrow it.
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
 dyn_storage_kind := ext_func(type_name: Str) returns shallow USize {}

@@ -1464,7 +1464,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "static ReturnBox346 make_return_box346(Str * value)", expected_count = 2),
         CountCheck(needle = "static ReturnBox346 *make_return_box346", expected_count = 0),
         CountCheck(needle = "((ReturnBox346 (*)(void *, Str *))", expected_count = 2),
-        CountCheck(needle = "Str *_hp = (Str *)dyn_type_to_str", expected_count = 1)))
+        CountCheck(needle = "Str *_hp = (Str *)dyn_type_to_str", expected_count = 3)))
     closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "static ClosureBox346 closure_test_capturing_closure_owned_aggregate_return_0(void *til_env_raw)", expected_count = 1)))
     structs_checks = structs_checks.concat(array(CountCheck,
         CountCheck(needle = "StackValue346 value = {0};", expected_count = 1),
@@ -2876,6 +2876,12 @@ main := proc(args: ..Str) {
     add_count(tests, "introspect_value_name_error_interp", "interp",
         "is not a struct", 1,
         format(til_bin, " interpret test/introspect_value_name_error.til"))
+    add_count(tests, "dyn_fn_erased_signature_interp", "interp",
+        "signature mismatch", 1,
+        format(til_bin, " interpret test/dyn_fn_erased_error.til"))
+    add_count(tests, "dyn_fn_erased_signature_run", "interp",
+        "signature mismatch", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/dyn_fn_erased_error test/dyn_fn_erased_error.til"))
     add_count(tests, "introspect_value_name_error_build", "interp",
         "is not a struct", 1,
         format(til_bin, " build -o bin/c/introspect_value_name_error test/introspect_value_name_error.til"))

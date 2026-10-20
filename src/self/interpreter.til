@@ -1405,8 +1405,10 @@ priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
         }
     case:
     }
-    owned = true
-    return eval_expr_raw(scope, callee, ctx)
+    mut info := raw_result_info_new()
+    raw : Dynamic = eval_expr_raw_info(scope, callee, ctx, info)
+    owned = info.is_ref.not()
+    return raw
 }
 
 priv eval_callable_cast_callee_raw := proc(mut scope: Scope, mut cast_expr: Expr,
@@ -2444,6 +2446,27 @@ priv eval_switch := proc(mut scope: Scope, mut stmt: Expr, mut ctx: Context) {
 
 priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration, mut ctx: Context) {
     ref mut rhs : Expr = stmt.children[0]
+    if declaration_resolved_type(dd, ctx.scope, ctx.symbols).is(Type.Dynamic)
+        .and(rhs.node_type.is(NodeType.FieldAccess)).and(heap_type_is_callable(rhs.til_type())) {
+        mut fallback_name := ""
+        ref owner_name : Str = field_access_sname(rhs, fallback_name, ctx.symbols)
+        // A callable instance field lends its value when erased to Dynamic,
+        // just as in C. Reading it as an owned FuncSig first would clone its
+        // captured environment and then lose the type responsible for freeing
+        // that clone. Namespace functions have no instance slot here.
+        if field_access_decl(rhs, owner_name, ctx).is_some() {
+            ref slot : Dynamic = field_access_base(scope, rhs, ctx).unwrap()
+            dynamic_type : Dynamic = interp_intern_type(Type.Dynamic, ctx)
+            if dd.own_type.is(OwnType.Ref) {
+                scope_set_heap_owned(scope, dd.name, slot, dynamic_type, dd.own_type, ctx, false, true, true)
+            } else {
+                mut view : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                write_ptr(view, deref(slot))
+                scope_set_raw_owned(scope, dd.name, view, dynamic_type, dd.own_type, ctx)
+            }
+            return
+        }
+    }
     if dd.external_symbol.len() > 0 {
         // Compile-time folding has no loaded user library. The declaration is
         // deliberately absent from the known-value scope, which prevents any
@@ -2518,7 +2541,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             }
         }
         if dd.own_type.is(OwnType.Ref) {
-            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
+            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).or(heap_type_is_callable(decl_type)).not()) {
                 mut pointed : Dynamic = source_raw
                 if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
                 scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, source_hb.ctx, false, true)
@@ -2556,7 +2579,9 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         }
         if dd.name.starts_with("hoisted__").or(source_hb.is_borrowed).or(heap_slot_is_static_callable(hb_type(source_hb), source_raw)) {
             mut copied : Dynamic = source_raw
-            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
+            if hb_type(source_hb).is(Type.Dynamic).and(heap_type_is_callable(decl_type)) {
+                copied = heap_clone_by_type(decl_type, source_raw, source_hb.ctx)
+            } else if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
                 mut dynamic_data : Dynamic = source_raw
                 if source_hb.is_erased_dynamic.not() { dynamic_data = deref(source_raw) }
                 copied = heap_clone_by_type(decl_type, dynamic_data, source_hb.ctx)
@@ -2586,7 +2611,7 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
             scope_set_raw_owned(scope, dd.name, copied, bind_type_w, dd.own_type, source_hb.ctx)
         } else {
             mut moved : Dynamic = source_raw
-            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
+            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).or(heap_type_is_callable(decl_type)).not()) {
                 ref dynamic_data2 : Dynamic = deref(source_raw)
                 moved = dynamic_data2
                 owned_holder : Dynamic = source_raw
@@ -3300,7 +3325,10 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
             } else {
                 bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
                 ref bind_type : Type = to_ptr(bind_type_w)
-                if hb_type(source_hb).is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
+                if hb_type(source_hb).is(Type.Dynamic).and(heap_type_is_callable(bind_type)) {
+                    ref mut arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name(ctx.symbols.names))
+                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(ctx.symbols.names), arg_source_scope)
+                } else if hb_type(source_hb).is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
                     mut pointed : Dynamic = source_raw
                     if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
                     if param.own_type.is(OwnType.Shallow).and(raw_type_is_simd(bind_type, ctx)) {
@@ -3520,7 +3548,20 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     return result
 }
 
+priv check_dynamic_callable_signature := proc(callable: Dynamic, shallow expected: Type, site: Expr, mut ctx: Context) returns Bool {
+    if dyn_fn_uses_typed_abi(expected, ctx.scope, ctx.symbols).not() { return true }
+    sig_name := type_to_name(expected, ctx.symbols)
+    ref want : FunctionDef = funcdef_of(ctx.scope.lookup_func_name(sig_name, ctx.symbols).unwrap())
+    ref got : FunctionDef = funcdef_of(callable_raw_func_def(callable))
+    if dyn_fn_signature_matches(got, want, ctx.scope, ctx.symbols) { return true }
+    interp_eval_error(site, format("callable signature mismatch (expected ", sig_name, ")"), ctx)
+    return false
+}
+
 priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callable: Dynamic, mut ctx: Context, mut destination: Dynamic = bits_word(0)) returns Dynamic {
+    if check_dynamic_callable_signature(callable, e.children[0].til_type(), e, ctx).not() {
+        return raw_unit_result(e.til_type(), ctx)
+    }
     ref mut func_def : Expr = callable_raw_func_def(callable)
     ref parent_scope : Scope = callable_raw_env(callable, caller_scope)
     switch func_def.node_type {
@@ -4229,7 +4270,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         if inline_callable_cast {
             cast_raw = eval_callable_cast_callee_raw(scope, callee_expr, cast_raw_owned, ctx)
         } else {
-            cast_raw = eval_expr_raw(scope, callee_expr, ctx)
+            cast_raw = eval_callable_callee_raw(scope, callee_expr, cast_raw_owned, ctx)
         }
         ref cast_func_def : Expr = callable_raw_func_def(cast_raw)
         set_resolved_call_result_info(call_type, cast_func_def, destination, info, ctx)
@@ -7782,6 +7823,10 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
     }
     tn := til_type_name_c(e.til_type(), ctx.symbols)
     if (tn == "Fn").or(tn == "Body") {
+        if check_dynamic_callable_signature(src, e.til_type(), e, ctx).not() {
+            raw_result_drop(src_expr.til_type(), src, src_info.is_ref, ctx)
+            return true
+        }
         ref stored_ref : Dynamic = deref(src)
         mut stored : Dynamic = stored_ref
         if raw_result_source_type(src_info).is(Type.Dynamic) {

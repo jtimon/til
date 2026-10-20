@@ -1,0 +1,13 @@
+mode cli
+
+Unary := func(I64) returns I64
+WrongCallback := struct {
+namespace:
+    value := func(text: Str) returns Str { return text.clone() }
+}
+
+main := proc() {
+    raw: Dynamic = dyn_fn("WrongCallback", "value")
+    callback: Unary = raw
+    println(callback(7).to_str())
+}

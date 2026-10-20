@@ -1,5 +1,7 @@
 mode test
 
+import("std/dyn_vec")
+
 fn_double := func(n: I64) returns I64 {
     return n.mul(2)
 }
@@ -178,6 +180,59 @@ test_typed_dyn_fn_owned_aggregate := test() {
     consume: OwnedBoxValueFn346 = dyn_fn("DynCallbacks", "consume")
     box := make("owned")
     assert_eq(USize, consume(own box), 5)
+}
+
+test_dyn_fn_delayed_binding := test() {
+    raw: Dynamic = dyn_fn("DynCallbacks", "double")
+    callback: UnaryOp = raw
+    assert_eq(I64, callback(7), 14)
+}
+
+test_dyn_fn_delayed_cast := test() {
+    raw: Dynamic = dyn_fn("DynCallbacks", "double")
+    callback := cast(raw, UnaryOp)
+    assert_eq(I64, callback(9), 18)
+    assert_eq(I64, apply_unary(raw, 3), 6)
+}
+
+test_callable_dynamic_roundtrip := test() {
+    raw: Dynamic = fn_double
+    callback := cast(raw, UnaryOp)
+    assert_eq(I64, callback(5), 10)
+}
+
+erased_double := func() returns Dynamic { return dyn_fn("DynCallbacks", "double") }
+recover_unary := func(raw: Dynamic) returns UnaryOp { return cast(raw, UnaryOp) }
+borrow_handler := func(holder: Handler) returns ref BinaryOp { return holder.on_click }
+
+test_dyn_fn_delayed_returns := test() {
+    callback := recover_unary(erased_double())
+    assert_eq(I64, callback(8), 16)
+}
+
+test_dyn_fn_delayed_collection_slot := test() {
+    mut values := DynVec.new(UnaryOp)
+    values.push(own recover_unary(erased_double()))
+    ref raw: Dynamic = values[0]
+    from_slot := recover_unary(raw)
+    assert_eq(I64, from_slot(6), 12)
+}
+
+test_dyn_fn_delayed_ref_return := test() {
+    raw_sum: Dynamic = dyn_fn("DynCallbacks", "sum")
+    holder := Handler(on_click = raw_sum)
+    ref borrowed: BinaryOp = borrow_handler(holder)
+    assert_eq(I64, borrowed(3, 4), 7)
+    assert_eq(I64, borrow_handler(holder)(2, 3), 5)
+}
+
+test_callable_dynamic_capture_copy := test() {
+    offset := 3
+    holder := Handler(on_click = func(a: I64, b: I64) returns I64 [offset] { return a + b + offset })
+    raw: Dynamic = holder.on_click
+    callback := cast(raw, BinaryOp)
+    assert_eq(I64, callback(3, 5), 11)
+    assert_eq(I64, holder.on_click(1, 2), 6)
 }
 
 ErasedCloneAlias := CloneFn

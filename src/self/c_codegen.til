@@ -2489,6 +2489,21 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref cf : Expr = ctx.builder_func.current_fdef.unwrap()
     ref fd : FunctionDef = funcdef_of(cf)
     if fd.sig.return_own_type.is(OwnType.Ref) {
+        if type_is_callable_storage(rv.til_type()) {
+            mut is_slot := false
+            switch rv.node_type {
+            case .Ident(id): is_slot = is_ref_local(id.ident_sym(), ctx)
+            case .FCall: is_slot = fcall_returns_ref(rv, ctx)
+            case .FieldAccess: is_slot = builder_fa_is_ptr(rv, ctx)
+            case:
+            }
+            f.write("return ")
+            if is_slot.not() { f.write("&(") }
+            emit_expr_value(f, rv, depth, ctx)
+            if is_slot.not() { f.write(")") }
+            f.write(";\n")
+            return
+        }
         f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
         return
     }
@@ -3275,6 +3290,22 @@ priv emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, 
         }
     }
     f.write("TilClosure *til_closure = (TilClosure *)(")
+    mut borrowed_cast := false
+    if callee.node_type.is(NodeType.FCall).and(builder_needs_reflect("dyn_fn", ctx))
+        .and(dyn_fn_uses_typed_abi(callee.til_type(), ctx.scope, ctx.symbols)) {
+        switch callee.children[0].node_type {
+        case .Ident(id):
+            borrowed_cast = id.ident_name(ctx.symbols.names).eq("cast").and(callee.children[1].til_type().is(Type.Dynamic))
+        case:
+        }
+    }
+    if borrowed_cast {
+        // Immediate invocation borrows the callable. Cloning here would reset
+        // privately captured mutable state on every call through a slot.
+        f.write("_t_dynamic_callable(")
+        emit_deref(f, callee.children[1], depth, ctx)
+        f.write(")")
+    } else {
     switch callee.node_type {
     case .Ident(cname):
         if is_ref_local(cname.ident_sym(), ctx) {
@@ -3282,10 +3313,20 @@ priv emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, 
         } else {
             emit_expr(f, callee, depth, ctx)
         }
+    case .FCall:
+        if fcall_returns_ref(callee, ctx) {
+            f.write("DEREF(")
+            emit_expr(f, callee, depth, ctx)
+            f.write(")")
+        } else { emit_expr(f, callee, depth, ctx) }
     case:
         emit_expr(f, callee, depth, ctx)
     }
+    }
     f.write("); ")
+    if builder_needs_reflect("dyn_fn", ctx).and(dyn_fn_uses_typed_abi(callee.til_type(), ctx.scope, ctx.symbols)) {
+        f.write("til_closure = _t_dyn_fn_").write(type_to_name(callee.til_type(), ctx.symbols)).write("(til_closure); ")
+    }
     if has_cap.and(ret_ctype.len() > 0) { f.fwrite(ret_ctype, " til_closure_result = ") }
     emit_fcall_funcptr_cast(f, e, sig, ctx)
     f.write("))til_closure->call)(til_closure->env")
@@ -4094,6 +4135,25 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
 }
 
 priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
+    if builder_needs_reflect("dyn_fn", ctx).and(dyn_fn_uses_typed_abi(e.til_type(), ctx.scope, ctx.symbols)) {
+        // Ref expressions denote callable slots, not callable values. Preserve
+        // their address here; adaptation belongs after the slot is loaded.
+        switch e.node_type {
+        case .FCall:
+            if fcall_returns_ref(e, ctx) { return emit_expr_value(f, e, depth, ctx) }
+        case .Ident(id):
+            if is_ref_local(id.ident_sym(), ctx) { return emit_expr_value(f, e, depth, ctx) }
+        case:
+        }
+        f.write("_t_dyn_fn_").write(type_to_name(e.til_type(), ctx.symbols)).write("(")
+        emit_expr_value(f, e, depth, ctx)
+        f.write(")")
+        return f
+    }
+    return emit_expr_value(f, e, depth, ctx)
+}
+
+priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
     switch e.node_type {
     case .Literal(Literal.Str(s)):
         emit_str_lit_expr(f, s, ctx)
@@ -4427,9 +4487,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 UNREACHABLE("expected LiteralStr, got ", c2.node_type.head_str(ctx.symbols.names))
             }
         } else if name.ident_name(ctx.symbols.names) == "dyn_fn" {
-            if dyn_fn_uses_typed_abi(e.til_type(), ctx.scope, ctx.symbols) {
-                f.write("_t_dyn_fn_").write(type_to_name(e.til_type(), ctx.symbols)).write("(")
-            } else { f.write("dyn_fn(") }
+            f.write("dyn_fn(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(", ")
             ref method_arg : Expr = e.children[2]
@@ -4493,7 +4551,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
             // FuncPtr -> FuncPtr (identity) we just pass through as
             // void *.
             if (cast_c_type == "Fn").or(cast_c_type == "Body") {
-                if e.children[1].til_type().is(Type.Dynamic) {
+                if e.children[1].til_type().is(Type.Dynamic).and(builder_needs_reflect("dyn_fn", ctx))
+                    .and(dyn_fn_uses_typed_abi(e.til_type(), ctx.scope, ctx.symbols)) {
+                    f.write("({ TilClosure *_t_callable_source = _t_dynamic_callable(")
+                    emit_deref(f, e.children[1], depth, ctx)
+                    f.write("); TilClosure **_t_callable_slot = til_closure_slot_clone(&_t_callable_source); TilClosure *_t_callable_value = *_t_callable_slot; free(_t_callable_slot); _t_callable_value; })")
+                } else if e.children[1].til_type().is(Type.Dynamic) {
                     f.write("(*(void **)(")
                     emit_deref(f, e.children[1], depth, ctx)
                     f.write("))")
@@ -6664,6 +6727,10 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
 // "void" Str_lit leaked when reassigned.
 priv func_return_ctype := func(fd: FunctionDef, mut ctx: Context) returns Str {
     if fd.sig.return_type.len() == 0 { return "void" }
+    if fd.sig.return_own_type.is(OwnType.Ref)
+        .and(type_is_callable_storage(type_from_name_init_name(fd.sig.return_type, ctx.scope, ctx.symbols))) {
+        return format(type_name_to_c_value(fd.sig.return_type, ctx), " *")
+    }
     if func_returns_c_value(fd) { return type_name_to_c_value(fd.sig.return_type, ctx) }
     return type_name_to_c(fd.sig.return_type, ctx)
 }
@@ -8737,8 +8804,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if builder_needs_reflect("dyn_fn", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("void *dyn_fn(Str *type_name, Str *method);\n")
         for sig_name : Str in typed_dyn_fn_sigs(lp) {
-            f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(Str *type_name, Str *method);\n")
+            f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(TilClosure *value);\n")
         }
+        if typed_dyn_fn_sigs(lp, true).len() > 0 { f.write("static TilClosure *_t_dynamic_callable(void *value);\n") }
     }
     if builder_needs_reflect("dyn_size_of", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("USize dyn_size_of(Str *type_name);\n")
@@ -8876,40 +8944,43 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if coll_infos.len() > 0 { f.write("\n") }
 }
 
-priv collect_typed_dyn_fn_sigs := func(e: Expr, mut names: Set(Str), scope: TypeScope, symbols: SymbolPool) {
-    if e.node_type.is(NodeType.FCall).and(e.til_type().is_funcptr()) {
-        switch e.children[0].node_type {
-        case .Ident(id):
-            if id.ident_name(symbols.names).eq("dyn_fn").and(dyn_fn_uses_typed_abi(e.til_type(), scope, symbols)) {
-                names.add(own type_to_name(e.til_type(), symbols))
+priv collect_typed_dyn_fn_sigs := func(e: Expr, mut names: Set(Str), scope: TypeScope, symbols: SymbolPool, casts_only: Bool) {
+    if dyn_fn_uses_typed_abi(e.til_type(), scope, symbols) {
+        if casts_only.not() { names.add(own type_to_name(e.til_type(), symbols)) }
+        else if e.node_type.is(NodeType.FCall) {
+            switch e.children[0].node_type {
+            case .Ident(id):
+                if id.ident_name(symbols.names).eq("cast").and(e.children[1].til_type().is(Type.Dynamic)) {
+                    names.add(own type_to_name(e.til_type(), symbols))
+                }
+            case:
             }
-        case:
         }
     }
     switch e.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.sig.params {
-            if p.default_value.is_some() { collect_typed_dyn_fn_sigs(p.default_expr(), names, scope, symbols) }
+            if p.default_value.is_some() { collect_typed_dyn_fn_sigs(p.default_expr(), names, scope, symbols, casts_only) }
         }
     case .StructDef(sd):
         for d : Declaration in sd.fields {
-            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols) }
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols, casts_only) }
         }
         for d : Declaration in sd.ns_decls {
-            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols) }
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols, casts_only) }
         }
     case .EnumDef(ed):
         for d : Declaration in ed.ns_decls {
-            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols) }
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols, casts_only) }
         }
     case:
     }
-    for child : Expr in e.children { collect_typed_dyn_fn_sigs(child, names, scope, symbols) }
+    for child : Expr in e.children { collect_typed_dyn_fn_sigs(child, names, scope, symbols, casts_only) }
 }
 
-priv typed_dyn_fn_sigs := func(lp: LoadedProgram) returns Set(Str) {
+priv typed_dyn_fn_sigs := func(lp: LoadedProgram, casts_only: Bool = false) returns Set(Str) {
     mut names := Set(Str).new()
-    for path : Str in lp.unit_paths() { collect_typed_dyn_fn_sigs(lp.ctx.imported[path].ast, names, lp.ctx.scope, lp.ctx.symbols) }
+    for path : Str in lp.unit_paths() { collect_typed_dyn_fn_sigs(lp.ctx.imported[path].ast, names, lp.ctx.scope, lp.ctx.symbols, casts_only) }
     return names
 }
 
@@ -8982,10 +9053,31 @@ priv emit_typed_dyn_fn_wrapper := proc(f: File, name: Str, wrapper: Str, got: Fu
     f.write("}\nstatic TilClosure ").write(wrapper).write("_value = { (void *)").write(wrapper).write(", NULL, NULL, NULL };\n")
 }
 
+priv collect_capturing_call_names := func(e: Expr, mut calls: Set(Str)) {
+    switch e.node_type {
+    case .FuncDef(fd):
+        if fd.captures.len() > 0 { calls.add(own fd.closure_name.clone()) }
+    case .BodyValue(bd):
+        if bd.captures.len() > 0 { calls.add(own bd.closure_name.clone()) }
+    case .StructDef(sd):
+        for d : Declaration in sd.ns_decls {
+            if d.default_value.is_some() { collect_capturing_call_names(d.default_expr(), calls) }
+        }
+    case .EnumDef(ed):
+        for d : Declaration in ed.ns_decls {
+            if d.default_value.is_some() { collect_capturing_call_names(d.default_expr(), calls) }
+        }
+    case:
+    }
+    for c : Expr in e.children { collect_capturing_call_names(c, calls) }
+}
+
 priv emit_typed_dyn_fn_lookups := proc(f: File, mut lp: LoadedProgram) {
+    mut calls := Set(Str).new()
     for sig_name : Str in typed_dyn_fn_sigs(lp) {
         ref want : FunctionDef = funcdef_of(lp.ctx.scope.lookup_func_name(sig_name, lp.ctx.symbols).unwrap())
         mut targets := Vec(Str).new()
+        mut incompatible := Vec(Str).new()
         for path : Str in lp.unit_paths() {
             for stmt : Expr in lp.ctx.imported[path].ast.children {
                 if is_struct_or_enum(stmt).not() { continue }
@@ -9000,20 +9092,45 @@ priv emit_typed_dyn_fn_lookups := proc(f: File, mut lp: LoadedProgram) {
                     ref got : FunctionDef = funcdef_of(nsd.default_expr())
                     if got.sig.func_type.is_core().or(got.sig.func_type.is_ext().and(def_is_interface(def))) { continue }
                     if builder_dyn_fn_target_kept(type_name, method_name, lp.ctx).not() { continue }
-                    if dyn_fn_signature_matches(got, want, lp.ctx.scope, lp.ctx.symbols).not() { continue }
                     name := format(type_name, "_", method_name)
+                    calls.add(own format(name, "_dyn"))
+                    if dyn_fn_signature_matches(got, want, lp.ctx.scope, lp.ctx.symbols).not() {
+                        incompatible.push(own name)
+                        continue
+                    }
                     wrapper := format("_t_dyn_fn_", sig_name, "_", name)
                     emit_typed_dyn_fn_wrapper(f, name, wrapper, got, want, lp.ctx)
+                    calls.add(own wrapper)
                     targets.push(own name)
                 }
             }
         }
-        f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(Str *type_name, Str *method) {\n    TilClosure *erased = dyn_fn(type_name, method);\n")
+        f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(TilClosure *value) {\n")
         for name : Str in targets {
-            f.write("    if (erased == &").write(name).write("_dyn__til_closure) return &_t_dyn_fn_").write(sig_name).write("_").write(name).write("_value;\n")
+            f.write("    if (value == &").write(name).write("_dyn__til_closure) return &_t_dyn_fn_").write(sig_name).write("_").write(name).write("_value;\n")
         }
-        if targets.len() == 0 { f.write("    (void)erased;\n") }
-        f.write("    fprintf(stderr, \"dyn_fn: signature mismatch for %s.%s (expected ").write(sig_name).write(")\\n\", (char *)type_name->c_str, (char *)method->c_str);\n    exit(1);\n}\n")
+        for name : Str in incompatible {
+            f.write("    if (value == &").write(name).write("_dyn__til_closure) { fprintf(stderr, \"dyn_fn: signature mismatch for ").write(name).write(" (expected ").write(sig_name).write(")\\n\"); exit(1); }\n")
+        }
+        // Ordinary functions and capturing closures already have their typed
+        // ABI. Preserve the callable and its environment; only erased dyn_fn
+        // entry points require adaptation.
+        f.write("    return value;\n}\n")
+    }
+    if typed_dyn_fn_sigs(lp, true).len() > 0 {
+        for name : Sym in lp.ctx.closure_value_names {
+            calls.add(own closure_call_name(lp.ctx.symbols.resolve(name)))
+        }
+        for path : Str in lp.unit_paths() { collect_capturing_call_names(lp.ctx.imported[path].ast, calls) }
+        // A callable value's first word is its code pointer. A borrowed
+        // collection slot's first word is the callable pointer instead.
+        // Use the emitted callable inventory to distinguish those two valid
+        // forms; never reinterpret a known callable's code as slot storage.
+        f.write("static TilClosure *_t_dynamic_callable(void *raw) {\n    void *first = *(void **)raw;\n")
+        for call_name : Str in calls {
+            f.write("    if (first == (void *)").write(call_name).write(") return (TilClosure *)raw;\n")
+        }
+        f.write("    return (TilClosure *)first;\n}\n")
     }
 }
 
