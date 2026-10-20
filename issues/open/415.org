@@ -244,10 +244,7 @@ target kind on master ~6fab8c5e~, heap-backed Str, both backends + ASAN:
 Still open:
 
 - Globals consumed in an EARLIER statement of a function, then
-  reassigned (~sink(own g); g = new~): still the moved-binding assert
-  interpreted and a double free compiled. Needs the dataflow run for
-  the global in the function's root view (entry owned), plus a rule for
-  a function that moves a global out without re-establishing it.
+  reassigned (~sink(own g); g = new~): fixed 2026-10-20, see below.
 - Fields: ~own s.f~ is accepted and never tracked. ~s.f = f(own s.f)~,
   ~push(own s.f); s.f = ...~, and a bare ~push(own s.f)~ with no
   reassignment all double free -- the FieldAssign old-value delete
@@ -301,3 +298,26 @@ Retained, each a documented contract:
 - The interpreter's ~moved_out~ binding state (transfer metadata), and
   the lazy-empty resets after freeing a container's storage
   (scope_pool_drain, scope recycling, session teardown).
+
+2026-10-20, globals. A module global a function both hands to an ~own~
+parameter and reassigns is settled in the function's root view
+(~gc_settle_global_reassigns~) with the same verdicts as a body local,
+entering OWNED (between calls a global always holds a value). The
+body's fact universe holds only its own bindings and top-level targets,
+so the settle builds one that adds the globals the body passes as ~own~
+arguments (~gc_collect_own_arg_names~). A consumed reassignment -- moved
+on every path in, or by its own RHS -- has the ~save_old_delete~ that
+~flag_outer_assign_rebinds~ gave it cleared. Two shapes are ownership
+errors: reassigning the global where it is moved on some paths only, and
+a function that hands the global to another owner and returns with it
+moved out on some path (the next caller would find it gone). A transfer
+that is the global's destructor (~own g.delete()~, ~free(own g)~) is
+teardown -- lexer_cleanup's reclaiming KEYWORDS -- and is exempt from
+that exit rule. Regressions: ~own415_global_consumed_then_reassigned~
+(root, no-locals and both-branches reassignments, heap-backed) and
+~own415_global_consumed_counted~ (destructor counts) in
+test/ownership_shapes.til; test/global_transfer_error.til for the two
+errors. Master's compiler fails the positive ones (moved-binding assert
+interpreted, double free compiled).
+
+Still open: fields (~own s.f~), pending the semantics decision above.

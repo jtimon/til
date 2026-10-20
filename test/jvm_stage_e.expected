@@ -17,3 +17,6 @@ lent 11
 lender 5 two
 moved 3 4 6 7 9 field local
 box 8
+global hello 16
+shadowed local 99
+global after 16

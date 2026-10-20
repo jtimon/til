@@ -1303,7 +1303,8 @@ main := proc(args: ..Str) {
     add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
         format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/examples/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
     // #326: the source list names the runtime and only the classes the
-    // program reaches -- Array(Str), Point, Functions and Main, not an empty
+    // program reaches -- Array(Str), Point, the script unit holding its
+    // top-level globals (as C's statics), Functions and Main, not an empty
     // Unit_ class per loaded core file nor a class per primitive layout. In
     // a live class, the setter nothing calls is gone while the StrParts
     // methods the runtime calls through its interface stay. One row, since
@@ -1311,8 +1312,8 @@ main := proc(args: ..Str) {
     add_counts(tests, "jvm_sources_include_runtime", "build",
         format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/test/jvm_unsupported/sources.args gen/jvm/test/jvm_unsupported/src/til/generated/p_jvm_x5funsupported/S_p_Array_x5f_x5fStr.java ')'"),
         CountCheck(needle = "src/jvm/TilRuntime.java", expected_count = 1),
-        CountCheck(needle = ".java\"", expected_count = 5),
-        CountCheck(needle = "Unit_p_", expected_count = 0),
+        CountCheck(needle = ".java\"", expected_count = 6),
+        CountCheck(needle = "Unit_p_", expected_count = 1),
         CountCheck(needle = "set_p_data", expected_count = 0),
         CountCheck(needle = "public int length()", expected_count = 1))
     add_count(tests, "jvm_direct_call_source", "build", "f_p_show", 2,
@@ -1351,6 +1352,10 @@ main := proc(args: ..Str) {
         CountCheck(needle = ".assignFrom(assignNew)", expected_count = 8),
         CountCheck(needle = "if (v_p_lent_x5fpoint == null)", expected_count = 1),
         CountCheck(needle = "v_p_to_x5fvec = null;", expected_count = 1),
+        // A module global is a static of its unit's class (a scalar one a
+        // cell), initialized in Main.main before main runs.
+        CountCheck(needle = "static TilRuntime.I64Slot v_p_jvm_x5fcounter;", expected_count = 1),
+        CountCheck(needle = "v_p_jvm_x5fcounter = new TilRuntime.I64Cell(", expected_count = 1),
         // Enum switches go through the variant ordinal: an enum(U64) tag
         // does not fit the int a Java switch takes.
         CountCheck(needle = "if (tag == 4294967303L) return", expected_count = 2),
@@ -2809,6 +2814,17 @@ main := proc(args: ..Str) {
     add_count(tests, "loop_transfer_error_build", "typer",
         "transferred inside a loop", 7,
         format(til_bin, " build", asan_flag, " test/loop_transfer_error.til"))
+    // #415: a function that moves a module global out must give it a new
+    // value before it returns, and may not reassign it where it is moved
+    // on some paths only.
+    add_counts(tests, "global_transfer_error_interp", "typer",
+        format(til_bin, " interpret test/global_transfer_error.til"),
+        CountCheck(needle = "is moved out by this function and not given a new value", expected_count = 1),
+        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
+    add_counts(tests, "global_transfer_error_build", "typer",
+        format(til_bin, " build", asan_flag, " test/global_transfer_error.til"),
+        CountCheck(needle = "is moved out by this function and not given a new value", expected_count = 1),
+        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
     // #288: a core_func / core_proc is an inline-only primitive intrinsic and
     // cannot be indirected -- dyn_fn on one is a typer error (2 cases). Count
     // the enforcement substring, not "error:", since dyn_fn's Dynamic result

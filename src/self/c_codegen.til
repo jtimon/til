@@ -167,7 +167,8 @@ priv is_ext_h_type := func(name: Str) returns Bool {
 // print_single / print_flush have hand-written prototypes emitted as
 // part of the standard prelude (see emit_header_defs_and_funcs_lp);
 // suppressing the ext_proc-side emission avoids a duplicate decl.
-priv builder_rhs_is_definition := func(rhs: Expr) returns Bool {
+// Shared with the JVM back end (module globals).
+builder_rhs_is_definition := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd): return fd.captures.len() == 0
     case .StructDef, .EnumDef: return true
@@ -175,7 +176,7 @@ priv builder_rhs_is_definition := func(rhs: Expr) returns Bool {
     }
 }
 
-priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
+is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     ref rhs : Expr = stmt.children[0]
     if builder_rhs_is_definition(rhs) { return false }

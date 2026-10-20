@@ -870,3 +870,60 @@ own415_global_self_reassignment := test() {
     assert_eq(I64, Counted415.deletes, 1)
     assert_eq(I64, counted415_global.id, 2)
 }
+
+// --- #415: a module global moved out by a function, then reassigned -----
+//
+// A global enters every call owned. Moving it out and reassigning it --
+// at the root, in a function with no locals, or in both branches of an if
+// -- must not delete the value the callee already consumed.
+
+take_global415s := func(own s: Str) returns USize { return s.len() }
+
+mut global415s := "init"
+
+refill_global415s := proc() {
+    global415s = heap415("head")
+    n := take_global415s(own global415s)
+    assert_eq(USize, n, 4)
+    global415s = heap415("next")
+}
+
+refill_global415s_no_locals := proc() {
+    noop_proc()
+    take_global415s(own global415s)
+    global415s = heap415("bare")
+}
+
+refill_global415s_branches := proc(flag: Bool) {
+    take_global415s(own global415s)
+    if flag { global415s = heap415("then") } else { global415s = heap415("else") }
+}
+
+own415_global_consumed_then_reassigned := test() {
+    refill_global415s()
+    assert_eq(Str, global415s, "next")
+    refill_global415s_no_locals()
+    assert_eq(Str, global415s, "bare")
+    refill_global415s_branches(true)
+    assert_eq(Str, global415s, "then")
+    refill_global415s_branches(false)
+    assert_eq(Str, global415s, "else")
+}
+
+take_counted415 := func(own c: Counted415) returns I64 { return c.id }
+
+mut counted_global415 := Counted415(id = 0)
+
+refill_counted_global415 := func() {
+    took := take_counted415(own counted_global415)
+    counted_global415 = Counted415(id = took.add(1))
+}
+
+// Each refill deletes exactly the value it consumed: no duplicate.
+own415_global_consumed_counted := test() {
+    Counted415.deletes = 0
+    refill_counted_global415()
+    refill_counted_global415()
+    assert_eq(I64, Counted415.deletes, 2)
+    assert_eq(I64, counted_global415.id, 2)
+}

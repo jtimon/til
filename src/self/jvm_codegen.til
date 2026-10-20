@@ -18,6 +18,26 @@ priv JvmEmitState := struct {
     // cell): a raw ref returned there is loaded first (Vec.pop's
     // malloc'd `out`, C's `return *out`).
     return_loads_raw := false
+    // Module globals: every unit's top-level value declarations, as C's
+    // emit_global_declarations takes them (is_exported_top_level_global).
+    // name -> the declaring unit's class, which holds it as a static.
+    globals := Map(Str, Str).new()
+    // name -> scalar name, for the globals stored as a cell.
+    global_scalars := Map(Str, Str).new()
+    // The raw globals (a Dynamic, an allocator's block, a ptr_add): a
+    // TilRuntime.Ptr, neither cell nor object, like a raw local.
+    global_raws := Set(Str).new()
+    // name -> scalar name, for a raw global declared as a scalar: an
+    // assignment writes THROUGH it, as through a raw `ref` local.
+    global_raw_scalars := Map(Str, Str).new()
+    // name -> the Java type of the static.
+    global_jtypes := Map(Str, Str).new()
+    // The current function's parameters and locals: a name here shadows a
+    // global of the same name (C's is_value_global rule).
+    locals := Set(Str).new()
+    // The current function's `ref` scalar bindings: each is an ADDRESS
+    // (C's `T *`), which a Dynamic parameter receives as is.
+    ref_scalars := Set(Str).new()
 }
 
 // #326: one method of an emitted class, keyed by the name a caller spells.
@@ -957,47 +977,58 @@ priv jvm_signature_return_type := func(fd: FunctionDef, lp: LoadedProgram) retur
     return jvm_type_lp(rt, lp)
 }
 
+// A declaration whose value is a raw heap address: a Dynamic, an
+// allocator's block (`buf : U8 = malloc(n)`, C's #302 raw_alloc form), a
+// ptr_add, or a `returns ref` function built on ptr_add.
+priv jvm_decl_is_raw_init := func(e: Expr, lp: LoadedProgram) returns Bool {
+    if e.children.len() == 0 { return false }
+    mut raw_init := e.children[0].til_type().is(Type.Dynamic)
+    if e.children[0].node_type.is(NodeType.FCall) {
+        init_name := jvm_fcall_name(e.children[0], lp)
+        raw_init = raw_init.or(init_name.eq("ptr_add")).or(init_name.eq("malloc"))
+            .or(init_name.eq("calloc")).or(init_name.eq("realloc"))
+        init_fdef_o := jvm_find_fdef(init_name, lp)
+        if init_fdef_o.is_some() {
+            ref init_fexpr : Expr = init_fdef_o.unwrap()
+            ref init_fd : FunctionDef = funcdef_of(init_fexpr)
+            raw_init = raw_init.or(init_fd.sig.return_own_type.is(OwnType.Ref)
+                .and(jvm_call_graph_has(init_fexpr, "ptr_add", lp)))
+        }
+    }
+    return raw_init
+}
+
+// REM: a `mut` capture -- `ref` or `own` -- is mutated inside a Java
+// lambda, which can only do that through a captured cell. For `own` the
+// cell is shared with the declaring scope, which is equivalent: the
+// capture moves the binding, so the enclosing code never reads it again
+// (the interpreter panics on "argument from moved binding").
 priv jvm_collect_cells := proc(e: Expr, mut cells: Set(Str),
     mut raw_refs: Set(Str), lp: LoadedProgram) {
     switch e.node_type {
     case .FuncDef(fd):
         for capture : Declaration in fd.captures {
-            if capture.is_mut.and(capture.own_type.is(OwnType.Ref))
+            if capture.is_mut.and(capture.own_type.is(OwnType.Ref).or(capture.own_type.is(OwnType.Own)))
                 .and(jvm_is_scalar(capture.til_type, lp)).and(cells.has(capture.name).not()) {
                 cells.add(own capture.name.clone())
             }
         }
     case .CaptureBlock(cbd):
         for capture : Declaration in cbd.captures {
-            if capture.is_mut.and(capture.own_type.is(OwnType.Ref))
+            if capture.is_mut.and(capture.own_type.is(OwnType.Ref).or(capture.own_type.is(OwnType.Own)))
                 .and(jvm_is_scalar(capture.til_type, lp)).and(cells.has(capture.name).not()) {
                 cells.add(own capture.name.clone())
             }
         }
     case .BodyValue(cbd):
         for capture : Declaration in cbd.captures {
-            if capture.is_mut.and(capture.own_type.is(OwnType.Ref))
+            if capture.is_mut.and(capture.own_type.is(OwnType.Ref).or(capture.own_type.is(OwnType.Own)))
                 .and(jvm_is_scalar(capture.til_type, lp)).and(cells.has(capture.name).not()) {
                 cells.add(own capture.name.clone())
             }
         }
     case .Decl(dd):
-        mut raw_init := false
-        if e.children.len() > 0 {
-            raw_init = e.children[0].til_type().is(Type.Dynamic)
-            if e.children[0].node_type.is(NodeType.FCall) {
-                init_name := jvm_fcall_name(e.children[0], lp)
-                raw_init = raw_init.or(init_name.eq("ptr_add")).or(init_name.eq("malloc"))
-                    .or(init_name.eq("calloc")).or(init_name.eq("realloc"))
-                init_fdef_o := jvm_find_fdef(init_name, lp)
-                if init_fdef_o.is_some() {
-                    ref init_fexpr : Expr = init_fdef_o.unwrap()
-                    ref init_fd : FunctionDef = funcdef_of(init_fexpr)
-                    raw_init = raw_init.or(init_fd.sig.return_own_type.is(OwnType.Ref)
-                        .and(jvm_call_graph_has(init_fexpr, "ptr_add", lp)))
-                }
-            }
-        }
+        raw_init := jvm_decl_is_raw_init(e, lp)
         if raw_init {
             if raw_refs.has(dd.name).not() { raw_refs.add(own dd.name.clone()) }
         } else if jvm_is_scalar(dd.til_type, lp).and(dd.own_type.is(OwnType.Shallow).or(
@@ -1116,7 +1147,10 @@ priv jvm_is_cell := func(state: JvmEmitState, name: Str, t: Type,
 priv jvm_expr_is_raw_ref := func(e: Expr, state: JvmEmitState,
     names: Vec(Str)) returns Bool {
     switch e.node_type {
-    case .Ident(id): return state.raw_refs.has(id.ident_name(names))
+    case .Ident(id):
+        ref rname : Str = id.ident_name(names)
+        if state.raw_refs.has(rname) { return true }
+        return state.global_raws.has(rname).and(state.locals.has(rname).not())
     case: return e.til_type().is(Type.Dynamic)
     }
 }
@@ -1190,6 +1224,9 @@ priv jvm_emit_cell_ref := proc(e: Expr, mut state: JvmEmitState,
         case .Literal(Literal.Null): return "null"
         case .Ident(id):
             ref name : Str = id.ident_name(lp.ctx.symbols.names)
+            if jvm_global_of(name, state).len() > 0 {
+                if state.global_scalars.has(name).or(state.global_raws.has(name)) { return jvm_name_ref(name, state) }
+            }
             if state.raw_refs.has(name) { return jvm_var_name(name) }
             if jvm_is_cell(state, name, e.til_type(), lp) { return jvm_var_name(name) }
         case .FCall:
@@ -1265,6 +1302,112 @@ priv jvm_ptr_eq_operand := proc(e: Expr, mut state: JvmEmitState,
         if jvm_expr_is_raw_ref(e, state, lp.ctx.symbols.names) { return jvm_emit_expr(e, state, lp) }
         if jvm_is_scalar(e.til_type(), lp) { return jvm_emit_cell_ref(e, state, lp) }
         return jvm_emit_expr(e, state, lp)
+}
+
+// The class holding `name` as a module global, or "" when it is not one
+// here: not a global, or shadowed by a parameter or local.
+priv jvm_global_of := func(name: Str, state: JvmEmitState) returns Str {
+    if state.locals.has(name) { return "" }
+    if state.globals.has(name).not() { return "" }
+    return state.globals[name].clone()
+}
+
+// How Java spells the storage of `name`: a local's variable, or a
+// global's static field.
+priv jvm_name_ref := func(name: Str, state: JvmEmitState) returns Str {
+    cls := jvm_global_of(name, state)
+    if cls.len() > 0 { return format(cls, ".", jvm_var_name(name)) }
+    return jvm_var_name(name)
+}
+
+// Adds the scalar `ref` bindings `e` declares to `out`.
+priv jvm_collect_ref_scalars := func(e: Expr, lp: LoadedProgram, mut out: Set(Str)) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    switch e.node_type {
+    case .Decl(dd):
+        if dd.own_type.is(OwnType.Ref).and(jvm_is_scalar(dd.til_type, lp)).and(out.has(dd.name).not()) {
+            out.add(own dd.name.clone())
+        }
+    case:
+    }
+    for c : Expr in e.children { jvm_collect_ref_scalars(c, lp, out) }
+}
+
+// Adds every name `e` declares (outside nested FuncDefs, which are their
+// own scopes) to `out`.
+priv jvm_collect_decl_names := func(e: Expr, lp: LoadedProgram, mut out: Set(Str)) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    switch e.node_type {
+    case .Decl(dd): if out.has(dd.name).not() { out.add(own dd.name.clone()) }
+    case:
+    }
+    for c : Expr in e.children { jvm_collect_decl_names(c, lp, out) }
+}
+
+priv jvm_global_type := func(stmt: Expr, lp: LoadedProgram) returns Type {
+    ref dd : Declaration = decl_of(stmt)
+    t := declaration_resolved_type(dd, lp.ctx.scope, lp.ctx.symbols)
+    if t.is(Type.Unknown) { return stmt.children[0].til_type().clone() }
+    return t
+}
+
+// The module globals of every unit (core first, as C declares them).
+// CAP_LIT/CAP_VIEW are spelled as constants (jvm_emit_expr); an
+// ext_global has no JVM storage and stays a loud javac miss.
+priv jvm_collect_globals := func(lp: LoadedProgram, mut state: JvmEmitState) {
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        for stmt : Expr in iu.ast.children {
+            if is_exported_top_level_global(stmt).not() { continue }
+            ref dd : Declaration = decl_of(stmt)
+            if dd.name.eq("CAP_LIT").or(dd.name.eq("CAP_VIEW")) { continue }
+            if dd.external_symbol.len() > 0 { continue }
+            if state.globals.has(dd.name) { continue }
+            state.globals.set(dd.name, own jvm_unit_class(upath))
+            t := jvm_global_type(stmt, lp)
+            mut jt := jvm_type_lp(t, lp)
+            if t.is(Type.Dynamic).or(jvm_decl_is_raw_init(stmt, lp)) {
+                state.global_raws.add(own dd.name.clone())
+                if jvm_is_scalar(t, lp) { state.global_raw_scalars.set(dd.name, own jvm_scalar_name(t, lp)) }
+                jt = "TilRuntime.Ptr"
+            } else if jvm_is_scalar(t, lp) {
+                state.global_scalars.set(dd.name, own jvm_scalar_name(t, lp))
+                jt = jvm_cell_type(t, lp)
+            } else if jt.len().eq(0).or(t.is_funcptr()).or(t.is(Type.FuncDef)) {
+                // A callable is named by its value's signature, as a
+                // local's Decl names it (jvm_expr_funcsig).
+                gsig_o := jvm_expr_funcsig(stmt.children[0], state, lp)
+                if gsig_o.is_some() { jt = jvm_funcsig_class(funcdef_of(gsig_o.unwrap()), lp.ctx.symbols) }
+            }
+            state.global_jtypes.set(dd.name, own jt)
+        }
+    }
+}
+
+// The statics for the globals, one per declaring unit class. A scalar
+// global is a cell, so a `mut` ref to it shares the one storage.
+priv jvm_add_global_fields := func(state: JvmEmitState, mut classes: Vec(JvmClassOut),
+    lp: LoadedProgram) {
+        for upath : Str in lp.unit_paths() {
+            ref iu : ImportUnit = lp.ctx.imported[upath]
+            cls := jvm_unit_class(upath)
+            for stmt : Expr in iu.ast.children {
+                if is_exported_top_level_global(stmt).not() { continue }
+                ref dd : Declaration = decl_of(stmt)
+                if state.globals.has(dd.name).not() { continue }
+                if state.globals[dd.name] != cls { continue }
+                ref jt : Str = state.global_jtypes[dd.name]
+                if jt.len() == 0 {
+                    panic(__LOC__, "JVM global without a Java type: ", dd.name)
+                }
+                field := jvm_var_name(dd.name)
+                for ci in 0..classes.len() {
+                    if classes[ci].name == cls {
+                        jvm_add_member(classes[ci], field, format("    static ", jt, " ", field, ";\n"))
+                    }
+                }
+            }
+        }
 }
 
 priv jvm_emit_struct_ctor := proc(e: Expr, name: Str,
@@ -1495,10 +1638,19 @@ priv jvm_emit_typed_args := proc(e: Expr, fd: FunctionDef,
                     }
                 case:
                 }
+                mut darg_ref_scalar := false
+                switch darg.node_type {
+                case .Ident(rsid): darg_ref_scalar = state.ref_scalars.has(rsid.ident_name(lp.ctx.symbols.names))
+                case:
+                }
                 if darg_is_raw {
                     // A raw ref handed to a Dynamic parameter (`adopt`'s
                     // `dest`, Vec.unsafe_set's slot) is the address itself.
                     arg = jvm_emit_expr(darg, state, lp)
+                } else if darg_ref_scalar.and(jvm_is_scalar(dt, lp)) {
+                    // A scalar `ref` binding IS an address (C's `T *`): the
+                    // storage it borrows, which must be a heap address here.
+                    arg = format("TilRuntime.slotAddress(", jvm_emit_cell_ref(darg, state, lp), ")")
                 } else if jvm_is_scalar(dt, lp) {
                     // A value where a Dynamic is expected: C passes the
                     // address of a slot holding it; box it into one.
@@ -1732,6 +1884,7 @@ priv jvm_emit_closure := proc(e: Expr, fd: FunctionDef,
             }
         }
         jvm_collect_cells(e.children[0], state.cells, state.raw_refs, lp)
+        jvm_collect_ref_scalars(e.children[0], lp, state.ref_scalars)
         jvm_collect_cell_types(e.children[0], state.cell_types, lp)
         // The same entry boxing a named function gets (jvm_param_boxed_on_entry):
         // the functional interface types the lambda's parameters.
@@ -1750,7 +1903,13 @@ priv jvm_emit_closure := proc(e: Expr, fd: FunctionDef,
         }
         saved_closure_loads_raw := state.return_loads_raw
         state.return_loads_raw = false
+        // The closure's own parameters and locals shadow globals too; the
+        // enclosing function's stay visible (they are its captures).
+        saved_closure_locals := state.locals.clone()
+        for cparam : Declaration in fd.sig.params { state.locals.add(own cparam.name.clone()) }
+        jvm_collect_decl_names(e.children[0], lp, state.locals)
         body := format(prologue, jvm_emit_body(e.children[0], 1, state, lp))
+        state.locals = saved_closure_locals
         state.return_loads_raw = saved_closure_loads_raw
         state.cells = saved_cells
         state.cell_types = saved_cell_types
@@ -2168,6 +2327,11 @@ priv jvm_emit_expr := proc(e: Expr, mut state: JvmEmitState,
             if name == "CAP_VIEW" { return jvm_int_const(e.til_type(), "-2", lp) }
             function_value := jvm_static_function_value(name, lp)
             if function_value.len() > 0 { return function_value }
+            if jvm_global_of(name, state).len() > 0 {
+                gref := jvm_name_ref(name, state)
+                if state.global_scalars.has(name) { return jvm_cell_read_name(state.global_scalars[name], gref) }
+                return gref
+            }
             mut out := jvm_var_name(name)
             if state.raw_refs.has(name) { return out }
             if jvm_is_cell(state, name, e.til_type(), lp) {
@@ -2235,6 +2399,17 @@ priv jvm_source_comment := func(e: Expr, state: JvmEmitState, depth: I32) return
     return format(jvm_indent(depth), "// ", path, ":", e.line.to_str(), "\n")
 }
 
+// Whether `e` breaks out of the loop whose body it is: a `break` not
+// inside a nested loop (or a nested FuncDef, its own scope).
+priv jvm_has_loop_break := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.Break) { return true }
+    if e.node_type.is(NodeType.While).or(e.node_type.is(NodeType.FuncDef)) { return false }
+    for c : Expr in e.children {
+        if jvm_has_loop_break(c) { return true }
+    }
+    return false
+}
+
 // Whether javac sees `e` as unable to complete normally: it ends in a
 // return, break or continue, or is an if/else whose branches all do.
 priv jvm_ends_abruptly := func(e: Expr) returns Bool {
@@ -2248,6 +2423,27 @@ priv jvm_ends_abruptly := func(e: Expr) returns Bool {
     case .If:
         if e.children.len() < 3 { return false }
         return jvm_ends_abruptly(e.children[1]).and(jvm_ends_abruptly(e.children[2]))
+    case .While:
+        // `while (true)` with no break out of it never completes normally.
+        if e.children.len() < 2 { return false }
+        switch e.children[0].node_type {
+        case .Literal(Literal.Bool(wc)):
+            if wc { return jvm_has_loop_break(e.children[1]).not() }
+        case:
+        }
+        return false
+    case .Switch:
+        // jvm_emit_switch drops the arm's `break` exactly when its body
+        // ends abruptly, and adds `default: break;` when there is no
+        // default: the switch completes normally unless every arm, a
+        // default among them, ends abruptly.
+        mut has_default := false
+        for ci in 1..e.children.len() {
+            ref cn : Expr = e.children[ci]
+            if case_pattern_count(cn) == 0 { has_default = true }
+            if jvm_ends_abruptly(cn.children[cn.children.len() - 1]).not() { return false }
+        }
+        return has_default
     case: return false
     }
 }
@@ -2365,7 +2561,7 @@ priv jvm_moved_clears := func(e: Expr, depth: I32, state: JvmEmitState,
             if state.raw_refs.has(name) { continue }
             if done.has(name) { continue }
             done.add(own name.clone())
-            out = format(out, jvm_indent(depth), jvm_var_name(name), " = null;\n")
+            out = format(out, jvm_indent(depth), jvm_name_ref(name, state), " = null;\n")
         }
         return out
 }
@@ -2381,6 +2577,17 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
     lp: LoadedProgram) returns Str {
         switch e.node_type {
         case .Decl(dd):
+            // A module global's declaration initializes its static (main's
+            // global inits, C's emit_global_inits).
+            if jvm_global_of(dd.name, state).len().gt(0).and(e.children.len() > 0) {
+                gtarget := jvm_name_ref(dd.name, state)
+                gvalue := jvm_emit_expr(e.children[0], state, lp)
+                mut ginit := format(gtarget, " = ", gvalue)
+                if state.global_scalars.has(dd.name) {
+                    ginit = format(gtarget, " = ", jvm_new_cell(jvm_global_type(e, lp), gvalue, lp))
+                }
+                return format(jvm_source_comment(e, state, depth), jvm_indent(depth), ginit, ";\n")
+            }
             if e.children.len() > 0 {
                 ref rhs : Expr = e.children[0]
                 if rhs.node_type.is(NodeType.FuncDef) {
@@ -2450,8 +2657,17 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
             }
             return jvm_fail_expr(e, format("declaration without initializer '", dd.name, "'"), state, lp.ctx.symbols.names)
         case .Assign(ad):
-            value := jvm_emit_expr(e.children[0], state, lp)
-            target := jvm_var_name(ad.name)
+            mut value := jvm_emit_expr(e.children[0], state, lp)
+            // A callable copied from a binding or field (not moved) is a
+            // second reference to the closure: C clones it
+            // (til_closure_slot_clone), so the source's own release -- a
+            // hoisted temporary's -- leaves this one alive.
+            if type_is_callable_storage(e.til_type()).and(ad.is_move.not())
+                .and(e.children[0].node_type.is(NodeType.Ident).or(e.children[0].node_type.is(NodeType.FieldAccess))) {
+                value = format("TilRuntime.retainClosure(", value, ")")
+            }
+            target := jvm_name_ref(ad.name, state)
+            is_global := jvm_global_of(ad.name, state).len() > 0
             // An aggregate's Java object IS its storage: C overwrites a
             // binding's storage in place (`x = v`, or `*t = _new` through a
             // payload binding, #416), so whatever borrows it -- a `ref`
@@ -2471,7 +2687,8 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
             case:
             }
             mut in_place := ""
-            if jvm_is_scalar(at, lp).not().and(rhs_is_borrow.not()).and(state.raw_refs.has(ad.name).not()) {
+            if jvm_is_scalar(at, lp).not().and(rhs_is_borrow.not()).and(state.raw_refs.has(ad.name).not())
+                .and(state.global_raws.has(ad.name).and(is_global).not()) {
                 if jvm_is_runtime_str(at, lp) { in_place = format("TilRuntime.assignStr(", target, ", assignNew)") }
                 else if is_struct_type(at).or(is_enum_type(at)) { in_place = format(target, ".assignFrom(assignNew)") }
                 else if ad.is_payload_alias {
@@ -2484,7 +2701,7 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                 mut moved_clear := ""
                 if ad.is_move {
                     switch e.children[0].node_type {
-                    case .Ident(mid): moved_clear = format(" ", jvm_var_name(mid.ident_name(lp.ctx.symbols.names)), " = null;")
+                    case .Ident(mid): moved_clear = format(" ", jvm_name_ref(mid.ident_name(lp.ctx.symbols.names), state), " = null;")
                     case: return jvm_fail_expr(e, "non-identifier aggregate move source", state, lp.ctx.symbols.names)
                     }
                 }
@@ -2493,7 +2710,8 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                     "if (", target, " == null) { ", target, " = assignNew; } else { ", in_place, "; }",
                     moved_clear, " }\n")
             }
-            is_cell := jvm_is_cell(state, ad.name, e.children[0].til_type(), lp)
+            mut is_cell := jvm_is_cell(state, ad.name, e.children[0].til_type(), lp)
+            if is_global { is_cell = state.global_scalars.has(ad.name) }
             mut prefix := ""
             if ad.save_old_delete { prefix = format(jvm_indent(depth), jvm_delete_value(e.children[0].til_type(), target, lp), ";\n") }
             mut clear := ""
@@ -2501,13 +2719,18 @@ priv jvm_emit_stmt_core := proc(e: Expr, depth: I32, mut state: JvmEmitState,
                 switch e.children[0].node_type {
                 case .Ident(id):
                     clear = format(jvm_indent(depth),
-                        jvm_var_name(id.ident_name(lp.ctx.symbols.names)), " = null;\n")
+                        jvm_name_ref(id.ident_name(lp.ctx.symbols.names), state), " = null;\n")
                 case:
                     jvm_fail_expr(e, "non-identifier aggregate move source", state, lp.ctx.symbols.names)
                 }
             }
             mut assignment := format(target, " = ", value)
-            if is_cell { assignment = jvm_cell_write_name(state.cell_types[ad.name], target, value) }
+            if is_cell.and(is_global) { assignment = jvm_cell_write_name(state.global_scalars[ad.name], target, value) }
+            else if is_global.and(state.global_raw_scalars.has(ad.name)) {
+                assignment = jvm_cell_write_name(state.global_raw_scalars[ad.name], target, value)
+            }
+            else if is_cell { assignment = jvm_cell_write_name(state.cell_types[ad.name], target, value) }
+            else if is_global {}
             else if state.raw_refs.has(ad.name).and(state.cell_types.has(ad.name)) {
                 assignment = jvm_cell_write_name(state.cell_types[ad.name], target, value)
             }
@@ -2623,14 +2846,17 @@ priv jvm_emit_body := proc(body: Expr, depth: I32, mut state: JvmEmitState,
 // (`UNREACHABLE()`, a noreturn til function) still falls off the end as far
 // as javac can tell ("missing return statement"). The C backend's
 // emit_diverge_terminator answers the same question with the same predicate.
-// Only a trailing CALL gets the throw: after a trailing return, or an
-// if/else whose arms all return, javac already knows and a throw there
-// would be an unreachable statement.
+// The throw goes only where javac thinks control can still fall off the
+// end (jvm_ends_abruptly): after a trailing return, or an if/else whose
+// arms all return, it would be an unreachable statement.
 priv jvm_diverge_terminator := func(ret: Str, body: Expr, depth: I32,
     lp: LoadedProgram) returns Str {
         if ret.eq("void").or(body.children.len() == 0) { return "" }
         ref last : Expr = body.children[body.children.len() - 1]
-        if last.node_type.is(NodeType.FCall).not() { return "" }
+        // javac already knows a statement that ends abruptly; a throw after
+        // it would be unreachable. Otherwise (a trailing noreturn call, a
+        // switch whose panic arm falls through) it needs the terminator.
+        if jvm_ends_abruptly(last) { return "" }
         if stmt_always_diverges(last, lp.ctx.scope, lp.ctx.symbols).not() { return "" }
         return format(jvm_indent(depth), "throw new IllegalStateException(\"unreachable\");\n")
 }
@@ -2673,6 +2899,11 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
         }
         saved_return_loads_raw := state.return_loads_raw
         state.return_loads_raw = ret.eq("void").or(ret.eq("TilRuntime.Ptr")).or(state.return_cell).not()
+        // A parameter or local shadows a module global of the same name.
+        saved_locals := state.locals.clone()
+        state.locals = Set(Str).new()
+        for lparam : Declaration in fd.sig.params { state.locals.add(own lparam.name.clone()) }
+        jvm_collect_decl_names(fexpr.children[0], lp, state.locals)
         mut pts := Vec(Str).new()
         mut sig_cells := Set(Str).new()
         for i in 0..fd.sig.params.len() {
@@ -2695,6 +2926,9 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
         }
         jvm_collect_cell_types(fexpr.children[0], state.cell_types, lp)
         jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
+        saved_ref_scalars := state.ref_scalars.clone()
+        state.ref_scalars = Set(Str).new()
+        jvm_collect_ref_scalars(fexpr.children[0], lp, state.ref_scalars)
         if state.return_cell { jvm_collect_return_cells(fexpr.children[0], state.cells, lp) }
         mut params := ""
         mut prologue := ""
@@ -2720,6 +2954,8 @@ priv jvm_emit_function := proc(decl: Expr, depth: I32,
         state.callable_defs = saved_callable_defs
         state.return_cell = saved_return_cell
         state.return_loads_raw = saved_return_loads_raw
+        state.locals = saved_locals
+        state.ref_scalars = saved_ref_scalars
         return out
 }
 
@@ -2764,6 +3000,10 @@ priv jvm_str_field_write := func(field_t: Type, expr: Str, lp: LoadedProgram) re
 // destructors' field cleanup already spells it.
 priv jvm_delete_value := func(t: Type, value: Str, lp: LoadedProgram) returns Str {
     if jvm_is_runtime_str(t, lp) { return format("TilRuntime.deleteStr(", value, ")") }
+    // A callable's value is a closure: its release, as til_closure_delete.
+    if t.is_funcptr().or(t.is(Type.FuncDef)).or(t.is(Type.Body)) {
+        return format("TilRuntime.releaseClosure(", value, ")")
+    }
     return format(value, ".delete()")
 }
 
@@ -3378,6 +3618,50 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
             case:
             }
         }
+        // The program's top-level code, in C's order. A script (no main,
+        // not tests) runs the core units' global initializers, then every
+        // user unit's top-level statements (emit_script_main); a mode
+        // with an entry point -- main, or the tests -- runs every unit's
+        // global initializers first (emit_global_inits: declarations, and
+        // the calls/ifs the throw lowering appends to them).
+        is_script := main_fexpr.is_none().and(lp.run_tests.not())
+        mut top_stmts := Vec(Expr).new()
+        for upath : Str in lp.unit_paths() {
+            mut is_core := false
+            for cu : ProgramUnit in lp.core_units { if cu.path == upath { is_core = true } }
+            ref tiu : ImportUnit = lp.ctx.imported[upath]
+            for stmt : Expr in tiu.ast.children {
+                mut take := false
+                switch stmt.node_type {
+                case .Decl(tdd0):
+                    ref trhs : Expr = stmt.children[0]
+                    take = builder_rhs_is_definition(trhs).not()
+                    // Spelled as constants (jvm_emit_expr), never stored.
+                    if tdd0.name.eq("CAP_LIT").or(tdd0.name.eq("CAP_VIEW")) { take = false }
+                    if stmt.til_type().is(Type.None).and(trhs.node_type.is(NodeType.Ident)) { take = false }
+                case .FCall: take = true
+                case .If: take = is_script.not().or(is_core.not())
+                case: take = is_script.and(is_core.not())
+                }
+                if take { top_stmts.push(own stmt.clone()) }
+            }
+        }
+        // Locals of that top-level code (a block's decls, hoisted temps)
+        // are main's; a global's own Decl is not one of them.
+        state.locals = Set(Str).new()
+        for tstmt : Expr in top_stmts {
+            switch tstmt.node_type {
+            case .Decl(tdd):
+                if state.globals.has(tdd.name).not() { state.locals.add(own tdd.name.clone()) }
+                jvm_collect_decl_names(tstmt.children[0], lp, state.locals)
+            case: jvm_collect_decl_names(tstmt, lp, state.locals)
+            }
+            jvm_collect_cells(tstmt, state.cells, state.raw_refs, lp)
+            jvm_collect_ref_scalars(tstmt, lp, state.ref_scalars)
+            jvm_collect_cell_types(tstmt, state.cell_types, lp)
+        }
+        mut global_inits := ""
+        for tstmt : Expr in top_stmts { global_inits = format(global_inits, jvm_emit_stmt(tstmt, 2, state, lp)) }
         // Under run_tests the tests are the entry points, as in the
         // interpreter: a mode cli file with test() decls runs only those.
         if main_fexpr.is_some().and(lp.run_tests.not()) {
@@ -3386,29 +3670,16 @@ priv jvm_emit_main := proc(root: ProgramUnit, package_name: Str,
             if fd.sig.params.len().gt(0).or(fd.sig.return_type.len().gt(0)) {
                 jvm_fail_expr(fexpr, "main parameters/return value in Stage D", state, lp.ctx.symbols.names)
             }
+            state.locals = Set(Str).new()
+            jvm_collect_decl_names(fexpr.children[0], lp, state.locals)
             jvm_collect_cells(fexpr.children[0], state.cells, state.raw_refs, lp)
+            jvm_collect_ref_scalars(fexpr.children[0], lp, state.ref_scalars)
             jvm_collect_cell_types(fexpr.children[0], state.cell_types, lp)
             main_body = jvm_emit_body(fexpr.children[0], 2, state, lp)
-        } else {
-            jvm_collect_cells(iu.ast, state.cells, state.raw_refs, lp)
-            jvm_collect_cell_types(iu.ast, state.cell_types, lp)
-            for stmt : Expr in iu.ast.children {
-                mut is_definition := false
-                switch stmt.node_type {
-                case .Decl:
-                    if stmt.children.len() > 0 {
-                        is_definition = stmt.children[0].node_type.is(NodeType.FuncDef)
-                            .or(stmt.children[0].node_type.is(NodeType.StructDef))
-                            .or(stmt.children[0].node_type.is(NodeType.EnumDef))
-                    }
-                case:
-                }
-                if is_definition.not() {
-                    main_body = format(main_body, jvm_emit_stmt(stmt, 2, state, lp))
-                }
-            }
-            if lp.run_tests { main_body = format(main_body, jvm_emit_test_calls(state, lp)) }
+        } else if lp.run_tests {
+            main_body = jvm_emit_test_calls(state, lp)
         }
+        main_body = format(global_inits, main_body)
         ns_inits := jvm_emit_ns_inits(state, lp)
         out := format("package ", package_name, ";\n\n",
             "import til.runtime.TilRuntime;\n\n",
@@ -3451,6 +3722,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
         }
 
         mut state := JvmEmitState()
+        jvm_collect_globals(lp, state)
         mut classes := Vec(JvmClassOut).new()
         mut emitted_types := Set(Str).new()
         mut emitted_funcsigs := Set(Str).new()
@@ -3566,6 +3838,7 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
         main_out.head = jvm_emit_main(root, package_name, state, lp)
         classes.push(own main_out)
         jvm_add_ns_fields(state, classes, lp)
+        jvm_add_global_fields(state, classes, lp)
         if state.errors > 0 { return 1 }
 
         jvm_mark_live(File.readfile(runtime_path), classes)
