@@ -1233,6 +1233,7 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
     Str owner;
     Str borrower;
     I64 fixed_reach;
+    I64 created_at;
 } priv___src_self_garbager_til__GcBorrowEdge;
 
 

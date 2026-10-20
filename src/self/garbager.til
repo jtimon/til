@@ -2028,10 +2028,13 @@ priv GcBorrowEdge := struct {
     // whose current last_use joins the reach.
     borrower := ""
     fixed_reach : I64 = -1
+    // Known for a call-produced borrow, independently of its final reach.
+    // Replacing the owning allocation after this point invalidates the loan.
+    created_at : I64 = -1
 }
 
-priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrower: Str, fixed_reach: I64) {
-    mut e := GcBorrowEdge(fixed_reach = fixed_reach)
+priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrower: Str, fixed_reach: I64, created_at: I64 = -1) {
+    mut e := GcBorrowEdge(fixed_reach = fixed_reach, created_at = created_at)
     e.owner = owner.clone()
     e.borrower = borrower.clone()
     edges.push(own e)
@@ -2057,7 +2060,7 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I64, mut edges: 
 // An ordinary call can carry a borrow through its return just as an enum
 // constructor does. Its settled #344 summary identifies the actual arguments
 // whose roots must survive the returned value.
-priv collect_call_ref_return_edges := func(e: Expr, body_last: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
+priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
     if e.node_type.is(NodeType.FCall) {
         fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_some() {
@@ -2077,9 +2080,21 @@ priv collect_call_ref_return_edges := func(e: Expr, body_last: I64, mut edges: V
                             if arg_o.unwrap().ptr_eq(e.children[arg_idx]).not() { continue }
                             if get_own_arg(e, arg_idx).and(get_keep_outer_arg(e, arg_idx).not()) { transferred = true }
                         }
-                        if transferred { continue }
-                        src_name := expr_root_ident_name(arg_o.unwrap(), symbols)
-                        if src_name.len() > 0 { gc_add_borrow_edge(edges, src_name, "", body_last) }
+                        // A returned alias/into-borrow needs the argument's
+                        // storage. A copied carrier (e.g. a callback clone)
+                        // needs only that value's borrowed owners, not the
+                        // original carrier. Merging these masks kept the
+                        // original handle live after an independent clone.
+                        direct := fd.ref_return_params.band(bit).bor(fd.ref_return_into_params.band(bit))
+                        if direct.neq(0).and(transferred.not()) {
+                            src_name := expr_root_ident_name(arg_o.unwrap(), symbols)
+                            if src_name.len() > 0 { gc_add_borrow_edge(edges, src_name, borrower, minimum_reach, minimum_reach) }
+                        }
+                        if fd.ref_return_carried_params.band(bit) != 0 {
+                            for root : BorrowRoot in deposit_src_roots(scope, arg_o.unwrap(), symbols) {
+                                gc_add_borrow_edge(edges, root.name, borrower, minimum_reach, minimum_reach)
+                            }
+                        }
                     }
                 }
             case:
@@ -2087,7 +2102,7 @@ priv collect_call_ref_return_edges := func(e: Expr, body_last: I64, mut edges: V
         }
     }
     for c : Expr in e.children {
-        collect_call_ref_return_edges(c, body_last, edges, scope, symbols)
+        collect_call_ref_return_edges(c, borrower, minimum_reach, edges, scope, symbols)
     }
 }
 
@@ -2096,13 +2111,27 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
     body_last := body.children.len().sub(1).to_i64()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
-    for stmt : Expr in body.children {
+    for si in 0..body.children.len() {
+        ref stmt : Expr = body.children[si]
         collect_enum_ref_payload_edges(stmt, body_last, edges, scope, symbols)
         switch stmt.node_type {
         case .Decl(dd):
             if stmt.children.len() > 0 {
                 if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow_t(scope, dd.til_type, symbols)) {
-                    collect_call_ref_return_edges(stmt.children[0], body_last, edges, scope, symbols)
+                    collect_call_ref_return_edges(stmt.children[0], dd.name, si.to_i64(), edges, scope, symbols)
+                }
+            }
+        case .Assign(ad):
+            if stmt.children.len() > 0 {
+                if type_carries_borrow_t(scope, stmt.children[0].til_type(), symbols) {
+                    collect_call_ref_return_edges(stmt.children[0], ad.name, si.to_i64(), edges, scope, symbols)
+                }
+            }
+        case .FieldAssign:
+            if stmt.children.len() > 1 {
+                if type_carries_borrow_t(scope, stmt.children[1].til_type(), symbols) {
+                    holder := expr_root_ident_name(stmt.children[0], symbols)
+                    collect_call_ref_return_edges(stmt.children[1], holder, si.to_i64(), edges, scope, symbols)
                 }
             }
         case:
@@ -2228,9 +2257,36 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(Lo
     }
 }
 
-priv extend_ref_local_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool) {
-    edges := collect_borrow_edges(body, scope, facts, fi, symbols)
+priv extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, mut ctx: Context) {
+    edges := collect_borrow_edges(body, scope, facts, fi, ctx.symbols)
+    if edges.len() == 0 { return }
     propagate_borrow_edges(edges, locals)
+    for i in 0..body.children.len() {
+        ref stmt : Expr = body.children[i]
+        switch stmt.node_type {
+        case .Assign(ad):
+            mut destroys_storage := false
+            for local : LocalInfo in locals {
+                if local.name == ad.name {
+                    destroys_storage = local.skip_scope_delete.not().and(gc_delete_is_noop(local).not())
+                }
+            }
+            if destroys_storage.not() { continue }
+            mut reported := false
+            for edge : GcBorrowEdge in edges {
+                if edge.owner != ad.name { continue }
+                if edge.created_at.lt(0).or(edge.created_at >= i.to_i64()) { continue }
+                for borrower : LocalInfo in locals {
+                    if borrower.name.eq(edge.borrower).and(borrower.last_use > i.to_i64()).and(reported.not()) {
+                        stmt.type_error(format("cannot reassign '", ad.name, "' while '", borrower.name,
+                            "' still borrows its storage"), ctx, DiagnosticPhase.Ownership)
+                        reported = true
+                    }
+                }
+            }
+        case:
+        }
+    }
 }
 
 // Issue #250: a view binding (a Decl whose initializer reads a local's heap
@@ -3725,7 +3781,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     collect_scope_locals(ctx, body, scope, is_program_scope, facts, fidx, stack_own_params, locals_vec)
     sort_locals_by_name(locals_vec)
     if locals_vec.len() > 0 {
-        extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx.symbols)
+        extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx, ctx)
         check_use_after_own_transfer(body, locals_vec, scope, ctx, facts, fidx)
     }
     if insert.not() { return false }
@@ -3873,7 +3929,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     return true
 }
 
-// Rebuild the four TypeBinding facts and callable-signature mappings this pass
+// Rebuild binding facts, borrow provenance and callable signatures this pass
 // consumes from the typed AST.
 // Decls are registered after their nested expressions, matching inference:
 // an initializer cannot see the binding it is about to create. Type/function
@@ -3892,8 +3948,26 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
             case:
             }
         }
+        // Derive before registering the binding: its initializer sees the
+        // outer scope, and a same-named declaration must not borrow itself.
+        mut roots := Vec(BorrowRoot).new()
+        if stmt.children.len() > 0 {
+            ref rhs : Expr = stmt.children[0]
+            if dd.own_type.is(OwnType.Ref) {
+                roots = expr_borrow_roots(scope, rhs, ctx.symbols)
+            } else if type_carries_borrow_t(scope, dtype, ctx.symbols) {
+                if rhs.node_type.is(NodeType.FCall) {
+                    roots = expr_borrow_roots(scope, rhs, ctx.symbols)
+                } else {
+                    roots = deposit_src_roots(scope, rhs, ctx.symbols)
+                }
+                for mut root : BorrowRoot in roots { root.carried = true }
+            }
+        }
         scope.set(dd.name, dtype, dd.is_mut, ctx.path, stmt.line, stmt.col,
             false, dd.own_type, ctx.symbols)
+        ref mut binding : TypeBinding = scope.get_binding_name(dd.name, ctx.symbols).unwrap()
+        binding.borrow_roots = roots
         // A `ref` Decl whose RHS is the typer-lowered payload access is a
         // PAYLOAD ALIAS -- the same is_alias stamp infer_decl puts on its
         // binding, re-derived here because this pass registers its own.
@@ -3931,7 +4005,33 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
                 }
             }
         }
+    case .Assign(ad):
+        if stmt.children.len() > 0 {
+            garbager_record_carried_assignment(scope, ad.name, stmt.children[0], ctx.symbols)
+        }
+    case .FieldAssign:
+        if stmt.children.len() > 1 {
+            name := expr_root_ident_name(stmt.children[0], ctx.symbols)
+            garbager_record_carried_assignment(scope, name, stmt.children[1], ctx.symbols)
+        }
     case:
+    }
+}
+
+// The typer unions assignment/deposit provenance; rebuilding only initializers
+// would let a copied carrier lose an owner acquired by a later assignment.
+priv garbager_record_carried_assignment := func(mut scope: TypeScope, name: Str, rhs: Expr, symbols: SymbolPool) {
+    if type_carries_borrow_t(scope, rhs.til_type(), symbols).not() { return }
+    roots := deposit_src_roots(scope, rhs, symbols)
+    mut binding_o := scope.get_binding_name(name, symbols)
+    if binding_o.is_none() { return } // A namespace/global slot is not a local.
+    ref mut binding : TypeBinding = binding_o.unwrap()
+    for root : BorrowRoot in roots {
+        mut seen := false
+        for prior : BorrowRoot in binding.borrow_roots {
+            if BorrowRoot.eq(prior, root) { seen = true }
+        }
+        if seen.not() { binding.borrow_roots.push(own root.clone()) }
     }
 }
 

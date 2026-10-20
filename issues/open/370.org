@@ -251,9 +251,54 @@ the installed SDK and host source under ~til_worktrees/tmp/issue-370-host/~
 with empty ~PATH~, without ASAN errors. Logs are that project's
 ~tmp/build.log~ and ~tmp/run.log~. No system installation was changed.
 
-Host-function registration, guest value interchange and retained callbacks
-remain the next API decisions. The broader proposal below is still pending;
+Host-function registration and guest value interchange remain the next API
+decisions. The broader proposal below is still pending;
 its ~Interp~ spelling is superseded by ~TilVm~.
+
+*** Approved callback slice: borrowed VM, owning callable
+
+~vm.lookup(name) throws TilVmError~ returns ~TilVmCallback~ for an exported,
+live guest func/proc with no arguments, result or throws clause.
+~callback.call() throws TilVmError~ invokes it repeatedly through the typed
+evaluator call path. Lookup reuses the checked export/binding lookup; native
+symbols and signature-only declarations are not guest implementations.
+
+The handle owns a clone of the existing evaluator callable/environment and
+borrows the VM session. Its private ~close~ helper is called by ~delete~;
+ASAP extends the VM lifetime through retained handles. Normal handle copies
+clone captures independently while borrowing the same VM; guest globals are
+shared through that VM. There is no reference count, runtime handle registry
+or second value representation. The default error-path result represents
+absence with ~Option(ref InterpSession).None~, never a null VM reference;
+calling that absent result reports a lookup-required error.
+
+Invocation failure preserves the session and callback state, returns owned
+diagnostics/exit status, and permits another call. Earlier guest mutations
+are not rolled back. Signature diagnostics for imported callbacks report
+their defining file. Calls are still serialized on one thread.
+
+Lifetime regressions exposed a destruction-pass discrepancy: it merged
+alias/into/carried return summaries, so an independent callback copy kept
+its original handle alive. The pass now rebuilds local borrow provenance,
+follows carried owners, and retains them through the result's actual last
+use. Assignments union acquired owners, and replacing an owning value while
+a call-produced borrower remains live is rejected. The build dispatcher
+also now declares its ~Build~ parameter ~mut~, as its command signature
+already required after the stored-callback fix.
+
+~test/tilvm.til~ exercises retained closures, copies, host-owned binding
+records, independent sessions, implicit/explicit teardown, and recovery
+after callback panic/exit. ~test/tilvm_lifetime_error.til~ checks seven
+escape, destruction and replacement violations. ~test/install_tilvm.til~ compiles
+both against the installed SDK, checks private callback cleanup, and runs
+the ASAN host with empty PATH. ~make test_two_pass~ passed 524/524; two-pass
+regeneration is required because the corrected ASAP lifetimes move two
+compiler destructors earlier.
+
+The updated SDK/host were also copied to ~til_worktrees/tmp/issue-370-host/~
+outside the checkout: the ASAN host passed with empty PATH, and its installed
+compiler rejected all seven lifetime violations. Logs are ~tmp/run.log~ and
+~tmp/lifetime-error.log~ in that independent project.
 
 *** Stored callback analysis (Tiled #5)
 

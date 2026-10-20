@@ -12057,7 +12057,8 @@ priv push_root_unique := func(mut out: Vec(BorrowRoot), r: BorrowRoot) {
 // the alias's own `mut` is what permits it. An alias forwards the roots it
 // resolved at its own declaration, so the set is always flat -- a write
 // never has to chase a second hop at marking time.
-priv expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
+// Also used when the garbager rebuilds local binding provenance from typed ASTs.
+expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
     mut out := Vec(BorrowRoot).new()
     switch e.node_type {
     case .Ident(id):
@@ -12387,7 +12388,7 @@ priv mark_written_through := func(mut scope: TypeScope, obj: Expr, symbols: Symb
 // lvalue_write_roots chases them through the sink's elements,
 // mark_written_through credits them, check_write_roots_mut enforces
 // them.
-priv deposit_src_roots := func(scope: TypeScope, src: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
+deposit_src_roots := func(scope: TypeScope, src: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
     // Only the storages the source's value CARRIES: the value itself is
     // copied or moved into the sink, so its own storage does not become
     // a borrow root -- an `own` argument's local dies with the transfer.

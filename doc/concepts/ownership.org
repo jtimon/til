@@ -76,6 +76,21 @@ early teardown and prevents later use. The destructor closes the resource,
 destroys its owned fields, then frees its outer box only if ~call_free~ is
 true. Test both implicit destruction and explicit deletion under ASAN.
 
+*** Owning handles can borrow their resource owner
+
+~TilVmCallback~, obtained with ~vm.lookup("on_key")?~, owns its guest
+callable and captured values but borrows the VM's session/code. Calling
+~callback.call()?~ does not transfer either owner. ASAP keeps the VM alive
+through the handle's last use and destroys the handle first. Returning a
+handle borrowed from a local VM, destroying that VM before a later handle
+use, or replacing it while the handle still borrows it is rejected.
+
+An owning copy of the handle clones the guest callable/captures and keeps
+the same VM borrow. It does not borrow the original handle and does not
+share ownership of the VM. Each handle can be destroyed independently;
+the guest globals still belong to their common VM. No reference counters
+are involved. The callback's ~close~ helper is private, called by ~delete~.
+
 ** Destruction by context and qualifier
 
 Read this together with qualifiers.org's identical four-context split. "Who

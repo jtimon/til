@@ -318,8 +318,119 @@ checked_lookup := proc(root: Str) {
     assert(survived_view == "ost")
 }
 
+expect_lookup_failure := proc(mut vm: TilVm, name: Str, detail: Str, location: Str = "") {
+    callback := vm.lookup(name)?
+    catch (err: TilVmError) {
+        assert(err.phase == "lookup")
+        expect(err.to_str().contains(detail), err.to_str())
+        if location.len() > 0 {
+            expect(err.diagnostics[0].path.ends_with(location), err.to_str())
+            assert(err.diagnostics[0].line == 2)
+        }
+        return
+    }
+    own callback.delete()
+    panic("lookup unexpectedly succeeded: ", name)
+}
+
+HostKeyBinding := struct { own callback: TilVmCallback }
+
+retain_callback := proc(mut vm: TilVm) returns HostKeyBinding {
+    callback := vm.lookup("on_key")!
+    return HostKeyBinding(callback = callback)
+}
+
+callback_owner_lifetime := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("callback_guest.til")!
+    mut binding := retain_callback(vm)
+    // vm has no explicit use after lookup. Its borrow in callback must keep
+    // the whole session alive through both calls and callback destruction.
+    binding.callback.call()!
+    binding.callback.call()!
+}
+
+callback_explicit_teardown := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("callback_guest.til")!
+    mut callback := vm.lookup("on_key")!
+    callback.call()!
+    own callback.delete()
+    own vm.delete()
+    // Both resources can die before the rest of the host's scope.
+    print_flush()
+}
+
+callback_tests := proc(root: Str) {
+    File.writefile("callback_import.til", "mode lib\nimported_arg := func(value: I64) { assert(value >= 0) }\n")
+    File.writefile("callback_guest.til", format(
+        "mode lib\nimport(\"./callback_import\")\nmut count := 0\n",
+        "on_key := proc() { noop_proc(); count++; assert(count <= 2) }\n",
+        "check_two := proc() { noop_proc(); assert(count == 2) }\n",
+        "bad := proc() { noop_proc(); panic(\"callback failure\") }\n",
+        "quit := func() { exit(0) }\n",
+        "with_arg := func(value: I64) { assert(value >= 0) }\n",
+        "with_result := func() returns Str { return \"result\" }\n",
+        "Failure := struct {}\nthrowing := func() throws Failure { throw Failure() }\n",
+        "number := 7\nSignature := proc()\n",
+        "priv hidden := proc() { noop_proc() }\nexported := hidden\n",
+        "Callback := proc()\n",
+        "make_callback := func() returns Callback {\n",
+        "    text := format(\"captured\", \" string\")\n",
+        "    return proc() [own mut text] { noop_proc(); text = format(text, \"!\"); assert(text.len() <= 17) }\n",
+        "}\nclosure := make_callback()\n"))
+    mut vm := TilVm.new(root)
+    expect_lookup_failure(vm, "on_key", "load a module")
+    vm.load_file("callback_guest.til")!
+    expect_lookup_failure(vm, "missing", "not found")
+    expect_lookup_failure(vm, "print_flush", "not exported")
+    expect_lookup_failure(vm, "number", "not a function")
+    expect_lookup_failure(vm, "Signature", "no function implementation")
+    expect_lookup_failure(vm, "with_arg", "no arguments")
+    expect_lookup_failure(vm, "with_result", "no arguments")
+    expect_lookup_failure(vm, "throwing", "throws clause")
+    expect_lookup_failure(vm, "imported_arg", "no arguments", "callback_import.til")
+    mut callback := vm.lookup("on_key")!
+    callback.call()!
+    // Another VM can be destroyed while this retained callback stays live.
+    callback_owner_lifetime(root)
+    callback_explicit_teardown(root)
+    callback.call()!
+    mut check := vm.lookup("check_two")!
+    check.call()!
+    mut closure := vm.lookup("closure")!
+    closure.call()!
+    mut copied_closure := closure.clone()
+    closure.call()!
+    own closure.delete()
+    // A normal owning copy has independent captures, still borrowing the VM.
+    copied_closure.call()!
+    mut alias := vm.lookup("exported")!
+    alias.call()!
+    mut bad := vm.lookup("bad")!
+    mut failed := false
+    bad.call()?
+    catch (err: TilVmError) {
+        failed = true
+        assert(err.phase == "call")
+        expect(err.to_str().contains("callback failure"), err.to_str())
+    }
+    assert(failed)
+    mut quit := vm.lookup("quit")!
+    mut exited := false
+    quit.call()?
+    catch (err: TilVmError) {
+        exited = true
+        assert_eq(I64, err.exit_status.unwrap(), 0)
+    }
+    assert(exited)
+    // Abort state is reset at invocation, not by destroying the live VM.
+    check.call()!
+}
+
 main := proc(root: Str) returns I64 {
     checked_lookup(root)
+    callback_tests(root)
     mut vm := TilVm.new(root)
     expect_failure(vm, "mode lib\nbroken := func( {\n", "load", "expected", 2)
     expect_failure(vm, "mode lib\n/* unterminated\n", "load", "unterminated comment", 2)

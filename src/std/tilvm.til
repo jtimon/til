@@ -2,24 +2,6 @@ mode lib
 
 import("../self/interpreter")
 
-/// An owned source diagnostic. It remains valid after its VM is destroyed.
-TilVmDiagnostic := SourceDiagnostic
-
-/// Loading or evaluating a guest failed. No part of the failed module is kept.
-TilVmError := struct {
-    phase := ""
-    diagnostics := Vec(TilVmDiagnostic).new()
-    exit_status := Option(I64).None
-namespace:
-    to_str := func(self: TilVmError) returns Str {
-        mut text := self.phase.clone()
-        for d : TilVmDiagnostic in self.diagnostics {
-            text = format(text, "\n", d.path, ":", d.line.to_str(), ":", d.col.to_str(), ": ", d.message)
-        }
-        return text
-    }
-}
-
 priv tilvm_error := func(phase: Str, ctx: Context) returns TilVmError {
     return TilVmError(phase = phase.clone(), diagnostics = ctx.diagnostics.clone(),
         exit_status = ctx.eval.exit_status.clone())
@@ -111,6 +93,12 @@ namespace:
             interp_session_start(self.session, Vec(Str).new())
             throw err
         }
+    }
+
+    /// Retain a zero-argument, no-result guest func/proc. The returned handle
+    /// owns its callable/captures and borrows this VM's session and code.
+    lookup := proc(mut self: TilVm, name: Str) returns TilVmCallback throws TilVmError {
+        return TilVmCallback.lookup(self.session, name)?
     }
 
     // Keep resource teardown in one helper, independently readable/testable.

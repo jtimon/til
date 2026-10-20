@@ -393,6 +393,117 @@ InterpSession := struct {
     evaluated_units := Set(Str).new()
 }
 
+// Shared by the installed facade and its callback implementation. These are
+// owned copies, independent of the Context/program that reported the error.
+TilVmDiagnostic := SourceDiagnostic
+TilVmError := struct {
+    phase := ""
+    diagnostics := Vec(TilVmDiagnostic).new()
+    exit_status := Option(I64).None
+namespace:
+    to_str := func(self: TilVmError) returns Str {
+        mut text := self.phase.clone()
+        for d : TilVmDiagnostic in self.diagnostics {
+            text = format(text, "\n", d.path, ":", d.line.to_str(), ":", d.col.to_str(), ": ", d.message)
+        }
+        return text
+    }
+}
+
+/// An owning guest callable that borrows its VM. Obtain one through vm.lookup.
+/// A typed session borrow keeps the VM lifetime visible to the host's ownership
+/// checker. The slot owns a clone in the existing evaluator representation.
+TilVmCallback := struct {
+    // Throw lowering returns a default value on its error path. None is that
+    // absence, never a fabricated null reference to a VM. Successful lookup
+    // always returns Some; invoking an absent result reports an error.
+    priv session := Option(ref InterpSession).None
+    priv own callable: U8 = calloc(1, Dynamic.size())
+namespace:
+    // Implementation factory; applications obtain handles through TilVm.lookup.
+    lookup := proc(mut session: InterpSession, name: Str) returns TilVmCallback throws TilVmError {
+        if session.retained_programs.len() == 0 {
+            mut err := TilVmError(phase = "lookup")
+            err.diagnostics.push(own TilVmDiagnostic(message = "load a module before looking up a callback"))
+            throw err
+        }
+        ref mut lp : LoadedProgram = interp_callback_program(session)
+        lp.ctx.diagnostics.clear()
+        hb_o := interp_session_lookup_callable(session, lp, name)
+        if hb_o.is_none() {
+            throw TilVmError(phase = "lookup", diagnostics = lp.ctx.diagnostics.clone())
+        }
+        ref hb : HeapBinding = hb_o.unwrap()
+        ref def : Expr = callable_raw_func_def(to_ptr(hb.ptr))
+        mut matches := false
+        switch def.node_type {
+        case .FuncDef(fd):
+            matches = fd.sig.func_type.is_plain().and(def.children.len() > 0)
+                .and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0)
+                .and(fd.sig.throw_types.len() == 0)
+        case:
+        }
+        if matches.not() {
+            mut err := TilVmError(phase = "lookup")
+            ref path : Str = lp.ctx.eval.function_paths[word_bits(to_ptr(def)).cast(UPtr)]
+            err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col,
+                message = format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")))
+            throw err
+        }
+        mut slot : U8 = malloc(Dynamic.size())
+        write_ptr(slot, callable_storage_clone(deref(to_ptr(hb.ptr))))
+        return TilVmCallback(session = safe_ref(InterpSession, session), callable = slot)
+    }
+
+    call := proc(mut self: TilVmCallback) throws TilVmError {
+        if self.session.is_none() {
+            mut err := TilVmError(phase = "call")
+            err.diagnostics.push(own TilVmDiagnostic(message = "callback has no callable; lookup must succeed before call"))
+            throw err
+        }
+        ref mut session : InterpSession = self.session.unwrap()
+        ref mut lp : LoadedProgram = interp_callback_program(session)
+        interp_reset_control_flow(lp.ctx)
+        lp.ctx.eval.exit_status = Option(I64).None
+        lp.ctx.eval.guest_output = ""
+        lp.ctx.diagnostics.clear()
+        context_enter_file(lp.ctx, lp.path)
+        ref def : Expr = callable_raw_func_def(to_ptr(self.callable))
+        // A typed evaluator call frame, not parsed/generated guest source.
+        mut site := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
+        site.set_til_type(Type.None)
+        ref mut raw : Dynamic = to_ptr(self.callable)
+        mut result : Dynamic = eval_callable_call(session_global(session), site, raw, lp.ctx)
+        raw_result_drop(Type.None, result, false, lp.ctx)
+        if lp.ctx.eval.eval_aborted {
+            throw TilVmError(phase = "call", diagnostics = lp.ctx.diagnostics.clone(),
+                exit_status = lp.ctx.eval.exit_status.clone())
+        }
+    }
+
+    priv close := func(mut self: TilVmCallback) {
+        ref mut stored : Dynamic = deref(to_ptr(self.callable))
+        callable_storage_free(stored)
+    }
+
+    clone := func(self: TilVmCallback) returns TilVmCallback {
+        mut slot : U8 = malloc(Dynamic.size())
+        write_ptr(slot, callable_storage_clone(deref(to_ptr(self.callable))))
+        return TilVmCallback(session = self.session, callable = slot)
+    }
+
+    delete := func(own self: TilVmCallback, call_free: Bool = true) {
+        TilVmCallback.close(self)
+        free(own self.callable)
+        if call_free { free(own self) }
+    }
+}
+
+priv interp_callback_program := func(session: InterpSession) returns ref LoadedProgram {
+    ref box : DynPtrBox = session.retained_programs[0]
+    return to_ptr(box.p)
+}
+
 InterpRunResult := struct {
     aborted := false
     exit_code := Option(I64).None
@@ -6263,8 +6374,8 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
 // binding borrows the live session; its callable/environment and AST remain
 // under the session's existing ownership. Callers must not detach that borrow
 // into an untyped public handle. Validation errors do not reset/evaluate the VM.
-interp_session_lookup_function := proc(mut session: InterpSession, mut lp: LoadedProgram,
-    name: Str, expected: FuncSig) returns Option(ref HeapBinding) {
+priv interp_session_lookup_callable := proc(mut session: InterpSession, mut lp: LoadedProgram,
+    name: Str) returns Option(ref HeapBinding) {
     root := lp.units[lp.units.len() - 1].path.clone()
     decl_o := lp.ctx.scope.get_binding_name(name, lp.ctx.symbols)
     if decl_o.is_none() {
@@ -6299,6 +6410,15 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
             declaration.path, declaration.line, declaration.col, format("guest binding has no function implementation: ", name))
         return Option(ref HeapBinding).None
     }
+    return binding_o
+}
+
+interp_session_lookup_function := proc(mut session: InterpSession, mut lp: LoadedProgram,
+    name: Str, expected: FuncSig) returns Option(ref HeapBinding) {
+    binding_o := interp_session_lookup_callable(session, lp, name)
+    if binding_o.is_none() { return binding_o }
+    ref def : Expr = hb_func_def(binding_o.unwrap()).unwrap()
+    ref declaration : TypeBinding = lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).unwrap()
     ref fd : FunctionDef = funcdef_of(def)
     actual_o := interp_lookup_signature(fd, lp.ctx)
     if actual_o.is_none() {

@@ -1,0 +1,61 @@
+mode lib
+
+import("std/tilvm")
+
+destroy_before_callback := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut callback := vm.lookup("on_key")!
+    own vm.delete()
+    callback.call()!
+}
+
+escape_local_vm := proc(root: Str) returns TilVmCallback {
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    return vm.lookup("on_key")!
+}
+
+reuse_deleted_callback := proc(mut vm: TilVm) {
+    mut callback := vm.lookup("on_key")!
+    own callback.delete()
+    callback.call()!
+}
+
+escape_cloned_callback := proc(root: Str) returns TilVmCallback {
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    callback := vm.lookup("on_key")!
+    return callback.clone()
+}
+
+destroy_before_cloned_callback := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    callback := vm.lookup("on_key")!
+    mut copy := callback.clone()
+    own callback.delete()
+    own vm.delete()
+    copy.call()!
+}
+
+destroy_after_callback_reassignment := proc(root: Str) {
+    mut first := TilVm.new(root)
+    first.load_file("guest.til")!
+    mut second := TilVm.new(root)
+    second.load_file("guest.til")!
+    mut callback := first.lookup("on_key")!
+    callback = second.lookup("on_key")!
+    mut copy := callback.clone()
+    own callback.delete()
+    own second.delete()
+    copy.call()!
+}
+
+replace_borrowed_vm := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut callback := vm.lookup("on_key")!
+    vm = TilVm.new(root)
+    callback.call()!
+}
