@@ -1,0 +1,423 @@
+* Optimization measurements
+
+This is a manually maintained experiment log, not an input to the compiler,
+test runner, or chart generator. Keep the profiling workflow in
+[[./profiling.org][Profiling]], and put dated measurements and decisions here.
+~doc/totals.csv~ remains the generated source for the per-commit chart.
+
+** Controlled hoisting A/B comparison (2026-10-20)
+
+Question: is undoing the last change, which replaced clone-then-discard with
+~Vec.push_take~ at two hoisting sites, better for suite wall time?
+
+Base: ~6cfdb7c8a6bbe0daa03d012cb176b515d63844d6~. The user confirmed that
+this was the only active agent session. Both variants were built on that
+base with the same compiler, C output path, ~--usize=32~, and optimization
+defaults; each had a regular and an ASAN compiler. The clone variant undid
+only the two hoisting edits. The source tree was restored to master before
+measurement and stayed fixed throughout, so both compiler implementations
+processed identical inputs, including the self-translation benchmark.
+
+Each run selected both ~bin/til~ and ~bin/til_asan~ from the prepared variant,
+then ran the existing full-suite command:
+
+  : xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan -j32
+
+All runs were foreground, sequential, and memory-limited to 64 GiB. One
+warm-up per variant was excluded in advance. Six measured runs followed in
+move/clone, clone/move, move/clone order. Every warm-up and measured run
+passed 456/456 tests. The preparation also passed ~make clean && make test~.
+
+| Run | Variant | Suite wall (s) | interp_session (s) | install_tilvm (s) | Self (s) |
+|-----+---------+----------------+--------------------+-------------------+----------|
+|   1 | move    |         80.487 |              77.92 |             80.01 |   79.259 |
+|   2 | clone   |         80.398 |              78.08 |             79.92 |   79.562 |
+|   3 | clone   |         79.417 |              76.35 |             78.93 |   79.443 |
+|   4 | move    |         80.130 |              77.36 |             79.65 |   79.023 |
+|   5 | move    |         78.876 |              76.31 |             78.39 |   79.399 |
+|   6 | clone   |         79.700 |              78.40 |             79.22 |   79.249 |
+
+| Metric                         | Move median (s) | Clone median (s) |
+|--------------------------------+-----------------+------------------|
+| Suite wall                     |          80.130 |           79.700 |
+| Actual bin/tests elapsed       |          80.431 |           80.216 |
+| interp_session                 |          77.360 |           78.080 |
+| install_tilvm                   |          79.650 |           79.220 |
+| Self-translate                 |          79.259 |           79.443 |
+
+Wall ranges: move 78.876-80.487s; clone 79.417-80.398s. Restoring cloning
+has a 0.430s (0.54%) lower wall median, but the ranges overlap and the three
+within-pair clone-minus-move differences are -0.089s, -0.713s, and +0.824s.
+Mean wall times are nearly identical: move 79.831s and clone 79.838s, a
+paired mean difference of just +0.007s for clone-minus-move.
+~install_tilvm~ set the wall-time limit in all six measured runs. The targeted
+~interp_session~ and self-translation medians favor the move instead.
+
+Decision: keep the ownership transfer. These measurements establish neither
+a meaningful suite-wall speedup from the move nor a consistent benefit from
+undoing it. The removed deep copies are real; a wall-time benefit is not
+demonstrated. The earlier 114.05s -> 82.20s single-run comparison below was
+made while other sessions were active and must not be used as evidence of
+a 28% speedup. This controlled comparison supersedes it for this decision.
+
+** Master chart review (2026-10-20)
+
+Read from the measurements added by the listed master changes, rather than
+from worktree logs. CSV rows use the HEAD at measurement time; the local
+merge workflow can therefore label a result with the parent commit.
+
+| Master change                                  | Recorded wall (s) |
+|------------------------------------------------+-------------------|
+| Before this series (0b45d6934)                  |           108.095 |
+| CPU-option duplicate work removed (106fc0f97)   |            93.296 |
+| Codegen assertions grouped (6fd5cb72a)          |            88.006 |
+| CPU/Dynamic jobs split (76f5674a3)              |            83.856 |
+| Installed TilVm job split (9a505a44c)           |            75.597 |
+| Declaration-only snapshots (8e0466cad)          |            76.041 |
+| Reused throw keys (05cce1ac6)                   |            76.475 |
+| New callback coverage (7a1433c40)               |            80.861 |
+| Hoisted subtree ownership transfer (4a78510d6)  |            79.950 |
+
+The recorded history supports the earlier test-reorganization gains, but not
+a continuing decrease from the subsequent compiler micro-optimizations.
+Other features and tests landed between these points. The last-ten-point
+chart has already dropped most of the large reductions; its shared time axis
+also makes a few seconds of wall-time change hard to see. The recent worktree
+single-run comparisons below are historical observations, not controlled
+speedup estimates: other sessions were active during part of that work.
+
+** Installation-test phases (2026-10-19)
+
+Measured at ~76f5674a3~ on the local Linux x86-64 machine, with temporary
+~clock_ms()~ markers in ~test/install.til~ during ~make clean && make test~.
+This is the normal concurrent full ASAN suite workload, not an isolated
+installation benchmark. The installation driver and the compiler it installs
+are uninstrumented; the installed TilVm host is built with ~--asan~.
+
+All 455 suite rows passed. Suite wall time was 85.14s; the installation row
+took 84.67s. Its timed main body accounted for 83.057s, leaving about 1.61s
+for building/launching the driver and runner overhead.
+
+| Installation phase                          | Elapsed seconds |
+|---------------------------------------------+-----------------|
+| Compiler build and install                  |          39.849 |
+| Installed TilVm host ASAN build             |          23.732 |
+| Installed TilVm host execution              |          10.661 |
+| TilVm private close/clone rejection checks  |           4.835 |
+| All other driver phases                    |           3.980 |
+| Total driver main body                     |          83.057 |
+
+The copy-only reinstall is just 0.043s of the remaining work. Other measured
+phases include the basic probe build (0.655s), shared-library build/install
+(0.464s), GUI interpretation/build/run (0.722s), crypto interpretation/run
+(0.674s), and REPL help (0.203s). Optimizing support-tree copying or these small
+probes cannot remove the two large sequential blocks.
+
+Installed TilVm coverage now runs as the independently scheduled ~install_tilvm~
+job, implemented by ~test/install_tilvm.til~. It has its own installation
+prefix (~tmp/install_tilvm~) and work directory (~tmp/install_tilvm_work~).
+Its setup uses the existing copy-only ~install_executable~ on the already-built
+~bin/til~, while the original installation job retains the full compiler
+build/install path and its other checks. This allows the compiler-install
+block to overlap the TilVm block without dropping coverage. The host remains
+ASAN-instrumented, runs with an empty PATH, and retains the private close/clone
+rejection checks. Isolation matters: the original driver deletes/recreates
+its prefix and later removes the installed libffi archive to exercise a
+missing-dependency error.
+
+These phase times do not predict the exact parallel speedup: concurrency and
+memory pressure change when jobs overlap. In this run ~interp_session~ took
+75.36s, so it is the next likely wall-time limit after splitting installation.
+The profiling markers were removed after measurement; there is no permanent
+profiling flag or extra test output.
+
+After splitting, another clean full ASAN run passed all 456 rows (one extra
+scheduled job, with the same checks). These single runs recorded a 7.36s
+wall-time difference; they do not isolate the edit from machine contention.
+~interp_session~ became the longest non-self job:
+
+| Suite job / metric     | Before (s) | After (s) |
+|------------------------+------------+-----------|
+| install                |      84.67 |     48.87 |
+| install_tilvm          |   included |     65.57 |
+| interp_session         |      75.36 |     77.30 |
+| Suite wall time        |      85.14 |     77.78 |
+
+The independent TilVm job now overlaps the suite's busy early portion, so its
+65.57s is not directly comparable to its old 39.228s phase late in the serial
+installation driver. The gain is in the suite's finish time, not a claim that
+the individual checks became computationally cheaper.
+
+** Interpreter-session frontend work (2026-10-20)
+
+At ~9a505a44c~, temporary runtime markers and a timed C-compiler wrapper
+separated the ~interp_session~ row during a clean full-suite run:
+
+| Component                                      | Seconds |
+|------------------------------------------------+---------|
+| Frontend plus compiler startup/teardown (remainder) | 62.63 |
+| C compilation/linking                          |    9.25 |
+| Host main body                                 |   4.894 |
+| Whole suite row                                |   76.77 |
+
+The seven guest sessions spent about 0.54-0.59s each typing their input;
+guest execution itself took only 0-6ms per session. Splitting those cases
+into separately compiled interpreter hosts would duplicate the dominant work.
+A non-ASAN compiler built with ~--prof~ identified
+~guess_local_type~ as a repeated frontend walk: 10,867,388 recursive calls
+while translating this fixture. Function-profiler timings include tracing
+overhead and are not the ASAN wall times above.
+
+Throws lowering kept a deep copy of the entire function body solely for
+local-type lookup while rewriting the original. That snapshot now retains
+only declarations, in the original depth-first order, with their full
+initializers and nested declarations. Unrelated statement expressions are
+neither copied nor repeatedly searched. Catch validation still uses its full
+statement snapshot because it also reads control flow.
+
+An isolated ASAN frontend comparison on identical input took 25.09s before
+and 24.50s after. Generated C and forward headers were byte-identical for
+~interp_session~, ~errors~, ~fn_ptr~, and ~stored_callbacks~. The clean full
+ASAN suite passed all 456 rows with the optimization:
+
+| Metric          | Before (s) | After (s) |
+|-----------------+------------+-----------|
+| interp_session  |      76.77 |     75.48 |
+| Suite wall time |      77.25 |     75.96 |
+| Self-translate  |      79.28 |     77.12 |
+
+These single runs recorded a 1.7% wall-time difference, not a controlled
+speedup estimate. All test coverage and ASAN settings remained unchanged.
+Temporary timing instrumentation and the compiler wrapper are not part of the suite.
+
+*** Reuse resolved throw keys
+
+The next change, based on ~8e0466cad~, passes the key resolved during call
+validation directly to error-argument injection. Nested-bang hoisting also
+passes its already-resolved key. The value lives only through these immediate
+steps; no cache or persistent lookup state is introduced. Dependent-generic
+validation remains deferred, with the original injection lookup for marked
+deferred calls.
+
+An isolated paired ASAN translation of ~interp_session.til~ measured
+24.879s before and 24.289s after (2.4% lower). Eight fixtures produced
+byte-identical C and forward headers: ~errors~, ~fn_ptr~, ~stored_callbacks~,
+~first_class~, ~lazy~, ~kwargs~, ~tuples~, and ~interp_session~. Diagnostics
+and exit status also matched for ~typer_errors~ and ~stored_callbacks_error~.
+
+The clean full ASAN suite passed all 456 rows, but suite wall time was 77.11s
+versus the previous 75.96s run; ~interp_session~ took 76.63s versus 75.48s.
+These single-run full-suite results do not establish a wall-time improvement.
+The focused result and the eliminated duplicate lookups should not be reported
+as a demonstrated full-suite speedup.
+
+*** Move hoisted subtrees instead of cloning them
+
+After rebasing onto ~be9cae300~, both ~hoist_walk_consolidated~ and
+~hoist_throwing_store_call~ transfer the original call subtree into the
+temporary declaration with ~Vec.push_take~. Previously they deep-cloned it
+and then discarded the original when installing the replacement Ident.
+The source slot is not read after transfer, and the Ident is still installed
+at the original point so symbol-interning order is preserved.
+
+The same eight C/header comparisons and two diagnostic comparisons above
+remained byte-identical. A fresh clean full ASAN baseline and the optimized
+run both passed 456/456 rows:
+
+| Metric                            | Before (s) | After (s) |
+|-----------------------------------+------------+-----------|
+| Isolated interp_session translate |     25.114 |    25.069 |
+| Suite interp_session row          |     113.45 |     81.73 |
+| Suite wall time                   |     114.05 |     82.20 |
+
+The isolated difference is negligible. The much larger single-run suite
+difference is insufficient evidence to attribute a 28% speedup to this edit.
+The established change is removal of the two clone-then-discard operations,
+with unchanged generated output and passing ownership/ASAN coverage.
+
+** Historical function profile (2026-07)
+
+The compiler translating
+test/maps.til (1413 functions instrumented; snapshot 2026-07, after
+fieldless throw payloads #316, lazy Vec.new #291, the interpreter scope
+pool, the redundant-expect removal, and single-compare eq for
+payload-free enums), abridged:
+
+  : === til --prof: 1413 functions instrumented, top 20 by self time ===
+  : function                                       calls      self_ms     total_ms
+  : Str_cmp                                     10800807      594.772      645.688
+  : Str_eq                                       5767499      288.835      330.226
+  : typer.til fcall_has_own_arg                  1032101      286.064     1809.096
+  : TypeScope_get_struct                         2141646      256.786     5238.268
+  : Map__Str_Dynamic_has                         2304836      219.717      366.276
+  : expr_uses_var                                1663835      218.992     2869.607
+  : Map__Str_Dynamic_get                          510122      174.894      324.560
+  : fa_is_ns                                      141446      163.475      780.012
+  : Map__Str_TypeBinding_has                      748719      162.768      303.195
+  : Str_delete                                   3915202      160.469      160.469
+  : expr_transfers_own                           1039520      156.616    35264.299
+  : Str_clone                                    1414586      152.933      152.933
+  : ...
+
+The Str cluster (Str_cmp 10.8M calls + Str_eq 5.8M + Str_clone 1.4M +
+Str_delete 3.9M) dominates self time -- how Maps compare string keys and
+how names get copied around -- which is #292 (interning) territory. The
+ownership walks (expr_transfers_own at 35s inclusive, fcall_has_own_arg,
+expr_uses_var, expr_used_in_nested_func) are the #302 migration's
+domain. Columns: exact call count, self time (exclusive of callees),
+inclusive total.
+
+With ~--prof~ (and without ~--asan~) the run also wraps malloc/calloc/realloc
+and prints a second table, ranked by bytes allocated -- same run, abridged:
+
+  : === til --prof: top 20 by bytes allocated ===
+  : function                                      allocs       alloc_kb          calls
+  : Str_clone                                    2766791        34370.8        1414586
+  : Vec__Expr_push_take                            31738        24418.8          75000
+  : Vec__Expr_push                                 75062        21738.0          93703
+  : Expr_clone                                    128305        20047.7         128305
+  : Vec__Expr_move_from                            11837        17720.5          23094
+  : Vec__Expr_clone                               257150        16298.2         128575
+  : Expr_new                                      103236        16130.6         103236
+  : ...
+
+Bytes are charged to whichever instrumented function is on top of the call
+stack when malloc runs. Str_clone is the dominant allocator (string copies
+-- interning again); the Vec__Expr entries are AST body rebuild/clone
+traffic. Array__Str_new, previously #4 here at 586k calls / 20MB, is gone:
+it was the variadic message array that every
+~expect(x.is_null().not(), ...)~ built per call even on success (a
+variadic FUNCTION argument is built eagerly at the call site; a panic
+behind an ~if~ is not) -- those redundant null-guard expects were removed.
+TokenType_eq, previously 4.3% of instructions (callgrind), is likewise
+gone: eq for a payload-free enum now emits a single is_n tag compare
+instead of a per-variant chain.
+
+** Historical hot-functions snapshot (2026-08-19)
+
+From ~bin/til_prof translate test/maps.til~ on the compiler at that date:
+the top 32 CPU and allocation offenders. These are historical rankings,
+not a description of the current compiler.
+
+The instrumented build reports conceptual entries for inlined functions, so
+~U32_cmp~ remains in this table even though normal builds force-inline it.
+Callgrind measures the uninstrumented effect: inlining removed 21.6M
+instructions from this workload (2.3176B -> 2.2960B, 0.93%).
+
+The compiler's ~SymbolPool~ uses the shared ~fnv1a~ implementation in
+~src/std/hash.til~, passing each spelling's bytes directly rather than adding a
+~hash_str~ wrapper call. Its unsigned, four-byte-unrolled loop measured 109.09M
+-> 93.68M instructions in the former parser-local function and 2.32040B ->
+2.30498B overall (0.66%) without changing valid ASCII symbol hashes.
+
+The garbager recurses into nested control-flow bodies in place when the parent
+body has no direct exit. Avoiding an unread flow table and unchanged parent
+~Vec(Expr)~ rebuild removed 1,872 allocations and 1.84 MiB, while callgrind
+measured 2.50127B -> 2.49534B instructions (0.24%).
+
+Its root-body delete insertion likewise allocates an output ~Vec(Expr)~ only
+when the first sibling is inserted or compile directive removed. Moving an
+otherwise unchanged original vector back removed another 2,062 allocations and
+3.15 MiB; callgrind measured 2.50888B -> 2.50380B instructions (0.20%).
+
+Fixed-arity calls with exactly one positional argument per parameter already
+have canonical argument layout. Bypassing the named/default/variadic planner
+for that shape removed 5,646 rebuild allocations and 3.04 MiB; callgrind
+measured 2.50640B -> 2.49036B instructions (0.64%).
+
+The parser pre-sizes non-empty calls for the callee plus first argument and
+binary calls for their exact two children. Normal-build DHAT measured
+44,283 -> 42,729 blocks and 9,739,273 -> 9,453,337 allocated bytes, with peak
+and end heap unchanged; callgrind measured 99.016M -> 98.804M instructions
+(0.21%). Zero-argument calls retain one-slot lazy growth.
+
+Pre-sizing the parser's remaining fixed-arity subscript and range calls, plus
+the first two children of ~if~, ~while~, and ~for~ nodes, measured 42,729 ->
+42,279 blocks and 9,453,337 -> 9,350,297 allocated bytes. Peak heap fell by
+5,520 bytes, end heap by 6,072 bytes, and callgrind measured 98,804,287 ->
+98,669,554 instructions (0.14%). Optional third ~if~ children retain normal
+vector growth.
+
+Top 32 by self time:
+
+  | function                                      | calls    | self_ms | total_ms |
+  |-----------------------------------------------+----------+---------+----------|
+  | Str_eq                                          | 1.87M    | 50.6    | 61.8     |
+  | U32_cmp                                         | 2.68M    | 47.4    | 47.4     |
+  | Str_cmp                                         | 1.70M    | 38.3    | 38.3     |
+  | Map__U32_TypeBinding_get                        | 428K     | 36.2    | 59.1     |
+  | Map__U32_Dynamic_get                            | 206K     | 30.2    | 51.6     |
+  | SymbolPool_lookup                               | 245K     | 27.6    | 61.4     |
+  | TypeScope_get_struct_fp                         | 543K     | 27.0    | 248.8    |
+  | usize_to_uptr                                   | 1.40M    | 23.8    | 23.8     |
+  | Array__U8_unsafe_set                            | 235K     | 23.1    | 39.3     |
+  | Str_delete                                      | 1.09M    | 22.1    | 22.1     |
+  | Str_clone                                       | 502K     | 16.7    | 16.7     |
+  | Expr_delete                                     | 175K     | 15.3    | 222.7    |
+  | expr_collect_stmt_facts                         | 143K     | 15.4    | 762.7    |
+  | priv___src_self_garbager_til__fact_bit_test     | 385K     | 14.9    | 21.5     |
+  | U32_to_u64                                      | 823K     | 14.0    | 14.0     |
+  | TypeScope_lookup_func_sym                       | 169K     | 13.4    | 283.8    |
+  | priv___src_self_garbager_til__collect_scope_locals | 2.91K | 13.0 | 69.6     |
+  | TypeScope_get_binding_sym                       | 219K     | 12.9    | 140.0    |
+  | priv___src_self_constfolder_til__fold_subtree   | 57.9K    | 11.5    | 825.2    |
+  | expr_transfers_own                              | 148K     | 11.3    | 141.9    |
+  | ptr_eq                                          | 655K     | 11.2    | 11.2     |
+  | qname_cmp                                       | 214K     | 11.2    | 19.6     |
+  | builtin_primitive_from_name                     | 48.9K    | 11.1    | 25.0     |
+  | TypeScope_get_struct                            | 111K     | 11.1    | 106.5    |
+  | fnv1a                                           | 328K     | 10.7    | 10.7     |
+  | Type_clone                                      | 318K     | 10.2    | 15.2     |
+  | Type_delete                                     | 423K     | 9.5     | 11.5     |
+  | priv___src_self_context_til__sym_fingerprint    | 251K     | 9.4     | 13.7     |
+  | Map__Str_USize_get                              | 81.4K    | 9.3     | 16.8     |
+  | U32_size                                        | 543K     | 9.3     | 9.3      |
+  | Option__U32_is_none                             | 244K     | 9.1     | 13.4     |
+  | priv___src_self_context_til__bindings_lookup_one | 208K    | 9.1     | 38.9     |
+
+Top 32 by bytes allocated:
+
+  | function                                      | allocs | alloc_kb | calls   |
+  |-----------------------------------------------+--------+----------+---------|
+  | Vec__Expr_push                                | 39.4K  | 12122.9  | 43.2K   |
+  | Vec__Expr_clone                               | 23.8K  | 6799.2   | 43.9K   |
+  | Vec__Expr_with_capacity                       | 9.60K  | 7038.4   | 10.2K   |
+  | Str_clone                                     | 448K   | 4860.0   | 508K    |
+  | Map__U32_TypeBinding_set                      | 7.72K  | 4362.9   | 22.7K   |
+  | Vec__Expr_push_take                           | 10.6K  | 4672.7   | 40.2K   |
+  | swap_bytes                                    | 99.3K  | 3824.9   | 99.3K   |
+  | Vec__TypeBinding_with_capacity                | 3.99K  | 2561.6   | 6.33K   |
+  | Vec__Expr_append                              | 1.15K  | 2118.8   | 10.4K   |
+  | Vec__priv___src_self_garbager_til__LocalInfo_push | 7.72K | 1804.4 | 12.7K |
+  | cfile_read_all                                | 63     | 1532.3   | 21      |
+  | Vec__Token_push                               | 217    | 1407.1   | 27.7K   |
+  | Array__Str_new                                | 27.7K  | 1315.7   | 27.7K   |
+  | Vec__Str_push                                 | 15.2K  | 1219.1   | 32.3K   |
+  | Map__Str_HeapBinding_set                      | 10.6K  | 1113.2   | 8.49K   |
+  | Map__Str_USize_set                            | 13.9K  | 961.0    | 17.8K   |
+  | Str_with_capacity                             | 37.9K  | 865.9    | 37.9K   |
+  | Vec__Token_clone                              | 21     | 703.8    | 21      |
+  | Vec__U64_with_capacity                        | 14.1K  | 633.7    | 14.1K   |
+  | Set__Str_add                                  | 3.95K  | 552.7    | 27.7K   |
+  | Vec__Declaration_push                         | 2.13K  | 545.8    | 2.97K   |
+  | Vec__priv___src_self_garbager_til__GcCfgBlock_push | 3.37K | 456.3 | 5.16K |
+  | Vec__I64_push                                 | 9.12K  | 347.5    | 18.3K   |
+  | Vec__Declaration_clone                        | 1.42K  | 300.8    | 3.14K   |
+  | Vec__Expr_take                                | 9.98K  | 156.0    | 9.98K   |
+  | TypeScope_find_name                           | 1.40K  | 251.0    | 1.46K   |
+  | Map__Str_Str_set                              | 4.99K  | 218.5    | 3.60K   |
+  | scope_free                                    | 2.72K  | 212.3    | 2.72K   |
+  | U64_to_str_ext                                | 22.2K  | 200.2    | 11.1K   |
+  | Option__Expr_take                             | 974    | 167.4    | 974     |
+  | Vec__priv___src_self_garbager_til__GcBorrowEdge_push | 1.66K | 114.8 | 1.84K |
+  | Array__U8_new                                 | 10.3K  | 112.6    | 10.3K   |
+
+** Profiling-tooling history (#237)
+
+All five #237 stretch goals shipped: the sample-profile recipe (perf /
+callgrind), a build-time regression harness (~make profile~ -- since retired
+as redundant with doc/totals.csv's per-commit "self" series), the
+per-function ~--prof~ CPU/call profiler, the allocation profile (the second
+~--prof~ table), and the hot-functions table. Record fresh profiles in new
+dated entries with their source revision rather than overwriting these
+historical tables.
