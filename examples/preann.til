@@ -1,0 +1,270 @@
+mode cli
+
+import("../src/std/sys")
+
+// Portable preann-style float-layer accumulation. No preann library is needed.
+// Run compiled timings: bin/til run --opt=2 examples/preann.til
+// Run only correctness: bin/til test --opt=2 examples/preann.til
+// Existing --cpu=baseline|x86-64-v3|x86-64-v4 and --cc select the backend.
+// Interpret mode is useful for correctness, not performance measurements.
+//
+// Rows are padded to four floats. Both kernels keep FOUR lane sums per output
+// and reduce (lane0+lane2)+(lane1+lane3), then add to the existing result.
+// Blocking shares each input load across four outputs; it does not widen the
+// sums, fuse multiply/add, or reassociate an output's arithmetic.
+// Inputs, weights and results must occupy disjoint storage, as constructed
+// below. This example measures accumulation, not activation or training.
+
+F4 := Simd(F32, 4)
+Kernel := func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), rows: USize)
+Variant := struct { name: Str; run: Kernel }
+LayerCase := struct {
+    inputs: Array(F32)
+    weights: Array(F32)
+    initial: Array(F32)
+    rows: USize
+}
+
+priv validate_layout := func(inputs: Array(F32), weights: Array(F32), results: Array(F32), rows: USize) {
+    stride := inputs.len()
+    if stride == 0 || stride % 4 != 0 { panic("input storage must have positive four-float padding") }
+    if rows > results.len() { panic("result range") }
+    if rows > weights.len() / stride { panic("weight range") }
+}
+
+// The caller proves a complete four-float range. memcpy permits ordinary
+// scalar alignment; neither kernel requires native-vector-aligned storage.
+priv load4 := func(values: Array(F32), start: USize) returns F4 {
+    mut result := F4.zero()
+    memcpy(result, ptr_add(values.data, start.to_uptr() * F32.size().to_uptr()), 16)
+    return result
+}
+
+priv add_result := func(mut results: Array(F32), row: USize, sum: F32) {
+    ref previous : F32 = results.unsafe_get(row)
+    results.unsafe_set(row, own (previous + sum))
+}
+
+priv dot4 := func(inputs: Array(F32), weights: Array(F32), row_start: USize) returns F32 {
+    mut accum := F4.zero()
+    mut i : USize = 0
+    while i < inputs.len() {
+        accum = accum + load4(inputs, i) * load4(weights, row_start + i)
+        i = i + 4
+    }
+    return accum.reduce_add()
+}
+
+layer_reference := func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), rows: USize) {
+    validate_layout(inputs, weights, results, rows)
+    for row in 0..rows { add_result(results, row, dot4(inputs, weights, row * inputs.len())) }
+}
+
+layer_blocked := func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), rows: USize) {
+    validate_layout(inputs, weights, results, rows)
+    stride := inputs.len()
+    bulk_rows := rows - rows % 4
+    mut row : USize = 0
+    while row < bulk_rows {
+        first := row * stride
+        second := first + stride
+        third := second + stride
+        fourth := third + stride
+        mut a0 := F4.zero()
+        mut a1 := F4.zero()
+        mut a2 := F4.zero()
+        mut a3 := F4.zero()
+        mut i : USize = 0
+        while i < stride {
+            x := load4(inputs, i)
+            a0 = a0 + x * load4(weights, first + i)
+            a1 = a1 + x * load4(weights, second + i)
+            a2 = a2 + x * load4(weights, third + i)
+            a3 = a3 + x * load4(weights, fourth + i)
+            i = i + 4
+        }
+        add_result(results, row, a0.reduce_add())
+        add_result(results, row + 1, a1.reduce_add())
+        add_result(results, row + 2, a2.reduce_add())
+        add_result(results, row + 3, a3.reduce_add())
+        row = row + 4
+    }
+    while row < rows {
+        add_result(results, row, dot4(inputs, weights, row * stride))
+        row++
+    }
+}
+
+// Independent scalar oracle for the same four-lane order, not the usual
+// single-accumulator scalar dot product (which has different rounding).
+priv layer_scalar4 := func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), rows: USize) {
+    validate_layout(inputs, weights, results, rows)
+    for row in 0..rows {
+        base := row * inputs.len()
+        mut a0 : F32 = 0
+        mut a1 : F32 = 0
+        mut a2 : F32 = 0
+        mut a3 : F32 = 0
+        mut i : USize = 0
+        while i < inputs.len() {
+            a0 = a0 + inputs.unsafe_get(i) * weights.unsafe_get(base + i)
+            a1 = a1 + inputs.unsafe_get(i + 1) * weights.unsafe_get(base + i + 1)
+            a2 = a2 + inputs.unsafe_get(i + 2) * weights.unsafe_get(base + i + 2)
+            a3 = a3 + inputs.unsafe_get(i + 3) * weights.unsafe_get(base + i + 3)
+            i = i + 4
+        }
+        add_result(results, row, (a0 + a2) + (a1 + a3))
+    }
+}
+
+priv next_value := func(mut state: U32) returns F32 {
+    state = state * 1664525 + 1013904223
+    return ((state % 2001).to_i64() - 1000).to_f32() * 0.001
+}
+
+priv make_case := func(n: USize, rows: USize) returns LayerCase {
+    if n == 0 { panic("positive logical input size required") }
+    stride := ((n - 1) / 4 + 1) * 4
+    mut inputs := Array(F32).new(stride)
+    mut weights := Array(F32).new(stride * rows)
+    mut initial := Array(F32).new(rows + 2)
+    mut state : U32 = 1234567
+    for i in 0..n { inputs.set(i, own next_value(state))! }
+    for row in 0..rows {
+        for i in 0..n { weights.set(row * stride + i, own next_value(state))! }
+        initial.set(row, own ((row % 13).to_i64() - 6).to_f32().mul(0.007))!
+    }
+    // Zero padding comes from Array.new; guard outputs must never be written.
+    initial.set(rows, own 12345.0)!
+    initial.set(rows + 1, own -6789.0)!
+    return LayerCase(inputs = inputs, weights = weights, initial = initial, rows = rows)
+}
+
+priv same_bits := func(a: Array(F32), b: Array(F32)) {
+    assert_eq(USize, a.len(), b.len())
+    assert_eq(I32, memcmp(a.data, b.data, a.len().to_uptr() * F32.size().to_uptr()), 0)
+}
+
+priv verify_case := proc(c: LayerCase) {
+    noop_proc()
+    inputs_before := c.inputs.clone()
+    weights_before := c.weights.clone()
+    mut expected := c.initial.clone()
+    mut reference := c.initial.clone()
+    mut blocked := c.initial.clone()
+    for _ in 0..3 {
+        layer_scalar4(c.inputs, c.weights, expected, c.rows)
+        layer_reference(c.inputs, c.weights, reference, c.rows)
+        layer_blocked(c.inputs, c.weights, blocked, c.rows)
+        same_bits(reference, expected)
+        same_bits(blocked, expected)
+        assert_eq(F32, expected[c.rows], c.initial[c.rows])
+        assert_eq(F32, expected[c.rows + 1], c.initial[c.rows + 1])
+    }
+    same_bits(c.inputs, inputs_before)
+    same_bits(c.weights, weights_before)
+}
+
+priv check_shapes := proc() {
+    for n : USize in array(USize, 1, 3, 4, 5, 15, 16, 17, 33) {
+        for rows : USize in array(USize, 0, 1, 3, 4, 5, 7, 8, 9) {
+            verify_case(make_case(n, rows))
+        }
+    }
+}
+
+priv check_cancellation := proc() {
+    mut c := make_case(13, 9)
+    values := array(F32, 1.0e20, 1.0, -1.0e20, -1.0, 1.0e-30, -1.0e-30, 0.0, -0.0)
+    for i in 0..13 { c.inputs.set(i, own 1.0)! }
+    for row in 0..c.rows {
+        for i in 0..13 {
+            index := i.to_usize()
+            c.weights.set(row * c.inputs.len() + index, own values[(row + index) % values.len()].clone())!
+        }
+    }
+    verify_case(c)
+}
+
+test_preann_shapes := test() { check_shapes() }
+test_preann_cancellation := test() { check_cancellation() }
+
+priv reset_results := func(c: LayerCase, mut results: Array(F32)) {
+    memcpy(results.data, c.initial.data, c.initial.len().to_uptr() * F32.size().to_uptr())
+}
+
+priv run_batch := proc(kernel: Kernel, c: LayerCase, mut results: Array(F32), repetitions: USize) returns I64 {
+    // The runtime-selected callback keeps a real kernel call inside the
+    // repetition loop. Inspect that loop when comparing optimized builds.
+    start := clock_ms()
+    for _ in 0..repetitions { kernel(c.inputs, c.weights, results, c.rows) }
+    return clock_ms() - start
+}
+
+priv median5 := func(values: Array(F64)) returns F64 {
+    mut sorted := values.clone()
+    for i in 1..5 {
+        mut j := i
+        while j > 0 && sorted[j] < sorted[j - 1] {
+            value := sorted[j].clone()
+            sorted.set(j, own sorted[j - 1].clone())!
+            sorted.set(j - 1, own value)!
+            j--
+        }
+    }
+    return sorted[2].clone()
+}
+
+priv measure := proc(n: USize, rows: USize) {
+    c := make_case(n, rows)
+    verify_case(c)
+    variants := array(Variant, Variant(name = "reference", run = layer_reference),
+        Variant(name = "blocked4", run = layer_blocked))
+    mut results := c.initial.clone()
+    mut repetitions := array(USize, 1, 1)
+    mut reference_times := Array(F64).new(5)
+    mut blocked_times := Array(F64).new(5)
+    // Warm up and calibrate before collecting samples. The existing monotonic
+    // millisecond clock is adequate for >=100 ms batches, not individual calls.
+    for k in 0..2 {
+        variants[k].run(c.inputs, c.weights, results, rows)
+        mut elapsed : I64 = 0
+        while elapsed < 100 {
+            reset_results(c, results)
+            elapsed = run_batch(variants[k].run, c, results, repetitions[k])
+            if elapsed < 100 { repetitions.set(k, own (repetitions[k] * 2))! }
+        }
+    }
+    for sample in 0..5 {
+        for order in 0..2 {
+            mut k := order
+            if sample % 2 != 0 { k = 1 - order }
+            reset_results(c, results)
+            elapsed := run_batch(variants[k].run, c, results, repetitions[k])
+            us := elapsed.to_f64() * 1000.0 / repetitions[k].to_u64().to_f64()
+            if k == 0 { reference_times.set(sample, own us.clone())! }
+            else { blocked_times.set(sample, own us.clone())! }
+            assert_eq(F32, results[rows], c.initial[rows])
+            assert_eq(F32, results[rows + 1], c.initial[rows + 1])
+            // Counts are calibrated separately, so result0 need not match
+            // between timing rows. Correctness checks use equal call counts.
+            println("sample,", n, ",", rows, ",", variants[k].name, ",", sample, ",",
+                repetitions[k], ",", elapsed, ",", us, ",", results[0])
+        }
+    }
+    ref_median := median5(reference_times)
+    blocked_median := median5(blocked_times)
+    println("median,", n, ",", rows, ",", ref_median, ",", blocked_median, ",", ref_median / blocked_median)
+}
+
+main := proc() {
+    check_shapes()
+    check_cancellation()
+    println("correctness: passed")
+    println("sample,inputs,outputs,kernel,index,repetitions,elapsed_ms,us_per_layer,result0")
+    println("median,inputs,outputs,reference_us,blocked_us,speedup")
+    measure(17, 33)
+    measure(512, 512)
+    measure(4097, 513)
+    measure(8193, 4096)
+}

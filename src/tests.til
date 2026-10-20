@@ -2611,6 +2611,11 @@ main := proc(args: ..Str) {
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,
         format(til_bin, " test", asan_flag, " -c gen/c/til_test_cmd.c",
             " test/test_in_namespace.til"))
+    // The CLI example's test() entries exercise the kernels without running
+    // its timing main. Keep its generated output separate from normal runs.
+    add_count(tests, "preann_example", "test", "2/2 tests passed", 2,
+        format(til_bin, " test", asan_flag, " --opt=2 -c gen/c/preann_example.c",
+            " -o bin/c/preann_example examples/preann.til"))
 
     // === parser / typer diagnostics ===
     //

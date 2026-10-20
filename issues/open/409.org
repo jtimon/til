@@ -40,6 +40,15 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Runnable blocked float-layer example (base fcbe4e79a)
+
+[[../../examples/preann.til][examples/preann.til]] implements the exact four-lane reference and a
+four-output-row blocked kernel using the existing portable SIMD operations.
+It includes scalar-oracle correctness tests and calibrated execution timings;
+~til test~ runs its tests without benchmarking. The registered ASAN suite
+passed 457/457. Measurements and commands are in
+[[../../doc/optimizations.org::*Runnable four-output-row blocking example (2026-10-20, #409)][Optimization measurements]].
+
 *** Complete preann float accumulation comparison (base d892ea984)
 
 The all-output-row comparison, setup/conversion measurements, exact-result

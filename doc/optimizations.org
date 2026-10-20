@@ -5,6 +5,64 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Runnable four-output-row blocking example (2026-10-20, #409)
+
+Base: ~fcbe4e79a~. [[../examples/preann.til][examples/preann.til]] now contains runnable reference
+and blocked layer kernels. The blocked kernel loads one four-float input
+vector for four output rows and maintains four independent F4 accumulators.
+Each output retains the reference's input order, four-lane reduction tree,
+separate multiply/add and final addition to the existing result. Inputs,
+weights and results are disjoint; rows retain four-float zero padding.
+
+#+begin_src sh
+bin/til run --opt=2 examples/preann.til
+bin/til run --cpu=x86-64-v3 --opt=2 --cc=clang examples/preann.til
+bin/til test --opt=2 examples/preann.til
+#+end_src
+
+The last command runs only the example's two test entries, not its timing
+main. Tests compare both kernels bit-for-bit with an independent scalar
+four-accumulator oracle over 64 input/output boundary shapes and a
+cancellation fixture. They check three successive accumulations, trailing
+output rows, zero outputs, guard values and unchanged input/weight buffers.
+The full ASAN suite registers this command and passed 457/457 rows. Focused
+GCC/Clang O2 checks passed at baseline/v3/v4, as did USize32, GCC O0 and
+Clang v4 O3 checks. A complete Clang v3 timing-main run also passed ASAN.
+
+Timing uses the existing monotonic millisecond clock, separately calibrated
+>=100 ms batches, five alternating-order samples and medians. Allocation,
+input generation, result reset and correctness checks are outside the timed
+section. Repetition counts differ, so printed result0 values can differ
+between timing rows. Runtime-selected callbacks keep a kernel call inside
+the repetition loop; inspected GCC assembly retains that indirect call.
+Its blocked inner loop has one input vector load, four weight loads and
+four independent multiply/add chains, without inner-loop stack spills.
+
+Ryzen 9950X3D, CPU 0, GCC 13.3 / Clang 18.1.3, O2, uninstrumented timings.
+These compare the TWO TIL kernels in this example, not timings from the
+previous preann executable. Observed reference-median / blocked-median:
+
+| Compiler/profile | 17x33 | 512x512 | 4097x513 | 8193x4096 |
+|------------------+-------+---------+----------+-----------|
+| GCC baseline     | 1.59x |   1.74x |    2.18x |     1.84x |
+| GCC v3           | 1.63x |   1.92x |    2.55x |     1.91x |
+| GCC v4           | 1.60x |   2.14x |    2.34x |     2.14x |
+| Clang baseline   | 1.82x |   1.95x |    2.16x |     1.84x |
+| Clang v3         | 1.67x |   1.83x |    2.24x |     1.83x |
+| Clang v4         | 1.28x |   1.26x |    1.75x |     1.86x |
+
+For GCC baseline, the five 512x512 samples in us/layer were reference
+~26.123, 18.6768, 17.2119, 17.4561, 17.334~ and blocked
+~10.7422, 9.82666, 10.0098, 9.8877, 10.0098~. At 8193x4096 they were
+reference ~4812.5, 4781.25, 4750, 4781.25, 4687.5~ and blocked
+~2546.88, 2593.75, 2625, 2546.88, 2640.62~. The first medium-size reference
+sample was noticeably slower; medians do not remove all host/layout effects.
+These within-process results demonstrate this implementation on the measured
+host, not universal gains. Full samples/build logs/disassembly are under
+~tmp/preann-example-final-{gcc,clang}-{baseline,x86-64-v3,x86-64-v4}*~.
+The maintained reproduction source is the example itself; preann is not a
+runtime or build dependency.
+
 ** Preann complete float accumulation stage (2026-10-20, #409)
 
 Base: ~d892ea984~. Follow-up to the dot-kernel experiments in
