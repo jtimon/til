@@ -1103,14 +1103,13 @@ make_vec_len := macro(T: Type) returns FuncDef {
 }
 vec_len_i64 := make_vec_len(I64)
 VecLenSig := func(Vec(I64)) returns USize
-vec_len_plain := func(v: Vec(I64)) returns USize { return v.len() }
 
 test_macro_func_gen_parametric_param := test() {
     mut v := Vec(I64).new()
     v.push(own 1)
     v.push(own 2)
     assert_eq(USize, vec_len_i64(v), 2)
-    f : VecLenSig = vec_len_plain
+    f : VecLenSig = vec_len_i64
     assert_eq(USize, f(v), 2)
 }
 
