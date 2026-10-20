@@ -135,12 +135,11 @@ priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut workli
 
 collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
     locals := Set(Str).new()
-    collect_refs_walk(e, refs, symbols, locals, false)
+    collect_refs_walk(e, refs, symbols, locals, true)
 }
 
-// Reachability can ignore a local spelling that has no global declaration,
-// but shared ownership must distinguish it from an unrelated user global.
-// Use the same reference/lowering rules with lexical binding tracking.
+// Reachability and shared ownership both distinguish local values from an
+// unrelated same-named global. Use the same lexical reference/lowering walk.
 priv shared_core_collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
     locals := Set(Str).new()
     collect_refs_walk(e, refs, symbols, locals, true)

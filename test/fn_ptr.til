@@ -107,6 +107,21 @@ namespace:
     mutate := func(mut n: I64) { n = n + 9 }
     make := func(text: Str) returns ReturnBox346 { return ReturnBox346(value = text.clone()) }
     consume := func(own box: ReturnBox346) returns USize { return box.value.len() }
+    checked := func(n: I64) returns I64 throws DynNegative, DynZero {
+        if n < 0 { throw DynNegative(message = "negative callback") }
+        if n == 0 { throw DynZero() }
+        return n * 2
+    }
+    borrow := func(box: ReturnBox346) returns ref Str { return box.value }
+    checked_borrow := func(box: ReturnBox346) returns ref Str throws DynNegative {
+        if box.value.len() == 0 { throw DynNegative(message = "empty callback") }
+        return box.value
+    }
+    join := func(prefix: Str, parts: ..Str) returns Str {
+        mut result := prefix.clone()
+        for part : Str in parts { result = format(result, part) }
+        return result
+    }
 }
 DynLength := func(Str) returns USize
 
@@ -166,6 +181,58 @@ test_typed_dyn_fn_owned_aggregate := test() {
 }
 
 ErasedCloneAlias := CloneFn
+DynNegative := struct { message := "" }
+DynZero := struct {}
+DynChecked := func(I64) returns I64 throws DynNegative, DynZero
+DynBorrow := func(ReturnBox346) returns ref Str
+DynCheckedBorrow := func(ReturnBox346) returns ref Str throws DynNegative
+DynJoin := func(prefix: Str, parts: ..Str) returns Str
+DynUnaryAlias := UnaryOp
+DynUnaryAliasAgain := DynUnaryAlias
+
+test_typed_dyn_fn_throws := test() {
+    checked: DynChecked = dyn_fn("DynCallbacks", "checked")
+    assert_eq(I64, checked(4)!, 8)
+    mut message := ""
+    checked(-1)?
+    catch (err: DynNegative) { message = err.message.clone() }
+    catch (err: DynZero) { message = "wrong error" }
+    assert_eq(Str, message, "negative callback")
+    mut zero := false
+    checked(0)?
+    catch (err: DynNegative) { message = err.message.clone() }
+    catch (err: DynZero) { zero = err.eq(DynZero()) }
+    assert(zero)
+}
+
+test_typed_dyn_fn_borrowed_return := test() {
+    borrow: DynBorrow = dyn_fn("DynCallbacks", "borrow")
+    mut box := ReturnBox346(value = Str.with_capacity(32))
+    ref mut text: Str = borrow(box)
+    text.push_str("borrowed callback")
+    assert_eq(Str, box.value, "borrowed callback")
+    checked: DynCheckedBorrow = dyn_fn("DynCallbacks", "checked_borrow")
+    ref checked_text: Str = checked(box)!
+    assert_eq(Str, checked_text, box.value)
+    empty := ReturnBox346(value = "")
+    mut message := ""
+    checked(empty)?
+    catch (err: DynNegative) { message = err.message.clone() }
+    assert_eq(Str, message, "empty callback")
+}
+
+test_typed_dyn_fn_variadic := test() {
+    join: DynJoin = dyn_fn("DynCallbacks", "join")
+    assert_eq(Str, join("prefix"), "prefix")
+    assert_eq(Str, join("prefix", "-", "one", "-two"), "prefix-one-two")
+}
+
+test_typed_dyn_fn_alias := test() {
+    callback: DynUnaryAliasAgain = dyn_fn("DynCallbacks", "double")
+    assert_eq(I64, callback(7), 14)
+    assert_eq(I64, apply_unary(callback, 3), 6)
+}
+
 ErasedOwnedDelete := func(own Dynamic, Bool)
 
 test_dyn_fn_erased_and_typed := test() {

@@ -1986,6 +1986,11 @@ priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: 
                     ref sig : Expr = fdef_o.unwrap()
                     ref sig_fdef : FunctionDef = funcdef_of(sig)
                     check_funcptr_effect(scope, e, sig_fdef, in_func, ctx)
+                    // The shared argument checker has validated the expanded
+                    // variadic/kwargs runs. They are packed only in desugaring,
+                    // so the one-argument-per-parameter checks below do not
+                    // apply to these signatures yet.
+                    if sig_fdef.sig.variadic_index.gte(0).or(sig_fdef.sig.kwargs_index.gte(0)) { return }
                     mut nargs : USize = e.children.len()
                     nargs--
                     if nargs != sig_fdef.sig.params.len() {
@@ -6681,6 +6686,11 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             ref ret_expr : Expr = stmt.children[0]
             if ret_expr.node_type.is(NodeType.FCall).and(fcall_returns_own(ret_expr, scope, ctx.symbols)) {
                 stmt.type_error("ref-typed function cannot return an owned value (.clone() / constructor / function returning own) -- return a borrow source directly, or change the signature to return owned", ctx)
+            } else {
+                // A ref-returning call can still borrow a local owner. Follow
+                // its summary instead of treating the ref qualifier itself
+                // as proof that the returned storage outlives this frame.
+                check_carried_borrow_of_local_return(scope, stmt, ctx)
             }
         }
     } else {
@@ -13282,9 +13292,24 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
 // Monotone by construction, so the fixed point below terminates; the
 // return value is its progress signal.
 priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str, ctx: Context) returns Bool {
-    if fd_expr.children.len() == 0 { return false }
     switch fd_expr.node_type {
     case .FuncDef(fd):
+        if fd_expr.children.len() == 0 {
+            // A FuncSig has no body to inspect. Its ref result can alias
+            // any borrowed input, so indirect callers must preserve those
+            // inputs' lifetime and mutability roots, as for an interface.
+            if fd.sig.func_type.is_plain().and(fd.sig.return_own_type.is(OwnType.Ref)) {
+                mut roots := fd.ref_return_params
+                for pi in 0..fd.sig.params.len() {
+                    ref p : Declaration = fd.sig.params[pi]
+                    if p.own_type.is(OwnType.Ref).and(p.name.starts_with("_err_").not()) {
+                        roots = roots.bor(summary_param_bit(pi))
+                    }
+                }
+                if roots != fd.ref_return_params { fd.ref_return_params = roots; return true }
+            }
+            return false
+        }
         if fd.auto_generated.not().and(name_is_interface(self_type, scope, ctx.symbols))
             .and(fd.sig.func_type.is_ext().or(fd.sig.func_type.is_plain()
                 .and(fd.sig.params.len().gt(0)).and(decl_type_name(fd.sig.params[0], ctx.symbols) == self_type))) {

@@ -38,3 +38,20 @@ bad_effect_local := func() {
     mut text := "live"
     action(text)
 }
+
+// Ref-returning signatures preserve the source borrow even without a body.
+BorrowBox := struct { text := "" }
+BorrowText := func(BorrowBox) returns ref Str
+bad_borrow_mut := func(borrow: BorrowText, box: BorrowBox) {
+    ref mut text: Str = borrow(box)
+    text.push_str("wrong")
+}
+bad_borrow_escape := func(borrow: BorrowText) returns ref Str {
+    box := BorrowBox(text = "local")
+    return borrow(box)
+}
+
+// Variadic callback validation still checks fixed arguments and each element.
+SumParts := func(base: I64, parts: ..I64) returns I64
+bad_variadic_type := func(sum: SumParts) returns I64 { return sum(1, "wrong") }
+bad_variadic_required := func(sum: SumParts) returns I64 { return sum() }

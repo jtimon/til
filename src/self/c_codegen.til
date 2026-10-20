@@ -8429,38 +8429,52 @@ priv build_register_func_symbols_lp := func(mut lp: LoadedProgram) {
     }
 }
 
-priv collect_closure_value_names := proc(e: Expr, mut names: Set(Sym), mut ctx: Context) {
+priv collect_closure_value_names := proc(e: Expr, mut names: Set(Sym), mut locals: Set(Sym), mut ctx: Context) {
     switch e.node_type {
-    case .Decl:
+    case .Body:
+        mut body_locals := locals.clone()
+        for c : Expr in e.children { collect_closure_value_names(c, names, body_locals, ctx) }
+        return
+    case .Decl(dd):
         // A resolved top-level alias is compile-time-only; its Ident RHS
         // does not take the target function's address at runtime.
         if e.til_type().is(Type.None).and(e.children.len() > 0) {
             if e.children[0].node_type.is(NodeType.Ident) { return }
         }
+        for c : Expr in e.children { collect_closure_value_names(c, names, locals, ctx) }
+        // A value binding shadows a same-named global function. Its uses
+        // read that value, not the global's generated closure wrapper.
+        if is_func_decl(e).not() { locals.add(own ctx.symbols.intern(dd.name)) }
+        return
     case .Ident(ident):
-        if e.til_type().is_funcptr() {
+        if e.til_type().is_funcptr().and(locals.has(ident.ident_sym()).not()) {
             if find_callee_fdef(ident.ident_name(ctx.symbols.names), ctx).is_some() { names.add(own ident.ident_sym()) }
         }
     case .FuncDef(fd):
         for p : Declaration in fd.sig.params {
-            if p.default_value.is_some() { collect_closure_value_names(p.default_expr(), names, ctx) }
+            if p.default_value.is_some() { collect_closure_value_names(p.default_expr(), names, locals, ctx) }
         }
+        mut function_locals := locals.clone()
+        for p : Declaration in fd.sig.params { function_locals.add(own ctx.symbols.intern(p.name)) }
+        for p : Declaration in fd.captures { function_locals.add(own ctx.symbols.intern(p.name)) }
+        for c : Expr in e.children { collect_closure_value_names(c, names, function_locals, ctx) }
+        return
     case .StructDef(sdd):
         // #326: field defaults are substituted into the construction sites
         // that omit them (see emit_capturing_closures_in_expr), so the
         // copy there is what needs the closure value. Counting the
         // ORIGINAL emitted a value nothing referenced.
         for cvnd : Declaration in sdd.ns_decls {
-            if cvnd.default_value.is_some() { collect_closure_value_names(cvnd.default_expr(), names, ctx) }
+            if cvnd.default_value.is_some() { collect_closure_value_names(cvnd.default_expr(), names, locals, ctx) }
         }
     case .EnumDef(edd):
         for cved : Declaration in edd.ns_decls {
-            if cved.default_value.is_some() { collect_closure_value_names(cved.default_expr(), names, ctx) }
+            if cved.default_value.is_some() { collect_closure_value_names(cved.default_expr(), names, locals, ctx) }
         }
     case:
     }
     for c : Expr in e.children {
-        collect_closure_value_names(c, names, ctx)
+        collect_closure_value_names(c, names, locals, ctx)
     }
 }
 
@@ -8468,7 +8482,8 @@ priv build_register_closure_values_lp := proc(mut lp: LoadedProgram) {
     lp.ctx.closure_value_names = Set(Sym).new()
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
-        collect_closure_value_names(iu.ast, lp.ctx.closure_value_names, lp.ctx)
+        mut locals := Set(Sym).new()
+        collect_closure_value_names(iu.ast, lp.ctx.closure_value_names, locals, lp.ctx)
     }
 }
 
