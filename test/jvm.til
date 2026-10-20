@@ -30,7 +30,9 @@ CORPUS := array(Str,
     "test/fn_ptr.til",
     "test/loops.til",
     "test/closures.til",
-    "test/structs.til")
+    "test/structs.til",
+    "test/vecs.til",
+    "test/enums.til")
 
 // Not yet: each fails loudly with the first diagnostic shown -- refused
 // at translation, or rejected by javac -- never a silently wrong program
@@ -38,12 +40,10 @@ CORPUS := array(Str,
 //   test/script_str_runtime.til     parameter type for 'parts' (FuncDef Func)
 //   test/script_struct_runtime.til  javac: a `returns ref` struct field
 //                                   returned where a raw Ptr is expected
-//   test/strings.til                swap of a runtime Str
-//   test/arrays.til                 javac: a primitive's namespace
-//                                   constant (`I64.MAX`)
-//   test/vecs.til                   runtime function 'dyn_size_of'
-//   test/enums.til                  non-addressable scalar ref (the error
-//                                   kind of a `?` call in a switch guard)
+//   test/strings.til                javac: a module-level constant read
+//                                   inside a function (no JVM globals yet)
+//   test/arrays.til                 javac: a `ref` scalar field holding a
+//                                   raw address (AccessorIndexView.data)
 
 // What one run left: stdout, stderr and exit status.
 priv Outcome := struct {
