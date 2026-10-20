@@ -1975,14 +1975,17 @@ priv hoist_walk_consolidated := proc(
     col := child.col
     tmp_name := format("_bang_ret_", synth_suffix(ctx, ctx.bang_counter.to_str()))
     ctx.bang_counter = ctx.bang_counter + 1
-    mut cloned := child.clone()
-    clear_bang_flag(cloned)
+    mut tmp_decl := Expr.new(own NodeType.Decl(Declaration(name = tmp_name.clone(), infer_call_ownership = true)), line, col)
+    // Transfer the subtree we are about to replace instead of cloning it
+    // and deleting the original. Do not use child after moving its slot.
+    // Install the Ident below, at the original symbol-interning point.
+    tmp_decl.children.push_take(parent.children, child_idx)
+    ref mut hoisted_call : Expr = tmp_decl.children[0]
+    clear_bang_flag(hoisted_call)
     // The hoisted call won't pass through the main loop's per-stmt
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
-    inject_err_args_on_one_fcall_consolidated(ctx, cloned, found_key)
-    mut tmp_decl := Expr.new(own NodeType.Decl(Declaration(name = tmp_name.clone(), infer_call_ownership = true)), line, col)
-    tmp_decl.add_child(own cloned)
+    inject_err_args_on_one_fcall_consolidated(ctx, hoisted_call, found_key)
     pre_stmts.push(own tmp_decl)
     ref tts : Vec(Str) = ctx.throws_global[found_key]
     for tn : Str in tts {
@@ -2041,7 +2044,9 @@ priv hoist_throwing_store_call := proc(
     mut tmp_decl_data := Declaration(name = tmp_name.clone())
     tmp_decl_data.own_type = OwnType.Ref
     mut tmp_decl := Expr.new(own NodeType.Decl(tmp_decl_data), line, col)
-    tmp_decl.add_child(own child.clone())
+    // The parent slot is replaced immediately below; move its owned subtree
+    // into the declaration rather than making a deep copy first.
+    tmp_decl.children.push_take(parent.children, child_idx)
     pre_stmts.push(own tmp_decl)
     parent.children[child_idx] = Expr.new(own ident_node(ctx.symbols.intern(tmp_name)), line, col)
     return true

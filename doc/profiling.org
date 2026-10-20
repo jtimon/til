@@ -144,6 +144,30 @@ These single-run full-suite results do not establish a wall-time improvement.
 The focused result and the eliminated duplicate lookups should not be reported
 as a demonstrated full-suite speedup.
 
+*** Move hoisted subtrees instead of cloning them
+
+After rebasing onto ~be9cae300~, both ~hoist_walk_consolidated~ and
+~hoist_throwing_store_call~ transfer the original call subtree into the
+temporary declaration with ~Vec.push_take~. Previously they deep-cloned it
+and then discarded the original when installing the replacement Ident.
+The source slot is not read after transfer, and the Ident is still installed
+at the original point so symbol-interning order is preserved.
+
+The same eight C/header comparisons and two diagnostic comparisons above
+remained byte-identical. A fresh clean full ASAN baseline and the optimized
+run both passed 456/456 rows:
+
+| Metric                            | Before (s) | After (s) |
+|-----------------------------------+------------+-----------|
+| Isolated interp_session translate |     25.114 |    25.069 |
+| Suite interp_session row          |     113.45 |     81.73 |
+| Suite wall time                   |     114.05 |     82.20 |
+
+The isolated difference is negligible. The much larger single-run suite
+difference is insufficient evidence to attribute a 28% speedup to this edit.
+The established change is removal of the two clone-then-discard operations,
+with unchanged generated output and passing ownership/ASAN coverage.
+
 ** Sample profile: where the time goes
 
 ~bin/til build~ compiles the generated C with ~-g~ and no ~-O~, so there is
