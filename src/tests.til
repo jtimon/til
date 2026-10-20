@@ -3039,10 +3039,10 @@ main := proc(args: ..Str) {
         "no public symbol", 1,
         format(til_bin, " build", asan_flag, " test/import_ns_unknown_symbol.til"))
     add_count(tests, "priv_unused_error_interp", "typer",
-        "unused priv", 7,
+        "unused priv", 8,
         format(til_bin, " interpret test/priv_unused_error.til"))
     add_count(tests, "priv_unused_error_build", "typer",
-        "unused priv", 7,
+        "unused priv", 8,
         format(til_bin, " build", asan_flag, " test/priv_unused_error.til"))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
         "non-exhaustive switch on enum", 4,

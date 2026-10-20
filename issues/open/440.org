@@ -1,6 +1,44 @@
 # priority: low
 # category: bugs
-** OPEN #440 Used private function-generator macros are reported as unused
+** WIP #440 Used private function-generator macros are reported as unused
+
+*** Progress: verified preparation
+
+Root cause: generator expansion runs before local private declarations are
+registered or file-name-mangled. It replaces the call with a generated
+definition, so the typer never sees the factory reference. Marking a binding
+during lookup would be too early (and private factories have no binding yet).
+
+Successful expansion now marks the original local Declaration.used; function
+registration carries that flag into TypeBinding.used. Imported factories
+already have bindings and are marked there. Retained generic type-dependency
+expansion records the same use. Lookups and unexpanded template bodies do
+not count; an actual expansion is a compile-time use. The existing local
+macro map distinguishes local declarations from imports without a new cache.
+
+Regression coverage: ~test_private_macro_generators~ in test/priv.til covers
+a value-parameter factory, a type-parameter factory, a retained private
+FuncSig generator, an ordinary private scalar macro, and imported generated
+functions/public generators via test/imports/priv_helper.til. The existing
+test/priv_unused_error.til checks an unexpanded private generator is still
+rejected. test/dynamic_widths.til's size-based factory is now private,
+exercising this shape across its existing target/width matrix.
+
+~make clean && make test~ passed 456/456. The fresh ~bin/til~ also built
+make.til with the core factory temporarily marked private. The core qualifier
+must land after this preparation: HEAD's old til_boot still fails while
+building bin/make with the same change:
+
+#+begin_example
+./src/core/numbers.til:877:6: error: unused priv func 'make_usize_to_uptr'; remove 'priv' to expose it
+#+end_example
+
+This is the staged source-level migration in doc/self.org: pass 1 rejects
+the consumer before it can build the new compiler. Core remains public in
+this preparation. After it is merged, mark the factory private, verify, and
+move this issue to fixed in that final commit.
+
+*** Original report
 
 A ~priv~ macro returning ~FuncDef~ can be called to generate a function and
 still be rejected as an unused private function. This was encountered while

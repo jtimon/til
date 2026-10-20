@@ -1,5 +1,15 @@
 mode lib
 
+// #440: the factory is private; only its generated function is exported.
+priv hidden_answer_factory440 := macro(N: I64) returns FuncDef {
+    return func() returns I64 { return N }
+}
+hidden_answer440 := hidden_answer_factory440(46)
+
+public_answer_factory440 := macro(N: I64) returns FuncDef {
+    return func() returns I64 { return N }
+}
+
 // Public: visible to importers.
 add_one := func(x: I64) returns I64 {
     return x.add(internal_inc(1))

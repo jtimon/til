@@ -16,6 +16,34 @@ test_priv_same_file := test() {
     assert_eq(I64, local_double(21), 42)
 }
 
+// #440: expansion consumes the factory call before normal usage checking.
+priv local_answer440 := macro(N: I64) returns FuncDef {
+    return func() returns I64 { return N }
+}
+answer440 := local_answer440(42)
+
+priv local_identity440 := macro(T: Type) returns FuncDef {
+    return func(x: T) returns T { return x }
+}
+
+priv local_scalar440 := macro(N: I64) returns I64 { return N + 1 }
+
+priv LocalSig440 := macro(T: Type) returns FuncDef {
+    return func(T) returns T
+}
+apply_private440 := func(T: Type, f: LocalSig440(T), value: T) returns T {
+    return f(value)
+}
+
+test_private_macro_generators := test() {
+    assert_eq(I64, answer440(), 42)
+    assert_eq(I64, local_identity440(I64)(43), 43)
+    assert_eq(I64, local_scalar440(43), 44)
+    assert_eq(I64, apply_private440(I64, local_identity440(I64), 45), 45)
+    assert_eq(I64, hidden_answer440(), 46)
+    assert_eq(I64, public_answer_factory440(47)(), 47)
+}
+
 // #179 step 2: same-file priv struct works (construct + method call).
 priv LocalSecret := struct {
     value := 0

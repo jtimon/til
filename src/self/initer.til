@@ -1661,6 +1661,9 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
     fb.is_func_decl = true
     fb.is_priv = sdecl.is_priv
     fb.orig_name = sdecl.orig_name.clone()
+    // Compile-time expansion may have consumed this declaration's only call
+    // before the private name was registered. Keep that use on the binding.
+    fb.used = fb.used.or(sdecl.used)
     if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)).or(ft.is(FuncType.CoreFunc)).or(ft.is(FuncType.CoreProc)) {
         fb.is_builtin = true
     }
@@ -3905,7 +3908,7 @@ priv init_generic_source_mentions_type_name := func(program: Expr, name: Str, sy
 // pass. A same-name scope entry belongs to a surviving expansion in another
 // unit and must remain; assert pointer identity before removal rather than
 // erasing registry state by name.
-priv init_dedup_direct_type_gen_decls := proc(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) {
+priv init_dedup_direct_type_gen_decls := proc(mut program: Expr, macros: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context) {
     mut last_direct := Map(Str, I64).new()
     for i in 0..program.children.len() {
         ref stmt0 : Expr = program.children[i]
@@ -3958,6 +3961,7 @@ priv init_dedup_direct_type_gen_decls := proc(mut program: Expr, macros: Map(Str
                             if init_expand_type_gen_decl(dep, dep_macro_o.unwrap(), macros, scope, ctx, false, dep_nested).not() {
                                 panic(ctx.path, ": failed to retain generic type dependency '", genname, "'")
                             }
+                            init_mark_expanded_macro_used(program, dep_callee_name, macros, scope, ctx.symbols)
                             ctx.generic_type_deps.set(dep_key, own dep)
                         }
                     }
@@ -5167,6 +5171,28 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     return true
 }
 
+// #440: a successful expansion is an actual compile-time use, even though
+// the generated AST no longer calls its factory. Local private declarations
+// are not registered (or file-name-mangled) yet; imported factories already
+// have bindings. Do not mark lookups or unexpanded template bodies as uses.
+priv init_mark_expanded_macro_used := func(mut program: Expr, name: Str, macros: Map(Str, Expr), mut scope: TypeScope, symbols: SymbolPool) {
+    if macros.has(name) {
+        for mut stmt : Expr in program.children {
+            switch stmt.node_type {
+            case .Decl(dd):
+                if dd.name == name {
+                    dd.used = true
+                    return
+                }
+            case:
+            }
+        }
+        panic("missing local declaration for expanded macro '", name, "'")
+    }
+    ref mut binding : TypeBinding = scope.get_binding_name(name, symbols).unwrap()
+    binding.used = true
+}
+
 priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope, mut ctx: Context) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
@@ -5259,6 +5285,7 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
                 if ctx.errors > 0 { return }
                 continue
             }
+            init_mark_expanded_macro_used(program, callee_name, macros, scope, ctx.symbols)
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }

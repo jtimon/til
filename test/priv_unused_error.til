@@ -6,6 +6,12 @@ mode script
 
 priv unused_helper := func(x: I64) returns I64 { return x }
 
+// #440: knowing that a declaration is a generator is not a use. No call
+// expands this one, so it must retain the unused-private diagnostic.
+priv unused_generator440 := macro(N: I64) returns FuncDef {
+    return func() returns I64 { return N }
+}
+
 priv UnusedStruct := struct {
     value := 0
 }
