@@ -7130,8 +7130,8 @@ priv infer_decl_type_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
     if is_struct_or_enum(stmt).not() { return false }
     is_enum := stmt.children[0].node_type.is(NodeType.EnumDef)
     ref sdecl : Declaration = decl_of(stmt)
-    if sdecl.til_type.is(Type.Unknown).not() {
-        ref declared_name : Str = decl_type_name_ref(sdecl, ctx.symbols)
+    if sdecl.annotated.is(Type.Unknown).not() {
+        ref declared_name : Str = decl_annotation_name_ref(sdecl, ctx.symbols)
         declared := type_from_name(declared_name, scope, ctx)
         mut expected := Type.StructSym(ctx.symbols.intern("StructDef"))
         if is_enum { expected = Type.StructSym(ctx.symbols.intern("EnumDef")) }
@@ -7185,12 +7185,7 @@ priv infer_decl_type_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
     return true
 }
 
-// `annotated_type_name` is infer_decl_stmt's snapshot of the ANNOTATION, taken
-// BEFORE the RHS is inferred, and "" when there was none. By the time
-// this runs, an unannotated `f := func(...) returns Str` has had its Decl
-// til_type filled in with the RETURN type, so asking here what the
-// annotation said answers "Str" for a declaration that never had one.
-priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated_type_name: Str, mut ctx: Context) returns Bool {
+priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: Context) returns Bool {
     if is_func_decl(stmt).not() { return false }
     switch stmt.node_type {
     case .Decl(sdecl):
@@ -7200,8 +7195,8 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated
             if rhs_fd0.captures.len() > 0 { return false }
         case:
         }
-        if sdecl.til_type.is(Type.Unknown).not() {
-            declared_t := type_from_name(decl_type_name_ref(sdecl, ctx.symbols), scope, ctx)
+        if sdecl.annotated.is(Type.Unknown).not() {
+            declared_t := type_from_name(decl_annotation_name_ref(sdecl, ctx.symbols), scope, ctx)
             declared_is_funcptr = declared_t.is_funcptr()
             if declared_t.is_funcptr() {
                 switch stmt.children[0].node_type {
@@ -7215,9 +7210,9 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated
         // ~FuncDef~; til's internal name is ~FunctionDef~ (the data
         // struct in src/core/ast.til). Accept both as the annotation
         // for a FuncDef value.
-        declared_name := decl_type_name(sdecl, ctx.symbols)
+        declared_name := decl_annotation_name(sdecl, ctx.symbols)
         annot_is_funcdef := declared_name.eq("FunctionDef").or(declared_name.eq("FuncDef"))
-        if sdecl.til_type.is(Type.Unknown).or(annot_is_funcdef).or(declared_is_funcptr).not() {
+        if sdecl.annotated.is(Type.Unknown).or(annot_is_funcdef).or(declared_is_funcptr).not() {
             stmt.type_error(format("'", sdecl.name, "' declared as ", declared_name, " but value is FunctionDef"), ctx)
         }
         ref fdef : FunctionDef = funcdef_of(stmt.children[0])
@@ -7249,8 +7244,8 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, annotated
         // is a funcptr whose SIGNATURE the annotation names, and that
         // name is the only thing a generic can deduce T from when the
         // function is passed as a value argument.
-        if annotated_type_name.len() > 0 {
-            fb.declared_type_name = annotated_type_name.clone()
+        if sdecl.annotated.is(Type.Unknown).not() {
+            fb.declared_type_name = decl_annotation_name(sdecl, ctx.symbols)
         }
         if fdef.sig.func_type.is_bodyless() {
             fb.is_builtin = true
@@ -7348,8 +7343,8 @@ priv infer_ext_global_decl := proc(mut scope: TypeScope, mut decl: Declaration,
     }
 
     if valid {
-        if decl.til_type.is(Type.Unknown).not() {
-            declared := type_from_name(decl_type_name_ref(decl, ctx.symbols), scope, ctx)
+        if decl.annotated.is(Type.Unknown).not() {
+            declared := type_from_name(decl_annotation_name_ref(decl, ctx.symbols), scope, ctx)
             if type_eq(declared, external_type, ctx.symbols).not() {
                 at.type_error(format("ext_global type ", type_name,
                     " does not match declaration type ", decl_type_name_ref(decl, ctx.symbols)), ctx)
@@ -7867,10 +7862,13 @@ priv dynvec_elem_from_new := func(rhs: Expr, symbols: SymbolPool) returns Str {
     return ""
 }
 
-priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type_body: I32, dv_elem: Str, had_declared_type: Bool, mut ctx: Context) {
+priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type_body: I32, dv_elem: Str, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     switch stmt.node_type {
     case .Decl(sdecl):
+        // The annotation is what the raw-alloc and provenance rules below
+        // ask about; the settled til_type no longer answers that question.
+        had_declared_type := sdecl.annotated.is(Type.Unknown).not()
         ref mut rhs : Expr = stmt.children[0]
         raw_alloc_rhs := fcall_is_raw_alloc(rhs, ctx.symbols)
         if in_type_body.eq(0).and(raw_alloc_rhs).and(had_declared_type) {
@@ -7963,7 +7961,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         // when the RHS is a plain Ident that has some, so
         // `n : USize = ...; m := n` still contributes USize.
         if had_declared_type {
-            decl_b.declared_type_name = decl_type_name(sdecl, ctx.symbols)
+            decl_b.declared_type_name = decl_annotation_name(sdecl, ctx.symbols)
         } else {
             switch rhs.node_type {
             case .Ident(prov_id):
@@ -8189,13 +8187,6 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
             stmt.line, stmt.col, ctx)
         return
     }
-    had_declared_type := decl_of(stmt).til_type.is(Type.Unknown).not()
-    // The annotation's SPELLING, snapshot with the flag above and for the
-    // same reason: inferring the RHS overwrites an unannotated Decl's
-    // til_type (a `f := func(...) returns Str` ends up reading "Str"),
-    // so neither the flag nor the name survives to be asked for later.
-    mut declared_name_at_entry := ""
-    if had_declared_type { declared_name_at_entry = decl_type_name(decl_of(stmt), ctx.symbols) }
     mut dv_elem := ""
     ref first_child : Expr = stmt.children[0]
     if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
@@ -8226,7 +8217,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         saved_bang_counter := ctx.bang_counter
         switch stmt.node_type {
         case .Decl(sdecl):
-            if sdecl.til_type.is(Type.Unknown).not() {
+            if sdecl.annotated.is(Type.Unknown).not() {
                 declared := declared_type_for_decl(scope, stmt, ctx)
                 if is_numeric_type(declared) {
                     pre_coerce_decl_numeric_literals(stmt.children[0], declared, ctx.symbols)
@@ -8290,17 +8281,18 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         ref saved_expected_for : Dynamic = ctx.generic_expected_for
         switch stmt.node_type {
         case .Decl(qdd):
-            if qdd.til_type.is(Type.Unknown).not() {
-                qualify_dotted_expr(stmt.children[0], type_from_name(decl_type_name_ref(qdd, ctx.symbols), scope, ctx), ctx.symbols)
-                generic_expected_arm(ctx, scope, decl_type_name_ref(qdd, ctx.symbols), stmt.children[0])
+            if qdd.annotated.is(Type.Unknown).not() {
+                qualify_dotted_expr(stmt.children[0], type_from_name(decl_annotation_name_ref(qdd, ctx.symbols), scope, ctx), ctx.symbols)
+                generic_expected_arm(ctx, scope, decl_annotation_name_ref(qdd, ctx.symbols), stmt.children[0])
             }
         case:
         }
         if tracked_func { infer_func_def_expr(scope, stmt.children[0], top_func_name, ctx) }
-        else if name_is_interface(declared_name_at_entry, scope, ctx.symbols) {
+        else if name_is_interface(decl_annotation_name_ref(decl_of(stmt), ctx.symbols), scope, ctx.symbols) {
             infer_expr(scope, stmt.children[0], in_func, ctx)
-            decl_owns_payload := iface_decl_owns_payload(scope, stmt, declared_name_at_entry, ctx)
-            box_inferred_interface_value(scope, stmt.children[0], declared_name_at_entry, decl_owns_payload, in_func, ctx)
+            iface_name := decl_annotation_name(decl_of(stmt), ctx.symbols)
+            decl_owns_payload := iface_decl_owns_payload(scope, stmt, iface_name, ctx)
+            box_inferred_interface_value(scope, stmt.children[0], iface_name, decl_owns_payload, in_func, ctx)
         } else { infer_expr(scope, stmt.children[0], in_func, ctx) }
         ctx.generic_expected_type = saved_expected_type.clone()
         ctx.generic_expected_for = saved_expected_for
@@ -8314,7 +8306,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         }
     }
     if infer_decl_type_def(scope, stmt, ctx) { return }
-    if infer_decl_func_def(scope, stmt, declared_name_at_entry, ctx) { return }
+    if infer_decl_func_def(scope, stmt, ctx) { return }
     if infer_decl_type_alias_passthrough(scope, stmt, ctx.symbols) { return }
     ref mut sdecl : Declaration = decl_of(stmt)
     if sdecl.infer_call_ownership {
@@ -8322,14 +8314,14 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
         if fcall_returns_ref(stmt.children[0], scope, ctx.symbols) != 0 { sdecl.own_type = OwnType.Ref }
         sdecl.infer_call_ownership = false
     }
-    if sdecl.til_type.is(Type.Unknown).not() {
+    if sdecl.annotated.is(Type.Unknown).not() {
         infer_decl_typed_value(scope, stmt, ctx)
     } else {
         infer_decl_untyped_value(stmt, ctx)
     }
     check_ref_decl_owned_init(stmt, scope, ctx)
     check_ref_local_null_init(stmt, ctx)
-    finalize_decl_binding(scope, stmt, in_type_body, dv_elem, had_declared_type, ctx)
+    finalize_decl_binding(scope, stmt, in_type_body, dv_elem, ctx)
 }
 
 is_simple_lvalue_expr := func(e: Expr) returns Bool {
@@ -13943,7 +13935,7 @@ priv lower_one_match := proc(mut scope: TypeScope, match_node: Expr, in_func: I3
     mname := format("_m_", type_prefix(result_t, ctx.symbols), "_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
     ctx.hoist_counter++
 
-    mut decl := Expr.new(own NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, til_type = result_t.clone())), line, col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, til_type = result_t.clone(), annotated = result_t.clone())), line, col)
     decl.add_child(own make_default_value_expr(tname, line, col, ctx.symbols))
 
     // Clone the match and tag it with the result temp; the shared switch
@@ -14653,7 +14645,7 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
     if any_guard {
         matched_name = format("_sw_matched_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
         ctx.hoist_counter++
-        mut matched_decl := Expr.new(own NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
+        mut matched_decl := Expr.new(own NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, til_type = Type.Primitive(Primitive.Bool), annotated = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
         matched_decl.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
         block.add_child(own matched_decl)
     }

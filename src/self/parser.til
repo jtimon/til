@@ -365,12 +365,14 @@ decl_typed := func(mut symbols: SymbolPool, type_name: Str, name: Str = "", doc:
         own_type: OwnType = OwnType.Shallow) returns Declaration {
     return Declaration(name = name.clone(), doc = doc.clone(),
         til_type = decl_type_from_name(type_name, symbols),
+        annotated = decl_type_from_name(type_name, symbols),
         is_mut = is_mut, redundant_mut = redundant_mut,
         is_priv = is_priv, used = used, own_type = own_type)
 }
 
 priv set_decl_type := func(mut d: Declaration, name: Str, mut symbols: SymbolPool) {
     d.til_type = decl_type_from_name(name, symbols)
+    d.annotated = d.til_type.clone()
 }
 
 // --- Parsing functions ---
@@ -893,6 +895,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
             if syn_name.len() > 0 {
                 param_decl.til_type = Type.FuncPtrSigSym(p.symbols.intern(syn_name))
+                param_decl.annotated = param_decl.til_type.clone()
             }
         }
 
@@ -2995,8 +2998,12 @@ priv DTN_EMPTY : Str = ""
 // translate); this one hands back a ref into the Type's payload, the pool's
 // names vector, or the table above. The Declaration must outlive the ref
 // and keep its til_type unchanged while the ref is held.
-decl_type_name_ref := func(dd: Declaration, symbols: SymbolPool) returns ref Str {
-    switch dd.til_type {
+// The source/ABI spelling of a Type: the settled slot and the annotation
+// slot of a Declaration are read through the same switch. Not
+// context.til's type_name_ref, which answers NAMED types only; this one
+// also spells primitives and the metatypes, as the ABI needs.
+type_spelling_ref := func(t: Type, symbols: SymbolPool) returns ref Str {
+    switch t {
     case .Struct(s):     return s
     case .Enum(s):       return s
     case .Custom(s):     return s
@@ -3027,6 +3034,10 @@ decl_type_name_ref := func(dd: Declaration, symbols: SymbolPool) returns ref Str
     }
 }
 
+decl_type_name_ref := func(dd: Declaration, symbols: SymbolPool) returns ref Str {
+    return type_spelling_ref(dd.til_type, symbols)
+}
+
 decl_type_name := func(dd: Declaration, symbols: SymbolPool) returns Str {
     switch dd.til_type {
     case .StructSym(s_sym):     return Str.clone(symbols.resolve(s_sym))
@@ -3035,6 +3046,15 @@ decl_type_name := func(dd: Declaration, symbols: SymbolPool) returns Str {
     case .FuncPtrSigSym(f_sym): return Str.clone(symbols.resolve(f_sym))
     case: return dd.type_name()
     }
+}
+
+// The ANNOTATION's spelling (Declaration.annotated), "" when there was none.
+decl_annotation_name_ref := func(dd: Declaration, symbols: SymbolPool) returns ref Str {
+    return type_spelling_ref(dd.annotated, symbols)
+}
+
+decl_annotation_name := func(dd: Declaration, symbols: SymbolPool) returns Str {
+    return Str.clone(type_spelling_ref(dd.annotated, symbols))
 }
 
 expr_type_name_ref := func(e: Expr, symbols: SymbolPool) returns Option(ref Str) {

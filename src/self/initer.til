@@ -161,7 +161,7 @@ priv generate_struct_cmp_method := func(mut struct_def: Expr, sname: Str, line: 
         mut cmp_call := make_method_call_fcall(own a_field, "cmp", line, col, symbols)
         mut b_field := make_struct_field_access("b", cmp_fname, line, col, symbols)
         cmp_call.add_child(own b_field)
-        mut tmp_decl := Expr.new(own NodeType.Decl(Declaration(name = tmp_name.clone(), til_type = Type.Primitive(Primitive.I64))), line, col)
+        mut tmp_decl := Expr.new(own NodeType.Decl(Declaration(name = tmp_name.clone(), til_type = Type.Primitive(Primitive.I64), annotated = Type.Primitive(Primitive.I64))), line, col)
         tmp_decl.add_child(own cmp_call)
         func_body.add_child(own tmp_decl)
 

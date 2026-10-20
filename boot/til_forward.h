@@ -565,6 +565,7 @@ typedef struct Declaration {
     GcStorage gc_storage;
     Str external_symbol;
     Bool infer_call_ownership;
+    Type annotated;
 } Declaration;
 
 
