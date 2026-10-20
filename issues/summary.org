@@ -64,7 +64,6 @@
 *** [[./open/386.org][#386]] Lua backend alongside the C backend
 *** [[./open/387.org][#387]] Arduino target alongside hosted targets
 *** [[./open/411.org][#411]] Explicit GPU/device execution model for til
-*** [[./open/420.org][#420]] Missing cross builds of the vendored libraries
 *** [[./open/437.org][#437]] wasm32 follow-ups to #424: an html console page, and mode lib as a JS module
 * Experiments
 ** Low
