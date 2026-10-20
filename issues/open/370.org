@@ -135,6 +135,21 @@ Open questions:
 - ~make clean && make test~ passed 524/524, including the installed
   compiler-free host under ASAN with the new invocation cases.
 
+*** Callback argument/result preparation
+
+Exposing Tuple results through a throwing callback method found two lowering
+bugs: positional overrides of trailing defaults collided with hidden error
+slots, and a synthetic error-path Tuple() was rejected because Tuple has new().
+Error slots are now bound by name while source positional arguments skip those
+ABI positions. Synthetic error-result constructors explicitly initialize fields
+without invoking application new() methods. test_throwing_tuple_defaults and
+test_throwing_constructor_result in test/errors.til cover both cases.
+
+The bootstrap compiler rejected the new callback method before a self rebuild
+("struct 'Tuple' has a new() constructor"), so this is a preparation/use pair
+as documented in doc/self.org. The preparation's make clean && make test passed
+456/456; the callback API extension follows on its regenerated bootstrap.
+
 *** Findings from Tiled's startup implementation
 
 The separate [[https://github.com/jtimon/tiled][tiled repository]] now exercises this exact use case with

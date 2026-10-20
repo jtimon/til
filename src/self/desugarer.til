@@ -77,6 +77,14 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     }
     mut pos_idx : USize = 0
     mut seen_named := false
+    mut named_error_slots := false
+    for arg in e.children {
+        switch arg.node_type {
+        case .NamedArg(aname):
+            if aname == "_err_kind" { named_error_slots = true }
+        case:
+        }
+    }
     for i in 1..e.children.len() {
         ref arg : Expr = e.children[i]
         switch arg.node_type {
@@ -112,6 +120,14 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
         case:
             if seen_named {
                 arg.type_error("positional argument after named argument", ctx)
+            }
+            // Injected error slots are named, not source arguments. Skip
+            // their ABI positions when a caller overrides trailing defaults.
+            if named_error_slots {
+                while pos_idx < nparam {
+                    if fdef_data.sig.params[pos_idx].name.starts_with("_err_").not() { break }
+                    pos_idx++
+                }
             }
             if vi >= 0 {
                 if pos_idx >= fixed_count {
@@ -1782,7 +1798,7 @@ priv validate_one_fcall_consolidated := proc(
 }
 
 // Per-FCall: if does_throw is set and the callee is in the global
-// throws map, append _err_kind plus any payload-slot arg refs, then clear the
+// throws map, append named error-slot args, then clear the
 // flag so the call reaches downstream stages as a plain FCall. The caller
 // supplies the key it just resolved; an empty key means no known throws.
 priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: Expr, key: Str) {
@@ -1797,12 +1813,19 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: 
     ref tts : Vec(Str) = ctx.throws_global[key]
     mut kind_id := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), e.line, e.col)
     kind_id.set_til_type(Type.Primitive(Primitive.I64))
-    e.add_child(own kind_id)
+    // Error params precede trailing defaults in the lowered signature.
+    // Explicit positional overrides already occupy their source positions;
+    // bind hidden slots by name rather than shifting those user arguments.
+    mut kind_arg := Expr.new(own NodeType.NamedArg("_err_kind"), e.line, e.col)
+    kind_arg.add_child(own kind_id)
+    e.add_child(own kind_arg)
     for tn : Str in tts {
         if throw_type_has_payload(ctx, tn).not() { continue }
         mut slot_id := Expr.new(own ident_node(ctx.symbols.intern(err_slot_name(tn))), e.line, e.col)
         slot_id.set_til_type(decl_type_from_name(tn, ctx.symbols))
-        e.add_child(own slot_id)
+        mut slot_arg := Expr.new(own NodeType.NamedArg(err_slot_name(tn)), e.line, e.col)
+        slot_arg.add_child(own slot_id)
+        e.add_child(own slot_arg)
     }
     switch e.node_type {
     case .FCall(fcd_clr): fcd_clr.does_throw = false
@@ -3092,7 +3115,12 @@ process_throw_catch_in_func_body := proc(
         if return_own_type.is(OwnType.Ref) {
             ret.add_child(own Expr.new(own NodeType.Literal(Literal.Null), line, col))
         } else {
-            ret.add_child(own make_default_value_expr(return_type, line, col, ctx.symbols))
+            mut value := make_default_value_expr(return_type, line, col, ctx.symbols)
+            switch value.node_type {
+            case .FCall(fcd): fcd.is_throw_default = true
+            case:
+            }
+            ret.add_child(own value)
         }
         new_ch.push(own ret)
     }

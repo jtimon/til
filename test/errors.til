@@ -97,6 +97,65 @@ test_catch_with_fields := test() {
 
 // DivideByZero is defined in src/core/i64.til alongside I64.safe_div.
 
+defaulted_tuple := func(fail: Bool, count: I64 = 7, text: Str = "default") returns Tuple throws ErrorWithMessage {
+    if fail { throw ErrorWithMessage(msg = text.clone()) }
+    mut result := Tuple.new()
+    result.push(I64, own count.clone())
+    result.push(Str, own text.clone())
+    return result
+}
+
+// Hidden throw arguments must not occupy the source positions of explicitly
+// supplied defaults. Exercise omitted, positional, named and mixed forms.
+test_throwing_tuple_defaults := test() {
+    omitted := defaulted_tuple(false)!
+    positional := defaulted_tuple(false, 11, "positional")!
+    named := defaulted_tuple(false, text = "named")!
+    mixed := defaulted_tuple(false, 13, text = "mixed")!
+    ref omitted_count : I64 = omitted.get(0)
+    ref positional_count : I64 = positional.get(0)
+    ref named_count : I64 = named.get(0)
+    ref mixed_count : I64 = mixed.get(0)
+    ref positional_text : Str = positional.get(1)
+    ref named_text : Str = named.get(1)
+    ref mixed_text : Str = mixed.get(1)
+    assert(omitted_count == 7 && positional_count == 11 && named_count == 7 && mixed_count == 13)
+    assert(positional_text == "positional" && named_text == "named" && mixed_text == "mixed")
+    mut caught := false
+    unexpected := defaulted_tuple(true, 17, "failure")?
+    assert(unexpected.len() == 2)
+    catch (err: ErrorWithMessage) {
+        assert(err.msg == "failure")
+        caught = true
+    }
+    assert(caught)
+}
+
+ConstructedResult := struct {
+    value := 0
+namespace:
+    new := func(required: I64) returns ConstructedResult {
+        return ConstructedResult(value = required)
+    }
+}
+
+throwing_constructed := func(fail: Bool) returns ConstructedResult throws AAAError {
+    if fail { throw AAAError() }
+    return ConstructedResult.new(42)
+}
+
+// The unused error-path return initializes fields without calling a public
+// constructor, which can require arguments or have effects of its own.
+test_throwing_constructor_result := test() {
+    value := throwing_constructed(false)!
+    assert(value.value == 42)
+    mut caught := false
+    unexpected := throwing_constructed(true)?
+    assert(unexpected.value == 42)
+    catch (err: AAAError) { caught = true }
+    assert(caught)
+}
+
 unsafe_div := func(a: I64, b: I64) returns I64 {
     result := a.safe_div(b)?
     catch (err: DivideByZero) {

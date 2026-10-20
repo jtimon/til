@@ -1045,8 +1045,10 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
     case:
     }
 
-    // #99: if struct has new(), disallow literal outside its namespace
-    if scope.active_type_name().eq(name).not() {
+    // #99: if struct has new(), disallow literal outside its namespace.
+    // A lowered throw's unused result initializes fields directly: calling
+    // new() could require arguments, perform effects or itself throw.
+    if scope.active_type_name().eq(name).not().and(fcall_of(e).is_throw_default.not()) {
         if def_ns_has(sdef, "new") {
             e.type_error(format("struct '", name, "' has a new() constructor; use ", name, ".new(...) instead"), ctx)
             e.set_til_type(Type.StructSym(ctx.symbols.intern(name)))

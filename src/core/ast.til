@@ -581,6 +581,10 @@ FCallData := struct {
     // has no `!` is a diagnostic about the compiler's own rewrite.
     // Appended at the END for the same layout reason as splat_args.
     is_subscript := false
+    // The throw lowerer constructs an unused default result on the error
+    // path. This is field initialization, not an application call to new().
+    // Appended so the bootstrap compiler's existing fields keep their layout.
+    is_throw_default := false
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

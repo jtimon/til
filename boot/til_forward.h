@@ -579,6 +579,7 @@ typedef struct FCallData {
     U64 ref_args;
     U64 splat_args;
     Bool is_subscript;
+    Bool is_throw_default;
 } FCallData;
 
 
