@@ -40,6 +40,14 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Complete preann float accumulation comparison (base d892ea984)
+
+The all-output-row comparison, setup/conversion measurements, exact-result
+checks, sample ranges and reproduction fixture are recorded in
+[[../../doc/optimizations.org::*Preann complete float accumulation stage (2026-10-20, #409)][Optimization measurements]].
+It uses preann read-only and distinguishes the real public C++ method from
+a raw SSE2 loop, exact four-lane til, and wider/fused numerical variants.
+
 *** Preann four-lane follow-up (base be9cae300)
 
 Followed up [[./410.org][#410]] without changing FMA semantics or reduction order.

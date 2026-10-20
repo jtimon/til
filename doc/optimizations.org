@@ -5,6 +5,527 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Preann complete float accumulation stage (2026-10-20, #409)
+
+Base: ~d892ea984~. Follow-up to the dot-kernel experiments in
+[[../issues/open/409.org][#409]] and [[../issues/open/410.org][#410]]. This measures all output rows
+of one ~Connection::calculateAndAddTo~, including ~results[j] += sum~.
+Activation/thresholds, network traversal, learning and GPU transfers are
+outside this boundary. This is a benchmark report, with no compiler changes.
+
+Preann was read-only. Its reference is the local ~b2c2010~ checkout: the
+original ~XmmConnection<BT_FLOAT,float>~, ~XmmBuffer~, ~Interface~, public
+~Connection::calculateAndAddTo~ and unchanged ~sse2_64~ assembly were compiled
+into objects under the til worktree's ~tmp/~. The used C++ units were
+~common/util.cpp~, ~neural/interface.cpp~, ~neural/buffer.cpp~ and
+~neural/connection.cpp~. No preann build/output directory was used or edited.
+
+*** Workload, semantics and controls
+
+- ~preann_cpp~ calls the real public method, including dimension checks,
+  virtual dispatch and buffer accessors. ~sse2_loop~ is a simpler outer loop
+  around the same assembly and output addition, exposing wrapper overhead.
+- ~til4~ uses portable til, validates the complete ranges once, and copies
+  each vector with memcpy. It keeps four running sums and exactly
+  ~(lane0+lane2)+(lane1+lane3)~. It matched preann bit-for-bit for every
+  tested output after THREE successive accumulations from nonzero initial
+  results. Inputs were deterministic finite pseudo-random F32 values.
+- Every execution variant reads the SAME prepared preann input/weight
+  buffers and writes the same result buffer, through borrowed Array views
+  for til. This controls allocation/alignment differences. Input and each
+  weight row are zero-padded to a multiple of four floats, as in preann;
+  output allocation is also rounded to four, but only logical outputs are
+  written. Padding canaries and converted bytes were checked.
+- ~til8~/~til16~ change the accumulation tree; ~fma4~/~fma8~/~fma16~ use
+  explicit fusion. Wider kernels process full vectors then a scalar tail
+  over the same four-padded rows, rather than changing storage layout.
+  Each matches a C++ oracle using its OWN order/fusion. Their differences
+  from SSE2 are reported, not called numerical equivalence. Maximum absolute
+  differences after three accumulations at 8193x4096 were about 0.00045 for
+  wider variants and 0.00012 for four-lane FMA on this data; this is not an
+  application accuracy assessment.
+- Dimensions (inputs x outputs): 1x1, 3x7, 4x8, 5x9, 17x33, 128x128,
+  512x512, 513x512, 4096x512, 4097x513, 8192x1024, 8193x4096. The largest
+  padded weight matrix is just over 128 MiB; zero-sized inputs are outside
+  the original preann assembly's positive-block contract.
+
+Host: Ryzen 9 9950X3D, Linux x86-64, CPU-0 affinity. The til compiler was
+~bin/til_boot~, built from this base's checked-in bootstrap. Generated code
+used ~--usize=64 --opt=2~ and baseline/v3/v4 with GCC 13.3 or Clang 18.1.3.
+The preann C++ objects and driver were always G++ 13.3 O2, x86-64 baseline,
+generic tuning, separate translation units and no LTO. FP contraction was
+off and excess precision standard. Timed binaries had no ASAN/profiling.
+
+Each process warms execution twice, calibrates each variant to >=50 ms,
+then records five batches. Forward/reverse variant order alternates between
+batches; initial logical results are restored outside each timed batch.
+The samples are within-process batches, not independent machine trials.
+No other build was launched by this session during measurement; ordinary
+host activity/frequency/cache variation remains. All raw samples, repetition
+counts, and correctness results are in ~tmp/layer409-*-repeat.log~. The
+earlier ~tmp/layer409-{compiler}-{cpu}.log~ exploratory run used rotated
+order; tables below use only the final alternating-order run.
+
+All six timed configurations passed every correctness check. Separate GCC
+v3 and Clang v4 check-only builds, including instrumented preann C++ and til
+C, passed ASAN without leaks. The assembly itself is not ASAN-instrumented.
+
+*** Execution results
+
+Microseconds per complete matrix-vector accumulation, median of five batches:
+
+| Compiler/profile | Dimensions | Preann API | Raw SSE2 loop | Exact til4 | til16 | FMA16 |
+|------------------+------------+------------+---------------+------------+-------+-------|
+| GCC baseline     | 512x512    |     19.634 |        19.560 |     18.023 | 23.524 | 331.997 |
+| GCC v3           | 512x512    |     21.171 |        20.961 |     23.252 | 13.461 | 13.737 |
+| GCC v4           | 512x512    |     20.189 |        20.246 |     16.631 | 8.899 | 8.859 |
+| Clang baseline   | 512x512    |     18.595 |        18.576 |     16.913 | 12.895 | 254.599 |
+| Clang v3         | 512x512    |     21.504 |        22.789 |     17.115 | 9.445 | 9.498 |
+| Clang v4         | 512x512    |     20.895 |        22.631 |     16.251 | 9.562 | 9.770 |
+| GCC baseline     | 8193x4096  |   5247.160 |      5271.903 |   5081.362 | 5354.731 | 43520.328 |
+| GCC v3           | 8193x4096  |   5377.715 |      5369.958 |   5314.759 | 3821.390 | 3987.507 |
+| GCC v4           | 8193x4096  |   5131.724 |      5149.049 |   5027.825 | 2695.800 | 2788.375 |
+| Clang baseline   | 8193x4096  |   5117.568 |      5099.200 |   4890.132 | 3800.027 | 32962.013 |
+| Clang v3         | 8193x4096  |   5230.924 |      5259.395 |   4763.665 | 2972.871 | 2774.439 |
+| Clang v4         | 8193x4096  |   5256.456 |      5264.805 |   4779.528 | 2600.679 | 2672.449 |
+
+Clang v4 exact til4 has a median PAIRED speed ratio of 1.281 at 512x512
+(range 1.269-1.292), saving 4.570 us per call (4.439-4.722). At 8193x4096
+the paired ratio is 1.097 (1.029-1.113), saving 461.633 us (146.246-540.124).
+These are ratios/differences within each sample round, not ratios of medians.
+Wider Clang v4 til16 is about 2.18x and 2.02x respectively, but has different
+numerical grouping. FMA is not automatically faster; baseline libm calls are
+particularly expensive.
+
+The exact variant is not universally faster. GCC v3 til4 at 512x512 has a
+paired ratio of 0.913 (0.898-0.924), i.e. is slower. Its earlier exploratory
+run measured 16.700 us versus 19.263 for preann; changing driver layout/order
+and host conditions moved that result substantially. Do not infer a stable
+cross-profile ranking or claim that every workload beats SSE2. Likewise,
+the raw SSE2 control can be slower than the public wrapper at some sizes;
+do not attribute small differences solely to wrapper instruction counts.
+
+Clang v4 size sweep (us, final-run medians):
+
+| Inputs x outputs | Preann API | Raw SSE2 | Exact til4 | til16 | FMA16 |
+|------------------+------------+----------+------------+-------+-------|
+| 1x1              | 0.01765 | 0.00412 | 0.00581 | 0.00648 | 0.00612 |
+| 3x7              | 0.02681 | 0.00946 | 0.01248 | 0.01692 | 0.01394 |
+| 4x8              | 0.02820 | 0.01009 | 0.01315 | 0.01843 | 0.01505 |
+| 5x9              | 0.03161 | 0.01348 | 0.01493 | 0.02457 | 0.02256 |
+| 17x33            | 0.11073 | 0.07098 | 0.05242 | 0.07818 | 0.08205 |
+| 128x128          | 1.34896 | 1.30845 | 0.93286 | 0.58060 | 0.58890 |
+| 513x512          | 21.359 | 22.930 | 16.607 | 9.797 | 10.053 |
+| 4096x512         | 198.112 | 198.706 | 189.968 | 76.854 | 95.223 |
+| 4097x513         | 198.459 | 198.699 | 190.099 | 67.946 | 94.452 |
+| 8192x1024        | 807.028 | 807.560 | 780.046 | 425.480 | 425.143 |
+
+Tiny cases expose call/check overhead: the raw loop wins at 1x1 through 5x9.
+The public preann path includes getters, virtual dispatch, and a by-value
+std::string message for its dimension check. At larger sizes those costs
+are amortized. Wider vectors can lose on short/tail-heavy rows.
+
+*** Setup and conversion
+
+Canonical dense input/weight/initial-result Interfaces are prepared OUTSIDE
+timing. ~setup~ includes allocation, zero initialization, conversion to
+padded storage, and teardown. ~copy~ reuses allocated storage and measures
+conversion alone. These are not added to every execution call: a caller can
+amortize prepared storage over many evaluations.
+
+Clang v4 run, us per operation, median [min,max]:
+
+| Dimensions | Preann setup | til setup | Preann copy | til copy |
+|------------+--------------+-----------+-------------+----------|
+| 512x512 | 376.904 [376.465,378.017] | 22.426 [22.362,22.614] | 370.390 [370.234,370.473] | 15.272 [15.241,15.285] |
+| 8193x4096 | 70970.897 [70516.795,74235.880] | 24201.572 [23228.035,25244.919] | 47805.097 [47640.001,47810.237] | 5173.567 [4727.667,5270.128] |
+
+The large setup difference is primarily an algorithm/API difference:
+preann's weight conversion calls ~Interface::getElement~ for every value;
+til copies contiguous rows with memcpy. Preann's allocation bookkeeping,
+initial zeroing, checks and destruction are included. This is not evidence
+that SIMD arithmetic itself accelerated setup, or that inference normally
+pays for weight conversion on every call.
+
+*** Primary raw samples
+
+Clang v4 samples 0..4 in execution order; all values below are us per call.
+Each execution row uses 4096 repetitions at 512x512 (8192 for til16/FMA16),
+and 16 at 8193x4096 (32 for til16/FMA16).
+
+| Dimensions | Variant | Samples |
+|------------+---------+---------|
+| 512x512 | preann_cpp | 20.820776, 21.162755, 20.712399, 20.956236, 20.894924 |
+| 512x512 | sse2_loop | 22.638428, 22.515891, 22.272767, 22.630564, 22.818114 |
+| 512x512 | til4 | 16.251088, 16.522342, 16.240109, 16.517479, 16.172777 |
+| 512x512 | til16 | 9.561865, 9.543180, 9.602361, 9.535533, 9.572495 |
+| 512x512 | fma16 | 9.840863, 9.766240, 9.743635, 9.769796, 10.309610 |
+| 8193x4096 | preann_cpp | 5300.038500, 5229.971938, 5213.442500, 5265.962750, 5256.456438 |
+| 8193x4096 | sse2_loop | 5300.111062, 5306.308562, 5233.828875, 5264.805250, 5261.339000 |
+| 8193x4096 | til4 | 4759.914312, 4780.800688, 4751.809875, 4779.528188, 5110.210812 |
+| 8193x4096 | til16 | 2567.125469, 2601.264031, 2566.193875, 2600.678750, 2603.701250 |
+| 8193x4096 | fma16 | 2672.449375, 2681.561562, 2668.388719, 2667.056844, 2744.018406 |
+
+Setup samples use 256 repetitions for preann setup/copy and 4096 for til
+setup/copy at 512x512. At 8193x4096 the respective counts are 1/2 and 4/16.
+
+| Dimensions | Variant | Samples (us) |
+|------------+---------+--------------|
+| 512x512 | preann_setup | 378.017375, 376.903934, 376.464520, 377.159172, 376.686547 |
+| 512x512 | til_setup | 22.614265, 22.393144, 22.442626, 22.362186, 22.426415 |
+| 512x512 | preann_copy | 370.472887, 370.389922, 370.234332, 370.425898, 370.350859 |
+| 512x512 | til_copy | 15.272486, 15.270461, 15.284522, 15.241436, 15.275056 |
+| 8193x4096 | preann_setup | 74235.880, 71451.029, 70666.725, 70970.897, 70516.795 |
+| 8193x4096 | til_setup | 24201.572, 25244.919, 23406.068750, 24940.875250, 23228.035250 |
+| 8193x4096 | preann_copy | 47805.451500, 47810.237, 47656.316, 47805.096500, 47640.001 |
+| 8193x4096 | til_copy | 5225.280688, 4858.413500, 5270.127750, 4727.667312, 5173.567375 |
+
+*** Reproduction fixture
+
+Save the following three blocks under the til worktree's ~tmp/~, using the
+filenames shown. Reuse the scratch compiler adapter from #409, which defines
+~SIMD409_SOURCE~ and retains til's selected C flags. All outputs in the
+recipe are in til's tmp; preann is only a source/include input.
+Use the recorded til base and build its bootstrap with ~make bin/til_boot~.
+
+#+begin_src sh
+preann=/home/jt/sync/data_common/code/jt/preann
+for part in float bit sign; do
+  nasm -f elf64 "$preann/src/sse2_64/sse2_$part.asm" -o "tmp/layer409-$part.o"
+done
+g++ -O2 -g -march=x86-64 -mtune=generic -ffp-contract=off -fexcess-precision=standard \
+  -I"$preann/src" -c tmp/layer409_harness.cpp -o tmp/layer409-harness.o
+for unit in common/util neural/interface neural/buffer neural/connection; do
+  g++ -O2 -g -march=x86-64 -mtune=generic -ffp-contract=off -fexcess-precision=standard \
+    -I"$preann/src" -c "$preann/src/$unit.cpp" -o "tmp/layer409-${unit##*/}.o"
+done
+compiler=clang
+cpu=x86-64-v4
+name="tmp/layer409-$compiler-$cpu"
+bin/til_boot build --usize=64 --cpu="$cpu" --opt=2 \
+  --cc="python3 tmp/reduce409_cc.py $compiler $name.c tmp/layer409_bridge.c tmp/layer409-harness.o tmp/layer409-util.o tmp/layer409-interface.o tmp/layer409-buffer.o tmp/layer409-connection.o tmp/layer409-float.o tmp/layer409-bit.o tmp/layer409-sign.o $(g++ -print-file-name=libstdc++.so)" \
+  -c "$name.c" -o "$name" tmp/layer409.til
+taskset -c 0 "$name" > "$name.log" 2>&1
+#+end_src
+
+Repeat for GCC/Clang and all three profiles. ~check~ as the executable's
+argument runs correctness without timings. For ASAN, rebuild the C++ objects
+and generated C/runtime with ~-fsanitize=address -fno-omit-frame-pointer~;
+keep those objects separate from the uninstrumented timing objects. The
+absolute libstdc++ path returned by G++ avoids this host's Clang C driver's
+missing ~-lstdc++~ search path. This adds no dependency to til itself.
+
+~tmp/layer409.til~:
+
+#+begin_src til
+mode cli
+
+Packed := struct {
+    inputs: Array(F32)
+    weights: Array(F32)
+    results: Array(F32)
+}
+
+pack_copy := func(inputs: Array(F32), weights: Array(F32), initial: Array(F32), mut packed: Packed) {
+    n := inputs.len()
+    rows := initial.len()
+    stride := packed.inputs.len()
+    bytes := F32.size().to_uptr()
+    memcpy(packed.inputs.data, inputs.data, n.to_uptr() * bytes)
+    for row in 0..rows {
+        memcpy(ptr_add(packed.weights.data, (row * stride).to_uptr() * bytes),
+            ptr_add(weights.data, (row * n).to_uptr() * bytes), n.to_uptr() * bytes)
+    }
+    memcpy(packed.results.data, initial.data, rows.to_uptr() * bytes)
+}
+
+prepare := func(inputs: Array(F32), weights: Array(F32), initial: Array(F32)) returns Packed {
+    n := inputs.len()
+    rows := initial.len()
+    if n == 0 || rows == 0 { panic("positive layer dimensions required") }
+    if weights.len() / n != rows || weights.len() % n != 0 { panic("weight dimensions") }
+    stride := ((n - 1) / 4 + 1) * 4
+    result_cap := ((rows - 1) / 4 + 1) * 4
+    mut packed := Packed(inputs = Array(F32).new(stride), weights = Array(F32).new(stride * rows),
+        results = Array(F32).new(result_cap))
+    pack_copy(inputs, weights, initial, packed)
+    return packed
+}
+
+layer := macro(N: I64, fused: Bool) returns FuncDef {
+return func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), rows: USize) {
+    stride := inputs.len()
+    if stride == 0 || rows > results.len() { panic("layer dimensions") }
+    if rows > weights.len() / stride { panic("weight range") }
+    width := Simd(F32, N).zero().len()
+    bulk := stride - stride % width
+    bytes := width.to_uptr() * F32.size().to_uptr()
+    for row in 0..rows {
+        mut accum := Simd(F32, N).zero()
+        mut i : USize = 0
+        while i < bulk {
+            mut x := Simd(F32, N).zero()
+            mut w := Simd(F32, N).zero()
+            memcpy(x, ptr_add(inputs.data, i.to_uptr() * F32.size().to_uptr()), bytes)
+            memcpy(w, ptr_add(weights.data, (row * stride + i).to_uptr() * F32.size().to_uptr()), bytes)
+            if fused { accum = x.fma(w, accum) }
+            else { accum = accum + x * w }
+            i = i + width
+        }
+        mut sum := accum.reduce_add()
+        while i < stride {
+            ref x : F32 = inputs.unsafe_get(i)
+            ref w : F32 = weights.unsafe_get(row * stride + i)
+            if fused { sum = x.fma(w, sum) }
+            else { sum = sum + x * w }
+            i++
+        }
+        ref previous : F32 = results.unsafe_get(row)
+        results.unsafe_set(row, own (previous + sum))
+    }
+}
+}
+
+main := proc(n: USize, rows: USize) {
+    inputs := Array(F32).new(n)
+    weights := Array(F32).new(n * rows)
+    initial := Array(F32).new(rows)
+    mut packed := prepare(inputs, weights, initial)
+    layer(4, false)(packed.inputs, packed.weights, packed.results, rows)
+    layer(8, false)(packed.inputs, packed.weights, packed.results, rows)
+    layer(16, false)(packed.inputs, packed.weights, packed.results, rows)
+    layer(4, true)(packed.inputs, packed.weights, packed.results, rows)
+    layer(8, true)(packed.inputs, packed.weights, packed.results, rows)
+    layer(16, true)(packed.inputs, packed.weights, packed.results, rows)
+    println(packed.results[0])
+}
+#+end_src
+
+~tmp/layer409_bridge.c~ (C linkage between generated code and the C++ driver):
+
+#+begin_src c
+#define main til_original_main
+#include SIMD409_SOURCE
+#undef main
+
+void til_layer409(int variant, float *x, float *w, float *r,
+                  unsigned long long stride, unsigned long long rows, unsigned long long result_cap) {
+    Array__F32 a = {(U8 *)x, stride}, b = {(U8 *)w, stride * rows}, c = {(U8 *)r, result_cap};
+    typedef void (*layer_fn)(Array__F32 *, Array__F32 *, Array__F32 *, U64);
+    static layer_fn const functions[] = {layer__n1_4_bfalse, layer__n1_8_bfalse, layer__n2_16_bfalse,
+        layer__n1_4_btrue, layer__n1_8_btrue, layer__n2_16_btrue};
+    functions[variant](&a, &b, &c, rows);
+}
+void *til_prepare409(float *x, float *w, float *r, unsigned long long n, unsigned long long rows) {
+    Array__F32 a = {(U8 *)x, n}, b = {(U8 *)w, n * rows}, c = {(U8 *)r, rows};
+    Packed *p = malloc(sizeof(*p));
+    if (!p) { perror("til holder allocation"); exit(1); }
+    *p = prepare(&a, &b, &c);
+    return p;
+}
+void til_copy409(void *p, float *x, float *w, float *r, unsigned long long n, unsigned long long rows) {
+    Array__F32 a = {(U8 *)x, n}, b = {(U8 *)w, n * rows}, c = {(U8 *)r, rows};
+    pack_copy(&a, &b, &c, p);
+}
+void til_drop409(void *p) { Packed_delete(p, true); }
+void til_check409(void *value, float *x, float *w, float *r,
+                  unsigned long long stride, unsigned long long rows, unsigned long long result_cap) {
+    Packed *p = value;
+    if (p->inputs.cap != stride || p->weights.cap != stride * rows || p->results.cap != result_cap ||
+        memcmp(p->inputs.data,x,stride*sizeof(float)) ||
+        memcmp(p->weights.data,w,stride*rows*sizeof(float)) ||
+        memcmp(p->results.data,r,result_cap*sizeof(float))) {
+        fprintf(stderr,"prepared layout mismatch\n"); exit(1);
+    }
+}
+#+end_src
+
+~tmp/layer409_harness.cpp~:
+
+#+begin_src cpp
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
+#include <ctime>
+#include <algorithm>
+#include <vector>
+#include "factory/sse2/xmmConnection.h"
+
+extern "C" {
+void til_layer409(int,float*,float*,float*,unsigned long long,unsigned long long,unsigned long long);
+void *til_prepare409(float*,float*,float*,unsigned long long,unsigned long long);
+void til_copy409(void*,float*,float*,float*,unsigned long long,unsigned long long);
+void til_drop409(void*);
+void til_check409(void*,float*,float*,float*,unsigned long long,unsigned long long,unsigned long long);
+}
+using FloatBuffer = XmmBuffer<BT_FLOAT,float>;
+using FloatConnection = XmmConnection<BT_FLOAT,float>;
+static unsigned padded(unsigned n) { return (n+3)/4*4; }
+static float *data(Buffer &b) { return static_cast<float *>(b.getDataPointer()); }
+static float *data(Interface &b) { return static_cast<float *>(b.getDataPointer()); }
+struct Canonical {
+    unsigned n, rows;
+    Interface x,w,r;
+    Canonical(unsigned inputs,unsigned outputs) : n(inputs),rows(outputs),
+        x(inputs,BT_FLOAT),w(inputs*outputs,BT_FLOAT),r(outputs,BT_FLOAT) {
+        uint32_t state=1234567;
+        for(unsigned i=0;i<n;++i) {
+            state=state*1664525U+1013904223U;
+            data(x)[i]=(static_cast<int>(state%2001)-1000)*0.001f;
+        }
+        for(unsigned i=0;i<n*rows;++i) {
+            state=state*1664525U+1013904223U;
+            data(w)[i]=(static_cast<int>(state%2001)-1000)*0.001f;
+        }
+        for(unsigned i=0;i<rows;++i) data(r)[i]=(static_cast<int>(i%13)-6)*0.007f;
+    }
+};
+struct Prepared {
+    FloatBuffer x;
+    FloatConnection w;
+    FloatBuffer r;
+    explicit Prepared(Canonical &c) : x(c.n),w(&x,c.rows),r(c.rows) { copy(c); }
+    void copy(Canonical &c) { x.copyFromInterface(&c.x); w.copyFromInterface(&c.w); r.copyFromInterface(&c.r); }
+};
+static const char *const names[]={"preann_cpp","sse2_loop","til4","til8","til16","fma4","fma8","fma16"};
+static const unsigned widths[]={4,4,4,8,16,4,8,16};
+enum { KERNELS=8, SAMPLES=5 };
+struct Run { Prepared *p; unsigned stride,rows,result_cap; int variant; };
+static void step(Run &c) {
+    if(c.variant==0) { c.p->w.calculateAndAddTo(&c.p->r); return; }
+    if(c.variant==1) {
+        float *x=data(c.p->x),*w=data(c.p->w),*r=data(c.p->r);
+        for(unsigned j=0;j<c.rows;++j) {
+            float sum;
+            XMMreal(x,c.stride/4,w+j*c.stride,sum);
+            r[j]+=sum;
+        }
+        return;
+    }
+    til_layer409(c.variant-2,data(c.p->x),data(c.p->w),data(c.p->r),c.stride,c.rows,c.result_cap);
+}
+static float reference(const float *x,const float *w,unsigned stride,unsigned width,bool fused) {
+    float accum[16]={0};
+    unsigned bulk=stride-stride%width;
+    for(unsigned i=0;i<bulk;i+=width) for(unsigned k=0;k<width;++k)
+        accum[k]=fused ? std::fma(x[i+k],w[i+k],accum[k]) : accum[k]+x[i+k]*w[i+k];
+    for(unsigned half=width/2;half;half/=2)
+        for(unsigned k=0;k<half;++k) accum[k]+=accum[k+half];
+    float sum=accum[0];
+    for(unsigned i=bulk;i<stride;++i) sum=fused ? std::fma(x[i],w[i],sum) : sum+x[i]*w[i];
+    return sum;
+}
+static void check(Canonical &c,Prepared &p,void *til_packed) {
+    unsigned stride=padded(c.n),cap=padded(c.rows);
+    til_check409(til_packed,data(p.x),data(p.w),data(p.r),stride,c.rows,cap);
+    for(unsigned i=c.n;i<stride;++i) if(data(p.x)[i]!=0) { std::fprintf(stderr,"input padding\n"); std::exit(1); }
+    for(unsigned j=0;j<c.rows;++j) {
+        if(std::memcmp(data(p.w)+j*stride,data(c.w)+j*c.n,c.n*sizeof(float))) { std::fprintf(stderr,"weight conversion\n"); std::exit(1); }
+        for(unsigned i=c.n;i<stride;++i) if(data(p.w)[j*stride+i]!=0) { std::fprintf(stderr,"weight padding\n"); std::exit(1); }
+    }
+    std::vector<float> baseline(c.rows);
+    for(int k=0;k<KERNELS;++k) {
+        std::memcpy(data(p.r),data(c.r),c.rows*sizeof(float));
+        for(unsigned j=c.rows;j<cap;++j) data(p.r)[j]=12345.0f;
+        std::vector<float> expected(data(c.r),data(c.r)+c.rows),sum(c.rows);
+        for(unsigned j=0;j<c.rows;++j) sum[j]=reference(data(p.x),data(p.w)+j*stride,stride,widths[k],k>=5);
+        Run run={&p,stride,c.rows,cap,k};
+        for(int pass=0;pass<3;++pass) {
+            step(run);
+            for(unsigned j=0;j<c.rows;++j) {
+                expected[j]+=sum[j];
+                if(std::memcmp(&expected[j],data(p.r)+j,sizeof(float))) {
+                    std::fprintf(stderr,"mismatch %s n=%u rows=%u row=%u pass=%d: %a != %a\n",
+                        names[k],c.n,c.rows,j,pass,static_cast<double>(data(p.r)[j]),static_cast<double>(expected[j]));
+                    std::exit(1);
+                }
+            }
+            for(unsigned j=c.rows;j<cap;++j) if(data(p.r)[j]!=12345.0f) { std::fprintf(stderr,"output padding\n"); std::exit(1); }
+        }
+        if(k==0) std::copy(expected.begin(),expected.end(),baseline.begin());
+        double difference=0;
+        for(unsigned j=0;j<c.rows;++j) difference=std::max(difference,std::fabs(static_cast<double>(expected[j])-baseline[j]));
+        std::printf("difference,%u,%u,%s,%.9g\n",c.n,c.rows,names[k],difference);
+    }
+    p.copy(c);
+    til_copy409(til_packed,data(c.x),data(c.w),data(c.r),c.n,c.rows);
+    // The conversion routines preserve padding; undo the output canaries.
+    for(unsigned j=c.rows;j<cap;++j) data(p.r)[j]=0;
+    til_check409(til_packed,data(p.x),data(p.w),data(p.r),stride,c.rows,cap);
+}
+static uint64_t now() { timespec t; if(clock_gettime(CLOCK_MONOTONIC_RAW,&t)) { std::perror("clock"); std::exit(1); } return uint64_t(t.tv_sec)*1000000000+t.tv_nsec; }
+static double run_kernel(Run &c,uint64_t repetitions) {
+    void (*volatile call)(Run&)=step;
+    uint64_t t=now();
+    for(uint64_t i=0;i<repetitions;++i) call(c);
+    return double(now()-t)/repetitions;
+}
+static double run_setup(Canonical &c,Prepared &p,void *til_packed,int variant,uint64_t repetitions) {
+    uint64_t t=now();
+    for(uint64_t i=0;i<repetitions;++i) {
+        if(variant==0) { Prepared *q=new Prepared(c); delete q; }
+        if(variant==1) { void *q=til_prepare409(data(c.x),data(c.w),data(c.r),c.n,c.rows); til_drop409(q); }
+        if(variant==2) p.copy(c);
+        if(variant==3) til_copy409(til_packed,data(c.x),data(c.w),data(c.r),c.n,c.rows);
+    }
+    return double(now()-t)/repetitions;
+}
+static void measure(unsigned n,unsigned rows,bool check_only) {
+    Canonical canonical(n,rows);
+    Prepared prepared(canonical);
+    void *til_packed=til_prepare409(data(canonical.x),data(canonical.w),data(canonical.r),n,rows);
+    check(canonical,prepared,til_packed);
+    if(!check_only) {
+        Run runs[KERNELS]; uint64_t repetitions[KERNELS];
+        for(int k=0;k<KERNELS;++k) {
+            runs[k]={&prepared,padded(n),rows,padded(rows),k};
+            std::memcpy(data(prepared.r),data(canonical.r),rows*sizeof(float));
+            run_kernel(runs[k],2);
+            repetitions[k]=1;
+            while(run_kernel(runs[k],repetitions[k])*repetitions[k]<50000000.0) repetitions[k]*=2;
+        }
+        for(int sample=0;sample<SAMPLES;++sample) for(int j=0;j<KERNELS;++j) {
+            int k=sample%2 ? KERNELS-1-j : j;
+            std::memcpy(data(prepared.r),data(canonical.r),rows*sizeof(float));
+            double elapsed=run_kernel(runs[k],repetitions[k]);
+            std::printf("execution,%u,%u,%s,%llu,%d,%.3f\n",n,rows,names[k],
+                static_cast<unsigned long long>(repetitions[k]),sample,elapsed);
+            for(unsigned r=0;r<rows;++r) if(!std::isfinite(data(prepared.r)[r])) { std::fprintf(stderr,"nonfinite timing output\n"); std::exit(1); }
+        }
+        const char *const setup_names[]={"preann_setup","til_setup","preann_copy","til_copy"};
+        uint64_t setup_reps[4];
+        for(int k=0;k<4;++k) {
+            run_setup(canonical,prepared,til_packed,k,1);
+            setup_reps[k]=1;
+            while(run_setup(canonical,prepared,til_packed,k,setup_reps[k])*setup_reps[k]<50000000.0) setup_reps[k]*=2;
+        }
+        for(int sample=0;sample<SAMPLES;++sample) for(int j=0;j<4;++j) {
+            int k=sample%2 ? 3-j : j;
+            double elapsed=run_setup(canonical,prepared,til_packed,k,setup_reps[k]);
+            std::printf("setup,%u,%u,%s,%llu,%d,%.3f\n",n,rows,setup_names[k],
+                static_cast<unsigned long long>(setup_reps[k]),sample,elapsed);
+        }
+    }
+    til_drop409(til_packed);
+    std::puts("case correctness: passed"); std::fflush(stdout);
+}
+int main(int argc,char **argv) {
+    bool check_only=argc>1 && !std::strcmp(argv[1],"check");
+    const unsigned sizes[][2]={{1,1},{3,7},{4,8},{5,9},{17,33},{128,128},{512,512},{513,512},{4096,512},{4097,513},{8192,1024},{8193,4096}};
+    try {
+        std::puts("phase,inputs,outputs,variant,repetitions,sample,ns_per_layer");
+        for(auto &size:sizes) {
+            measure(size[0],size[1],check_only);
+            if(MemoryManagement::getPtrCounter()!=0) { std::fprintf(stderr,"preann allocation leak\n"); return 1; }
+        }
+    } catch(const std::string &error) { std::fprintf(stderr,"preann error: %s\n",error.c_str()); return 1; }
+    std::puts("all layer checks passed");
+    return 0;
+}
+#+end_src
+
 ** Controlled hoisting A/B comparison (2026-10-20)
 
 Question: is undoing the last change, which replaced clone-then-discard with
