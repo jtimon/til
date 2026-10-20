@@ -29,6 +29,17 @@ test_tuple_strings := test() {
     assert_eq(USize, t.len(), 2)
 }
 
+test_tuple_width_aliases := test() {
+    mut values := Tuple.new()
+    count : USize = 17
+    address : UPtr = 23
+    values.push(USize, own count)
+    values.push(UPtr, own address)
+    ref got_count : USize = values.get(0)
+    ref got_address : UPtr = values.get(1)
+    assert(got_count == 17 && got_address == 23)
+}
+
 test_tuple_mixed := test() {
     mut t := Tuple.new()
     t.push(I64, own 42)

@@ -48,6 +48,9 @@ HostTick := proc() returns I64
 HostReal := func(F64) returns F64
 HostMutableInt := proc(mut I32)
 HostShallow := func(Str) returns shallow Str
+HostAccumulator := proc(I64) returns I64
+HostRecord := struct { value := 0 }
+HostRecordCall := func(HostRecord) returns I64
 
 lookup_contract := func(signature: Type) returns FuncSig {
     return func_sig_of(til_type_name(signature))
@@ -102,6 +105,9 @@ checked_lookup := proc(root: Str) {
         "GuestReader := func() returns Str\n",
         "make_reader := func(value: Str) returns GuestReader { saved := value.clone(); return func() returns Str [own saved] { return saved.clone() } }\n",
         "reader := make_reader(\"retained capture\")\n",
+        "Accumulator := proc(I64) returns I64\n",
+        "make_accumulator := func() returns Accumulator { total := 0; return proc(value: I64) returns I64 [own mut total] { noop_proc(); total = total + value; return total } }\n",
+        "mut accumulator := make_accumulator()\nreplace_accumulator := proc() { noop_proc(); accumulator = make_accumulator() }\n",
         "mut calls := 0\ntick := proc() returns I64 { calls = calls + 1; noop_proc(); return calls }\n",
         "fail_call := proc(mut value: Str) { noop_proc(); value = format(value, \"?\"); panic(\"call failed\") }\n",
         "quit_call := proc(mut value: Str) { noop_proc(); value = format(value, \"!\"); exit(0) }\n",
@@ -318,8 +324,8 @@ checked_lookup := proc(root: Str) {
     assert(survived_view == "ost")
 }
 
-expect_lookup_failure := proc(mut vm: TilVm, name: Str, detail: Str, location: Str = "") {
-    callback := vm.lookup(name)?
+expect_lookup_failure := proc(mut vm: TilVm, name: Str, detail: Str, location: Str = "", signature: Type = Type.None) {
+    callback := vm.lookup(name, signature)?
     catch (err: TilVmError) {
         assert(err.phase == "lookup")
         expect(err.to_str().contains(detail), err.to_str())
@@ -428,9 +434,188 @@ callback_tests := proc(root: Str) {
     check.call()!
 }
 
+expect_call_failure := proc(mut callback: TilVmCallback, mut arguments: Tuple, detail: Str) returns TilVmError {
+    result := callback.call(arguments)?
+    catch (err: TilVmError) {
+        assert(err.phase == "call")
+        expect(err.to_str().contains(detail), err.to_str())
+        assert(err.diagnostics.len() > 0)
+        expect(err.diagnostics[0].path.ends_with("lookup_guest.til"), err.to_str())
+        assert(err.diagnostics[0].line > 0)
+        return err
+    }
+    own result.delete()
+    panic("callback unexpectedly succeeded")
+}
+
+// Results must be ordinary host values, not new borrows of the callback,
+// its VM, or input Tuple. Explicit destruction makes this a static lifetime
+// check as well as an ASAN check of literals, views and borrowed results.
+callback_result := proc(root: Str, name: Str, signature: Type, mut arguments: Tuple) returns Tuple {
+    mut vm := TilVm.new(root)
+    vm.load_file("lookup_guest.til")!
+    mut callback := vm.lookup(name, signature)!
+    result := callback.call(arguments)!
+    own callback.delete()
+    own vm.delete()
+    return result
+}
+
+typed_callback_tests := proc(root: Str) {
+    mut vm := TilVm.new(root)
+    vm.load_file("lookup_guest.til")!
+    expect_lookup_failure(vm, "binary", "signature mismatch", signature = HostOwned)
+    expect_lookup_failure(vm, "owned", "signature mismatch", signature = HostText)
+    expect_lookup_failure(vm, "changed", "signature mismatch", signature = HostRead)
+    expect_lookup_failure(vm, "borrowed", "signature mismatch", signature = HostText)
+    expect_lookup_failure(vm, "variadic", "fixed callback signature", signature = HostVariadic)
+    expect_lookup_failure(vm, "keywords", "fixed callback signature", signature = HostKeywords)
+    expect_lookup_failure(vm, "throwing", "throws clause", signature = HostThrowing)
+    expect_lookup_failure(vm, "record", "registered host types", signature = HostRecordCall)
+    expect_lookup_failure(vm, "binary", "named function-signature type", signature = Str)
+
+    mut numbers := Tuple.new()
+    numbers.push(I64, own 19)
+    numbers.push(I64, own 23)
+    mut binary := vm.lookup("alias", HostBinary)!
+    sum := binary.call(numbers)!
+    ref answer : I64 = sum.get(0)
+    assert(answer == 42)
+    mut empty := Tuple.new()
+    bad_count := expect_call_failure(binary, empty, "count mismatch")
+    assert(bad_count.exit_status.is_none())
+    mut wrong := Tuple.new()
+    wrong.push(Str, own "wrong")
+    wrong.push(I64, own 23)
+    bad_type := expect_call_failure(binary, wrong, "type/width mismatch")
+    assert(bad_type.exit_status.is_none())
+    // Reject a corrupt host width before reading or running guest code.
+    numbers.type_sizes[0] = 4
+    bad_width := expect_call_failure(binary, numbers, "type/width mismatch")
+    numbers.type_sizes[0] = I64.size()
+    assert(bad_width.exit_status.is_none())
+    recovered := binary.call(numbers)!
+    ref recovered_answer : I64 = recovered.get(0)
+    assert(recovered_answer == 42)
+
+    mut scalars := vm.lookup("scalars", HostScalars)!
+    mut packed := Tuple.new()
+    packed.push(Bool, own true)
+    narrow : I32 = 17
+    packed.push(I32, own narrow.clone())
+    packed.push(U64, own U64.MAX.clone())
+    small : F32 = 1.25
+    large : F64 = 2.5
+    packed.push(F32, own small)
+    packed.push(F64, own large.clone())
+    scalar_result := scalars.call(packed)!
+    ref flag : Bool = scalar_result.get(0)
+    assert(flag)
+    mut real := vm.lookup("real", HostReal)!
+    mut real_args := Tuple.new()
+    real_args.push(F64, own large.clone())
+    real_result := real.call(real_args)!
+    ref doubled : F64 = real_result.get(0)
+    assert(doubled == 5.0)
+    mut size := vm.lookup("size", HostSize)!
+    mut size_args := Tuple.new()
+    size_args.push(USize, own USize.MAX.clone())
+    size_result := size.call(size_args)!
+    ref size_value : USize = size_result.get(0)
+    assert(size_value == USize.MAX)
+    mut increment := vm.lookup("increment", HostMutableInt)!
+    mut int_args := Tuple.new()
+    int_args.push(I32, own narrow.clone())
+    no_result := increment.call(int_args)!
+    ref updated_int : I32 = int_args.get(0)
+    assert(updated_int == 19 && no_result.len() == 0)
+
+    mut text := Tuple.new()
+    text.push(Str, own File.readfile("call_input.txt"))
+    mut owned := vm.lookup("owned", HostOwned)!
+    owned_result := owned.call(text)!
+    ref host_text : Str = text.get(0)
+    ref guest_copy : Str = owned_result.get(0)
+    assert(host_text == "host value" && guest_copy == host_text)
+    assert(host_text.c_str.ptr_eq(guest_copy.c_str).not())
+    mut changed := vm.lookup("changed", HostMutable)!
+    changed.call(text)!
+    ref updated_text : Str = text.get(0)
+    assert(updated_text == "host value!")
+    mut owned_mut := vm.lookup("owned_changed", HostOwnedMutable)!
+    owned_mut_result := owned_mut.call(text)!
+    ref owned_mut_text : Str = owned_mut_result.get(0)
+    ref unchanged_input : Str = text.get(0)
+    assert(owned_mut_text == "host value!#" && unchanged_input == "host value!")
+
+    mut accumulator := vm.lookup("accumulator", HostAccumulator)!
+    mut steps := Tuple.new()
+    steps.push(I64, own 1)
+    first := accumulator.call(steps)!
+    ref first_count : I64 = first.get(0)
+    expect(first_count == 1, format("first retained accumulator call returned ", first_count.to_str()))
+    mut copied := accumulator.clone()
+    second := accumulator.call(steps)!
+    copied_second := copied.call(steps)!
+    ref second_count : I64 = second.get(0)
+    ref copied_count : I64 = copied_second.get(0)
+    assert(second_count == 2 && copied_count == 2)
+    mut replace := vm.lookup("replace_accumulator")!
+    replace.call()!
+    retained := accumulator.call(steps)!
+    ref retained_count : I64 = retained.get(0)
+    assert(retained_count == 3)
+    mut replacement := vm.lookup("accumulator", HostAccumulator)!
+    fresh := replacement.call(steps)!
+    ref fresh_count : I64 = fresh.get(0)
+    assert(fresh_count == 1)
+
+    mut tick := vm.lookup("tick", HostTick)!
+    invalid_tick := expect_call_failure(tick, steps, "count mismatch")
+    assert(invalid_tick.exit_status.is_none())
+    tick_result := tick.call()!
+    ref tick_count : I64 = tick_result.get(0)
+    assert(tick_count == 1)
+    mut fail := vm.lookup("fail_call", HostMutable)!
+    failure := expect_call_failure(fail, text, "call failed")
+    assert(failure.exit_status.unwrap() == 1)
+    ref after_failure : Str = text.get(0)
+    assert(after_failure == "host value!?")
+    mut fail_owned := vm.lookup("fail_owned", HostOwnedAction)!
+    owned_failure := expect_call_failure(fail_owned, text, "host value!?")
+    assert(owned_failure.exit_status.unwrap() == 1)
+    mut quit := vm.lookup("quit_call", HostMutable)!
+    exit_error := expect_call_failure(quit, text, "status 0")
+    assert(exit_error.exit_status.unwrap() == 0)
+    // Failure preserves global state and retained captures, even after exit(0).
+    tick_after_failure := tick.call()!
+    ref next_tick : I64 = tick_after_failure.get(0)
+    assert(next_tick == 2)
+    after_abort := copied.call(steps)!
+    ref captured_count : I64 = after_abort.get(0)
+    assert(captured_count == 3)
+
+    literal := callback_result(root, "literal", HostReader, empty)
+    borrowed := callback_result(root, "borrowed", HostBorrowed, text)
+    view := callback_result(root, "view", HostShallow, text)
+    captured := callback_result(root, "reader", HostReader, empty)
+    empty_text := callback_result(root, "empty", HostReader, empty)
+    own text.delete()
+    ref literal_text : Str = literal.get(0)
+    ref borrowed_text : Str = borrowed.get(0)
+    ref view_text : Str = view.get(0)
+    ref captured_text : Str = captured.get(0)
+    ref zero_text : Str = empty_text.get(0)
+    assert(literal_text == "guest literal" && borrowed_text == "host value!?!")
+    assert(view_text == "ost" && captured_text == "retained capture")
+    assert(zero_text.len() == 0 && Str.from_c_str(zero_text.c_str).len() == 0)
+    assert(failure.to_str().contains("call failed") && exit_error.exit_status.unwrap() == 0)
+}
+
 main := proc(root: Str) returns I64 {
     checked_lookup(root)
     callback_tests(root)
+    typed_callback_tests(root)
     mut vm := TilVm.new(root)
     expect_failure(vm, "mode lib\nbroken := func( {\n", "load", "expected", 2)
     expect_failure(vm, "mode lib\n/* unterminated\n", "load", "unterminated comment", 2)

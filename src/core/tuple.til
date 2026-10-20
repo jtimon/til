@@ -77,6 +77,14 @@ namespace:
         }
     }
 
+    priv scalar_type_name := func(name: Str) returns Str {
+        // Type-token pushes/reflection carry the underlying primitive, while
+        // source typed reads and dynamic variadics can retain width aliases.
+        if name == "USize" { return dyn_type_to_str(USize) }
+        if name == "UPtr" { return dyn_type_to_str(UPtr) }
+        return name.clone()
+    }
+
     /// #392 stage B: panic unless element ~i~ really is a ~want~. A Tuple
     /// element carries its type, so reading one at a typed binding can be
     /// CHECKED -- the gradual-typing bargain, where a lie about a dynamic
@@ -104,6 +112,7 @@ namespace:
         ref got : Str = self.type_names[i]
         if got == "Dynamic" { return }
         if got.eq(want).not() {
+            if Tuple.scalar_type_name(got) == Tuple.scalar_type_name(want) { return }
             panic("Tuple element ", i.to_str(), " is a '", got, "', read as a '", want,
                   "'; ask type_at(", i.to_str(), ") before reading a dynamic value",
                   loc = loc)

@@ -315,6 +315,54 @@ outside the checkout: the ASAN host passed with empty PATH, and its installed
 compiler rejected all seven lifetime violations. Logs are ~tmp/run.log~ and
 ~tmp/lifetime-error.log~ in that independent project.
 
+*** Checked arguments and results on retained callbacks
+
+~vm.lookup(name, Signature)~ now checks an ordinary named function-signature
+Type against the guest contract. Omitting Signature (Type.None) preserves the
+existing no-argument, no-result func/proc lookup. The same TilVmCallback owns
+its cloned callable/captures and borrows the VM; there is no second handle or
+signature format.
+
+~callback.call(arguments) returns Tuple throws TilVmError~ accepts an existing
+mutable Tuple. Omitting arguments supplies an empty Tuple, so existing call()
+sites still work. A no-result guest returns an empty Tuple; other calls return
+one independently owned scalar/Str value. For example:
+
+#+begin_src til
+Transform := func(Str) returns Str
+mut transform := vm.lookup("transform", Transform)!
+mut arguments := Tuple.new()
+arguments.push(Str, own format("host", " input"))
+result := transform.call(arguments)!
+ref text : Str = result.get(0)
+#+end_src
+
+The shared evaluator marshaller invokes the handle's retained slot, never a
+fresh lookup of its original global. Copies keep independent captured state
+even when the original guest binding is replaced. Lookup rejects unsupported
+variadic, kwargs, throwing and unregistered record contracts; the fixed
+scalar/Str boundary permits at most 63 arguments.
+
+Arguments remain host-owned. An own parameter consumes its guest snapshot;
+borrowed mut parameters copy changes back, including on panic/exit. Results
+copy literals, views and borrowed strings before guest storage can die.
+Validation errors run no guest code. Runtime errors preserve the VM/handle,
+return owned diagnostics/status and permit another call without rollback.
+
+The installed host exercises signature/count/type/width rejection, packed
+scalars, width aliases, owned/mutable strings, independent cloned captures,
+rebinding, panic/exit recovery and results after explicit VM destruction.
+These tests also exposed two evaluator/lifecycle bugs: an owning scalar
+capture's return used its cloned block address instead of the scalar word,
+and outer callable replacement failed to drop its previous capture environment.
+test/closures.til covers both on interpreter/C; test/tuples.til also checks
+width-alias reads against the primitive tags used by reflection/Type pushes.
+
+Verification: make clean && make test_two_pass passed 456/456, including
+install_tilvm's independently compiled ASAN host with empty PATH and its seven
+callback lifetime rejections. The use commit is Two-pass so the emitted
+ownership cleanup is regenerated with the corrected compiler at merge time.
+
 *** Stored callback analysis (Tiled #5)
 
 Both reported limitations reproduced on master ~f24e6004c~, independently

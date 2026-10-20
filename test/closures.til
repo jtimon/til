@@ -164,6 +164,39 @@ test_block_capture_own_struct := test() {
 // Captures a runtime value (compile-time-constant captures hit a separate
 // const-folding edge tracked in #295).
 Adder295 := func(x: I64) returns I64
+Accumulator370 := proc(I64) returns I64
+
+make_accumulator370 := func() returns Accumulator370 {
+    total := 0
+    return proc(value: I64) returns I64 [own mut total] {
+        noop_proc()
+        total = total + value
+        return total
+    }
+}
+
+test_owned_scalar_capture_return := test() {
+    mut accumulator := make_accumulator370()
+    assert(accumulator(1) == 1)
+    assert(accumulator(2) == 3)
+    assert(accumulator(1) == 4)
+}
+
+mut shared_accumulator370 := make_accumulator370()
+
+replace_accumulator370 := proc() {
+    noop_proc()
+    shared_accumulator370 = make_accumulator370()
+}
+
+test_global_callable_replacement := test() {
+    assert(shared_accumulator370(2) == 2)
+    replace_accumulator370()
+    assert(shared_accumulator370(3) == 3)
+    replace_accumulator370()
+    assert(shared_accumulator370(4) == 4)
+}
+
 mk_base295 := func() returns I64 { return 5 }
 test_capturing_closure_by_name := test() {
     base := mk_base295()

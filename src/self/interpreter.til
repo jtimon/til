@@ -421,7 +421,7 @@ TilVmCallback := struct {
     priv own callable: U8 = calloc(1, Dynamic.size())
 namespace:
     // Implementation factory; applications obtain handles through TilVm.lookup.
-    lookup := proc(mut session: InterpSession, name: Str) returns TilVmCallback throws TilVmError {
+    lookup := proc(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError {
         if session.retained_programs.len() == 0 {
             mut err := TilVmError(phase = "lookup")
             err.diagnostics.push(own TilVmDiagnostic(message = "load a module before looking up a callback"))
@@ -429,7 +429,17 @@ namespace:
         }
         ref mut lp : LoadedProgram = interp_callback_program(session)
         lp.ctx.diagnostics.clear()
-        hb_o := interp_session_lookup_callable(session, lp, name)
+        mut hb_o := Option(ref HeapBinding).None
+        if signature.is(Type.None) {
+            hb_o = interp_session_lookup_callable(session, lp, name)
+        } else {
+            if signature.is(Type.FuncPtrSig).not() {
+                mut err := TilVmError(phase = "lookup")
+                err.diagnostics.push(own TilVmDiagnostic(message = "callback signature must be a named function-signature type"))
+                throw err
+            }
+            hb_o = interp_session_lookup_function(session, lp, name, func_sig_of(til_type_name(signature)))
+        }
         if hb_o.is_none() {
             throw TilVmError(phase = "lookup", diagnostics = lp.ctx.diagnostics.clone())
         }
@@ -439,15 +449,21 @@ namespace:
         switch def.node_type {
         case .FuncDef(fd):
             matches = fd.sig.func_type.is_plain().and(def.children.len() > 0)
-                .and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0)
-                .and(fd.sig.throw_types.len() == 0)
+                .and(fd.sig.variadic_index < 0).and(fd.sig.kwargs_index < 0)
+                .and(fd.sig.params.len() <= 63).and(fd.sig.throw_types.len() == 0)
+            if signature.is(Type.None) {
+                matches = matches.and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0)
+            }
         case:
         }
         if matches.not() {
             mut err := TilVmError(phase = "lookup")
             ref path : Str = lp.ctx.eval.function_paths[word_bits(to_ptr(def)).cast(UPtr)]
-            err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col,
-                message = format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")))
+            mut message := format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")
+            if signature.is(Type.None).not() {
+                message = format("'", name, "' requires a fixed callback signature with at most 63 scalar/Str arguments and no throws clause")
+            }
+            err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col, message = message))
             throw err
         }
         mut slot : U8 = malloc(Dynamic.size())
@@ -455,7 +471,10 @@ namespace:
         return TilVmCallback(session = safe_ref(InterpSession, session), callable = slot)
     }
 
-    call := proc(mut self: TilVmCallback) throws TilVmError {
+    /// Inputs remain host-owned snapshots; borrowed mut inputs copy back,
+    /// including on failure. Results are owned copies independent of the VM.
+    /// Panic/exit preserve this handle and session; earlier effects remain.
+    call := proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError {
         if self.session.is_none() {
             mut err := TilVmError(phase = "call")
             err.diagnostics.push(own TilVmDiagnostic(message = "callback has no callable; lookup must succeed before call"))
@@ -463,22 +482,16 @@ namespace:
         }
         ref mut session : InterpSession = self.session.unwrap()
         ref mut lp : LoadedProgram = interp_callback_program(session)
-        interp_reset_control_flow(lp.ctx)
-        lp.ctx.eval.exit_status = Option(I64).None
-        lp.ctx.eval.guest_output = ""
-        lp.ctx.diagnostics.clear()
-        context_enter_file(lp.ctx, lp.path)
         ref def : Expr = callable_raw_func_def(to_ptr(self.callable))
-        // A typed evaluator call frame, not parsed/generated guest source.
-        mut site := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
-        site.set_til_type(Type.None)
-        ref mut raw : Dynamic = to_ptr(self.callable)
-        mut result : Dynamic = eval_callable_call(session_global(session), site, raw, lp.ctx)
-        raw_result_drop(Type.None, result, false, lp.ctx)
-        if lp.ctx.eval.eval_aborted {
+        contract := interp_lookup_signature(funcdef_of(def), lp.ctx).unwrap()
+        // Invoke the retained callable, not its original global binding: a
+        // copied handle owns independent captures, and the binding can change.
+        result := interp_call_callable(session, lp, to_ptr(self.callable), contract, arguments)
+        if result.is_none() {
             throw TilVmError(phase = "call", diagnostics = lp.ctx.diagnostics.clone(),
                 exit_status = lp.ctx.eval.exit_status.clone())
         }
+        return Option(Tuple).take(own result)
     }
 
     priv close := func(mut self: TilVmCallback) {
@@ -3108,6 +3121,15 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                         return_source_is_ref = true
                     } else {
                         return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(ctx.symbols.names), ctx)
+                        if raw_type_is_prim(return_source_type, ctx).and(return_hb.own_type.is(OwnType.Own))
+                        .and(return_hb.is_raw_alloc.not()) {
+                            // An owning captured scalar stays in its environment.
+                            // Reading it clones a block, unlike a shallow scalar's
+                            // word read. Return the value, not that clone's address.
+                            copied_word : Dynamic = scalar_word_load(return_source_type, return_raw, ctx)
+                            EvalHeap.heap_free(own return_raw)
+                            return_raw = copied_word
+                        }
                     }
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.eval.interp_ret_is_ref, ctx)
                 case .FCall:
@@ -6461,18 +6483,29 @@ priv interp_call_copy := func(t: Type, data: Dynamic, ctx: Context) returns Dyna
 // state remain on Context for the host driver to apply its failure policy.
 interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedProgram,
     name: Str, expected: FuncSig, mut arguments: Tuple) returns Option(Tuple) {
+    interp_call_reset(lp.ctx)
+    binding_o := interp_session_lookup_function(session, lp, name, expected)
+    if binding_o.is_none() { return Option(Tuple).None }
+    return interp_call_callable(session, lp, binding_o.unwrap().ptr, expected, arguments)
+}
+
+priv interp_call_reset := func(mut ctx: Context) {
+    interp_reset_control_flow(ctx)
+    ctx.eval.exit_status = Option(I64).None
+    ctx.eval.guest_output = ""
+    ctx.diagnostics.clear()
+}
+
+// Both named internal calls and public retained handles use this marshaller.
+// callable is an existing evaluator slot; never resolve it by its source name.
+priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProgram,
+    mut callable: Dynamic, expected: FuncSig, mut arguments: Tuple) returns Option(Tuple) {
     if lp.ctx.eval.embedded.not() { panic("guest invocation requires embedded evaluation policy") }
     mut retained := false
     for program in session.retained_programs { if program.p.ptr_eq(lp) { retained = true } }
     if retained.not() { panic("guest invocation program is not owned by this session") }
-    interp_reset_control_flow(lp.ctx)
-    lp.ctx.eval.exit_status = Option(I64).None
-    lp.ctx.eval.guest_output = ""
-    lp.ctx.diagnostics = Vec(SourceDiagnostic).new()
-    mut binding_o := interp_session_lookup_function(session, lp, name, expected)
-    if binding_o.is_none() { return Option(Tuple).None }
-    ref mut binding : HeapBinding = binding_o.unwrap()
-    ref mut def : Expr = hb_func_def(binding).unwrap()
+    interp_call_reset(lp.ctx)
+    ref mut def : Expr = callable_raw_func_def(callable)
     ref fd : FunctionDef = funcdef_of(def)
     path := lp.ctx.eval.function_paths[word_bits(def).cast(UPtr)].clone()
     if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)).or(expected.throw_types.len() > 0) {
@@ -6482,7 +6515,7 @@ interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedP
     }
     if arguments.len() != expected.params.len() || expected.params.len() > 63 {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-            format("guest argument count mismatch: ", name, " expects ", expected.params.len().to_str(),
+            format("guest argument count mismatch: callable expects ", expected.params.len().to_str(),
                 ", received ", arguments.len().to_str(), " (at most 63 supported)"))
         return Option(Tuple).None
     }
@@ -6499,7 +6532,7 @@ interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedP
         }
     }
     mut call := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
-    call.add_child(own Expr.new(own ident_node(lp.ctx.symbols.intern(name)), def.line, def.col))
+    call.add_child(own Expr.new(own ident_node(lp.ctx.symbols.intern("TilVm.callable")), def.line, def.col))
     mut ret_type := Type.None
     if expected.return_type.len() > 0 {
         ret_type = type_from_name_init_name(expected.return_type, lp.ctx.scope, lp.ctx.symbols)
@@ -6528,7 +6561,7 @@ interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedP
         path = path.clone(), line = def.line, col = def.col)
     mut destination : Dynamic = 0
     if expected.return_type.len() > 0 { destination = EvalHeap.heap_alloc(raw_type_size(ret_type, lp.ctx)) }
-    result : Dynamic = eval_callable_call(temps, call, binding.ptr, lp.ctx, destination)
+    result : Dynamic = eval_callable_call(temps, call, callable, lp.ctx, destination)
     mut values := Tuple.new()
     if lp.ctx.eval.eval_aborted.not().and(expected.return_type.len() > 0) {
         copied : Dynamic = interp_call_copy(ret_type, result, lp.ctx)

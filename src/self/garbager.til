@@ -3041,7 +3041,11 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
             sf_out := scope.find_name(vname, ctx.symbols)
             switch sf_out {
             case .Found(ob):
-                mut flag_it := is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
+                // A callable owns its capture environment too. Replacing an
+                // outer callable must release that environment, just like an
+                // aggregate's fields; retained callback handles own clones.
+                managed := is_aggregate(ob.type).or(ob.type.is_funcptr()).or(ob.type.is(Type.Body))
+                mut flag_it := managed.and(ob.own_type.is(OwnType.Ref).not())
                 // A PAYLOAD ALIAS is the exception to the ref exclusion
                 // above: writing through it replaces a value its enum OWNS,
                 // so the old payload must be torn down at the write. This
@@ -3057,7 +3061,9 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
                 }
                 if flag_it {
                     ref orhs : Expr = stmt.children[0]
-                    mut rebind := orhs.node_type.is_literal_str()
+                    // Callable assignment owns a new descriptor/environment
+                    // even when the RHS was hoisted to an Ident temporary.
+                    mut rebind := orhs.node_type.is_literal_str().or(ob.type.is_funcptr()).or(ob.type.is(Type.Body))
                     if rebind.not().and(orhs.node_type.is(NodeType.FCall)) {
                         rebind = fcall_returns_own(orhs, scope, ctx.symbols)
                     }
