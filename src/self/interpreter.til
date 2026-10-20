@@ -7417,9 +7417,11 @@ priv ffi_load_archive_twin := proc(archive_path: Str) {
     }
 }
 
-priv ffi_init_link_libs := proc(link_flags: Str) {
-    // Two kinds of entry: `-lfoo` sonames dlopen'd by name, and archive PATHS
-    // whose loadable twin sits beside them (see ffi_load_archive_twin).
+priv ffi_init_link_libs := proc(link_flags: Str) returns I32 {
+    // `-lfoo` names a soname; archives need a loadable twin. Every other
+    // entry is a library path already resolved relative to its source file
+    // by the loader. Pass those paths to the OS loader as written, including
+    // versioned shared libraries and files without the usual suffix.
     // dlopen resolves "-lfoo" flags by soname; the shared-lib suffix is
     // host-dependent (this runs in the compiler, on the build host).
     mut so_ext := ".so"
@@ -7441,8 +7443,14 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
             }
         } else if tok.ends_with(".a") {
             ffi_load_archive_twin(tok)
+        } else {
+            if ffi_load_global_lib(tok).not() {
+                eprint_single(format("error: cannot load native library '", tok, "': ", ffi_last_error(), "\n"))
+                return 1
+            }
         }
     }
+    return 0
 }
 
 priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
@@ -10886,7 +10894,13 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
         return 1
     }
-    ffi_init_link_libs(link_flags)
+    if ffi_init_link_libs(link_flags) != 0 {
+        if so_path.len() > 0 {
+            ffi_close_user_so()
+            File.remove(so_path)
+        }
+        return 1
+    }
     ffi_init_struct_defs(program, ctx)
     ffi_init_scan_program(program, ctx)
     ctx.ffi.loaded = true

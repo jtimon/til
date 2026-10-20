@@ -2474,6 +2474,8 @@ main := proc(args: ..Str) {
         format(til_bin, " interpret examples/ffi/ext_module.til"))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
         format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"))
+    add_single(tests, "link_libraries", "ffi", 0, "",
+        format(til_bin, " run", asan_flag, " -o bin/c/link_libraries -c gen/c/link_libraries.c test/link_libraries.til ", til_bin))
     ffi_scavenge_exp := "test/ffi_scavenge.expected"
     // The compiler under test is passed IN: the program spawns a translate,
     // and it used to spawn the hardcoded bin/til even when the suite was

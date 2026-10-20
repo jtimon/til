@@ -1,0 +1,92 @@
+mode cli
+
+import("std/sys")
+import("std/file")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+source_string := func(path: Str) returns Str {
+    return path.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+check_link := proc(compiler: Str, source: Str, cwd: Str, expected: Str) {
+    command := Cmd.new(compiler, "interpret", source)
+    command.cwd(cwd)
+    command.capture()
+    status := command.run()
+    if status != 0 { panic("interpreted link failed: ", command.out(), command.err()) }
+    expect(command.out() == expected, command.out(), command.err())
+}
+
+check_failure := proc(compiler: Str, source: Str, library: Str) {
+    command := Cmd.new(compiler, "interpret", source)
+    command.capture()
+    assert_eq(I64, command.run(), 1)
+    expect(command.err().contains("cannot load native library"), command.out(), command.err())
+    expect(command.err().contains(library), command.err())
+    expect(command.err().contains("Sanitizer").not(), command.err())
+    // Link failure must stop evaluation even when no native symbol is called.
+    assert(command.out().contains("SHOULD_NOT_RUN").not())
+    assert(command.out().contains("ext function is not registered").not())
+}
+
+main := proc(compiler: Str) {
+    dir := "tmp/link_libraries"
+    mkdir_p(format(dir, "/project"))
+    mkdir_p(format(dir, "/elsewhere"))
+    absolute_compiler := realpath_str(compiler)
+    mut extension := ".so"
+    mut cc := "cc"
+    mut shared_flag := "-shared"
+    if host_os() == "macos" { extension = ".dylib"; shared_flag = "-dynamiclib" }
+    if host_os() == "windows" { extension = ".dll"; cc = "gcc" }
+    filename := format("liblink_probe", extension)
+    library := format(dir, "/", filename)
+    native_source := format(dir, "/native.c")
+    File.writefile(native_source, format(
+        "#include <stdint.h>\n",
+        "#ifdef _WIN32\n#define API __declspec(dllexport)\n#else\n#define API\n#endif\n",
+        "static int64_t counter = 40;\n",
+        "API void link_probe_add(int64_t value) { counter += value; }\n",
+        "API int64_t link_probe_read(void) { return counter; }\n"))
+    build := Cmd.new(cc, "-Wall", "-Wextra", "-Werror", shared_flag)
+    if host_os() != "windows" { build.arg("-fPIC") }
+    build.args("-o", library, native_source)
+    build.run_checked()
+
+    for variant in vec(Str, "relative", "absolute", "versioned", "no_suffix") {
+        // LoadLibrary appends .dll to extensionless names; the other explicit
+        // path cases exercise it without depending on that platform rule.
+        if host_os().eq("windows").and(variant == "no_suffix") { continue }
+        mut linked_path := format("../", filename)
+        if variant == "absolute" { linked_path = realpath_str(library) }
+        if variant == "versioned" {
+            renamed := format(filename, ".1")
+            assert_eq(I32, copy_file(library, format(dir, "/", renamed)), 0)
+            linked_path = format("../", renamed)
+        }
+        if variant == "no_suffix" {
+            assert_eq(I32, copy_file(library, format(dir, "/native_library")), 0)
+            linked_path = "../native_library"
+        }
+        source := format(dir, "/project/", variant, ".til")
+        File.writefile(source, format(
+            "mode script\nlink(\"", source_string(linked_path), "\")\n",
+            "link_probe_add := ext_proc(shallow value: I64) {}\n",
+            "link_probe_read := ext_proc() returns shallow I64 {}\n",
+            "link_probe_add(2)\nprintln(link_probe_read().to_str())\n"))
+        check_link(absolute_compiler, source, ".", "42\n")
+        // Relative link paths belong to the source file, not the process cwd.
+        check_link(absolute_compiler, realpath_str(source), format(dir, "/elsewhere"), "42\n")
+    }
+
+    for kind in vec(Str, "missing", "invalid") {
+        bad_library := format(kind, extension)
+        if kind == "missing" { File.remove(format(dir, "/", bad_library)) }
+        if kind == "invalid" { File.writefile(format(dir, "/", bad_library), "not a native library\n") }
+        source := format(dir, "/project/", kind, ".til")
+        File.writefile(source, format("mode script\nlink(\"../", bad_library, "\")\nprintln(\"SHOULD_NOT_RUN\")\n"))
+        check_failure(absolute_compiler, source, bad_library)
+    }
+    println("link_libraries PASS")
+}

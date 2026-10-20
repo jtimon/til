@@ -2,6 +2,29 @@
 
 How til talks to C, and the conventions that keep the boundary safe.
 
+** Source imports and native links
+
+~import("module")~ loads Til source and declarations. ~link("name")~
+requests a native library; it does not declare that library's functions or
+types. A generated Til library binding combines the two: importing the
+binding brings in its ~link~ directive, native declarations and wrappers.
+Importing the original implementation source into the interpreter instead
+evaluates guest code and guest globals.
+
+The interpreter uses the OS loader (~dlopen~ / ~LoadLibrary~) to load native
+code, then libffi to call it. An explicit ~link("path/to/library.so")~ path
+is resolved relative to the file containing the directive, not the process
+working directory. Explicit paths are passed to the OS loader without a
+shared-library suffix filter, so versioned filenames work too. A static
+~.a~ path uses a loadable twin rather than loading the archive itself.
+Missing or invalid explicit libraries stop preparation with a diagnostic
+naming the library, before any guest statements execute.
+
+A compiled host and an interpreter can share native globals by using the
+same shared-library instance. This interpreter support is separate from
+the public ~TilVm~ interface, whose initial embedding policy still rejects
+native links and declarations.
+
 ** Why bindings need a human reviewer
 
 The til-side qualifiers that govern call semantics --
