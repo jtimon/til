@@ -522,7 +522,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
                 secp_resolved := resolve_target_archives(secp_lib, ext_c_path)
                 if realpath_str(secp_resolved).len() == 0 {
                     println(format("error: this program links libsecp256k1 (std/crypto), and this target's archive is not built: ", secp_lib))
-                    println(format("  build it first: bin/make ", secp_lib))
+                    println(format("  build it first: ", target_secp256k1_build_hint(target)))
                     return 1
                 }
                 secp_lf = secp_lf.format(" ", secp_resolved)

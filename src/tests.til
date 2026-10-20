@@ -1240,6 +1240,12 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ", til_bin))
 
+    // Issue #436: linux-x86 compiles put the x86_64 multiarch include dir
+    // LAST, so a program's own header of the same name wins over it.
+    add_count(tests, "x86_include_order", "build", "x86 include order passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/x86_include_order -c gen/c/x86_include_order.c test/x86_include_order.til ", til_bin))
+
     // Independent driver and scratch directory: the scheduler can overlap
     // pointer-width checks with CPU-option checks within its normal -j limit.
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,

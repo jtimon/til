@@ -208,6 +208,22 @@ have_tool := proc(name: Str) returns Bool {
     return probe.run() == 0
 }
 
+/// A cross recipe's C compiler, checked where the build starts (issue
+/// #435) instead of left to fail deep inside cmake or configure as
+/// "compiler not found". ~cc~ may carry flags; its first word is the
+/// program. ~option~ is the bin/make option that names another
+/// compiler, if the recipe has one.
+require_cross_cc := proc(cc: Str, option: Str, what: Str) {
+    mut tool := cc.clone()
+    space := cc.find(" ")
+    if space >= 0 { tool = cc.substr(0, space.to_usize()).clone() }
+    if have_tool(tool) { return }
+    if option.is_empty() {
+        panic("the ", what, " build needs the C compiler '", tool, "', which is not installed")
+    }
+    panic("the ", what, " build needs the C compiler '", tool, "', which is not installed -- pass ", option, " to name this host's one")
+}
+
 /// True when ~output~ is missing, or older than any of ~inputs~. The
 /// whole dependency check: no manifest, no hashes, no cache -- the
 /// small description is recomputed every run and mtimes answer it.
@@ -1230,6 +1246,8 @@ LibffiCross := struct {
     host := ""
     // Empty only for riscv32 before --riscv32-cc is given.
     cc := ""
+    // The bin/make option that picks cc, for the missing-compiler report.
+    cc_option := ""
     // For riscv32, the Bootlin binutils, which are not on PATH under
     // --host's prefix; for a mac archive from a non-mac host, llvm's
     // (GNU ar cannot index Mach-O objects).
@@ -1260,9 +1278,8 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
     // The host gcc in 32-bit mode, like every linux-x86 build here.
     // libffi's closures.c reaches asm/types.h, which only gcc-multilib's
     // /usr/include/asm link supplies; the directory it points to goes
-    // LAST (-idirafter, unlike til's own -I in targets.til's
-    // target_prefix_args) so a system x86_64 ffi.h there cannot shadow
-    // libffi's own.
+    // LAST (-idirafter, as in targets.til's target_prefix_args) so a
+    // system x86_64 ffi.h there cannot shadow libffi's own.
     out.push(own LibffiCross(name = "linux-x86", host = "i686-linux-gnu",
         cc = "gcc -m32 -idirafter /usr/include/x86_64-linux-gnu"))
     out.push(own LibffiCross(name = "linux-arm32", host = "arm-linux-gnueabihf", cc = "arm-linux-gnueabihf-gcc"))
@@ -1273,6 +1290,7 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
         riscv32_ranlib = format(b.riscv32_cc.strip_suffix("-gcc"), "-ranlib")
     }
     out.push(own LibffiCross(name = "linux-riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
+        cc_option = "--riscv32-cc=<path> (or RISCV32_CC)",
         ar = riscv32_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
     for arch : Str in MAC_ARCHES.split(" ") {
         // The deployment targets til links mac programs for (targets.til's
@@ -1314,6 +1332,7 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     }
     if t.sdkless_mac { check_mac_cross_tools(b) }
     if needs_rebuild(t.lib(), no_inputs()).not() { return }
+    require_cross_cc(t.cc, t.cc_option, t.dir())
     if mkdir_p(t.dir()) != 0 { panic("could not create ", t.dir()) }
     // --disable-multi-os-directory: the archive is linked from the build
     // directory, never installed, and the install-dir probe is a gcc
@@ -1370,6 +1389,8 @@ SecpCross := struct {
     processor := ""
     // Empty only for riscv32 before --riscv32-cc is given.
     cc := ""
+    // The bin/make option that picks cc, for the missing-compiler report.
+    cc_option := ""
     // CMAKE_C_FLAGS: -m32 for linux-x86, the SDK-less header path for a
     // mac cross build.
     cflags := ""
@@ -1396,7 +1417,8 @@ secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
     // archive on linux-x64 itself, so this one only ever serves a
     // non-linux-x64 host (targets.til's target_secp256k1_lib).
     out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-x64",
-        system = "Linux", processor = "x86_64", cc = b.linux_x64_cc.clone()))
+        system = "Linux", processor = "x86_64", cc = b.linux_x64_cc.clone(),
+        cc_option = "--linux-x64-cc=<path> (or LINUX_X64_CC)"))
     out.push(own SecpCross(dir = "vendor/secp256k1/build-win64",
         system = "Windows", processor = "x86_64", cc = "x86_64-w64-mingw32-gcc"))
     out.push(own SecpCross(dir = "vendor/secp256k1/build-win32",
@@ -1414,7 +1436,8 @@ secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
     // No distro ships a riscv32 gcc: --riscv32-cc / RISCV32_CC, as for
     // the riscv32 gui archives.
     out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-riscv32",
-        system = "Linux", processor = "riscv32", cc = b.riscv32_cc.clone()))
+        system = "Linux", processor = "riscv32", cc = b.riscv32_cc.clone(),
+        cc_option = "--riscv32-cc=<path> (or RISCV32_CC)"))
     // emcc, with emscripten's libc: the same toolchain a wasm32 mode gui
     // program links with (--cc=emcc).
     out.push(own SecpCross(dir = "vendor/secp256k1/build-wasm32", emscripten = true))
@@ -1460,6 +1483,7 @@ build_secp256k1_cross := proc(mut b: Build, dir: Str) {
     mut inputs := Vec(Str).new()
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(t.lib(), inputs).not() { return }
+    if t.emscripten.not() { require_cross_cc(t.cc, t.cc_option, t.dir) }
     mut argv := secp256k1_cmake_configure(t.dir)
     if t.emscripten {
         if b.emcc.ends_with("/emcc").not() {
@@ -2174,8 +2198,11 @@ usage := proc() {
     println("Makefile; recovery is `git checkout HEAD boot/ && make test`.")
 }
 
+/// ~s~ padded with spaces to ~width~ columns -- always at least one, so
+/// a name longer than the column (the artifact goals' paths) is still
+/// separated from the text after it (issue #435).
 pad := func(s: Str, width: USize) returns Str {
-    mut out := s.clone()
+    mut out := format(s, " ")
     while out.len() < width {
         out = format(out, " ")
     }

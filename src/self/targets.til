@@ -206,7 +206,11 @@ toolchain_command := proc(target: Target, lang: Lang) returns Str {
 
 priv target_prefix_args := func(target: Target) returns Str {
     switch target {
-    case .LinuxX86:     return " -m32 -I/usr/include/x86_64-linux-gnu"
+    // The 64-bit multiarch dir supplies the arch headers only
+    // gcc-multilib's /usr/include/asm link would (asm/types.h), so it goes
+    // LAST (issue #436): as a -I it came first and shadowed any header it
+    // also holds -- the program's own, or a vendored library's ffi.h.
+    case .LinuxX86:     return " -m32 -idirafter /usr/include/x86_64-linux-gnu"
     case .MacosArm64: return " -target arm64-apple-macos11"
     case .MacosX64:   return " -target x86_64-apple-macos10.12"
     case .Jvm: panic("JVM target has no C compiler prefix arguments")
@@ -421,6 +425,22 @@ target_secp256k1_lib := func(target: Target) returns Str {
     case .LinuxX64:     return "vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a"
     // TempleOS, JVM: none.
     case: return ""
+    }
+    return ""
+}
+
+// The command that builds target_secp256k1_lib's archive, for the
+// builder's missing-archive report (issue #435): its bin/make path goal,
+// plus the option that names the compiler where the default cannot be
+// relied on -- riscv32 has none, and linux-x64's x86_64-linux-gnu-gcc
+// is the distro cross gcc, which a mac does not have.
+target_secp256k1_build_hint := func(target: Target) returns Str {
+    lib := target_secp256k1_lib(target)
+    switch target {
+    case .LinuxRiscv32: return format("bin/make --riscv32-cc=<path to riscv32 gcc> ", lib)
+    case .LinuxX64:
+        return format("bin/make ", lib, " (with --linux-x64-cc=<path> unless x86_64-linux-gnu-gcc is this host's linux-x64 cross gcc)")
+    case: return format("bin/make ", lib)
     }
     return ""
 }

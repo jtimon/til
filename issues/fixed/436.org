@@ -1,6 +1,26 @@
 # priority: low
 # category: bugs
-** OPEN #436 linux-x86 compiles put /usr/include/x86_64-linux-gnu ahead of every include path
+** FIXED #436 linux-x86 compiles put /usr/include/x86_64-linux-gnu ahead of every include path
+
+*** Post-mortem
+
+Root cause: ~target_prefix_args~ added the 64-bit multiarch directory
+with ~-I~ to reach ~asm/types.h~ without gcc-multilib's
+~/usr/include/asm~ link, and ~-I~ puts it before the program's own
+include paths and the system's.
+
+Change: ~-idirafter /usr/include/x86_64-linux-gnu~, which only fills in
+headers nothing else provides -- the form make.til's linux-x86 libffi
+recipe already used.
+
+Regression test: test/x86_include_order.til (suite, ~x86_include_order~).
+On every host it checks the emitted linux-x86 flags; on a linux-x64
+host with that directory it also compiles, for linux-x86, a ~link_c~
+file that includes ~<fpu_control.h>~ while the program's ~link()~
+include directory supplies its own -- before the fix the x86_64 system
+copy won and the file's ~#error~ fired. hello_script, test/crypto.til
+and test/ffi_prep.til still build for linux-x86 and run under
+qemu-i386 on this host, which has no gcc-multilib ~asm~ link.
 
 targets.til's ~target_prefix_args~ gives linux-x86
 ~-m32 -I/usr/include/x86_64-linux-gnu~. The ~-I~ exists because,
