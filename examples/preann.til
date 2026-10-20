@@ -41,6 +41,13 @@ priv load4 := func(values: Array(F32), start: USize) returns F4 {
     return result
 }
 
+// Borrowed raw row base, with a byte displacement within its validated span.
+priv load4_bytes := func(base: Dynamic, offset: UPtr) returns F4 {
+    mut result := F4.zero()
+    memcpy(result, ptr_add(base, offset), 16)
+    return result
+}
+
 priv load2 := func(values: Array(F32), start: USize) returns F2 {
     mut result := F2.zero()
     memcpy(result, ptr_add(values.data, start.to_uptr() * F32.size().to_uptr()), 8)
@@ -50,6 +57,15 @@ priv load2 := func(values: Array(F32), start: USize) returns F2 {
 priv add_result := func(mut results: Array(F32), row: USize, sum: F32) {
     ref previous : F32 = results.unsafe_get(row)
     results.unsafe_set(row, own (previous + sum))
+}
+
+// A local value view of the documented consecutive-scalar SIMD storage.
+// memcpy avoids aliasing type-puns and repeated checked lane lookups.
+priv Lanes4 := struct { x: F32; y: F32; z: F32; w: F32 }
+priv lanes4 := func(value: F4) returns Lanes4 {
+    mut lanes := Lanes4(x = 0, y = 0, z = 0, w = 0)
+    memcpy(lanes, value, F4.size().to_uptr())
+    return lanes
 }
 
 priv dot4 := func(inputs: Array(F32), weights: Array(F32), row_start: USize) returns F32 {
@@ -80,10 +96,6 @@ return func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), ro
         second := first + stride
         third := second + stride
         fourth := third + stride
-        fifth := fourth + stride
-        sixth := fifth + stride
-        seventh := sixth + stride
-        eighth := seventh + stride
         mut a0 := Simd(F32, 4).zero()
         mut a1 := Simd(F32, 4).zero()
         mut a2 := Simd(F32, 4).zero()
@@ -92,22 +104,43 @@ return func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), ro
         mut a5 := Simd(F32, 4).zero()
         mut a6 := Simd(F32, 4).zero()
         mut a7 := Simd(F32, 4).zero()
-        mut i : USize = 0
-        while i < stride {
-            x := load4(inputs, i)
-            a0 = a0 + x * load4(weights, first + i)
-            a1 = a1 + x * load4(weights, second + i)
-            if B >= 4 {
-                a2 = a2 + x * load4(weights, third + i)
-                a3 = a3 + x * load4(weights, fourth + i)
+        if B == 8 {
+            // The complete eight-row block is valid. Form each row base
+            // once, then advance a shared byte offset across all rows.
+            row_bytes := stride.to_uptr() * F32.size().to_uptr()
+            ref w0 : U8 = ptr_add(weights.data, first.to_uptr() * F32.size().to_uptr())
+            ref w1 : U8 = ptr_add(w0, row_bytes)
+            ref w2 : U8 = ptr_add(w1, row_bytes)
+            ref w3 : U8 = ptr_add(w2, row_bytes)
+            ref w4 : U8 = ptr_add(w3, row_bytes)
+            ref w5 : U8 = ptr_add(w4, row_bytes)
+            ref w6 : U8 = ptr_add(w5, row_bytes)
+            ref w7 : U8 = ptr_add(w6, row_bytes)
+            mut offset : UPtr = 0
+            while offset < row_bytes {
+                x := load4_bytes(inputs.data, offset)
+                a0 = a0 + x * load4_bytes(w0, offset)
+                a1 = a1 + x * load4_bytes(w1, offset)
+                a2 = a2 + x * load4_bytes(w2, offset)
+                a3 = a3 + x * load4_bytes(w3, offset)
+                a4 = a4 + x * load4_bytes(w4, offset)
+                a5 = a5 + x * load4_bytes(w5, offset)
+                a6 = a6 + x * load4_bytes(w6, offset)
+                a7 = a7 + x * load4_bytes(w7, offset)
+                offset = offset + 16
             }
-            if B == 8 {
-                a4 = a4 + x * load4(weights, fifth + i)
-                a5 = a5 + x * load4(weights, sixth + i)
-                a6 = a6 + x * load4(weights, seventh + i)
-                a7 = a7 + x * load4(weights, eighth + i)
+        } else {
+            mut i : USize = 0
+            while i < stride {
+                x := load4(inputs, i)
+                a0 = a0 + x * load4(weights, first + i)
+                a1 = a1 + x * load4(weights, second + i)
+                if B >= 4 {
+                    a2 = a2 + x * load4(weights, third + i)
+                    a3 = a3 + x * load4(weights, fourth + i)
+                }
+                i = i + 4
             }
-            i = i + 4
         }
         if packed {
             // These lanes belong to different outputs: packing the final
@@ -116,13 +149,46 @@ return func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), ro
                 sums := Simd(F32, 2).new(a0.reduce_add(), a1.reduce_add())
                 updated := load2(results, row) + sums
                 memcpy(ptr_add(results.data, row.to_uptr() * F32.size().to_uptr()), updated, 8)
-            } else {
+            } else if B == 4 {
+                // The existing form measured better for Clang baseline at
+                // this block size; keep it as the four-row specialization.
                 sums := Simd(F32, 4).new(a0.reduce_add(), a1.reduce_add(), a2.reduce_add(), a3.reduce_add())
+                updated := load4(results, row) + sums
+                memcpy(ptr_add(results.data, row.to_uptr() * F32.size().to_uptr()), updated, 16)
+            } else {
+                // Interleave two rows at a time, preserving (0+2)+(1+3).
+                // Keep this in the generated body: a reduction helper made GCC
+                // spill the accumulators throughout the preceding dot loop.
+                r0 := lanes4(a0)
+                r1 := lanes4(a1)
+                r2 := lanes4(a2)
+                r3 := lanes4(a3)
+                ab_low := Simd(F32, 4).new(r0.x, r1.x, r0.y, r1.y)
+                ab_high := Simd(F32, 4).new(r0.z, r1.z, r0.w, r1.w)
+                cd_low := Simd(F32, 4).new(r2.x, r3.x, r2.y, r3.y)
+                cd_high := Simd(F32, 4).new(r2.z, r3.z, r2.w, r3.w)
+                ab := lanes4(ab_low + ab_high)
+                cd := lanes4(cd_low + cd_high)
+                even := Simd(F32, 4).new(ab.x, ab.y, cd.x, cd.y)
+                odd := Simd(F32, 4).new(ab.z, ab.w, cd.z, cd.w)
+                sums := even + odd
                 updated := load4(results, row) + sums
                 memcpy(ptr_add(results.data, row.to_uptr() * F32.size().to_uptr()), updated, 16)
             }
             if B == 8 {
-                sums := Simd(F32, 4).new(a4.reduce_add(), a5.reduce_add(), a6.reduce_add(), a7.reduce_add())
+                r0 := lanes4(a4)
+                r1 := lanes4(a5)
+                r2 := lanes4(a6)
+                r3 := lanes4(a7)
+                ab_low := Simd(F32, 4).new(r0.x, r1.x, r0.y, r1.y)
+                ab_high := Simd(F32, 4).new(r0.z, r1.z, r0.w, r1.w)
+                cd_low := Simd(F32, 4).new(r2.x, r3.x, r2.y, r3.y)
+                cd_high := Simd(F32, 4).new(r2.z, r3.z, r2.w, r3.w)
+                ab := lanes4(ab_low + ab_high)
+                cd := lanes4(cd_low + cd_high)
+                even := Simd(F32, 4).new(ab.x, ab.y, cd.x, cd.y)
+                odd := Simd(F32, 4).new(ab.z, ab.w, cd.z, cd.w)
+                sums := even + odd
                 updated := load4(results, row + 4) + sums
                 memcpy(ptr_add(results.data, (row + 4).to_uptr() * F32.size().to_uptr()), updated, 16)
             }

@@ -40,6 +40,21 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Cross-row reductions (base 2537a67cb)
+
+The [[../../examples/preann.til][preann example]] reduces four outputs together within its eight-row
+kernel, preserving the exact per-output addition tree. Short-row timings
+improve across GCC/Clang profiles; larger cases include regressions. The
+implementation, rejected forms, samples and verification are recorded in
+[[../../doc/optimizations.org::*Cross-row reductions in the eight-row kernel (2026-10-20, #409)][Optimization measurements]].
+
+*** Eight-row byte addressing (base 2936b7f34)
+
+The [[../../examples/preann.til][preann example]] precomputes validated byte-row bases for its eight-row
+kernel. This removes Clang's split weight loads while preserving exact
+results; the ASAN suite passes 458/458. Before/after samples and limits are
+recorded in [[../../doc/optimizations.org::*Eight-row byte addressing (2026-10-20, #409)][Optimization measurements]].
+
 *** Packed output updates and block factors (base beedf8556)
 
 The runnable [[../../examples/preann.til][preann example]] now compares scalar-output four-row blocking
