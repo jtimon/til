@@ -17,10 +17,11 @@
 
        Drawable = { iface_type_name: Str, iface_val: Dynamic (ref), iface_owned: Bool }
 
-   iface_val points at the concrete (heap-owned or borrowed); iface_owned
-   says which. The generated clone deep-copies an owned payload and
-   pointer-copies a borrowed one; the generated delete frees only an owned
-   payload. Boxing happens at argument, local, return, field-construction,
+   (as of the 2026-10 commits; the flag is gone since the second decision
+   below). iface_val pointed at the concrete (heap-owned or borrowed) and
+   iface_owned said which. The generated clone deep-copied an owned payload
+   and pointer-copied a borrowed one; the generated delete freed only an
+   owned payload. Boxing happens at argument, local, return, field-construction,
    assignment, field-reassignment and container-deposit sites, with one
    PROVENANCE rule (box_inferred_interface_value, box_return_value,
    make_owned_iface_box in src/self/typer.til):
@@ -110,8 +111,7 @@
      a `mut` binding own a copy. interface_box_storage_is_borrowed treats a
      payload-borrowing box as lent, so value-field copies clone it.
    - initer/interpreter: the generated and the native interface clone always
-     produce an OWNED box (deep copy through the tag); iface_owned only tells
-     delete whether to free. The borrow walkers (expr_borrow_roots,
+     produce an OWNED box (deep copy through the tag). The borrow walkers (expr_borrow_roots,
      return_escape_roots, summary_expr_bits) treat an interface clone as
      fresh and a VALUE interface field as carrying nothing
      (value_field_carries_borrow).
@@ -134,18 +134,48 @@
    result is handled; the heap is only forced when the box escapes (return,
    field store, container deposit). Stack-vs-heap stays the builder's choice.
 
-   Still open from this decision: whether iface_owned should go entirely.
-   It is now an implementation detail (the typer knows statically which
-   boxes borrow), but a `d: Iface` PARAMETER receives either kind of box, so
-   its delete still needs the bit unless borrowed boxes are typed apart.
+*** DECIDED (2026-10-20): no runtime ownership bit, no empty value, no shallow boxes
 
-*** Remaining gaps (not addressed by the 2026-10 commits)
+   The only runtime part of an interface value is METHOD SELECTION: the
+   box's type name picks the implementation. Ownership of the payload is
+   static, like every aggregate's, so the `iface_owned` field was a runtime
+   copy of a fact the typer already had. Every site that destroys a box
+   knows at compile time whether the payload is owned: a local (the typer's
+   iface_payload_borrowed), a value field or a collection element (always
+   owned: whatever is stored there was cloned or fresh), a return (owned,
+   elided copies are cloned at the return), an `own` argument (an elided
+   copy is cloned first, a `ref` binding rejected). A parameter is a borrow
+   and never deletes. The earlier worry that a `d: Iface` parameter "receives
+   either kind of box" was wrong for exactly that reason.
 
-   - An abstract (ext) interface method carries at most one argument besides
-     self; two or more non-self params are a typer error at dispatch
-     ("supports at most one argument besides self", infer_field_access_fcall).
-     Synthetic error out-params do not count. Default methods keep their
-     full parameter lists already.
+   Implemented (this commit): the box is `{iface_type_name, iface_val}`.
+   A box whose payload is a borrow -- `ref d : Iface = c`, the elided copy,
+   a hoisted argument box -- is never deleted by the garbager at all (its
+   tag is a literal, the box a stack value); the generated delete frees the
+   payload unconditionally (a consumed `own self` receiver leaves a null
+   payload, the moved-out state). FCallData.iface_box_owns_payload marks
+   the owned box constructor so the interpreter moves its hoisted clone
+   temporary in and the garbager/interpreter recognize the borrowing one
+   (expr_is_borrowed_iface_box_ctor; the interpreter marks its binding
+   payload_released so an aborted-evaluation teardown skips it too). The
+   C dispatcher moves an `own` receiver's payload out without cloning.
+
+   An interface cannot be instantiated: `Drawable()` is a typer error
+   ("cannot be instantiated; construct a struct or enum that implements
+   it"); only boxed structs and enums are values, so the interpreter's and
+   the C emitter's standalone-default fallback branches are gone. `shallow`
+   is rejected on interface parameters and returns (a by-value copy of the
+   box would alias the payload without owning it).
+
+   Decided with it, recorded in #434: the dynamic `d: Drawable` parameter
+   and the static `T: Type implements Drawable` bound COEXIST; the bare
+   spelling keeps its dynamic meaning.
+
+   Multi-argument abstract dispatch landed on master in the meantime
+   (MultiContract tests), so that gap is closed.
+
+*** Remaining gaps
+
    - The generated box clone/delete still dispatch by runtime tag through
      dyn_call(iface_type_name, "clone"/"delete"), so collect_refs records
      the `*.clone` / `*.delete` wildcards. Since #326 the wildcard only
@@ -155,11 +185,12 @@
    - Self substitution in a copied default (gen_substitute_self_type)
      rewrites only direct parameter and return types equal to the interface
      name; nested generic types (`Vec(Self)`, `Option(Self)`) and explicit
-     interface-name references inside the body are not rewritten.
-   - `Iface()` (an empty box) is constructible; an abstract call on it has
-     no target (rejected explicitly), while a default call runs the
-     interface's own body. Decide whether a payload-less box is a value at
-     all. A user-declared clone/delete on an interface still suppresses the
+     interface-name references inside the body are not rewritten. The
+     nested case is not a string substitution: `Vec(Self)` in a default
+     copied into Circle means `Vec(Circle)`, a template instance that may
+     not exist yet, so it needs the macro machinery to instantiate it per
+     implementer (#433/#434 territory).
+   - A user-declared clone/delete on an interface still suppresses the
      generated box lifecycle methods.
 
 *** Acceptance
@@ -167,16 +198,18 @@
    - [X] The ownership decision is recorded above and implemented: the
      qualifier owns, with copy elision for immutable locals, documented in
      doc/concepts/ownership.org "Interface-typed locals" and qualifiers.org.
-   - [ ] Decide whether iface_owned stays as an implementation detail or
-     borrowed boxes get typed apart so delete needs no runtime bit.
-   - Each remaining gap has either a fix with a regression test or an
+   - [X] iface_owned removed; payload ownership is static everywhere.
+   - [X] `Iface()` rejected; `shallow` interface parameters and returns
+     rejected (terr_iface_instantiate, terr_iface_shallow_param,
+     terr_iface_shallow_return).
+   - [ ] Each remaining gap has either a fix with a regression test or an
      explicit diagnostic.
    - make test green on both backends under ASAN.
 
 *** Relations
 
    #251/#268/#269 (fixed; the base and the status record). #433
-   (qualifiers on template arguments -- the per-container, static form of
-   what iface_owned does per element). #434 (static generic bounds -- the
+   (qualifiers on template arguments -- a per-container, static statement
+   of element ownership). #434 (static generic bounds -- the
    other half of "interfaces"; most `d: Drawable` parameters written so far
    are better expressed there).

@@ -1057,6 +1057,15 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
     }
 
     ref mut ctor_sdd : StructDef = structdef_of(sdef)
+    // #432: an interface has no values of its own -- only a struct or enum
+    // that implements it does. The typer's boxes (make_owned_iface_box,
+    // box_inferred_interface_value) and a lowered throw's placeholder result
+    // are the only constructor calls that reach this point with arguments.
+    if ctor_sdd.is_interface.and(e.children.len() == 1).and(fcall_of(e).is_throw_default.not()) {
+        e.type_error(format("interface '", name, "' cannot be instantiated; construct a struct or enum that implements it"), ctx)
+        e.set_til_type(Type.StructSym(ctx.symbols.intern(name)))
+        return true
+    }
     nfields := ctor_sdd.fields.len()
     rewrite_ctor_field_shorthand(ctor_sdd, e, ctx.symbols)
     mut field_vals := Vec(CtorArg).new()
@@ -5823,6 +5832,11 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                     expr.type_error("redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
                 }
             }
+            // #432: a by-value interface box returned to the caller would
+            // hand over a payload it does not own.
+            if fdef.sig.return_shallow_explicit.and(name_is_interface(resolved_return_type, scope, ctx.symbols)) {
+                expr.type_error("interface return type cannot be 'shallow': return the interface by value (owned) or 'returns ref'", ctx)
+            }
             // Issue #223 step 1/3: a primitive (step 1) or a small value-shaped
             // struct (step 3) is returned by value (shallow) even without the
             // qualifier. Normalize the default (Own) to Shallow for those types
@@ -5883,6 +5897,12 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 is_scalar := is_primitive(pt)
                 if is_scalar.or(is_struct_type(pt)).or(is_enum_type(pt)).not() {
                     expr.type_error(format("shallow parameter '", param.name, "' must be a scalar or struct type"), ctx)
+                }
+                // #432: an interface value is a borrow or an owned box; a
+                // by-value copy of the box would alias the payload without
+                // owning it, a borrow spelled oddly.
+                if type_is_interface(pt, scope, ctx.symbols) {
+                    expr.type_error(format("interface parameter '", param.name, "' cannot be 'shallow': drop the qualifier to borrow the value, or use 'own' to take it"), ctx)
                 }
                 if pown {
                     expr.type_error("parameter cannot be both 'shallow' and 'own'", ctx)
@@ -6417,8 +6437,9 @@ priv narrow_return_literal := func(mut scope: TypeScope, mut rv: Expr, mut ctx: 
 // declared, with OWNED semantics. The box escapes the function, so a borrow
 // (to_ptr, as args/locals use) would dangle once the concrete's frame is gone;
 // instead iface_val holds a heap deep-copy via dyn_call_ret(.., "clone", ..)
-// and iface_owned = true, so the box's delete frees that copy (see
-// gen_interface_clone_delete_for_stmt). The raw return value is snapshotted
+// that the box's delete frees (see gen_interface_clone_delete_for_stmt;
+// #432: no ownership flag -- a borrowing box is simply never deleted). The
+// raw return value is snapshotted
 // BEFORE infer_expr desugars a struct ctor's named args to positional, since
 // the box re-infers that snapshot and a desugared ctor would fail the
 // named-arg requirement. The snapshot is moved into the box, or reclaimed by
@@ -6426,8 +6447,7 @@ priv narrow_return_literal := func(mut scope: TypeScope, mut rv: Expr, mut ctx: 
 // #251 follow-up: build an OWNED interface box wrapping `value` (a conforming
 // concrete of type `concrete_name`) as interface `iface_name`:
 //   <Iface>(iface_type_name = "<Concrete>",
-//           iface_val = dyn_call_ret("<Concrete>", "clone", 1, value),
-//           iface_owned = true)
+//           iface_val = dyn_call_ret("<Concrete>", "clone", 1, value))
 // iface_val is a heap deep-copy (dyn_call_<method> mallocs shallow returns),
 // so the box owns it and its delete frees it (gen_interface_clone_delete_for_stmt).
 // Used at every ESCAPING coercion site (returns, fields, ...). `value` is
@@ -6451,9 +6471,10 @@ priv make_owned_iface_box := func(iface_name: Str, concrete_name: Str, own value
     clone_call.add_child(own value)
     na_val.add_child(own clone_call)
     box.add_child(own na_val)
-    mut na_owned := Expr.new(own NodeType.NamedArg("iface_owned"), line, col)
-    na_owned.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(true)), line, col))
-    box.add_child(own na_owned)
+    switch box.node_type {
+    case .FCall(box_fcd): box_fcd.iface_box_owns_payload = true
+    case:
+    }
     return box
 }
 
@@ -7521,10 +7542,10 @@ priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared:
 }
 
 // Whether this expression lends an existing interface box rather than
-// transferring an owned value. This is distinct from iface_owned, which
-// describes the PAYLOAD and is known only at runtime for a parameter. A
-// local whose box borrows its payload (#432, iface_payload_borrowed) has no
-// payload to transfer either: value-copying it into a field must clone.
+// transferring an owned value: a parameter or a ref binding lends its box,
+// whatever that box's payload is. A local whose box borrows its payload
+// (#432, iface_payload_borrowed) has no payload to transfer either:
+// value-copying it into a field must clone.
 priv interface_box_storage_is_borrowed := func(value: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     switch value.node_type {
     case .Ident(id):
@@ -7568,35 +7589,20 @@ priv infer_interface_payload_call := proc(mut scope: TypeScope, mut call: Expr, 
 }
 
 // #432: the box constructor box_inferred_interface_value builds for a
-// BORROWED payload carries `iface_val = to_ptr(<source>)`. Inference desugars
-// the ctor's named args to positional, so the to_ptr call is looked for among
-// the children, wrapped in a NamedArg or not. The empty Iface() box and an
-// owned box (dyn_call_ret clone) are not borrowed.
-priv fcall_callee_is := func(e: Expr, name: Str, symbols: SymbolPool) returns Bool {
+// BORROWED payload (`iface_val = to_ptr(<source>)`), as opposed to the owned
+// box make_owned_iface_box builds around a clone (FCallData's
+// iface_box_owns_payload). Hoisting may replace either payload argument by
+// a Dynamic temporary, so the flag, not the argument's shape, is the record.
+// The lowered throw's placeholder result (no arguments) is neither.
+expr_is_borrowed_iface_box_ctor := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() == 0 { return false }
-    switch e.children[0].node_type {
-    case .Ident(callee): return callee.ident_name(symbols.names) == name
-    case: return false
-    }
-}
-
-priv expr_is_borrowed_iface_box_ctor := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() == 0 { return false }
+    if e.children.len() < 2 { return false }
     switch e.children[0].node_type {
     case .Ident(callee):
         if name_is_interface(callee.ident_name(symbols.names), scope, symbols).not() { return false }
     case: return false
     }
-    for i in 1..e.children.len() {
-        ref arg : Expr = e.children[i]
-        if fcall_callee_is(arg, "to_ptr", symbols) { return true }
-        if arg.node_type.is(NodeType.NamedArg).and(arg.children.len() > 0) {
-            if fcall_callee_is(arg.children[0], "to_ptr", symbols) { return true }
-        }
-    }
-    return false
+    return fcall_of(e).iface_box_owns_payload.not()
 }
 
 // #432: does an interface-typed Decl OWN its payload (a deep copy of the

@@ -1882,6 +1882,19 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // Ref bindings do not own data and skip cleanup. Shallow parameters
         // are C values and were filtered with the other non-Own parameters.
         if b.own_type.is(OwnType.Ref) { skip_scope_delete = true }
+        // #432: an interface box whose payload is a borrow -- `ref d : Iface
+        // = c`, the typer's elided copy of an immutable local, or a hoisted
+        // argument box -- owns nothing: its tag is a literal, its payload is
+        // somebody else's, and the box is a stack value. The box carries no
+        // ownership flag, so the generated delete would free the payload;
+        // the garbager simply never calls it for these.
+        if b.iface_payload_borrowed { skip_scope_delete = true }
+        if decl_idx >= 0 {
+            ref ib_stmt : Expr = body.children[decl_idx.to_usize()]
+            if ib_stmt.node_type.is(NodeType.Decl).and(ib_stmt.children.len().gt(0)) {
+                if expr_is_borrowed_iface_box_ctor(ib_stmt.children[0], scope, ctx.symbols) { skip_scope_delete = true }
+            }
+        }
         if skip_scope_delete.not() {
             if aliased_by_returned_ref(body, b.name, ctx.symbols) { skip_scope_delete = true }
         }
