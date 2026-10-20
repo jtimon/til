@@ -47,8 +47,10 @@ priv check_dynamic_widths := proc(compiler: Str) {
         "check_dynamic := proc(name: Str) {\nif Dynamic.size() != UPtr.size() { panic(\"Dynamic width\") }\nif dyn_size_of(name) != Dynamic.size() { panic(\"runtime width\") }\nx : UPtr = 123\ny : UPtr = 456\na := array(Dynamic, x, y)\nmut v := Vec(Dynamic).new()\nv.push(own x)\nv.push(own y)\nmut t := Tuple.new()\nt.push_all_dynamic(a)\nref first : UPtr = t.get(0)\nref second : UPtr = t.get(1)\nref last : UPtr = v.unsafe_get(1)\nif first != 123 || second != 456 || last != 456 { panic(\"word copy/stride\") }\nif t.size_at(0) != Dynamic.size() { panic(\"tuple width\") }\nprintln(\"dynamic widths passed\")\n}\n"))
     File.writefile(format(WORK, "/dynamic_width.til"),
         "mode cli\nimport(\"dynamic_shallow\")\nCountAlias := U16\nalias_is_two := size_is_two(CountAlias)\nmain := proc(name: Str) { if alias_is_two().not() { panic(\"imported size generator\") }; check_dynamic(name) }\n")
+    // Core runs first: overflow must be caught by the migrated core factory,
+    // rather than being hidden by the imported fixture's identical check.
     File.writefile(format(WORK, "/pointer_count.til"),
-        "mode cli\nimport(\"dynamic_shallow\")\nmain := proc(counts: ..Str) { for count : Str in counts { converted := convert_count(count.to_usize()); if converted != usize_to_uptr(count.to_usize()) { panic(\"size generator conversion\") }; println(converted.to_str()) } }\n")
+        "mode cli\nimport(\"dynamic_shallow\")\nmain := proc(counts: ..Str) { for count : Str in counts { converted := usize_to_uptr(count.to_usize()); if converted != convert_count(count.to_usize()) { panic(\"size generator conversion\") }; println(converted.to_str()) } }\n")
     mut count_executable := "./bin/pointer_count"
     if host_os() == "windows" { count_executable = "./bin/pointer_count.exe" }
     for width : Str in array(Str, "32", "64") {

@@ -1,8 +1,32 @@
 # priority: low
 # category: features
-** WIP #441 Target-aware size comparisons in function-generator macro conditions
+** FIXED #441 Target-aware size comparisons in function-generator macro conditions
 
-*** Progress: verified preparation
+*** Post-mortem
+
+Definition-generating macros selected branches during initialization, where
+the condition evaluator only recognized Type.is tests. Calling the ordinary
+interpreter's size methods instead would have confused host storage widths
+with the target widths needed for specialization.
+
+The preparation added target primitive size comparisons and short-circuit
+Boolean composition, resolving aliases through the target type scope while
+preserving host interpreter layouts. Unsupported conditions now diagnose
+rather than choosing a branch. After that support landed, core's factory
+was migrated to ~make_usize_to_uptr()~ with
+~USize.size() <= UPtr.size()~. It no longer enumerates U32/U64 combinations
+or duplicates the unchecked body. A narrowing target keeps the value check;
+other targets generate only the conversion.
+
+Regression tests: ~test_size_condition_generators~ in test/first_class.til
+and ~check_dynamic_widths~ in test/dynamic_widths.til. The byte-count probe
+now calls core before its imported fixture so overflow proves the migrated
+core function rejects the value. Final verification on master ~be9cae300~:
+~make clean && make test~ passed 456/456, including the emitted-C checks
+across all five 32-bit targets. Linux x86 QEMU container and byte-count
+boundary probes passed with both ~--usize=32~ and ~--usize=64~.
+
+*** Preparation history
 
 The evaluator now supports target primitive size comparisons, non-negative
 U64-range integer literals, aliases and substituted Type parameters. It also
@@ -20,7 +44,7 @@ compilations. It also checks the unsupported-user-size diagnostic.
 ~make clean && make test~ passed 524/524; Linux x86 QEMU boundary and
 container probes passed at both widths.
 
-The core factory migration requires this preparation to land first. With
+The core factory migration required this preparation to land first. With
 the size-based core factory, HEAD's til_boot failed while building make.til:
 
 #+begin_example
@@ -32,15 +56,15 @@ old til_boot ("macro argument must be known at compile time" and the same
 undefined-function diagnostic). This is doc/self.org's staged source-level
 migration: pass 1 rejects the new generator condition before the new compiler
 can be built, so a two-pass invocation cannot bootstrap the combined change.
-Core keeps its old spelling in the preparation; the tested fixture already
-uses the desired size condition. After merging preparation, migrate core
-to the zero-argument size-based factory below, verify and close this issue.
+Core kept its old spelling in the preparation; the tested fixture already
+used the desired size condition. The final migration followed the merge of
+that preparation, using the zero-argument size-based factory below.
 
 Verification also required correcting make.til's dispatcher to take
 ~mut b: Build~: master e61ceecf3 now enforces the stored handler's
 ~proc(mut Build)~ contract, which the old dispatcher signature violated.
 
-*** Goal
+*** Original goal
 
 Allow a til macro returning ~FuncDef~ to select a function body using a
 condition such as ~USize.size() <= UPtr.size()~. The decision belongs at
@@ -70,7 +94,7 @@ make_usize_to_uptr := macro() returns FuncDef {
 usize_to_uptr := make_usize_to_uptr()
 #+end_src
 
-*** Current behavior and constraints
+*** Original behavior and constraints
 
 - ~init_macro_cond_eval~ in src/self/initer.til recognizes type-test
   conditions, not size comparisons. ~init_macro_pick_return~ chooses the
@@ -110,7 +134,7 @@ usize_to_uptr := make_usize_to_uptr()
   conditions and if/else-if behavior. Reuse the evaluator if other existing
   definition-generating macros share this path; do not add new public
   intrinsics, flags or persistent artifacts for this feature.
-- [ ] Rewrite ~make_usize_to_uptr~ to the size-based form above once target
+- [X] Rewrite ~make_usize_to_uptr~ to the size-based form above once target
   comparisons work. Follow doc/self.org's bootstrap workflow: verify whether
   old til_boot can build the combined change; if not, land condition support
   as preparation before making core depend on it. Record the actual build
