@@ -2953,25 +2953,110 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), re
     }
 }
 
-// Issue #58: evaluate a macro-body condition at expand time. Today
-// only the `<Ident>.is(Type.<Variant>)` shape is recognised -- enough
-// to make `if T.is(Type.Primitive(Primitive.Bool)) { ... }` style template branching pick
-// a branch deterministically once T's substitution is applied. Returns
-// 1 (true), 0 (false), or -1 (shape not understood, caller falls back
-// to leaving the macro un-expanded).
+// #441: these are target type facts, not calls into the host interpreter.
+// Aggregate layouts and user-defined size methods are deliberately outside
+// this early evaluator's contract. None means unknown/unsupported, not zero.
+priv init_macro_size_operand := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(U64) {
+    switch e.node_type {
+    case .Literal(Literal.Num(n)):
+        if n.is_float().or(literal_in_range(n.literal_num_text(), Type.Primitive(Primitive.U64)).not()) {
+            return Option(U64).None
+        }
+        return Option(U64).Some(n.literal_num_text().to_u64())
+    case .FCall:
+        if e.children.len() != 1 { return Option(U64).None }
+        ref callee : Expr = e.children[0]
+        switch callee.node_type {
+        case .FieldAccess(fa):
+            if fa.field_access_name(symbols.names) != "size" { return Option(U64).None }
+            if callee.children.len() != 1 { return Option(U64).None }
+            switch callee.children[0].node_type {
+            case .Ident(id):
+                resolved := type_from_name_init_name(id.ident_name(symbols.names), scope, symbols)
+                switch resolved {
+                case .Primitive(p):
+                    mut size : USize = 0
+                    mut align : USize = 0
+                    builtin_primitive_size_align(p, size, align)
+                    return Option(U64).Some(size.to_u64())
+                case:
+                }
+            case:
+            }
+        case:
+        }
+    case:
+    }
+    return Option(U64).None
+}
+
+priv init_macro_logic_eval := func(lhs: Expr, rhs: Expr, is_or: Bool, scope: TypeScope, symbols: SymbolPool) returns I32 {
+    left := init_macro_cond_eval(lhs, scope, symbols)
+    if left < 0 { return -1 }
+    if is_or {
+        if left == 1 { return 1 }
+    } else {
+        if left == 0 { return 0 }
+    }
+    return init_macro_cond_eval(rhs, scope, symbols)
+}
+
+// Evaluate Type.is tests, target-size comparisons and lazy Boolean operations.
+// The parser lowers comparison operators to the corresponding method calls.
+// Returns 1 (true), 0 (false), or -1 (unknown/unsupported). The caller
+// diagnoses unknown conditions at the actual generator application.
 priv init_macro_cond_eval := func(cond: Expr, scope: TypeScope, symbols: SymbolPool) returns I32 {
+    switch cond.node_type {
+    case .Literal(Literal.Bool(value)):
+        if value { return 1 }
+        return 0
+    case:
+    }
     if cond.node_type.is(NodeType.FCall).not() { return -1 }
-    if cond.children.len() != 2 { return -1 }
+    if cond.children.len() == 0 { return -1 }
     ref callee : Expr = cond.children[0]
+    switch callee.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(symbols.names)
+        if name.eq("or").or(name.eq("and")) {
+            if cond.children.len() != 3 { return -1 }
+            return init_macro_logic_eval(cond.children[1], cond.children[2], name == "or", scope, symbols)
+        }
+    case:
+    }
+    if cond.children.len() != 2 { return -1 }
     if callee.node_type.is(NodeType.FieldAccess).not() { return -1 }
     mut method_name := ""
     switch callee.node_type {
     case .FieldAccess(fan): method_name = Str.clone(fan.field_access_name(symbols.names))
     case: return -1
     }
-    if method_name.eq("is").not() { return -1 }
     if callee.children.len() != 1 { return -1 }
     ref lhs : Expr = callee.children[0]
+    switch method_name {
+    case "or", "and":
+        return init_macro_logic_eval(lhs, cond.children[1], method_name == "or", scope, symbols)
+    case "lt", "lte", "eq", "neq", "gte", "gt":
+        left_o := init_macro_size_operand(lhs, scope, symbols)
+        right_o := init_macro_size_operand(cond.children[1], scope, symbols)
+        if left_o.is_none().or(right_o.is_none()) { return -1 }
+        left := left_o.unwrap()
+        right := right_o.unwrap()
+        mut matches := false
+        switch method_name {
+        case "lt": matches = left < right
+        case "lte": matches = left <= right
+        case "eq": matches = left == right
+        case "neq": matches = left != right
+        case "gte": matches = left >= right
+        case "gt": matches = left > right
+        case: UNREACHABLE("unexpected size comparison")
+        }
+        if matches { return 1 }
+        return 0
+    case:
+    }
+    if method_name.eq("is").not() { return -1 }
     mut lhs_name := ""
     switch lhs.node_type {
     case .Ident(idn): lhs_name = Str.clone(idn.ident_name(symbols.names))
@@ -3039,8 +3124,9 @@ priv init_macro_cond_eval := func(cond: Expr, scope: TypeScope, symbols: SymbolP
 // Pick the macro return literal from a possibly-if-shaped body. body
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
-// single Return; the caller falls back to leaving the macro un-expanded.
-priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: TypeScope, mut symbols: SymbolPool) returns Option(ref Expr) {
+// single Return. unknown_condition distinguishes a failed condition from
+// an unsupported body shape; the caller must not select a branch on it.
+priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: TypeScope, mut symbols: SymbolPool, mut unknown_condition: Bool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
@@ -3066,17 +3152,17 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: Typ
         ref cond_repl : Expr = subs[cond_root]
         cond_clone = cond_repl.clone()
     } else {
-        // Condition eval only reads type NAMES; ref-ness never changes
-        // which branch a `T.is(...)` condition picks.
+        // Ref-ness changes neither primitive target sizes nor the result
+        // of a `T.is(...)` condition.
         init_substitute_idents(cond_clone, subs, Set(Str).new(), symbols)
     }
     res := init_macro_cond_eval(cond_clone, scope, symbols)
-    if res < 0 { return Option(ref Expr).None }
+    if res < 0 { unknown_condition = true; return Option(ref Expr).None }
     if res == 1 {
-        return init_macro_pick_return(s.children[1], subs, scope, symbols)
+        return init_macro_pick_return(s.children[1], subs, scope, symbols, unknown_condition)
     }
     if s.children.len() < 3 { return Option(ref Expr).None }
-    return init_macro_pick_return(s.children[2], subs, scope, symbols)
+    return init_macro_pick_return(s.children[2], subs, scope, symbols, unknown_condition)
 }
 
 priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
@@ -5060,8 +5146,14 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     case:
     }
 
-    ret_val_o := init_macro_pick_return(body, subs, scope, ctx.symbols)
-    if ret_val_o.is_none() { return false }
+    mut unknown_condition := false
+    ret_val_o := init_macro_pick_return(body, subs, scope, ctx.symbols, unknown_condition)
+    if ret_val_o.is_none() {
+        if unknown_condition {
+            stmt.type_error("cannot evaluate definition-generating macro condition: expected Type.is tests, target primitive size comparisons, or their Boolean combinations", ctx)
+        }
+        return false
+    }
     ref ret_val : Expr = ret_val_o.unwrap()
     ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
         .or(ret_val.node_type.is(NodeType.EnumDef))

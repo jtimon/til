@@ -248,6 +248,40 @@ count_bytes := func(_data: Dynamic, n: USize) returns U64 { return n.to_u64() }
 apply_bytes("abcd", count_bytes) // G inferred as U64 from count_bytes
 #+end_src
 
+** Conditional definitions
+
+A generator can choose its returned definition with ~if~ / ~else if~ /
+~else~. Selection happens during initialization, after argument substitution
+and before typing the generated body; it does not leave a runtime branch.
+Alongside ~T.is(Type.Primitive(...))~ tests, conditions support ~<~, ~<=~,
+~==~, ~!=~, ~>=~ and ~>~ comparisons between primitive ~T.size()~ queries
+and non-negative integer literals (including substituted literal arguments).
+Combine conditions with ~or~ / ~and~, in method or plain-call form. ~||~ /
+~&&~ are sugar for these operations and retain their left-to-right
+short-circuit behavior: an operand skipped by ~or~ or ~and~ is not evaluated.
+
+#+begin_src til
+make_width_check := macro(T: Type, limit: U64) returns FuncDef {
+    if T.size() <= limit {
+        return func() returns Bool { return true }
+    } else {
+        return func() returns Bool { return false }
+    }
+}
+fits_word := make_width_check(USize, 4)
+#+end_src
+
+These size conditions describe the compilation TARGET. ~USize~, ~UPtr~ and
+aliases to primitive types resolve through the target type scope, including
+~--usize~ overrides. Ordinary interpreter storage-size queries remain
+host-sized; they are not used to make this decision. Two size queries can
+also be compared directly, for example ~USize.size() <= UPtr.size()~.
+
+Aggregate sizes, user-defined size methods and runtime-dependent expressions
+are not evaluated by this early condition evaluator. An unsupported
+condition is an expansion error, not a false condition. The same selection
+rules apply to generators returning ~StructDef~ or ~EnumDef~.
+
 Known gap: an alias of a generated function (~add5~ above) can be
 called but not yet used as a function VALUE (#425); the inline form
 (~f : IntOp = make_adder(5)~) works.

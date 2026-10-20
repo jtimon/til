@@ -1142,6 +1142,118 @@ test_macro_func_gen_mixed_params := test() {
     assert_eq(I64, add_i64_5(7), 12)
 }
 
+// --- Target-size and Boolean generator conditions (#441) ---
+// #441: primitive size comparisons use target facts before generated bodies
+// are typed. Test all comparisons, both outcomes, equality, numeric bases,
+// aliases, and an else-if chain with a literal on the left.
+size_lt441 := macro(T: Type, N: U64) returns FuncDef {
+    if T.size() < N { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_lte441 := macro(T: Type, N: U64) returns FuncDef {
+    if T.size() <= N { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_eq441 := macro(T: Type, N: U64) returns FuncDef {
+    if T.size() == N { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_neq441 := macro(T: Type, N: U64) returns FuncDef {
+    if T.size() != N { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_gte441 := macro(T: Type, N: U64) returns FuncDef {
+    if T.size() >= N { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_gt441 := macro(T: Type, N: U64) returns FuncDef {
+    if T.size() > N { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_chain441 := macro(T: Type) returns StructDef {
+    if 2 > T.size() { return struct { tag := 1 } }
+    else if T.size() == U16.size() { return struct { tag := 2 } }
+    else { return struct { tag := 3 } }
+}
+size_or441 := macro(T: Type) returns FuncDef {
+    if T.is(Type.Primitive(Primitive.U8)).or(T.size() == U16.size()) {
+        return func() returns Bool { return true }
+    } else { return func() returns Bool { return false } }
+}
+size_bool_sugar441 := macro(T: Type) returns FuncDef {
+    if (T.size() == 1 || T.size() == 2) && T.size() < 4 {
+        return func() returns Bool { return true }
+    } else { return func() returns Bool { return false } }
+}
+size_nary441 := macro(T: Type) returns FuncDef {
+    if or(T.size() == 1, T.size() == 2, T.size() == 4) {
+        return func() returns Bool { return true }
+    } else { return func() returns Bool { return false } }
+}
+size_short_or441 := macro() returns FuncDef {
+    if true.or(Str.size() == 1) { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+size_short_and441 := macro() returns FuncDef {
+    if false.and(Str.size() == 1) { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+SizeAlias441 := U16
+size_lt_yes441 := size_lt441(U8, 2)
+size_lt_no441 := size_lt441(U16, 2)
+size_lte_yes441 := size_lte441(SizeAlias441, 0x2)
+size_lte_no441 := size_lte441(U32, 2)
+size_eq_yes441 := size_eq441(SizeAlias441, 0b10)
+size_eq_no441 := size_eq441(U8, 2)
+size_neq_yes441 := size_neq441(U8, 2)
+size_neq_no441 := size_neq441(U16, 0o2)
+size_gte_yes441 := size_gte441(U16, 2)
+size_gte_no441 := size_gte441(U8, 2)
+size_gt_yes441 := size_gt441(U32, 2)
+size_gt_no441 := size_gt441(U16, 2)
+SizeSmall441 := size_chain441(U8)
+SizeEqual441 := size_chain441(SizeAlias441)
+SizeLarge441 := size_chain441(U32)
+size_or_left441 := size_or441(U8)
+size_or_right441 := size_or441(U16)
+size_or_no441 := size_or441(U32)
+size_sugar_yes441 := size_bool_sugar441(U16)
+size_sugar_no441 := size_bool_sugar441(U32)
+size_nary_yes441 := size_nary441(U32)
+size_nary_no441 := size_nary441(U64)
+size_lazy_or441 := size_short_or441()
+size_lazy_and441 := size_short_and441()
+
+test_size_condition_generators := test() {
+    assert(size_lt_yes441())
+    assert(size_lt_no441().not())
+    assert(size_lte_yes441())
+    assert(size_lte_no441().not())
+    assert(size_eq_yes441())
+    assert(size_eq_no441().not())
+    assert(size_neq_yes441())
+    assert(size_neq_no441().not())
+    assert(size_gte_yes441())
+    assert(size_gte_no441().not())
+    assert(size_gt_yes441())
+    assert(size_gt_no441().not())
+    small := SizeSmall441()
+    equal := SizeEqual441()
+    large := SizeLarge441()
+    assert_eq(I64, small.tag, 1)
+    assert_eq(I64, equal.tag, 2)
+    assert_eq(I64, large.tag, 3)
+    assert(size_or_left441())
+    assert(size_or_right441())
+    assert(size_or_no441().not())
+    assert(size_sugar_yes441())
+    assert(size_sugar_no441().not())
+    assert(size_nary_yes441())
+    assert(size_nary_no441().not())
+    assert(size_lazy_or441())
+    assert(size_lazy_and441().not())
+}
+
 // --- Conditional macro bodies (issue #58) ---
 // init's pre-pass evaluates `T.is(Type.<Variant>)` at expand time and
 // picks the matching branch's return literal. Else-if chains and bare
