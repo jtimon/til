@@ -34,6 +34,8 @@ HostSize := func(USize) returns USize
 HostScalars := func(Bool, I32, U64, F32, F64) returns Bool
 HostText := func(Str) returns Str
 HostOwned := func(own Str) returns Str
+HostOwnedMutable := func(own mut Str) returns Str
+HostOwnedAction := proc(own Str)
 HostMutable := proc(mut Str)
 HostRead := func(Str)
 HostVariadic := func(values: ..I64) returns I64
@@ -42,6 +44,10 @@ HostThrow := struct {}
 HostThrowing := func(I64) returns I64 throws HostThrow
 HostBorrowed := func(Str) returns ref Str
 HostReader := func() returns Str
+HostTick := proc() returns I64
+HostReal := func(F64) returns F64
+HostMutableInt := proc(mut I32)
+HostShallow := func(Str) returns shallow Str
 
 lookup_contract := func(signature: Type) returns FuncSig {
     return func_sig_of(til_type_name(signature))
@@ -59,6 +65,17 @@ lookup_failure := proc(mut session: InterpSession, mut program: LoadedProgram,
     assert(session.retained_programs.len() == 1)
 }
 
+call_checked := proc(mut session: InterpSession, mut program: LoadedProgram,
+    name: Str, signature: Type, mut arguments: Tuple) returns Tuple {
+    result := interp_session_call_function(session, program, name, lookup_contract(signature), arguments)
+    if result.is_none() {
+        for diagnostic in program.ctx.diagnostics { diagnostic.print() }
+        panic("guest call failed: ", name)
+    }
+    assert(program.ctx.eval.eval_aborted.not())
+    return Option(Tuple).take(own result)
+}
+
 // Exercise the evaluator seam through the installed SDK. The returned
 // binding is a session borrow, not a new public native-callable representation.
 checked_lookup := proc(root: Str) {
@@ -67,27 +84,40 @@ checked_lookup := proc(root: Str) {
         "binary := func(left: GuestNumber, right: GuestNumber) returns GuestNumber { return left + right }\n",
         "size := func(value: USize) returns USize { return value }\n",
         "scalars := func(flag: Bool, a: I32, b: U64, c: F32, d: F64) returns Bool { return flag && a >= 0 && b >= 0 && c <= d.to_f32() }\n",
+        "real := func(value: F64) returns F64 { return value * 2.0 }\n",
+        "increment := proc(mut value: I32) { noop_proc(); value = value + 2 }\n",
         "text := func(value: Str) returns Str { return value.clone() }\n",
         "owned := func(own value: Str) returns Str { return value }\n",
+        "owned_changed := func(own mut value: Str) returns Str { value = format(value, \"#\"); return value }\n",
+        "fail_owned := proc(own value: Str) { noop_proc(); panic(value) }\n",
         "changed := proc(mut value: Str) { value = format(value, \"!\"); noop_proc() }\n",
         "read := func(value: Str) { assert(value.len() >= 0) }\n",
         "variadic := func(values: ..I64) returns I64 { return values.len().to_i64() }\n",
         "keywords := func(values: ...) returns I64 { return values.len().to_i64() }\n",
         "HostThrow := struct {}\nthrowing := func(value: I64) returns I64 throws HostThrow { if value < 0 { throw HostThrow() }; return value }\n",
         "borrowed := func(value: Str) returns ref Str { return value }\n",
+        "view := func(value: Str) returns shallow Str { return value.substr(1, 3) }\n",
+        "literal := func() returns Str { return \"guest literal\" }\n",
+        "empty := func() returns Str { return \"\" }\n",
         "GuestReader := func() returns Str\n",
         "make_reader := func(value: Str) returns GuestReader { saved := value.clone(); return func() returns Str [own saved] { return saved.clone() } }\n",
         "reader := make_reader(\"retained capture\")\n",
+        "mut calls := 0\ntick := proc() returns I64 { calls = calls + 1; noop_proc(); return calls }\n",
+        "fail_call := proc(mut value: Str) { noop_proc(); value = format(value, \"?\"); panic(\"call failed\") }\n",
+        "quit_call := proc(mut value: Str) { noop_proc(); value = format(value, \"!\"); exit(0) }\n",
         "priv helper := func(a: I64, b: I64) returns I64 { return a + b }\nhelper_alias := helper\n",
         "alias := binary\nnumber := 7\nGuestSig := func(I64) returns I64\n",
         "GuestRecord := struct { value := 0 }\nrecord := func(value: GuestRecord) returns I64 { return value.value }\n"))
     mut lp := load_program("lookup_guest.til", realpath_str(root), realpath_str("."),
         format(realpath_str(root), "/src/c/ext.c"), Vec(Str).new(), "", true)
     assert(lp.load_errors == 0)
-    expect(init_and_type_program_errors(lp, false) == 0, "lookup guest should typecheck")
+    if init_and_type_program_errors(lp, false) != 0 {
+        for diagnostic in lp.ctx.diagnostics { diagnostic.print() }
+        panic("lookup guest should typecheck")
+    }
     mut raw : Dynamic = interp_program_to_heap(own lp)
     ref mut program : LoadedProgram = to_ptr(raw)
-    mut session := InterpSession()
+    mut session := InterpSession(capture_output = true)
     interp_session_start(session, Vec(Str).new())
     interp_session_retain_program(session, raw)
     assert(interp_session_prepare_context(session, program, "") == 0)
@@ -144,7 +174,148 @@ checked_lookup := proc(root: Str) {
     lookup_failure(session, program, "binary", lookup_contract(HostThrowing), "signature mismatch")
     lookup_failure(session, program, "text", lookup_contract(HostBorrowed), "signature mismatch")
     assert(interp_session_lookup_function(session, program, "binary", binary).is_some())
+
+    mut numbers := Tuple.new()
+    numbers.push(I64, own 19)
+    numbers.push(I64, own 23)
+    sum := call_checked(session, program, "binary", HostBinary, numbers)
+    ref answer : I64 = sum.get(0)
+    assert(answer == 42)
+    alias_sum := call_checked(session, program, "alias", HostBinary, numbers)
+    ref alias_answer : I64 = alias_sum.get(0)
+    assert(alias_answer == 42)
+    mut scalar_values := Tuple.new()
+    scalar_values.push(Bool, own true)
+    narrow : I32 = 17
+    scalar_values.push(I32, own narrow)
+    scalar_values.push(U64, own U64.MAX.clone())
+    small : F32 = 1.25
+    large : F64 = 2.5
+    scalar_values.push(F32, own small)
+    scalar_values.push(F64, own large)
+    boolean_result := call_checked(session, program, "scalars", HostScalars, scalar_values)
+    ref boolean : Bool = boolean_result.get(0)
+    assert(boolean)
+    mut real_argument := Tuple.new()
+    real_value : F64 = 1.75
+    real_argument.push(F64, own real_value)
+    real_result := call_checked(session, program, "real", HostReal, real_argument)
+    ref doubled : F64 = real_result.get(0)
+    assert(doubled == 3.5)
+    mut int_argument := Tuple.new()
+    initial_int : I32 = 40
+    int_argument.push(I32, own initial_int)
+    int_result := call_checked(session, program, "increment", HostMutableInt, int_argument)
+    ref updated_int : I32 = int_argument.get(0)
+    assert(updated_int == 42 && int_result.len() == 0)
+    mut no_arguments := Tuple.new()
+    for i in 1..4 {
+        count := call_checked(session, program, "tick", HostTick, no_arguments)
+        ref got : I64 = count.get(0)
+        assert(got == i)
+    }
+
+    mut text_values := Tuple.new()
+    // Runtime-owned input, not a folded immutable literal whose backing
+    // bytes the interpreter may legitimately share.
+    File.writefile("call_input.txt", "host value")
+    text_values.push(Str, own File.readfile("call_input.txt"))
+    retained_result := call_checked(session, program, "owned", HostOwned, text_values)
+    ref original_text : Str = text_values.get(0)
+    ref owned_result : Str = retained_result.get(0)
+    assert(original_text == "host value" && owned_result == "host value")
+    assert(original_text.c_str.ptr_eq(owned_result.c_str).not())
+    changed := call_checked(session, program, "changed", HostMutable, text_values)
+    assert(changed.len() == 0)
+    ref updated_text : Str = text_values.get(0)
+    assert(updated_text == "host value!")
+    copied_borrow := call_checked(session, program, "borrowed", HostBorrowed, text_values)
+    ref copied_text : Str = copied_borrow.get(0)
+    assert(copied_text == "host value!")
+    assert(updated_text.c_str.ptr_eq(copied_text.c_str).not())
+    captured_result := call_checked(session, program, "reader", HostReader, no_arguments)
+    ref captured_text : Str = captured_result.get(0)
+    assert(captured_text == "retained capture")
+    literal_result := call_checked(session, program, "literal", HostReader, no_arguments)
+    empty_result := call_checked(session, program, "empty", HostReader, no_arguments)
+    view_result := call_checked(session, program, "view", HostShallow, text_values)
+    own_mut_result := call_checked(session, program, "owned_changed", HostOwnedMutable, text_values)
+    ref own_mut_text : Str = own_mut_result.get(0)
+    ref own_mut_input : Str = text_values.get(0)
+    assert(own_mut_text == "host value!#" && own_mut_input == "host value!")
+
+    // Validation fails before any invocation, preserving both arguments
+    // and the count maintained by earlier successful calls.
+    rejected := interp_session_call_function(session, program, "binary", binary, text_values)
+    assert(rejected.is_none() && program.ctx.eval.eval_aborted.not())
+    assert(program.ctx.diagnostics[0].message.contains("count mismatch"))
+    mut wrong_type := Tuple.new()
+    wrong_type.push(Str, own "not an integer")
+    wrong_type.push(I64, own 3)
+    rejected_type := interp_session_call_function(session, program, "binary", binary, wrong_type)
+    assert(rejected_type.is_none() && program.ctx.eval.eval_aborted.not())
+    assert(program.ctx.diagnostics[0].message.contains("type/width mismatch"))
+    unsupported := interp_session_call_function(session, program, "variadic", lookup_contract(HostVariadic), no_arguments)
+    assert(unsupported.is_none() && program.ctx.eval.eval_aborted.not())
+    assert(program.ctx.diagnostics[0].message.contains("does not yet marshal"))
+
+    failed := interp_session_call_function(session, program, "fail_call", lookup_contract(HostMutable), text_values)
+    assert(failed.is_none() && program.ctx.eval.eval_aborted)
+    assert(program.ctx.eval.exit_status.unwrap() == 1)
+    ref after_failure : Str = text_values.get(0)
+    assert(after_failure == "host value!?")
+    failure_result := interp_session_result(program.ctx)
+    assert(failure_result.aborted && failure_result.output.len() > 0)
+    // The engine leaves state for its driver; another invocation explicitly
+    // starts a new operation. It does not reload initializers or roll back.
+    count_after_failure := call_checked(session, program, "tick", HostTick, no_arguments)
+    ref final_count : I64 = count_after_failure.get(0)
+    assert(final_count == 4)
+    failed_owned := interp_session_call_function(session, program, "fail_owned", lookup_contract(HostOwnedAction), text_values)
+    assert(failed_owned.is_none() && program.ctx.eval.exit_status.unwrap() == 1)
+    ref after_owned_failure : Str = text_values.get(0)
+    assert(after_owned_failure == "host value!?")
+    File.writefile("other_call_guest.til", "mode lib\nmut calls := 100\ntick := proc() returns I64 { noop_proc(); calls = calls + 1; return calls }\n")
+    mut other_lp := load_program("other_call_guest.til", realpath_str(root), realpath_str("."),
+        format(realpath_str(root), "/src/c/ext.c"), Vec(Str).new(), "", true)
+    assert(other_lp.load_errors == 0 && init_and_type_program_errors(other_lp, false) == 0)
+    mut other_raw : Dynamic = interp_program_to_heap(own other_lp)
+    ref mut other_program : LoadedProgram = to_ptr(other_raw)
+    mut other_session := InterpSession(capture_output = true)
+    interp_session_start(other_session, Vec(Str).new())
+    interp_session_retain_program(other_session, other_raw)
+    assert(interp_session_prepare_context(other_session, other_program, "") == 0)
+    interp_session_eval_core_once(other_session, other_program)
+    interp_session_eval_user_units(other_session, other_program)
+    other_count := call_checked(other_session, other_program, "tick", HostTick, no_arguments)
+    ref other_value : I64 = other_count.get(0)
+    assert(other_value == 101)
+    own_count := call_checked(session, program, "tick", HostTick, no_arguments)
+    ref own_value : I64 = own_count.get(0)
+    assert(own_value == 5)
+    interp_session_free(other_session)
+    continued := call_checked(session, program, "tick", HostTick, no_arguments)
+    ref continued_value : I64 = continued.get(0)
+    assert(continued_value == 6)
+    quit := interp_session_call_function(session, program, "quit_call", lookup_contract(HostMutable), text_values)
+    assert(quit.is_none() && program.ctx.eval.eval_aborted)
+    assert(program.ctx.eval.exit_status.unwrap() == 0)
+
     interp_session_free(session)
+    // Host results are owned copies, not views into dead guest arguments,
+    // globals, closure captures or the just-freed SDK program structures.
+    ref survived_owned : Str = retained_result.get(0)
+    ref survived_borrow : Str = copied_borrow.get(0)
+    ref survived_capture : Str = captured_result.get(0)
+    ref survived_literal : Str = literal_result.get(0)
+    ref survived_empty : Str = empty_result.get(0)
+    ref survived_view : Str = view_result.get(0)
+    assert(survived_owned == "host value")
+    assert(survived_borrow == "host value!")
+    assert(survived_capture == "retained capture")
+    assert(survived_literal == "guest literal")
+    assert(survived_empty.len() == 0 && Str.from_c_str(survived_empty.c_str).len() == 0)
+    assert(survived_view == "ost")
 }
 
 main := proc(root: Str) returns I64 {

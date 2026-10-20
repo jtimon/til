@@ -6316,6 +6316,126 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
     return binding_o
 }
 
+priv interp_call_copy := func(t: Type, data: Dynamic, ctx: Context) returns Dynamic {
+    if resolved_type_name(t, ctx.symbols) != "Str" { return heap_clone_by_type(t, data, ctx) }
+    // General evaluator clones may share immutable strings and views while
+    // their program stays alive. A host boundary must copy even those bytes:
+    // a guest literal can borrow its LoadedProgram, not static host storage.
+    ref text : Str = to_ptr(data)
+    count := str_count_at(data, ctx)
+    mut out : Dynamic = EvalHeap.heap_alloc(raw_type_size(t, ctx))
+    if count == 0 { dispatch_write_str(out, "".c_str, 0, ctx) }
+    else {
+        view := Str(c_str = text.c_str, count = count, cap = CAP_VIEW)
+        str_copy_into(out, view, ctx)
+    }
+    return out
+}
+
+// Internal call boundary using the existing typed Tuple storage. Host inputs
+// stay owned by arguments: the guest receives independent snapshots, transfers
+// those snapshots to own parameters, and writes borrowed mut snapshots back to the Tuple
+// after evaluation (also on abort). This is not native ref borrowing. A returned
+// reference is copied out before temporary argument storage is destroyed.
+// None means validation/evaluation failed; diagnostics and the unconsumed abort
+// state remain on Context for the host driver to apply its failure policy.
+interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedProgram,
+    name: Str, expected: FuncSig, mut arguments: Tuple) returns Option(Tuple) {
+    if lp.ctx.eval.embedded.not() { panic("guest invocation requires embedded evaluation policy") }
+    mut retained := false
+    for program in session.retained_programs { if program.p.ptr_eq(lp) { retained = true } }
+    if retained.not() { panic("guest invocation program is not owned by this session") }
+    interp_reset_control_flow(lp.ctx)
+    lp.ctx.eval.exit_status = Option(I64).None
+    lp.ctx.eval.guest_output = ""
+    lp.ctx.diagnostics = Vec(SourceDiagnostic).new()
+    mut binding_o := interp_session_lookup_function(session, lp, name, expected)
+    if binding_o.is_none() { return Option(Tuple).None }
+    ref mut binding : HeapBinding = binding_o.unwrap()
+    ref mut def : Expr = hb_func_def(binding).unwrap()
+    ref fd : FunctionDef = funcdef_of(def)
+    path := lp.ctx.eval.function_paths[word_bits(def).cast(UPtr)].clone()
+    if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)).or(expected.throw_types.len() > 0) {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+            "guest invocation does not yet marshal variadic, kwargs, or throwing contracts")
+        return Option(Tuple).None
+    }
+    if arguments.len() != expected.params.len() || expected.params.len() > 63 {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+            format("guest argument count mismatch: ", name, " expects ", expected.params.len().to_str(),
+                ", received ", arguments.len().to_str(), " (at most 63 supported)"))
+        return Option(Tuple).None
+    }
+    // Validate all inputs before cloning, transferring ownership or running
+    // any guest code. Dynamic's unchecked Tuple reinterpretation is not used.
+    for i in 0..arguments.len() {
+        want := expected.params[i].type_name()
+        got := arguments.type_at(i).clone()
+        t := type_from_name_init_name(want, lp.ctx.scope, lp.ctx.symbols)
+        if got != want || arguments.size_at(i) != raw_type_size(t, lp.ctx) {
+            context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+                format("guest argument ", (i + 1).to_str(), " type/width mismatch: expected ", want, ", received ", got))
+            return Option(Tuple).None
+        }
+    }
+    mut call := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
+    call.add_child(own Expr.new(own ident_node(lp.ctx.symbols.intern(name)), def.line, def.col))
+    mut ret_type := Type.None
+    if expected.return_type.len() > 0 {
+        ret_type = type_from_name_init_name(expected.return_type, lp.ctx.scope, lp.ctx.symbols)
+        if raw_type_size(ret_type, lp.ctx) != dyn_size_of(expected.return_type) {
+            context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+                "guest result width differs from the host layout")
+            return Option(Tuple).None
+        }
+    }
+    call.set_til_type(ret_type)
+    mut temps := scope_new(safe_ref(session_global(session)))
+    for i in 0..arguments.len() {
+        t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
+        copy : Dynamic = interp_call_copy(t, arguments.get(i), lp.ctx)
+        // Dots cannot occur in a source identifier, so these evaluator-only
+        // argument slots cannot shadow a user global inside a static function.
+        arg_name := format("TilVm.argument.", i.to_str())
+        scope_set_raw_owned(temps, arg_name, copy, interp_intern_type(t, lp.ctx), OwnType.Own, lp.ctx)
+        mut arg := Expr.new(own ident_node(lp.ctx.symbols.intern(arg_name)), def.line, def.col)
+        arg.set_til_type(t)
+        call.add_child(own arg)
+        if fd.sig.params[i].own_type.is(OwnType.Own) { set_own_arg(call, i + 1) }
+    }
+    context_enter_file(lp.ctx, path)
+    lp.ctx.eval.failure_site = SourceDiagnostic(phase = DiagnosticPhase.Runtime,
+        path = path.clone(), line = def.line, col = def.col)
+    mut destination : Dynamic = 0
+    if expected.return_type.len() > 0 { destination = EvalHeap.heap_alloc(raw_type_size(ret_type, lp.ctx)) }
+    result : Dynamic = eval_callable_call(temps, call, binding.ptr, lp.ctx, destination)
+    mut values := Tuple.new()
+    if lp.ctx.eval.eval_aborted.not().and(expected.return_type.len() > 0) {
+        copied : Dynamic = interp_call_copy(ret_type, result, lp.ctx)
+        values.push_type_name(own expected.return_type.clone(), own copied)
+    }
+    if destination.is_null().not() {
+        heap_drop_by_type(ret_type, destination, lp.ctx)
+        EvalHeap.heap_free(own destination)
+    }
+    for i in 0..arguments.len() {
+        if fd.sig.params[i].is_mut.and(fd.sig.params[i].own_type.is(OwnType.Ref)) {
+            arg_name := format("TilVm.argument.", i.to_str())
+            ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
+            t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
+            copied : Dynamic = interp_call_copy(t, source.ptr, lp.ctx)
+            ref mut slot : Dynamic = arguments.get(i)
+            dyn_call(arguments.type_at(i), "delete", 2, slot, false)
+            memcpy(slot, copied, arguments.size_at(i).to_uptr())
+            EvalHeap.heap_free(own copied)
+        }
+    }
+    scope_drop_owned_bindings(temps)
+    scope_free(own temps)
+    if lp.ctx.eval.eval_aborted { return Option(Tuple).None }
+    return Option(Tuple).Some(own values)
+}
+
 interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
     if session.global.is_some() {
         scope_drop_owned_bindings(session_global(session))

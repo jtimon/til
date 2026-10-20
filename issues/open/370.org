@@ -99,6 +99,42 @@ Open questions:
   bootstrap output. JVM callable tests also retain the signature name
   while preserving dynamic ~Fn~ classification.
 
+*** Checked evaluator invocation
+
+- ~interp_session_call_function~ connects checked lookup to the existing
+  callable evaluator. It builds a typed call expression, not guest source
+  text, and uses the existing Tuple for typed native inputs/results. No
+  new signature-description or value-wrapper format is introduced.
+- The engine validates the signature, arity, element types and byte widths
+  before executing guest code. The current invocation slice supports fixed
+  core-scalar/Str arguments and results; variadic, kwargs and throwing
+  invocation ABI marshalling is explicitly rejected for now, even though
+  lookup can already compare those contracts.
+- Native Tuple inputs remain owned by the host. Independent snapshots are
+  passed to the guest; an own parameter consumes its guest snapshot.
+  Borrowed mut parameters copy their updates back into the input Tuple,
+  including on abort. An own mut parameter mutates the transferred snapshot,
+  not the original host value. This is explicit copy-in/copy-out, not native
+  reference borrowing.
+- Results are independent host values. Str copies include views and literal
+  buffers that may belong to the LoadedProgram; a general evaluator clone
+  is insufficient at this boundary because it can share those buffers.
+  Borrowed guest results are copied before temporary argument scopes die.
+- Diagnostics, output events, exit status and abort state remain available
+  to the driver. Each invocation starts a new operation on the existing
+  guest globals; the engine neither reloads initializers nor rolls back
+  earlier effects. The public TilVm call API and its unload-on-failure
+  policy remain a separate decision, not implied by this internal seam.
+- The installed ASAN host tests now perform repeated and aliased calls,
+  captured callables, packed scalar arguments, owned/mutable/borrowed Str
+  results, validation failures, panic and exit(0), and independent live
+  sessions. Results are read after session destruction with empty PATH.
+- Verification also exposed a bootstrap call-site error after stored
+  callback mutability became enforced: make.til's dispatch parameter must
+  be ~mut Build~ when passed to its ~proc(mut Build)~ handler.
+- ~make clean && make test~ passed 524/524, including the installed
+  compiler-free host under ASAN with the new invocation cases.
+
 *** Findings from Tiled's startup implementation
 
 The separate [[https://github.com/jtimon/tiled][tiled repository]] now exercises this exact use case with
