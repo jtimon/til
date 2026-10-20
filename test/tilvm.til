@@ -632,8 +632,10 @@ main := proc(root: Str) returns I64 {
     expect_failure(vm, "mode lib\nprintln(struct_field_count(\"NoSuchType\").to_str())\n", "eval", "not found", 2)
     expect_failure(vm, "mode lib\nprintln(struct_field_name(\"Str\", 99))\n", "eval", "out of range", 2)
     expect_failure(vm, "mode lib\nprintln(1.div(0).to_str())\n", "eval", "division by zero", 2)
-    expect_failure(vm, "mode lib\nforeign := ext_proc() {}\n", "load", "native declarations", 2)
-    expect_failure(vm, "mode lib\nforeign := ext_global(I64, \"unknown_native_global\")\n", "load", "native globals", 2)
+    expect_failure(vm, "mode lib\nforeign := ext_proc() {}\nforeign()\n", "eval", "native function is not registered", 3)
+    expect_failure(vm, "mode lib\nforeign := ext_global(I64, \"unknown_native_global\")\n", "eval", "external global symbol not found", 2)
+    expect_failure(vm, "mode lib\nNativeState := struct { namespace: value := ext_global(I64, \"unknown_namespace_global\") }\n", "load", "external global symbol not found", 2)
+    expect_failure(vm, "mode lib\nlink_c(\"missing.c\")\n", "load", "cannot compile link_c", 1)
 
     File.writefile("guest.til", "mode lib\nmessage := format(\"guest \", \"loaded\")\nprintln(message)\n")
     vm.load_file("guest.til")!

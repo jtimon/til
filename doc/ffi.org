@@ -21,9 +21,24 @@ Missing or invalid explicit libraries stop preparation with a diagnostic
 naming the library, before any guest statements execute.
 
 A compiled host and an interpreter can share native globals by using the
-same shared-library instance. This interpreter support is separate from
-the public ~TilVm~ interface, whose initial embedding policy still rejects
-native links and declarations.
+same shared-library instance. ~TilVm.load_file~ accepts these prebuilt
+libraries and imported bindings through the same ~import~ / ~link~ syntax.
+It loads libraries and resolves native declarations in process, without
+running a compiler. ~link_c~ is rejected: compile that code into a library
+before loading the config.
+
+In ~TilVm~, failure to load a named library, explicit path or archive twin
+returns owned ~TilVmError~ diagnostics. A failed load can be retried on the
+same VM. Missing native functions/globals also report through VM diagnostics
+when used. Guest panic/exit remains recoverable, but native code executes
+natively: its own panic, exit or fault can terminate the process. Use a
+native error-return / throws contract for recoverable failures.
+
+Loaded native libraries belong to the process lifetime. Destroying a VM
+releases its guest state and FFI descriptors, not the shared library or its
+globals; other VMs and the compiled host can continue using it. Native
+initializers and earlier native calls are not rolled back on load/call
+failure. Bindings retain their normal FFI ownership and ABI contracts.
 
 ** Why bindings need a human reviewer
 

@@ -1,0 +1,86 @@
+mode cli
+
+import("std/tilvm")
+import("std/file")
+native := import("./gen/til/vm_native")
+
+// install_tilvm.til builds the native library and this host through an
+// installed compiler. The host creates every guest AFTER it was compiled,
+// and runs with no compiler executables on PATH.
+expect_load_error := proc(mut vm: TilVm, source: Str, detail: Str) {
+    File.writefile("native_bad.til", source)
+    mut failed := false
+    vm.load_file("native_bad.til")?
+    catch (err: TilVmError) {
+        failed = true
+        assert(err.phase == "load")
+        expect(err.to_str().contains(detail), err.to_str())
+        assert(err.diagnostics.len() > 0)
+        assert(err.diagnostics[0].path.len() > 0)
+    }
+    assert(failed)
+}
+
+main := proc(root: Str) {
+    native.native_set(41)
+    // This library is NOT linked into the host. Its explicit path must load
+    // it at VM preparation time, rather than finding a host-preloaded symbol.
+    mut extension := ".so"
+    if host_os() == "macos" { extension = ".dylib" }
+    if host_os() == "windows" { extension = ".dll" }
+    File.writefile("plugin_guest.til", format(
+        "mode lib\nlink(\"./gen/lib/libvm_plugin", extension, "\")\n",
+        "til_vm_x5fplugin__plugin_value := ext_func() returns shallow I64 {}\n",
+        "verify := func() { assert(til_vm_x5fplugin__plugin_value() == 73) }\n"))
+    mut plugin := TilVm.new(root)
+    plugin.load_file("plugin_guest.til")!
+    mut verify := plugin.lookup("verify")!
+    verify.call()!
+
+    File.writefile("native_guest.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "on_key := proc() { native_increment(); native_counter = native_counter + 1; assert(native_echo(\"owned string\") == \"owned string\") }\n",
+        "fail := proc() { noop_proc(); native_fail()! }\n"))
+    mut first := TilVm.new(root)
+    // These failures must not publish a module or terminate the host. The
+    // same VM then accepts a repaired config and invokes native functions.
+    expect_load_error(first, "mode lib\nlink(\"tilvm_library_that_does_not_exist\")\n", "tilvm_library_that_does_not_exist")
+    expect_load_error(first, "mode lib\nlink(\"./missing_native.so\")\n", "missing_native.so")
+    expect_load_error(first, "mode lib\nlink(\"./missing_native.a\")\n", "missing_native")
+    File.writefile("invalid_native.so", "not a native library\n")
+    expect_load_error(first, "mode lib\nlink(\"./invalid_native.so\")\n", "invalid_native.so")
+    assert_eq(I64, native.native_get(), 41)
+    first.load_file("native_guest.til")!
+    assert_eq(I64, native.native_get(), 41)
+    mut key := first.lookup("on_key")!
+    key.call()!
+    assert_eq(I64, native.native_get(), 43)
+    assert_eq(I64, native.native_counter, 43)
+
+    mut second := TilVm.new(root)
+    second.load_file("native_guest.til")!
+    mut another_key := second.lookup("on_key")!
+    another_key.call()!
+    assert_eq(I64, native.native_get(), 45)
+    // A compiled throws contract becomes a guest error, not a native panic.
+    mut fail := first.lookup("fail")!
+    mut caught := false
+    fail.call()?
+    catch (err: TilVmError) {
+        caught = true
+        expect(err.to_str().contains("NativeError"), err.to_str())
+    }
+    assert(caught)
+    own fail.delete()
+    own key.delete()
+    own first.delete()
+    // Deleting one VM cannot unload code or reset state used by the host and
+    // another VM. The loaded native instance belongs to the process.
+    another_key.call()!
+    assert_eq(I64, native.native_get(), 47)
+    own another_key.delete()
+    own second.delete()
+    native.native_increment()
+    assert_eq(I64, native.native_get(), 48)
+    println("installed native TilVm shared state PASS: 41 -> 48")
+}

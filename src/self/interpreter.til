@@ -2450,8 +2450,11 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
         // function reading it from being folded as a constant.
         if ctx.ffi.loaded.not() { return }
         mut host_layout := false
-        ref address : U8 = ffi_resolve(dd.external_symbol, false, host_layout)
-        if address.is_null() { panic("external global symbol not found: ", dd.external_symbol) }
+        ref address : U8 = ffi_resolve(dd.external_symbol, false, host_layout, ctx.eval.embedded)
+        if address.is_null() {
+            interp_eval_error(stmt, format("external global symbol not found: ", dd.external_symbol), ctx)
+            return
+        }
         external_type := declaration_resolved_type(dd, ctx.scope, ctx.symbols)
         if dd.own_type.is(OwnType.Ref) {
             // The C object is a POINTER: borrow what it points at now, and
@@ -5883,8 +5886,11 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
                 if nsd.external_symbol.len() > 0 {
                     if ctx.ffi.loaded.not() { continue }
                     mut host_layout := false
-                    ref address : U8 = ffi_resolve(nsd.external_symbol, false, host_layout)
-                    if address.is_null() { panic("external global symbol not found: ", nsd.external_symbol) }
+                    ref address : U8 = ffi_resolve(nsd.external_symbol, false, host_layout, ctx.eval.embedded)
+                    if address.is_null() {
+                        interp_eval_error(sdef, format("external global symbol not found: ", nsd.external_symbol), ctx)
+                        return
+                    }
                     qname := ns_qname(dd.name, def_ns_name_at(sdef, cur_nci))
                     external_type := declaration_resolved_type(nsd, ctx.scope, ctx.symbols)
                     if host_layout.not() { ffi_borrow_place(resolved_type_name(external_type, ctx.symbols), address, ctx) }
@@ -6703,7 +6709,11 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
     ffi_reset(lp.ctx)
     empty := Expr.new(own NodeType.Body, 0, 0)
-    if lp.ctx.eval.embedded.not() {
+    if lp.ctx.eval.embedded {
+        // Embedding only loads prebuilt libraries. It never builds a link_c
+        // bridge or takes ownership of the process-global user-FFI handle.
+        if ffi_init_link_libs(lp.link_flags, lp.ctx) != 0 { return 1 }
+    } else {
         ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
         if ffi_rc.eq(0).not() { return ffi_rc }
     }
@@ -6775,7 +6785,9 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
 
     for upath : Str in lp.unit_paths() {
         ref mut iu6 : ImportUnit = lp.ctx.imported[upath]
+        context_enter_file(lp.ctx, upath)
         interpreter_init_ns(lp.ctx, session_global(session), iu6.ast)
+        if lp.ctx.eval.eval_aborted { return 1 }
     }
 
     interpret_copy_alias_ns(aliases, session_global(session), lp.ctx)
@@ -7397,8 +7409,8 @@ til_built_with_asan := ext_proc() returns shallow Bool {}
 // The Makefile builds a loadable twin beside each archive (libraylib.a ->
 // libraylib.so, force-linked with --whole-archive so every member is kept);
 // dlopen that. Its symbols then resolve globally, exactly like the -lfoo case
-// below. Failing to load one is fatal: the program asked to link it, so
-// carrying on would put us back to silently answering 0 for every call.
+// below. Failing to load one stops preparation: the program asked to link it,
+// so carrying on would silently answer 0 for every call.
 //
 // On a windows HOST (til.exe) the twin is a DLL instead -- the same
 // force-linked archive, built by mingw -shared (make.til's
@@ -7406,18 +7418,28 @@ til_built_with_asan := ext_proc() returns shallow Bool {}
 // walk in ffi_global_symbol then finds its exports exactly like dlopen's
 // RTLD_GLOBAL does. A distinct name, not a PE file called .so, so a
 // checkout can hold both hosts' twins side by side.
-priv ffi_load_archive_twin := proc(archive_path: Str) {
-    if archive_path.len() == 0 { return }
+priv ffi_link_error := proc(path: Str, detail: Str, mut ctx: Context) {
+    message := format("cannot load native library '", path, "': ", detail)
+    if ctx.collect_diagnostics {
+        context_diagnostic(ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, 0, 0, message)
+    } else {
+        eprint_single(format("error: ", message, "\n"))
+    }
+}
+
+priv ffi_load_archive_twin := proc(archive_path: Str, mut ctx: Context) returns I32 {
+    if archive_path.len() == 0 { return 0 }
     mut twin_ext := ".so"
     if host_os() == "windows" { twin_ext = ".dll" }
     so_path := archive_path.strip_suffix(".a").format(twin_ext)
     if ffi_load_global_lib(so_path).not() {
-        panic("cannot load '", so_path, "' for interpreted calls into '", archive_path,
-              "' (built by the Makefile beside the archive): ", ffi_last_error())
+        ffi_link_error(so_path, format("loadable twin of '", archive_path, "': ", ffi_last_error()), ctx)
+        return 1
     }
+    return 0
 }
 
-priv ffi_init_link_libs := proc(link_flags: Str) returns I32 {
+priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context) returns I32 {
     // `-lfoo` names a soname; archives need a loadable twin. Every other
     // entry is a library path already resolved relative to its source file
     // by the loader. Pass those paths to the OS loader as written, including
@@ -7426,6 +7448,7 @@ priv ffi_init_link_libs := proc(link_flags: Str) returns I32 {
     // host-dependent (this runs in the compiler, on the build host).
     mut so_ext := ".so"
     if host_os() == "macos" { so_ext = ".dylib" }
+    if host_os() == "windows" { so_ext = ".dll" }
     mut i : USize = 0
     while i < link_flags.len() {
         if link_flags.unsafe_get(i) == 32 { i++; continue }
@@ -7439,13 +7462,17 @@ priv ffi_init_link_libs := proc(link_flags: Str) returns I32 {
             lib := tok.substr(2, tok.len() - 2)
             if lib.len() > 0 {
                 soname := format("lib", lib, so_ext)
-                ffi_load_global_lib(soname)
+                loaded := ffi_load_global_lib(soname)
+                if loaded.not().and(ctx.eval.embedded) {
+                    ffi_link_error(soname, ffi_last_error(), ctx)
+                    return 1
+                }
             }
         } else if tok.ends_with(".a") {
-            ffi_load_archive_twin(tok)
+            if ffi_load_archive_twin(tok, ctx) != 0 { return 1 }
         } else {
             if ffi_load_global_lib(tok).not() {
-                eprint_single(format("error: cannot load native library '", tok, "': ", ffi_last_error(), "\n"))
+                ffi_link_error(tok, ffi_last_error(), ctx)
                 return 1
             }
         }
@@ -10801,9 +10828,8 @@ priv ffi_resolve := func(name: Str, runtime_decl: Bool, mut host_layout: Bool, e
 }
 
 ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Bool = false) {
-    // Only the SDK's runtime declarations may resolve native symbols. Guest
-    // native registration is a separate contract; no user .so is consulted.
-    if ctx.eval.embedded.and(runtime_decl.not()) { return }
+    // Embedded sessions resolve both SDK and imported prebuilt-library symbols
+    // from the process loader; ffi_resolve excludes the user link_c bridge.
     if ctx.ffi.entries_inited.not() {
         ctx.ffi.entries = Map(Str, FFIEntry).new()
         ctx.ffi.entries_inited = true
@@ -10894,7 +10920,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
         return 1
     }
-    if ffi_init_link_libs(link_flags) != 0 {
+    if ffi_init_link_libs(link_flags, ctx) != 0 {
         if so_path.len() > 0 {
             ffi_close_user_so()
             File.remove(so_path)
