@@ -1463,7 +1463,7 @@ main := proc(args: ..Str) {
     fn_ptr_checks = fn_ptr_checks.concat(array(CountCheck,
         CountCheck(needle = "static ReturnBox346 make_return_box346(Str * value)", expected_count = 2),
         CountCheck(needle = "static ReturnBox346 *make_return_box346", expected_count = 0),
-        CountCheck(needle = "((ReturnBox346 (*)(void *, Str *))", expected_count = 1),
+        CountCheck(needle = "((ReturnBox346 (*)(void *, Str *))", expected_count = 2),
         CountCheck(needle = "Str *_hp = (Str *)dyn_type_to_str", expected_count = 1)))
     closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "static ClosureBox346 closure_test_capturing_closure_owned_aggregate_return_0(void *til_env_raw)", expected_count = 1)))
     structs_checks = structs_checks.concat(array(CountCheck,

@@ -23,6 +23,34 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Destination-typed dyn_fn ABI (based on master e61ceecf3)
+
+    A concrete named FuncSig destination now selects a typed adapter for
+    ~dyn_fn~. The expected type is carried through local/field initialization,
+    arguments, returns and assignments. Runtime type-name lookup still uses
+    the existing dyn_fn table; the typed adapter checks the selected method's
+    contract and bridges its scalar, aggregate, ownership and return ABI.
+    A mismatch fails at lookup on both interpreter and compiled paths.
+
+    Signatures containing Dynamic parameters or results keep the existing
+    erased collection ABI. An untyped Dynamic result also remains erased;
+    the method-name argument still must be a string literal. No closure
+    layout, public lookup function or generated artifact path was added.
+
+    ~test_typed_dyn_fn_scalars~, ~test_typed_dyn_fn_runtime_selection~ and
+    ~test_typed_dyn_fn_owned_aggregate~ cover integer/float values, an external
+    scalar clone, mutable parameters, field and argument destinations,
+    reassignment, runtime lookup, aggregate returns and owned arguments.
+    The scalar clone exposed local external callables executing their empty
+    til body; they now use the intrinsic/FFI dispatcher, like callable fields.
+    A temporary incompatible-signature probe reported the expected diagnostic
+    on both paths. Existing erased collection tests remain passing.
+
+    Master's stored-callback checks also exposed a missing ~mut~ on
+    ~make.til~'s Build dispatch parameter; corrected to permit bootstrapping.
+    Verification: ~make clean && make test~ passed 524/524, including ASAN
+    and self-translation; ~test/fn_ptr.til~ passed 33/33 on both paths.
+
 *** Local dyn_fn callable initialization (based on master f24e6004c)
 
     Reproduced the local FuncSig initialization crash under ASAN. Dynamic-to-

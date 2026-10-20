@@ -3528,6 +3528,30 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
         if destination.is_null().not() { return destination }
         return raw_unit_result(e.til_type(), ctx)
     case .FuncDef(fd):
+        // A local callable can name an external namespace method just as a
+        // callable-valued field can. Its empty til body is not an executable
+        // implementation: route through the normal intrinsic/FFI dispatcher.
+        if fd.sig.func_type.is_ext() {
+            qn := namespace_func_qname(func_def, "", ctx)
+            if qn.len() > 0 {
+                mut call := e.clone()
+                mut callee := Expr.new(own ident_node(ctx.symbols.intern(qn.replace(".", "_"))), e.line, e.col)
+                callee.set_til_type(Type.FuncDef)
+                call.children[0] = callee
+                mark_fcall_direct(call)
+                mut actual_type := Type.None
+                if fd.sig.return_type.len() > 0 { actual_type = type_from_name_init_name(fd.sig.return_type, ctx.scope, ctx.symbols) }
+                call.set_til_type(actual_type)
+                mut actual_destination : Dynamic = 0
+                if til_type_name_c(actual_type, ctx.symbols) == til_type_name_c(e.til_type(), ctx.symbols) { actual_destination = destination }
+                mut result : Dynamic = eval_call(caller_scope, call, ctx, actual_destination)
+                if fd.sig.return_own_type.is(OwnType.Ref).not() {
+                    result = raw_coerce_value(result, actual_type, e.til_type(), ctx, fd.sig.return_own_type)
+                    result = raw_result_finish(e.til_type(), result, destination, false, ctx)
+                }
+                return result
+            }
+        }
         // A default taken as a function value has the same virtual semantics
         // as a direct interface-qualified call.
         if fd.auto_generated.not().and(fd.sig.func_type.is_plain()).and(fd.sig.params.len().gt(0)) {
@@ -7850,6 +7874,17 @@ priv h_dyn_has_method := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx
 priv h_dyn_fn := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     method := eval_str_owned(s, e.children[2], ctx)
+    if dyn_fn_uses_typed_abi(e.til_type(), ctx.scope, ctx.symbols) {
+        target_o := ns_func_def(type_name, method, ctx)
+        if target_o.is_some() {
+            sig_name := type_to_name(e.til_type(), ctx.symbols)
+            ref want : FunctionDef = funcdef_of(ctx.scope.lookup_func_name(sig_name, ctx.symbols).unwrap())
+            if dyn_fn_signature_matches(funcdef_of(target_o.unwrap()), want, ctx.scope, ctx.symbols).not() {
+                interp_eval_error(e, format("dyn_fn: signature mismatch for ", type_name, ".", method, " (expected ", sig_name, ")"), ctx)
+                return true
+            }
+        }
+    }
     stored_o := ns_get(type_name, method, ctx)
     if stored_o.is_some() {
         if ns_func_def(type_name, method, ctx).is_none() {

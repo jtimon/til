@@ -57,6 +57,12 @@ dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dyn
 /// the general interface-dispatch path (~dyn_call_ret(iface_type_name,
 /// "method", arity, iface_val, ...)~), so it reaches any user method.
 dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
+/// Look up a namespace method; the method name must be a string literal.
+/// In a concrete named FuncSig destination (local, field, argument or return),
+/// the lookup checks the selected method's signature and adapts its calling
+/// convention to that FuncSig. The type name may be selected at runtime.
+/// Signatures with Dynamic parameters or results retain the erased collection
+/// convention (CloneFn, DeleteFn, etc.), as does an untyped Dynamic result.
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
 dyn_storage_kind := ext_func(type_name: Str) returns shallow USize {}

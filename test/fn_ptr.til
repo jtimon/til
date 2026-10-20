@@ -100,6 +100,13 @@ DynCallbacks := struct {
 namespace:
     length := func(text: Str) returns USize { return text.len() }
     twice := func(text: Str) returns USize { return text.len() * 2 }
+    double := func(n: I64) returns I64 { return n * 2 }
+    negate := func(n: I64) returns I64 { return 0 - n }
+    sum := func(a: I64, b: I64) returns I64 { return a + b }
+    float_add := func(a: F64, b: F64) returns F64 { return a + b }
+    mutate := func(mut n: I64) { n = n + 9 }
+    make := func(text: Str) returns ReturnBox346 { return ReturnBox346(value = text.clone()) }
+    consume := func(own box: ReturnBox346) returns USize { return box.value.len() }
 }
 DynLength := func(Str) returns USize
 
@@ -115,6 +122,64 @@ test_local_dyn_fn := test() {
 }
 
 Mutator := func(mut I64)
+
+DynFloat := func(F64, F64) returns F64
+runtime_dyn_callback := func(type_name: Str, method: Str) returns UnaryOp {
+    if method == "double" { return dyn_fn(type_name, "double") }
+    return dyn_fn(type_name, "negate")
+}
+
+test_typed_dyn_fn_scalars := test() {
+    clone: UnaryOp = dyn_fn("I64", "clone")
+    assert_eq(I64, clone(23), 23)
+    mut callback: UnaryOp = dyn_fn("DynCallbacks", "double")
+    assert_eq(I64, callback(7), 14)
+    callback = dyn_fn("DynCallbacks", "negate")
+    assert_eq(I64, callback(7), -7)
+    assert_eq(I64, apply_unary(dyn_fn("DynCallbacks", "double"), 9), 18)
+    handler := Handler(on_click = dyn_fn("DynCallbacks", "sum"))
+    assert_eq(I64, handler.on_click(3, 4), 7)
+    floats: DynFloat = dyn_fn("DynCallbacks", "float_add")
+    assert_eq(F64, floats(1.25, 2.5), 3.75)
+    mutate_value: Mutator = dyn_fn("DynCallbacks", "mutate")
+    mut n := 10
+    mutate_value(n)
+    assert_eq(I64, n, 19)
+}
+
+test_typed_dyn_fn_runtime_selection := test() {
+    mut methods := Vec(Str).new()
+    methods.push(own "double")
+    methods.push(own "negate")
+    for method : Str in methods {
+        callback := runtime_dyn_callback("DynCallbacks", method)
+        if method == "double" { assert_eq(I64, callback(5), 10) }
+        else { assert_eq(I64, callback(5), -5) }
+    }
+}
+
+test_typed_dyn_fn_owned_aggregate := test() {
+    make: ReturnBoxMaker346 = dyn_fn("DynCallbacks", "make")
+    consume: OwnedBoxValueFn346 = dyn_fn("DynCallbacks", "consume")
+    box := make("owned")
+    assert_eq(USize, consume(own box), 5)
+}
+
+ErasedCloneAlias := CloneFn
+ErasedOwnedDelete := func(own Dynamic, Bool)
+
+test_dyn_fn_erased_and_typed := test() {
+    type_name := "Str"
+    clone: ErasedCloneAlias = dyn_fn(type_name, "clone")
+    drop: ErasedOwnedDelete = dyn_fn(type_name, "delete")
+    text := "erased clone"
+    raw: Dynamic = clone(text)
+    ref copied: Str = to_ptr(raw)
+    assert_eq(Str, copied, text)
+    drop(own raw, true)
+    typed_clone: UnaryOp = dyn_fn("I64", "clone")
+    assert_eq(I64, typed_clone(23), 23)
+}
 
 apply_mutator := func(f: Mutator, mut x: I64) {
     f(x)

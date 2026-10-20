@@ -1389,6 +1389,35 @@ priv fdef_sig_mismatch := func(got: FunctionDef, want: FunctionDef, scope: TypeS
     return ""
 }
 
+// Shared by the interpreter and C lookup tables for typed dyn_fn results.
+// Declaration narrowing can stamp an erased lookup with its FuncSig too.
+// The signature's contract, not the FuncPtr tag alone, selects the ABI.
+dyn_fn_uses_typed_abi := func(shallow t: Type, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if t.is_funcptr().not() { return false }
+    name_o := type_name_of(t, symbols)
+    if name_o.is_none() { return false }
+    ref name : Str = resolve_type_alias(scope, name_o.unwrap(), symbols)
+    if name.is_empty().or(name.eq("Fn")) { return false }
+    ref sig : FunctionDef = funcdef_of(scope.lookup_func_name(name, symbols).unwrap())
+    if resolve_type_alias(scope, sig.sig.return_type, symbols) == "Dynamic" { return false }
+    for p : Declaration in sig.sig.params {
+        if resolve_type_alias(scope, decl_type_name_ref(p, symbols), symbols) == "Dynamic" { return false }
+    }
+    return true
+}
+
+dyn_fn_signature_matches := func(got: FunctionDef, want: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if fdef_sig_mismatch(got, want, scope, symbols).is_empty().not() { return false }
+    if got.sig.return_own_type.is(OwnType.Ref) != want.sig.return_own_type.is(OwnType.Ref) { return false }
+    if got.sig.variadic_index != want.sig.variadic_index { return false }
+    if got.sig.kwargs_index != want.sig.kwargs_index { return false }
+    if got.sig.throw_types.len() != want.sig.throw_types.len() { return false }
+    for i in 0..got.sig.throw_types.len() {
+        if resolve_type_alias(scope, got.sig.throw_types[i], symbols) != resolve_type_alias(scope, want.sig.throw_types[i], symbols) { return false }
+    }
+    return true
+}
+
 // Validate a single argument against its parameter's type. Narrows
 // numeric literals to fit the param type, applies implicit widen /
 // usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
@@ -4520,6 +4549,11 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     }
     validate_fcall_own_args(scope, e, callee_fdef_o, ctx)
     resolve_fcall_return_type(scope, e, name, callee_bind_o, callee_fdef_o, in_func, ctx)
+    if callee_is_indirect.not().and(name.eq("dyn_fn"))
+        .and(ctx.generic_expected_type.len() > 0).and(to_ptr(e).ptr_eq(ctx.generic_expected_for)) {
+        expected := type_from_name_init_name(ctx.generic_expected_type, scope, ctx.symbols)
+        if dyn_fn_uses_typed_abi(expected, scope, ctx.symbols) { e.set_til_type(expected) }
+    }
     if callee_is_indirect.not() { mark_fcall_direct(e) }
     return
 }

@@ -4417,7 +4417,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) r
                 UNREACHABLE("expected LiteralStr, got ", c2.node_type.head_str(ctx.symbols.names))
             }
         } else if name.ident_name(ctx.symbols.names) == "dyn_fn" {
-            f.write("dyn_fn(")
+            if dyn_fn_uses_typed_abi(e.til_type(), ctx.scope, ctx.symbols) {
+                f.write("_t_dyn_fn_").write(type_to_name(e.til_type(), ctx.symbols)).write("(")
+            } else { f.write("dyn_fn(") }
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(", ")
             ref method_arg : Expr = e.children[2]
@@ -8709,6 +8711,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     // but it advertises a definition that no longer exists.
     if builder_needs_reflect("dyn_fn", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("void *dyn_fn(Str *type_name, Str *method);\n")
+        for sig_name : Str in typed_dyn_fn_sigs(lp) {
+            f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(Str *type_name, Str *method);\n")
+        }
     }
     if builder_needs_reflect("dyn_size_of", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("USize dyn_size_of(Str *type_name);\n")
@@ -8844,6 +8849,147 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
         f.write(ret).write(" *").write(prefix).write("_of_").write(ci.type_name).write("(int count, ...);\n")
     }
     if coll_infos.len() > 0 { f.write("\n") }
+}
+
+priv collect_typed_dyn_fn_sigs := func(e: Expr, mut names: Set(Str), scope: TypeScope, symbols: SymbolPool) {
+    if e.node_type.is(NodeType.FCall).and(e.til_type().is_funcptr()) {
+        switch e.children[0].node_type {
+        case .Ident(id):
+            if id.ident_name(symbols.names).eq("dyn_fn").and(dyn_fn_uses_typed_abi(e.til_type(), scope, symbols)) {
+                names.add(own type_to_name(e.til_type(), symbols))
+            }
+        case:
+        }
+    }
+    switch e.node_type {
+    case .FuncDef(fd):
+        for p : Declaration in fd.sig.params {
+            if p.default_value.is_some() { collect_typed_dyn_fn_sigs(p.default_expr(), names, scope, symbols) }
+        }
+    case .StructDef(sd):
+        for d : Declaration in sd.fields {
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols) }
+        }
+        for d : Declaration in sd.ns_decls {
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols) }
+        }
+    case .EnumDef(ed):
+        for d : Declaration in ed.ns_decls {
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols) }
+        }
+    case:
+    }
+    for child : Expr in e.children { collect_typed_dyn_fn_sigs(child, names, scope, symbols) }
+}
+
+priv typed_dyn_fn_sigs := func(lp: LoadedProgram) returns Set(Str) {
+    mut names := Set(Str).new()
+    for path : Str in lp.unit_paths() { collect_typed_dyn_fn_sigs(lp.ctx.imported[path].ast, names, lp.ctx.scope, lp.ctx.symbols) }
+    return names
+}
+
+// The destination signature owns this wrapper's ABI. The original _dyn
+// entry remains the erased collection ABI and the runtime lookup identity.
+priv emit_typed_dyn_fn_wrapper := proc(f: File, name: Str, wrapper: Str, got: FunctionDef, want: FunctionDef, mut ctx: Context) {
+    f.write("static ").write(func_return_ctype(want, ctx)).write(" ").write(wrapper).write("(void *env")
+    for i in 0..want.sig.params.len() {
+        f.write(", ").write(param_ctype(want, i, ctx)).write(" a").write(i.to_str())
+    }
+    f.write(") {\n    (void)env;\n")
+    for i in 0..want.sig.params.len() {
+        if want.sig.params[i].own_type.is(OwnType.Own).not() { continue }
+        source_value := func_param_passes_c_value(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        source_stack := func_param_has_stack_outer(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        target_value := func_param_passes_c_value(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        target_stack := func_param_has_stack_outer(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        if source_stack.and(target_stack.or(target_value).not()) {
+            f.write("    __typeof__(a").write(i.to_str()).write(") owned").write(i.to_str()).write(" = malloc(sizeof(*a").write(i.to_str()).write("));\n    *owned").write(i.to_str()).write(" = *a").write(i.to_str()).write(";\n")
+        }
+        if source_value.or(source_stack).not().and(target_value.or(target_stack))
+            .and(decl_type_name_ref(want.sig.params[i], ctx.symbols).eq("Str"))
+            .and(i.to_i32().neq(want.sig.variadic_index)).and(i.to_i32().neq(want.sig.kwargs_index)) {
+            f.write("    Bool free").write(i.to_str()).write(" = a").write(i.to_str()).write("->cap != TIL_CAP_LIT;\n")
+        }
+    }
+    f.write("    ")
+    if want.sig.return_type.len() > 0 { f.write(func_return_ctype(got, ctx)).write(" result = ") }
+    f.write(name).write("(")
+    for i in 0..want.sig.params.len() {
+        if i > 0 { f.write(", ") }
+        source_value := func_param_passes_c_value(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        target_value := func_param_passes_c_value(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        if func_param_has_stack_outer(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+            .and(func_param_has_stack_outer(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).or(target_value).not()) {
+            f.write("owned").write(i.to_str())
+        } else {
+            if source_value.and(target_value.not()) { f.write("&") }
+            if source_value.not().and(target_value) { f.write("*") }
+            f.write("a").write(i.to_str())
+        }
+    }
+    f.write(");\n")
+    for i in 0..want.sig.params.len() {
+        if want.sig.params[i].own_type.is(OwnType.Own).not() { continue }
+        if func_param_passes_c_value(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+            .or(func_param_has_stack_outer(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)) { continue }
+        if func_param_passes_c_value(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+            .or(func_param_has_stack_outer(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)) {
+            if is_aggregate(declaration_resolved_type(want.sig.params[i], ctx.scope, ctx.symbols))
+                .or(i.to_i32().eq(want.sig.variadic_index)).or(i.to_i32().eq(want.sig.kwargs_index)) {
+                f.write("    ")
+                if decl_type_name_ref(want.sig.params[i], ctx.symbols).eq("Str")
+                    .and(i.to_i32().neq(want.sig.variadic_index)).and(i.to_i32().neq(want.sig.kwargs_index)) {
+                    f.write("if (free").write(i.to_str()).write(") ")
+                }
+                f.write("free(a").write(i.to_str()).write(");\n")
+            }
+        }
+    }
+    if want.sig.return_type.len() > 0 {
+        if func_returns_c_value(want).and(func_returns_c_value(got).not()) {
+            f.write("    ").write(func_return_ctype(want, ctx)).write(" value = *result;\n    ")
+            if want.sig.return_type == "Str" { f.write("if (result->cap != TIL_CAP_LIT) ") }
+            f.write("free(result);\n    return value;\n")
+        } else if func_returns_c_value(want).not().and(func_returns_c_value(got)) {
+            f.write("    ").write(func_return_ctype(want, ctx)).write(" value = malloc(sizeof(result));\n    *value = result;\n    return value;\n")
+        } else { f.write("    return result;\n") }
+    }
+    f.write("}\nstatic TilClosure ").write(wrapper).write("_value = { (void *)").write(wrapper).write(", NULL, NULL, NULL };\n")
+}
+
+priv emit_typed_dyn_fn_lookups := proc(f: File, mut lp: LoadedProgram) {
+    for sig_name : Str in typed_dyn_fn_sigs(lp) {
+        ref want : FunctionDef = funcdef_of(lp.ctx.scope.lookup_func_name(sig_name, lp.ctx.symbols).unwrap())
+        mut targets := Vec(Str).new()
+        for path : Str in lp.unit_paths() {
+            for stmt : Expr in lp.ctx.imported[path].ast.children {
+                if is_struct_or_enum(stmt).not() { continue }
+                ref def : Expr = stmt.children[0]
+                ref type_name : Str = decl_of(stmt).name
+                ref members : Vec(Declaration) = def_ns_decls(def)
+                for i in 0..members.len() {
+                    ref nsd : Declaration = members[i]
+                    ref method_name : Str = def_ns_name_at(def, i)
+                    if nsd.default_value.is_none() { continue }
+                    if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+                    ref got : FunctionDef = funcdef_of(nsd.default_expr())
+                    if got.sig.func_type.is_core().or(got.sig.func_type.is_ext().and(def_is_interface(def))) { continue }
+                    if builder_dyn_fn_target_kept(type_name, method_name, lp.ctx).not() { continue }
+                    if dyn_fn_signature_matches(got, want, lp.ctx.scope, lp.ctx.symbols).not() { continue }
+                    name := format(type_name, "_", method_name)
+                    wrapper := format("_t_dyn_fn_", sig_name, "_", name)
+                    emit_typed_dyn_fn_wrapper(f, name, wrapper, got, want, lp.ctx)
+                    targets.push(own name)
+                }
+            }
+        }
+        f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(Str *type_name, Str *method) {\n    TilClosure *erased = dyn_fn(type_name, method);\n")
+        for name : Str in targets {
+            f.write("    if (erased == &").write(name).write("_dyn__til_closure) return &_t_dyn_fn_").write(sig_name).write("_").write(name).write("_value;\n")
+        }
+        if targets.len() == 0 { f.write("    (void)erased;\n") }
+        f.write("    fprintf(stderr, \"dyn_fn: signature mismatch for %s.%s (expected ").write(sig_name).write(")\\n\", (char *)type_name->c_str, (char *)method->c_str);\n    exit(1);\n}\n")
+    }
 }
 
 priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef, mut ctx: Context) {
@@ -9063,6 +9209,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
     f.write("    fprintf(stderr, \"dyn_fn: no method %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
+    emit_typed_dyn_fn_lookups(f, lp)
 }
 
 priv emit_dyn_name_return_branch := proc(f: File, type_name: Str, ret_expr: Str) {
