@@ -3907,7 +3907,7 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
         f.write("; ").write(sname).write(" til_simd_result; ")
         // Keep explicit register-sized vector values: scalar struct-field
         // assignments made GCC miss SLP and emit one scalar FMA per lane.
-        // Use value construction rather than memcpy through vector addresses.
+        // Construct operands as values rather than through vector addresses.
         // The per-lane builtins retain genuine fused libm semantics when
         // the target has no hardware FMA; ordinary mul/add never replaces it.
         chunk_lanes := builder_simd_chunk_lanes(simd, ctx)
@@ -3932,9 +3932,19 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
             // Older compilers still use genuine fused scalar operations.
             f.write("\n#if defined(__clang__)\n#if __has_builtin(__builtin_elementwise_fma)\ntil_simd_v til_simd_z = __builtin_elementwise_fma(til_simd_a_v, til_simd_b_v, til_simd_c_v);\n#else\n").write(lane_loop)
             f.write("\n#endif\n#else\n").write(lane_loop).write("\n#endif\n")
+            if chunk_lanes * builder_simd_lane_bytes(simd, ctx) < 64 {
+                // Preserve the vector value across the storage boundary.
+                // Lane extraction made Clang split/rejoin a four-lane FMA
+                // accumulator on every iteration. Retain GCC's established
+                // representation, including address-free 64-byte locals.
+                f.write("\n#if defined(__clang__) && defined(__OPTIMIZE__)\n")
+                f.write("memcpy((U8 *)&til_simd_result + sizeof(").write(elem).write(") * ").write(first.to_str()).write(", &til_simd_z, sizeof(til_simd_z)); ")
+                f.write("\n#else\n")
+            }
             for i in 0..chunk_lanes {
                 f.write("til_simd_result.lane").write((first + i).to_str()).write(" = til_simd_z[").write(i.to_str()).write("]; ")
             }
+            if chunk_lanes * builder_simd_lane_bytes(simd, ctx) < 64 { f.write("\n#endif\n") }
             f.write("} ")
         }
         f.write("til_simd_result; })")

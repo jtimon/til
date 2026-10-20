@@ -40,6 +40,145 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Preann four-lane follow-up (base be9cae300)
+
+Followed up [[./410.org][#410]] without changing FMA semantics or reduction order.
+Clang's four-lane FMA loop extracted the result into scalar struct fields,
+then carried the accumulator in two halves: ~vunpcklpd~ before each FMA and
+~vshufpd~ after it. A vector-sized memcpy at the RESULT storage boundary
+keeps that accumulator together. The generated loop now has the packed FMA
+without those per-iteration shuffles; the final horizontal reduction stays
+outside the loop and keeps the same addition order.
+
+The change applies to optimized Clang for chunks smaller than 64 bytes.
+GCC and O0 keep their established lane extraction; 64-byte chunks stay
+address-free, preserving the earlier GCC/ASAN alignment fix. This is a
+generic C representation change, not an ISA-specific intrinsic, new API or
+alignment requirement on public SIMD storage.
+
+An equivalent bounds-check rewrite was also measured and rejected:
+~count >= width && start <= count-width~ in place of the current
+~start <= count && count-start >= width~. It reduced GCC baseline's
+per-load checked four-lane loop from 0.1429 to 0.1047 ns/element, but slowed
+Clang v3 separate4 from 0.0963 to 0.1091 and GCC baseline separate16 from
+0.0627 to 0.0920. Both synthesized method bodies and inline memory lowering
+retain their original checks. The broader vector-copy experiment also
+regressed GCC's baseline fused loops, so the retained change is Clang-only.
+
+**** Exact four-lane comparison
+
+The residual dot-product gap includes repeated checked loads. The new
+scratch ~dot_prechecked~ variant below validates BOTH complete input ranges
+once, then uses existing memcpy/ptr_add operations inside the loop. It keeps
+four accumulators, separate multiply/add, and exactly the SSE2 reduction
+~(lane0+lane2)+(lane1+lane3)~. No reassociation, wider accumulator count, FMA
+substitution or unchecked public SIMD API is involved. The n=0 case returns
+zero before reading storage. Invalid nonempty ranges fail before arithmetic;
+this benchmark helper is distinct from per-load error timing/diagnostics.
+
+The existing ~dot(4, false)~ and assembly wrapper remain in the harness, so
+the once-checked result is not presented as an optimization of Simd.load.
+The same bit-exact C oracle covers all variants at n=0..65, starts 0/1,
+and the full timed ranges. The fused variants keep their separate fused
+oracle. This is still a dot-kernel comparison, not a whole preann port.
+
+Ryzen 9950X3D, CPU-0 affinity, GCC 13.3 / Clang 18.1.3, O2 with til's
+baseline/v3/v4 flags, contraction off and standard excess precision.
+Median of three rotated samples calibrated to >=50 ms, n=17/4096/33554432,
+start=1. Early contended runs moved even the unchanged SSE2 control from
+about 0.093 to 0.213 ns/element; the table uses the later paired repeat
+runs, whose cache-sized SSE2 controls remain around 0.090-0.093.
+
+ns/element at n=4096. SSE2/per-load/prechecked columns are from the after
+binary; fused4 compares before/after with the same expanded harness:
+
+| Compiler/profile | SSE2 asm | per-load4 | prechecked4 | fused4 before | fused4 after |
+|------------------+----------+-----------+-------------+---------------+--------------|
+| GCC baseline     |   0.0905 |    0.0977 |      0.0911 |        1.5909 |       1.5990 |
+| GCC v3           |   0.0913 |    0.1001 |      0.0926 |        0.1843 |       0.1845 |
+| GCC v4           |   0.0926 |    0.1410 |      0.0884 |        0.1828 |       0.1825 |
+| Clang baseline   |   0.0910 |    0.0946 |      0.0878 |        1.3145 |       1.3013 |
+| Clang v3         |   0.0911 |    0.0949 |      0.0906 |        0.3568 |       0.1822 |
+| Clang v4         |   0.0909 |    0.0944 |      0.0901 |        0.3585 |       0.1824 |
+
+The targeted Clang fused4 case gains about 1.96x. Checking once brings the
+EXACT non-fused four-lane algorithm within roughly 1.5% of SSE2 or faster
+at this size, using portable til and the existing primitives. FMA itself is
+still a different numerical operation and its dependent four-lane chain
+remains slower than separate multiply/add; baseline libm calls remain costly.
+
+At n=33554432, Clang v3 fused4 improves 0.3816 -> 0.2266 and v4 improves
+0.4519 -> 0.3053. For the prechecked fused4 variant those pairs are
+0.2806 -> 0.1985 and 0.3058 -> 0.2187. Small inputs gain less: Clang v4
+fused4 at n=17 is 0.1621 -> 0.1561. All twelve complete final benchmark
+runs pass their correctness checks.
+
+Results are not uniformly positive. Clang v4 fused16 measures
+0.0526 -> 0.0636 at n=4096 although its 64-byte lowering is unchanged:
+the hot loop has identical instruction bytes/relative branches and moved
+48 bytes (0x7680 -> 0x7650). This is consistent with layout-sensitive
+timing, not grounds for a universal speedup claim. Adding the prechecked
+functions to the harness also changes layout; compare the matched final
+before/after pair rather than attributing differences from #410's smaller
+harness to this compiler change.
+
+**** Verification and reproduction
+
+Clean ~make clean && make test~ ASAN suite: 456/456. SIMD tests pass 31/31
+interpreted and compiled for GCC/Clang, O0/O2/O3, all x86 profiles, with
+ASAN on the compiled children. GCC AArch64/RISC-V64/x86 and Clang AArch64
+O2 binaries pass 31/31 under QEMU. Native AArch64 timing remains open.
+
+Final artifacts are ~tmp/preann409-four-final-{before,after}-{compiler}-{cpu}~;
+~.repeat.log~ contains the table's timings and ~.asm.log~ the disassembly.
+The before compiler came from the base commit's bootstrap; the after
+compiler included this change. The full suite log is
+~tmp/preann409-four-test.log~. Reuse #410's source/harness/compiler adapter,
+add this macro before main, and call both ~dot_prechecked(4, false)~ and
+~dot_prechecked(4, true)~ from main so both specializations survive DCE:
+
+#+begin_src til
+dot_prechecked := macro(N: I64, fused: Bool) returns FuncDef {
+return func(a: Array(F32), b: Array(F32), start: USize, n: USize) returns F32 {
+    if n == 0 { return 0.0 }
+    if start > a.len() || n > a.len() - start { panic("dot: first input range") }
+    if start > b.len() || n > b.len() - start { panic("dot: second input range") }
+    width := Simd(F32, N).zero().len()
+    bytes := width.to_uptr() * F32.size().to_uptr()
+    bulk := n - n.mod(width)
+    mut accum := Simd(F32, N).zero()
+    mut i : USize = 0
+    while i < bulk {
+        mut x := Simd(F32, N).zero()
+        mut y := Simd(F32, N).zero()
+        offset := (start + i).to_uptr() * F32.size().to_uptr()
+        memcpy(x, ptr_add(a.data, offset), bytes)
+        memcpy(y, ptr_add(b.data, offset), bytes)
+        if fused { accum = x.fma(y, accum) }
+        else { accum = accum + x * y }
+        i = i + width
+    }
+    mut result := accum.reduce_add()
+    while i < n {
+        ref x : F32 = a.unsafe_get(start + i)
+        ref y : F32 = b.unsafe_get(start + i)
+        if fused { result = x.fma(y, result) }
+        else { result = result + x * y }
+        i++
+    }
+    return result
+}
+}
+#+end_src
+
+Append these entries to the C harness's kernels array (after fused16), then
+use the same NASM/link/build command from #410:
+
+#+begin_src c
+{"prechecked4",4,0,dot_prechecked__n1_4_bfalse},
+{"prechecked_fused4",4,1,dot_prechecked__n1_4_btrue}
+#+end_src
+
 *** Vector select follow-up (base ab4d0f668)
 
 AArch64 assembly review found a remaining scalarization boundary in the
