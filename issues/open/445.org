@@ -1,0 +1,70 @@
+# priority: high
+# category: bugs
+** OPEN #445 A struct field named like a global function shadows it inside the struct's methods
+
+~infer_type_def_expr~ binds a struct's FIELDS as bare names in the very
+scope its namespace methods are typed in. A field named ~format~ (or
+~len~, ~println~, any global function) therefore shadows the global
+inside every method of that struct, including the generated ~to_str~,
+whose body calls ~format(...)~. The interpreter segfaults; the C
+backend emits a call to the field.
+
+*** Reproducer
+
+#+begin_src til
+mode script
+Rec := struct {
+    format: Str = "x"
+namespace:
+    show := func(self: Rec) returns Str { return format("<", self.format, ">") }
+}
+r := Rec()
+println(r.show())
+println(r.to_str())
+#+end_src
+
+On master 157992a:
+
+#+begin_example
+$ bin/til interpret tmp/field_shadow.til
+Segmentation fault
+$ bin/til run tmp/field_shadow.til
+tmp/fsbin.c: In function 'Rec_show':
+tmp/fsbin.c:365:42: error: passing argument 1 of 'format' from incompatible pointer type
+  365 |     Str hoisted__Str_Rec_show_2 = format(&hoisted__Str_Rec_show_0, &self->format, &hoisted__Str_Rec_show_1);
+  ...
+tmp/fsbin.c:92:12: note: declared here
+   92 | static Str format(Array__Str * parts) {
+error: C compilation failed
+#+end_example
+
+The typer resolved ~format~ to the field binding, so the call was
+typed as a funcptr-less value call, the variadic ~..Str~ was never
+packed into ~Array__Str~, and the emitter wrote the raw argument list
+against the real global's signature.
+
+*** Where it bit
+
+vendor/bindings/raylib.til's ~Image~ and ~Texture~ have a ~format~
+field. The #328 follow-up not-callable diagnostic (~x := 0; x(5)~)
+first rejected every raylib build because the generated ~to_str~
+reached the field instead of the function; the diagnostic was then
+made to look PAST shadowing value bindings (~TypeScope.any_func_def~
+in src/self/context.til) so the existing behaviour was preserved. That
+is a workaround on the diagnostic, not a fix of the scope: both
+backends still resolve the call to the global ~format~ by luck of
+their own lookup order in the raylib case, and to the field in the
+reproducer above.
+
+Related observation from the same work, documented in the typer next
+to ~any_func_def~: a plain value binding next to a global function of
+the same name (~foo := 0~ beside ~foo := func() ...~) has always called
+the global. Whether that is intended, or the same scope bug in a
+cheaper disguise, should be decided together with this issue.
+
+*** Expected
+
+Fields are reachable only through ~self.<field>~ (or a struct value);
+a bare ~format~ in a method body is the global function. Either bind
+fields in a scope the method bodies do not inherit from, or bind them
+under a marker the Ident lookup skips for callee positions.
