@@ -123,6 +123,27 @@ These are single-run measurements, a modest 1.7% measured suite wall-time
 reduction. All test coverage and ASAN settings remain unchanged. Temporary
 timing instrumentation and the compiler wrapper are not part of the suite.
 
+*** Reuse resolved throw keys
+
+The next change, based on ~8e0466cad~, passes the key resolved during call
+validation directly to error-argument injection. Nested-bang hoisting also
+passes its already-resolved key. The value lives only through these immediate
+steps; no cache or persistent lookup state is introduced. Dependent-generic
+validation remains deferred, with the original injection lookup for marked
+deferred calls.
+
+An isolated paired ASAN translation of ~interp_session.til~ measured
+24.879s before and 24.289s after (2.4% lower). Eight fixtures produced
+byte-identical C and forward headers: ~errors~, ~fn_ptr~, ~stored_callbacks~,
+~first_class~, ~lazy~, ~kwargs~, ~tuples~, and ~interp_session~. Diagnostics
+and exit status also matched for ~typer_errors~ and ~stored_callbacks_error~.
+
+The clean full ASAN suite passed all 456 rows, but suite wall time was 77.11s
+versus the previous 75.96s run; ~interp_session~ took 76.63s versus 75.48s.
+These single-run full-suite results do not establish a wall-time improvement.
+The focused result and the eliminated duplicate lookups should not be reported
+as a demonstrated full-suite speedup.
+
 ** Sample profile: where the time goes
 
 ~bin/til build~ compiles the generated C with ~-g~ and no ~-O~, so there is

@@ -1675,7 +1675,8 @@ priv vec_str_push_uniq := func(mut v: Vec(Str), name: Str) {
 // Per-FCall validation: emits the ? / ! error diagnostics, auto-fixes
 // the FCall flags so downstream stages don't trip on a half-shaped
 // signature, and updates the body-level pending / seen /
-// types_to_declare lists with the callee's declared throw types.
+// types_to_declare lists with the callee's declared throw types. Returns the
+// resolved key for immediate argument injection on the same call.
 // The callee of this call, when it is still bound to a generic source
 // whose throws depend on a type parameter.
 priv fcall_callee_is_dependent_throw_generic := func(ctx: Context, e: Expr) returns Bool {
@@ -1701,15 +1702,7 @@ priv validate_one_fcall_consolidated := proc(
     mut seen: Vec(Str),
     mut types_to_declare: Vec(Str),
     path: Str
-) {
-    if e.node_type.is(NodeType.FCall).not() { return }
-    // #328: a generic whose `throws` clause names a type parameter is
-    // lowered nowhere before inference resolves it -- error outputs and
-    // caller slots would be created for a signature that only exists
-    // after substitution. Defer the whole call to infer_fcall_expr, which
-    // requires explicit type application and emits the one focused
-    // diagnostic. An intentional deferral, not error recovery.
-    if fcall_callee_is_dependent_throw_generic(ctx, e) { return }
+) returns Str {
     mut does_throw := false
     mut is_bang_left := false
     mut is_subscript := false
@@ -1785,13 +1778,14 @@ priv validate_one_fcall_consolidated := proc(
             }
         }
     }
+    return key
 }
 
 // Per-FCall: if does_throw is set and the callee is in the global
 // throws map, append _err_kind plus any payload-slot arg refs, then clear the
-// flag so the call reaches downstream stages as a plain FCall.
-priv inject_err_args_on_one_fcall_consolidated := func(mut scope: TypeScope, mut ctx: Context, mut e: Expr, body: Expr) {
-    if e.node_type.is(NodeType.FCall).not() { return }
+// flag so the call reaches downstream stages as a plain FCall. The caller
+// supplies the key it just resolved; an empty key means no known throws.
+priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: Expr, key: Str) {
     mut does_throw := false
     switch e.node_type {
     case .FCall(fcd):
@@ -1799,8 +1793,6 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut scope: TypeScope, mut
     case:
     }
     if does_throw.not() { return }
-    if e.children.len() == 0 { return }
-    key := find_callee_throws_key(scope, ctx, e, body)
     if key.len() == 0 { return }
     ref tts : Vec(Str) = ctx.throws_global[key]
     mut kind_id := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), e.line, e.col)
@@ -1836,8 +1828,24 @@ priv validate_and_inject_expr_consolidated := proc(
         .or(e.node_type.is(NodeType.StructDef))
         .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Body) { return }
-    validate_one_fcall_consolidated(scope, ctx, e, body, pending, seen, types_to_declare, path)
-    inject_err_args_on_one_fcall_consolidated(scope, ctx, e, body)
+    if e.node_type.is(NodeType.FCall) {
+        // #328: defer validation of a generic whose throws depend on a type
+        // parameter until infer_fcall_expr requires explicit type application.
+        // Keep the existing injection lookup for a marked deferred call.
+        if fcall_callee_is_dependent_throw_generic(ctx, e) {
+            switch e.node_type {
+            case .FCall(fcd):
+                if fcd.does_throw {
+                    key := find_callee_throws_key(scope, ctx, e, body)
+                    inject_err_args_on_one_fcall_consolidated(ctx, e, key)
+                }
+            case:
+            }
+        } else {
+            key := validate_one_fcall_consolidated(scope, ctx, e, body, pending, seen, types_to_declare, path)
+            inject_err_args_on_one_fcall_consolidated(ctx, e, key)
+        }
+    }
     if e.node_type.is(NodeType.Case) {
         // #282: a bang call in a case guard is lowered at infer time into the
         // pattern-gated case body, not here. Skip the guard child (index 1 of
@@ -1949,7 +1957,7 @@ priv hoist_walk_consolidated := proc(
     // The hoisted call won't pass through the main loop's per-stmt
     // validate+inject step (pre_stmts go straight into new_ch), so
     // inject err out-args here directly.
-    inject_err_args_on_one_fcall_consolidated(scope, ctx, cloned, body)
+    inject_err_args_on_one_fcall_consolidated(ctx, cloned, found_key)
     mut tmp_decl := Expr.new(own NodeType.Decl(Declaration(name = tmp_name.clone(), infer_call_ownership = true)), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
