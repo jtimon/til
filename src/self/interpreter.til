@@ -1658,7 +1658,8 @@ priv place_field_layout := func(type_name: Str, field_name: Str, data: Dynamic, 
 }
 
 priv ffi_borrow_place := proc(type_name: Str, data: Dynamic, mut ctx: Context) {
-    if size_intrinsics_use_sizeof(ctx).not() { return }
+    // Native ownership/lifetime is a separate fact from an ABI-width mismatch.
+    // Even equal-layout records must not retain a VM literal/view on assignment.
     mut visited := Set(Str).new()
     ffi_borrow_place_walk(type_name, data, word_bits(data).cast(UPtr), visited, ctx)
 }
@@ -5211,7 +5212,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         ref sname : Str = type_name_ref(til_type, ctx.symbols)
         if drop_old { heap_drop_struct(sname, dst, ctx) }
         if ffi_place_is_foreign(dst, ctx) {
-            ffi_copy_struct_into(sname, src, true, dst, false, ctx)
+            ffi_copy_struct_into(sname, src, true, dst, false, ctx, true)
         } else {
             memcpy(dst, src, ctx_total_size(sname, ctx).to_uptr())
         }
@@ -6257,7 +6258,7 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
                 // contents, freeing only the outer interpreter allocation;
                 // cloning then dropping it runs extra payload destructors.
                 if ffi_place_is_foreign(dst, ctx) {
-                    ffi_copy_struct_into(name, source, true, dst, false, ctx)
+                    ffi_copy_struct_into(name, source, true, dst, false, ctx, true)
                 } else {
                     memcpy(dst, source, field_size)
                 }
@@ -6266,7 +6267,7 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             }
             cloned : Dynamic = heap_clone(name, source, ctx)
             if ffi_place_is_foreign(dst, ctx) {
-                ffi_copy_struct_into(name, cloned, true, dst, false, ctx)
+                ffi_copy_struct_into(name, cloned, true, dst, false, ctx, true)
             } else {
                 memcpy(dst, cloned, field_size)
             }
@@ -9647,18 +9648,38 @@ priv ffi_release_vec_str_buffer := func(header: Dynamic, host_layout: Bool, ctx:
 }
 
 priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Bool,
-                                     mut dst: Dynamic, dst_host: Bool, mut ctx: Context) {
+                                     mut dst: Dynamic, dst_host: Bool, mut ctx: Context, transfer_owned: Bool = false) {
     build_struct_ffi_type(type_name, ctx, src_host)
     build_struct_ffi_type(type_name, ctx, dst_host)
     if type_name == "Vec__Str" {
         build_struct_ffi_type("Str", ctx, src_host)
         build_struct_ffi_type("Str", ctx, dst_host)
     }
-    ffi_copy_struct_into(type_name, src, src_host, dst, dst_host, ctx)
+    ffi_copy_struct_into(type_name, src, src_host, dst, dst_host, ctx, transfer_owned)
 }
 
 priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
-                                 mut dst: Dynamic, dst_host: Bool, ctx: Context) {
+                                 mut dst: Dynamic, dst_host: Bool, ctx: Context, transfer_owned: Bool = false) {
+    // A guest literal is static only for its Context's lifetime, and a view
+    // borrows another guest value. An owned native store/argument can outlive
+    // both. Materialize those characters before transferring the Str header;
+    // ordinary borrowed ABI views must keep sharing the caller's payload.
+    if transfer_owned.and(src_host).and(dst_host.not()).and(type_name == "Str") {
+        if str_cap_at(src, ctx) >= CAP_VIEW {
+            count := str_count_at(src, ctx)
+            mut capacity := count
+            if capacity == 0 { capacity = 1 }
+            ref text : Str = to_ptr(src)
+            mut chars : I8 = calloc(capacity.add(1).to_uptr(), 1)
+            if count > 0 { memcpy(chars, text.c_str, count.to_uptr()) }
+            mut owned : Dynamic = EvalHeap.heap_alloc(ctx_total_size("Str", ctx))
+            write_ptr(owned, chars)
+            str_write_count_cap(owned, count, capacity, ctx)
+            ffi_copy_struct_into(type_name, owned, true, dst, false, ctx)
+            EvalHeap.heap_free(own owned)
+            return
+        }
+    }
     ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
     ref def : Expr = box.ptr
     switch def.node_type {
@@ -9688,7 +9709,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             } else {
                 ref field_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
-                    ffi_copy_struct_into(decl_type_name_ref(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx)
+                    ffi_copy_struct_into(decl_type_name_ref(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx, transfer_owned)
                 } else {
                     memcpy(dst_field, src_field, field_type.size.to_usize())
                 }
@@ -9708,7 +9729,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
                 for i in 0..count {
                     ref src_elem : Dynamic = ptr_add(data, i.to_uptr().mul(src_str.ptr.size.to_uptr()))
                     ref mut dst_elem : Dynamic = ptr_add(converted, i.to_uptr().mul(dst_str.ptr.size.to_uptr()))
-                    ffi_copy_struct_into("Str", src_elem, src_host, dst_elem, dst_host, ctx)
+                    ffi_copy_struct_into("Str", src_elem, src_host, dst_elem, dst_host, ctx, transfer_owned)
                 }
                 write_ptr(ffi_vec_str_field_slot(dst, "data", dst_host, ctx), converted)
             }
@@ -9719,13 +9740,13 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
 }
 
 priv ffi_marshal_struct := proc(type_name: Str, src: Dynamic, src_host: Bool,
-                                dst_host: Bool, mut ctx: Context) returns Dynamic {
+                                dst_host: Bool, mut ctx: Context, transfer_owned: Bool = false) returns Dynamic {
     ref layout : FFITypePtrBox = ffi_struct_layout(type_name, ctx, dst_host)
     if layout.layout_status != FFI_OK {
         panic("libffi cannot size destination layout for ", type_name)
     }
     mut dst : Dynamic = calloc(1, layout.ptr.size.to_usize())
-    ffi_marshal_struct_into(type_name, src, src_host, dst, dst_host, ctx)
+    ffi_marshal_struct_into(type_name, src, src_host, dst, dst_host, ctx, transfer_owned)
     return dst
 }
 
@@ -9932,13 +9953,31 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_info.is_ref)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(9)), arg_pointer.ptr_eq(arg_raw))
+        write_ptr(ptr_add(marshal_sources, i.mul(8)), arg_pointer)
         source_host := ffi_place_is_foreign(arg_pointer, ctx).not()
-        if source_host.neq(fe.host_layout).and(size_intrinsics_use_sizeof(ctx)).and(i.lt(fe.param_types.len())) {
+        mut moves_owned := false
+        if i < fe.nparam {
+            ref param_owns : Bool = ptr_add(fe.param_owns, i)
+            moves_owned = param_owns.and(get_own_arg(e, i + 1)).and(get_keep_outer_arg(e, i + 1).not())
+        }
+        if moves_owned {
+            switch arg_expr.node_type {
+            case .Ident(id):
+                // Generated delete wrappers forward `own self` even when the
+                // outer call only lends its storage (call_free=false). The
+                // runtime binding records that loan; its wrapper is not ours
+                // to release after converting the native argument.
+                ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names)).unwrap()
+                if hb.is_borrowed { moves_owned = false }
+            case:
+            }
+        }
+        write_bool(ptr_add(arg_raws, arg_raw_off.add(10)), moves_owned)
+        if source_host.neq(fe.host_layout).and(size_intrinsics_use_sizeof(ctx).or(moves_owned)).and(i.lt(fe.param_types.len())) {
             ref param_type : Str = fe.param_types[i]
             ref param_ffi_type : ffi_type = shallow_ffi_type(param_type, ctx, false)
             if param_ffi_type.type == FFI_TYPE_STRUCT.to_u16() {
                 ref param_own : Bool = ptr_add(fe.param_owns, i)
-                write_ptr(ptr_add(marshal_sources, i.mul(8)), arg_pointer)
                 // Two arguments borrowing the same object must share one ABI
                 // conversion, so writes through either remain visible to both.
                 mut marshaled : Dynamic = 0
@@ -9950,7 +9989,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                     }
                 }
                 if marshaled.is_null() {
-                    marshaled = ffi_marshal_struct(param_type, arg_pointer, source_host, fe.host_layout, ctx)
+                    marshaled = ffi_marshal_struct(param_type, arg_pointer, source_host, fe.host_layout, ctx, moves_owned)
                 }
                 write_ptr(ptr_add(marshaled_args, i.mul(8)), marshaled)
                 if param_own {
@@ -10150,7 +10189,28 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         mut borrowed_host := fe.host_layout
         for i in 0..nargs {
             ref converted : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
-            if converted.is_null() { continue }
+            if converted.is_null() {
+                // A same-layout argument was passed directly. A reference
+                // into it still belongs to that argument, not to native
+                // storage merely because the function returning it is native.
+                ref param_type : ffi_type = shallow_ffi_type(fe.param_types[i], ctx, fe.host_layout)
+                if param_type.type != FFI_TYPE_STRUCT.to_u16() { continue }
+                ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
+                source_host := ffi_place_is_foreign(source, ctx).not()
+                ref layout : ffi_type = build_struct_ffi_type(fe.param_types[i], ctx, source_host)
+                address := word_bits(raw_ptr)
+                start := word_bits(source)
+                mut in_argument := address.gte(start).and(address.lt(start + layout.size))
+                if fe.param_types[i] == "Vec__Str" {
+                    build_struct_ffi_type("Str", ctx, source_host)
+                    in_argument = in_argument.or(ffi_vec_str_reference_offset(source, raw_ptr, source_host, ctx).is_some())
+                }
+                if in_argument {
+                    borrowed_host = source_host
+                    break
+                }
+                continue
+            }
             ref layout : FFITypePtrBox = ffi_cached_layout(fe.param_types[i], ctx, fe.host_layout)
             address := word_bits(raw_ptr)
             start := word_bits(converted)
@@ -10180,14 +10240,14 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         }
         if shared.not() {
             ref param_own : Bool = ptr_add(fe.param_owns, i)
-            if fe.param_types[i] == "Vec__Str" {
-                // An owned Vec(Str)'s converted outer box is consumed by
-                // the callee; borrowed/mutable ones belong to this call.
-                if param_own.not() {
+            // A real transfer gives the converted box to the callee. An
+            // own-parameter destructor can instead keep its caller's outer
+            // storage (delete(..., false)); its conversion box stays ours.
+            ref moves_owned : Bool = ptr_add(arg_raws, i.mul(16).add(10))
+            if moves_owned.not() {
+                if fe.param_types[i].eq("Vec__Str").and(param_own.not()) {
                     ffi_release_vec_str_buffer(marshaled, fe.host_layout, ctx)
-                    free(own marshaled)
                 }
-            } else {
                 free(own marshaled)
             }
         }
@@ -10209,10 +10269,9 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         ref raw_was_passed : Bool = ptr_add(arg_raws, arg_raw_off.add(9))
         mut release_moved_wrapper := false
         if i < fe.param_types.len() {
-            ref param_own : Bool = ptr_add(fe.param_owns, i)
             ref marshaled : Dynamic = deref(ptr_add(marshaled_args, i.mul(8)))
-            release_moved_wrapper = param_own.and(fe.param_types[i] == "Vec__Str")
-                .and(marshaled.is_null().not()).and(arg_is_ref)
+            ref moves_owned : Bool = ptr_add(arg_raws, arg_raw_off.add(10))
+            release_moved_wrapper = moves_owned.and(marshaled.is_null().not()).and(arg_is_ref)
         }
         if release_moved_wrapper {
             // The converted outer box was consumed by the callee. The source

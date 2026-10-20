@@ -21,6 +21,220 @@ expect_load_error := proc(mut vm: TilVm, source: Str, detail: Str) {
     assert(failed)
 }
 
+expect_buffer := proc(expected: Str) {
+    actual := native.native_buffer_snapshot()
+    assert_eq(Str, actual, expected)
+}
+
+seed_buffer := proc() {
+    // The proc result keeps this allocation at runtime; literal-only format
+    // would fold to a static string and fail to exercise the input lifetime.
+    seed := format(native.native_buffer_snapshot(), "scratch")
+    native.native_buffer_set(seed)
+    // seed dies here. The library must own its copy, not retain the input.
+}
+
+write_editor_config := proc(label: Str) {
+    File.writefile("editor_config.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "KeyAction := proc()\n",
+        "make_action := func(label: Str) returns KeyAction {\n",
+        "    text := format(\" \", label)\n",
+        "    return proc() [own text] { native_buffer_insert(text); assert(native_buffer_snapshot().ends_with(text)) }\n",
+        "}\non_key := make_action(\"", label, "\")\n"))
+}
+
+check_reload_error := func(err: TilVmError, phase: Str, detail: Str) {
+    expect(err.phase == phase, err.to_str())
+    expect(err.to_str().contains(detail), err.to_str())
+    assert(err.diagnostics.len() > 0)
+    assert_eq(Str, err.diagnostics[0].path, "editor_config.til")
+    assert(err.diagnostics[0].line > 0)
+}
+
+failed_candidate := proc(root: Str, source: Str, phase: Str, detail: Str) returns TilVmError {
+    File.writefile("editor_config.til", source)
+    mut candidate := TilVm.new(root)
+    candidate.load_file("editor_config.til")?
+    catch (err: TilVmError) {
+        check_reload_error(err, phase, detail)
+        return err.clone()
+    }
+    callback := candidate.lookup("on_key")?
+    catch (err: TilVmError) {
+        check_reload_error(err, phase, detail)
+        return err.clone()
+    }
+    own callback.delete()
+    panic("bad candidate unexpectedly passed load and lookup")
+}
+
+editor_buffer_test := proc(root: Str) {
+    seed_buffer()
+    expect_buffer("scratch")
+    write_editor_config("old")
+    mut active := TilVm.new(root)
+    active.load_file("editor_config.til")!
+    mut old_key := active.lookup("on_key")!
+    old_key.call()!
+    old_key.call()!
+    expect_buffer("scratch old old")
+    before_reload := native.native_buffer_snapshot()
+    native.native_buffer_insert(" host")
+    expect_buffer("scratch old old host")
+
+    // Reuse the actual config pathname. Retained code/captures must survive
+    // replacing the file and destroying each rejected candidate session.
+    syntax_error := failed_candidate(root, "mode lib\non_key := proc( {\n", "load", "expected")
+    expect_buffer("scratch old old host")
+    old_key.call()!
+    expect_buffer("scratch old old host old")
+    type_error := failed_candidate(root,
+        "mode lib\nimport(\"./gen/til/vm_native\")\non_key := proc() { native_buffer_insert(42) }\n",
+        "type", "expected Str")
+    expect_buffer("scratch old old host old")
+    old_key.call()!
+    expect_buffer("scratch old old host old old")
+    lookup_error := failed_candidate(root,
+        "mode lib\non_key := func(value: I64) { assert(value >= 0) }\n", "lookup", "no arguments")
+    expect_buffer("scratch old old host old old")
+    old_key.call()!
+    expect_buffer("scratch old old host old old old")
+
+    // Reload preserves the active callback, not a transaction over native
+    // side effects. An insertion completed before the panic stays completed.
+    eval_error := failed_candidate(root,
+        "mode lib\nimport(\"./gen/til/vm_native\")\nnative_buffer_insert(\" candidate\")\npanic(\"reload rejected\")\n",
+        "eval", "reload rejected")
+    expect_buffer("scratch old old host old old old candidate")
+    old_key.call()!
+    expect_buffer("scratch old old host old old old candidate old")
+
+    // Publish only after both load and lookup succeed. Release the old key
+    // before its VM; the replacement borrows the separate candidate VM.
+    write_editor_config("new")
+    mut replacement := TilVm.new(root)
+    replacement.load_file("editor_config.til")!
+    mut new_key := replacement.lookup("on_key")!
+    expect_buffer("scratch old old host old old old candidate old")
+    own old_key.delete()
+    own active.delete()
+    new_key.call()!
+    new_key.call()!
+    final_snapshot := native.native_buffer_snapshot()
+    assert_eq(Str, final_snapshot, "scratch old old host old old old candidate old new new")
+    own new_key.delete()
+    own replacement.delete()
+    native.native_buffer_insert(" after")
+    expect_buffer("scratch old old host old old old candidate old new new after")
+    native.native_buffer_set("")
+    expect_buffer("")
+
+    // Host-owned snapshots and diagnostics outlive every VM and the native
+    // buffer allocation they were copied from.
+    assert_eq(Str, before_reload, "scratch old old")
+    assert_eq(Str, final_snapshot, "scratch old old host old old old candidate old new new")
+    check_reload_error(syntax_error, "load", "expected")
+    check_reload_error(type_error, "type", "expected Str")
+    check_reload_error(lookup_error, "lookup", "no arguments")
+    check_reload_error(eval_error, "eval", "reload rejected")
+    println("installed TilVm text buffer and reload PASS")
+}
+
+native_config_test := proc(root: Str) {
+    native.native_config_reset()
+    ref config : NativeConfig = native.native_config_ref()
+    original_title := config.title.clone()
+    assert_eq(I32, config.width, 640)
+    assert(config.enabled.not())
+    assert_eq(Str, config.title, "host title")
+    File.writefile("config_record.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "init := func(mut config: NativeConfig) {\n",
+        "    config.width = 1024\n    config.enabled = true\n",
+        "    config.title = format(\"guest \", config.width.to_str())\n}\n",
+        "run_init := proc() { ref mut config : NativeConfig = native_config_ref(); init(config) }\n",
+        "step := proc() { ref mut config : NativeConfig = native_config_ref(); config.width++; config.enabled = config.enabled.not(); config.title = format(config.title, \":\", config.width.to_str()) }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("config_record.til")!
+    // Loading declarations has not applied init. This remains the host's
+    // existing native object, not a marshalled guest-owned record copy.
+    assert_eq(Str, config.title, "host title")
+    mut init := vm.lookup("run_init")!
+    init.call()!
+    assert(ptr_eq(config, native.native_config_ref()))
+    assert_eq(I32, config.width, 1024)
+    assert(config.enabled)
+    assert_eq(Str, config.title, "guest 1024")
+    mut step := vm.lookup("step")!
+    step.call()!
+    assert_eq(I32, config.width, 1025)
+    assert(config.enabled.not())
+    assert_eq(Str, config.title, "guest 1024:1025")
+    snapshot := config.title.clone()
+    step.call()!
+    assert_eq(I32, config.width, 1026)
+    assert(config.enabled)
+    own step.delete()
+    own init.delete()
+    own vm.delete()
+    assert_eq(Str, config.title, "guest 1024:1025:1026")
+    native.native_config_reset()
+    assert_eq(Str, snapshot, "guest 1024:1025")
+    assert_eq(Str, original_title, "host title")
+
+    // A native function can return a reference into its borrowed argument.
+    // That remains guest storage, including normal guest string-view behavior.
+    File.writefile("config_alias.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "check_alias := proc() {\n",
+        "    mut direct := NativeConfig()\n    mut via := NativeConfig(width = 639)\n",
+        "    ref mut alias : NativeConfig = native_config_identity(via)\n",
+        "    assert(ptr_eq(alias, via)); assert(via.width == 640)\n",
+        "    mut backing := Str.with_capacity(8); backing.push_str(\"abcd\")\n",
+        "    direct.title = backing.substr(0, 3); alias.title = backing.substr(0, 3)\n",
+        "    ref mut first : I8 = backing.get(0); first = 'X'\n",
+        "    assert(alias.title == direct.title); assert(backing == \"Xbcd\")\n}\n"))
+    mut alias_vm := TilVm.new(root)
+    alias_vm.load_file("config_alias.til")!
+    mut check_alias := alias_vm.lookup("check_alias")!
+    check_alias.call()!
+
+    // Literal-backed strings belong to the VM's pool; views borrow a local
+    // allocation. Neither may escape into native-owned storage unchanged.
+    File.writefile("config_strings.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "literal := proc() { ref mut config : NativeConfig = native_config_ref(); config.title = \"literal title\" }\n",
+        "copy_title := func(mut config: NativeConfig, text: Str) { config.title = text }\n",
+        "borrowed := proc() { ref mut config : NativeConfig = native_config_ref(); copy_title(config, \"borrowed literal\") }\n",
+        "view := proc() { ref mut config : NativeConfig = native_config_ref(); backing := format(\"slice \", native_get().to_str(), \" suffix\"); config.title = backing.substr(0, 8) }\n",
+        "empty := proc() { ref mut config : NativeConfig = native_config_ref(); config.title = \"\" }\n",
+        "record := proc() { noop_proc(); native_config_state = NativeConfig(title = \"record literal\") }\n",
+        "taken := proc() { native_config_take(own \"taken literal\") }\n"))
+    methods := vec(Str, "literal", "borrowed", "view", "empty", "record", "taken")
+    expected := vec(Str, "literal title", "borrowed literal", "slice 48", "", "record literal", "taken literal")
+    for i in 0..methods.len() {
+        native.native_config_reset()
+        mut strings_vm := TilVm.new(root)
+        strings_vm.load_file("config_strings.til")!
+        mut set_title := strings_vm.lookup(methods[i])!
+        set_title.call()!
+        assert_eq(Str, config.title, expected[i])
+        own set_title.delete()
+        own strings_vm.delete()
+        assert_eq(Str, config.title, expected[i])
+        assert_eq(I8, config.title.unsafe_get(config.title.len()), 0)
+        assert_eq(I32, config.width, 640)
+        assert(config.enabled.not())
+        // Exercise native replacement/deletion of the transferred allocation,
+        // including the empty string.
+        native.native_config_take(own format(config.title, "!"))
+        assert_eq(Str, config.title, format(expected[i], "!"))
+    }
+    native.native_config_reset()
+    println("installed TilVm mutable native config PASS")
+}
+
 main := proc(root: Str) {
     native.native_set(41)
     // This library is NOT linked into the host. Its explicit path must load
@@ -81,6 +295,9 @@ main := proc(root: Str) {
     own another_key.delete()
     own second.delete()
     native.native_increment()
+    assert_eq(I64, native.native_get(), 48)
+    editor_buffer_test(root)
+    native_config_test(root)
     assert_eq(I64, native.native_get(), 48)
     println("installed native TilVm shared state PASS: 41 -> 48")
 }

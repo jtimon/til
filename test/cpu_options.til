@@ -30,6 +30,17 @@ expect_output := proc(cmd: Cmd, expected: Str) {
     if actual != expected { panic(cmd.render(), ": expected '", expected, "', got '", actual, "'") }
 }
 
+binding_dependency := func(binding: Str, field: Str) returns Str {
+    prefix := format(field, " = '")
+    for line : Str in binding.split("\n") {
+        if line.starts_with(prefix) {
+            expect(line.ends_with("'").and(line.len() > prefix.len() + 1), "malformed binding dependency: ", line)
+            return line.substr(prefix.len(), line.len() - prefix.len() - 1).clone()
+        }
+    }
+    panic("missing binding dependency: ", field)
+}
+
 // A real C compile, not just its command spelling, must see the selected ISA
 // and optimization level. The same link_c probe is used by programs/libraries.
 write_c_probe := proc(width: USize, optimized: Bool) {
@@ -143,17 +154,35 @@ main := proc(args: ..Str) {
                 format("--opt=", level), "./probe.til"))
             _installed := execute(Cmd.new(compiler, "install", cc, format("--cpu=", profile),
                 format("--opt=", level), "--prefix=installed", "./library.til"))
+            // Another revision with the same CPU suffix is not one of this
+            // binding's dependencies, and must not affect the checks below.
+            if i > 0 {
+                File.writefile(format(WORK, "/installed/lib/libtilrt-unrelated-revision-", profile, shared_ext), "unrelated revision\n")
+            }
+            binding := File.readfile(format(WORK, "/installed/lib/til/lib/library.py"))
+            expect(binding == File.readfile(format(WORK, "/gen/til/library.py")), "installed binding differs from generated binding")
+            runtime_name := binding_dependency(binding, "_runtime_name")
+            core_name := binding_dependency(binding, "_core_name")
+            expect(runtime_name.starts_with("libtilrt-"), runtime_name)
+            expect(core_name.starts_with("libtilcore-"), core_name)
+            mut suffix := shared_ext.clone()
+            if i > 0 { suffix = format("-", profile, shared_ext) }
+            for name in vec(Str, runtime_name, core_name) {
+                expect(name.ends_with(suffix), "binding lost CPU-qualified dependency: ", name)
+                installed_path := format(WORK, "/installed/lib/", name)
+                if File.is_file(installed_path).not() { panic("missing installed dependency: ", name) }
+                if File.readfile(installed_path) != File.readfile(format(WORK, "/gen/lib/", name)) {
+                    panic("installed dependency differs from generated library: ", name)
+                }
+            }
             // Do not execute AVX2/AVX-512 binaries on an unknown test host.
             // Building them checks real backend support and link_c macros.
             if i == 0 {
                 mut executable := "./bin/probe"
                 if host_os() == "windows" { executable = "./bin/probe.exe" }
                 expect_output(Cmd.new(executable), "4\n4\n")
-                for name : Str in Dir.list(format(WORK, "/gen/lib")) {
-                    if name.starts_with("libtilrt-").and(name.ends_with(shared_ext)) { baseline_runtime = name.clone() }
-                    if name.starts_with("libtilcore-").and(name.ends_with(shared_ext)) { baseline_core = name.clone() }
-                }
-                if baseline_runtime.len().eq(0).or(baseline_core.len().eq(0)) { panic("missing baseline libraries") }
+                baseline_runtime = runtime_name.clone()
+                baseline_core = core_name.clone()
                 runtime_bytes = File.readfile(format(WORK, "/gen/lib/", baseline_runtime))
                 core_bytes = File.readfile(format(WORK, "/gen/lib/", baseline_core))
                 expect_output(Cmd.new("python3", "-c",
@@ -161,14 +190,8 @@ main := proc(args: ..Str) {
             } else {
                 if File.readfile(format(WORK, "/gen/lib/", baseline_runtime)) != runtime_bytes { panic("baseline runtime overwritten") }
                 if File.readfile(format(WORK, "/gen/lib/", baseline_core)) != core_bytes { panic("baseline core overwritten") }
-                mut found : USize = 0
-                for name : Str in Dir.list(format(WORK, "/installed/lib")) {
-                    if name.starts_with("libtilrt-").or(name.starts_with("libtilcore-"))
-                        .and(name.ends_with(format("-", profile, shared_ext))) { found++ }
-                }
-                if found != 2 { panic("missing installed CPU-qualified runtime/core: ", profile) }
-                binding := File.readfile(format(WORK, "/gen/til/library.py"))
-                if binding.contains(format("-", profile, shared_ext)).not() { panic("binding lost CPU-qualified dependency") }
+                expect(runtime_name != baseline_runtime, "CPU runtime reused baseline identity")
+                expect(core_name != baseline_core, "CPU core reused baseline identity")
             }
         }
         // Return to the DEFAULT selection after building a wide executable.

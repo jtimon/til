@@ -82,6 +82,16 @@ main := proc() returns I64 {
         "native_increment := proc() { noop_proc(); native_counter++ }\n",
         "native_get := proc() returns I64 { noop_proc(); return native_counter }\n",
         "native_echo := func(value: Str) returns Str { return value.clone() }\n",
+        "priv mut native_buffer := \"\"\n",
+        "native_buffer_set := proc(text: Str) { noop_proc(); native_buffer = text.clone() }\n",
+        "native_buffer_insert := proc(text: Str) { noop_proc(); native_buffer = format(native_buffer, text) }\n",
+        "native_buffer_snapshot := proc() returns Str { noop_proc(); return native_buffer.clone() }\n",
+        "NativeConfig := struct { width : I32 = 640; enabled := false; title := \"\" }\n",
+        "mut native_config_state := NativeConfig()\n",
+        "native_config_ref := proc() returns ref NativeConfig { noop_proc(); return native_config_state }\n",
+        "native_config_identity := proc(mut value: NativeConfig) returns ref NativeConfig { noop_proc(); value.width++; return value }\n",
+        "native_config_reset := proc() { noop_proc(); native_config_state = NativeConfig(title = format(\"host \", \"title\")) }\n",
+        "native_config_take := proc(own title: Str) { noop_proc(); native_config_state.title = title }\n",
         "NativeError := struct { code : I64 = 0 }\n",
         "native_fail := func() throws NativeError { throw NativeError(code = 7) }\n"))
     native_build := Cmd.new(installed_til, "build", "--asan", "vm_native.til")
@@ -115,6 +125,12 @@ main := proc() returns I64 {
     if native_run.run() != 0 { panic("installed native TilVm failed: ", native_run.out(), native_run.err()) }
     if native_run.out().contains("installed native TilVm shared state PASS: 41 -> 48").not() {
         panic("native TilVm did not finish: ", native_run.out(), native_run.err())
+    }
+    if native_run.out().contains("installed TilVm text buffer and reload PASS").not() {
+        panic("native TilVm buffer/reload test did not finish: ", native_run.out(), native_run.err())
+    }
+    if native_run.out().contains("installed TilVm mutable native config PASS").not() {
+        panic("native TilVm config test did not finish: ", native_run.out(), native_run.err())
     }
     println("install TilVm PASS")
     return 0

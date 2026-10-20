@@ -32,6 +32,17 @@ require := proc(path: Str) {
     }
 }
 
+binding_dependency := func(binding: Str, field: Str) returns Str {
+    prefix := format(field, " = '")
+    for line : Str in binding.split("\n") {
+        if line.starts_with(prefix) {
+            expect(line.ends_with("'").and(line.len() > prefix.len() + 1), "malformed binding dependency: ", line)
+            return line.substr(prefix.len(), line.len() - prefix.len() - 1).clone()
+        }
+    }
+    panic("missing binding dependency: ", field)
+}
+
 main := proc() returns I64 {
     File.remove_tree(PREFIX)
     File.remove_tree(WORK)
@@ -207,18 +218,34 @@ main := proc() returns I64 {
     else if host_os() == "windows" { shared_ext = ".dll" }
     require(format(PREFIX, "/lib/libinstalled_lib", shared_ext))
     require(format(PREFIX, "/lib/til/lib/installed_lib.py"))
-    mut runtime_count : USize = 0
-    mut core_count : USize = 0
-    for installed_name : Str in Dir.list(format(PREFIX, "/lib")) {
-        if installed_name.starts_with("libtilrt-").and(installed_name.ends_with(shared_ext)) {
-            runtime_count++
-        }
-        if installed_name.starts_with("libtilcore-").and(installed_name.ends_with(shared_ext)) {
-            core_count++
+    // Other revisions may coexist (or be restored by directory sync). They
+    // must not change which exact dependencies this installed binding uses.
+    File.writefile(format(PREFIX, "/lib/libtilcore-unrelated-revision", shared_ext), "unrelated revision\n")
+    binding := File.readfile(format(PREFIX, "/lib/til/lib/installed_lib.py"))
+    expect(binding == File.readfile(format(WORK, "/gen/til/installed_lib.py")), "installed binding differs from generated binding")
+    runtime_name := binding_dependency(binding, "_runtime_name")
+    core_name := binding_dependency(binding, "_core_name")
+    expect(runtime_name.starts_with("libtilrt-").and(runtime_name.ends_with(shared_ext)), runtime_name)
+    expect(core_name.starts_with("libtilcore-").and(core_name.ends_with(shared_ext)), core_name)
+    for name in vec(Str, runtime_name, core_name) {
+        installed_path := format(PREFIX, "/lib/", name)
+        require(installed_path)
+        if File.readfile(installed_path) != File.readfile(format(WORK, "/gen/lib/", name)) {
+            panic("installed dependency differs from generated library: ", name)
         }
     }
-    if runtime_count != 1 { panic("library install produced ", runtime_count.to_str(), " shared runtimes") }
-    if core_count != 1 { panic("library install produced ", core_count.to_str(), " shared cores") }
+    // An unrelated core is not a substitute for the binding's actual core.
+    // Restore the fixture before asserting, including on an unexpected result.
+    core_path := format(PREFIX, "/lib/", core_name)
+    saved_core := format(WORK, "/saved_core", shared_ext)
+    File.rename(core_path, saved_core)
+    missing_core := Cmd.new("python3", "-c",
+        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib")
+    missing_core.cwd(WORK)
+    missing_core.capture()
+    missing_status := missing_core.run()
+    File.rename(saved_core, core_path)
+    if missing_status == 0 { panic("binding loaded without its exact core dependency") }
     installed_forward := File.readfile(format(WORK, "/gen/til/installed_lib_forward.h"))
     mut canonical_parser := false
     for line : Str in installed_forward.split("\n") {

@@ -40,6 +40,60 @@ globals; other VMs and the compiled host can continue using it. Native
 initializers and earlier native calls are not rolled back on load/call
 failure. Bindings retain their normal FFI ownership and ABI contracts.
 
+*** Editor buffer and reload example
+
+~editor_buffer_test~ in ~test/tilvm_native.til~ is the concrete integration
+example for Tiled. ~test/install_tilvm.til~ builds its native library and
+host against an isolated installed SDK. From a built checkout, run
+~bin/til run test/install_tilvm.til~; the driver runs the ASAN host with
+an empty PATH, and the host writes/changes the config after compilation.
+
+The native library owns the text buffer. ~native_buffer_set(text: Str)~
+copies its borrowed input, ~native_buffer_insert(text: Str)~ borrows the
+insertion text for the call, and ~native_buffer_snapshot() returns Str~
+returns an independent owned copy. Both host and config import the generated
+binding for this same shared library. The config exports an ~on_key~ closure
+with owned text captures; the host retains it with ~vm.lookup("on_key")~
+and invokes it later through ~callback.call()~.
+
+Reload uses a separate candidate VM. Load and callback lookup must both
+succeed before replacing the active pair, and the old callback is released
+before its VM. The test replaces the same config file with syntax, type,
+lookup-contract and evaluation failures, then repairs it. The old callback
+continues to work after each rejected candidate is destroyed. The syntax/type
+errors and side-effect-free lookup failure leave the buffer unchanged. Native
+edits during initialization are not undone by a later lookup/evaluation error;
+the runtime-panic case checks that an earlier insertion remains visible.
+This is callback/VM replacement,
+not a transaction over native side effects. Host snapshots and returned
+diagnostics remain valid after all VMs and the native buffer contents are
+released.
+
+*** Mutable native configuration records
+
+~native_config_test~ in the same fixture covers a library-owned ~NativeConfig~
+with ~I32~, ~Bool~ and ~Str~ fields. The host keeps a reference obtained from
+~native_config_ref() returns ref NativeConfig~. The guest imports the generated
+record declaration, obtains that same reference, and calls its own
+~init(mut config: NativeConfig)~. A no-argument ~run_init~ wrapper makes this
+reachable through ~vm.lookup~; it does not require passing an arbitrary host
+record through the callback argument API.
+
+Field changes are visible through the host's original reference. Strings
+stored in native-owned fields must survive VM teardown: VM literals live in
+the VM's pool, and string views borrow their source storage, so neither can
+become a lasting native value by copying its header alone. The interpreter
+materializes owned character storage for those native stores/transfers,
+including empty strings and inline string fields of a whole record. Native
+provenance is tracked even when the native and interpreter layouts match.
+Temporary borrowed FFI arguments retain their borrowing semantics.
+
+The regression checks dynamic strings, literals, borrowed inputs, views,
+whole-record replacement and an ~own Str~ native argument. It also checks
+that a native function returning a reference to a borrowed guest record
+preserves that record's identity and guest view semantics. Native records,
+their contents and host string snapshots are exercised after VM teardown.
+
 ** Why bindings need a human reviewer
 
 The til-side qualifiers that govern call semantics --
