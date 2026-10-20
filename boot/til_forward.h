@@ -2402,6 +2402,8 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Set__Str emitted_closures;
     Set__Str reflection_uses;
     Map__Str_call_Set_Str dyn_targets;
+    Map__Str_call_Set_Str dyn_target_sigs;
+    Set__Str dyn_lookup_sigs;
     Str dyn_prototypes;
     Str dyn_definitions;
     Str dyn_initializers;

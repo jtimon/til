@@ -3046,6 +3046,10 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
                 // aggregate's fields; retained callback handles own clones.
                 managed := is_aggregate(ob.type).or(ob.type.is_funcptr()).or(ob.type.is(Type.Body))
                 mut flag_it := managed.and(ob.own_type.is(OwnType.Ref).not())
+                // A mutable callable parameter lends the caller's owning
+                // slot. Replacing its descriptor consumes the old payload,
+                // although the callee does not own the slot itself.
+                if ob.is_mut.and(type_is_callable_storage(ob.type)) { flag_it = true }
                 // A PAYLOAD ALIAS is the exception to the ref exclusion
                 // above: writing through it replaces a value its enum OWNS,
                 // so the old payload must be torn down at the write. This

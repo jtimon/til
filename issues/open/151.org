@@ -148,11 +148,11 @@
     clone/delete, views, mutation, integer conversion, and native output.
     Keep the current lowered-~println~ scaffold optimization only until real
     ~Array(Str)~ execution can replace it.
-  - [ ] Add aggregates and enums using shared dependency ordering but HolyC
+  - [X] Add aggregates and enums using shared dependency ordering but HolyC
     ~class~ syntax. Add field access/assignment, constructors, tags, payloads,
     and switches using statement-level temporaries rather than C statement
     expressions or compound literals.
-  - [ ] Add lifecycle operations and collections incrementally: clone/delete/
+  - [X] Add lifecycle operations and collections incrementally: clone/delete/
     equality first, then Array and Vec, then Map/Set as the guest corpus
     requires them.
   - [ ] Add TempleOS-native filesystem, timing, task, and other ~ext_func~
@@ -632,8 +632,9 @@
   are released after borrowed calls, and reassignment clones borrowed callable
   sources before their hoisted temporaries are destroyed.
 
-  dyn_fn resolves counted type names and statically identified method names to
-  generated descriptors with the existing erased-method ABI. Clone/delete/cmp
+  The initial dyn_fn implementation resolves counted type names and statically
+  identified method names to generated descriptors with the existing
+  erased-method ABI. Clone/delete/cmp
   adapters bridge ordinary element
   storage to dynamic callers. dyn_has_method, dynamic size/storage-kind queries,
   Type rendering, and struct/enum/FuncSig metadata primitives are emitted from
@@ -667,6 +668,38 @@
   DynVec.new; the translation golden was refreshed for that shared frontend
   change. The build dispatcher also borrows Build mutably, matching its stored
   Handler signature under the callback mutability checks.
+
+*** Callable follow-up: mutable slots, borrowed returns, and runtime lookup
+
+  dyn_fn accepts runtime method names. The shared scavenger and C emit inventory
+  expand those lookups over otherwise reachable types, constrained by the
+  destination FuncSig. HolyC uses the same signature matcher and generates typed
+  adapters through its ordinary function/method emission. Erased collection
+  signatures retain their element-data ABI. Literal names and counted string
+  views enter the same lookup; missing methods fail at the lookup site.
+
+  Mutable callable parameters pass the caller's descriptor slot in C and HolyC.
+  Borrowed callable returns keep that slot rather than cloning its current
+  descriptor. Shared declaration inference uses a returned callable's signature,
+  not the signature of the callback that returned it. The garbager owns the
+  old-descriptor cleanup decision when a mutable parameter replaces a callable.
+
+  Interpreter callable slots retain stable storage through delete/reassignment.
+  Borrowed aliases can update that storage, so callable ownership metadata is
+  refreshed from the slot and raw teardown inspects the current descriptor.
+  This avoids both stale static-callable flags leaking replacements and borrowed
+  returns accidentally owning private clones.
+
+  The shared aggregate corpus now produces 164 lines. Added checks cover direct
+  and indirect mutable callable parameters, replacement through a borrowed
+  callable return (including immediate invocation), nested owned callable
+  captures cloned in DynVec, user
+  destructor counts on replacement/deletion, runtime method changes, counted
+  method-name views, and literal typed lookup. The native runner adds a missing
+  runtime method failure at each USize width. The clean hosted ASAN suite passes
+  458/458 (including clang validation); TempleOS passes all 55 cases at USize
+  32/64. The aggregate and collection checklist entries above now reflect the
+  completed guest coverage.
 
 *** QEMU validation
 

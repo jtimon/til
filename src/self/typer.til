@@ -1406,7 +1406,19 @@ dyn_fn_uses_typed_abi := func(shallow t: Type, scope: TypeScope, symbols: Symbol
     return true
 }
 
-dyn_fn_signature_matches := func(got: FunctionDef, want: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
+dyn_fn_signature_matches := func(got: FunctionDef, want: FunctionDef, scope: TypeScope, symbols: SymbolPool, erased: Bool = false) returns Bool {
+    if erased {
+        if got.sig.func_type.is_proc().and(want.sig.func_type.is_proc().not()) { return false }
+        if got.sig.params.len() != want.sig.params.len() { return false }
+        for i in 0..want.sig.params.len() {
+            ref expected : Str = resolve_type_alias(scope, decl_type_name_ref(want.sig.params[i], symbols), symbols)
+            if expected == "Dynamic" { continue }
+            if expected != resolve_type_alias(scope, decl_type_name_ref(got.sig.params[i], symbols), symbols) { return false }
+        }
+        ref result : Str = resolve_type_alias(scope, want.sig.return_type, symbols)
+        if result == "Dynamic" { return got.sig.return_type.len() > 0 }
+        return result == resolve_type_alias(scope, got.sig.return_type, symbols)
+    }
     if fdef_sig_mismatch(got, want, scope, symbols).is_empty().not() { return false }
     if got.sig.return_own_type.is(OwnType.Ref) != want.sig.return_own_type.is(OwnType.Ref) { return false }
     if got.sig.variadic_index != want.sig.variadic_index { return false }
@@ -1931,7 +1943,7 @@ priv infer_named_funcptr_call := proc(mut scope: TypeScope, mut e: Expr, sig_nam
 
 priv resolve_fcall_return_type := proc(mut scope: TypeScope, mut e: Expr, name: Str, callee_bind_o: Option(ref TypeBinding), fdef_o: Option(ref Expr), in_func: I32, mut ctx: Context) {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
-    if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
+    if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")) {
         if e.children.len() >= 3 {
             ref method_arg : Expr = e.children[2]
             if method_arg.node_type.is_literal_str().not() {
@@ -8015,9 +8027,16 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 src_fd_o := scope.lookup_func_by_sym(rhs_id.ident_sym(), ctx.symbols)
                 if src_fd_o.is_some() { scope.set_func_def_name(sdecl.name, src_fd_o.unwrap(), ctx.symbols) }
             case .FCall:
-                switch resolve_fn_sig(rhs, scope, ctx.symbols) {
-                case .Some(rfc_sig): scope.set_func_def_name(sdecl.name, rfc_sig, ctx.symbols)
-                case .None:
+                if is_funcptr_sig(rhs.til_type()) {
+                    // The result's signature can differ from the called
+                    // callback's signature (including a borrowed result).
+                    ref result_sig : Str = type_name_ref(rhs.til_type(), ctx.symbols)
+                    scope.set_func_def_name(sdecl.name, scope.lookup_func_name(result_sig, ctx.symbols).unwrap(), ctx.symbols)
+                } else {
+                    switch resolve_fn_sig(rhs, scope, ctx.symbols) {
+                    case .Some(rfc_sig): scope.set_func_def_name(sdecl.name, rfc_sig, ctx.symbols)
+                    case .None:
+                    }
                 }
             case .FuncDef(rhs_fd):
                 if rhs_fd.captures.len() > 0 { scope.set_func_def_name(sdecl.name, rhs, ctx.symbols) }

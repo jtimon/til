@@ -109,6 +109,21 @@ priv is_ref_global := func(sym: Sym, ctx: Context) returns Bool {
 
 priv is_ref_local := func(sym: Sym, ctx: Context) returns Bool {
     if ctx.builder_func.ref_locals.has(sym) { return true }
+    if ctx.builder_func.shadowed_params.has(sym).not() {
+        switch ctx.builder_func.current_fdef {
+        case .Some(cf):
+            switch cf.node_type {
+            case .FuncDef(fd):
+                for p : Declaration in fd.sig.params {
+                    if p.name == ctx.symbols.resolve(sym) {
+                        if p.is_mut.and(type_is_callable_storage(p.til_type)) { return true }
+                    }
+                }
+            case:
+            }
+        case .None:
+        }
+    }
     return is_ref_global(sym, ctx)
 }
 
@@ -1082,6 +1097,9 @@ priv param_ctype := func(fd: FunctionDef, i: USize, mut ctx: Context) returns St
     ref p : Declaration = fd.sig.params[i]
     if ii == fd.sig.variadic_index { return builder_variadic_array_ctype(ctx, decl_type_name_ref(p, ctx.symbols)) }
     if ii == fd.sig.kwargs_index { return type_name_to_c(decl_type_name_ref(p, ctx.symbols), ctx) }
+    if p.is_mut.and(type_is_callable_storage(p.til_type)) {
+        return format(type_name_to_c_value(decl_type_name_ref(p, ctx.symbols), ctx), " *")
+    }
     if func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols) {
         return type_name_to_c_value(decl_type_name_ref(p, ctx.symbols), ctx)
     }
@@ -1132,11 +1150,10 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
 
 
 
-// #326: record what dyn_fn can dispatch to. The method is always a string
-// literal; the TYPE is literal for a static `dyn_fn("Vec", "clone")` and a
-// runtime expression for the collection/interface shape
-// (`dyn_fn(elem_type, "clone")` in std/dyn_array.til), which can name any
-// type and so records the `*.m` wildcard the scavenger already uses.
+// #326: record what dyn_fn can dispatch to. Literal methods use an exact
+// Type.method or *.method entry. Runtime methods with a named signature use
+// Type.@Signature or *.@Signature, matching the scavenger's contract-based
+// wildcard expansion over reachable types.
 
 // A `Type.member` pair dyn_fn's dispatch table can name. The wrapper, its
 // closure value and the table entry are all gated on this, identically --
@@ -1376,7 +1393,17 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             }
         }
         if emitted_inline_closure { continue }
-        if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg, ctx.symbols)) {
+        mut callable_slot := false
+        if type_is_callable_storage(arg.til_type()) {
+            callee_o := find_callee_fdef(callee_name, ctx)
+            if callee_o.is_some() {
+                ref signature : FunctionDef = funcdef_of(callee_o.unwrap())
+                callable_slot = signature.sig.params[i - 1].is_mut
+            }
+        }
+        if callable_slot {
+            emit_callable_slot(f, arg, depth, ctx)
+        } else if ext_c_string_param(callee_name, i - 1, ctx).and(c_str_arg_needs_nul_check(arg, ctx.symbols)) {
             emit_checked_c_str(f, arg, depth, ctx)
         } else if callee_param_passes_c_value(callee_name, i - 1, ctx) {
             if callee_param_is_own(callee_name, i - 1, ctx) {
@@ -2344,7 +2371,9 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), decl_type_name_ref(dd, ctx.symbols), ctx)
             if is_rg { f.write(dd.name).write(" = ") }
             else { f.fwrite(ctype, " *", dd.name, " = ") }
-            emit_as_ptr(f, rhs, depth, false, ctx); f.write(";\n")
+            if type_is_callable_storage(e.til_type()) { emit_callable_slot(f, rhs, depth, ctx) }
+            else { emit_as_ptr(f, rhs, depth, false, ctx) }
+            f.write(";\n")
             // REM the (void) guard for a Ref decl is the shared one below,
             // which runs for BOTH arms of this if -- a second copy here
             // wrote every ref binding's cast twice (840 across the corpus).
@@ -3377,6 +3406,13 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
             }
         }
         if emitted_inline { continue }
+        if i - 1 < sfd.sig.params.len() {
+            ref param : Declaration = sfd.sig.params[i - 1]
+            if param.is_mut.and(type_is_callable_storage(param.til_type)) {
+                emit_callable_slot(f, e.children[i], depth, ctx)
+                continue
+            }
+        }
         mut arg_value := false
         mut arg_own := false
         mut arg_stack_outer := false
@@ -5227,6 +5263,27 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
         }
     }
     return f
+}
+
+// The address of callable storage, distinct from the descriptor value passed
+// to an ordinary borrowed/owned callable parameter.
+priv emit_callable_slot := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
+    switch e.node_type {
+    case .Ident(id):
+        if ctx.closure_emit_captures.has(id.ident_sym()) {
+            f.write(ctx.closure_emit_env).write("->").write(id.ident_name(ctx.symbols.names))
+        } else if is_ref_local(id.ident_sym(), ctx) { emit_expr_value(f, e, depth, ctx) }
+        else { f.write("&"); emit_expr_value(f, e, depth, ctx) }
+    case .FCall: emit_expr_value(f, e, depth, ctx)
+    case .FieldAccess:
+        if builder_fa_is_ptr(e, ctx) { emit_expr_value(f, e, depth, ctx) }
+        else {
+            f.write("&(")
+            emit_expr_value(f, e, depth, ctx)
+            f.write(")")
+        }
+    case: UNREACHABLE("callable slot requires borrowed storage")
+    }
 }
 
 priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, mut ctx: Context) returns ref File {
@@ -12335,6 +12392,31 @@ priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, c
     return qname_in_set(ctx.builder_ns_member_sites, ename, ".", vname)
 }
 priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    for target : Str in ctx.builder_dyn_fn_targets {
+        marker := target.find(".@")
+        if marker < 0 { continue }
+        owner := target.substr(0, marker.to_usize())
+        if owner.eq("*").or(owner.eq(type_name)).not() { continue }
+        signature_name := target.substr(marker.to_usize() + 2, target.len() - marker.to_usize() - 2)
+        def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+        if def_o.is_none() { continue }
+        declaration_o := def_ns_get(def_o.unwrap(), member)
+        if declaration_o.is_none() { continue }
+        ref declaration : Declaration = declaration_o.unwrap()
+        if declaration.default_value.is_none() { continue }
+        if declaration.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+        ref expected : FunctionDef = funcdef_of(ctx.scope.lookup_func_name(signature_name, ctx.symbols).unwrap())
+        erased := dyn_fn_uses_typed_abi(Type.FuncPtrSig(signature_name.clone()), ctx.scope, ctx.symbols).not()
+        if dyn_fn_signature_matches(funcdef_of(declaration.default_expr()), expected, ctx.scope, ctx.symbols, erased) { return true }
+    }
+    if ctx.builder_dyn_fn_targets.has("*.*").or(qname_in_set(ctx.builder_dyn_fn_targets, type_name, ".", "*")) {
+        def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+        if def_o.is_none() { return false }
+        decl_o := def_ns_get(def_o.unwrap(), member)
+        if decl_o.is_none() { return false }
+        ref decl : Declaration = decl_o.unwrap()
+        return decl.default_value.is_some().and(decl.default_expr().node_type.is(NodeType.FuncDef))
+    }
     if qname_in_set(ctx.builder_dyn_fn_targets, "*.", member, "") { return true }
     return qname_in_set(ctx.builder_dyn_fn_targets, type_name, ".", member)
 }
@@ -12413,16 +12495,18 @@ priv builder_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str), symb
         case:
         }
         if is_dyn_fn {
+            mut method := "*"
             switch e.children[2].node_type {
-            case .Literal(Literal.Str(dfm)):
-                mut key := "*.".concat3(dfm, "")
-                switch e.children[1].node_type {
-                case .Literal(Literal.Str(dft)): key = dft.concat3(".", dfm)
-                case:
-                }
-                if targets.has(key).not() { targets.add(own key.clone()) }
+            case .Literal(Literal.Str(dfm)): method = dfm.clone()
+            case:
+                if is_funcptr_sig(e.til_type()) { method = format("@", type_name_ref(e.til_type(), symbols)) }
+            }
+            mut key := format("*.", method)
+            switch e.children[1].node_type {
+            case .Literal(Literal.Str(dft)): key = format(dft, ".", method)
             case:
             }
+            if targets.has(key).not() { targets.add(own key) }
         }
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {

@@ -2899,7 +2899,8 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     assign_hb.ptr = to_ptr(fresh_block)
                 }
                 else { scalar_word_store(hb_type(assign_hb), to_ptr(assign_hb.ptr), new_raw, ctx) }
-            } else if assign_hb.is_borrowed.or(is_aggregate(hb_type(assign_hb)).and(assign_hb.ptr.is_null().not())) {
+            } else if assign_hb.is_borrowed.or(is_aggregate(hb_type(assign_hb))
+                .or(heap_type_is_callable(hb_type(assign_hb))).and(assign_hb.ptr.is_null().not())) {
                 // Keep an aggregate owner's storage stable too: ref fields
                 // can borrow it, so replacing the allocation dangles them.
                 // A moved-out owner has no storage and takes the new block
@@ -2912,6 +2913,8 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                 if drop_old.and(is_aggregate(hb_type(assign_hb))) {
                     eval_replacement_delete(scope, hb_type(assign_hb), assign_data, false, stmt, ctx)
                     drop_old = false
+                } else if drop_old.and(heap_type_is_callable(hb_type(assign_hb))) {
+                    eval_callable_capture_delete(deref(assign_data), stmt, ctx)
                 }
                 _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx, drop_old)
             } else {
@@ -3136,8 +3139,7 @@ priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                                 return_raw = moved_word
                             }
                         }
-                    } else if c.eval.interp_ret_is_ref.and(return_hb.is_static_callable.not())
-                        .and(heap_type_is_callable(hb_type(return_hb)).not()) {
+                    } else if c.eval.interp_ret_is_ref {
                         // A `returns ref` function returning a binding that
                         // outlives the call (a global, an enclosing scope's)
                         // lends that binding's storage -- what the compiled
@@ -4935,6 +4937,16 @@ scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref He
             b.ptr = to_ptr(deref(slot))
         case .None:
         }
+        if b.moved_out.not().and(heap_type_is_callable(hb_type(b))) {
+            // Mutable aliases can replace the descriptor without changing
+            // this binding's metadata. The shared slot is authoritative.
+            b.payload_released = deref(b.ptr).is_null()
+            // Delete empties the descriptor but retains its borrowable slot.
+            b.is_static_callable = false
+            if b.payload_released.not() {
+                b.is_static_callable = heap_slot_is_static_callable(hb_type(b), to_ptr(b.ptr))
+            }
+        }
         return safe_ref(b)
     }
     return Option(ref HeapBinding).None
@@ -5404,7 +5416,7 @@ priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested:
     if hb.is_borrowed { return }
     if hb.moved_out { return }
     mut old_ptr : Dynamic = hb.ptr
-    if drop_nested.and(hb.is_static_callable.not()) { heap_drop_by_type(hb_type(hb), old_ptr, hb.ctx) }
+    if drop_nested.and(heap_type_is_callable(hb_type(hb)).or(hb.is_static_callable.not())) { heap_drop_by_type(hb_type(hb), old_ptr, hb.ctx) }
     EvalHeap.heap_free(own old_ptr)
     hb.ptr = bits_word(0)
     hb.moved_out = true
@@ -5492,7 +5504,9 @@ scope_drop_owned_bindings := func(mut s: Scope) {
         // mode. Leave raw allocations to the interpreted free.
         if hb.is_raw_alloc { continue }
         mut owned_ptr : Dynamic = hb.ptr
-        if hb.is_static_callable.or(hb.payload_released).not() { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
+        if heap_type_is_callable(hb_type(hb)).or(hb.is_static_callable.or(hb.payload_released).not()) {
+            heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx)
+        }
         EvalHeap.heap_free(own owned_ptr)
         hb.ptr = bits_word(0)
         hb.moved_out = true
@@ -5532,7 +5546,7 @@ scope_free := func(own s: Scope) {
         if hb.is_raw_alloc { continue }
         mut slot : Dynamic = hb.ptr
         if hb.ctx.eval.constfold_active.or(hb.ctx.eval.repl_session).or(hb.ctx.eval.embedded).and(hb.ctx.eval.eval_aborted)
-        .and(hb.is_static_callable.or(hb.payload_released).not()) {
+        .and(heap_type_is_callable(hb_type(hb)).or(hb.is_static_callable.or(hb.payload_released).not())) {
             heap_drop_by_type(hb_type(hb), slot, hb.ctx)
         }
         EvalHeap.heap_free(own slot)
@@ -8872,11 +8886,15 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
             if hb.is_borrowed.not() {
                 eval_callable_capture_delete(deref(heap_data), e, ctx)
                 heap_drop_by_type(hb_type(hb), heap_data, hb.ctx)
-                mut owned_heap_data : Dynamic = heap_data
-                EvalHeap.heap_free(own owned_heap_data)
+                // A callable binding is stable storage, just like an
+                // aggregate local. Borrowed returns can still point here
+                // when the descriptor is replaced after this delete.
+                write_ptr(heap_data, bits_word(0))
+                hb.payload_released = true
+            } else {
+                hb.ptr = bits_word(0)
+                hb.moved_out = true
             }
-            hb.ptr = bits_word(0)
-            hb.moved_out = true
         }
     case .FieldAccess(fa):
         if e.children[1].children.len().gt(0) {

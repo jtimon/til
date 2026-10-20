@@ -225,6 +225,13 @@ main := proc() {
             "cdir_open: could not open 'MISSING'\n", "")
         failure_case(identity, bits, "remove_directory", "File.remove(\"C:/Home\")\n",
             "cfile_remove: cannot remove a directory\n", "")
+        failure_case(identity, bits, "dyn_missing_method", format(
+            "LookupTarget := struct { value := 1 namespace: read := func(self: LookupTarget) returns I64 { return self.value } }\n",
+            "LookupGetter := func(LookupTarget) returns I64\n",
+            "lookup := func(method: Str) returns LookupGetter { return dyn_fn(\"LookupTarget\", method) }\n",
+            "mut method := \"absent\"\ncallback := lookup(method)\n",
+            "println(callback(LookupTarget()).to_str())\n"),
+            "dyn_fn: no method LookupTarget.absent\n", "", false)
         File.writefile(format(WORK, "/TILTEST.HC"), "This_Is_Not_A_TempleOS_Symbol;\n")
         run_guest(identity, format("compiler_error_", bits), "", "error")
     }

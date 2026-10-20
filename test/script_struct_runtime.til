@@ -778,3 +778,79 @@ println(func_sig_throw_type(callable_thrower_name, 0))
 println(func_sig_param_count(callable_thrower_name).to_str())
 callable_inline_base := 5
 println(callable_apply(func(n: I64) returns I64 [callable_inline_base] { return callable_inline_base + n }, 2).to_str())
+
+// Mutable callable slots and borrowed returns retain the original owner.
+callable_replace := func(mut slot: CallableUnary) {
+    slot = callable_make("mutable")
+}
+CallableSlotGetter := func(mut CallableUnary) returns ref CallableUnary
+callable_borrow_slot := func(mut slot: CallableUnary) returns ref CallableUnary {
+    slot = callable_make("borrowed")
+    return slot
+}
+mut callable_slot : CallableUnary = callable_inc
+callable_replace(callable_slot)
+println(callable_slot(2).to_str())
+callable_slot_getter : CallableSlotGetter = callable_borrow_slot
+ref mut callable_slot_alias : CallableUnary = callable_slot_getter(callable_slot)
+CallableReplacer := func(mut CallableUnary)
+callable_replacer : CallableReplacer = callable_replace
+callable_replacer(callable_slot_alias)
+println(callable_slot(3).to_str())
+println(callable_slot_alias(4).to_str())
+println(callable_slot_getter(callable_slot)(5).to_str())
+println(callable_slot_alias(6).to_str())
+
+// Cloning a nested owned capture must clone both environments and run each
+// captured user's destructor once, even after the original container dies.
+callable_make_nested := func(mut counts: CallableCounts) returns CallableUnary {
+    counts.entered++
+    guard := CallableGuard(name="nested", counts=counts)
+    inner : CallableUnary = func(n: I64) returns I64 [own guard] {
+        return guard.name.len().to_i64() + n
+    }
+    return func(n: I64) returns I64 [own inner] { return inner(n) + 1 }
+}
+mut callable_nested_counts := CallableCounts()
+callable_nested_vec := DynVec.new(CallableUnary)
+callable_nested_vec.push(own callable_make_nested(callable_nested_counts))
+callable_nested_copy := callable_nested_vec.clone()
+own callable_nested_vec.delete()
+println(callable_nested_counts.closed.to_str())
+ref callable_nested : CallableUnary = callable_nested_copy[0]
+println(callable_nested(3).to_str())
+own callable_nested_copy.delete()
+println(callable_nested_counts.closed.to_str())
+
+callable_check_slot_cleanup := func(mut counts: CallableCounts) returns I64 {
+    mut slot : CallableUnary = callable_make_nested(counts)
+    callable_replace(slot)
+    return counts.closed
+}
+mut callable_replaced_counts := CallableCounts()
+println(callable_check_slot_cleanup(callable_replaced_counts).to_str())
+
+// Neither the type name nor the method name is a literal at the lookup site.
+CallableRuntime := struct {
+    value := 0
+namespace:
+    read := func(self: CallableRuntime) returns I64 { return self.value }
+    twice := func(self: CallableRuntime) returns I64 { return self.value * 2 }
+}
+CallableRuntimeGetter := func(CallableRuntime) returns I64
+callable_lookup := func(type_name: Str, method: Str) returns CallableRuntimeGetter {
+    return dyn_fn(type_name, method)
+}
+callable_runtime := CallableRuntime(value=21)
+mut callable_method := "read"
+callable_runtime_read := callable_lookup("CallableRuntime", callable_method)
+println(callable_runtime_read(callable_runtime).to_str())
+callable_method = "twice"
+callable_runtime_twice := callable_lookup("CallableRuntime", callable_method)
+println(callable_runtime_twice(callable_runtime).to_str())
+mut callable_method_source := "read trailing"
+callable_method_view := callable_method_source.substr(0, 4)
+callable_runtime_view := callable_lookup("CallableRuntime", callable_method_view)
+println(callable_runtime_view(callable_runtime).to_str())
+callable_literal_read : CallableRuntimeGetter = dyn_fn("CallableRuntime", "read")
+println(callable_literal_read(callable_runtime).to_str())

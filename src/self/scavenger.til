@@ -1,5 +1,6 @@
 mode lib
 import("context")
+import("typer")
 
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.
@@ -389,8 +390,8 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
                     // has no static Type.method callsite, so the walk above
                     // never records it and the scavenger would prune it --
                     // leaving the runtime dispatch pointing at a freed
-                    // FuncDef. The method name is a string literal at
-                    // child(2). When the type name (child(1)) is a literal
+                    // FuncDef. When the method name at child(2) is a literal
+                    // and the type name (child(1)) is a literal
                     // too, keep exactly Type.method; when it is a runtime
                     // expression (interface dispatch reads the box's
                     // iface_type_name field), keep `method` on every type
@@ -407,6 +408,20 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
                                 vec_push_str(refs, format("*.", dyn_mname))
                             }
                         case:
+                            // A runtime method name selects compatible
+                            // callables on types otherwise reachable. The
+                            // @Signature selector is expanded during BFS.
+                            mut selection := "*"
+                            if is_funcptr_sig(e.til_type()) {
+                                selection = format("@", type_name_ref(e.til_type(), symbols))
+                            }
+                            switch e.children[1].node_type {
+                            case .Literal(Literal.Str(runtime_type)):
+                                vec_push_str(refs, runtime_type)
+                                push_qn(refs, runtime_type, selection)
+                            case:
+                                vec_push_str(refs, format("*.", selection))
+                            }
                         }
                     }
                 }
@@ -2501,6 +2516,23 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
             iface_o := lp.ctx.scope.get_struct(iface_name, lp.ctx.symbols)
             if iface_o.is_some() {
                 ref iface : Expr = iface_o.unwrap()
+                if member.eq("*").or(member.starts_with("@")) {
+                    ref members : Vec(Declaration) = def_ns_decls(iface)
+                    for i in 0..members.len() {
+                        ref candidate : Declaration = members[i]
+                        if candidate.default_value.is_none() { continue }
+                        if candidate.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+                        ref fd : FunctionDef = funcdef_of(candidate.default_expr())
+                        if fd.sig.func_type.is_core() { continue }
+                        if member.starts_with("@") {
+                            signature_name := member.substr(1, member.len() - 1)
+                            ref expected : FunctionDef = funcdef_of(lp.ctx.scope.lookup_func_name(signature_name, lp.ctx.symbols).unwrap())
+                            erased := dyn_fn_uses_typed_abi(Type.FuncPtrSig(signature_name.clone()), lp.ctx.scope, lp.ctx.symbols).not()
+                            if dyn_fn_signature_matches(fd, expected, lp.ctx.scope, lp.ctx.symbols, erased).not() { continue }
+                        }
+                        push_qn(worklist, iface_name, def_ns_name_at(iface, i))
+                    }
+                }
                 if iface.node_type.is(NodeType.StructDef) {
                     if structdef_of(iface).is_interface {
                         method_o := find_namespace_func(iface, member, lp.ctx.scope, lp.ctx.symbols)
