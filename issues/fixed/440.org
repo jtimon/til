@@ -1,8 +1,33 @@
 # priority: low
 # category: bugs
-** WIP #440 Used private function-generator macros are reported as unused
+** FIXED #440 Used private function-generator macros are reported as unused
 
-*** Progress: verified preparation
+*** Post-mortem
+
+Generator expansion removed the factory call before ordinary usage checks,
+and local private factories had not yet been registered or name-mangled.
+Their actual compile-time uses therefore never reached the private binding's
+used flag.
+
+The preparation records successful expansion on the original Declaration.used
+and preserves that flag in TypeBinding.used during registration. Imported
+factories and retained generic type-dependency expansions record uses too;
+mere lookups and unexpanded template bodies do not. The final migration now
+marks core's ~make_usize_to_uptr~ private, removing the public workaround.
+
+Regression tests: ~test_private_macro_generators~ in test/priv.til,
+test/imports/priv_helper.til, the unused-generator case in
+test/priv_unused_error.til, and the private size factory in
+test/dynamic_widths.til. They cover used and genuinely unused private
+generators, retained private FuncSig dependencies, ordinary private macros,
+and imported/public generators. The core migration also exercises the fix
+while bootstrapping the build driver and compiler.
+
+Final verification on master ~beedf8556~: ~make clean && make test~ passed
+458/458, including bootstrap, ASAN, the private/unused-generator regressions
+and the issue-summary check.
+
+*** Preparation history
 
 Root cause: generator expansion runs before local private declarations are
 registered or file-name-mangled. It replaces the call with a generated
@@ -33,10 +58,9 @@ building bin/make with the same change:
 ./src/core/numbers.til:877:6: error: unused priv func 'make_usize_to_uptr'; remove 'priv' to expose it
 #+end_example
 
-This is the staged source-level migration in doc/self.org: pass 1 rejects
-the consumer before it can build the new compiler. Core remains public in
-this preparation. After it is merged, mark the factory private, verify, and
-move this issue to fixed in that final commit.
+This required the staged source-level migration in doc/self.org: pass 1
+rejected the consumer before it could build the new compiler. Core remained
+public in the preparation; the final private qualifier followed its merge.
 
 *** Original report
 

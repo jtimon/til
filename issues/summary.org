@@ -9,7 +9,6 @@
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
 *** [[./open/436.org][#436]] linux-x86 compiles put /usr/include/x86_64-linux-gnu ahead of every include path
-*** [[./open/440.org][#440]] Used private function-generator macros are reported as unused
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core

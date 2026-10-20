@@ -874,7 +874,7 @@ UPtr := U64
 // Function generators select their return before typing the generated body.
 // Size comparisons here resolve TARGET primitives, unlike interpreter
 // storage queries. Only a narrowing conversion needs the checked body.
-make_usize_to_uptr := macro() returns FuncDef {
+priv make_usize_to_uptr := macro() returns FuncDef {
     if USize.size() <= UPtr.size() {
         return func(val: USize) returns UPtr { return val.to_uptr() }
     } else {
