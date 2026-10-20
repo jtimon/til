@@ -23,6 +23,22 @@
    / wrong-signature / not-an-interface rejections for both structs and
    enums).
 
+*** Copy lifetime recheck after #432 (based on master fcbe4e79a)
+
+    The earlier scope-end pinning report no longer reproduces. After consuming
+    the result of ~view.copy()~, consuming ~view~ itself in the same scope is
+    accepted for standalone, struct-backed and enum-backed interface values.
+    No compiler change was needed for these cases on current master.
+
+    ~test_interface_default_owned_results~ now consumes the original values
+    after their copies, replacing the separate-standalone-value workaround.
+    The struct's destructor count checks that the copy and original are each
+    destroyed once. This resolves that specific historical pinning report;
+    it does not assert general last-use precision for live explicit borrows.
+
+    Verification: ~make clean && make test~ passed 456/456, including ASAN
+    and self-translation; interface tests pass 54/54 on both paths.
+
 *** Destination-typed dyn_fn ABI (based on master e61ceecf3)
 
     A concrete named FuncSig destination now selects a typed adapter for

@@ -959,10 +959,11 @@ test_interface_default_owned_results := test() {
     assert_eq(Str, empty.take(own make_dispatch_argument(calls)), "argument 3")
     empty_copy := empty.copy()
     assert_eq(Str, DefaultFlow.finish(own empty_copy), "default")
-    // Copy provenance conservatively pins empty for this scope. Consume a
-    // separate standalone receiver to exercise the default-body own ABI.
-    standalone := DefaultFlow()
-    assert_eq(Str, DefaultFlow.finish(own standalone), "default")
+    assert_eq(Str, DefaultFlow.finish(own empty), "default")
+    assert_eq(Str, DefaultFlow.finish(own plain), "default")
+    assert_eq(I64, PlainFlow.drops, before + 2)
+    assert_eq(Str, DefaultFlow.finish(own changed), "override")
+    assert_eq(Str, DefaultFlow.finish(own choice), "enum")
     assert_eq(I64, calls, 3)
 }
 
