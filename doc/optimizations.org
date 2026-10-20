@@ -5,6 +5,63 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Packed output updates and block factors (2026-10-20, #409)
+
+Base: ~beedf8556~. [[../examples/preann.til][examples/preann.til]] now compares five kernels in one
+executable: the reference, four-row blocking with scalar output updates,
+and packed-output blocking by two, four or eight rows. A function generator
+shares the implementation; block size and output form are constants in each
+specialization. The existing ~layer_blocked~ name retains the scalar-output
+four-row control. There are no new CLI flags or automatic ISA/block selection.
+
+Packed updates construct an F2 or F4 from independently reduced output sums,
+load the corresponding old results once, add lane-wise, then memcpy them
+back once. Each output still has four accumulation lanes and the original
+reduction order; no FMA or reassociation is introduced. Eight-row blocking
+uses two four-result updates. Remaining output rows use the reference dot.
+
+The assembly confirms the intended output change: Clang v3's packed-four
+kernel ends a group with a memory-operand ~vaddps~ and one ~vmovups~ store.
+Its eight-row inner loop holds eight accumulators in registers, but adds
+address calculations and splits the last three weight-vector loads into
+64-bit pieces. The observed cost is not simply FP register spilling.
+
+Exploratory same-binary O2 medians at 512x512, us/layer (Ryzen 9950X3D,
+CPU 0, GCC 13.3 / Clang 18.1.3, five alternating-order >=100 ms batches):
+
+| Compiler/profile | Reference | Scalar-out 4 | Packed 4 | Packed 2 | Packed 8 |
+|------------------+-----------+--------------+----------+----------+----------|
+| GCC baseline     |    17.822 |        9.583 |    9.888 |   12.329 |    8.850 |
+| GCC v3           |    17.334 |        9.644 |    9.583 |   12.085 |    8.179 |
+| GCC v4           |    17.090 |        9.705 |    8.972 |   12.329 |    8.179 |
+| Clang baseline   |    17.700 |       10.742 |   12.573 |   12.207 |   10.620 |
+| Clang v3         |    16.968 |        9.521 |    8.911 |   11.780 |   10.437 |
+| Clang v4         |    18.921 |       12.573 |    8.789 |   12.817 |   10.498 |
+
+Packing is not a universal replacement: Clang baseline regressed in this
+case. Eight rows helped GCC here but lost to packed four rows under Clang.
+At 8193x4096 the gap narrows: GCC v3 packed4/packed8 both measured about
+2469 us; Clang v3 measured 2500/2703 us. Larger blocks therefore remain
+explicit alternatives, not a new default. An earlier packed-only build had
+a different Clang v3 result; adding specializations changes layout and
+optimization context, so these samples do not isolate one instruction's cost.
+
+The table was collected before consolidating the untimed test oracle work;
+it characterizes that recorded build, not a layout-independent guarantee.
+Complete samples and disassembly are ~tmp/preann-blocks-{compiler}-{cpu}.*~;
+the maintained example prints all five samples and per-variant medians for
+fresh comparisons. Timings include the runtime-selected kernel call, not
+allocation, initialization, result reset or correctness checks.
+
+Correctness now covers 88 input/output boundary shapes, including 7/8/9
+and 15/16/17 outputs, and cancellation data. All five variants match the
+scalar four-lane oracle bit-for-bit over three accumulations, preserve guard
+outputs, and leave inputs/weights intact. GCC/Clang O2 checks passed at all
+three x86 profiles, with ASAN on compiled children; USize32, GCC O0, Clang v4
+O3, and the complete Clang v4 timing main under ASAN also passed. The clean
+full ASAN suite passed 458/458 after removing the approved stale sync copy
+of issue 420, which had been the sole failure in the previous run.
+
 ** Runnable four-output-row blocking example (2026-10-20, #409)
 
 Base: ~fcbe4e79a~. [[../examples/preann.til][examples/preann.til]] now contains runnable reference

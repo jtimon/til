@@ -40,6 +40,14 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Packed output updates and block factors (base beedf8556)
+
+The runnable [[../../examples/preann.til][preann example]] now compares scalar-output four-row blocking
+with packed-output 2/4/8-row specializations. All retain the same per-output
+arithmetic; the expanded boundary checks and ASAN suite pass. Results and
+tradeoffs are recorded in
+[[../../doc/optimizations.org::*Packed output updates and block factors (2026-10-20, #409)][Optimization measurements]].
+
 *** Runnable blocked float-layer example (base fcbe4e79a)
 
 [[../../examples/preann.til][examples/preann.til]] implements the exact four-lane reference and a
