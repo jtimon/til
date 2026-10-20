@@ -6,7 +6,6 @@
 *** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it
 *** [[./open/431.org][#431]] til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
 ** Low
-*** [[./open/425.org][#425]] A function-generator alias cannot be used as a function value
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
 *** [[./open/436.org][#436]] linux-x86 compiles put /usr/include/x86_64-linux-gnu ahead of every include path

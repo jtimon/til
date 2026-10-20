@@ -1133,6 +1133,20 @@ test_macro_func_gen_value_param := test() {
     assert_eq(I64, add100(1), 101)
 }
 
+// Issue #425: a function-generator alias used as a function VALUE (bound to
+// a funcsig local or passed as an Fn argument), not only called.
+IdSig425 := func(I64) returns I64
+apply425 := func(f: Fn(I64) returns I64, x: I64) returns I64 { return f(x) }
+
+test_macro_func_gen_alias_as_value := test() {
+    f : IdSig425 = id_i64
+    assert_eq(I64, f(3), 3)
+    assert_eq(I64, apply425(id_i64, 6), 6)
+    g : IdSig425 = add5
+    assert_eq(I64, g(1), 6)
+    assert_eq(I64, apply425(add5, 2), 7)
+}
+
 make_typed_adder := macro(T: Type, N: I64) returns FuncDef {
     return func(x: T) returns T { return x.add(N) }
 }
