@@ -4,6 +4,25 @@ import("../gen/til/library_namespace_a")
 import("../gen/til/library_namespace_b")
 
 main := proc() returns I64 {
+    // Each library was compiled alone, with a different exception inventory.
+    // Check actual throws, not just the successful half of a throws function.
+    mut caught_marker := false
+    library_namespace_a_throwing(-1)?
+    catch (err: BindingError) { caught_marker = true }
+    assert(caught_marker)
+    mut caught_payload := false
+    library_namespace_b_throwing(-1)?
+    catch (err: BindingPayloadError) {
+        caught_payload = true
+        assert(err.code == 7)
+        assert(err.message == "native error")
+    }
+    assert(caught_payload)
+    assert(library_namespace_b_throwing(13)! == 13)
+    defaults := BindingNestedWidths()
+    assert(defaults.inner.first == 43)
+    assert(defaults.inner.second == 47)
+    assert(defaults.inner.marker == 53)
     if library_namespace_a_value() != 21 { return 1 }
     if library_namespace_b_value() != 42 { return 2 }
     values := library_namespace_a_values()

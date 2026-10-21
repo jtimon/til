@@ -1083,7 +1083,7 @@ U0 language_checked(TilStr *return_out, I64 n, LanguageCounts *closes, I64 *_err
             TilMemCpy(&hoisted__LanguageError_0_111, &swap_value_113, sizeof(LanguageError));
         }
         LanguageError_Delete(&hoisted__LanguageError_0_111, FALSE);
-        I64 hoisted__I64_2_114 = 5;
+        I64 hoisted__I64_2_114 = 8108222931882104611;
         (*((TilCheckPtr(_err_kind))(I64 *))) = hoisted__I64_2_114;
     }
     I64 hoisted__I64_11_115 = 0;
@@ -1178,7 +1178,7 @@ I64 language_number(I64 n, LanguageCounts *closes, I64 *_err_kind, LanguageError
             TilMemCpy(&hoisted__LanguageError_0_140, &swap_value_142, sizeof(LanguageError));
         }
         LanguageError_Delete(&hoisted__LanguageError_0_140, FALSE);
-        I64 hoisted__I64_2_143 = 5;
+        I64 hoisted__I64_2_143 = 8108222931882104611;
         (*((TilCheckPtr(_err_kind))(I64 *))) = hoisted__I64_2_143;
     }
     LanguageGuard_Delete(&guard_137, FALSE);
@@ -1212,7 +1212,7 @@ LanguageCounts * language_borrow(LanguageCounts *closes, I64 *n, I64 *_err_kind,
             TilMemCpy(&hoisted__LanguageError_0_153, &swap_value_155, sizeof(LanguageError));
         }
         LanguageError_Delete(&hoisted__LanguageError_0_153, FALSE);
-        I64 hoisted__I64_2_156 = 5;
+        I64 hoisted__I64_2_156 = 8108222931882104611;
         (*((TilCheckPtr(_err_kind))(I64 *))) = hoisted__I64_2_156;
     }
     I64 hoisted__I64_7_157 = 0;
@@ -2573,7 +2573,7 @@ I64 TilMain()
         TilStrDelete(&language_result_792, FALSE);
         TilStrCopyValue(&language_result_792, &replacement_797);
     }
-    I64 hoisted__I64_g785_798 = 5;
+    I64 hoisted__I64_g785_798 = 8108222931882104611;
     Bool hoisted__Bool_g786_799 = (_err_kind_171 == hoisted__I64_g785_798);
     if (hoisted__Bool_g786_799) {
         I64 hoisted__I64_g310_800 = 0;
@@ -2620,7 +2620,7 @@ I64 TilMain()
         TilStrDelete(&language_result_792, FALSE);
         TilStrCopyValue(&language_result_792, &replacement_818);
     }
-    I64 hoisted__I64_g794_819 = 5;
+    I64 hoisted__I64_g794_819 = 8108222931882104611;
     Bool hoisted__Bool_g795_820 = (_err_kind_171 == hoisted__I64_g794_819);
     if (hoisted__Bool_g795_820) {
         I64 hoisted__I64_g314_821 = 0;
@@ -2775,7 +2775,7 @@ I64 TilMain()
     TilPrintln(&_va_Array_g95_878);
     I64 hoisted__I64_g814_888 = 6;
     I64 number_result_889 = language_number(hoisted__I64_g814_888, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
-    I64 hoisted__I64_g815_890 = 5;
+    I64 hoisted__I64_g815_890 = 8108222931882104611;
     Bool hoisted__Bool_g816_891 = (_err_kind_171 == hoisted__I64_g815_890);
     if (hoisted__Bool_g816_891) {
         I64 hoisted__I64_g339_892 = 0;
@@ -2810,7 +2810,7 @@ I64 TilMain()
     I64 hoisted__I64_g819_907 = -1;
     I64 hoisted__I64_g820_908 = language_number(hoisted__I64_g819_907, &language_closes_795, &_err_kind_171, &_err_LanguageError_172);
     number_result_889 = hoisted__I64_g820_908;
-    I64 hoisted__I64_g821_909 = 5;
+    I64 hoisted__I64_g821_909 = 8108222931882104611;
     Bool hoisted__Bool_g822_910 = (_err_kind_171 == hoisted__I64_g821_909);
     if (hoisted__Bool_g822_910) {
         I64 hoisted__I64_g348_911 = 0;
@@ -2848,7 +2848,7 @@ I64 TilMain()
     TilPrintln(&_va_Array_g96_918);
     I64 hoisted__I64_g832_928 = 1;
     LanguageCounts *ref_value_930 = language_borrow(&language_closes_795, &hoisted__I64_g832_928, &_err_kind_171, &_err_LanguageError_172);
-    I64 hoisted__I64_g833_931 = 5;
+    I64 hoisted__I64_g833_931 = 8108222931882104611;
     Bool hoisted__Bool_g834_932 = (_err_kind_171 == hoisted__I64_g833_931);
     if (hoisted__Bool_g834_932) {
         I64 hoisted__I64_g352_933 = 0;

@@ -176,6 +176,14 @@ priv collect_refs_walk := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
 priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
         locals: Set(Str), scoped: Bool) {
 
+    // Closure environment copy/drop functions are emitted outside the AST.
+    // Their aggregate captures still create real lifecycle call edges.
+    switch e.node_type {
+    case .FuncDef(fd): collect_capture_lifecycle_refs(fd.captures, refs, symbols)
+    case .BodyValue(bd): collect_capture_lifecycle_refs(bd.captures, refs, symbols)
+    case:
+    }
+
     // #210/#326: a swap_replace call on a Str target never emits its
     // callee -- the builder writes the explicit delete-copy-free sequence
     // instead (the `arg_tname == "Str"` branch in emit_stmt) -- so the
@@ -557,6 +565,17 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
             continue
         }
         collect_refs_walk(c, refs, symbols, locals, scoped)
+    }
+}
+
+collect_capture_lifecycle_refs := func(captures: Vec(Declaration), mut refs: Vec(Str), symbols: SymbolPool) {
+    for capture : Declaration in captures {
+        if capture.own_type.is(OwnType.Ref).or(type_is_callable_storage(capture.til_type)) { continue }
+        name := type_to_name(capture.til_type, symbols)
+        if is_scalar_type_name(name) { continue }
+        vec_push_str(refs, name)
+        push_qn(refs, name, "clone")
+        push_qn(refs, name, "delete")
     }
 }
 

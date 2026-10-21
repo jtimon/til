@@ -94,6 +94,46 @@ that a native function returning a reference to a borrowed guest record
 preserves that record's identity and guest view semantics. Native records,
 their contents and host string snapshots are exercised after VM teardown.
 
+*** Native exceptions and generated bindings
+
+Exception tags must agree between separately compiled libraries and callers.
+They no longer depend on the order in which a compilation encounters error
+types. The existing I64 error-kind slot uses fixed core tags (OutOfBounds = 1,
+IntegerOverflow = 2, DivideByZero = 3, KeyNotFound = 4). Other nominal type names
+use FNV-1a-64 of their name bytes, masked to 62 bits with bit 62 set. A collision
+between distinct registered names is a compiler error. Zero still means success.
+Rebuild libraries and their consumers together when upgrading from the old
+registration-index ABI; old custom-error tags are not compatible.
+
+Generated enum bindings declare variants once, rather than also exporting their
+generated constructors/constants as duplicate namespace members. Typed nested
+record defaults recover named constructor fields. The compiled binding regression
+uses both a tag-only enum and a payload enum; this does not extend the VM's
+native by-value enum marshalling support.
+
+*** Retaining commands in ordinary records and vectors
+
+~test/stored_callbacks.til~ exercises a command table of ~Vec(Binding)~, where
+~Binding~ contains an ordinary named proc-signature field. A registration helper
+may borrow its callable parameter and construct ~Binding(action = action)~:
+the field owns a copy of the callable environment. Releasing the caller's
+callable box must not invalidate that stored copy. Both compiled and interpreted
+field invocation use the retained environment, so private mutable captures
+persist between invocations.
+
+Copying a table clones its callable environments. Owned aggregate captures are
+cloned through their actual clone methods, with independent mutable state.
+Borrowed captures still borrow the same referents: copying the callable does
+not extend those referents' lifetime or make them owned. Keep a borrowed adapter
+alive until the table is destroyed, and its VM alive until the adapter and all
+retained callbacks are destroyed. Alternatively, move the adapter into an
+~[own mut adapter]~ capture; the table then owns that adapter's copied value,
+while the adapter still borrows its VM. ~test/stored_callbacks_error.til~ rejects
+escaping tables/records that carry a closure borrowing a dead local.
+
+These ownership rules do not publish candidate editor state or undo native
+effects. Reload still requires the host's explicit staging/publication policy.
+
 ** Why bindings need a human reviewer
 
 The til-side qualifiers that govern call semantics --

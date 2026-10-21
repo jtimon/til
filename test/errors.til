@@ -6,7 +6,26 @@ mode test
 
 AAAError := struct {}
 
+throwing_index := func(values: Vec(I64), index: USize) returns I64 throws AAAError, OutOfBounds {
+    if values.len() == 0 { throw AAAError() }
+    ref value : I64 = values.get(index)?
+    return value.clone()
+}
+
+throwing_bang_index := func(values: Vec(I64)) returns I64 throws AAAError {
+    if values.len() == 0 { throw AAAError() }
+    return values[0].clone()
+}
+
 test_simplest_catch := test() {
+    values := vec(I64, 42)
+    assert(throwing_bang_index(values)! == 42)
+    assert(throwing_index(values, 0)! == 42)
+    mut caught_bounds := false
+    throwing_index(values, 1)?
+    catch (error: AAAError) { assert(false) }
+    catch (error: OutOfBounds) { caught_bounds = true }
+    assert(caught_bounds)
     mut catched := false
     if I64.eq(1, 1) {
         throw AAAError()

@@ -223,6 +223,25 @@ main := proc() {
     consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
     consumer.run_checked()
 
+    // Generated enum declarations must remain compilable when their methods
+    // and constructors are reached, including both tag-only and payload forms.
+    File.writefile("tmp/library_namespace_enum_api.til", format(
+        "mode lib\nProbeOperation := enum { Read, Write }\n",
+        "ProbeTag := enum { Empty, Number: I64 }\n",
+        "operation := func() returns ProbeOperation { return ProbeOperation.Read }\n",
+        "tag_value := func(value: I64) returns ProbeTag { return ProbeTag.Number(value) }\n"))
+    Cmd.new(til_bin, "build", "tmp/library_namespace_enum_api.til").run_checked()
+    File.writefile("tmp/library_namespace_enum.til", format(
+        "import(\"../gen/til/library_namespace_enum_api\")\n",
+        "assert(operation().is(ProbeOperation.Read))\n",
+        "tag := tag_value(37)\n",
+        "switch tag { case .Number(value): assert(value == 37); case: assert(false) }\n"))
+    enum_consumer := Cmd.new(til_bin, "run", "--asan", "tmp/library_namespace_enum.til")
+    enum_consumer.env("LIBRARY_PATH", "gen/lib")
+    enum_consumer.env("LD_LIBRARY_PATH", "gen/lib")
+    enum_consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    enum_consumer.run_checked()
+
     // Issue #326: the scavenger roots `*.size` unconditionally -- get_elem_size
     // builds that call from a type name it only learns at runtime -- so a
     // generated binding's `BindingRef.size` wrapper survives the sweep. The C

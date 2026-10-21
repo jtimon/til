@@ -1403,6 +1403,15 @@ priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
                 return to_ptr(hb.ptr)
             }
         }
+    case .FieldAccess:
+        if interp_fa_namespace_def(scope, callee, ctx).is_none() {
+            // Calling an existing slot borrows its environment. Reading a
+            // callable as a value still clones it in eval_expr_field_raw.
+            ref slot : Dynamic = field_access_base(scope, callee, ctx).unwrap()
+            owned = false
+            result : Dynamic = slot
+            return result
+        }
     case:
     }
     mut info := raw_result_info_new()
@@ -4213,6 +4222,13 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             } else if fdd.own_type.is(OwnType.Ref) {
                                 ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
                                 arg_raw = source_ptr
+                                arg_is_ref = true
+                                arg_is_place = true
+                            } else if heap_type_is_callable(hb_type(source_hb)) {
+                                // init_field_raw owns the callable copy. Pass
+                                // the borrowed source slot, not an evaluator
+                                // clone mislabeled with the binding's ref bit.
+                                arg_raw = to_ptr(source_hb.ptr)
                                 arg_is_ref = true
                                 arg_is_place = true
                             } else {

@@ -178,7 +178,7 @@ BindingWidths := struct {
 BindingNestedWidths := struct {
     prefix : USize = 17
     extra : USize = 19
-    inner : BindingWidths
+    inner : BindingWidths = BindingWidths(first = 43, second = 47, marker = 53)
     suffix : USize = 29
 namespace:
     mut STATE := BindingWidths()
