@@ -5,7 +5,7 @@ forward_interface_value := func(view: CounterContract) returns I64 { return view
 
 // Issue #251: an interface is an abstract-class-like contract that desugars
 // to a fieldless struct. A member is either ABSTRACT -- declared with
-// `ext_func`/`ext_proc` and an empty `{}` body, to be provided by
+// a bodyless `func`/`proc` signature (or legacy `ext_func`/`ext_proc`), provided by
 // conforming types -- or a CONCRETE default -- an ordinary `func`/`proc`
 // with a real body, supplied by the interface itself. No fields, no
 // `namespace:` marker. The rejection cases live in test/typer_errors.til.
@@ -15,7 +15,7 @@ forward_interface_value := func(view: CounterContract) returns I64 { return view
 // Collection: the get/len contract that `for ... in` relies on -- both
 // abstract.
 Collection := interface {
-    get := ext_func(self: Collection, i: U32) returns Dynamic {}
+    get := func(self: Collection, i: U32) returns Dynamic
     len := ext_func(self: Collection) returns USize {}
 }
 
@@ -23,7 +23,7 @@ Collection := interface {
 // self; `describe` calls the abstract `self.draw()`, so once copied into an
 // implementer (#268) it dispatches to that implementer's own draw.
 Drawable := interface {
-    draw := ext_func(self: Drawable) returns Str {}
+    draw := func(self: Drawable) returns Str
     label := func(_self: Drawable) returns Str { return "shape" }
     describe := func(self: Drawable) returns Str { return self.draw() }
 }
@@ -739,11 +739,11 @@ test_interface_replacement_destruction := test() {
 // dynamic dispatch is a separate lowering contract.
 FullContract := interface {
     read := ext_func(self: FullContract) returns Str {}
-    add := ext_func(mut self: FullContract, n: I64) returns I64 {}
+    add := func(mut self: FullContract, n: I64) returns I64
     take := ext_func(self: FullContract, own text: Str) returns Str {}
-    borrow := ext_func(self: FullContract) returns ref Str {}
-    announce := ext_proc(self: FullContract) {}
-    consume := ext_func(own self: FullContract) returns Str {}
+    borrow := func(self: FullContract) returns ref Str
+    announce := proc(self: FullContract)
+    consume := func(own self: FullContract) returns Str
     take_number := ext_func(self: FullContract, own n: I64) returns I64 {}
     label := func(self: FullContract) returns Str { return self.read() }
 }
@@ -790,10 +790,10 @@ namespace:
 }
 
 CounterContract := interface {
-    value := ext_func(self: CounterContract) returns I64 {}
+    value := func(self: CounterContract) returns I64
     copy := ext_func(self: CounterContract) returns CounterContract {}
     consume := ext_func(own self: CounterContract) returns I64 {}
-    count := ext_func(self: CounterContract, items: ..Str) returns USize {}
+    count := func(self: CounterContract, items: ..Str) returns USize
     same := ext_func(self: CounterContract, other: CounterContract) returns Bool {}
     merge := ext_func(self: CounterContract, own other: CounterContract) returns I64 {}
     twice := func(self: CounterContract) returns I64 { return self.value() * 2 }
@@ -824,7 +824,7 @@ test_interface_enum_owned_contract := test() {
 
 ContractFailure := struct {}
 FallibleContract := interface {
-    value := ext_func(self: FallibleContract) returns I64 throws ContractFailure {}
+    value := func(self: FallibleContract) returns I64 throws ContractFailure
 }
 FallibleValue := struct implements FallibleContract {
     n := 0
@@ -1108,9 +1108,9 @@ test_interface_default_ref_override := test() {
 }
 
 MultiContract := interface {
-    combine := ext_func(self: MultiContract, a: I64 = 2, b: I64 = 3) returns I64 {}
-    take := ext_func(mut self: MultiContract, own left: Str, mut count: I64, own right: Str) returns Str {}
-    checked := ext_func(self: MultiContract, a: I64, b: I64) returns I64 throws DispatchFailure {}
+    combine := func(self: MultiContract, a: I64 = 2, b: I64 = 3) returns I64
+    take := func(mut self: MultiContract, own left: Str, mut count: I64, own right: Str) returns Str
+    checked := func(self: MultiContract, a: I64, b: I64) returns I64 throws DispatchFailure
 }
 MultiValue := struct implements MultiContract {
     n := 0
@@ -1186,4 +1186,41 @@ namespace:
 test_interface_multi_enum := test() {
     view: MultiEnumContract = MultiChoice.Value(4)
     assert_eq(I64, view.combine(1, 2, 3), 127)
+}
+
+// Both interfaces deliberately follow their implementer. Shared requirements
+// are not ambiguous defaults; one implementation satisfies both contracts.
+SignatureValue := struct implements RequiredValue, OtherRequiredValue {
+    n := 7
+namespace:
+    value := func(self: SignatureValue) returns I64 { return self.n }
+}
+RequiredValue := interface {
+    value := func(self: RequiredValue) returns I64
+    // An explicit empty body is a real, inheritable default.
+    nothing := func(_self: RequiredValue) {}
+}
+OtherRequiredValue := interface {
+    value := func(self: OtherRequiredValue) returns I64
+}
+DefaultValue := interface {
+    value := func(_self: DefaultValue) returns I64 { return 11 }
+}
+InheritedRequirement := struct implements RequiredValue, DefaultValue {}
+
+read_required := func(T: Type implements RequiredValue, OtherRequiredValue, value: T) returns I64 {
+    return value.value()
+}
+
+test_interface_signature_requirements := test() {
+    value := SignatureValue()
+    assert_eq(I64, read_required(value), 7)
+    first: RequiredValue = value
+    second: OtherRequiredValue = value
+    assert_eq(I64, first.value(), 7)
+    assert_eq(I64, second.value(), 7)
+    first.nothing()
+    inherited: RequiredValue = InheritedRequirement()
+    assert_eq(I64, inherited.value(), 11)
+    inherited.nothing()
 }

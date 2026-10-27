@@ -9828,7 +9828,36 @@ priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
     return total
 }
 
+// A bodyless interface FuncSig is a required method. Normalize it to the
+// existing abstract contract shape before defaults or conformance are read:
+// ext_func/ext_proc plus an empty Body. An explicitly written {} is still
+// a concrete default, and ordinary FuncSigs outside interfaces stay types.
+priv normalize_interface_requirements := func(mut stmt: Expr) {
+    if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { return }
+    switch stmt.children[0].node_type {
+    case .StructDef(sd):
+        if sd.is_interface.not() { return }
+        for mut member : Declaration in sd.ns_decls {
+            if member.default_value.is_none() { continue }
+            ref mut method : Expr = member.default_expr()
+            switch method.node_type {
+            case .FuncDef(fd):
+                if fd.sig.func_type.is_plain().and(method.children.len() == 0) {
+                    if fd.sig.func_type.is_proc() { fd.sig.func_type = FuncType.ExtProc }
+                    else { fd.sig.func_type = FuncType.ExtFunc }
+                    method.add_child(own Expr.new(own NodeType.Body, method.line, method.col))
+                }
+            case:
+            }
+        }
+    case:
+    }
+}
+
 priv type_methods_from := func(mut program: Expr, start_idx: USize, mut ctx: Context) {
+    // An implementer can precede its interface in this file. Classify all
+    // requirements before any type copies defaults from those interfaces.
+    for i in start_idx..program.children.len() { normalize_interface_requirements(program.children[i]) }
     for i in start_idx..program.children.len() {
         ref mut stmt : Expr = program.children[i]
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {

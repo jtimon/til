@@ -5888,7 +5888,7 @@ priv ns_member_is_concrete_default := func(am: Declaration) returns Bool {
     if am.default_value.is_none() { return false }
     switch am.default_expr().node_type {
     case .FuncDef(am_fd):
-        return am_fd.auto_generated.not().and(am_fd.sig.func_type.is_plain())
+        return am_fd.auto_generated.not().and(am_fd.sig.func_type.is_plain()).and(am.default_expr().children.len() > 0)
     case: return false
     }
 }

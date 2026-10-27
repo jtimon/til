@@ -1272,7 +1272,8 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 // parsed members. Parsing is permissive: every member is read as a
 // namespace declaration (`name := value` / `name : Type = value`) with no
 // validation here. The TYPER enforces the contract -- members must be
-// ext_func/ext_proc (abstract) or func/proc (concrete), no fields, no
+// bodyless func/proc or ext_func/ext_proc (required), func/proc with bodies
+// (defaults), no fields, no
 // `namespace:` marker -- so violations surface as aggregatable type errors
 // (test/typer_errors.til) rather than a parser panic that aborts the file.
 // See issue #251.
@@ -1321,11 +1322,10 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
         }
         m_doc := p.pending_doc.clone()
         p.pending_doc = ""
-        // Members are stored verbatim: an abstract method is
-        // `ext_func(...) returns T {}` (the ext declaration shape, body
-        // supplied by implementers); a concrete default is an ordinary
-        // `func(...) returns T { body }`. The typer validates the member
-        // kind. No body-stripping.
+        // Members are stored verbatim. A bodyless func/proc is a required
+        // signature; typer preparation normalizes it to the same abstract
+        // contract as ext_func/ext_proc. A func/proc with a body (even {})
+        // supplies a default. The typer validates the member kind.
         m_value := parse_expression(p)
         mut m_dd := Declaration(name = m_name,
             is_mut = false, til_type = decl_type_from_name(m_type_name, p.symbols),

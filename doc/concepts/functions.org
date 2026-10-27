@@ -184,6 +184,32 @@ param can also spell the type inline with ~Fn~:
 twice := func(f: Fn(I64) returns I64, x: I64) returns I64 { return f(f(x)) }
 #+end_src
 
+* Interface method contracts
+
+An interface declares required methods with bodyless ~func~/~proc~ signatures:
+
+#+begin_src til
+Drawable := interface {
+    draw := func(self: Drawable) returns Str
+    label := func(_self: Drawable) returns Str { return "shape" }
+    describe := func(self: Drawable) returns Str { return self.draw() }
+}
+#+end_src
+
+~draw~ is a requirement; ~label~ and ~describe~ supply defaults. A body,
+even an empty ~{}~, makes an ordinary ~func~/~proc~ a default. The legacy
+~ext_func(...) returns T {}~ / ~ext_proc(...) {}~ spellings remain supported
+as requirements.
+
+A struct or enum must implement every requirement with a matching signature,
+including ownership, mutability, effects and throws. A compatible default
+from another implemented interface can satisfy a requirement; two interfaces
+requiring the same method do not create a default conflict. The rules apply
+to both boxed dynamic calls and bounded generic calls. Interfaces cannot
+declare ~clone~ or ~delete~: those belong to the generated box lifecycle.
+
+Outside an interface, a bodyless function signature remains a function type.
+
 * Generic functions
 
 A ~Type~ parameter that the rest of the signature uses as a type makes a

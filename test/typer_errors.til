@@ -680,8 +680,8 @@ namespace:
     b := ext_func(self: TErrInterfaceNamespace) returns I64 {}
 }
 
-// #251: a member must be func/proc (concrete) or ext_func/ext_proc
-// (abstract) -- a test()/macro member is rejected.
+// #251: a member must be a func/proc requirement or default (legacy
+// ext_func/ext_proc requirements also work); a test()/macro is rejected.
 TErrInterfaceBadKind := interface {
     t := test() {}
 }
@@ -689,13 +689,13 @@ TErrInterfaceBadKind := interface {
 // #432: the box's clone/delete are generated; an interface cannot declare
 // its own (a per-type one belongs on the implementer).
 TErrInterfaceLifecycle := interface {
-    clone := func(_self: TErrInterfaceLifecycle) returns I64 { return 1 }
+    clone := func(self: TErrInterfaceLifecycle) returns I64
     delete := proc(_self: TErrInterfaceLifecycle) { print("") }
 }
 
 // #251: `implements` conformance. An interface for the cases below.
 TErrConfIface := interface {
-    must := ext_func(self: TErrConfIface) returns I64 {}
+    must := func(self: TErrConfIface) returns I64
 }
 
 // missing abstract method: TErrConfMissing implements TErrConfIface but
@@ -864,14 +864,14 @@ TErrContractFailure := struct {}
 TErrContractOther := struct {}
 TErrFullContract := interface {
     borrow := ext_func(self: TErrFullContract, text: Str) returns Str {}
-    take := ext_func(self: TErrFullContract, own text: Str) returns Str {}
-    mutate := ext_func(mut self: TErrFullContract, n: I64) returns I64 {}
-    returned := ext_func(self: TErrFullContract) returns Str {}
-    effect := ext_func(self: TErrFullContract) returns Str {}
-    extra_mut := ext_func(self: TErrFullContract, n: I64) returns I64 {}
+    take := func(self: TErrFullContract, own text: Str) returns Str
+    mutate := func(mut self: TErrFullContract, n: I64) returns I64
+    returned := func(self: TErrFullContract) returns Str
+    effect := func(self: TErrFullContract) returns Str
+    extra_mut := func(self: TErrFullContract, n: I64) returns I64
     fallback := func(_self: TErrFullContract, text: Str) returns Str { return text.clone() }
-    fallible := ext_func(self: TErrFullContract) returns I64 throws TErrContractFailure {}
-    ordered := ext_func(self: TErrFullContract) returns I64 throws TErrContractFailure, TErrContractOther {}
+    fallible := func(self: TErrFullContract) returns I64 throws TErrContractFailure
+    ordered := func(self: TErrFullContract) returns I64 throws TErrContractFailure, TErrContractOther
 }
 TErrBadFullContract := struct implements TErrFullContract {
     text := "contract"
@@ -936,7 +936,7 @@ terr_iface_dispatch_arg_type := func(view: TErrFullContract, n: I64) returns Str
     return view.borrow(n)
 }
 
-TErrProcDispatch := interface { announce := ext_proc(self: TErrProcDispatch) {} }
+TErrProcDispatch := interface { announce := proc(self: TErrProcDispatch) }
 terr_iface_dispatch_effect := func(view: TErrProcDispatch) { view.announce() }
 
 TErrMutDispatch := interface {
