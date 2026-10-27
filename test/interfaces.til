@@ -488,6 +488,54 @@ test_interface_bound_static_dispatch := test() {
     assert_eq(Str, static_draw(view), "custom:labeled")
 }
 
+// #434: a struct or enum implements several interfaces: every one is
+// checked in full, each one's defaults are copied in, a box of either
+// interface can hold the value, and a two-interface bound is satisfiable.
+// A default two implemented interfaces both provide is copied from neither:
+// the implementer must override it (the rejection is in typer_errors).
+Named := interface {
+    name := ext_func(self: Named) returns Str {}
+    greet := func(self: Named) returns Str { return format("hi ", self.name()) }
+    label := func(_self: Named) returns Str { return "named" }
+}
+
+Badge := struct implements Drawable, Named {
+    text: Str
+namespace:
+    draw := func(self: Badge) returns Str { return format("badge ", self.text) }
+    name := func(self: Badge) returns Str { return self.text.clone() }
+    label := func(_self: Badge) returns Str { return "badge" }
+}
+
+Mood := enum implements Named, Drawable {
+    Happy,
+namespace:
+    draw := func(_self: Mood) returns Str { return "mood" }
+    name := func(_self: Mood) returns Str { return "happy" }
+    label := func(_self: Mood) returns Str { return "enum" }
+}
+
+both_sides := func(T: Type implements Drawable, Named, v: T) returns Str {
+    return format(v.draw(), "/", v.greet(), "/", v.label(), "/", v.describe())
+}
+
+test_interface_multiple_implements := test() {
+    b := Badge(text = format("b", "1"))
+    assert_eq(Str, both_sides(b), "badge b1/hi b1/badge/badge b1")
+    assert_eq(Str, both_sides(Mood.Happy), "mood/hi happy/enum/mood")
+    assert_eq(Str, static_draw(b), "badge:badge b1")
+    d: Drawable = b
+    n: Named = b
+    assert_eq(Str, d.describe(), "badge b1")
+    assert_eq(Str, n.greet(), "hi b1")
+    assert_eq(Str, render(Mood.Happy), "mood")
+    mut names := Vec(Named).new()
+    names.push(own b)
+    names.push(own Mood.Happy)
+    assert_eq(Str, names[0].name(), "b1")
+    assert_eq(Str, names[1].greet(), "hi happy")
+}
+
 test_interface_argument_call_paths := test() {
     mut calls := 0
     ns := return_namespace_argument(calls)

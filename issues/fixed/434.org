@@ -1,6 +1,39 @@
 # priority: medium
 # category: features
-** OPEN #434 Generic bounds: T implements A[, B, ...] for static, monomorphized polymorphism
+** FIXED #434 Generic bounds: T implements A[, B, ...] for static, monomorphized polymorphism
+
+*** Post-mortem
+
+   Two commits. The first added the bound itself: `T: Type implements A, B`
+   on a `(...)` type parameter (parse_type_param_bounds, Declaration.bounds),
+   checked by generic_instantiate against the concrete type argument once
+   per call site on both instantiation paths (check_generic_bounds; the
+   errors are parked in Context.deferred_errors because the instantiation
+   runs inside funcs, and the typer flushes them right after a late
+   instantiation and at both ends of type_check_unit), a bound naming a
+   non-interface or sitting on a runtime Type value rejected, the
+   interface's own boxed value satisfying its bound, and the copies calling
+   the concrete directly (static_draw__Circle calls Circle_draw).
+
+   The second removed the last obstacle to a two-interface bound: a struct
+   or enum now implements several interfaces (`Badge := struct implements
+   Drawable, Named`; implements_name keeps them comma-joined,
+   def_implements_names / type_def_implements_iface read them). Each is
+   checked in full, each one's defaults are copied in, dispatchers and the
+   scavenger include the type for every interface it implements, and a
+   default two implemented interfaces both provide is copied from neither
+   -- the implementer must override it, otherwise the conformance check
+   reports "inherits default ... from more than one interface; override it".
+
+   Decided and recorded on the way: the dynamic `d: Drawable` parameter and
+   the static bound COEXIST, the bare spelling keeping its dynamic meaning.
+   The `func<T>` sugar takes no bounds: `<T implements A, U>` cannot tell a
+   second bound from a second parameter.
+
+   Regression tests: test_interface_bound_static_dispatch and
+   test_interface_multiple_implements in test/interfaces.til; terr_bound_*,
+   TErrTwoMissing and TErrTwoAmbiguous in test/typer_errors.til.
+   Documented in doc/concepts/functions.org "Bounded type parameters".
 
    `d: Drawable` (dynamic dispatch through a boxed value, #269/#432) and a
    bounded type parameter are different features. The second is a GENERIC
@@ -97,10 +130,11 @@
      default is honoured (test_interface_bound_static_dispatch).
    - [X] Documented in doc/concepts/functions.org "Bounded type
      parameters"; the coexistence decision is recorded above.
-   - [ ] Two bounds can be CHECKED independently (terr_bound_two) but not
-     SATISFIED together: a struct or enum implements one interface
-     (implements_name). Multiple implements per type is the missing piece
-     before `implements Iterable, Printable` is usable.
+   - [X] Two bounds are checked independently (terr_bound_two) and
+     satisfied together by a type implementing both interfaces
+     (test_interface_multiple_implements): `struct implements A, B` /
+     `enum implements A, B`, each checked in full, ambiguous defaults
+     rejected unless overridden.
 
 *** Relations
 
@@ -113,6 +147,6 @@
    - [X] A bounded generic function accepts every conforming struct and
      enum, rejects a non-conforming one at the call site, and its calls
      resolve statically (no dyn_call in the generated C).
-   - [ ] Multiple bounds work (needs multiple implements per type) and
-     [X] are checked independently.
+   - [X] Multiple bounds work (a type implements several interfaces) and
+     are checked independently.
    - [X] interpret and compile modes agree; make test green.

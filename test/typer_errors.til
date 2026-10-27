@@ -818,6 +818,26 @@ terr_bound_calls := func() returns I64 {
 }
 terr_bound_runtime_type := func(_t: Type implements TErrConfIface) returns Str { return "unused" }
 
+// #434: several implemented interfaces are each checked in full, and a
+// default two of them provide must be overridden by the implementer.
+TErrTagged := interface {
+    tag := ext_func(self: TErrTagged) returns I64 {}
+    label := func(_self: TErrTagged) returns Str { return "tagged" }
+}
+TErrLabeled := interface {
+    label := func(_self: TErrLabeled) returns Str { return "labeled" }
+}
+TErrTwoMissing := struct implements TErrConfIface, TErrTagged {
+    x := 1
+namespace:
+    must := func(self: TErrTwoMissing) returns I64 { return self.x }
+}
+TErrTwoAmbiguous := struct implements TErrTagged, TErrLabeled {
+    x := 2
+namespace:
+    tag := func(self: TErrTwoAmbiguous) returns I64 { return self.x }
+}
+
 terr_iface_bad_assign := func() returns I64 {
     mut view: TErrConfIface = TErrIfaceConcrete()
     view = TErrConfNotIface()

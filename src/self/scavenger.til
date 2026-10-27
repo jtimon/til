@@ -2569,13 +2569,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                                     for candidate : Expr in lp.ctx.imported[path].ast.children {
                                         if is_struct_or_enum(candidate).not() { continue }
                                         ref def : Expr = candidate.children[0]
-                                        mut implemented := ""
-                                        switch def.node_type {
-                                        case .StructDef(sd): implemented = sd.implements_name.clone()
-                                        case .EnumDef(ed): implemented = ed.implements_name.clone()
-                                        case:
-                                        }
-                                        if resolve_type_alias(lp.ctx.scope, implemented, lp.ctx.symbols) != iface_name { continue }
+                                        if type_def_implements_iface(def, iface_name, lp.ctx.scope, lp.ctx.symbols).not() { continue }
                                         ref impl_name : Str = decl_of(candidate).name
                                         push_qn(worklist, impl_name, member)
                                         if own_self { push_qn(worklist, impl_name, "clone") }

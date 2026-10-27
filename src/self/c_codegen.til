@@ -6213,13 +6213,7 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
         for stmt : Expr in lp.ctx.imported[path].ast.children {
             if is_struct_or_enum(stmt).not() { continue }
             ref def : Expr = stmt.children[0]
-            mut implemented := ""
-            switch def.node_type {
-            case .StructDef(sd): implemented = sd.implements_name.clone()
-            case .EnumDef(ed): implemented = ed.implements_name.clone()
-            case:
-            }
-            if resolve_type_alias(lp.ctx.scope, implemented, lp.ctx.symbols) != name { continue }
+            if type_def_implements_iface(def, name, lp.ctx.scope, lp.ctx.symbols).not() { continue }
             ref concrete : Str = decl_of(stmt).name
             ref target : FunctionDef = funcdef_of(find_namespace_func(def, method, lp.ctx.scope, lp.ctx.symbols).unwrap())
             arms++
@@ -12843,13 +12837,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
                         for candidate : Expr in lp.ctx.imported[cpath].ast.children {
                             if is_struct_or_enum(candidate).not() { continue }
                             ref cdef : Expr = candidate.children[0]
-                            mut implemented := ""
-                            switch cdef.node_type {
-                            case .StructDef(sd): implemented = sd.implements_name.clone()
-                            case .EnumDef(ed): implemented = ed.implements_name.clone()
-                            case:
-                            }
-                            if resolve_type_alias(lp.ctx.scope, implemented, lp.ctx.symbols) != iname { continue }
+                            if type_def_implements_iface(cdef, iname, lp.ctx.scope, lp.ctx.symbols).not() { continue }
                             ref cname : Str = decl_of(candidate).name
                             lp.ctx.builder_reflect_inventory.add(own format("iface_call.", cname, ".", mname))
                             if needs_clone { lp.ctx.builder_reflect_inventory.add(own format("iface_call.", cname, ".clone")) }

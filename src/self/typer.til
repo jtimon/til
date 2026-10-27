@@ -5097,15 +5097,8 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     // preparation pass, so inherited copies are checked too. Both types carry methods in
     // their namespace, so the check is identical; only where the interface
     // name is recorded differs. Reported as aggregatable type errors.
-    mut impl_iface_name := ""
-    switch expr.node_type {
-    case .StructDef(impl_sdd):
-        impl_iface_name = impl_sdd.implements_name.clone()
-    case .EnumDef(impl_edd):
-        impl_iface_name = impl_edd.implements_name.clone()
-    case:
-    }
-    if impl_iface_name.len() > 0 {
+    // #434: a type may implement several interfaces; each is checked in full.
+    for impl_iface_name : Str in def_implements_names(expr) {
         ref impl_self_name : Str = inner.active_type_name()
         iface_def_o := scope.get_struct(impl_iface_name, ctx.symbols)
         mut is_iface := false
@@ -5135,7 +5128,15 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
                     if am_fd.sig.func_type.is_ext().or(am_fd.sig.func_type.is_plain()).not() { continue }
                     switch find_ns_decl(expr, am_name) {
                     case .None:
-                        expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
+                        if am_fd.sig.func_type.is_plain() {
+                            // gen_implements_defaults_for_stmt copies every
+                            // default the type does not override, except one
+                            // that more than one implemented interface provides.
+                            expr.type_error(format("'", impl_self_name, "' inherits default '", am_name,
+                                "' from more than one interface, including '", impl_iface_name, "'; override it"), ctx)
+                        } else {
+                            expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
+                        }
                     case .Some(impl_m):
                         if impl_m.default_value.is_none() {
                             expr.type_error(format("'", impl_self_name, ".", am_name, "' has no implementation for interface '", impl_iface_name, "'"), ctx)

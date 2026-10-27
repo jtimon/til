@@ -1001,22 +1001,33 @@ init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     }
 }
 
-// #269/#434: does the struct or enum `cname` declare `implements iface`?
-// One implemented interface per type today (StructDef/EnumDef
-// implements_name), so a type parameter bounded by two interfaces can only
-// be satisfied once a type can implement several.
+// #434: the interfaces a struct or enum declares with `implements A, B`, as
+// written. The parser keeps them comma-joined in implements_name; empty
+// when the type implements nothing (or `def` is neither).
+def_implements_names := func(def: Expr) returns Vec(Str) {
+    mut joined := ""
+    switch def.node_type {
+    case .StructDef(sdd): joined = sdd.implements_name.clone()
+    case .EnumDef(edd): joined = edd.implements_name.clone()
+    case:
+    }
+    if joined.len() == 0 { return Vec(Str).new() }
+    return joined.split(",")
+}
+
+// #269/#434: does the struct or enum `def` declare `implements iface`?
+// `iface` is alias-resolved; the written names are resolved to match.
+type_def_implements_iface := func(def: Expr, iface: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    for written : Str in def_implements_names(def) {
+        if resolve_type_alias(scope, written, symbols) == iface { return true }
+    }
+    return false
+}
+
 type_name_implements_iface := func(scope: TypeScope, cname: Str, iface: Str, symbols: SymbolPool) returns Bool {
     d_o := scope.get_struct(cname, symbols)
     if d_o.is_none() { return false }
-    ref d : Expr = d_o.unwrap()
-    switch d.node_type {
-    case .StructDef(sdd):
-        return sdd.implements_name == iface
-    case .EnumDef(edd):
-        return edd.implements_name == iface
-    case:
-        return false
-    }
+    return type_def_implements_iface(d_o.unwrap(), iface, scope, symbols)
 }
 
 // #434: is `name` an interface declaration in `scope`?

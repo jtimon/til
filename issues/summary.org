@@ -27,7 +27,6 @@
 *** [[./open/367.org][#367]] The NUL guarantee in the type: #343's route 2
 *** [[./open/432.org][#432]] Dynamic interface values: explicit own/ref vs provenance-inferred boxing, and the remaining dispatch gaps
 *** [[./open/433.org][#433]] Qualifiers in template/macro type arguments: Vec(ref T) / Vec(own T)
-*** [[./open/434.org][#434]] Generic bounds: T implements A[, B, ...] for static, monomorphized polymorphism
 *** [[./open/439.org][#439]] Evaluate and coordinate the user-defined mode promise against real downstream applications
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules

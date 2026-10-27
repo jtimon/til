@@ -5862,57 +5862,75 @@ gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut s
         return
     }
     ref mut tdef : Expr = stmt.children[0]
-    mut iface_name := ""
-    switch tdef.node_type {
-    case .StructDef(sdd_n):
-        iface_name = sdd_n.implements_name.clone()
-    case .EnumDef(edd_n):
-        iface_name = edd_n.implements_name.clone()
-    case:
-        return
+    ifaces := def_implements_names(tdef)
+    if ifaces.len() == 0 { return }
+    // #434: a type may implement several interfaces. A default that more
+    // than one of them provides is copied from NEITHER: the implementer must
+    // override it, and the typer's conformance check reports the missing
+    // method as that ambiguity.
+    mut default_owner := Set(Str).new()
+    mut ambiguous := Set(Str).new()
+    for scan_name : Str in ifaces {
+        scan_def_o := scope.get_struct(scan_name, symbols)
+        if scan_def_o.is_none() { continue }
+        ref scan_def : Expr = scan_def_o.unwrap()
+        if def_is_interface_def(scan_def).not() { continue }
+        mut sfi : USize = 0
+        ref scan_ns : Vec(Declaration) = def_ns_decls(scan_def)
+        for sam : Declaration in scan_ns {
+            ref sam_name : Str = def_ns_name_at(scan_def, sfi)
+            sfi = sfi + 1
+            if ns_member_is_concrete_default(sam).not() { continue }
+            if default_owner.has(sam_name) { ambiguous.add(own sam_name.clone()) }
+            else { default_owner.add(own sam_name.clone()) }
+        }
     }
-    if iface_name.len() == 0 { return }
-    iface_def_o := scope.get_struct(iface_name, symbols)
-    if iface_def_o.is_none() { return }
-    ref iface_def : Expr = iface_def_o.unwrap()
-    // Only copy from an actual interface; the typer reports the non-interface
-    // / unknown-name cases as conformance errors.
-    mut is_iface := false
-    switch iface_def.node_type {
-    case .StructDef(idd):
-        if idd.is_interface { is_iface = true }
-    case:
-    }
-    if is_iface.not() { return }
+    for iface_name : Str in ifaces {
+        iface_def_o := scope.get_struct(iface_name, symbols)
+        if iface_def_o.is_none() { continue }
+        ref iface_def : Expr = iface_def_o.unwrap()
+        // Only copy from an actual interface; the typer reports the
+        // non-interface / unknown-name cases as conformance errors.
+        if def_is_interface_def(iface_def).not() { continue }
 
-    ref iface_ns : Vec(Declaration) = def_ns_decls(iface_def)
-    mut idfi : USize = 0
-    for am : Declaration in iface_ns {
-        ref am_name : Str = def_ns_name_at(iface_def, idfi)
-        idfi = idfi + 1
-        if am.default_value.is_none() { continue }
-        // A concrete default is a func/proc WITH a body, not abstract and not
-        // an auto-generated helper (clone/delete/...).
-        mut is_default := false
-        switch am.default_expr().node_type {
-        case .FuncDef(am_fd):
-            if am_fd.auto_generated.not().and(am_fd.sig.func_type.is_plain()) {
-                is_default = true
+        ref iface_ns : Vec(Declaration) = def_ns_decls(iface_def)
+        mut idfi : USize = 0
+        for am : Declaration in iface_ns {
+            ref am_name : Str = def_ns_name_at(iface_def, idfi)
+            idfi = idfi + 1
+            if ns_member_is_concrete_default(am).not() { continue }
+            if ambiguous.has(am_name) { continue }
+            // Override: the implementing type already provides this method.
+            if def_ns_has(tdef, am_name) { continue }
+            mut copy := am.default_expr().clone()
+            gen_substitute_self_type(copy, iface_name, impl_name, symbols)
+            switch tdef.node_type {
+            case .StructDef(sdd):
+                sdd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
+            case .EnumDef(edd):
+                edd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
+            case:
             }
-        case:
         }
-        if is_default.not() { continue }
-        // Override: the implementing type already provides this method.
-        if def_ns_has(tdef, am_name) { continue }
-        mut copy := am.default_expr().clone()
-        gen_substitute_self_type(copy, iface_name, impl_name, symbols)
-        switch tdef.node_type {
-        case .StructDef(sdd):
-            sdd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
-        case .EnumDef(edd):
-            edd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
-        case:
-        }
+    }
+}
+
+// An interface's StructDef (the parser marks it; fields are rejected later).
+priv def_is_interface_def := func(def: Expr) returns Bool {
+    switch def.node_type {
+    case .StructDef(idd): return idd.is_interface
+    case: return false
+    }
+}
+
+// A concrete default is a func/proc WITH a body, not abstract and not an
+// auto-generated helper (clone/delete/...).
+priv ns_member_is_concrete_default := func(am: Declaration) returns Bool {
+    if am.default_value.is_none() { return false }
+    switch am.default_expr().node_type {
+    case .FuncDef(am_fd):
+        return am_fd.auto_generated.not().and(am_fd.sig.func_type.is_plain())
+    case: return false
     }
 }
 

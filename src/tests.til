@@ -2679,7 +2679,7 @@ main := proc(args: ..Str) {
     // Both backends used to accept it and then free the slot twice.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 327),
+        CountCheck(needle = "error:", expected_count = 330),
         CountCheck(needle = "cannot return a reference into owned parameter", expected_count = 1),
         CountCheck(needle = "func cannot call proc 'TErrProcDispatch.announce'", expected_count = 1),
         CountCheck(needle = "cannot mutate the interface payload", expected_count = 2),
@@ -2713,6 +2713,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "cannot be 'shallow'", expected_count = 2),
         CountCheck(needle = "does not implement '", expected_count = 2),
         CountCheck(needle = "is bounded by", expected_count = 1),
+        CountCheck(needle = "inherits default", expected_count = 2),
         CountCheck(needle = "needs a type parameter that the signature uses as a type", expected_count = 1),
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
         CountCheck(needle = "where the address belongs", expected_count = 5),
@@ -2721,7 +2722,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "cannot pass capture", expected_count = 3))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 327),
+        CountCheck(needle = "error:", expected_count = 330),
         CountCheck(needle = "cannot return a reference into owned parameter", expected_count = 1),
         CountCheck(needle = "func cannot call proc 'TErrProcDispatch.announce'", expected_count = 1),
         CountCheck(needle = "cannot mutate the interface payload", expected_count = 2),
@@ -2751,6 +2752,7 @@ main := proc(args: ..Str) {
         CountCheck(needle = "cannot be 'shallow'", expected_count = 2),
         CountCheck(needle = "does not implement '", expected_count = 2),
         CountCheck(needle = "is bounded by", expected_count = 1),
+        CountCheck(needle = "inherits default", expected_count = 2),
         CountCheck(needle = "needs a type parameter that the signature uses as a type", expected_count = 1),
         CountCheck(needle = "binds the owned pointer field", expected_count = 3),
         CountCheck(needle = "where the address belongs", expected_count = 5),

@@ -1068,6 +1068,18 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     return ns_decl
 }
 
+// #434: `implements A, B` on a struct or enum: the interface names, joined
+// by "," for implements_name (def_implements_names splits them). The `{`
+// of the body ends the list, so a plain comma-separated read is enough.
+priv parse_implements_list := func(mut p: Parser) returns Str {
+    mut names := expect_text(p, TokenType.Ident)
+    while check(p, TokenType.Comma) {
+        advance(p) // consume ','
+        names = format(names, ",", expect_text(p, TokenType.Ident))
+    }
+    return names
+}
+
 // #434: the `A, B` after `T: Type implements`. Parameters are always
 // `name: Type`, so an identifier followed by `:` is the next parameter and
 // ends the list; anything else after a comma is another bound. Returned
@@ -1167,7 +1179,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     // method Iface lists. `implements` may not appear on an ext_struct.
     if is_ext.not().and(check(p, TokenType.KwImplements)) {
         advance(p) // consume 'implements'
-        sdd.implements_name = expect_text(p, TokenType.Ident)
+        sdd.implements_name = parse_implements_list(p)
     }
 
     expect_token(p, TokenType.LBrace)
@@ -1359,7 +1371,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     // Iface lists, exactly as for `struct implements Iface`.
     if check(p, TokenType.KwImplements) {
         advance(p) // consume 'implements'
-        edd.implements_name = expect_text(p, TokenType.Ident)
+        edd.implements_name = parse_implements_list(p)
     }
 
     expect_token(p, TokenType.LBrace)

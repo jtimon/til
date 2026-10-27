@@ -244,9 +244,12 @@ to keep mixed concretes in one collection; see doc/concepts/ownership.org
 concrete type, direct calls, more generated code), like Rust's ~impl
 Trait~ against ~dyn Trait~. The interface's own boxed value satisfies its
 bound, so a ~view: Drawable~ can be passed to the static form; that copy
-dispatches on the box. A struct or enum implements one interface today,
-so a two-interface bound can only be satisfied once a type can implement
-several. The bound belongs on a parameter the signature uses as a type;
+dispatches on the box. A struct or enum may implement several interfaces
+(~Badge := struct implements Drawable, Named~): each is checked in full,
+each one's defaults are copied in, and a default that two of them provide
+is copied from neither -- the implementer must override it. A
+two-interface bound is satisfied by such a type (the dynamic box, by
+contrast, is always of ONE interface). The bound belongs on a parameter the signature uses as a type;
 on a runtime ~Type~ value it is an error. The ~func<T>~ sugar does not
 take bounds (a bound list and the next ~<T, U>~ parameter would be
 ambiguous there); spell the parameter out.
