@@ -386,9 +386,9 @@ typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_ga
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__Bool Array__Bool;
+typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
-typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
 typedef struct Set__UPtr Set__UPtr;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
@@ -1254,6 +1254,13 @@ typedef struct Array__Bool {
 } Array__Bool;
 
 
+typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_garbager_til__GcBorrowEdge;
+
+
 typedef struct Array__USize {
     U8 *data;
     USize cap;
@@ -1264,13 +1271,6 @@ typedef struct Array__U8 {
     U8 *data;
     USize cap;
 } Array__U8;
-
-
-typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_garbager_til__GcBorrowEdge;
 
 
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo {
@@ -1469,6 +1469,13 @@ typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
     Bool return_cell;
     Set__Str ns_used;
     Bool return_loads_raw;
+    Map__Str_Str globals;
+    Map__Str_Str global_scalars;
+    Set__Str global_raws;
+    Map__Str_Str global_raw_scalars;
+    Map__Str_Str global_jtypes;
+    Set__Str locals;
+    Set__Str ref_scalars;
 } priv___src_self_jvm_codegen_til__JvmEmitState;
 
 

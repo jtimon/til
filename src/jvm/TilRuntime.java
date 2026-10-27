@@ -33,8 +33,10 @@ public final class TilRuntime {
         private int capacity;
         private boolean deleted;
 
+        // One byte past the count is a NUL, as core's Str.clone and the C
+        // backend's literals write it: Str.from_c_str scans for it.
         private Str(byte[] bytes, boolean literal) {
-            data = malloc(bytes.length);
+            data = malloc(bytes.length + 1);
             System.arraycopy(bytes, 0, data.block.bytes, 0, bytes.length);
             count = bytes.length;
             capacity = literal ? CAP_LITERAL : bytes.length;
@@ -446,7 +448,17 @@ public final class TilRuntime {
     // Any other storage -- a scalar's cell, an aggregate's object -- is
     // the same storage exactly when it is the same Java object.
     public static boolean ptrEq(Object left, Object right) {
+        // A Ptr standing in as a scalar slot (`ref b : I8 = s.c_str`) is
+        // still compared by address.
+        if (left instanceof Ptr lp && right instanceof Ptr rp) { return ptrEq(lp, rp); }
         return left == right;
+    }
+
+    // The address a scalar `ref` binding borrows, for a Dynamic parameter.
+    // Only a heap slot has one; a JVM cell is not addressable.
+    public static Ptr slotAddress(Object slot) {
+        if (slot instanceof Ptr ptr) { return ptr; }
+        throw new IllegalStateException("address of a JVM scalar cell");
     }
 
     public static boolean ptrEq(Ptr left, Ptr right) {

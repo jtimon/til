@@ -660,6 +660,27 @@ the JVM has no globals yet -- top-level declarations are main's locals),
 arrays (a ~ref~ scalar field holding a raw address, ~AccessorIndexView~'s
 ~ref data : T = 0~ fed to ~ptr_add~).
 
+Module globals 2026-10-20: strings passes. Every unit's top-level value
+declaration (C's ~is_exported_top_level_global~) is a static of its
+unit's class -- a scalar one a cell, a raw one (Dynamic, an allocator's
+block, a ptr_add) a ~Ptr~, a callable one its value's funcsig class.
+~Main.main~ initializes them in C's order: a script runs the core units'
+global initializers, then every user unit's top-level statements
+(~emit_script_main~); main or the tests run every unit's global
+initializers first (~emit_global_inits~). An identifier is the global
+unless a parameter or local of the current function (or closure)
+shadows it, C's ~is_value_global~ rule. Also: a ~ref~ scalar binding
+handed to a Dynamic parameter is its address (~slotAddress~); every Str
+buffer carries a trailing NUL (~Str.from_c_str~ scans for it); a
+callable assigned from a binding or field is retained, as C clones it;
+a closure value's delete is ~releaseClosure~; an ~own mut~ scalar
+capture is a cell; and javac's "missing return" / "unreachable" now
+follow ~jvm_ends_abruptly~, which knows switches and ~while (true)~.
+Master's #370 tests broke three corpus programs nobody re-ran on the
+JVM: jvm_stage_f and closures pass again; fn_ptr moved to the exclusion
+list (~dyn_fn~, callbacks looked up by type and method name, is a
+runtime reflection feature still to build).
+
 **** Stage H: source mapping and optional direct bytecode
 
 Java source gives generated Java line tables, not original til locations.

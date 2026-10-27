@@ -1,0 +1,31 @@
+mode test
+
+// Negative test (#415): a module global a function moves out. It enters
+// every call OWNED -- between calls a global always holds a value -- so
+// the function must leave it owned again, and a reassignment must know
+// whether the old value is still there to free.
+
+take_global415 := func(own s: Str) returns USize { return s.len() }
+
+mut drained_global415 := "init"
+mut maybe_global415 := "init"
+
+// 1. Moved out and never given a new value: the next caller (or the next
+// call) would find it gone.
+drain_global415 := proc() {
+    noop_proc()
+    take_global415(own drained_global415)
+}
+
+// 2. Reassigned where it is moved on some paths only: no runtime flag
+// says whether the old value still needs freeing.
+maybe_drain_global415 := proc(flag: Bool) {
+    noop_proc()
+    if flag { take_global415(own maybe_global415) }
+    maybe_global415 = "next"
+}
+
+test_global_transfer_errors := test() {
+    drain_global415()
+    maybe_drain_global415(true)
+}

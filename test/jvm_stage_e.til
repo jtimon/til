@@ -59,6 +59,22 @@ take_jvm_point := func(own p: JvmPoint) returns I64 {
     return p.x
 }
 
+// Module globals: read and written from functions, initialized before
+// main, shadowed by a parameter or local of the same name.
+JVM_GREETING := "hello"
+mut jvm_counter : I64 = 10
+
+touch_jvm_global := proc() {
+    jvm_counter = jvm_counter + 5
+    bump_jvm_field(jvm_counter)
+    println("global ", JVM_GREETING, " ", jvm_counter.to_str())
+}
+
+shadow_jvm_global := proc(jvm_counter: I64) {
+    JVM_GREETING := "local"
+    println("shadowed ", JVM_GREETING, " ", jvm_counter.to_str())
+}
+
 bump_jvm_field := func(mut n: I64) { n.inc() }
 
 // #416: assigning to a payload binding writes the enum's payload.
@@ -218,4 +234,8 @@ main := proc() {
         got.to_str(), " ", to_fn.x.to_str(), " ", to_payload.x.to_str(), " ",
         field_owner.inner.text, " ", to_field.text)
     show_jvm_box(boxed)
+
+    touch_jvm_global()
+    shadow_jvm_global(99)
+    println("global after ", jvm_counter.to_str())
 }

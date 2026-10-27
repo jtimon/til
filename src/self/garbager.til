@@ -3774,8 +3774,136 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
     }
 }
 
+// Adds the identifiers `e` passes as `own` arguments (outside nested
+// FuncDefs) to `out`, each once.
+priv gc_collect_own_arg_names := func(e: Expr, mut out: Vec(Str), symbols: SymbolPool) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    if e.node_type.is(NodeType.FCall) {
+        for i in 1..e.children.len() {
+            if get_own_arg(e, i) {
+                switch e.children[i].node_type {
+                case .Ident(oid):
+                    ref oname : Str = oid.ident_name(symbols.names)
+                    mut seen := false
+                    for o : Str in out { if o == oname { seen = true } }
+                    if seen.not() { out.push(own oname.clone()) }
+                case:
+                }
+            }
+        }
+    }
+    for c : Expr in e.children { gc_collect_own_arg_names(c, out, symbols) }
+}
+
+// The ownership state of `local` as control leaves this body view: the
+// exit block's settled IN.
+priv gc_flow_exit_state := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns U8 {
+    mut blocks := Vec(GcCfgBlock).new()
+    cfg_build(blocks, body)
+    n := blocks.len()
+    mut offsets := Array(USize).new(n)
+    cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
+    bit := fact_bit_req(fi, local.name)
+    mut ins := Array(U8).new(n)
+    mut outs := Array(U8).new(n)
+    mut entry := FLOW_UNINIT
+    if local.decl_index < 0 { entry = FLOW_OWNED }
+    gc_flow_solve(blocks, entry, bit, cfg_facts, offsets, ins, outs)
+    mut st : U8 = FLOW_UNREACHED
+    st = ins[0]
+    return st
+}
+
+// #415: settle the module globals a function moves out (an own transfer
+// in its body) and reassigns. They enter the function OWNED (a global
+// always holds a value between calls), so the same verdicts apply as to
+// a body local: a reassignment whose old value is consumed -- moved on
+// every path in, or by its own RHS -- has its save_old_delete cleared.
+// Two shapes are errors instead of cleanups: a reassignment where the
+// global is moved on some paths only (no runtime flag says whether to
+// free), and a function that leaves the global moved out at its exit on
+// some path (the next reader, or the next call, would find it gone).
+priv gc_settle_global_reassigns := proc(mut ctx: Context, body: Expr, locals: Vec(LocalInfo), scope: TypeScope,
+    mut consumed: Set(UPtr)) {
+        // The candidates: names the body hands to an `own` parameter.
+        // The body's fact universe holds its own bindings and top-level
+        // targets only, so a global needs its own universe here.
+        mut owned := Vec(Str).new()
+        gc_collect_own_arg_names(body, owned, ctx.symbols)
+        if owned.len() == 0 { return }
+        mut fi := fact_universe(body, scope)
+        for oname : Str in owned {
+            if fi.idx.has(oname).not() {
+                fi.idx.set(oname, own fi.idx.len())
+                fi.filt = fi.filt.bor(name_fingerprint(oname))
+            }
+        }
+        facts := body_stmt_facts(body, scope, true, fi, ctx.symbols)
+        for gname : Str in owned {
+            mut is_local := false
+            for l : LocalInfo in locals { if l.name == gname { is_local = true } }
+            if is_local { continue }
+            gsym := ctx.symbols.intern(gname)
+            if sym_is_value_global(scope, gsym).not() { continue }
+            // A function defined at module level (`f : Sig = (x) { ... }`)
+            // has a program-scope binding too, typed by its return; it is
+            // code, never moved.
+            if scope.lookup_func_name(gname, ctx.symbols).is_some() { continue }
+            mut gtype := Type.Unknown
+            mut gmut := false
+            switch scope.find_name(gname, ctx.symbols) {
+            case .Found(gb):
+                gtype = gb.type.clone()
+                gmut = gb.is_mut
+            case:
+            }
+            // Only a `mut` global is ever given a new value, so only one can
+            // be settled. A constant handed to a consuming constructor
+            // (make.til's `Command(name = TIL)`, a literal) is not this rule's.
+            if gmut.not() { continue }
+            // A Custom spelling (a named signature such as NextBoardsFn,
+            // a struct declared later) is the type the scope resolves.
+            switch gtype {
+            case .Custom(gcn): gtype = type_from_name_init_name(gcn, scope, ctx.symbols)
+            case .CustomSym(gcs): gtype = type_from_sym_init(gcs, scope, ctx.symbols)
+            case:
+            }
+            if is_aggregate(gtype).not() { continue }
+            // A callable handed to an `own` slot is cloned into it
+            // (til_closure_slot_clone), never moved out of the global.
+            if type_is_callable_storage(gtype) { continue }
+            mut transfers := false
+            // A transfer that is the global's DESTRUCTOR (`own g.delete()`,
+            // `free(own g)`) is teardown -- lexer_cleanup reclaiming
+            // KEYWORDS at exit -- not a handoff to another owner, so it
+            // does not trip the exit rule below.
+            mut hands_off := false
+            for gs : Expr in body.children {
+                if expr_transfers_own(gs, gname, scope, ctx) {
+                    transfers = true
+                    if transfer_is_destructor_call(gs, gname, ctx.symbols).not() { hands_off = true }
+                }
+            }
+            if transfers.not() { continue }
+            glocal := LocalInfo(name = gname.clone(), type = gtype.clone(), decl_index = -1, has_transfer = true)
+            if gc_body_reassigns(body, gname, facts, fi) {
+                gv := gc_flow_assign_verdicts(body, glocal, scope, ctx, facts, fi)
+                if gv.mixed {
+                    type_error_at(ctx.path, gv.mixed_line, gv.mixed_col,
+                        format("reassignment of global '", gname, "' whose value was moved on some paths only"), ctx)
+                }
+                for gk : UPtr in gv.consumed { consumed.add(own gk.clone()) }
+            }
+            exit_state := gc_flow_exit_state(body, glocal, scope, ctx, facts, fi)
+            if hands_off.and(exit_state.eq(FLOW_MOVED).or(exit_state.eq(FLOW_MIXED))) {
+                type_error_at(ctx.path, body.line, body.col,
+                    format("global '", gname, "' is moved out by this function and not given a new value before it returns"), ctx)
+            }
+        }
+}
+
 priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScope, scope_exit: I32,
-    stack_own_params: Set(Str), insert: Bool) returns Bool {
+    stack_own_params: Set(Str), insert: Bool, is_func_root: Bool = false) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_none()
 
@@ -3817,7 +3945,18 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     realign_delete_call_free(body, locals_vec, stack_own_params, scope, ctx)
     record_keep_outer_args(body, ctx.symbols)
     temp_check_body(ctx, body, scope)
-    if locals_vec.len() == 0 { return false }
+    if locals_vec.len() == 0 {
+        // A function body with no locals of its own can still move out and
+        // reassign a global (see gc_settle_global_reassigns below).
+        if is_func_root {
+            mut gconsumed := Set(UPtr).new()
+            gc_settle_global_reassigns(ctx, body, locals_vec, scope, gconsumed)
+            if gconsumed.len() > 0 {
+                for mut gstmt : Expr in body.children { gc_clear_consumed_assigns(gstmt, gconsumed) }
+            }
+        }
+        return false
+    }
 
     record_storage_decisions(body, locals_vec)
     // The sink refreshes the shared rows after each graft, so later locals'
@@ -3847,6 +3986,12 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         }
         for ck : UPtr in cv.consumed { consumed_assigns.add(own ck.clone()) }
     }
+    // #415: a module global a function both moves out and reassigns gets
+    // the same verdicts, in the function's root view, as a binding owned on
+    // entry. Its reassignments' save_old_delete came from
+    // flag_outer_assign_rebinds (it is no local of the body), which knows
+    // nothing of the transfer.
+    if is_func_root { gc_settle_global_reassigns(ctx, body, locals_vec, scope, consumed_assigns) }
     if consumed_assigns.len() > 0 {
         for mut cstmt : Expr in body.children { gc_clear_consumed_assigns(cstmt, consumed_assigns) }
     }
@@ -4237,7 +4382,7 @@ priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: Typ
         }
     case .None:
     }
-    return insert_free_calls(ctx, body, scope, 1, stack_own_params, insert)
+    return insert_free_calls(ctx, body, scope, 1, stack_own_params, insert, fdef_o.is_some())
 }
 
 // REPL deltas already own a populated program scope, like imported unit roots.
