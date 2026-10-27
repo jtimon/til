@@ -1,6 +1,39 @@
 # priority: high
 # category: bugs
-** WIP #415 Own-consuming reassignment double-deletes; audit cleanup masking
+** FIXED #415 Own-consuming reassignment double-deletes; audit cleanup masking
+
+*** Post-mortem
+
+Root cause: the garbager decided a reassignment's old-value delete from
+the RHS shape and the binding kind alone, never from what an `own`
+transfer had already consumed. `x = f(own x)`, `sink(own x); x = new`,
+the same shapes on a module global, and every `own h.f` of a field all
+deleted a value another owner had just taken (double free compiled,
+moved-binding panics or corruption interpreted).
+
+What changed, over the arc: every reassignment of a local is settled
+against the CFG ownership dataflow (gc_flow_assign_verdicts), with the
+sink grafting the delete onto owning paths where the state is Mixed;
+captures cannot be passed `own` (check_own_captures); `mut` globals
+moved out by a function enter its root view Owned and must be owned again
+at its exit (gc_settle_global_reassigns); and a field moved out by `own
+h.f` -- written, or set by the typer for a consuming constructor field --
+is a place with its own dataflow (gc_settle_field_places): a refill whose
+old value is consumed has the desugarer's save_old_delete cleared, and
+reading the holder while the field is moved, a refill on a
+path-dependent state, or leaving the function with it moved are
+ownership errors. Destructors and compiler-generated members are exempt
+for their parameters. The interpreter moves an inline field's value into
+a box of its own for an `own` parameter instead of lending the holder's
+storage. The masking audit removed the null guards that had absorbed the
+duplicate deletes.
+
+Regression tests: in test/ownership_shapes.til
+~own415_reassign_after_consume_str~, ~own415_reassign_after_consume_counted~,
+~own415_global_*~, ~own415_field_consumed_then_refilled~ and
+~own415_field_consumed_counted~; test/typer_errors.til ~terr415_closures~;
+test/global_transfer_error.til; test/field_transfer_error.til.
+
 
 *** Required ownership behavior
 
@@ -151,7 +184,7 @@ their contracts rather than assuming they are all necessary or all defensive.
   Inspect ~insert_assign_delete~, ~flag_outer_assign_rebinds~, and the emitted
   ~save_old_delete~ path. Preserve destruction when the RHS only borrows the
   old value or consumes a different value.
-- [ ] Cover body locals, outer-scope/global targets, captures and field/payload
+- [X] Cover body locals, outer-scope/global targets, captures and field/payload
   replacement paths where the same ownership mistake can occur. Keep the
   returned replacement's ownership and subsequent cleanup correct.
 - [X] Inventory null guards, post-free clearing, moved-source zeroing and
@@ -245,15 +278,8 @@ Still open:
 
 - Globals consumed in an EARLIER statement of a function, then
   reassigned (~sink(own g); g = new~): fixed 2026-10-20, see below.
-- Fields: ~own s.f~ is accepted and never tracked. ~s.f = f(own s.f)~,
-  ~push(own s.f); s.f = ...~, and a bare ~push(own s.f)~ with no
-  reassignment all double free -- the FieldAssign old-value delete
-  (desugarer ~field_assign_needs_delete~, type-driven only) and the
-  owner's exit delete both free the moved field. Plain rejection is not
-  possible: ~own self.data~ to free/realloc and destructor field
-  consumption are legitimate. Needs a semantics decision (track the
-  moved field as a place that must be re-established before the owner
-  is used or leaves scope, or reject outside those contexts).
+- Fields: ~own s.f~ was accepted and never tracked: fixed 2026-10-25,
+  see below (tracked as a place).
 2026-10-09, the masking audit. Method: remove each guard and run the
 suite; a crash means it was control flow, nothing crashing means it
 stays gone. Two-pass, 511/511 with every removal below in.
@@ -320,4 +346,30 @@ test/ownership_shapes.til; test/global_transfer_error.til for the two
 errors. Master's compiler fails the positive ones (moved-binding assert
 interpreted, double free compiled).
 
-Still open: fields (~own s.f~), pending the semantics decision above.
+Only ~mut~ globals are settled: a constant can never be given a new
+value, and make.til hands its literal path constants to a consuming
+constructor (~Command(name = TIL)~).
+
+2026-10-25, fields. Decided: track, not reject. A field moved out by an
+~own~ argument -- written, or set by the typer for a consuming
+constructor field, whose ~H(name = a.name)~ shared a.name's buffer
+(use-after-free under ASAN on the previous compiler) -- is a PLACE
+(~h.f~, ~h.f.g~) with the function root's CFG dataflow, entering Owned
+(gc_settle_field_places). A refill of it or of a field holding it, a new
+value for its base, or a raw zeroing write (~memset~ / ~memcpy~ /
+~adopt_from~ of the lazy-empty convention) makes it Owned again. A
+refill whose old value is consumed -- moved on every path in, or by its
+own RHS -- has save_old_delete cleared. Ownership errors: reading or
+replacing the holder (or the field) while it is moved, a refill where it
+is moved on some paths only, and leaving the function with it moved.
+Exempt: a namespace ~delete~ and compiler-generated members, for their
+parameters (taking those fields apart, or byte-copying a POD one, is
+their job); and fields whose type's delete is a no-op (raw pointers,
+plain values), whose move deletes nothing twice. The interpreter used to
+lend the holder's storage for ~own h.f~, so an adopt's box free freed
+the holder (or a pointer into it): an inline field's value now moves into
+a box of its own. Regressions: ~own415_field_consumed_then_refilled~
+(RHS, earlier statement, lent ~mut~ holder, both branches, loop, nested
+~o.inner.name~; heap-backed) and ~own415_field_consumed_counted~
+(destructor counts) in test/ownership_shapes.til;
+test/field_transfer_error.til for the four error shapes.

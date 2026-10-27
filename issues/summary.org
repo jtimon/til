@@ -1,6 +1,4 @@
 * Bugs
-** High
-*** [[./open/415.org][#415]] Own-consuming reassignment double-deletes; audit cleanup masking
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it

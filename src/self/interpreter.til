@@ -1578,6 +1578,18 @@ priv field_access_decl := func(e: Expr, sname: Str, ctx: Context) returns Option
     }
 }
 
+// Whether `e` reads a struct field stored inline in its holder (a plain,
+// shallow field -- not an `own` field's box, not a `ref` field's borrow).
+priv interp_arg_is_inline_field := func(e: Expr, ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut fallback_sname := ""
+    ref sname : Str = field_access_sname(e, fallback_sname, ctx.symbols)
+    fdecl_o := field_access_decl(e, sname, ctx)
+    // REM: a namespace member (`Type.member`) has no field decl.
+    if fdecl_o.is_none() { return false }
+    return fdecl_o.unwrap().own_type.is(OwnType.Shallow)
+}
+
 priv ffi_place_borrows := func(place: ForeignPlace) returns U32 {
     ref count : U32 = to_ptr(place.state)
     return count.clone()
@@ -3458,6 +3470,20 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                         arg_raw = scalar_block_from_word(bind_type, raw_widen_numeric(src_w, arg_source_type, param.til_type, ctx), ctx)
                     } else if param.own_type.is(OwnType.Shallow).and(raw_type_is_simd(bind_type, ctx)) {
                         arg_raw = heap_clone_by_type(bind_type, arg_raw, ctx)
+                    } else if arg_transfers.and(interp_arg_is_inline_field(arg_expr, ctx)) {
+                        // #415: `own h.f` of an inline field moves the field's
+                        // VALUE out of the holder's storage into a box the
+                        // callee owns -- and frees, as an adopt does. C passes
+                        // &h.f and never frees an own param's outer; here the
+                        // holder's storage is one box, so lending it would
+                        // hand the callee the holder itself. The field's bytes
+                        // stay behind, stale, until the refill the garbager
+                        // requires (gc_settle_field_places). An `own` field is
+                        // a box of its own already and travels as itself.
+                        moved_size := raw_type_size(arg_source_type, ctx)
+                        mut moved_box : Dynamic = EvalHeap.heap_alloc(moved_size)
+                        memcpy(moved_box, arg_raw, moved_size.to_uptr())
+                        arg_raw = moved_box
                     } else {
                         borrowed = true
                     }

@@ -2835,6 +2835,19 @@ main := proc(args: ..Str) {
         format(til_bin, " build", asan_flag, " test/global_transfer_error.til"),
         CountCheck(needle = "is moved out by this function and not given a new value", expected_count = 1),
         CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
+    // #415: a field moved out by `own h.f` must get a new value before its
+    // holder is read, replaced or left, and may not be refilled where it is
+    // moved on some paths only.
+    add_counts(tests, "field_transfer_error_interp", "typer",
+        format(til_bin, " interpret test/field_transfer_error.til"),
+        CountCheck(needle = "is moved out and not given a new value before", expected_count = 2),
+        CountCheck(needle = "while its field", expected_count = 2),
+        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
+    add_counts(tests, "field_transfer_error_build", "typer",
+        format(til_bin, " build", asan_flag, " test/field_transfer_error.til"),
+        CountCheck(needle = "is moved out and not given a new value before", expected_count = 2),
+        CountCheck(needle = "while its field", expected_count = 2),
+        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
     // #288: a core_func / core_proc is an inline-only primitive intrinsic and
     // cannot be indirected -- dyn_fn on one is a typer error (2 cases). Count
     // the enforcement substring, not "error:", since dyn_fn's Dynamic result
