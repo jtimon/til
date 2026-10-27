@@ -27,7 +27,12 @@ namespace:
     /// first-slice session; reload uses a fresh VM. No compiler is run.
     /// Imports may link prebuilt native libraries; loading errors are returned.
     /// Native libraries remain loaded for the process lifetime, across VM reloads.
-    load_file := proc(mut self: TilVm, path: Str) throws TilVmError {
+    /// Supply all three prelude arguments together. Empty source means no
+    /// prelude; name/base without source is an error. The name is a logical
+    /// module identity, not a path. The base resolves its imports and links.
+    /// The loaded program owns the supplied strings until VM destruction.
+    load_file := proc(mut self: TilVm, path: Str, prelude_source: Str = "",
+        prelude_name: Str = "", prelude_base: Str = "") throws TilVmError {
         if self.session.retained_programs.len() > 0 {
             mut err := TilVmError(phase = "load")
             err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), message = "session already has a module; reload in a new TilVm"))
@@ -39,10 +44,22 @@ namespace:
             err.diagnostics.push(own TilVmDiagnostic(path = self.support_root.clone(), message = "TilVm support_root is not an installed Til SDK"))
             throw err
         }
-        mut lp := load_program(path, root, realpath_str("."), format(root, "/src/c/ext.c"), Vec(Str).new(), "", true)
+        mut lp := load_program(path, root, realpath_str("."), format(root, "/src/c/ext.c"), Vec(Str).new(), "", true,
+            prelude_source, prelude_name, prelude_base)
         if lp.load_errors > 0 { throw tilvm_error("load", lp.ctx) }
         if lp.link_c_paths.len() > 0 {
-            type_error_at(path, 1, 1, "TilVm cannot compile link_c; link a prebuilt native library instead", lp.ctx)
+            if prelude_source.len() == 0 {
+                type_error_at(path, 1, 1, "TilVm cannot compile link_c; link a prebuilt native library instead", lp.ctx)
+            } else {
+                for unit : ProgramUnit in lp.units {
+                    for directive : Expr in lp.ctx.imported[unit.path].link_directives {
+                        if ident_of(directive.children[0]).ident_name(lp.ctx.symbols.names) == "link_c" {
+                            type_error_at(unit.path, directive.line, directive.col,
+                                "TilVm cannot compile link_c; link a prebuilt native library instead", lp.ctx)
+                        }
+                    }
+                }
+            }
         }
         if lp.ctx.errors > 0 { throw tilvm_error("load", lp.ctx) }
         if init_and_type_program_errors(lp, false) > 0 { throw tilvm_error("type", lp.ctx) }

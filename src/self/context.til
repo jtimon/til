@@ -1132,8 +1132,23 @@ ImportUnit := struct {
     own ast := Expr.new(own NodeType.Body, 0, 0)
     import_dir := ""
     import_lib_dir := ""
-    // Mode auto-imports are the one dependency edge with no source AST call.
+    // Implicit dependencies have no source AST call. Both kinds use the
+    // ordinary module walks and their existing cycle/deduplication state.
     mode_import := ""
+    prelude_import := ""
+    // Host-provided source has no file to reopen. Keep it with its AST; the
+    // map key owns its logical name and import_dir owns its resolution base.
+    host_source := ""
+    // Link directives move out of executable AST children, but retain their
+    // module/line provenance for embedded loading diagnostics.
+    link_directives := Vec(Expr).new()
+namespace:
+    implicit_imports := func(self: ImportUnit) returns Vec(Str) {
+        mut imports := Vec(Str).new()
+        if self.mode_import.len() > 0 { imports.push(own self.mode_import.clone()) }
+        if self.prelude_import.len() > 0 { imports.push(own self.prelude_import.clone()) }
+        return imports
+    }
 }
 
 priv import_path_for_call := func(imp: Expr, source_path: Str, symbols: SymbolPool) returns Str {
@@ -1180,10 +1195,17 @@ resolve_import_for_stmt := proc(stmt: Expr, source_path: Str, iu: ImportUnit,
         panic(source_path, ": loaded import no longer resolves: ", import_path)
     }
     disp := display_path(abs, cwd)
-    if imported.has(disp).not() {
-        panic(source_path, ": resolved import is absent from Context.imported: ", disp)
+    if imported.has(disp) { return disp }
+    // The entry keeps the caller's original filename for diagnostics. An
+    // import cycle back to that file must still find its canonical identity,
+    // even when the caller's spelling differs from display_path. Logical host
+    // module names never participate in filesystem identity resolution.
+    for identity, unit in imported {
+        if unit.host_source.len() == 0 {
+            if realpath_str(identity) == abs { return identity.clone() }
+        }
     }
-    return disp
+    panic(source_path, ": resolved import is absent from Context.imported: ", disp)
 }
 
 BuilderFuncScratch := struct {

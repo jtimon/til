@@ -9815,8 +9815,8 @@ priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    if iu.mode_import.len() > 0 {
-        total = total + type_methods_file(iu.mode_import, ctx)
+    for dependency : Str in iu.implicit_imports() {
+        total = total + type_methods_file(dependency, ctx)
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
@@ -9931,8 +9931,8 @@ priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    if iu.mode_import.len() > 0 {
-        total = total + type_fields_file(iu.mode_import, ctx)
+    for dependency : Str in iu.implicit_imports() {
+        total = total + type_fields_file(dependency, ctx)
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
@@ -9974,8 +9974,8 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
 
     ref mut iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
-    if iu.mode_import.len() > 0 {
-        total = total + type_decls_file(iu.mode_import, ctx)
+    for dependency : Str in iu.implicit_imports() {
+        total = total + type_decls_file(dependency, ctx)
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,
@@ -10052,8 +10052,8 @@ priv type_bodies_file := proc(path: Str, mut ctx: Context) returns I32 {
     // Mode auto-imports have no source call; explicit edges are resolved
     // directly from their AST statements in source order (#165 step 5).
     mut total : I32 = 0
-    if iu.mode_import.len() > 0 {
-        total = total + type_bodies_file(iu.mode_import, ctx)
+    for dependency : Str in iu.implicit_imports() {
+        total = total + type_bodies_file(dependency, ctx)
     }
     for stmt : Expr in iu.ast.children {
         dep := resolve_import_for_stmt(stmt, path, iu,

@@ -119,6 +119,8 @@ main := proc() returns I64 {
     native_run := Cmd.new("./bin/tilvm_native", "../install_tilvm/lib/til")
     native_run.cwd(WORK)
     native_run.env("PATH", "")
+    mkdir_p(format(WORK, "/home"))
+    native_run.env("HOME", realpath_str(format(WORK, "/home")))
     native_run.env("LD_LIBRARY_PATH", library_dir)
     native_run.env("DYLD_LIBRARY_PATH", library_dir)
     native_run.capture()
@@ -131,6 +133,9 @@ main := proc() returns I64 {
     }
     if native_run.out().contains("installed TilVm mutable native config PASS").not() {
         panic("native TilVm config test did not finish: ", native_run.out(), native_run.err())
+    }
+    if native_run.out().contains("installed TilVm host prelude PASS").not() {
+        panic("native TilVm prelude test did not finish: ", native_run.out(), native_run.err())
     }
     println("install TilVm PASS")
     return 0

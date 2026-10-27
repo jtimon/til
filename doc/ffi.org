@@ -40,6 +40,67 @@ globals; other VMs and the compiled host can continue using it. Native
 initializers and earlier native calls are not rolled back on load/call
 failure. Bindings retain their normal FFI ownership and ABI contracts.
 
+*** Host-supplied prelude
+
+A host can provide its API as an implicit module when loading configuration:
+
+#+begin_src til
+vm.load_file(init_path,
+    prelude_source = "import(\"tiled_startup_api\")\n",
+    prelude_name = "tiled-api",
+    prelude_base = packaged_api_directory)?
+#+end_src
+
+All three arguments are optional together. Their defaults are empty strings;
+empty source means no prelude. Supplying only some of the three is a structured
+load error, including supplying a name/base with empty source. The base must
+name an existing directory. The entry remains ~mode lib~, with the host calling
+~init()~ through an ordinary retained callback. A successful load still seals
+the VM; retry after failure and fresh-VM reload keep their existing contracts.
+
+The source may import packaged generated bindings, or contain those generated
+declarations, native links, types and wrappers directly. An omitted prelude mode
+means ~lib~; any explicit mode other than ~lib~ is rejected. Source is parsed as
+its own module, never concatenated with user code or written to a wrapper file.
+
+~prelude_name~ is an exact logical module identity and diagnostic name. It is
+neither opened nor canonicalized as a filesystem path, and does not introduce
+an explicit-import alias. A collision with a loaded file module's diagnostic
+identity is rejected, including collisions discovered in dependency traversal.
+Distinct VMs may use the same name. Public declaration names supplied by the
+prelude/dependency closure may not be redeclared by another module: types,
+functions and values all produce a structured load error at the conflicting
+declaration. Private declarations and file-local import aliases retain their
+ordinary scope rules.
+
+Relative prelude imports resolve from ~prelude_base~ using the ordinary import
+resolver; relative native-library paths use that base too. Dependencies resolve
+their own imports/links from their own files. User entry/helper paths, relative
+imports, and line/column positions are unchanged. Prelude parse/type/evaluation
+errors use its logical name; its link-loading errors also retain the directive's
+logical origin and line, with the native library path in the message.
+
+The entry and user helpers receive an implicit prelude dependency through the
+same traversal used by mode auto-imports. SDK source/vendor modules, the prelude
+itself, and its dependency closure do not receive that edge. Explicit imports
+of an already-loaded dependency reuse its normal identity, including through
+cycles. Exclusion concerns dependency edges: public declarations still use Til's
+existing shared program scope, rather than a new module isolation system.
+
+The loaded module owns the supplied source, logical identity and resolved base.
+The host may release its input strings after loading; the VM retains the AST/code
+through its callbacks' lifetime. Failures return owned diagnostics and allow
+retry without invalidating another VM's callbacks. Native side effects are not
+rolled back. The host remains responsible for packaging matching runtime assets
+and for publishing staged configuration and callbacks.
+
+~host_prelude_test~ in ~test/tilvm_native.til~ runs against an isolated installed
+SDK under ASAN, private HOME and empty PATH. It covers generated bindings,
+shared native state, implicit API use from cyclic relative helpers, deduplication,
+excluded dependency edges, exact diagnostic locations, input-string release,
+independent VMs, retry and teardown. The direct-declaration case also loads a
+relative native library through a base directory containing spaces.
+
 *** Editor buffer and reload example
 
 ~editor_buffer_test~ in ~test/tilvm_native.til~ is the concrete integration

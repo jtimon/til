@@ -235,6 +235,193 @@ native_config_test := proc(root: Str) {
     println("installed TilVm mutable native config PASS")
 }
 
+prelude_source := func(label: Str) returns Str {
+    return format("import(\"vm_native\")\nimport(\"prelude_support\")\n",
+        "ApiToken := struct { value: I64 = 7 }\n",
+        "prelude_text := \"", label, "\"\n",
+        "prelude_step := proc() { native_increment(); native_buffer_insert(prelude_text) }\n",
+        "native_increment()\n")
+}
+
+load_owned_prelude := proc(mut vm: TilVm, path: Str, base: Str, label: Str) {
+    source := prelude_source(label)
+    // Keep the logical name heap-owned too, rather than a folded literal.
+    name := format("host-api", label.substr(0, 0))
+    directory := base.clone()
+    vm.load_file(path, prelude_source = source, prelude_name = name, prelude_base = directory)!
+    own source.delete()
+    own name.delete()
+    own directory.delete()
+}
+
+prelude_error := proc(mut vm: TilVm, path: Str, source: Str, name: Str, base: Str,
+    origin: Str, line: U32, detail: Str) returns TilVmError {
+    vm.load_file(path, prelude_source = source, prelude_name = name, prelude_base = base)?
+    catch (err: TilVmError) {
+        expect(err.to_str().contains(detail), err.to_str())
+        mut located := false
+        for diagnostic : TilVmDiagnostic in err.diagnostics {
+            if diagnostic.path.eq(origin).and(diagnostic.line == line) { located = true }
+        }
+        expect(located, "wrong prelude diagnostic origin: ", err.to_str())
+        return err.clone()
+    }
+    panic("prelude load unexpectedly succeeded")
+}
+
+host_prelude_test := proc(root: Str) {
+    assert(get_env("PATH") == "")
+    home := get_env("HOME")
+    assert(home.len() > 0)
+    config_dir := format(home, "/.tiled")
+    mkdir_p(format(config_dir, "/helpers"))
+    path := format(config_dir, "/init.til")
+    base := realpath_str("gen/til")
+    File.writefile("gen/til/prelude_support.til",
+        "mode lib\nmut support_loads := 0\nsupport_loads++\nsupport_text := func() returns Str { assert(support_loads == 1); return \" shared\" }\n")
+    helper_source := format(
+        "mode lib\nimport(\"second\")\nimport(\"std/sys\")\n",
+        "HelperState := struct { token: ApiToken = ApiToken() }\n",
+        "helper_first := proc() { state := HelperState(); assert(state.token.value == 7); assert(process_id() > 0); prelude_step() }\n")
+    File.writefile(format(config_dir, "/helpers/first.til"), helper_source)
+    File.writefile(format(config_dir, "/helpers/second.til"), format(
+        "mode lib\nimport(\"first\")\nimport(\"../init\")\nimport(\"../../../gen/til/prelude_support\")\n",
+        "helper_second := proc() { native_buffer_insert(support_text()) }\n"))
+    guest := format("mode lib\nimport(\"helpers/first\")\nimport(\"helpers/second\")\n",
+        "init := proc() { native_set(80) }\n",
+        "on_key := proc() { helper_first(); helper_second() }\n")
+    File.writefile(path, guest)
+
+    // Inspect the same loader graph used by the installed public facade.
+    // Exclusion is about implicit edges, not a new module-visibility system.
+    source := prelude_source(" graph")
+    sdk := realpath_str(root)
+    cwd := realpath_str(".")
+    graph := load_program(path, sdk, cwd, format(sdk, "/src/c/ext.c"), Vec(Str).new(), "", true,
+        source, "host-api", base)
+    assert(graph.load_errors == 0)
+    assert(graph.ctx.imported[path].prelude_import == "host-api")
+    for helper in vec(Str, "first", "second") {
+        identity := display_path(format(config_dir, "/helpers/", helper, ".til"), cwd)
+        assert(graph.ctx.imported[identity].prelude_import == "host-api")
+    }
+    assert(graph.ctx.imported["host-api"].prelude_import == "")
+    assert(graph.ctx.imported["host-api"].host_source == source)
+    assert(graph.ctx.imported["host-api"].import_dir == base)
+    assert(graph.ctx.imported["./gen/til/prelude_support.til"].prelude_import == "")
+    assert(graph.ctx.imported["./gen/til/vm_native.til"].prelude_import == "")
+    assert(graph.ctx.imported[display_path(format(sdk, "/src/std/sys.til"), cwd)].prelude_import == "")
+    assert(graph.ctx.mode_registry["lib"].auto_import == "")
+    own graph.delete()
+
+    native.native_set(10)
+    native.native_buffer_set("")
+    entries := Dir.list(config_dir).len()
+    mut active := TilVm.new(root)
+    load_owned_prelude(active, path, base, " first")
+    assert(Dir.list(config_dir).len() == entries)
+    assert(native.native_get() == 11) // The prelude initialized exactly once.
+    mut init := active.lookup("init")!
+    init.call()!
+    own init.delete()
+    assert(native.native_get() == 80)
+    mut key := active.lookup("on_key")!
+    key.call()!
+    assert(native.native_get() == 81)
+    expect_buffer(" first shared")
+
+    File.writefile(path, "mode lib\n")
+    mut candidate := TilVm.new(root)
+    args_error := prelude_error(candidate, path, "", "host-api", base, path, 1, "supplied together")
+    assert(args_error.phase == "load")
+    prelude_error(candidate, path, source, "", base, path, 1, "supplied together")
+    prelude_error(candidate, path, source, "host-api", "", path, 1, "supplied together")
+    prelude_error(candidate, path, source, "host-api", path, "host-api", 1, "existing directory")
+    prelude_error(candidate, path, source, path, base, path, 1, "identity collides")
+    prelude_error(candidate, path, source, "./gen/til/prelude_support.til", base,
+        "./gen/til/prelude_support.til", 1, "identity collides")
+    syntax_error := prelude_error(candidate, path, "mode lib\nbroken := func( {\n", "host-api", base,
+        "host-api", 2, "expected")
+    assert(syntax_error.phase == "load")
+    type_error := prelude_error(candidate, path, "mode lib\nbad: I64 = \"wrong\"\n",
+        "host-api", base, "host-api", 2, "I64")
+    assert(type_error.phase == "type")
+    prelude_error(candidate, path, "mode lib\nimport(\"missing_prelude_dependency\")\n", "host-api", base,
+        "host-api", 2, "could not find import")
+    prelude_error(candidate, path, "mode lib\nlink(\"./missing_prelude_library.so\")\n", "host-api", base,
+        "host-api", 2, "missing_prelude_library")
+    File.writefile(format(base, "/invalid_prelude_library.so"), "not a library\n")
+    prelude_error(candidate, path, "mode lib\nlink(\"./invalid_prelude_library.so\")\n", "host-api", base,
+        "host-api", 2, "invalid_prelude_library")
+    prelude_error(candidate, path, "mode lib\nlink_c(\"./missing_prelude.c\")\n", "host-api", base,
+        "host-api", 2, "cannot compile link_c")
+    prelude_error(candidate, path, "mode cli\n", "host-api", base,
+        "host-api", 1, "requires mode lib")
+
+    File.writefile(path, guest)
+    helper_identity := display_path(format(config_dir, "/helpers/first.til"), cwd)
+    prelude_error(candidate, path, source, helper_identity, base, helper_identity, 1, "identity collides")
+    File.writefile(path, "mode lib\n\nbad: I64 = \"wrong\"\n")
+    user_error := prelude_error(candidate, path, source, "host-api", base, path, 3, "I64")
+    assert(user_error.phase == "type")
+    File.writefile(path, guest)
+    helper_path := format(config_dir, "/helpers/first.til")
+    File.writefile(helper_path, format(helper_source, "\nbad: I64 = \"wrong\"\n"))
+    prelude_error(candidate, path, source, "host-api", base, display_path(helper_path, cwd), 7, "I64")
+    File.writefile(helper_path, helper_source)
+    File.writefile(path, "mode lib\nApiToken := struct { different: Str = \"\" }\n")
+    prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
+    File.writefile(path, "mode lib\nprelude_text := \"user replacement\"\n")
+    prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
+    File.writefile(path, "mode lib\nprelude_step := proc() { noop_proc() }\n")
+    prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
+    File.writefile(path, "mode lib\n")
+    eval_error := prelude_error(candidate, path, "mode lib\npanic(\"prelude abort\")\n", "host-api", base,
+        "host-api", 2, "prelude abort")
+    assert(eval_error.phase == "eval")
+    File.writefile(path, guest)
+    key.call()!
+    expect_buffer(" first shared first shared")
+
+    // Same logical identity, independent VM/code, and retry after all failures.
+    load_owned_prelude(candidate, path, base, " second")
+    mut second := candidate.lookup("on_key")!
+    second.call()!
+    expect_buffer(" first shared first shared second shared")
+    own second.delete()
+    own candidate.delete()
+    key.call()!
+    snapshot := native.native_buffer_snapshot()
+    own key.delete()
+    own active.delete()
+    assert(snapshot == " first shared first shared second shared first shared")
+    expect(syntax_error.to_str().contains("host-api:2:"), syntax_error.to_str())
+    expect(user_error.to_str().contains(format(path, ":3:")), user_error.to_str())
+
+    // Direct generated declarations plus a relative link, without an import
+    // of the packaged binding. The logical name deliberately looks path-like.
+    mut extension := ".so"
+    if host_os() == "macos" { extension = ".dylib" }
+    if host_os() == "windows" { extension = ".dll" }
+    mkdir_p("api assets")
+    inline_base := realpath_str("api assets")
+    inline_source := File.readfile("gen/til/vm_native.til").replace("link(\"vm_native\")",
+        format("link(\"../gen/lib/libvm_native", extension, "\")"))
+    File.writefile(path, "mode lib\non_key := proc() { native_increment() }\n")
+    mut inline_vm := TilVm.new(root)
+    inline_vm.load_file(path, prelude_source = inline_source,
+        prelude_name = "logical/not/a/file", prelude_base = inline_base)!
+    own inline_source.delete()
+    own inline_base.delete()
+    mut inline_key := inline_vm.lookup("on_key")!
+    before := native.native_get()
+    inline_key.call()!
+    assert(native.native_get() == before + 1)
+    own inline_key.delete()
+    own inline_vm.delete()
+    println("installed TilVm host prelude PASS")
+}
+
 main := proc(root: Str) {
     native.native_set(41)
     // This library is NOT linked into the host. Its explicit path must load
@@ -300,4 +487,5 @@ main := proc(root: Str) {
     native_config_test(root)
     assert_eq(I64, native.native_get(), 48)
     println("installed native TilVm shared state PASS: 41 -> 48")
+    host_prelude_test(root)
 }

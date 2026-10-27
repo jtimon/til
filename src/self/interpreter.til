@@ -6792,7 +6792,25 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     if lp.ctx.eval.embedded {
         // Embedding only loads prebuilt libraries. It never builds a link_c
         // bridge or takes ownership of the process-global user-FFI handle.
-        if ffi_init_link_libs(lp.link_flags, lp.ctx) != 0 { return 1 }
+        if lp.ctx.imported[lp.path].prelude_import.len() == 0 {
+            if ffi_init_link_libs(lp.link_flags, lp.ctx) != 0 { return 1 }
+        } else {
+            root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+            for unit : ProgramUnit in lp.units {
+                ref iu : ImportUnit = lp.ctx.imported[unit.path]
+                mut link_root := root_dir.clone()
+                if iu.host_source.len() > 0 { link_root = "" }
+                for directive : Expr in iu.link_directives {
+                    switch directive.children[1].node_type {
+                    case .Literal(Literal.Str(path)):
+                        mut flag := format("-l", path)
+                        if path.find("/") >= 0 { flag = resolve_link_path(iu.import_dir, link_root, path) }
+                        if ffi_load_link(flag, lp.ctx, unit.path, directive.line, directive.col) != 0 { return 1 }
+                    case: UNREACHABLE("non-literal link directive")
+                    }
+                }
+            }
+        }
     } else {
         ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
         if ffi_rc.eq(0).not() { return ffi_rc }
@@ -6802,7 +6820,9 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         ffi_init_struct_defs_append(iu.ast, lp.ctx)
-        ffi_init_scan_program(iu.ast, lp.ctx, realpath_str(upath).starts_with(runtime_src_prefix))
+        runtime_module := iu.host_source.len().eq(0)
+            .and(realpath_str(upath).starts_with(runtime_src_prefix))
+        ffi_init_scan_program(iu.ast, lp.ctx, runtime_module)
         if lp.ctx.eval.embedded { interp_embedded_paths(iu.ast, upath, lp.ctx) }
     }
     if lp.ctx.eval.embedded { lp.ctx.ffi.loaded = true }
@@ -7498,37 +7518,36 @@ til_built_with_asan := ext_proc() returns shallow Bool {}
 // walk in ffi_global_symbol then finds its exports exactly like dlopen's
 // RTLD_GLOBAL does. A distinct name, not a PE file called .so, so a
 // checkout can hold both hosts' twins side by side.
-priv ffi_link_error := proc(path: Str, detail: Str, mut ctx: Context) {
+priv ffi_link_error := proc(path: Str, detail: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) {
     message := format("cannot load native library '", path, "': ", detail)
     if ctx.collect_diagnostics {
-        context_diagnostic(ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, 0, 0, message)
+        mut diagnostic_path := path.clone()
+        if origin.len() > 0 { diagnostic_path = origin.clone() }
+        context_diagnostic(ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, diagnostic_path, line, col, message)
     } else {
         eprint_single(format("error: ", message, "\n"))
     }
 }
 
-priv ffi_load_archive_twin := proc(archive_path: Str, mut ctx: Context) returns I32 {
+priv ffi_load_archive_twin := proc(archive_path: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {
     if archive_path.len() == 0 { return 0 }
     mut twin_ext := ".so"
     if host_os() == "windows" { twin_ext = ".dll" }
     so_path := archive_path.strip_suffix(".a").format(twin_ext)
     if ffi_load_global_lib(so_path).not() {
-        ffi_link_error(so_path, format("loadable twin of '", archive_path, "': ", ffi_last_error()), ctx)
+        ffi_link_error(so_path, format("loadable twin of '", archive_path, "': ", ffi_last_error()), ctx, origin, line, col)
         return 1
     }
     return 0
 }
 
-priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context) returns I32 {
+priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {
     // `-lfoo` names a soname; archives need a loadable twin. Every other
     // entry is a library path already resolved relative to its source file
     // by the loader. Pass those paths to the OS loader as written, including
     // versioned shared libraries and files without the usual suffix.
     // dlopen resolves "-lfoo" flags by soname; the shared-lib suffix is
     // host-dependent (this runs in the compiler, on the build host).
-    mut so_ext := ".so"
-    if host_os() == "macos" { so_ext = ".dylib" }
-    if host_os() == "windows" { so_ext = ".dll" }
     mut i : USize = 0
     while i < link_flags.len() {
         if link_flags.unsafe_get(i) == 32 { i++; continue }
@@ -7538,24 +7557,32 @@ priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context) returns I32 {
             i++
         }
         tok := link_flags.substr(start, i - start)
-        if tok.starts_with("-l") {
-            lib := tok.substr(2, tok.len() - 2)
-            if lib.len() > 0 {
-                soname := format("lib", lib, so_ext)
-                loaded := ffi_load_global_lib(soname)
-                if loaded.not().and(ctx.eval.embedded) {
-                    ffi_link_error(soname, ffi_last_error(), ctx)
-                    return 1
-                }
-            }
-        } else if tok.ends_with(".a") {
-            if ffi_load_archive_twin(tok, ctx) != 0 { return 1 }
-        } else {
-            if ffi_load_global_lib(tok).not() {
-                ffi_link_error(tok, ffi_last_error(), ctx)
+        if ffi_load_link(tok, ctx, origin, line, col) != 0 { return 1 }
+    }
+    return 0
+}
+
+// Embedded loads still have individual source directives. Load one resolved
+// target directly so a base directory containing spaces is not tokenized.
+priv ffi_load_link := proc(target: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {
+    if target.starts_with("-l") {
+        lib := target.substr(2, target.len() - 2)
+        if lib.len() > 0 {
+            mut extension := ".so"
+            if host_os() == "macos" { extension = ".dylib" }
+            if host_os() == "windows" { extension = ".dll" }
+            soname := format("lib", lib, extension)
+            loaded := ffi_load_global_lib(soname)
+            if loaded.not().and(ctx.eval.embedded) {
+                ffi_link_error(soname, ffi_last_error(), ctx, origin, line, col)
                 return 1
             }
         }
+    } else if target.ends_with(".a") {
+        return ffi_load_archive_twin(target, ctx, origin, line, col)
+    } else if ffi_load_global_lib(target).not() {
+        ffi_link_error(target, ffi_last_error(), ctx, origin, line, col)
+        return 1
     }
     return 0
 }

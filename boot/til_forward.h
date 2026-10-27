@@ -1992,6 +1992,9 @@ typedef struct ImportUnit {
     Str import_dir;
     Str import_lib_dir;
     Str mode_import;
+    Str prelude_import;
+    Str host_source;
+    Vec__Expr link_directives;
 } ImportUnit;
 
 
