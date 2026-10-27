@@ -1319,19 +1319,10 @@ priv def_is_interface := func(d_o: Option(ref Expr)) returns Bool {
     }
 }
 
-// #269: does concrete type `cname` declare `implements iface`?
+// #269: does concrete type `cname` declare `implements iface`? Shared with
+// the initer's generic bound check (#434) through context.til.
 priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    d_o := scope.get_struct(cname, symbols)
-    if d_o.is_none() { return false }
-    ref d : Expr = d_o.unwrap()
-    switch d.node_type {
-    case .StructDef(sdd):
-        return sdd.implements_name == iface
-    case .EnumDef(edd):
-        return edd.implements_name == iface
-    case:
-        return false
-    }
+    return type_name_implements_iface(scope, cname, iface, symbols)
 }
 
 // #426: a function referenced by name types as the nameless Type.FuncPtr,
@@ -4139,6 +4130,9 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     mut arg_pos := Vec(I64).new()
     pend_start := ctx.generic_pending.children.len()
     mono := generic_instantiate(src, scope.lookup_func_name(src_name, ctx.symbols).unwrap(), subs, ref_params, gs, lt, seen, ctx.generic_pending, arg_pos, e.line, e.col, scope, ctx)
+    // #434: a failed bound is reported here, at the call, before the
+    // concrete copy's body is typed against the wrong type.
+    flush_deferred_errors(ctx)
     // Register while the Decl's FuncDef child is still in stable pending
     // storage; the flush re-registers everything after the single move.
     for k in pend_start..ctx.generic_pending.children.len() {
@@ -5942,6 +5936,15 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             pmut := param.is_mut
             pown := param.own_type.is(OwnType.Own)
             pshallow := param.own_type.is(OwnType.Shallow)
+            // #434: a bound belongs on a TYPE parameter. A generic source
+            // is never typed (its instances have the Type params removed),
+            // so reaching this check with a bound means the parameter is a
+            // runtime Type value the signature never uses as a type.
+            if param.bounds.len() > 0 {
+                expr.type_error(format("'implements' on parameter '", param.name,
+                    "' needs a type parameter that the signature uses as a type (`v: ", param.name,
+                    "`, `returns ", param.name, "`); here it is a runtime Type value"), ctx)
+            }
             if pshallow {
                 is_scalar := is_primitive(pt)
                 if is_scalar.or(is_struct_type(pt)).or(is_enum_type(pt)).not() {
@@ -9141,10 +9144,21 @@ priv validate_numeric_literal_ranges := proc(mut e: Expr, mut ctx: Context) {
     }
 }
 
+// #434: report the type errors a func parked in Context.deferred_errors
+// (the generic bound check inside generic_instantiate).
+priv flush_deferred_errors := proc(mut ctx: Context) {
+    for d : SourceDiagnostic in ctx.deferred_errors {
+        context_diagnostic(ctx, d.phase, d.severity, d.path, d.line, d.col, d.message, d.located)
+        ctx.errors++
+    }
+    ctx.deferred_errors.clear()
+}
+
 priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
     ctx.errors = 0
     scope.typer_func = TyperFuncState()
     context_enter_file(ctx, path)
+    flush_deferred_errors(ctx)
     // Check the source-level top level, before lambda/throw lowering appends
     // generated statements. Imports supply declarations, but executable
     // statements in this file violate its own mode even when imported from
@@ -9224,6 +9238,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     // Program-scope asap runs from prepare_program via
     // garbager_destroy(ctx) once all files are typed -- see issue #204
     // step 3b.
+    flush_deferred_errors(ctx)
     return ctx.errors
 }
 

@@ -803,6 +803,21 @@ terr_iface_instantiate := func() returns I64 {
 terr_iface_shallow_param := func(shallow view: TErrConfIface) returns I64 { return view.must() }
 terr_iface_shallow_return := func(value: TErrIfaceConcrete) returns shallow TErrConfIface { return value }
 
+// #434: a bounded type parameter accepts only a struct or enum implementing
+// every listed interface, checked at the call site; a bound must name an
+// interface; a bound belongs on a parameter the signature uses as a type.
+terr_bound_must := func(T: Type implements TErrConfIface, v: T) returns I64 { return v.must() }
+terr_bound_two := func(T: Type implements TErrConfIface, TErrFullContract, v: T) returns I64 { return v.must() }
+terr_bound_not_iface := func(T: Type implements TErrConfNotIface, v: T) returns I64 { return v.y }
+terr_bound_calls := func() returns I64 {
+    accepted := terr_bound_must(TErrIfaceConcrete())
+    rejected := terr_bound_must(TErrConfNotIface())
+    half := terr_bound_two(TErrIfaceConcrete())
+    wrong := terr_bound_not_iface(TErrConfNotIface())
+    return accepted + rejected + half + wrong
+}
+terr_bound_runtime_type := func(_t: Type implements TErrConfIface) returns Str { return "unused" }
+
 terr_iface_bad_assign := func() returns I64 {
     mut view: TErrConfIface = TErrIfaceConcrete()
     view = TErrConfNotIface()

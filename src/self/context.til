@@ -1001,6 +1001,34 @@ init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     }
 }
 
+// #269/#434: does the struct or enum `cname` declare `implements iface`?
+// One implemented interface per type today (StructDef/EnumDef
+// implements_name), so a type parameter bounded by two interfaces can only
+// be satisfied once a type can implement several.
+type_name_implements_iface := func(scope: TypeScope, cname: Str, iface: Str, symbols: SymbolPool) returns Bool {
+    d_o := scope.get_struct(cname, symbols)
+    if d_o.is_none() { return false }
+    ref d : Expr = d_o.unwrap()
+    switch d.node_type {
+    case .StructDef(sdd):
+        return sdd.implements_name == iface
+    case .EnumDef(edd):
+        return edd.implements_name == iface
+    case:
+        return false
+    }
+}
+
+// #434: is `name` an interface declaration in `scope`?
+type_name_is_interface := func(scope: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
+    d_o := scope.get_struct(name, symbols)
+    if d_o.is_none() { return false }
+    switch d_o.unwrap().node_type {
+    case .StructDef(sdd): return sdd.is_interface
+    case: return false
+    }
+}
+
 // Issue #328: is this top-level statement a direct-generic SOURCE
 // template -- a `name := func(T: Type, ...)` decl whose body still names
 // its unbound type parameters? Retained through typing, never typed or
@@ -1401,6 +1429,11 @@ Context := struct {
     path := ""
     collect_diagnostics := false
     diagnostics := Vec(SourceDiagnostic).new()
+    // #434: type errors found by a FUNC -- the generic bound check runs
+    // inside generic_instantiate, which the init walks call as a func --
+    // parked until the typer (a proc) reports them. flush_deferred_errors
+    // drains it at the start and the end of every type_check_unit.
+    deferred_errors := Vec(SourceDiagnostic).new()
     path_modes := Map(Str, Mode).new()
     mode_registry := Map(Str, Mode).new()
     // The raw-bytes runtime heap (rstil's EvalHeap), threaded through Context

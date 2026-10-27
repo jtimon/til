@@ -75,6 +75,33 @@
      conformance check and virtual defaults apply to the box, direct
      resolution to the bound.
 
+*** Progress
+
+   - [X] `T: Type implements A, B` parses on a `(...)` type parameter
+     (parse_type_param_bounds; Declaration.bounds). The `func<T>` sugar
+     takes no bounds: `<T implements A, U>` cannot tell a second bound
+     from a second parameter, while in a parameter list every parameter
+     is `name:`.
+   - [X] generic_instantiate checks every bound against the concrete type
+     argument, once per call site, on both the init (explicit type
+     argument) and the typer (inferred) instantiation paths
+     (check_generic_bounds; errors parked in Context.deferred_errors since
+     the instantiation runs inside funcs, and flushed by the typer right
+     after a late instantiation and at both ends of type_check_unit).
+     A bound naming a non-interface is reported at the same site; the
+     interface's own boxed value satisfies its bound.
+   - [X] A bound on a runtime `Type` value (a parameter the signature
+     never uses as a type) is a typer error.
+   - [X] Inside the copy, calls are static: static_draw__Circle calls
+     Circle_draw directly in the generated C; a concrete override of a
+     default is honoured (test_interface_bound_static_dispatch).
+   - [X] Documented in doc/concepts/functions.org "Bounded type
+     parameters"; the coexistence decision is recorded above.
+   - [ ] Two bounds can be CHECKED independently (terr_bound_two) but not
+     SATISFIED together: a struct or enum implements one interface
+     (implements_name). Multiple implements per type is the missing piece
+     before `implements Iterable, Printable` is usable.
+
 *** Relations
 
    #251 (conformance check reused), #268 (defaults), #269/#432 (the dynamic
@@ -83,8 +110,9 @@
 
 *** Acceptance
 
-   - A bounded generic function accepts every conforming struct and enum,
-     rejects a non-conforming one at the call site, and its calls resolve
-     statically (no dyn_call in the generated C).
-   - Multiple bounds work and are checked independently.
-   - interpret and compile modes agree; make test green.
+   - [X] A bounded generic function accepts every conforming struct and
+     enum, rejects a non-conforming one at the call site, and its calls
+     resolve statically (no dyn_call in the generated C).
+   - [ ] Multiple bounds work (needs multiple implements per type) and
+     [X] are checked independently.
+   - [X] interpret and compile modes agree; make test green.

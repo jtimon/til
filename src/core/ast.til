@@ -325,6 +325,12 @@ Declaration := struct {
     // A compiler-hoisted call result takes its ownership from the resolved
     // callee, after typing; the spelling `get` does not imply a reference.
     infer_call_ownership := false
+    // #434: the interfaces a `T: Type implements A, B` type parameter is
+    // bounded by, as the names were written, joined by ",". Empty for every
+    // other declaration. generic_instantiate checks each concrete type
+    // argument against them at the call site. Appended at the END so the
+    // committed boot's Declaration layout stays stable.
+    bounds := ""
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }

@@ -461,6 +461,33 @@ return_inferred_generic_argument := func(calls: I64) returns DrawHolder {
     return generic_argument_holder(7, CaptionShape(text = format("generic ", calls.to_str())))
 }
 
+// #434: a bounded type parameter is the STATIC form of an interface
+// parameter: one copy of the function per concrete type, the bound checked
+// at the call site, and `d.draw()` a direct call on the concrete -- no box,
+// no dispatcher. `d: Drawable` (dynamic) and `T: Type implements Drawable,
+// d: T` (static) coexist; the bare spelling keeps its dynamic meaning.
+static_draw := func(T: Type implements Drawable, d: T) returns Str {
+    return format(d.label(), ":", d.draw())
+}
+
+static_describe := func(T: Type implements Drawable, d: T) returns Str {
+    return format(static_draw(d), "/", d.describe())
+}
+
+test_interface_bound_static_dispatch := test() {
+    assert_eq(Str, static_draw(Circle(r = 1)), "shape:circle")
+    assert_eq(Str, static_draw(Polygon.Tri), "shape:polygon")
+    assert_eq(Str, static_draw(Labeled(n = 1)), "custom:labeled")
+    c := Circle(r = 2)
+    assert_eq(Str, static_draw(Circle, c), "shape:circle")
+    assert_eq(Str, static_describe(c), "shape:circle/circle")
+    assert_eq(Str, static_describe(Polygon.Quad), "shape:polygon/polygon")
+    // The interface's own boxed value satisfies the bound; inside that copy
+    // the calls dispatch on the box as for any `d: Drawable`.
+    view: Drawable = Labeled(n = 2)
+    assert_eq(Str, static_draw(view), "custom:labeled")
+}
+
 test_interface_argument_call_paths := test() {
     mut calls := 0
     ns := return_namespace_argument(calls)

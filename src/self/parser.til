@@ -885,6 +885,11 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             } else {
                 set_decl_type(param_decl, parse_type_ref(p), p.symbols)
                 param_decl.name = pname.clone()
+                // #434: `T: Type implements A, B` bounds a type parameter.
+                if decl_type_name_ref(param_decl, p.symbols).eq("Type").and(check(p, TokenType.KwImplements)) {
+                    advance(p) // consume 'implements'
+                    param_decl.bounds = parse_type_param_bounds(p)
+                }
             }
         }
 
@@ -1061,6 +1066,22 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     // here keeps the same token position as the old constructor form.
     ns_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, ns_type_name))
     return ns_decl
+}
+
+// #434: the `A, B` after `T: Type implements`. Parameters are always
+// `name: Type`, so an identifier followed by `:` is the next parameter and
+// ends the list; anything else after a comma is another bound. Returned
+// joined by "," (Declaration.bounds).
+priv parse_type_param_bounds := func(mut p: Parser) returns Str {
+    mut bounds := expect_text(p, TokenType.Ident)
+    while check(p, TokenType.Comma) {
+        if p.pos + 2 >= p.tokens.len() { break }
+        if p.tokens[p.pos + 1].type.is(TokenType.Ident).not() { break }
+        if p.tokens[p.pos + 2].type.is(TokenType.Colon) { break }
+        advance(p) // consume ','
+        bounds = format(bounds, ",", expect_text(p, TokenType.Ident))
+    }
+    return bounds
 }
 
 // Issue #267 (caveat 1): `Name := struct<T: Type, ...> { BODY }` is sugar

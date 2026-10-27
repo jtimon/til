@@ -216,6 +216,41 @@ the destination is undeclared, or only ~Dynamic~ / ~null~ arguments
 mention it), the call is an error that says which way out applies:
 pass the type explicitly or declare the destination.
 
+** Bounded type parameters (#434)
+
+~T: Type implements A, B~ restricts a type parameter to structs and enums
+that implement every listed interface. The check runs at the call site,
+once per instantiation, and names the missing interface. Inside the
+copy, ~d.draw()~ on a ~d: T~ is an ordinary static call on the concrete
+type -- no box, no runtime dispatch -- and the interface's concrete
+defaults (copied into the implementer) are honoured exactly as when
+called on the concrete directly.
+
+#+begin_src til
+static_draw := func(T: Type implements Drawable, d: T) returns Str {
+    return format(d.label(), ":", d.draw())
+}
+static_draw(Circle(r = 1))        // static_draw__Circle  -> Circle.draw
+static_draw(Polygon.Tri)          // static_draw__Polygon -> Polygon.draw
+static_draw(Circle, c)            // explicit type argument works too
+
+render := func(d: Drawable) returns Str { return d.draw() }   // dynamic: one copy
+#+end_src
+
+The two forms coexist and the user picks per function: ~d: Drawable~ is
+the DYNAMIC form (one copy, dispatch on the box's type tag, the only way
+to keep mixed concretes in one collection; see doc/concepts/ownership.org
+"Interface-typed locals"); the bound is the STATIC form (one copy per
+concrete type, direct calls, more generated code), like Rust's ~impl
+Trait~ against ~dyn Trait~. The interface's own boxed value satisfies its
+bound, so a ~view: Drawable~ can be passed to the static form; that copy
+dispatches on the box. A struct or enum implements one interface today,
+so a two-interface bound can only be satisfied once a type can implement
+several. The bound belongs on a parameter the signature uses as a type;
+on a runtime ~Type~ value it is an error. The ~func<T>~ sugar does not
+take bounds (a bound list and the next ~<T, U>~ parameter would be
+ambiguous there); spell the parameter out.
+
 * Function generators
 
 A macro returning ~FuncDef~ runs at compile time and produces a

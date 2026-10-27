@@ -565,6 +565,7 @@ typedef struct Declaration {
     GcStorage gc_storage;
     Str external_symbol;
     Bool infer_call_ownership;
+    Str bounds;
 } Declaration;
 
 
@@ -2233,6 +2234,7 @@ typedef struct Context {
     Str path;
     Bool collect_diagnostics;
     Vec__SourceDiagnostic diagnostics;
+    Vec__SourceDiagnostic deferred_errors;
     Map__Str_Mode path_modes;
     Map__Str_Mode mode_registry;
     EvalHeap eval_heap;

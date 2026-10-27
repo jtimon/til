@@ -4322,6 +4322,35 @@ priv generic_materialize_type_deps := func(src: GenericFuncSource, concrete_func
 // Returns the concrete name. `arg_pos` receives the old-to-new
 // argument-position map -- one entry per SOURCE param, -1 for a dropped
 // `Type` slot -- which generic_rewrite_call uses to move own/ref bits.
+// #434: a type error at the call site of a generic, found while a func
+// instantiates it; the typer reports it (Context.deferred_errors).
+priv defer_generic_error := func(line: U32, col: U32, message: Str, mut ctx: Context) {
+    ctx.deferred_errors.push(own SourceDiagnostic(phase = DiagnosticPhase.Type, severity = DiagnosticSeverity.Error,
+        path = ctx.path.clone(), line = line, col = col, message = message.clone(), located = true))
+}
+
+// #434: report every bound of type parameter `p` that `concrete_type` does
+// not satisfy, at the call site. A bound that is not an interface is an
+// error on the declaration's shape, reported at the same site since the
+// generic source itself is never typed.
+priv check_generic_bounds := func(generic_name: Str, p: Declaration, concrete_type: Str, line: U32, col: U32, scope: TypeScope, mut ctx: Context) {
+    for bound : Str in p.bounds.split(",") {
+        ref iface : Str = resolve_type_alias(scope, bound, ctx.symbols)
+        if type_name_is_interface(scope, iface, ctx.symbols).not() {
+            defer_generic_error(line, col, format("type parameter '", p.name, "' of '", generic_name,
+                "' is bounded by '", bound, "', which is not an interface"), ctx)
+            continue
+        }
+        // The interface's own boxed value satisfies its bound: the copy's
+        // calls on it go through the dispatcher, as for any `d: Iface`.
+        if concrete_type == iface { continue }
+        if type_name_implements_iface(scope, concrete_type, iface, ctx.symbols).not() {
+            defer_generic_error(line, col, format("'", concrete_type, "' does not implement '", bound,
+                "', required by type parameter '", p.name, "' of '", generic_name, "'"), ctx)
+        }
+    }
+}
+
 generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(Str, Expr), ref_params: Set(Str), gs: GenericSources, local_types: Map(Str, Str), mut seen: Map(Str, Str), mut destination: Expr, mut arg_pos: Vec(I64), line: U32, col: U32, scope: TypeScope, mut ctx: Context) returns Str {
     switch gfd_expr.node_type {
     case .FuncDef(gfd):
@@ -4356,6 +4385,15 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
             // target-independent: `MyInt := I64` and `I64` name one
             // implementation, `USize` keeps its own.
             concrete_type := init_type_arg_name(scope, generic_subs_type_name(subs, p.name, ctx.symbols), ctx.symbols)
+            // #434: a bounded type parameter accepts only a struct or enum
+            // that implements every listed interface. Checked here, once
+            // per call site, because both the early (init) and the late
+            // (typer) instantiation paths come through this constructor.
+            // Inside the copy, `d.method()` on a `d: T` is then an ordinary
+            // static call on the concrete type -- no box, no dispatcher.
+            if p.bounds.len() > 0 {
+                check_generic_bounds(src.name, p, concrete_type, line, col, scope, ctx)
+            }
             mono = format(mono, concrete_type)
             dedup_mono = format(dedup_mono, concrete_type)
             first = false
