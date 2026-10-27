@@ -82,6 +82,42 @@ This is more predictable, but sill not completely deterministic. And can be more
 - ~gcc~
 - ~xvfb~ (for GUI tests)
 
+** Optional LLVM/MLIR development tools
+
+The experimental [[file:issues/open/317.org][MLIR backend work (#317)]] uses external tools from a matching
+LLVM release. These are not required for ordinary C builds, bootstrapping,
+CPU SIMD, or ~make test~. A til MLIR backend is not implemented yet.
+
+On Ubuntu 24.04, install the LLVM 18 toolchain:
+
+#+begin_src sh
+sudo apt install clang-18 llvm-18 mlir-18-tools
+#+end_src
+
+- ~mlir-18-tools~ supplies ~mlir-opt-18~ for dialect lowering and
+  ~mlir-translate-18~ for translation from the LLVM dialect to LLVM IR.
+- ~llvm-18~ supplies LLVM tools such as ~llc-18~ and ~llvm-config-18~.
+- ~clang-18~ compiles LLVM IR and compiles/links the C interoperability tests.
+
+Use the versioned commands to avoid mixing unrelated default toolchains:
+
+#+begin_src sh
+mlir-opt-18 --version
+mlir-translate-18 --version
+llvm-config-18 --version
+clang-18 --version
+#+end_src
+
+The locally verified tool versions are 18.1.3 (Ubuntu package revision
+~1:18.1.3-1ubuntu1~). This identifies the initial CPU prototype toolchain;
+the lowering pipeline and C ABI still require validation. GPU toolchain
+requirements will be established separately by [[file:issues/open/411.org][#411]] and [[file:issues/open/412.org][#412]].
+
+LLVM/MLIR is an optional system dependency, not vendored. The planned
+external-tool pipeline does not link MLIR's C++ libraries into til and does
+not require ~libmlir-18-dev~. Only install these tools when working on that
+backend; installing them does not enable a new til target or select it by default.
+
 ** Cross-compilation targets
 
 Building for non-native targets requires target-specific compilers and
