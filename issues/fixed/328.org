@@ -125,6 +125,72 @@
    explicit type application when no explicit call in the program has
    created the instance.
 
+   Later follow-ups, all merged (tests named; see test/first_class.til
+   unless stated):
+
+   - Calling a non-function value (~x := 0; x(5)~) segfaulted the typer
+     on a NULL callee def; it is now a diagnostic ("'x' is not callable:
+     it is a I64 value, not a function"). The check looks PAST value
+     bindings that merely shadow a global function
+     (~TypeScope.any_func_def~), because struct fields are bound as bare
+     names in the scope their methods are typed in and a raylib field
+     named ~format~ otherwise rejected every raylib build. The scope bug
+     itself is #450. Fixture in test/typer_errors.til.
+   - ~f(...)(args)~ on a call returning a funcptr: the inner call is
+     typed first and its FuncSig return type becomes the callee's type
+     (~infer_funcptr_call_via_cast~ cold path; the callee is stamped
+     ~Type.FuncPtrSig~ so the emitter sees an Ident-shaped callee).
+     ~test_funcptr_return_called_inline~.
+   - ~func<T>~ sugar (#58's ~macro(T: Type) returns FuncDef~ generator)
+     infers omitted type arguments the same way a direct generic does:
+     init treats a macro call as a type APPLICATION only when the macro's
+     parameters are all ~Type~ and every argument is a type token
+     (~init_macro_call_is_type_application~), otherwise leaves the call
+     for the typer, which builds a direct-generic twin of the generator's
+     template (~make_direct_generic_twin~, ~ctx.func_gen_twins~) and runs
+     the ordinary inference on it. ~gid_angle(7)~ and
+     ~gid(TVec(I64))(...)~ both work. ~test_generic_func_angle_inferred~,
+     ~test_generic_func_angle_nested_type_arg~.
+   - The destination's declared type is EVIDENCE when the arguments say
+     nothing (~p : Point = gdefault()~, where T appears only in the
+     return type): ~ctx.generic_expected_type~ pinned to the exact RHS
+     node by ~generic_expected_arm~, consumed by
+     ~generic_expected_evidence~ between hard argument evidence and the
+     literal defaults. Armed for Decl, assignment, return, field default,
+     call argument (plain, namespace and UFCS), struct constructor named
+     argument, field assignment, and map/set literal elements.
+     ~test_generic_expected_type_infer~,
+     ~test_generic_expected_type_positions~,
+     ~test_generic_expected_type_argument~,
+     ~test_generic_expected_type_field_destination~,
+     ~test_generic_expected_type_literal_elements~. Along the way an
+     annotated map or set literal (~m : Map(Str, I64) = {...}~) was
+     found never to be typed at all; it is now, with the instance name
+     derived on the Decl because the literal node has no type slot
+     (#449). ~test_map_literal_typed~ in test/maps.til,
+     ~test_set_literal_typed~ in test/sets.til.
+   - A FuncSig-typed VALUE argument is hard evidence
+     (~gapply(f, 2, 5)~ with ~f : BinOp~): the named signature's
+     parameter and return spellings line up against the formal's.
+     ~test_generic_infer_from_funcsig_argument~; the unnamed-signature
+     refusal ~gbare_apply328~ in test/typer_errors.til.
+   - ~Declaration.annotated~ (src/core/ast.til): the annotation as
+     written, never settled by the typer, next to ~til_type~, which is
+     the settled slot. Readers that need "what the user wrote" (expected-
+     type evidence, interface boxing, typed/untyped Decl dispatch) read
+     it instead of snapshotting ~til_type~ before inference, which had
+     already produced one bug (the snapshot read a clobbered slot and
+     deduced T from the return type). ~decl_typed~ and the few literal
+     Decl constructions fill it; params and fields do not need it.
+
+   Still open after these: an inferred-only ~..T~ variadic call
+   (~gsum(1, 2, 3)~) and an un-annotated collection literal
+   (~vec(1, 2, 3)~) both need an ~Array__T~ / ~Vec__T~ instance that no
+   operand carries, i.e. LATE instance synthesis in the typer (the
+   type-gen expansion init runs, re-run for one name after inference).
+   Not started; it is a scope decision, not a bug. #451 (~T()~ on a
+   primitive) is the other half of the ~gsum~ idiom.
+
 
    Core's ~assert_eq~ is a direct generic:
 

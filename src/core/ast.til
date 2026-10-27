@@ -331,6 +331,17 @@ Declaration := struct {
     // argument against them at the call site. Appended at the END so the
     // committed boot's Declaration layout stays stable.
     bounds := ""
+    // The declared type of a Decl STATEMENT -- the annotation as written, or
+    // the type a synthesizer constructed the declaration with (decl_typed
+    // and the few literal constructions fill it) -- or Unknown when the
+    // declaration had none. Never settled: til_type above is the slot the
+    // typer settles (Expr.set_til_type on a Decl writes it), so an
+    // unannotated `f := func(...) returns Str` ends up reading "Str" there,
+    // and every "was there an annotation?" question asked after inference
+    // got a false yes. This field is the one to ask. Params and fields do
+    // not need it: their til_type is resolved in place under the same
+    // name, never replaced by an inferred type.
+    annotated := Type.Unknown
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }

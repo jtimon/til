@@ -1,0 +1,62 @@
+# priority: medium
+# category: bugs
+** OPEN #448 Same top-level function name in two units compiles silently; last definition wins everywhere
+
+Two source units may each declare a top-level function with the same
+name. Neither the typer nor the emitter reports it. Which body a call
+reaches is decided by declaration order, not by the unit the call sits
+in, and in the compiled self-hosted build both bodies can land in one
+translation unit as two ~static~ definitions.
+
+*** Reproducer
+
+tmp/imp/dup_a.til:
+
+#+begin_src til
+helper := func() returns I64 { return 1 }
+other_a := func() returns I64 { return helper() }
+#+end_src
+
+tmp/dup_b.til:
+
+#+begin_src til
+mode script
+import("imp/dup_a")
+helper := func() returns I64 { return 2 }
+println(helper().to_str())
+println(other_a().to_str())
+#+end_src
+
+On master 157992a both ~bin/til interpret~ and ~bin/til run~ print:
+
+#+begin_example
+2
+2
+#+end_example
+
+~other_a~ lives in dup_a.til, where the only ~helper~ in scope returns
+1; it returns 2 because the importing unit's declaration replaced the
+imported one in the shared global scope. No diagnostic.
+
+*** Second shape: two static definitions in one C file
+
+Found while adding ~type_name_ref~ to src/self/parser.til when
+src/self/context.til already had a function of that name (#328
+follow-up, since renamed ~type_spelling_ref~). The build did not stop
+at the typer: boot/til.c received two ~static ... type_name_ref(...)~
+definitions, the dead-code pruner dropped the ~DTN_*~ constants one of
+them used, and the failure surfaced as a C link/compile error with no
+til location. Which of the two bodies a given caller reached depended
+on scope registration order.
+
+*** Expected
+
+A type error at the second declaration, naming the first:
+
+#+begin_example
+tmp/dup_b.til:3:1: error: 'helper' already declared at tmp/imp/dup_a.til:1:1
+#+end_example
+
+Private (~priv~) declarations with the same name in different units
+are a separate, already-supported case (#328's private isolation test);
+this issue is about two PUBLIC top-level declarations.

@@ -2961,6 +2961,7 @@ priv process_throw_catch_in_body := proc(
                 mut tmp_decl_data := Declaration(name = tmp_name.clone())
                 if return_type.len() > 0 {
                     tmp_decl_data.til_type = decl_type_from_name(return_type, ctx.symbols)
+                    tmp_decl_data.annotated = tmp_decl_data.til_type.clone()
                     // Locals are owned by default; only mark Ref-returning
                     // funcs as ref so we don't trip the "no need for 'own'"
                     // diagnostic on the synthesized temp.

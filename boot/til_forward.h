@@ -581,6 +581,7 @@ typedef struct Declaration {
     Str external_symbol;
     Bool infer_call_ownership;
     Str bounds;
+    Type annotated;
 } Declaration;
 
 

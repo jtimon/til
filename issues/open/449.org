@@ -1,0 +1,51 @@
+# priority: low
+# category: cleanups
+** OPEN #449 Map and set literal nodes have no type slot; the instance name lives on the Decl
+
+~Expr.til_type()~ on a ~Literal.MapLit~ / ~Literal.SetLit~ node returns
+the ~TYPE_MAP~ / ~TYPE_SET~ constants (src/core/ast.til), and
+~set_til_type~ on one is a no-op: a map or set literal cannot carry its
+concrete instance name (~Map__Str_I64~, ~Set__I64~). Every other value
+node settles its own type.
+
+Consequences, all found while typing annotated literals (#328
+follow-up, "An annotated map or set literal types, and forwards its
+destination"):
+
+- ~infer_map_lit_expr~ / ~infer_set_lit_expr~ cannot stamp the result;
+  the typer derives the instance name again from the destination
+  Decl's annotation (~literal_instance_type_name~ in src/self/typer.til)
+  and the declared-value check compares that spelling instead of the
+  literal's type.
+- A map or set literal in any position other than an annotated Decl
+  (call argument, return value, field default, assignment) has nothing
+  to settle against: the literal's element types are typed but the
+  literal itself stays "a map" / "a set".
+- A call like ~expr.set_til_type(t)~ on a literal silently does nothing,
+  which cost a session a false belief that the untyped path's
+  derivation was redundant (it was not; it was restored).
+
+Reproducer for the positional gap:
+
+#+begin_src til
+mode script
+total := func(m: Map(Str, I64)) returns I64 { return m.len().to_i64() }
+println(total({"a": 1, "b": 2}).to_str())
+#+end_src
+
+On master 157992a:
+
+#+begin_example
+tmp/maparg.til:3:15: error: argument type mismatch for 'm': expected Map__Str_I64, got Map
+#+end_example
+
+while the Decl form ~m : Map(Str, I64) = {"a": 1, "b": 2}~ is accepted.
+
+*** Direction
+
+Give ~MapLit~ / ~SetLit~ the same ~til_type~ slot the other literal
+kinds have (the ~Literal~ enum already carries payload for ~Number~),
+settle it in ~infer_map_lit_expr~ / ~infer_set_lit_expr~ from the
+expected type (~ctx.generic_expected_type~ already reaches the literal
+when a Decl, call argument or field annotation provides one), and
+delete the Decl-side re-derivation.

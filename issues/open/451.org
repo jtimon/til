@@ -1,0 +1,43 @@
+# priority: medium
+# category: features
+** OPEN #451 T() on a primitive type parameter: "cannot instantiate builtin type"
+
+A generic whose body constructs a default value of its type parameter
+cannot be instantiated with a primitive, even under explicit type
+application:
+
+#+begin_src til
+mode script
+gzero := func(T: Type) returns T { return T() }
+println(gzero(I64).to_str())
+#+end_src
+
+#+begin_example
+tmp/prim_ctor.til:1:43: error: cannot instantiate builtin type 'I64'
+#+end_example
+
+The same call spelled directly, ~x := I64()~, fails the same way: the
+struct-construction path in ~infer_fcall_expr~ (src/self/typer.til,
+the ~sb.is_builtin~ branch) refuses every builtin, so there is no
+zero-argument constructor for ~I64~, ~F64~, ~Bool~, ~Str~ or ~USize~ at
+all. Structs, enums and aggregates (~Vec(I64)()~) construct fine.
+
+This is what blocks the natural reduction idiom over a generic
+variadic:
+
+#+begin_src til
+gsum := func(T: Type, xs: ..T) returns T {
+    mut acc := T()
+    for x in xs { acc = acc.add(x) }
+    return acc
+}
+#+end_src
+
+Today the body must start from ~xs[0]~ or take an explicit seed.
+
+*** Expected
+
+~T()~ for a primitive ~T~ produces that primitive's default (~0~, ~0.0~,
+~false~, ~""~), the same value an uninitialised field of that type gets
+in a struct constructor; the typer resolves the call to that constant
+instead of the struct-construction path. No new syntax.
