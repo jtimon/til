@@ -1540,7 +1540,7 @@ main := proc(args: ..Str) {
         "r.data.FCall = *val;\n    return r;", 1,
         "cat boot/til.c")
     add_count(tests, "niche_enum_ctor_keeps_heap_payload", "build",
-        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 74,
+        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 76,
         "cat boot/til.c")
     add_count(tests, "stack_delete_no_outer_box", "build",
         "Expr_delete(({ Expr *_oa = malloc(TIL_BOX(Expr))", 0,

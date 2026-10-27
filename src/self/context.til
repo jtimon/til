@@ -1354,6 +1354,25 @@ InterpOutputEvent := struct {
     text := ""
 }
 
+// One owned, temporary preparation frame. Nested generator evaluation swaps
+// frames without moving their boxed storage or caching a second source AST.
+ComptimeDefinition := struct {
+    name: Str
+    ref original: Expr
+    is_type: Bool
+}
+
+ComptimePreparation := struct {
+    definitions := Map(Str, Expr).new()
+    saved := Vec(ComptimeDefinition).new()
+    ready := Set(Str).new()
+    active := Set(Str).new()
+    globals := Vec(Str).new()
+    // Calls that cannot use target byte counts on host interpreter buffers.
+    // This table lives only for the current evaluation frame.
+    storage_calls := Map(UPtr, Str).new()
+}
+
 EvalState := struct {
     has_return := false
     has_break := false
@@ -1387,6 +1406,9 @@ EvalState := struct {
     // c_str on views constantly and legitimately (memcmp, substr, hash).
     interp_cstr_arg := false
     constfold_active := false
+    // Definition-generating conditions query target layouts. Their actual
+    // interpreter buffers still use the ordinary host layout tables.
+    target_size_queries := false
     // "Abandon this evaluation and unwind like an early return", checked by
     // eval_body / eval_while. Two producers, one meaning: a const-fold eval
     // that reached exit() (the fold is abandoned, the call is left for
@@ -1461,6 +1483,10 @@ Context := struct {
     // delete calls it -- reading it there is a heap-use-after-free (#309).
     target_usize_bytes : USize = 8
     target_simd_bits : USize = 128
+    // Active compile-time dependencies only; entries leave on return. This
+    // detects cycles without caching a second representation of definitions.
+    comptime_requests := Set(Str).new()
+    comptime_preparation := Option(ComptimePreparation).None
     // i386 SysV aligns 64-bit scalars to four bytes; other supported C
     // targets use eight. Only target word-fit queries use this ABI fact.
     target_scalar64_align : USize = 8
@@ -2229,7 +2255,7 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if fdd.default_value.is_none() { continue }
                 switch fdd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
+                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
                         // Issue #309: skip the auto-generated size method on a
                         // width-mismatched target so the emitted X_size()
                         // returns sizeof(ctype) (target width).
@@ -2257,7 +2283,7 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if nsd.default_value.is_none() { continue }
                 switch nsd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
+                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
                         // Issue #309: skip the auto-generated enum size method on
                         // a width-mismatched target (emitted X_size() -> sizeof).
                     } else {

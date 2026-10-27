@@ -2232,6 +2232,37 @@ priv infer_requested_value_method := proc(mut def: Expr, name_in: Str, method: S
     member.til_type = type_from_name(funcdef_of(body).sig.return_type, inner, ctx)
 }
 
+// A comparison's nonliteral operand can supply the type of a bare literal
+// on its left, just as a parameter supplies a literal argument's type. Only
+// use already-known types/signatures here: an omitted generic argument may
+// still need the receiver's normal destination evidence.
+priv numeric_operand_hint := func(e: Expr, scope: TypeScope, ctx: Context) returns Type {
+    if is_numeric_type(e.til_type()) { return e.til_type().clone() }
+    switch e.node_type {
+    case .Ident(id):
+        b_o := scope.get_binding_sym(id.ident_sym())
+        if b_o.is_some().and(type_binding_is_type_token(scope, b_o.unwrap(), ctx.symbols).not()) {
+            return b_o.unwrap().type.clone()
+        }
+    case .FCall:
+        if e.children.len() == 0 { return Type.Unknown }
+        mut fd_o := Option(ref Expr).None
+        switch e.children[0].node_type {
+        case .Ident(id): fd_o = scope.lookup_func_name(id.ident_name(ctx.symbols.names), ctx.symbols)
+        case .FieldAccess(fa):
+            owner := fcall_namespace_name(e, ctx.symbols)
+            def_o := scope.get_struct(owner, ctx.symbols)
+            if def_o.is_some() { fd_o = find_namespace_func(def_o.unwrap(), fa.field_access_name(ctx.symbols.names), scope, ctx.symbols) }
+        case:
+        }
+        if fd_o.is_some() {
+            return type_from_name_init_name(funcdef_of(fd_o.unwrap()).sig.return_type, scope, ctx.symbols)
+        }
+    case:
+    }
+    return Type.Unknown
+}
+
 priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) returns Bool {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     ref mut fa : Expr = e.children[0]
@@ -2299,7 +2330,37 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
     }
+    if obj.node_type.is_literal_num().and(e.children.len() == 2) {
+        switch method {
+        case "eq", "neq", "lt", "lte", "gt", "gte":
+            hint := numeric_operand_hint(e.children[1], scope, ctx)
+            if is_numeric_type(hint) {
+                if e.children[1].til_type().is(Type.Unknown) { infer_expr(scope, e.children[1], in_func, ctx) }
+                switch obj.node_type {
+                case .Literal(Literal.Num(n)):
+                    if literal_in_range(n.literal_num_text(), hint) { obj.set_til_type(hint) }
+                case:
+                }
+            }
+        case:
+        }
+    }
+    if ctx.comptime_preparation.is_some().and(ctx.infer_struct_fields_only.not()) {
+        switch obj.node_type {
+        case .Ident(id):
+            requested := id.ident_name(ctx.symbols.names).clone()
+            b_o := scope.get_binding_name(requested, ctx.symbols)
+            if b_o.is_none().or(type_binding_is_type_token(scope, b_o.unwrap(), ctx.symbols)) {
+                comptime_prepare_type(requested, comptime_frame(ctx), ctx)
+            }
+        case:
+        }
+    }
     infer_expr(scope, obj, in_func, ctx)
+    if ctx.comptime_preparation.is_some().and(ctx.infer_struct_fields_only.not()) {
+        owner := obj_method_type_name(obj, ctx.symbols)
+        comptime_prepare_type(owner, comptime_frame(ctx), ctx)
+    }
 
     if method.eq("cast").and(e.children.len() == 2) {
         source_name := obj_method_type_name(obj, ctx.symbols)
@@ -3419,6 +3480,9 @@ priv infer_array_vec_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str,
         e.set_til_type(Type.StructSym(ctx.symbols.intern(variadic_array_type_name(scope, elem_type, ctx.symbols))))
     } else {
         e.set_til_type(Type.StructSym(ctx.symbols.intern(variadic_vec_type_name(scope, elem_type, ctx.symbols))))
+    }
+    if ctx.comptime_preparation.is_some().and(ctx.infer_struct_fields_only.not()) {
+        comptime_prepare_type(type_name_ref(e.til_type(), ctx.symbols), comptime_frame(ctx), ctx)
     }
 }
 
@@ -9253,6 +9317,472 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     return ctx.errors
 }
 
+// A generator condition is typed and interpreted using temporary prepared
+// definitions. Restore the source registries before releasing these clones:
+// the ordinary whole-program sweeps still own validation of the source AST.
+priv comptime_frame := func(ctx: Context) returns ref ComptimePreparation {
+    switch ctx.comptime_preparation {
+    case .Some(frame): return frame
+    case .None: panic("compile-time preparation requested outside its frame")
+    }
+}
+
+priv comptime_definition_body := func(name: Str, source: Expr) returns Expr {
+    mut body := Expr.new(own NodeType.Body, source.line, source.col)
+    mut decl := Expr.new(own NodeType.Decl(Declaration(name = name.clone())), source.line, source.col)
+    decl.add_child(own source.clone())
+    body.add_child(own decl)
+    return body
+}
+
+priv comptime_prepare_type := proc(type_name: Str, mut prep: ComptimePreparation, mut ctx: Context) {
+    if ctx.errors > 0 { return }
+    name := resolve_type_alias(ctx.scope, type_name, ctx.symbols).clone()
+    request := format("type:", name)
+    if prep.active.has(request) {
+        context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, ctx.path, 0, 0,
+            format("cyclic type layout in generator condition: ", name))
+        return
+    }
+    if prep.definitions.has(name) { return }
+    mut def_o := ctx.scope.get_struct(name, ctx.symbols)
+    if def_o.is_none() {
+        if init_require_comptime_type(name, ctx.scope, ctx) {
+            def_o = ctx.scope.get_struct(name, ctx.symbols)
+        }
+    }
+    if def_o.is_none() { return }
+    prep.active.add(own request.clone())
+    ref original : Expr = def_o.unwrap()
+    prep.saved.push(own ComptimeDefinition(name = name.clone(), original = original, is_type = true))
+    prep.definitions.set(name, own comptime_definition_body(name, original))
+    ref mut program : Expr = prep.definitions[name]
+    ref mut stmt : Expr = program.children[0]
+    ref mut def : Expr = stmt.children[0]
+    ctx.scope.set_struct_def(name, def, ctx.symbols)
+    mut cell : UPtr = malloc(UPtr.size())
+    write_ptr(cell, def)
+    ctx.interp_type_defs.set(name, own cell)
+
+    type_methods_from(program, 0, ctx)
+    if def.node_type.is(NodeType.StructDef) {
+        mut inner := TypeScope(parent = safe_ref(ctx.scope), current_type_name = name.clone())
+        type_struct_fields(def, inner, true, ctx)
+        ref fields : Vec(Declaration) = structdef_of(def).fields
+        for field : Declaration in fields {
+            if field.own_type.is(OwnType.Shallow) {
+                comptime_prepare_type(decl_type_name(field, ctx.symbols), prep, ctx)
+            }
+        }
+        if ctx.errors > 0 { return }
+        compute_struct_layout(name, def, ctx.scope, ctx)
+        gen_struct_size_method_for_stmt(stmt, ctx)
+        gen_struct_clone_delete_for_stmt(stmt, ctx.scope, ctx)
+    } else if def.node_type.is(NodeType.EnumDef) {
+        if enum_is_niche(def).not() {
+            for vi in 0..enumdef_of(def).variants.len() {
+                payload := enum_variant_type(def, vi.to_i32())
+                if payload.len() > 0 && enum_variant_payload_ref(def, vi.to_i32()).not() {
+                    comptime_prepare_type(payload, prep, ctx)
+                }
+            }
+        }
+        compute_enum_layout(name, def, ctx.scope, ctx)
+        gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
+    }
+    prep.active.remove(request)
+}
+
+priv comptime_prepare_function := proc(name: Str, owner: Str, mut fdef: Expr, mut prep: ComptimePreparation, mut ctx: Context) {
+    key := format(owner, ".", name)
+    if prep.ready.has(key).or(prep.active.has(key)) { return }
+    if owner.len() > 0 {
+        extend_throwing_func_sigs(ctx, prep.definitions[owner])
+        compute_ref_return_summaries(prep.definitions[owner], ctx.scope, ctx)
+    } else {
+        extend_throwing_func_sigs(ctx, prep.definitions[name])
+        compute_ref_return_summaries(prep.definitions[name], ctx.scope, ctx)
+    }
+    if fdef.children.len() == 0 { return }
+    if funcdef_of(fdef).sig.func_type.is_bodyless() { return }
+    prep.active.add(own key.clone())
+    ref fd : FunctionDef = funcdef_of(fdef)
+    mut local := TypeScope(parent = safe_ref(ctx.scope), current_type_name = owner.clone())
+    for param : Declaration in fd.sig.params {
+        ptype := declaration_resolved_type(param, ctx.scope, ctx.symbols)
+        comptime_prepare_type(decl_type_name(param, ctx.symbols), prep, ctx)
+        local.set(param.name, ptype, param.is_mut, ctx.path, fdef.line, fdef.col, true, param.own_type, ctx.symbols)
+    }
+    comptime_prepare_type(fd.sig.return_type, prep, ctx)
+    expand_lazy_in_expr(fdef, local, 0, ctx)
+    comptime_prepare_expr(fdef.children[0], local, prep, ctx)
+    if owner.len() > 0 {
+        infer_namespace_method_body(local, fdef, owner, name, ctx)
+    } else {
+        infer_func_def_expr(local, fdef, name, ctx)
+    }
+    validate_numeric_literal_ranges(fdef, ctx)
+    comptime_prepare_expr(fdef.children[0], local, prep, ctx)
+    prep.active.remove(key)
+    prep.ready.add(own key)
+}
+
+priv comptime_prepare_named_function := proc(name_in: Str, mut prep: ComptimePreparation, mut ctx: Context) {
+    name := name_in.clone()
+    fdef_o := ctx.scope.lookup_func_name(name, ctx.symbols)
+    if fdef_o.is_none() { return }
+    if init_func_is_generic(fdef_o.unwrap(), ctx.symbols) { return }
+    if prep.definitions.has(name).not() {
+        ref original : Expr = fdef_o.unwrap()
+        prep.saved.push(own ComptimeDefinition(name = name.clone(), original = original, is_type = false))
+        prep.definitions.set(name, own comptime_definition_body(name, original))
+        ref entry : Expr = prep.definitions[name]
+        ctx.scope.set_func_def_name(name, entry.children[0].children[0], ctx.symbols)
+    }
+    ref mut entry : Expr = prep.definitions[name]
+    saved_path := ctx.path.clone()
+    ref mut binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+    binding.used = true
+    context_enter_file(ctx, binding.path)
+    comptime_prepare_function(name, "", entry.children[0].children[0], prep, ctx)
+    context_enter_file(ctx, saved_path)
+}
+
+priv comptime_prepare_global := proc(name: Str, mut prep: ComptimePreparation, mut ctx: Context) {
+    key := format("global:", name)
+    if prep.active.has(key) {
+        context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, ctx.path, 0, 0,
+            format("cyclic compile-time initializer for '", name, "'"))
+        return
+    }
+    if prep.definitions.has(name) { return }
+    for path, unit in ctx.imported {
+        for stmt : Expr in unit.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+            ref decl : Declaration = decl_of(stmt)
+            if decl.name != name { continue }
+            if decl.is_mut.or(decl.own_type.is(OwnType.Ref)) { return }
+            if stmt.children[0].node_type.is(NodeType.FuncDef)
+                .or(stmt.children[0].node_type.is(NodeType.StructDef))
+                .or(stmt.children[0].node_type.is(NodeType.EnumDef)) { return }
+            mut program := Expr.new(own NodeType.Body, stmt.line, stmt.col)
+            program.add_child(own stmt.clone())
+            prep.definitions.set(name, own program)
+            prep.active.add(own key.clone())
+            ref mut prepared : Expr = prep.definitions[name]
+            saved_path := ctx.path.clone()
+            context_enter_file(ctx, path)
+            mut local := TypeScope(parent = safe_ref(ctx.scope))
+            comptime_prepare_expr(prepared.children[0].children[0], local, prep, ctx)
+            if ctx.errors == 0 { infer_body(local, prepared, 0, 0, 0, 0, 0, ctx) }
+            comptime_prepare_expr(prepared, local, prep, ctx)
+            b_o := local.get_binding_name(name, ctx.symbols)
+            if b_o.is_some() {
+                ref b : TypeBinding = b_o.unwrap()
+                ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
+                ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+                global_binding.is_priv = decl.is_priv
+                global_binding.orig_name = decl.orig_name.clone()
+            }
+            context_enter_file(ctx, saved_path)
+            prep.active.remove(key)
+            prep.globals.push(own name.clone())
+            return
+        }
+    }
+}
+
+priv comptime_local_binding := func(scope: TypeScope, sym: Sym, ctx: Context) returns Bool {
+    binding_o := scope.get_binding_sym(sym)
+    if binding_o.is_none() { return false }
+    global_o := ctx.scope.get_binding_sym(sym)
+    return global_o.is_none().or(binding_o.unwrap().ptr_eq(global_o.unwrap()).not())
+}
+
+priv comptime_prepare_member := proc(e: Expr, scope: TypeScope, mut prep: ComptimePreparation, mut ctx: Context) {
+    if e.children.len() != 1 { return }
+    mut name := ""
+    switch e.children[0].node_type {
+    case .Ident(id): name = id.ident_name(ctx.symbols.names).clone()
+    case: return
+    }
+    binding_o := scope.get_binding_name(name, ctx.symbols)
+    if binding_o.is_some().and(type_binding_is_type_token(scope, binding_o.unwrap(), ctx.symbols).not()) { return }
+    method := fieldaccess_of(e).field_access_name(ctx.symbols.names).clone()
+    comptime_prepare_type(name, prep, ctx)
+    mut def_o := ctx.scope.get_struct(name, ctx.symbols)
+    if def_o.is_none() { return }
+    mut member_o := def_ns_get(def_o.unwrap(), method)
+    if member_o.is_none().or(member_o.unwrap().default_value.is_none()) { return }
+    ref mut body : Expr = member_o.unwrap().default_expr()
+    if body.node_type.is(NodeType.FuncDef) {
+        comptime_prepare_function(method, name, body, prep, ctx)
+    }
+}
+
+priv comptime_prepare_expr := proc(mut e: Expr, mut scope: TypeScope, mut prep: ComptimePreparation, mut ctx: Context) {
+    if ctx.errors > 0 { return }
+    switch e.node_type {
+    case .Ident(id):
+        if comptime_local_binding(scope, id.ident_sym(), ctx) { return }
+        name := id.ident_name(ctx.symbols.names).clone()
+        mut b_o := scope.get_binding_name(name, ctx.symbols)
+        if b_o.is_none() {
+            if init_require_comptime_type(name, ctx.scope, ctx) {
+                comptime_prepare_type(name, prep, ctx)
+                return
+            }
+            b_o = scope.get_binding_name(name, ctx.symbols)
+        }
+        if b_o.is_some() {
+            ref b : TypeBinding = b_o.unwrap()
+            if b.is_func_decl {
+                comptime_prepare_named_function(name, prep, ctx)
+                return
+            }
+            if type_binding_is_type_token(scope, b, ctx.symbols) {
+                comptime_prepare_type(name, prep, ctx)
+                return
+            }
+            if b.is_mut { return }
+        }
+        comptime_prepare_global(name, prep, ctx)
+    case .FuncDef(fd):
+        mut local := TypeScope(parent = safe_ref(scope))
+        for param : Declaration in fd.sig.params {
+            local.set(param.name, param.til_type, param.is_mut, ctx.path, e.line, e.col, true, param.own_type, ctx.symbols)
+        }
+        for capture : Declaration in fd.captures {
+            local.set(capture.name, capture.til_type, capture.is_mut, ctx.path, e.line, e.col, true, capture.own_type, ctx.symbols)
+        }
+        for mut child : Expr in e.children { comptime_prepare_expr(child, local, prep, ctx) }
+        return
+    case .ForIn(loop):
+        if e.children.len() > 0 { comptime_prepare_expr(e.children[0], scope, prep, ctx) }
+        mut local := TypeScope(parent = safe_ref(scope))
+        local.set(loop.name, loop.til_type, loop.is_mut, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols)
+        if loop.name2.len() > 0 { local.set(loop.name2, Type.Unknown, loop.is_mut2, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols) }
+        for i in 1..e.children.len() { comptime_prepare_expr(e.children[i], local, prep, ctx) }
+        return
+    case:
+    }
+    // Namespace aliases follow the target's semantic binding. The normal
+    // interpreter also has host ABI aliases in its type-definition table;
+    // an explicit canonical receiver keeps this evaluation independent of it.
+    if e.node_type.is(NodeType.FieldAccess).and(e.children.len() == 1) {
+        ref mut receiver : Expr = e.children[0]
+        switch receiver.node_type {
+        case .Ident(id):
+            name := id.ident_name(ctx.symbols.names).clone()
+            binding_o := scope.get_binding_name(name, ctx.symbols)
+            if binding_o.is_some().and(type_binding_is_type_token(scope, binding_o.unwrap(), ctx.symbols)) {
+                resolved := resolve_type_alias(scope, name, ctx.symbols).clone()
+                if resolved != name { receiver.node_type = ident_node(ctx.symbols.intern(resolved)) }
+            }
+        case:
+        }
+    }
+    if e.node_type.is(NodeType.Body) {
+        mut local := TypeScope(parent = safe_ref(scope))
+        for mut stmt : Expr in e.children {
+            comptime_prepare_expr(stmt, local, prep, ctx)
+            switch stmt.node_type {
+            case .Decl(dd):
+                local.set(dd.name, dd.til_type, dd.is_mut, ctx.path, stmt.line, stmt.col, false, dd.own_type, ctx.symbols)
+            case:
+            }
+        }
+        return
+    }
+    if e.node_type.is_literal_str() { comptime_prepare_type("Str", prep, ctx) }
+    for mut child : Expr in e.children { comptime_prepare_expr(child, scope, prep, ctx) }
+    if e.node_type.is(NodeType.FieldAccess) { comptime_prepare_member(e, scope, prep, ctx) }
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() == 0) { return }
+    ref callee : Expr = e.children[0]
+    switch callee.node_type {
+    case .Ident(id):
+        name := id.ident_name(ctx.symbols.names).clone()
+        if comptime_local_binding(scope, id.ident_sym(), ctx) { return }
+        comptime_prepare_type(name, prep, ctx)
+        comptime_prepare_named_function(name, prep, ctx)
+    case .FieldAccess:
+        // Its member was prepared while visiting the callee expression.
+    case:
+    }
+}
+
+priv ComptimeFunction := struct {
+    owner: Str
+    name: Str
+    ref definition: Expr
+}
+
+priv comptime_collect_functions := func(program: Expr, mut functions: Vec(ComptimeFunction)) {
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+        ref decl : Declaration = decl_of(stmt)
+        ref def : Expr = stmt.children[0]
+        if def.node_type.is(NodeType.FuncDef) {
+            functions.push(own ComptimeFunction(owner = "", name = decl.name.clone(), definition = def))
+        } else if def.node_type.is(NodeType.StructDef).or(def.node_type.is(NodeType.EnumDef)) {
+            mut index : USize = 0
+            ref members : Vec(Declaration) = def_ns_decls(def)
+            for member : Declaration in members {
+                method := def_ns_name_at(def, index).clone()
+                index++
+                if member.default_value.is_some().and(member.default_expr().node_type.is(NodeType.FuncDef)) {
+                    functions.push(own ComptimeFunction(owner = decl.name.clone(), name = method.clone(), definition = member.default_expr()))
+                }
+            }
+        }
+    }
+}
+
+priv comptime_layout_dependency := func(e: Expr, queries: Set(UPtr), ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.FCall).and(fcall_is_direct(e)) {
+        called := fcall_callee_fdef(e, ctx.scope, ctx.symbols)
+        if called.is_some().and(queries.has(word_bits(to_ptr(called.unwrap())).to_uptr())) { return true }
+    }
+    for child : Expr in e.children {
+        if comptime_layout_dependency(child, queries, ctx) { return true }
+    }
+    return false
+}
+
+priv comptime_raw_storage_calls := func(e: Expr, mut calls: Map(UPtr, Str), ctx: Context) {
+    if e.node_type.is(NodeType.FCall).and(fcall_is_direct(e)) {
+        called := fcall_callee_fdef(e, ctx.scope, ctx.symbols)
+        if called.is_some() {
+            ref fd : FunctionDef = funcdef_of(called.unwrap())
+            mut raw := fd.sig.return_type == "Dynamic"
+            mut numeric := false
+            for param : Declaration in fd.sig.params {
+                pt := declaration_resolved_type(param, ctx.scope, ctx.symbols)
+                if pt.is(Type.Dynamic) { raw = true }
+                if is_numeric_type(pt) { numeric = true }
+            }
+            if raw.and(numeric) {
+                calls.set(word_bits(to_ptr(e)).to_uptr(), own e.children[0].node_type.head_str(ctx.symbols.names))
+            }
+        }
+    }
+    for child : Expr in e.children { comptime_raw_storage_calls(child, calls, ctx) }
+}
+
+// Target sizeof facts can be used as ordinary values. They cannot also be
+// used to address/copy a differently laid-out host object. Keep such opaque
+// byte operations non-foldable and diagnose only if execution reaches them;
+// an untaken branch must remain untaken, including error-reporting paths.
+priv comptime_check_storage_domains := func(function: Expr, mut prep: ComptimePreparation, ctx: Context) {
+    mut functions := Vec(ComptimeFunction).new()
+    for program : Expr in prep.definitions.values { comptime_collect_functions(program, functions) }
+    functions.push(own ComptimeFunction(owner = "", name = "generator condition", definition = function))
+    mut queries := Set(UPtr).new()
+    for f : ComptimeFunction in functions {
+        ref fd : FunctionDef = funcdef_of(f.definition)
+        if f.name.eq("size").and(fd.auto_generated).and(fd.is_enum_variant_ctor.not()) {
+            if target_value_size(f.owner, ctx.scope, ctx) != container_elem_size(f.owner, ctx) {
+                queries.add(own word_bits(to_ptr(f.definition)).to_uptr())
+            }
+        }
+    }
+    mut changed := true
+    while changed {
+        changed = false
+        for f : ComptimeFunction in functions {
+            address := word_bits(to_ptr(f.definition)).to_uptr()
+            if queries.has(address) { continue }
+            if comptime_layout_dependency(f.definition, queries, ctx) {
+                queries.add(own address)
+                changed = true
+            }
+        }
+    }
+    for f : ComptimeFunction in functions {
+        if queries.has(word_bits(to_ptr(f.definition)).to_uptr()) {
+            comptime_raw_storage_calls(f.definition, prep.storage_calls, ctx)
+        }
+    }
+}
+
+// Generator branches use the same typed interpreter as ordinary macro
+// folding. Preparation is local to this evaluation; no parallel size/Boolean
+// expression language or persistent copy of declarations is maintained.
+eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
+    saved_throw_types := ctx.throw_type_registry.clone()
+    saved_throws := ctx.throws_global.clone()
+    saved_owner := ctx.synth_owner.clone()
+    saved_hoist := ctx.hoist_counter
+    saved_va := ctx.va_counter
+    saved_kw := ctx.kw_counter
+    saved_coll := ctx.coll_counter
+    saved_bang := ctx.bang_counter
+    ctx.synth_owner = "comptime"
+    ctx.hoist_counter = 0
+    ctx.va_counter = 0
+    ctx.kw_counter = 0
+    ctx.coll_counter = 0
+    ctx.bang_counter = 0
+    mut saved_preparation := Option(ComptimePreparation).None
+    swap(Option(ComptimePreparation), ctx.comptime_preparation, saved_preparation)
+    ctx.comptime_preparation = Option(ComptimePreparation).Some(own ComptimePreparation())
+    ref mut prep : ComptimePreparation = comptime_frame(ctx)
+    mut local := TypeScope(parent = safe_ref(scope))
+    comptime_prepare_expr(condition, local, prep, ctx)
+    mut fd := FunctionDef()
+    fd.sig.func_type = FuncType.Macro
+    fd.sig.return_type = "Bool"
+    fd.sig.return_own_type = OwnType.Shallow
+    mut function := Expr.new(own NodeType.FuncDef(fd), condition.line, condition.col)
+    mut body := Expr.new(own NodeType.Body, condition.line, condition.col)
+    mut ret := Expr.new(own NodeType.Return, condition.line, condition.col)
+    ret.add_child(own condition.clone())
+    body.add_child(own ret)
+    function.add_child(own body)
+    expand_lazy_in_expr(function, local, 0, ctx)
+    if ctx.errors == 0 { infer_func_def_expr(local, function, "", ctx) }
+    if ctx.errors == 0 { validate_numeric_literal_ranges(function, ctx) }
+    if ctx.errors == 0 { comptime_prepare_expr(function.children[0], local, prep, ctx) }
+    mut result : I32 = -1
+    if ctx.errors == 0 {
+        comptime_check_storage_domains(function, prep, ctx)
+        mut runtime := scope_new_owned(Option(ref Scope).None)
+        for mut program : Expr in prep.definitions.values {
+            populate_cached_aggregate_defs(ctx, program)
+        }
+        mut globals := Expr.new(own NodeType.Body, condition.line, condition.col)
+        for name : Str in prep.globals {
+            ref source : Expr = prep.definitions[name]
+            for stmt : Expr in source.children { globals.add_child(own stmt.clone()) }
+        }
+        result = constfolder_eval_generator_function(runtime, function, prep.definitions, globals, ctx)
+        scope_drop_owned_bindings(runtime)
+        scope_free(own runtime)
+    }
+    for saved : ComptimeDefinition in prep.saved {
+        if saved.is_type {
+            ctx.scope.set_struct_def(saved.name, saved.original, ctx.symbols)
+            mut cell : UPtr = malloc(UPtr.size())
+            write_ptr(cell, saved.original)
+            ctx.interp_type_defs.set(saved.name, own cell)
+        } else {
+            ctx.scope.set_func_def_name(saved.name, saved.original, ctx.symbols)
+        }
+    }
+    ctx.synth_owner = saved_owner
+    ctx.hoist_counter = saved_hoist
+    ctx.va_counter = saved_va
+    ctx.kw_counter = saved_kw
+    ctx.coll_counter = saved_coll
+    ctx.bang_counter = saved_bang
+    ctx.throw_type_registry = saved_throw_types
+    ctx.throws_global = saved_throws
+    mut finished_preparation := Option(ComptimePreparation).None
+    swap(Option(ComptimePreparation), ctx.comptime_preparation, finished_preparation)
+    swap(Option(ComptimePreparation), ctx.comptime_preparation, saved_preparation)
+    return result
+}
+
 // Multi-sweep typer driver (#174 / #338 / #165). type_file first prepares
 // enum/interface methods needed by field defaults, then infers every struct
 // field, runs field-dependent methodgen/layout, and finally type-checks
@@ -10566,7 +11096,7 @@ priv target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Cont
     }
 }
 
-priv target_value_size := func(type_name: Str, scope: TypeScope, ctx: Context) returns USize {
+target_value_size := func(type_name: Str, scope: TypeScope, ctx: Context) returns USize {
     mut sz : USize = 0
     mut al : USize = 1
     target_value_size_align(type_name, scope, ctx, sz, al)

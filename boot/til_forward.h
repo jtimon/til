@@ -289,6 +289,8 @@ enum {
 };
 typedef struct InterpOutputStream InterpOutputStream;
 typedef struct InterpOutputEvent InterpOutputEvent;
+typedef struct ComptimeDefinition ComptimeDefinition;
+typedef struct ComptimePreparation ComptimePreparation;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
@@ -301,6 +303,7 @@ typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Map__Str_FFITypePtrBox Map__Str_FFITypePtrBox;
 typedef struct Vec__UPtr Vec__UPtr;
+typedef struct Vec__ComptimeDefinition Vec__ComptimeDefinition;
 enum {
     Option__I64_TAG_None,
     Option__I64_TAG_Some
@@ -310,6 +313,7 @@ typedef struct Map__UPtr_Str Map__UPtr_Str;
 typedef struct Vec__InterpOutputEvent Vec__InterpOutputEvent;
 typedef struct Map__UPtr_ForeignPlace Map__UPtr_ForeignPlace;
 typedef struct Map__Str_Mode Map__Str_Mode;
+typedef struct Option__ComptimePreparation Option__ComptimePreparation;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
@@ -334,11 +338,6 @@ typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
-enum {
-    Option__U64_TAG_None,
-    Option__U64_TAG_Some
-};
-typedef struct Option__U64 Option__U64;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
 typedef struct Vec__GenericFuncSource Vec__GenericFuncSource;
 enum {
@@ -366,12 +365,16 @@ enum {
 typedef struct Target Target;
 typedef struct TargetCpu TargetCpu;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
+typedef struct priv___src_self_typer_til__ComptimeFunction priv___src_self_typer_til__ComptimeFunction;
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
 typedef struct RootBits RootBits;
 typedef struct DepositAcc DepositAcc;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
+typedef struct Vec__priv___src_self_typer_til__ComptimeFunction Vec__priv___src_self_typer_til__ComptimeFunction;
+typedef struct Set__UPtr Set__UPtr;
+typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__RootBits Vec__RootBits;
@@ -390,11 +393,9 @@ typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_s
 typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
-typedef struct Set__UPtr Set__UPtr;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
 typedef struct Option__ref_FunctionDef Option__ref_FunctionDef;
 typedef struct Vec__U8 Vec__U8;
-typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
 typedef struct SymMap__U8 SymMap__U8;
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef Map__Str_priv___src_self_scavenger_til__DeclRef;
@@ -456,6 +457,11 @@ typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
+enum {
+    Option__U64_TAG_None,
+    Option__U64_TAG_Some
+};
+typedef struct Option__U64 Option__U64;
 typedef struct Array__U64 Array__U64;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
@@ -906,6 +912,13 @@ typedef struct InterpOutputEvent {
 } InterpOutputEvent;
 
 
+typedef struct ComptimeDefinition {
+    Str name;
+    Expr *original;
+    Bool is_type;
+} ComptimeDefinition;
+
+
 typedef struct Vec__BorrowRoot {
     U8 *data;
     USize count;
@@ -941,6 +954,13 @@ typedef struct Vec__UPtr {
 } Vec__UPtr;
 
 
+typedef struct Vec__ComptimeDefinition {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__ComptimeDefinition;
+
+
 struct Option__I64 {
     U8 tag;
     union {
@@ -961,6 +981,10 @@ typedef struct Vec__InterpOutputEvent {
     USize cap;
 } Vec__InterpOutputEvent;
 
+
+struct Option__ComptimePreparation {
+    ComptimePreparation *data;
+};
 
 struct Option__Scope {
     Scope *data;
@@ -1092,14 +1116,6 @@ struct Option__ref_Mode {
     Mode *data;
 };
 
-struct Option__U64 {
-    U8 tag;
-    union {
-        U64 Some;
-        void *_til_payload_align;
-    } data;
-};
-
 typedef struct Vec__GenericFuncSource {
     U8 *data;
     USize count;
@@ -1126,6 +1142,13 @@ struct priv___src_self_typer_til__CtorArg {
     Expr *data;
 };
 
+typedef struct priv___src_self_typer_til__ComptimeFunction {
+    Str owner;
+    Str name;
+    Expr *definition;
+} priv___src_self_typer_til__ComptimeFunction;
+
+
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots {
     Vec__BorrowRoot direct;
     Vec__BorrowRoot indirect;
@@ -1150,6 +1173,24 @@ typedef struct Vec__priv___src_self_typer_til__CtorArg {
     USize cap;
 } Vec__priv___src_self_typer_til__CtorArg;
 
+
+typedef struct Vec__priv___src_self_typer_til__ComptimeFunction {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_typer_til__ComptimeFunction;
+
+
+typedef struct Set__UPtr {
+    U8 *data;
+    USize count;
+    USize cap;
+} Set__UPtr;
+
+
+struct Option__ref_Scope {
+    Scope *data;
+};
 
 typedef struct Vec__priv___src_self_typer_til__CoverageNode {
     U8 *data;
@@ -1225,6 +1266,15 @@ typedef struct priv___src_self_garbager_til__GcFlowKills {
 } priv___src_self_garbager_til__GcFlowKills;
 
 
+typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
+    Set__UPtr consumed;
+    Bool mixed;
+    UPtr mixed_key;
+    U32 mixed_line;
+    U32 mixed_col;
+} priv___src_self_garbager_til__GcAssignVerdicts;
+
+
 typedef struct priv___src_self_garbager_til__BodyFacts {
     USize words;
     USize n_stmts;
@@ -1280,13 +1330,6 @@ typedef struct Vec__priv___src_self_garbager_til__LocalInfo {
 } Vec__priv___src_self_garbager_til__LocalInfo;
 
 
-typedef struct Set__UPtr {
-    U8 *data;
-    USize count;
-    USize cap;
-} Set__UPtr;
-
-
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
     U8 *data;
     USize count;
@@ -1304,10 +1347,6 @@ typedef struct Vec__U8 {
     USize cap;
 } Vec__U8;
 
-
-struct Option__ref_Scope {
-    Scope *data;
-};
 
 typedef struct priv___src_self_scavenger_til__DeclRef {
     Str path;
@@ -1684,6 +1723,14 @@ struct Option__ref_ffi_type {
     ffi_type *data;
 };
 
+struct Option__U64 {
+    U8 tag;
+    union {
+        U64 Some;
+        void *_til_payload_align;
+    } data;
+};
+
 typedef struct Array__U64 {
     U8 *data;
     USize cap;
@@ -1987,6 +2034,16 @@ typedef struct ForeignPlace {
 } ForeignPlace;
 
 
+typedef struct ComptimePreparation {
+    Map__Str_Expr definitions;
+    Vec__ComptimeDefinition saved;
+    Set__Str ready;
+    Set__Str active;
+    Vec__Str globals;
+    Map__UPtr_Str storage_calls;
+} ComptimePreparation;
+
+
 typedef struct SymMap__TypeBinding {
     Vec__U32 keys;
     Vec__TypeBinding values;
@@ -2065,15 +2122,6 @@ typedef struct Map__Str_RootBits {
     Vec__Str keys;
     Vec__RootBits values;
 } Map__Str_RootBits;
-
-
-typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
-    Set__UPtr consumed;
-    Bool mixed;
-    UPtr mixed_key;
-    U32 mixed_line;
-    U32 mixed_col;
-} priv___src_self_garbager_til__GcAssignVerdicts;
 
 
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
@@ -2220,6 +2268,7 @@ typedef struct EvalState {
     OwnType interp_ret_own_type;
     Bool interp_cstr_arg;
     Bool constfold_active;
+    Bool target_size_queries;
     Bool eval_aborted;
     Bool repl_session;
     Bool embedded;
@@ -2249,6 +2298,8 @@ typedef struct Context {
     Str target_uptr_pname;
     USize target_usize_bytes;
     USize target_simd_bits;
+    Set__Str comptime_requests;
+    Option__ComptimePreparation comptime_preparation;
     USize target_scalar64_align;
     I64 anon_type_counter;
     Bool compile_mode;

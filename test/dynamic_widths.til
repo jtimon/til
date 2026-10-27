@@ -138,11 +138,22 @@ main := proc(args: ..Str) {
     File.remove_tree(WORK)
     mkdir_p(WORK)
     check_dynamic_widths(compiler)
-    // A user-defined size() is not a target primitive fact. It must produce
-    // an expansion diagnostic, never silently choose the false branch.
+    // A well-typed runtime value is not a compile-time input. Failure must
+    // diagnose the unavailable value, never select the false branch.
     File.writefile(format(WORK, "/dynamic_wide.til"),
-        "mode script\nBox := struct { namespace: size := func() returns USize { return 1 } }\nchoose := macro(T: Type) returns FuncDef { if T.size() <= 8 { return func() returns I64 { return 1 } } else { return func() returns I64 { return 2 } } }\nchosen := choose(Box)\nprintln(chosen().to_str())\n")
+        "mode script\nmut runtime_limit: USize = 8\nchoose := macro(T: Type) returns FuncDef { if T.size() <= runtime_limit { return func() returns I64 { return 1 } } else { return func() returns I64 { return 2 } } }\nchosen := choose(U8)\nprintln(chosen().to_str())\n")
     reject(Cmd.new(compiler, "translate", "dynamic_wide.til"),
-        "cannot evaluate definition-generating macro condition")
+        "not known at compile time")
+    // Exercise target aggregate layout through an ordinary custom method.
+    // The skipped raw allocation must not fail merely because it was typed.
+    File.writefile(format(WORK, "/dynamic_wide.til"),
+        "mode script\nRecord := struct { address: UPtr; byte: U8 }\nCustom := struct { namespace:\nsize := func() returns USize { values := array(Record, Record(address = 11, byte = 3), Record(address = 22, byte = 5)); ref second: Record = values.unsafe_get(1); return second.byte.to_usize() }\n}\nchoose := macro(skip: Bool) returns FuncDef { if skip || Custom.size() == 5 { return func() returns Bool { return true } } else { return func() returns Bool { return false } } }\nselected := choose(true)\nassert(selected())\n")
+    _skipped := execute(Cmd.new(compiler, "translate", "--target=linux-x86", "--usize=64", "dynamic_wide.til"))
+    source := File.readfile(format(WORK, "/dynamic_wide.til"))
+    File.writefile(format(WORK, "/dynamic_wide.til"), source.replace("choose(true)", "choose(false)"))
+    if target_uptr_name(detect_current_target()) == "U64" {
+        reject(Cmd.new(compiler, "translate", "--target=linux-x86", "--usize=64", "dynamic_wide.til"),
+            "with different host and target storage sizes")
+    }
     println("dynamic width options passed")
 }

@@ -291,9 +291,10 @@ apply_bytes("abcd", count_bytes) // G inferred as U64 from count_bytes
 A generator can choose its returned definition with ~if~ / ~else if~ /
 ~else~. Selection happens during initialization, after argument substitution
 and before typing the generated body; it does not leave a runtime branch.
-Alongside ~T.is(Type.Primitive(...))~ tests, conditions support ~<~, ~<=~,
-~==~, ~!=~, ~>=~ and ~>~ comparisons between primitive ~T.size()~ queries
-and non-negative integer literals (including substituted literal arguments).
+Alongside ~T.is(Type.Primitive(...))~ tests, conditions use ordinary typed
+expressions evaluated by the shared compile-time interpreter. Dependencies
+are prepared on demand, including aggregate size methods and user-defined
+functions, their helpers, loops, and immutable global values.
 Combine conditions with ~or~ / ~and~, in method or plain-call form. ~||~ /
 ~&&~ are sugar for these operations and retain their left-to-right
 short-circuit behavior: an operand skipped by ~or~ or ~and~ is not evaluated.
@@ -310,15 +311,18 @@ fits_word := make_width_check(USize, 4)
 #+end_src
 
 These size conditions describe the compilation TARGET. ~USize~, ~UPtr~ and
-aliases to primitive types resolve through the target type scope, including
+type aliases resolve through the target type scope, including
 ~--usize~ overrides. Ordinary interpreter storage-size queries remain
 host-sized; they are not used to make this decision. Two size queries can
 also be compared directly, for example ~USize.size() <= UPtr.size()~.
 
-Aggregate sizes, user-defined size methods and runtime-dependent expressions
-are not evaluated by this early condition evaluator. An unsupported
-condition is an expansion error, not a false condition. The same selection
-rules apply to generators returning ~StructDef~ or ~EnumDef~.
+Generated struct and enum size methods describe target layout too;
+user-defined ~size~ methods execute their ordinary bodies. Interpreter
+storage remains host-sized. Layout-dependent raw-memory calls are rejected
+when their size dependencies differ between host and target storage.
+Unavailable runtime values and calls that cannot be evaluated produce an
+expansion error, not a false condition. The same selection rules apply to
+generators returning ~StructDef~ or ~EnumDef~.
 
 Known gap: an alias of a generated function (~add5~ above) can be
 called but not yet used as a function VALUE (#425); the inline form

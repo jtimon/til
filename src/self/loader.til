@@ -2848,7 +2848,7 @@ priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, mu
     }
 }
 
-priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
+expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
     if depth > 256 { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]

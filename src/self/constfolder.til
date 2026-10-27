@@ -3,6 +3,80 @@ mode lib
 import("context")
 
 // Constfolder: constant folding for macros and pure functions
+// Run a prepared zero-argument condition through the ordinary macro evaluator.
+// This entry is used before the normal file-body folding sweep: generators
+// need the Boolean result in order to declare the selected definition.
+constfolder_eval_generator_function := proc(mut scope: Scope, mut function: Expr,
+        definitions: Map(Str, Expr), mut globals: Expr, mut ctx: Context) returns I32 {
+    mut saved_ns := Option(Scope).None
+    swap(Option(Scope), ctx.eval.ns_fields, saved_ns)
+    ctx.eval.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    name := "hoisted__generator_condition"
+    mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    write_ptr(raw, function)
+    scope_set_raw_owned(scope, name, raw, interp_intern_type(Type.Body, ctx), OwnType.Shallow, ctx)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), function.line, function.col)
+    call.add_child(own Expr.new(own ident_node(ctx.symbols.intern(name)), function.line, function.col))
+    call.set_til_type(Type.Primitive(Primitive.Bool))
+    mark_fcall_direct(call)
+    saved_active := ctx.eval.constfold_active
+    saved_target_sizes := ctx.eval.target_size_queries
+    saved_aborted := ctx.eval.eval_aborted
+    ctx.eval.constfold_active = true
+    ctx.eval.target_size_queries = true
+    ctx.eval.eval_aborted = false
+    mut saved_known := Option(Scope).None
+    swap(Option(Scope), ctx.constfolder_known, saved_known)
+    ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    mut saved_foldables := Map(Str, FuncType).new()
+    swap(Map(Str, FuncType), ctx.constfolder_foldables, saved_foldables)
+    mut saved_assigned := Set(Str).new()
+    swap(Set(Str), ctx.constfolder_assigned, saved_assigned)
+    mut saved_ffi := FfiState()
+    swap(FfiState, ctx.ffi, saved_ffi)
+    runtime_prefix := format(realpath_str(format(ctx.import_support_dir, "/src")), "/")
+    for program : Expr in definitions.values { ffi_init_struct_defs_append(program, ctx) }
+    for program : Expr in definitions.values {
+        ref stmt : Expr = program.children[0]
+        constfolder_classify_stmt(stmt, ctx)
+        b_o := ctx.scope.get_binding_name(decl_of(stmt).name, ctx.symbols)
+        mut runtime_decl := false
+        if b_o.is_some() { runtime_decl = realpath_str(b_o.unwrap().path).starts_with(runtime_prefix) }
+        ffi_init_scan_program(program, ctx, runtime_decl)
+        ref rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
+            constfolder_register_fold_scope(scope, program, ctx)
+        }
+    }
+    ctx.ffi.loaded = true
+    process_body(scope, globals, ctx, true)
+    ctx.eval.constfold_active = true
+    folded := try_eval_call(scope, call, true, ctx)
+    mut answer : I32 = -1
+    if folded.is_some() {
+        switch folded.unwrap().node_type {
+        case .Literal(Literal.Bool(value)):
+            answer = 0
+            if value { answer = 1 }
+        case: function.type_error("generator condition did not produce a compile-time Bool", ctx)
+        }
+    }
+    constfolder_clear_known(ctx)
+    swap(Option(Scope), ctx.constfolder_known, saved_known)
+    swap(Map(Str, FuncType), ctx.constfolder_foldables, saved_foldables)
+    swap(Set(Str), ctx.constfolder_assigned, saved_assigned)
+    // This frame borrowed process symbols; it did not open the user bridge.
+    ctx.ffi.loaded = false
+    ffi_cleanup(ctx)
+    swap(FfiState, ctx.ffi, saved_ffi)
+    ctx.eval.constfold_active = saved_active
+    ctx.eval.target_size_queries = saved_target_sizes
+    ctx.eval.eval_aborted = saved_aborted
+    interpreter_free_ns(ctx)
+    swap(Option(Scope), ctx.eval.ns_fields, saved_ns)
+    return answer
+}
+
 constfolder_clear_known := func(mut ctx: Context) {
     if ctx.constfolder_known.is_some() {
         scope_drop_owned_bindings(known_scope(ctx))
@@ -957,6 +1031,10 @@ priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, mut ctx: Context)
     if fc_fdef_o.is_none() { return Option(Expr).None }
     ref fc_fdef : Expr = fc_fdef_o.unwrap()
     if fc_fdef.node_type.is(NodeType.FuncDef).not() { return Option(Expr).None }
+    // Generated storage queries carry host literals for ordinary interpreted
+    // execution. In a generator, let the shared evaluator apply target facts
+    // instead of extracting that implementation literal as the answer.
+    if ctx.eval.target_size_queries.and(funcdef_of(fc_fdef).auto_generated) { return Option(Expr).None }
     lit_o := extract_trivial_literal_return(fc_fdef, ctx.symbols)
     if lit_o.is_none() { return Option(Expr).None }
     ref lit : Expr = lit_o.unwrap()
@@ -1191,7 +1269,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
         raw_result_drop(fcall.til_type(), result, false, ctx)
         scope_drop_owned_bindings(eval_scope)
         scope_free(own eval_scope)
-        if require_known {
+        if require_known.and(ctx.eval.target_size_queries.not()) {
             panic(
                 __LOC__,
                 ctx.path, ":", fcall.line.to_str(), ":", fcall.col.to_str(),

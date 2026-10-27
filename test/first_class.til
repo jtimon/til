@@ -1269,6 +1269,41 @@ test_size_condition_generators := test() {
 }
 
 // --- Conditional macro bodies (issue #58) ---
+GenericSizePoint := struct { x: I32; y: I32 }
+GenericSizeTag := enum { First, Second }
+GenericSizePayload := enum { Empty, Value: U32 }
+priv SIZE_METHOD_BIAS : USize = 2
+priv size_method_value := func() returns USize {
+    mut value := SIZE_METHOD_BIAS
+    for i in 0..3 { value = value + i.to_usize() }
+    return value + 1
+}
+GenericSizeCustom := struct {
+    storage: U64
+namespace:
+    size := func() returns USize { return size_method_value() }
+}
+general_size_is := macro(T: Type, expected: USize) returns FuncDef {
+    if T.size() == expected {
+        return func() returns Bool { return true }
+    } else {
+        return func() returns Bool { return false }
+    }
+}
+general_point_size := general_size_is(GenericSizePoint, 8)
+general_tag_size := general_size_is(GenericSizeTag, 1)
+general_custom_size := general_size_is(GenericSizeCustom, 6)
+general_custom_not_storage := general_size_is(GenericSizeCustom, 8)
+general_payload_fit := size_gt441(GenericSizePayload, 1)
+
+test_general_size_methods_in_generators := test() {
+    assert(general_point_size())
+    assert(general_tag_size())
+    assert(general_payload_fit())
+    assert(general_custom_size())
+    assert(general_custom_not_storage().not())
+}
+
 // init's pre-pass evaluates `T.is(Type.<Variant>)` at expand time and
 // picks the matching branch's return literal. Else-if chains and bare
 // else both work; StructDef / EnumDef / FuncDef returns are all

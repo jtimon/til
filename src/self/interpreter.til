@@ -2210,7 +2210,19 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         return raw_unit_result(expr_type, ctx)
     case .Ident(ident):
         mut hb_o := scope_lookup_heap_binding(scope, ident.ident_name(ctx.symbols.names))
-        if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name(ctx.symbols.names)) }
+        if hb_o.is_none() {
+            // Missing values are an expected "not known" result during
+            // folding, not an interpreter binding invariant violation.
+            if ctx.eval.constfold_active {
+                if ctx.eval.target_size_queries {
+                    e.type_error(format("generator condition value '", ident.ident_name(ctx.symbols.names), "' is not known at compile time"), ctx)
+                }
+                ctx.eval.eval_aborted = true
+                info.is_word = raw_type_is_prim(expr_type, ctx)
+                return raw_unit_result(expr_type, ctx)
+            }
+            panic("expression binding not found: ", ident.ident_name(ctx.symbols.names))
+        }
         ref mut hb : HeapBinding = hb_o.unwrap()
         ffi_refresh_external_place(hb, ctx)
         if hb_type(hb).is(Type.Dynamic).not().or(expr_type.is(Type.Dynamic)) {
@@ -3739,6 +3751,19 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
 }
 
 priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Type, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic = bits_word(0)) returns Dynamic {
+    if ctx.eval.target_size_queries {
+        switch ctx.comptime_preparation {
+        case .Some(frame):
+            address := word_bits(to_ptr(e)).to_uptr()
+            if frame.storage_calls.has(address) {
+                e.type_error(format("cannot evaluate layout-dependent raw call '", frame.storage_calls[address], "' with different host and target storage sizes"), ctx)
+                ctx.eval.eval_aborted = true
+                info.is_word = raw_type_is_prim(call_type, ctx)
+                return raw_unit_result(call_type, ctx)
+            }
+        case .None: panic("target-size evaluation has no preparation frame")
+        }
+    }
     ref mut callee_expr : Expr = e.children[0]
     info.is_ref = false
     info.is_word = destination.is_null().and(raw_type_is_prim(call_type, ctx))
@@ -3787,6 +3812,16 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         ref func_def : Expr = callable_raw_func_def(fn_raw)
         set_resolved_call_result_info(call_type, func_def, destination, info, ctx)
         ref iface_fd : FunctionDef = funcdef_of(func_def)
+        if ctx.eval.target_size_queries.and(iface_fd.auto_generated).and(iface_fd.is_enum_variant_ctor.not()) {
+            ref size_method : FieldAccessData = fieldaccess_of(callee_expr)
+            if size_method.field_access_name(ctx.symbols.names) == "size" {
+                mut size_fallback := ""
+                ref sized_name : Str = field_access_sname(callee_expr, size_fallback, ctx.symbols)
+                size := target_value_size(sized_name, ctx.scope, ctx)
+                if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
+                return raw_result_finish(call_type, bits_word(size.to_u64()), destination, false, ctx)
+            }
+        }
         if iface_fd.sig.func_type.is_ext() {
             mut iface_fallback := ""
             ref iface_name : Str = field_access_sname(callee_expr, iface_fallback, ctx.symbols)

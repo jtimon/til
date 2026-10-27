@@ -2956,78 +2956,12 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), re
     }
 }
 
-// #441: these are target type facts, not calls into the host interpreter.
-// Aggregate layouts and user-defined size methods are deliberately outside
-// this early evaluator's contract. None means unknown/unsupported, not zero.
-priv init_macro_size_operand := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(U64) {
-    switch e.node_type {
-    case .Literal(Literal.Num(n)):
-        if n.is_float().or(literal_in_range(n.literal_num_text(), Type.Primitive(Primitive.U64)).not()) {
-            return Option(U64).None
-        }
-        return Option(U64).Some(n.literal_num_text().to_u64())
-    case .FCall:
-        if e.children.len() != 1 { return Option(U64).None }
-        ref callee : Expr = e.children[0]
-        switch callee.node_type {
-        case .FieldAccess(fa):
-            if fa.field_access_name(symbols.names) != "size" { return Option(U64).None }
-            if callee.children.len() != 1 { return Option(U64).None }
-            switch callee.children[0].node_type {
-            case .Ident(id):
-                resolved := type_from_name_init_name(id.ident_name(symbols.names), scope, symbols)
-                switch resolved {
-                case .Primitive(p):
-                    mut size : USize = 0
-                    mut align : USize = 0
-                    builtin_primitive_size_align(p, size, align)
-                    return Option(U64).Some(size.to_u64())
-                case:
-                }
-            case:
-            }
-        case:
-        }
-    case:
-    }
-    return Option(U64).None
-}
-
-priv init_macro_logic_eval := func(lhs: Expr, rhs: Expr, is_or: Bool, scope: TypeScope, symbols: SymbolPool) returns I32 {
-    left := init_macro_cond_eval(lhs, scope, symbols)
-    if left < 0 { return -1 }
-    if is_or {
-        if left == 1 { return 1 }
-    } else {
-        if left == 0 { return 0 }
-    }
-    return init_macro_cond_eval(rhs, scope, symbols)
-}
-
-// Evaluate Type.is tests, target-size comparisons and lazy Boolean operations.
-// The parser lowers comparison operators to the corresponding method calls.
-// Returns 1 (true), 0 (false), or -1 (unknown/unsupported). The caller
-// diagnoses unknown conditions at the actual generator application.
-priv init_macro_cond_eval := func(cond: Expr, scope: TypeScope, symbols: SymbolPool) returns I32 {
-    switch cond.node_type {
-    case .Literal(Literal.Bool(value)):
-        if value { return 1 }
-        return 0
-    case:
-    }
+// Preserve the generator's Type.is pattern syntax. Ordinary calls (including
+// every size() call), arithmetic and Boolean operations use the evaluator.
+priv init_macro_type_test := func(cond: Expr, scope: TypeScope, symbols: SymbolPool) returns I32 {
     if cond.node_type.is(NodeType.FCall).not() { return -1 }
-    if cond.children.len() == 0 { return -1 }
-    ref callee : Expr = cond.children[0]
-    switch callee.node_type {
-    case .Ident(id):
-        ref name : Str = id.ident_name(symbols.names)
-        if name.eq("or").or(name.eq("and")) {
-            if cond.children.len() != 3 { return -1 }
-            return init_macro_logic_eval(cond.children[1], cond.children[2], name == "or", scope, symbols)
-        }
-    case:
-    }
     if cond.children.len() != 2 { return -1 }
+    ref callee : Expr = cond.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return -1 }
     mut method_name := ""
     switch callee.node_type {
@@ -3036,35 +2970,13 @@ priv init_macro_cond_eval := func(cond: Expr, scope: TypeScope, symbols: SymbolP
     }
     if callee.children.len() != 1 { return -1 }
     ref lhs : Expr = callee.children[0]
-    switch method_name {
-    case "or", "and":
-        return init_macro_logic_eval(lhs, cond.children[1], method_name == "or", scope, symbols)
-    case "lt", "lte", "eq", "neq", "gte", "gt":
-        left_o := init_macro_size_operand(lhs, scope, symbols)
-        right_o := init_macro_size_operand(cond.children[1], scope, symbols)
-        if left_o.is_none().or(right_o.is_none()) { return -1 }
-        left := left_o.unwrap()
-        right := right_o.unwrap()
-        mut matches := false
-        switch method_name {
-        case "lt": matches = left < right
-        case "lte": matches = left <= right
-        case "eq": matches = left == right
-        case "neq": matches = left != right
-        case "gte": matches = left >= right
-        case "gt": matches = left > right
-        case: UNREACHABLE("unexpected size comparison")
-        }
-        if matches { return 1 }
-        return 0
-    case:
-    }
     if method_name.eq("is").not() { return -1 }
     mut lhs_name := ""
     switch lhs.node_type {
     case .Ident(idn): lhs_name = Str.clone(idn.ident_name(symbols.names))
     case: return -1
     }
+    if type_from_name_init_name(lhs_name, scope, symbols).is(Type.Unknown) { return -1 }
     ref arg : Expr = cond.children[1]
     // Nested form `Type.Primitive(Primitive.X)` (an FCall): a primitive that
     // lives under Type.Primitive rather than as a flat Type variant. Match
@@ -3124,12 +3036,22 @@ priv init_macro_cond_eval := func(cond: Expr, scope: TypeScope, symbols: SymbolP
     return 0
 }
 
+priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols: SymbolPool) {
+    result := init_macro_type_test(e, scope, symbols)
+    if result >= 0 {
+        e.node_type = NodeType.Literal(Literal.Bool(result == 1))
+        e.children.clear()
+        return
+    }
+    for mut child : Expr in e.children { init_macro_lower_type_tests(child, scope, symbols) }
+}
+
 // Pick the macro return literal from a possibly-if-shaped body. body
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return. unknown_condition distinguishes a failed condition from
 // an unsupported body shape; the caller must not select a branch on it.
-priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: TypeScope, mut symbols: SymbolPool, mut unknown_condition: Bool) returns Option(ref Expr) {
+priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
@@ -3148,7 +3070,7 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: Typ
     // the root via assignment (save_old_delete reclaims the clone).
     mut cond_root := ""
     switch cond_clone.node_type {
-    case .Ident(cr_idn): cond_root = Str.clone(cr_idn.ident_name(symbols.names))
+    case .Ident(cr_idn): cond_root = Str.clone(cr_idn.ident_name(ctx.symbols.names))
     case:
     }
     if cond_root.len().gt(0).and(subs.has(cond_root)) {
@@ -3157,15 +3079,23 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr), scope: Typ
     } else {
         // Ref-ness changes neither primitive target sizes nor the result
         // of a `T.is(...)` condition.
-        init_substitute_idents(cond_clone, subs, Set(Str).new(), symbols)
+        init_substitute_idents(cond_clone, subs, Set(Str).new(), ctx.symbols)
     }
-    res := init_macro_cond_eval(cond_clone, scope, symbols)
+    init_macro_lower_type_tests(cond_clone, scope, ctx.symbols)
+    mut res : I32 = -1
+    switch cond_clone.node_type {
+    case .Literal(Literal.Bool(value)):
+        res = 0
+        if value { res = 1 }
+    case:
+        res = eval_generator_condition(cond_clone, scope, ctx)
+    }
     if res < 0 { unknown_condition = true; return Option(ref Expr).None }
     if res == 1 {
-        return init_macro_pick_return(s.children[1], subs, scope, symbols, unknown_condition)
+        return init_macro_pick_return(s.children[1], subs, scope, ctx, unknown_condition)
     }
     if s.children.len() < 3 { return Option(ref Expr).None }
-    return init_macro_pick_return(s.children[2], subs, scope, symbols, unknown_condition)
+    return init_macro_pick_return(s.children[2], subs, scope, ctx, unknown_condition)
 }
 
 priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
@@ -4669,7 +4599,9 @@ priv init_expand_generic_funcs := func(mut program: Expr, scope: TypeScope, mut 
             mut gcell : UPtr = malloc(UPtr.size().to_uptr())
             write_ptr(gcell, rhs)
             gs.defs.set(dd.name, own gcell)
-            gs.sources.set(dd.name, own GenericFuncSource(name = dd.name.clone(), path = ctx.path.clone(), is_priv = dd.is_priv))
+            mut identity := dd.name.clone()
+            if dd.name.starts_with("priv__").and(dd.orig_name.len() > 0) { identity = dd.orig_name.clone() }
+            gs.sources.set(dd.name, own GenericFuncSource(name = dd.name.clone(), path = ctx.path.clone(), is_priv = dd.is_priv, identity_name = identity))
         case:
         }
     }
@@ -4686,13 +4618,15 @@ priv init_expand_generic_funcs := func(mut program: Expr, scope: TypeScope, mut 
         // binding, never off ctx.path -- it is half the dedup key.
         mut gpath := ctx.path.clone()
         mut gpriv := false
+        mut identity := gname.clone()
         gb_o := scope.get_binding_name(gname, ctx.symbols)
         if gb_o.is_some() {
             ref gb : TypeBinding = gb_o.unwrap()
             gpath = gb.path.clone()
             gpriv = gb.is_priv
+            if gname.starts_with("priv__").and(gb.orig_name.len() > 0) { identity = gb.orig_name.clone() }
         }
-        gs.sources.set(gname, own GenericFuncSource(name = gname.clone(), path = gpath.clone(), is_priv = gpriv))
+        gs.sources.set(gname, own GenericFuncSource(name = gname.clone(), path = gpath.clone(), is_priv = gpriv, identity_name = identity))
     }
     if gs.defs.len() == 0 { return false }
     local_types := init_seed_local_type_tokens(program, scope, ctx)
@@ -5153,7 +5087,7 @@ priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context
     return true
 }
 
-priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
+priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
     ref rhs : Expr = stmt.children[0]
     switch rhs.children[0].node_type {
     case .Ident(callee):
@@ -5189,10 +5123,17 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     }
 
     mut unknown_condition := false
-    ret_val_o := init_macro_pick_return(body, subs, scope, ctx.symbols, unknown_condition)
+    request := format("generator:", decl_of(stmt).name)
+    if ctx.comptime_requests.has(request) {
+        stmt.type_error(format("cyclic compile-time generator dependency: ", decl_of(stmt).name), ctx)
+        return false
+    }
+    ctx.comptime_requests.add(own request.clone())
+    ret_val_o := init_macro_pick_return(body, subs, scope, ctx, unknown_condition)
+    ctx.comptime_requests.remove(request)
     if ret_val_o.is_none() {
-        if unknown_condition {
-            stmt.type_error("cannot evaluate definition-generating macro condition: expected Type.is tests, target primitive size comparisons, or their Boolean combinations", ctx)
+        if unknown_condition.and(ctx.errors == 0) {
+            stmt.type_error("cannot evaluate definition-generating macro condition as a compile-time Bool", ctx)
         }
         return false
     }
@@ -5332,6 +5273,46 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
     }
 }
 
+// Give private declarations their stable identity before compile-time calls
+// can request their signatures, bodies, or layouts.
+priv init_private_names := proc(path: Str, mut program: Expr, mut symbols: SymbolPool) {
+    mut renamings := Map(Str, Str).new()
+    for mut stmt : Expr in program.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if dd.is_priv.not().or(dd.name.starts_with("priv__")).or(dd.orig_name.len() > 0) { continue }
+            mangled := priv_c_name(path, dd.name)
+            dd.orig_name = dd.name.clone()
+            renamings.set(dd.name, own mangled.clone())
+            dd.name = mangled
+        case:
+        }
+    }
+    if renamings.len() > 0 {
+        // Parser-created applications carry the factory's spelling in their
+        // declaration names too. Rename those identities with the factory so
+        // generic signature dependencies still match the canonical instance.
+        mut applications := Map(Str, Str).new()
+        for mut stmt : Expr in program.children {
+            switch stmt.node_type {
+            case .Decl(dd):
+                for old, renamed in renamings {
+                    prefix := format(old, "__")
+                    if dd.name.starts_with(prefix) {
+                        replacement := format(renamed, dd.name.substr(old.len(), dd.name.len() - old.len()))
+                        applications.set(dd.name, own replacement.clone())
+                        dd.name = replacement
+                        break
+                    }
+                }
+            case:
+            }
+        }
+        for old, renamed in applications { renamings.set(old, own renamed.clone()) }
+        for mut stmt : Expr in program.children { init_rewrite_refs(stmt, renamings, symbols) }
+    }
+}
+
 // rstil-style unit initializer: index declarations for one file, but do not
 // run global layout/method generation that must see the whole program.
 priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
@@ -5346,21 +5327,15 @@ priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope
     // any pass clones them (see the helper above).
     init_normalize_dynamic_zero_defaults(program)
 
-    // Issue #271: make public file-level declarations visible before
+    init_private_names(path, program, ctx.symbols)
+
+    // Issue #271: make file-level declarations visible before
     // recursive imports run. This generalizes same-file forward
     // declarations to import cycles without pretending the file is fully
-    // initialized yet. Private names are skipped here because their full
-    // init pass rewrites them to file-keyed C names before registration.
+    // initialized yet. Private names already have file-keyed identities.
     for mut stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
-        mut is_priv := false
-        switch stmt.node_type {
-        case .Decl(dd): is_priv = dd.is_priv
-        case:
-        }
-        if is_priv { continue }
-
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
             errors = errors + register_struct_def_for_stmt(ctx, stmt, scope)
@@ -5382,6 +5357,10 @@ priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope
                     }
                 }
             }
+        } else if rhs.node_type.is(NodeType.Ident) {
+            register_type_alias_for_stmt(ctx, stmt, scope)
+        } else if rhs.node_type.is(NodeType.Literal) {
+            register_top_level_value_for_stmt(ctx, stmt, scope)
         }
     }
     return errors
@@ -5469,7 +5448,7 @@ priv init_normalize_dynamic_zero_defaults := func(mut e: Expr) {
     for mut c : Expr in e.children { init_normalize_dynamic_zero_defaults(c) }
 }
 
-priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
+priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context, flush_pending: Bool = true) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
     register_body_type_token(ctx, scope)
@@ -5507,6 +5486,12 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     // normal named struct/enum decl for the registration walk below.
     init_expand_type_gen_macros(program, scope, ctx)
     if ctx.errors > 0 { return ctx.errors }
+    if flush_pending && ctx.comptime_requests.len() == 0 && ctx.generic_pending.children.len() > 0 {
+        pending_start := program.children.len()
+        program.take_children(ctx.generic_pending)
+        init_refresh_seeded_scope_defs(program, scope, ctx.symbols)
+        init_refresh_interp_type_defs_from(program, pending_start, ctx)
+    }
 
     // Issue #58 "Phase now": monomorphize direct generic functions
     // `name := func(T: Type, ...)` called as `name(I64, args)`. Runs
@@ -5585,36 +5570,7 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     // distinct C functions for two files that happen to share a priv
     // identifier. The original user-facing name lives on dd.orig_name
     // for diagnostics.
-    mut priv_renamings := Map(Str, Str).new()
-    for mut pstmt : Expr in program.children {
-        if pstmt.node_type.is(NodeType.Decl).not() { continue }
-        switch pstmt.node_type {
-        case .Decl(pdd):
-            if pdd.is_priv.not() { continue }
-            if pdd.name.starts_with("priv__") { continue }
-            // Skip lifted-nested decls (the lift step above already set
-            // orig_name on them and mangled their name to `<parent>_<orig>`).
-            // Their function-scope priv check downstream relies on the
-            // parent being extractable from the mangled name -- stacking
-            // a `priv__<path>__` prefix would break that contract and
-            // also let sibling functions reach the lifted decl from
-            // anywhere in the file. Cross-file collisions on a lifted
-            // nested name (same parent + same nested) are rare and the
-            // existing parent prefix already disambiguates within a
-            // file; we accept the residual risk for now.
-            if pdd.orig_name.len() > 0 { continue }
-            mangled := priv_c_name(path, pdd.name)
-            pdd.orig_name = pdd.name.clone()
-            priv_renamings.set(pdd.name, own mangled.clone())
-            pdd.name = mangled.clone()
-        case:
-        }
-    }
-    if priv_renamings.len() > 0 {
-        for mut rc : Expr in program.children {
-            init_rewrite_refs(rc, priv_renamings, ctx.symbols)
-        }
-    }
+    init_private_names(path, program, ctx.symbols)
 
     for i in 0..program.children.len() {
         ref mut stmt : Expr = program.children[i]
@@ -6038,6 +5994,81 @@ init_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns 
     return errors
 }
 
+priv init_take_comptime_decl := func(name: Str, mut program: Expr, scope: TypeScope, pending_names: Set(Str), symbols: SymbolPool) returns Option(Expr) {
+    for mut stmt : Expr in program.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if dd.name == name {
+                if stmt.children.len() == 0 { return Option(Expr).None }
+                ref rhs : Expr = stmt.children[0]
+                switch rhs.node_type {
+                case .Ident(target):
+                    target_name := target.ident_name(symbols.names).clone()
+                    binding_o := scope.get_binding_name(target_name, symbols)
+                    if pending_names.has(target_name).or(binding_o.is_some().and(type_binding_is_type_token(scope, binding_o.unwrap(), symbols))) {
+                        return Option(Expr).Some(own take_expr(stmt))
+                    }
+                case:
+                }
+                if rhs.node_type.is(NodeType.FCall).and(rhs.children.len() > 0) {
+                    switch rhs.children[0].node_type {
+                    case .Ident(callee):
+                        fd_o := scope.lookup_func_name(callee.ident_name(symbols.names), symbols)
+                        if fd_o.is_some().and(init_is_type_gen_macro_def(fd_o.unwrap())) {
+                            return Option(Expr).Some(own take_expr(stmt))
+                        }
+                    case:
+                    }
+                }
+                return Option(Expr).None
+            }
+        case:
+        }
+    }
+    return Option(Expr).None
+}
+
+// Materialize a forward template application with the ordinary initializer.
+// Move its declaration out of the source AST (leaving a no-op) so the later
+// unit walk cannot expand it a second time. The existing pending-declaration
+// queue owns the result until the outer initializer can append it safely.
+init_require_comptime_type := proc(name: Str, mut scope: TypeScope, mut ctx: Context) returns Bool {
+    if scope.get_struct(name, ctx.symbols).is_some() { return true }
+    if scope.lookup_func_name(name, ctx.symbols).is_some() { return false }
+    binding_o := scope.get_binding_name(name, ctx.symbols)
+    if binding_o.is_some().and(type_binding_is_type_token(scope, binding_o.unwrap(), ctx.symbols).not()) { return false }
+    request := format("type:", name)
+    if ctx.comptime_requests.has(request) {
+        context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, ctx.path, 0, 0,
+            format("cyclic compile-time type dependency: ", name))
+        return false
+    }
+    mut source := Option(Expr).None
+    if ctx.imported.has(ctx.path) {
+        source = init_take_comptime_decl(name, ctx.imported[ctx.path].ast, scope, ctx.type_gen_synths, ctx.symbols)
+    }
+    if source.is_none() { source = init_take_comptime_decl(name, ctx.generic_pending, scope, ctx.type_gen_synths, ctx.symbols) }
+    if source.is_none() {
+        for mut unit : ImportUnit in ctx.imported.values {
+            source = init_take_comptime_decl(name, unit.ast, scope, ctx.type_gen_synths, ctx.symbols)
+            if source.is_some() { break }
+        }
+    }
+    if source.is_none() { return false }
+    ctx.comptime_requests.add(own request.clone())
+    ctx.type_gen_synths.remove(name)
+    mut program := Expr.new(own NodeType.Body, 0, 0)
+    program.add_child(own Option(Expr).take(own source))
+    path := ctx.path.clone()
+    errors := init_declarations_unit(path, program, scope, ctx, false)
+    start := ctx.generic_pending.children.len()
+    ctx.generic_pending.take_children(program)
+    init_refresh_seeded_scope_defs(ctx.generic_pending, scope, ctx.symbols)
+    init_refresh_interp_type_defs_from(ctx.generic_pending, start, ctx)
+    ctx.comptime_requests.remove(request)
+    return errors.eq(0).and(scope.get_struct(name, ctx.symbols).is_some())
+}
+
 // A lane conversion can discover its result family during type inference.
 // Queue it through the existing late-declaration path, not a second registry.
 init_require_simd := proc(elem: Str, width: USize, line: U32, col: U32, mut ctx: Context) returns Str {
@@ -6052,7 +6083,7 @@ init_require_simd := proc(elem: Str, width: USize, line: U32, col: U32, mut ctx:
     decl.add_child(own call)
     program.add_child(own decl)
     path := ctx.path.clone()
-    if init_declarations_unit(path, program, ctx.scope, ctx) != 0 { panic("failed to materialize SIMD conversion type") }
+    if init_declarations_unit(path, program, ctx.scope, ctx, false) != 0 { panic("failed to materialize SIMD conversion type") }
     start := ctx.generic_pending.children.len()
     ctx.generic_pending.take_children(program)
     init_refresh_seeded_scope_defs(ctx.generic_pending, ctx.scope, ctx.symbols)
