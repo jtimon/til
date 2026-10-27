@@ -1,60 +1,66 @@
 mode test
 
-// Negative test (#415): a field moved out by `own h.f`. Whatever deletes
-// `h` next would free the moved value again, so the field must get a new
-// value before `h` is read, replaced or left, and a refill must know
-// whether the old value is still there to free.
+// Negative test (#415): a field's value cannot be moved out of its holder.
+// The holder still owns it and would delete it again -- at its scope end,
+// on `h = ...` / `h.f = ...`, or in the caller that lent it. Pass a clone,
+// or swap the value out first. A consuming constructor field is an `own`
+// parameter the source need not spell, so it is the same error.
 
 take_field415 := func(own s: Str) returns USize { return s.len() }
+replace_field415 := func(own s: Str) returns Str { return s }
 
 FieldHolder415 := struct {
     name := ""
 }
 
-// 1. Moved out and never given a new value: h's scope-end delete would
-// free it again.
-drop_field415 := func() {
+FieldOuter415 := struct {
+    inner := FieldHolder415()
+}
+
+// 1. A local's field.
+local_field415 := func() {
+    h := FieldHolder415(name = "head")
+    take_field415(own h.name)
+}
+
+// 2. The in-place transform: the field is still moved out while the RHS runs.
+replace_in_place415 := func() {
     mut h := FieldHolder415(name = "head")
+    h.name = replace_field415(own h.name)
+}
+
+// 3. A lent holder's field: the caller would find it gone.
+lent_field415 := func(mut h: FieldHolder415) {
     h.name = "body"
     take_field415(own h.name)
 }
 
-// 2. Read while moved.
-read_field415 := func() {
-    mut h := FieldHolder415(name = "head")
-    take_field415(own h.name)
-    n := h.name.len()
-    h.name = "next"
-    assert_eq(USize, n, 4)
+// 4. A nested field.
+nested_field415 := func() {
+    o := FieldOuter415(inner = FieldHolder415(name = "head"))
+    take_field415(own o.inner.name)
 }
 
-// 3. Refilled where it is moved on some paths only: no runtime flag says
-// whether the old value still needs freeing.
-maybe_field415 := func(flag: Bool) {
-    mut h := FieldHolder415(name = "head")
-    if flag { take_field415(own h.name) }
-    h.name = "next"
+// 5. A constructor field takes its argument by value.
+ctor_field415 := func() {
+    a := FieldHolder415(name = "head")
+    b := FieldHolder415(name = a.name)
+    assert_eq(Str, b.name, "head")
 }
 
-// 4. The whole holder replaced while the field is moved: the old holder's
-// delete would free it.
-replace_holder415 := func() {
-    mut h := FieldHolder415(name = "head")
-    take_field415(own h.name)
-    h = FieldHolder415(name = "next")
-}
-
-// 5. A lent holder's field moved out: the caller would find it gone.
-drain_field415 := func(mut h: FieldHolder415) {
-    h.name = "body"
-    take_field415(own h.name)
+// 6. So does an enum variant's payload.
+variant_field415 := func() {
+    a := FieldHolder415(name = "head")
+    o := Option(Str).Some(a.name)
+    assert(o.is_some())
 }
 
 test_field_transfer_errors := test() {
-    drop_field415()
-    read_field415()
-    maybe_field415(true)
-    replace_holder415()
+    local_field415()
+    replace_in_place415()
     mut h := FieldHolder415(name = "head")
-    drain_field415(h)
+    lent_field415(h)
+    nested_field415()
+    ctor_field415()
+    variant_field415()
 }

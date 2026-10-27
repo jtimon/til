@@ -928,106 +928,55 @@ own415_global_consumed_counted := test() {
     assert_eq(I64, counted_global415.id, 2)
 }
 
-// --- #415: a field moved out by `own h.f`, then refilled -----------------
+// --- #415: a field's value handed on without moving it out ---------------
 //
-// The field must get a new value before its holder is read, replaced or
-// left. A refill whose old value is consumed -- by its own RHS, by an
-// earlier statement, on every path in -- must not delete it again: the
-// holder's later delete frees the refill, nothing frees the moved value
-// twice.
+// `own h.f` is rejected (test/field_transfer_error.til): h would delete the
+// value again. The spellings that remain: a clone, and a swap that takes
+// the value out and leaves the holder a fresh one to own.
 
 FieldHolder415 := struct {
     name := ""
     id := 0
 }
 
-FieldOuter415 := struct {
-    inner := FieldHolder415()
-}
-
-field415_rhs := proc() {
-    mut h := FieldHolder415(name = heap415("head"))
-    h.name = replace415(own h.name)
-    assert_eq(Str, h.name, "next")
-}
-
-field415_earlier := proc() {
+field415_clone := proc() {
     mut sink := Vec(Str).new()
-    mut h := FieldHolder415(name = heap415("head"))
-    sink.push(own h.name)
-    h.name = heap415("next")
+    h := FieldHolder415(name = heap415("head"))
+    sink.push(own h.name.clone())
     assert_eq(Str, sink[0], "head")
+    assert_eq(Str, h.name, "head")
+}
+
+// The in-place transform `h.name = f(own h.name)`, without a copy.
+field415_swap_out := proc() {
+    mut h := FieldHolder415(name = heap415("head"))
+    mut taken := Str()
+    swap(Str, h.name, taken)
+    h.name = replace415(own taken)
     assert_eq(Str, h.name, "next")
 }
 
-// A lent holder: the caller's value is consumed and refilled in place.
-field415_refill := proc(mut h: FieldHolder415) {
-    n := take_global415s(own h.name)
-    assert_eq(USize, n, 4)
-    h.name = heap415("next")
-}
-
-field415_branches := proc(flag: Bool) {
-    mut h := FieldHolder415(name = heap415("head"))
-    take_global415s(own h.name)
-    if flag { h.name = heap415("then") } else { h.name = heap415("else") }
-    assert_eq(USize, h.name.len(), 4)
-}
-
-field415_loop := proc() {
-    mut sink := Vec(Str).new()
-    mut h := FieldHolder415(name = heap415("head"))
-    for _ in 0..3 {
-        sink.push(own h.name)
-        h.name = heap415("next")
-    }
-    assert_eq(USize, sink.len(), 3)
-    assert_eq(Str, h.name, "next")
-}
-
-field415_nested := proc() {
-    mut o := FieldOuter415(inner = FieldHolder415(name = heap415("head")))
-    take_global415s(own o.inner.name)
-    o.inner.name = heap415("next")
-    assert_eq(Str, o.inner.name, "next")
-}
-
-own415_field_consumed_then_refilled := test() {
-    field415_rhs()
-    field415_earlier()
-    mut h := FieldHolder415(name = heap415("head"))
-    field415_refill(h)
-    assert_eq(Str, h.name, "next")
-    field415_branches(true)
-    field415_branches(false)
-    field415_loop()
-    field415_nested()
+own415_field_clone_or_swap := test() {
+    field415_clone()
+    field415_swap_out()
 }
 
 CountedHolder415 := struct {
     c := Counted415(id = 0)
 }
 
-counted_field415_rhs := func() {
+counted_field415_swap_out := func() {
     mut h := CountedHolder415(c = Counted415(id = 1))
-    h.c = replace_counted415(own h.c)
+    mut taken := Counted415(id = 0)
+    swap(Counted415, h.c, taken)
+    h.c = replace_counted415(own taken)
     assert_eq(I64, h.c.id, 2)
 }
 
-counted_field415_earlier := func() {
-    mut h := CountedHolder415(c = Counted415(id = 1))
-    took := take_counted415(own h.c)
-    h.c = Counted415(id = took.add(1))
-    assert_eq(I64, h.c.id, 2)
-}
-
-// The consumed value is deleted once, by the callee, and the refill once,
-// with its holder: no duplicate, no leak.
-own415_field_consumed_counted := test() {
+// Deleted exactly once each: the swapped-in placeholder (by the refill),
+// the taken value (by the callee) and the replacement (with its holder).
+own415_field_swap_counted := test() {
     Counted415.deletes = 0
-    counted_field415_rhs()
-    assert_eq(I64, Counted415.deletes, 2)
-    Counted415.deletes = 0
-    counted_field415_earlier()
-    assert_eq(I64, Counted415.deletes, 2)
+    counted_field415_swap_out()
+    assert_eq(I64, Counted415.deletes, 3)
 }

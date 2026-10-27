@@ -1137,14 +1137,11 @@ priv gc_mixing_transfer_index := func(body: Expr, local: LocalInfo, key: UPtr, s
 // dataflow found consumed. The nested bodies' own passes ran first (the
 // walk is post-order) and flagged every rebind of an outer binding
 // (flag_outer_assign_rebinds); only this view, which owns the binding,
-// sees the paths into them. A FieldAssign's flag comes from the desugarer
-// and is cleared the same way (gc_settle_field_places).
+// sees the paths into them.
 priv gc_clear_consumed_assigns := func(mut e: Expr, consumed: Set(UPtr)) {
     switch e.node_type {
     case .Assign(ad):
         if consumed.has(gc_assign_key(e)) { ad.save_old_delete = false }
-    case .FieldAssign(fad):
-        if consumed.has(gc_assign_key(e)) { fad.save_old_delete = false }
     case .FuncDef:
         return
     case:
@@ -3905,34 +3902,22 @@ priv gc_settle_global_reassigns := proc(mut ctx: Context, body: Expr, locals: Ve
         }
 }
 
-// --- #415: fields moved out by an own transfer ---------------------------
+// --- #415: no moving a field out of its holder -----------------------------
 //
-// `own h.f` hands the field's value to another owner while `h` still holds
-// it: whatever deletes `h` next -- its scope end, the old-value delete of
-// `h = ...`, the caller that lent `mut h` -- frees it a second time. So a
-// moved field is a PLACE that must be given a new value (`h.f = ...`)
-// before `h` is read, replaced or left. Each place gets the CFG dataflow
-// of the function root, entering Owned (a field holds a value until a
-// transfer moves it). The transfer is an `own` argument bit, written or
-// set by the typer for a consuming constructor field (`H(name = a.name)`
-// shares a.name's buffer just the same). A refill whose old value is
-// consumed -- moved on every path in, or by its own RHS (`h.f = f(own
-// h.f)`) -- has the desugarer's save_old_delete cleared. Reading the place
-// or its base while it is moved, refilling it where it is moved on some
-// paths only, and leaving the function with it moved are ownership
-// errors. A destructor (a namespace `delete`) and a compiler-generated
-// member are exempt for their parameters: taking those fields apart, or
-// byte-copying a POD one, is their job. Only fields whose delete does
-// something (init_delete_is_noop) are places: moving a raw pointer field
-// (`free(own self.data)`) or a value with a no-op delete deletes nothing
-// twice.
-
-priv GcFieldPlace := struct {
-    key := ""
-    base := ""
-    line : U32 = 0
-    col : U32 = 0
-}
+// `own h.f` would hand the field's value to another owner while `h` still
+// holds it: whatever deletes `h` next -- its scope end, the old-value delete
+// of `h = ...` or `h.f = ...`, the caller that lent `mut h` -- frees it a
+// second time. So it is an error: `own h.f.clone()` copies the value, and
+// `swap` exchanges it out of the holder without a copy. A consuming
+// constructor field is an `own` parameter the source need not spell (the
+// typer sets the bit), so `H(name = a.name)` -- which shared a.name's buffer
+// -- is the same error. Allowed: a destructor (a namespace `delete`) and a
+// compiler-generated member, for their parameters' fields (taking those
+// apart, or byte-copying a POD one, is their job), a field's own
+// destructor that keeps its storage (`own s.f.delete(false)` before a raw
+// memset or free of the holder), and any field whose delete is a no-op
+// (init_delete_is_noop): moving a raw pointer field (`free(own
+// self.data)`) or a plain value deletes nothing twice.
 
 // "h.f.g" for a field chain rooted at a name, "" for anything else (a call
 // result, an index).
@@ -3948,22 +3933,6 @@ priv gc_place_key := func(e: Expr, symbols: SymbolPool) returns Str {
     return ""
 }
 
-priv gc_place_root := func(e: Expr, symbols: SymbolPool) returns Str {
-    switch e.node_type {
-    case .Ident(id): return id.ident_name(symbols.names).clone()
-    case .FieldAccess: return gc_place_root(e.children[0], symbols)
-    case:
-    }
-    UNREACHABLE("field place not rooted at a name")
-    return ""
-}
-
-// Whether place `outer` is `inner` or holds it.
-priv gc_place_covers := func(outer: Str, inner: Str) returns Bool {
-    if outer == inner { return true }
-    return Str.starts_with(inner, format(outer, "."))
-}
-
 // Whether some level of the field chain `e` is a namespace member
 // (`Type.Variant`, `Type.member`): a value of the program, no field of one.
 priv gc_chain_has_ns := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
@@ -3972,246 +3941,95 @@ priv gc_chain_has_ns := func(e: Expr, scope: TypeScope, symbols: SymbolPool) ret
     return gc_chain_has_ns(e.children[0], scope, symbols)
 }
 
-// The fields `e` passes as `own` arguments, each once (outside nested
-// FuncDefs and deferred bodies, which are their own views), whose type
-// has a delete that frees something: moving any other value is a copy.
-priv gc_collect_field_places := func(e: Expr, scope: TypeScope, mut out: Vec(GcFieldPlace), symbols: SymbolPool) {
-    if e.node_type.is(NodeType.FuncDef).or(e.node_type.is(NodeType.BodyValue)) { return }
+// The name a field chain is rooted at, "" when it is rooted at a value
+// (a call result, an index).
+priv gc_chain_root_name := func(e: Expr, symbols: SymbolPool) returns Str {
+    switch e.node_type {
+    case .Ident(id): return id.ident_name(symbols.names).clone()
+    case .FieldAccess: return gc_chain_root_name(e.children[0], symbols)
+    case:
+    }
+    return ""
+}
+
+// Whether `fcall` constructs a value -- a struct (its callee names the type
+// it makes) or an enum variant -- whose consuming fields the source passes
+// without writing `own`.
+priv gc_fcall_is_ctor := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    sname_o := expr_type_name_ref(fcall, symbols)
+    if sname_o.is_some() {
+        switch fcall.children[0].node_type {
+        case .Ident(cn): if cn.ident_name(symbols.names) == sname_o.unwrap() { return true }
+        case:
+        }
+    }
+    fdef_o := resolve_direct_fcall(fcall, scope, symbols)
+    if fdef_o.is_none() { return false }
+    switch fdef_o.unwrap().node_type {
+    case .FuncDef(vfd): return vfd.is_enum_variant_ctor
+    case:
+    }
+    return false
+}
+
+// Reports every field `e` hands to an `own` slot (outside the functions
+// defined inside it, which are roots of their own).
+priv gc_reject_field_moves := proc(mut ctx: Context, e: Expr, scope: TypeScope, takes_param_fields: Bool) {
+    if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.FCall) {
         for i in 1..e.children.len() {
             if get_own_arg(e, i).not() { continue }
+            // `own h.f.delete(false)`: the field's own destructor, keeping its
+            // storage for the caller's raw protocol (a memset back to the
+            // lazy-empty value, or the holder's raw free) -- destruction in
+            // place, like `free(own self.data)`, not a hand-off.
+            if get_keep_outer_arg(e, i) { continue }
             ref arg : Expr = e.children[i]
             if arg.node_type.is(NodeType.FieldAccess).not() { continue }
             mut at := arg.til_type().clone()
             switch at {
-            case .Custom(acn): at = type_from_name_init_name(acn, scope, symbols)
-            case .CustomSym(acs): at = type_from_sym_init(acs, scope, symbols)
+            case .Custom(acn): at = type_from_name_init_name(acn, scope, ctx.symbols)
+            case .CustomSym(acs): at = type_from_sym_init(acs, scope, ctx.symbols)
             case:
             }
             if is_aggregate(at).not() { continue }
-            if init_delete_is_noop(type_to_name(at, symbols), scope, symbols) { continue }
-            if gc_chain_has_ns(arg, scope, symbols) { continue }
-            key := gc_place_key(arg, symbols)
-            if key.len() == 0 { continue }
-            mut seen := false
-            for o : GcFieldPlace in out { if o.key == key { seen = true } }
-            if seen { continue }
-            out.push(own GcFieldPlace(key = key.clone(), base = gc_place_root(arg, symbols), line = arg.line, col = arg.col))
-        }
-    }
-    for c : Expr in e.children { gc_collect_field_places(c, scope, out, symbols) }
-}
-
-// Whether `e` hands place `key` to an `own` parameter.
-priv gc_place_transferred := func(e: Expr, key: Str, symbols: SymbolPool) returns Bool {
-    if e.node_type.is(NodeType.FuncDef).or(e.node_type.is(NodeType.BodyValue)) { return false }
-    if e.node_type.is(NodeType.FCall) {
-        for i in 1..e.children.len() {
-            if get_own_arg(e, i).and(e.children[i].node_type.is(NodeType.FieldAccess)) {
-                if gc_place_key(e.children[i], symbols) == key { return true }
-            }
-        }
-    }
-    for c : Expr in e.children {
-        if gc_place_transferred(c, key, symbols) { return true }
-    }
-    return false
-}
-
-// Whether `e` is a raw byte write (memset, memcpy, adopt_from) whose
-// destination is place `p` or a value holding it. Zeroing a container
-// field after `own f.delete(false)` is the documented lazy-empty refill
-// (mem.til's adopt_from / Vec.push_take convention).
-priv gc_place_raw_written := func(e: Expr, p: GcFieldPlace, symbols: SymbolPool) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() < 2 { return false }
-    switch e.children[0].node_type {
-    case .Ident(cn):
-        ref callee : Str = cn.ident_name(symbols.names)
-        if callee.eq("memset").or(callee.eq("memcpy")).or(callee.eq("adopt_from")).not() { return false }
-    case:
-        return false
-    }
-    dest := gc_place_key(e.children[1], symbols)
-    return dest.len().gt(0).and(gc_place_covers(dest, p.key))
-}
-
-// Whether `e` gives place `p` a value: a refill of it or of a field holding
-// it, or a new value for its base.
-priv gc_place_refilled := func(e: Expr, p: GcFieldPlace, symbols: SymbolPool) returns Bool {
-    switch e.node_type {
-    case .FuncDef: return false
-    case .BodyValue: return false
-    case .Decl(dd): if dd.name == p.base { return true }
-    case .Assign(ad): if ad.name == p.base { return true }
-    case .FieldAssign(fad):
-        obj := gc_place_key(e.children[0], symbols)
-        if obj.len() > 0 {
-            if gc_place_covers(format(obj, ".", fad.name), p.key) { return true }
-        }
-    case .FCall:
-        if gc_place_raw_written(e, p, symbols) { return true }
-    case:
-    }
-    for c : Expr in e.children {
-        if gc_place_refilled(c, p, symbols) { return true }
-    }
-    return false
-}
-
-// Whether `e` reads place `p`, or a value holding it or held by it: the
-// base, the place, a field inside it, a field holding it. A sibling field
-// of the same base is no read of `p`, and neither is the target of a refill
-// of `p`. A new value for the base, or for a field holding `p`, counts: the
-// old value's delete would free the moved field.
-priv gc_place_read := func(e: Expr, p: GcFieldPlace, symbols: SymbolPool) returns Bool {
-    switch e.node_type {
-    case .FuncDef: return false
-    case .BodyValue: return false
-    case .Ident(id): return id.ident_name(symbols.names) == p.base
-    case .Assign(ad): if ad.name == p.base { return true }
-    case .FieldAccess:
-        k := gc_place_key(e, symbols)
-        if k.len() > 0 { return gc_place_covers(k, p.key).or(gc_place_covers(p.key, k)) }
-    case .FieldAssign(fad):
-        obj := gc_place_key(e.children[0], symbols)
-        if obj.len() > 0 {
-            target := format(obj, ".", fad.name)
-            if target.eq(p.key).not() {
-                if gc_place_covers(target, p.key).or(gc_place_covers(p.key, target)) { return true }
-            }
-            for i in 1..e.children.len() {
-                if gc_place_read(e.children[i], p, symbols) { return true }
-            }
-            return false
-        }
-    case .FCall:
-        // A raw write's destination is a refill target, like a FieldAssign's.
-        if gc_place_raw_written(e, p, symbols) {
-            for i in 2..e.children.len() {
-                if gc_place_read(e.children[i], p, symbols) { return true }
-            }
-            return false
-        }
-    case:
-    }
-    for c : Expr in e.children {
-        if gc_place_read(c, p, symbols) { return true }
-    }
-    return false
-}
-
-// The expression CFG row `j` of a block over `bbody` evaluates -- the
-// selection gc_flow_cfg_facts makes: the statement, or a compound tail's
-// condition/subject (its branch bodies are other blocks). None for a
-// compile directive or a bare block tail.
-priv gc_cfg_row_expr := func(bbody: Expr, j: USize, end: I32, symbols: SymbolPool) returns Option(ref Expr) {
-    ref stmt : Expr = bbody.children[j]
-    if is_compile_directive(stmt, symbols) { return Option(ref Expr).None }
-    if j.add(1).eq(end.to_usize()).and(stmt_is_conditional_container(stmt)) {
-        if stmt.node_type.is(NodeType.Body) { return Option(ref Expr).None }
-        return safe_ref(stmt.children[0])
-    }
-    return safe_ref(stmt)
-}
-
-priv gc_place_row_effect := func(sel: Expr, p: GcFieldPlace, symbols: SymbolPool) returns U8 {
-    // Refill checked first: `h.f = replace(own h.f)` moves in its RHS and
-    // refills in the same statement, net Owned.
-    if gc_place_refilled(sel, p, symbols) { return FLOW_OWNED }
-    if gc_place_transferred(sel, p.key, symbols) { return FLOW_MOVED }
-    return FLOW_ID
-}
-
-priv gc_settle_field_places := proc(mut ctx: Context, body: Expr, scope: TypeScope, takes_param_fields: Bool,
-    mut consumed: Set(UPtr)) {
-        mut places := Vec(GcFieldPlace).new()
-        gc_collect_field_places(body, scope, places, ctx.symbols)
-        if places.len() == 0 { return }
-        mut blocks := Vec(GcCfgBlock).new()
-        cfg_build(blocks, body)
-        n := blocks.len()
-        mut pred_off := Array(USize).new(n.add(1))
-        mut preds := Vec(USize).new()
-        gc_flow_preds(blocks, pred_off, preds)
-        mut kill := Array(U8).new(n)
-        mut ins := Array(U8).new(n)
-        mut outs := Array(U8).new(n)
-        for p : GcFieldPlace in places {
-            if takes_param_fields {
+            if init_delete_is_noop(type_to_name(at, ctx.symbols), scope, ctx.symbols) { continue }
+            if gc_chain_has_ns(arg, scope, ctx.symbols) { continue }
+            base := gc_chain_root_name(arg, ctx.symbols)
+            if takes_param_fields.and(base.len().gt(0)) {
                 mut base_is_param := false
-                switch scope.find_name(p.base, ctx.symbols) {
+                switch scope.find_name(base, ctx.symbols) {
                 case .Found(pb): base_is_param = pb.is_param
                 case:
                 }
                 if base_is_param { continue }
             }
-            for bi in 0..n {
-                ref kb : GcCfgBlock = blocks[bi]
-                mut k := FLOW_ID
-                switch kb.body {
-                case .Some(kbody):
-                    for j in kb.start.to_usize()..kb.end.to_usize() {
-                        sel_o := gc_cfg_row_expr(kbody, j, kb.end, ctx.symbols)
-                        if sel_o.is_none() { continue }
-                        c := gc_place_row_effect(sel_o.unwrap(), p, ctx.symbols)
-                        if c.neq(FLOW_ID) { k = c }
-                    }
-                case .None:
-                    // The synthetic exit block has no statements.
+            mut key := gc_place_key(arg, ctx.symbols)
+            mut holder := base.clone()
+            if key.len() == 0 {
+                // Rooted at a temporary: name the field, not a path.
+                switch arg.node_type {
+                case .FieldAccess(afa): key = afa.field_access_name(ctx.symbols.names).clone()
+                case:
                 }
-                kill[bi] = k
+                holder = "its holder"
+            } else {
+                holder = format("'", base, "'")
             }
-            gc_flow_fixpoint(n, pred_off, preds, kill, FLOW_OWNED, ins, outs)
-            mut read_reported := false
-            for bi in 0..n {
-                if ins[bi].eq(FLOW_UNREACHED) { continue }
-                ref b : GcCfgBlock = blocks[bi]
-                switch b.body {
-                case .Some(bbody):
-                    mut st : U8 = FLOW_UNREACHED
-                    st = ins[bi]
-                    for j in b.start.to_usize()..b.end.to_usize() {
-                        sel_o := gc_cfg_row_expr(bbody, j, b.end, ctx.symbols)
-                        if sel_o.is_none() { continue }
-                        ref sel : Expr = sel_o.unwrap()
-                        moved_in := st.eq(FLOW_MOVED).or(st.eq(FLOW_MIXED))
-                        if moved_in.and(read_reported.not()).and(gc_place_read(sel, p, ctx.symbols)) {
-                            read_reported = true
-                            sel.type_error(format("use of '", p.base, "' while its field '", p.key, "' is moved out"), ctx, DiagnosticPhase.Ownership)
-                            context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Note, ctx.path, p.line, p.col, "ownership transferred here")
-                            context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Help, ctx.path, sel.line, sel.col,
-                                format("give '", p.key, "' a new value first, or pass a clone: own ", p.key, ".clone()"), false)
-                        }
-                        switch sel.node_type {
-                        case .FieldAssign(fad):
-                            obj := gc_place_key(sel.children[0], ctx.symbols)
-                            if obj.len().gt(0).and(format(obj, ".", fad.name).eq(p.key)) {
-                                if st.eq(FLOW_MOVED).or(gc_place_transferred(sel, p.key, ctx.symbols)) {
-                                    consumed.add(own gc_assign_key(sel))
-                                } else if st == FLOW_MIXED {
-                                    sel.type_error(format("reassignment of '", p.key, "' whose value was moved on some paths only"), ctx, DiagnosticPhase.Ownership)
-                                }
-                            }
-                        case:
-                        }
-                        c := gc_place_row_effect(sel, p, ctx.symbols)
-                        if c.neq(FLOW_ID) { st = c }
-                    }
-                case .None:
-                    // The synthetic exit block has no statements.
-                }
-            }
-            mut exit_state : U8 = FLOW_UNREACHED
-            exit_state = ins[0]
-            if exit_state.eq(FLOW_MOVED).or(exit_state.eq(FLOW_MIXED)) {
-                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Error, ctx.path, p.line, p.col,
-                    format("field '", p.key, "' is moved out and not given a new value before '", p.base, "' goes out of scope or the function returns"))
-                ctx.errors++
-                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Help, ctx.path, p.line, p.col,
-                    format("assign '", p.key, "' a new value after the transfer, or pass a clone: own ", p.key, ".clone()"), false)
+            if gc_fcall_is_ctor(e, scope, ctx.symbols) {
+                arg.type_error(format("constructor argument '", key, "' is taken by value, which would move it out of ",
+                    holder, ", which still owns it"), ctx, DiagnosticPhase.Ownership)
+                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Help, ctx.path, arg.line, arg.col,
+                    format("pass a clone: ", key, ".clone()"), false)
+            } else {
+                arg.type_error(format("own '", key, "' would move it out of ", holder,
+                    ", which still owns it and would delete it again"), ctx, DiagnosticPhase.Ownership)
+                context_diagnostic(ctx, DiagnosticPhase.Ownership, DiagnosticSeverity.Help, ctx.path, arg.line, arg.col,
+                    format("pass a clone (own ", key, ".clone()), or swap the value out first"), false)
             }
         }
+    }
+    for c : Expr in e.children { gc_reject_field_moves(ctx, c, scope, takes_param_fields) }
 }
 
 priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScope, scope_exit: I32,
@@ -4257,15 +4075,9 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
     realign_delete_call_free(body, locals_vec, stack_own_params, scope, ctx)
     record_keep_outer_args(body, ctx.symbols)
     temp_check_body(ctx, body, scope)
-    // #415: before the zero-locals return -- a function that owns no
-    // locals still moves and refills its `mut` parameters' fields.
-    if is_func_root {
-        mut fconsumed := Set(UPtr).new()
-        gc_settle_field_places(ctx, body, scope, takes_param_fields, fconsumed)
-        if fconsumed.len() > 0 {
-            for mut fstmt : Expr in body.children { gc_clear_consumed_assigns(fstmt, fconsumed) }
-        }
-    }
+    // #415: at a function or program root, whose walk spans every nested
+    // body but the functions defined inside; before the zero-locals return.
+    if is_func_root.or(is_program_scope) { gc_reject_field_moves(ctx, body, scope, takes_param_fields) }
     if locals_vec.len() == 0 {
         // A function body with no locals of its own can still move out and
         // reassign a global (see gc_settle_global_reassigns below).
@@ -4617,7 +4429,7 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
     }
 }
 
-// is_destructor: `expr` is a namespace `delete` (gc_settle_field_places).
+// is_destructor: `expr` is a namespace `delete` (gc_reject_field_moves).
 priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: TypeScope, insert: Bool, is_destructor: Bool = false) {
     switch expr.node_type {
     case .Decl(dd):
@@ -4697,7 +4509,7 @@ priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: Typ
     mut stack_own_params := Set(Str).new()
     // A destructor and a compiler-generated member (a POD field's clone is
     // a byte copy the typer marks `own`) take their parameters' fields
-    // apart by design (gc_settle_field_places).
+    // apart by design (gc_reject_field_moves).
     mut takes_param_fields := is_destructor
     switch fdef_o {
     case .Some(fd):

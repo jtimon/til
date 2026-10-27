@@ -385,10 +385,8 @@ typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbage
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
-typedef struct priv___src_self_garbager_til__GcFieldPlace priv___src_self_garbager_til__GcFieldPlace;
 typedef struct Array__Bool Array__Bool;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
-typedef struct Vec__priv___src_self_garbager_til__GcFieldPlace Vec__priv___src_self_garbager_til__GcFieldPlace;
 typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
@@ -1250,14 +1248,6 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
 } priv___src_self_garbager_til__GcBorrowEdge;
 
 
-typedef struct priv___src_self_garbager_til__GcFieldPlace {
-    Str key;
-    Str base;
-    U32 line;
-    U32 col;
-} priv___src_self_garbager_til__GcFieldPlace;
-
-
 typedef struct Array__Bool {
     U8 *data;
     USize cap;
@@ -1269,13 +1259,6 @@ typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__GcBorrowEdge;
-
-
-typedef struct Vec__priv___src_self_garbager_til__GcFieldPlace {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_garbager_til__GcFieldPlace;
 
 
 typedef struct Array__USize {

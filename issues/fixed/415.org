@@ -16,22 +16,18 @@ against the CFG ownership dataflow (gc_flow_assign_verdicts), with the
 sink grafting the delete onto owning paths where the state is Mixed;
 captures cannot be passed `own` (check_own_captures); `mut` globals
 moved out by a function enter its root view Owned and must be owned again
-at its exit (gc_settle_global_reassigns); and a field moved out by `own
-h.f` -- written, or set by the typer for a consuming constructor field --
-is a place with its own dataflow (gc_settle_field_places): a refill whose
-old value is consumed has the desugarer's save_old_delete cleared, and
-reading the holder while the field is moved, a refill on a
-path-dependent state, or leaving the function with it moved are
-ownership errors. Destructors and compiler-generated members are exempt
-for their parameters. The interpreter moves an inline field's value into
-a box of its own for an `own` parameter instead of lending the holder's
-storage. The masking audit removed the null guards that had absorbed the
-duplicate deletes.
+at its exit (gc_settle_global_reassigns); and a field's value cannot be
+moved out of its holder at all -- `own h.f`, or a field passed to a
+consuming constructor or variant payload, is an ownership error with a
+clone or a swap as the fix (gc_reject_field_moves). Destructors and
+compiler-generated members are exempt for their parameters' fields, and
+fields whose delete is a no-op are never at issue. The masking audit
+removed the null guards that had absorbed the duplicate deletes.
 
 Regression tests: in test/ownership_shapes.til
 ~own415_reassign_after_consume_str~, ~own415_reassign_after_consume_counted~,
-~own415_global_*~, ~own415_field_consumed_then_refilled~ and
-~own415_field_consumed_counted~; test/typer_errors.til ~terr415_closures~;
+~own415_global_*~, ~own415_field_clone_or_swap~ and
+~own415_field_swap_counted~; test/typer_errors.til ~terr415_closures~;
 test/global_transfer_error.til; test/field_transfer_error.til.
 
 
@@ -373,3 +369,28 @@ a box of its own. Regressions: ~own415_field_consumed_then_refilled~
 ~o.inner.name~; heap-backed) and ~own415_field_consumed_counted~
 (destructor counts) in test/ownership_shapes.til;
 test/field_transfer_error.til for the four error shapes.
+
+2026-10-27, fields, revised: reject, not track. Tracking a partially
+moved holder cost a per-place dataflow, four error kinds, raw-write
+refill special cases and an interpreter box move -- for a shape nothing
+in the tree used outside destructors, and with throw edges unmodelled (a
+throwing callee in ~h.f = f(own h.f)~ leaves the field moved on the
+error path). Rejection is a local check (gc_reject_field_moves, at each
+function and program root): an ~own~ argument bit on a field whose type's
+delete does something is an error, unless the field belongs to a
+parameter of a namespace ~delete~ or a compiler-generated member, or the
+call is the field's own destructor keeping its storage (~own
+s.f.delete(false)~ before the raw memset of interp_session_free and
+scope_free -- destruction in place, like ~free(own self.data)~). A
+consuming constructor or enum variant field is an ~own~ parameter the
+source need not spell, so ~H(name = a.name)~ and ~Option(Str).Some(a.name)~
+are the same error, worded for the constructor. An ~own~ field is no
+different: the holder still points at the moved box and its destructor
+frees it. The fixes are ~own h.f.clone()~, or ~swap~ to take the value
+out and leave the holder a fresh one (~h.name = f(own taken)~ without a
+copy); collection literals (~array(Str, a.name)~) already clone. The
+tracking dataflow, the consumed-FieldAssign clearing and the
+interpreter's inline-field box move are gone. Regressions:
+~own415_field_clone_or_swap~ and ~own415_field_swap_counted~
+(test/ownership_shapes.til); test/field_transfer_error.til for the six
+rejected shapes.
