@@ -3,6 +3,7 @@ import("context")
 
 import("loader")
 import("c_codegen")
+import("mlir_codegen")
 import("holyc_codegen")
 import("jvm_codegen")
 import("theme_codegen")
@@ -866,6 +867,66 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
             lp.core_stem(), lp.core_shared_basename(), build_flags)
     }
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, build_flags)
+}
+
+priv mlir_shell_quote := func(value: Str) returns Str {
+    return format("'", value.replace("'", "'\"'\"'"), "'")
+}
+
+cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str), functions: Set(Str)) returns I32 {
+    if command == "run" && argv.len() > 0 {
+        println("error: MLIR entry point takes no arguments")
+        return 1
+    }
+    mut paths := derive_build_paths(lp, output, "", lp.target)
+    paths.c_path = format("gen/mlir/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".mlir")
+    make_build_dirs(paths, lp.target)
+    result := mlir_codegen_translate(lp, paths.c_path, functions)
+    if result != 0 { return result }
+    if command == "translate" {
+        println("Generated: ", paths.c_path)
+        return 0
+    }
+    if paths.do_lib && command == "run" {
+        println("error: cannot run an MLIR library")
+        return 1
+    }
+    mut destination := paths.bin_path.clone()
+    mut flags := ""
+    if paths.do_lib {
+        destination = format("gen/lib/", paths.name, ".o")
+        flags = " -c -fPIC"
+    }
+    // pipefail is essential: a lowering failure must never be hidden by a
+    // later tool accepting empty input. No intermediate IR files or cache.
+    pipeline := format("mlir-opt-18 ", mlir_shell_quote(paths.c_path),
+        " --convert-vector-to-llvm --convert-arith-to-llvm --reconcile-unrealized-casts",
+        " | mlir-translate-18 --mlir-to-llvmir | clang-18 -x ir -",
+        " -O", lp.opt_level.to_str(), " ", lp.cpu.c_flags,
+        " -ffp-contract=off", flags, " -o ", mlir_shell_quote(destination))
+    shell := Cmd.new()
+    shell.args("bash", "-o", "pipefail", "-c", pipeline)
+    if shell.run() != 0 {
+        File.remove(destination)
+        println("error: MLIR compilation failed (requires matching LLVM 18 tools)")
+        return 1
+    }
+    if paths.do_lib {
+        shared := format("gen/lib/lib", paths.name, ".so")
+        archive := format("gen/lib/lib", paths.name, ".a")
+        linker := Cmd.new()
+        linker.args("clang-18", "-shared", destination, "-o", shared)
+        if linker.run() != 0 { return 1 }
+        File.remove(archive)
+        archiver := Cmd.new()
+        archiver.args("ar", "rcs", archive, destination)
+        if archiver.run() != 0 { return 1 }
+        println("Generated: ", shared)
+        println("Generated: ", archive)
+        return 0
+    }
+    if command == "run" { return run_artifact(paths, argv, lp.target, false) }
+    return 0
 }
 
 cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32 {

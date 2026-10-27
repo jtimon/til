@@ -1,0 +1,313 @@
+mode lib
+import("loader")
+import("../std/file")
+
+// First MLIR slice: straight-line F32/F32x4 values, with the Linux x86-64
+// SysV ABI used by the C backend. Vector registers are not the public ABI.
+priv MlirState := struct {
+    text := ""
+    next : USize = 0
+    values := Map(Str, Str).new()
+    functions := Set(Str).new()
+}
+
+priv mlir_f4_type := func() returns Str {
+    return "!llvm.struct<(vector<2xf32>, vector<2xf32>)>"
+}
+
+priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
+    if t == Type.Primitive(Primitive.F32) { return "f32" }
+    ref name : Str = type_name_ref(t, lp.ctx.symbols)
+    if name == "F32" { return "f32" }
+    if t.is(Type.None) { return "void" }
+    definition := lp.ctx.scope.get_struct(name, lp.ctx.symbols)
+    if definition.is_some() {
+        if definition.unwrap().node_type.is(NodeType.StructDef) {
+            ref sd : StructDef = structdef_of(definition.unwrap())
+            if sd.simd_width == 4 {
+                if decl_type_name_ref(sd.fields[0], lp.ctx.symbols) == "F32" { return "vector<4xf32>" }
+            }
+        }
+    }
+    return ""
+}
+
+priv mlir_error := proc(e: Expr, message: Str, mut lp: LoadedProgram) returns Str {
+    e.type_error(format("MLIR backend: ", message), lp.ctx)
+    return ""
+}
+
+priv mlir_value := func(mut state: MlirState, expression: Str) returns Str {
+    name := format("%v", state.next.to_str())
+    state.next++
+    state.text = format(state.text, "    ", name, " = ", expression, "\n")
+    return name
+}
+
+priv mlir_join := func(lo: Str, hi: Str, mut state: MlirState) returns Str {
+    return mlir_value(state, format("vector.shuffle ", lo, ", ", hi,
+        " [0, 1, 2, 3] : vector<2xf32>, vector<2xf32>"))
+}
+
+priv mlir_half := func(value: Str, high: Bool, mut state: MlirState) returns Str {
+    mut lanes := "0, 1"
+    if high { lanes = "2, 3" }
+    return mlir_value(state, format("vector.shuffle ", value, ", ", value,
+        " [", lanes, "] : vector<4xf32>, vector<4xf32>"))
+}
+
+priv mlir_pack_return := func(value: Str, mut state: MlirState) returns Str {
+    lo := mlir_half(value, false, state)
+    hi := mlir_half(value, true, state)
+    empty := mlir_value(state, format("llvm.mlir.undef : ", mlir_f4_type()))
+    first := mlir_value(state, format("llvm.insertvalue ", lo, ", ", empty, "[0] : ", mlir_f4_type()))
+    return mlir_value(state, format("llvm.insertvalue ", hi, ", ", first, "[1] : ", mlir_f4_type()))
+}
+
+priv mlir_root := func(lp: LoadedProgram) returns ref Expr {
+    return lp.ctx.imported[lp.units[lp.units.len() - 1].path].ast
+}
+
+// Capture source declarations before preparation appends generic core helpers
+// (including helpers referenced only by generated type namespaces).
+mlir_source_declarations := func(lp: LoadedProgram) returns Set(Str) {
+    mut names := Set(Str).new()
+    for stmt : Expr in mlir_root(lp).children {
+        if stmt.node_type.is(NodeType.Decl) {
+            names.add(own decl_of(stmt).name.clone())
+        }
+    }
+    return names
+}
+
+priv mlir_find_function := func(name: Str, lp: LoadedProgram) returns Option(ref Expr) {
+    for stmt : Expr in mlir_root(lp).children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if dd.name == name && stmt.children.len() == 1 {
+                if stmt.children[0].node_type.is(NodeType.FuncDef) { return safe_ref(stmt.children[0]) }
+            }
+        case:
+        }
+    }
+    return Option(ref Expr).None
+}
+
+priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(lp.ctx.symbols.names)
+        if state.values.has(name) { return state.values[name].clone() }
+        return mlir_error(e, format("unsupported global or value '", name, "'"), lp)
+    case .Literal(Literal.Num(num)):
+        if mlir_type(e.til_type(), lp) != "f32" { return mlir_error(e, "only F32 numeric literals are supported", lp) }
+        value := num.to_f32()
+        mut bits : U32 = 0
+        memcpy(to_ptr(bits), to_ptr(value), 4)
+        mut hex := ""
+        digits := "0123456789ABCDEF"
+        for i in 0..8 {
+            digit := bits.shr(((7 - i) * 4).to_u32()).band(15)
+            hex = format(hex, digits.substr(digit.to_usize(), 1))
+        }
+        return mlir_value(state, format("arith.constant 0x", hex, " : f32"))
+    case .FCall:
+        ref callee : Expr = e.children[0]
+        switch callee.node_type {
+        case .FieldAccess(field):
+            if callee.children.len() != 1 { return mlir_error(e, "unsupported method receiver", lp) }
+            ref owner : Expr = callee.children[0]
+            switch owner.node_type {
+            case .Ident(id):
+                owner_type := type_from_name_init_name(id.ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
+                t := mlir_type(owner_type, lp)
+                ref op : Str = field.field_access_name(lp.ctx.symbols.names)
+                if t.len() == 0 { return mlir_error(e, "unsupported operation type", lp) }
+                if op == "add" && e.children.len() == 3 {
+                    a := mlir_expr(e.children[1], state, lp)
+                    b := mlir_expr(e.children[2], state, lp)
+                    return mlir_value(state, format("arith.addf ", a, ", ", b, " : ", t))
+                }
+                if op == "clone" && e.children.len() == 2 { return mlir_expr(e.children[1], state, lp) }
+                if op == "delete" && e.children.len() == 3 {
+                    // POD stack-value cleanup inserted by the ownership pass.
+                    // Heap destruction is outside this value-only backend.
+                    switch e.children[2].node_type {
+                    case .Literal(Literal.Bool(free_storage)):
+                        if free_storage.not() { return mlir_expr(e.children[1], state, lp) }
+                    case:
+                    }
+                }
+                return mlir_error(e, format("unsupported operation '", op, "'"), lp)
+            case: return mlir_error(e, "unsupported method receiver", lp)
+            }
+        case .Ident(id):
+            ref name : Str = id.ident_name(lp.ctx.symbols.names)
+            if state.functions.has(name).not() { return mlir_error(e, format("unsupported call '", name, "'"), lp) }
+            found := mlir_find_function(name, lp)
+            if found.is_none() { return mlir_error(e, format("unsupported call '", name, "'"), lp) }
+            ref fd : FunctionDef = funcdef_of(found.unwrap())
+            mut call_name := name.clone()
+            if name == "main" { call_name = "til.mlir.main" }
+            mut args := ""
+            mut types := ""
+            for i in 0..fd.sig.params.len() {
+                value := mlir_expr(e.children[i + 1], state, lp)
+                t := mlir_type(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols), lp)
+                if i > 0 { args = format(args, ", "); types = format(types, ", ") }
+                if t == "vector<4xf32>" {
+                    lo := mlir_half(value, false, state)
+                    hi := mlir_half(value, true, state)
+                    args = format(args, lo, ", ", hi)
+                    types = format(types, "vector<2xf32>, vector<2xf32>")
+                } else { args = format(args, value); types = format(types, t) }
+            }
+            mut ret := "void"
+            if fd.sig.return_type.len() > 0 {
+                ret = mlir_type(type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols), lp)
+            }
+            mut abi_ret := ret.clone()
+            if ret == "vector<4xf32>" { abi_ret = mlir_f4_type() }
+            mut result := ""
+            if ret == "void" {
+                state.text = format(state.text, "    llvm.call @\"", call_name, "\"(", args, ") : (", types, ") -> ()\n")
+            } else {
+                result = mlir_value(state, format("llvm.call @\"", call_name, "\"(", args, ") : (", types, ") -> ", abi_ret))
+                if ret == "vector<4xf32>" {
+                    lo := mlir_value(state, format("llvm.extractvalue ", result, "[0] : ", abi_ret))
+                    hi := mlir_value(state, format("llvm.extractvalue ", result, "[1] : ", abi_ret))
+                    result = mlir_join(lo, hi, state)
+                }
+            }
+            return result
+        case: return mlir_error(e, "indirect calls are not supported", lp)
+        }
+    case: return mlir_error(e, "unsupported expression", lp)
+    }
+}
+
+priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgram) returns Str {
+    ref dd : Declaration = decl_of(decl)
+    ref fexpr : Expr = decl.children[0]
+    ref fd : FunctionDef = funcdef_of(fexpr)
+    if fd.sig.func_type.is_bodyless() || fd.sig.func_type.is(FuncType.Macro)
+        || fd.sig.throw_types.len() > 0 || fd.captures.len() > 0
+        || fd.sig.variadic_index >= 0 || fd.sig.kwargs_index >= 0 {
+        return mlir_error(decl, "only non-throwing ordinary functions are supported", lp)
+    }
+    if fd.sig.return_own_type.is(OwnType.Ref) { return mlir_error(decl, "borrowed returns are not supported", lp) }
+    mut state := MlirState()
+    state.functions = functions.clone()
+    mut signature := ""
+    mut slots : USize = 0
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
+        if t.len() == 0 || t == "void" || p.is_mut || p.own_type.is(OwnType.Ref).or(p.own_type.is(OwnType.Own)) {
+            return mlir_error(decl, format("parameters of '", dd.name, "' must be immutable F32 or Simd(F32,4) values"), lp)
+        }
+        if i > 0 { signature = format(signature, ", ") }
+        arg := format("%p", i.to_str())
+        if t == "vector<4xf32>" {
+            signature = format(signature, arg, "lo: vector<2xf32>, ", arg, "hi: vector<2xf32>")
+            state.values.set(p.name, own mlir_join(format(arg, "lo"), format(arg, "hi"), state))
+            slots = slots + 2
+        } else {
+            signature = format(signature, arg, ": f32")
+            state.values.set(p.name, own arg.clone())
+            slots++
+        }
+    }
+    // SysV spills aggregates as a whole when SSE argument registers run out.
+    // That ABI case is deliberately outside this first value-only slice.
+    if slots > 8 { return mlir_error(decl, "more than eight SSE argument slots are not supported", lp) }
+    mut ret := "void"
+    if fd.sig.return_type.len() > 0 {
+        ret = mlir_type(type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols), lp)
+    }
+    if ret.len() == 0 { return mlir_error(decl, "return type must be F32, Simd(F32,4), or void", lp) }
+    if dd.name == "main" && (ret != "void" || fd.sig.params.len() > 0) {
+        return mlir_error(decl, "main must take no arguments and return no value", lp)
+    }
+    mut terminated := false
+    for stmt : Expr in fexpr.children[0].children {
+        if terminated { return mlir_error(stmt, "statements after return are not supported", lp) }
+        switch stmt.node_type {
+        case .Decl(local):
+            if stmt.children.len() != 1 || local.is_mut || local.own_type.is(OwnType.Ref) {
+                return mlir_error(stmt, "only initialized immutable value locals are supported", lp)
+            }
+            t := mlir_type(declaration_resolved_type(local, lp.ctx.scope, lp.ctx.symbols), lp)
+            if t != "f32" && t != "vector<4xf32>" { return mlir_error(stmt, "unsupported local type", lp) }
+            value := mlir_expr(stmt.children[0], state, lp)
+            state.values.set(local.name, own value)
+        case .Return:
+            if stmt.children.len() == 0 {
+                state.text = format(state.text, "    llvm.return\n")
+            } else {
+                mut value := mlir_expr(stmt.children[0], state, lp)
+                if ret == "vector<4xf32>" {
+                    value = mlir_pack_return(value, state)
+                    state.text = format(state.text, "    llvm.return ", value, " : ", mlir_f4_type(), "\n")
+                } else { state.text = format(state.text, "    llvm.return ", value, " : ", ret, "\n") }
+            }
+            terminated = true
+        case .FCall: mlir_expr(stmt, state, lp)
+        case: return mlir_error(stmt, "only straight-line declarations, calls and returns are supported", lp)
+        }
+    }
+    if terminated.not() {
+        if ret != "void" { return mlir_error(decl, "missing value return", lp) }
+        state.text = format(state.text, "    llvm.return\n")
+    }
+    mut name := dd.name.clone()
+    if name == "main" { name = "til.mlir.main" }
+    mut linkage := ""
+    if dd.is_priv || dd.name == "main" { linkage = "internal " }
+    mut result := format("  llvm.func ", linkage, "@\"", name, "\"(", signature, ")")
+    if ret == "vector<4xf32>" { result = format(result, " -> ", mlir_f4_type()) }
+    else if ret != "void" { result = format(result, " -> ", ret) }
+    return format(result, " {\n", state.text, "  }\n")
+}
+
+mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_functions: Set(Str)) returns I32 {
+    mut text := "module attributes {llvm.target_triple = \"x86_64-pc-linux-gnu\"} {\n"
+    context_enter_file(lp.ctx, lp.units[lp.units.len() - 1].path)
+    mut has_main := false
+    mut functions := Set(Str).new()
+    for stmt : Expr in mlir_root(lp).children {
+        if stmt.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = decl_of(stmt)
+            if source_functions.has(dd.name) || (dd.orig_name.len() > 0 && source_functions.has(dd.orig_name)) {
+                functions.add(own dd.name.clone())
+            }
+        }
+    }
+    for stmt : Expr in mlir_root(lp).children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if functions.has(dd.name).not() { continue }
+            if stmt.children.len() == 1 {
+                if stmt.children[0].node_type.is(NodeType.FuncDef) {
+                    if functions.has(dd.name).not() { continue }
+                    if funcdef_of(stmt.children[0]).auto_generated || funcdef_of(stmt.children[0]).sig.func_type.is(FuncType.Macro) { continue }
+                    text = format(text, mlir_function(stmt, functions, lp))
+                    if dd.name == "main" { has_main = true }
+                } else {
+                    alias_type := mlir_type(type_from_name_init_name(dd.name, lp.ctx.scope, lp.ctx.symbols), lp)
+                    if alias_type != "f32" && alias_type != "vector<4xf32>" {
+                        mlir_error(stmt, format("unsupported module declaration '", dd.name, "'"), lp)
+                    }
+                }
+            } else { mlir_error(stmt, "unsupported top-level declaration", lp) }
+        case: mlir_error(stmt, "unsupported top-level statement", lp)
+        }
+    }
+    if lp.cur_mode.is_library.not() {
+        if has_main.not() { println("error: MLIR backend requires a no-argument main"); return 1 }
+        text = format(text, "  llvm.func @main() -> i32 {\n    llvm.call @\"til.mlir.main\"() : () -> ()\n    %zero = llvm.mlir.constant(0 : i32) : i32\n    llvm.return %zero : i32\n  }\n")
+    }
+    if lp.ctx.errors > 0 { return 1 }
+    File.writefile(path, format(text, "}\n"))
+    return 0
+}

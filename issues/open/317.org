@@ -159,7 +159,33 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
-*** Verification status
+*** Initial CPU value backend (2026-10-27)
+
+The approved ~--backend=mlir~ selector is independent of the CPU ~--target~.
+~src/self/mlir_codegen.til~ emits the prepared AST's straight-line F32 and
+~Simd(F32,4)~ addition, locals, calls and returns. Linux x86-64 aggregate
+arguments/results use the existing C ABI rather than assuming a native
+LLVM vector has the same calling convention as a four-float C struct.
+
+The builder pipes LLVM 18 vector/arith lowering and LLVM IR translation into
+Clang, with failure propagation and no persistent intermediates or cache.
+MLIR source lives under ~gen/mlir/~; ordinary C builds remain the default.
+Unsupported operations, runtime features and platforms fail explicitly.
+This does not complete the general backend or implement GPU execution.
+
+[[../../doc/self.org::*Experimental MLIR backend][Build documentation]] records the exact subset, output paths, optional tools
+and interoperability test commands. ~test/mlir_options.til~ exercises
+tool-independent translation/diagnostics in the normal suite;
+~test/mlir.til~ is the opt-in LLVM 18 C/til interoperability test.
+
+Verification: clean full ASAN suite 465/465; the opt-in integration test
+passes with an ASAN-built compiler and test driver. Its C caller checks
+scalar/F32x4 returns, nested/private calls and the eight-SSE-slot boundary
+at O0/O2, including signed zeros, subnormals, infinities and NaNs. The
+ordinary til/C consumer calls the shared MLIR library through explicit
+shallow aggregate bindings. No GPU compilation or execution is claimed.
+
+*** Original research verification status
 
 This review inspected source and upstream MLIR documentation; no MLIR
 pipeline or Mojo compiler was built. The local PATH probe found clang and

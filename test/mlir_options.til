@@ -1,0 +1,45 @@
+mode cli
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/targets")
+realpath_str := ext_proc(path: Str) returns Str {}
+
+main := proc(compiler_arg: Str) {
+    compiler := realpath_str(compiler_arg)
+    work := "tmp/mlir_options"
+    mkdir_p(work)
+    File.writefile(format(work, "/add.til"), "mode pure\nF4 := Simd(F32,4)\nadd := func(a: F4, b: F4) returns F4 { return a + b }\n")
+    if detect_current_target().is(Target.LinuxX64) {
+        command := Cmd.new(compiler, "translate", "--backend=mlir", "add.til")
+        command.cwd(work).capture()
+        status := command.run()
+        expect(status == 0, command.out(), command.err())
+        ir := File.readfile(format(work, "/gen/mlir/add.mlir"))
+        expect(ir.contains("arith.addf"), ir)
+        expect(ir.contains("vector<4xf32>"), ir)
+        expect(ir.contains("llvm.insertvalue"), ir)
+        File.writefile(format(work, "/bad.til"), "mode pure\nbad := func(a: F32, b: F32) returns F32 { return a * b }\n")
+        bad := Cmd.new(compiler, "translate", "--backend=mlir", "bad.til")
+        bad.cwd(work).capture()
+        expect(bad.run() != 0, "unsupported multiply accepted")
+        expect(bad.out().contains("unsupported operation 'mul'"), bad.out(), bad.err())
+        expect(bad.out().contains("bad.til:2:"), bad.out())
+    }
+    for command_name in array(Str, "interpret", "test", "ast", "doc", "install", "bindings") {
+        bad := Cmd.new(compiler, command_name, "--backend=mlir", "add.til")
+        bad.cwd(work).capture()
+        expect(bad.run() != 0, command_name)
+        expect(bad.out().contains("--backend requires translate, build or run"), bad.out(), bad.err())
+    }
+    for option in array(Str, "--backend=unknown", "--backend") {
+        bad := Cmd.new(compiler, "translate", option, "add.til")
+        bad.cwd(work).capture()
+        expect(bad.run() != 0, option)
+        expect(bad.out().contains("error: --backend"), bad.out(), bad.err())
+    }
+    bad_target := Cmd.new(compiler, "translate", "--backend=mlir", "--target=linux-arm64", "add.til")
+    bad_target.cwd(work).capture()
+    expect(bad_target.run() != 0, "unsupported MLIR target accepted")
+    expect(bad_target.out().contains("Linux x86-64 hosts and targets only"), bad_target.out(), bad_target.err())
+    println("mlir_options PASS")
+}

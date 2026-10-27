@@ -1,0 +1,46 @@
+mode cli
+// Opt-in LLVM 18 integration test. Not part of the tool-independent suite.
+// bin/til run test/mlir.til bin/til
+import("../src/std/sys")
+import("../src/std/file")
+realpath_str := ext_proc(path: Str) returns Str {}
+
+priv checked := proc(command: Cmd, work: Str) {
+    command.cwd(work).capture()
+    status := command.run()
+    expect(status == 0, command.render(), "\n", command.out(), command.err())
+}
+
+main := proc(compiler_arg: Str) {
+    compiler := realpath_str(compiler_arg)
+    work := "tmp/mlir_integration"
+    mkdir_p(work)
+    File.writefile(format(work, "/arithmetic.til"),
+        "mode pure\nF4 := Simd(F32,4)\nscalar_add := func(a: F32, b: F32) returns F32 { return a + b }\nadd4 := func(a: F4, b: F4) returns F4 { return a + b }\npriv helper := func(a: F4, b: F4) returns F4 { return add4(a,b) }\ntwice := func(a: F4, b: F4) returns F4 { first := helper(a, b); return add4(first, b) }\nfour := func(a: F4, b: F4, c: F4, d: F4) returns F4 { ab := add4(a,b); cd := add4(c,d); return add4(ab,cd) }\nconstant := func() returns F32 { return 0.1 }\n")
+    File.writefile(format(work, "/caller.c"), format(
+        "#include <assert.h>\n#include <math.h>\n#include <stdint.h>\n#include <string.h>\n",
+        "typedef struct { float lane0,lane1,lane2,lane3; } F4;\n",
+        "extern F4 add4(F4,F4); extern F4 twice(F4,F4); extern F4 four(F4,F4,F4,F4); extern float scalar_add(float,float); extern float constant(void);\n",
+        "static void equal(float a,float b) { if (isnan(a)) assert(isnan(b)); else assert(memcmp(&a,&b,4)==0); }\n",
+        "int main(void) { const float v[]={0.0f,-0.0f,1.0f,-2.5f,0x1p-149f,0x1p-126f,0x1p24f,INFINITY,-INFINITY,NAN};\n",
+        "equal(constant(),0.1f);\nfor(unsigned i=0;i<10;i++) {\nfor(unsigned j=0;j<10;j++) {\n",
+        "F4 a={v[i],v[(i+1)%10],v[(i+2)%10],v[(i+3)%10]}, b={v[j],v[(j+2)%10],v[(j+4)%10],v[(j+6)%10]};\n",
+        "F4 r=add4(a,b), s=twice(a,b), t=four(a,b,b,a); float aa[4],bb[4],rr[4],ss[4],tt[4]; memcpy(aa,&a,16); memcpy(bb,&b,16); memcpy(rr,&r,16); memcpy(ss,&s,16); memcpy(tt,&t,16);\n",
+        "for(unsigned k=0;k<4;k++){float once=aa[k]+bb[k]; equal(rr[k],once); equal(ss[k],once+bb[k]); equal(tt[k],once+(bb[k]+aa[k]));}\nequal(scalar_add(v[i],v[j]),v[i]+v[j]);\n}\n}\nreturn 0;\n}\n"))
+    File.writefile(format(work, "/consumer.til"),
+        "mode cli\nlink(\"gen/lib/libarithmetic.so\")\nF4 := Simd(F32,4)\nadd4 := ext_func(shallow a: F4, shallow b: F4) returns shallow F4 {}\nmain := proc() { a := F4.new(1,2,3,4); b := F4.new(4,3,2,1); result := add4(a,b); expected := F4.splat(5); assert(result.eq(expected).all()) }\n")
+    File.writefile(format(work, "/main.til"), "mode cli\npriv noop := func() {}\nmain := proc() { noop() }\n")
+    for level in array(Str, "0", "2") {
+        build := Cmd.new(compiler, "build", "--backend=mlir", format("--opt=", level), "arithmetic.til")
+        checked(build, work)
+        cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "caller.c", "gen/lib/libarithmetic.a", "-o", "caller")
+        checked(cc, work)
+        run := Cmd.new("./caller")
+        checked(run, work)
+        consumer := Cmd.new(compiler, "run", "--opt=2", "consumer.til")
+        checked(consumer, work)
+        main_run := Cmd.new(compiler, "run", "--backend=mlir", "-o", "custom executable", "main.til")
+        checked(main_run, work)
+    }
+    println("mlir PASS")
+}

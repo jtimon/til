@@ -414,6 +414,7 @@ typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___sr
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
+typedef struct priv___src_self_mlir_codegen_til__MlirState priv___src_self_mlir_codegen_til__MlirState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
@@ -1453,6 +1454,14 @@ typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
 } Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
+typedef struct priv___src_self_mlir_codegen_til__MlirState {
+    Str text;
+    USize next;
+    Map__Str_Str values;
+    Set__Str functions;
+} priv___src_self_mlir_codegen_til__MlirState;
+
+
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Str ref_return_type;
     Str continue_label;
@@ -1800,6 +1809,8 @@ typedef struct CliArgs {
     Str custom_c;
     Bool custom_c_set;
     Str target_str;
+    Str backend;
+    Bool backend_set;
     Str cc;
     Bool cc_set;
     Str cpu_profile;

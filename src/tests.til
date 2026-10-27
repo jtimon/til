@@ -1240,6 +1240,11 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ", til_bin))
 
+    // Translation and rejection tests require no optional LLVM/MLIR tools.
+    add_count(tests, "mlir_options", "build", "mlir_options PASS", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/mlir_options -c gen/c/mlir_options.c test/mlir_options.til ", til_bin))
+
     // Independent driver and scratch directory: the scheduler can overlap
     // pointer-width checks with CPU-option checks within its normal -j limit.
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,

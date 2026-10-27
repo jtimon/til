@@ -744,6 +744,7 @@ usage := proc() {
     println("")
     println("Options:")
     println("  --target=<name>  Select a target, including the portable JVM target.")
+    println("  --backend=c|mlir  Select native code generation (default c; MLIR subset).")
     println("  --cpu=baseline|x86-64-v3|x86-64-v4  Target CPU profile (default baseline).")
     println("              Controls SIMD width queries and C ISA flags; no host probing.")
     println("  --opt=0|2|3  C optimization level for build/run/test/install (default 0).")
@@ -785,6 +786,8 @@ CliArgs := struct {
     custom_c := ""
     custom_c_set := false
     target_str := ""
+    backend := "c"
+    backend_set := false
     cc := ""
     cc_set := false
     cpu_profile := "baseline"
@@ -844,7 +847,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.early_return = true
             return cli
         case:
-            if cli.command.starts_with("--cpu").or(cli.command.starts_with("--opt")).not() {
+            if cli.command.starts_with("--cpu").or(cli.command.starts_with("--opt")).or(cli.command.starts_with("--backend")).not() {
                 cli.path = cli.command
                 cli.command = "interpret"
                 return cli
@@ -858,6 +861,9 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             ref flag : Str = args[cli.path_idx]
             if flag.starts_with("--extra-modes=") {
                 cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
+            } else if flag.starts_with("--backend") {
+                println("error: --backend requires a file command, not repl")
+                exit(1)
             } else if flag.starts_with("--cpu").or(flag.starts_with("--opt")) {
                 println("error: --cpu and --opt require a file command, not repl")
                 exit(1)
@@ -910,6 +916,14 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         } else if flag.starts_with("--target=") {
             cli.target_str = flag.strip_prefix("--target=").clone()
             cli.path_idx++
+        } else if flag.starts_with("--backend=") {
+            cli.backend = flag.strip_prefix("--backend=").clone()
+            cli.backend_set = true
+            if cli.backend != "c" && cli.backend != "mlir" {
+                println("error: --backend expects c or mlir")
+                exit(1)
+            }
+            cli.path_idx++
         } else if flag.starts_with("--cc=") {
             cli.cc = flag.strip_prefix("--cc=").clone()
             cli.cc_set = true
@@ -929,7 +943,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             }
             cli.opt_set = true
             cli.path_idx++
-        } else if flag.eq("--cpu").or(flag.eq("--opt")) {
+        } else if flag.eq("--cpu").or(flag.eq("--opt")).or(flag.eq("--backend")) {
             println(format("error: ", flag, " requires an '=value'"))
             exit(1)
         } else if flag.starts_with("--usize=") {
@@ -1083,6 +1097,11 @@ main := proc(args: ..Str) {
     cli := parse_args(args)
     if cli.early_return { return }
 
+    if cli.backend_set && cli.command != "translate" && cli.command != "build" && cli.command != "run" {
+        println("error: --backend requires translate, build or run")
+        exit(1)
+    }
+
     if cli.command.eq("help").or(cli.command.eq("--help")) {
         usage()
         return
@@ -1125,6 +1144,20 @@ main := proc(args: ..Str) {
     mut target := detect_current_target()
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
     validate_target_flags(cli, target)
+    if cli.backend_set && target_lang(target).is(Lang.C).not() {
+        println("error: --backend requires a native C-compatible target")
+        exit(1)
+    }
+    if cli.backend == "mlir" {
+        if target.is(Target.LinuxX64).not() || detect_current_target().is(Target.LinuxX64).not() {
+            println("error: MLIR backend currently supports Linux x86-64 hosts and targets only")
+            exit(1)
+        }
+        if cli.custom_c_set || cli.cc_set || cli.asan || cli.prof {
+            println("error: MLIR backend does not yet support -c, --cc, --asan or --prof")
+            exit(1)
+        }
+    }
     cpu := resolve_target_cpu(target, cli.cpu_profile)
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
@@ -1135,6 +1168,10 @@ main := proc(args: ..Str) {
     // compile still stops here, with the message resolve_imports printed.
     if lp.load_errors > 0 { exit(1) }
     validate_theme_cli(cli, lp)
+    if cli.backend_set && lp.mode_str == "theme" {
+        println("error: --backend is not supported with mode theme")
+        exit(1)
+    }
     lp.target = target
     lp.cpu = cpu
     lp.opt_level = cli.opt_level
@@ -1169,7 +1206,21 @@ main := proc(args: ..Str) {
 
     // An output's mtime cannot establish its source, compiler or options.
     // Always prepare and emit the requested program, including explicit paths.
+    mut mlir_functions := Set(Str).new()
+    if cli.backend == "mlir" { mlir_functions = mlir_source_declarations(lp) }
     prepare_program(lp, cli.command == "test")
+
+    if cli.backend == "mlir" {
+        if lp.link_c_paths.len() > 0 || lp.link_flags.len() > 0 {
+            println("error: MLIR backend does not yet support link_c or link flags")
+            exit(1)
+        }
+        mlir_result := cmd_mlir(lp, cli.command, cli.custom_bin, user_argv, mlir_functions)
+        ffi_cleanup(lp.ctx)
+        lexer_cleanup()
+        if mlir_result != 0 { exit(mlir_result.cast(I64)) }
+        return
+    }
 
     mut result : I32 = 0
     switch cli.command {

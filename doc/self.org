@@ -122,6 +122,72 @@
   fused builtins/libm, including on targets without hardware FMA. There is
   no separate CPU flag or fast-math requirement for explicit fusion.
 
+** Experimental MLIR backend
+
+  ~--backend=mlir~ selects the initial CPU MLIR implementation for
+  ~translate~, ~build~ and ~run~. ~--backend=c~ explicitly selects the
+  existing default. Backend selection is separate from ~--target~; the
+  initial MLIR ABI supports Linux x86-64 hosts and targets only.
+
+  This is a restricted straight-line value backend, not GPU execution or a
+  replacement for the general C backend. It supports immutable F32 and
+  ~Simd(F32,4)~ parameters/locals/results, addition, cloning, F32 literals,
+  same-file direct function calls and returns. Unsupported arithmetic,
+  control flow, ownership, globals, runtime calls and types produce
+  source-located errors. Generated compile-time core helpers are not treated
+  as exported source functions. A runnable program needs a no-argument,
+  void ~main~; its native entry returns zero. CLI arguments are unsupported.
+
+  Scalar-aligned four-F32 storage retains the C backend's Linux SysV ABI:
+  each value argument is split into two ~vector<2xf32>~ arguments, and the
+  return is a two-member LLVM struct. Inside a function, values use
+  ~vector<4xf32>~ and ~arith.addf~, without fast-math flags. More than eight
+  SSE argument slots is rejected until aggregate stack passing is supported.
+  Mutable, borrowed and owning parameters are outside the initial subset.
+
+  til writes ~gen/mlir/<source>.mlir~, preserving the same normalized source
+  hierarchy as C output. ~mlir-opt-18~ lowers vector/arith operations to the
+  LLVM dialect; ~mlir-translate-18~ produces LLVM IR; ~clang-18~ compiles it.
+  Lowered MLIR and LLVM IR flow through pipes, not stored intermediates.
+  On Linux the pipeline uses Bash with ~pipefail~ so a failed stage cannot
+  be hidden by a succeeding downstream process. All outputs are regenerated
+  from til source on each invocation; no persistent compilation cache exists.
+
+  Executables retain ~bin/<source>~ or the existing ~-o~ override. Library
+  builds use ~gen/lib/<name>.o~, ~gen/lib/lib<name>.so~ and
+  ~gen/lib/lib<name>.a~. C headers and til/Python binding generation are not
+  yet implemented for MLIR libraries. C callers can declare the four-float
+  struct by value; til ~ext_func~ bindings must explicitly use ~shallow~ on
+  those value parameters and returns, as for other by-value C aggregates.
+
+  ~--cpu~ and ~--opt~ retain their existing meanings. ~-c~, ~--cc~, ~--asan~,
+  ~--prof~, ~link_c~ and link flags are rejected for this initial backend.
+  ~interpret~, ~test~, ~install~, ~ast~, ~doc~, ~bindings~ and REPL do not
+  accept ~--backend~. Normal C/bootstrap builds never invoke the MLIR tools.
+  Optional package/version instructions are in [[../README.org::*Optional LLVM/MLIR development tools][README]].
+
+  Minimal library source:
+
+  #+begin_src til
+  mode pure
+  F4 := Simd(F32, 4)
+  add4 := func(a: F4, b: F4) returns F4 { return a + b }
+  #+end_src
+
+  #+begin_src sh
+  bin/til translate --backend=mlir path/to/library.til
+  bin/til build --backend=mlir --opt=2 path/to/library.til
+  # Optional LLVM 18 integration checks, including C and til/C callers:
+  bin/til run test/mlir.til bin/til
+  #+end_src
+
+  ~test/mlir_options.til~ is part of ~make test~ and checks emission and
+  diagnostics without requiring LLVM tools. The opt-in ~test/mlir.til~
+  checks ABI calls, private helpers, scalar/four-lane addition, argument
+  register limits, signed zeros, subnormals, infinities and NaNs at O0/O2.
+  Finite results and zeros are compared bit-for-bit; NaN payloads are not
+  specified by til and are checked by classification.
+
 ** Single-pass build
 
   The Makefile builds til in one pass:
