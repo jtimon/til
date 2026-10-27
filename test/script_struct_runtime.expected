@@ -162,3 +162,12 @@ CallableError
 42
 21
 21
+enum field copied
+enum field independent
+41
+41
+source string prefixes
+source string negatives
+7
+body-end
+18446744073709551615

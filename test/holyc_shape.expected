@@ -1,1 +1,38 @@
-error: HolyC codegen: unsupported direct call 'noop_proc'
+
+#define TIL_USIZE U64
+#define TIL_STR_CAP_LIT 0xFFFFFFFFFFFFFFFF
+#define TIL_STR_CAP_VIEW 0xFFFFFFFFFFFFFFFE
+#include "/Home/Ext.HC"
+
+
+extern U0 noop_proc();
+extern I64 get_external_value();
+extern U0 get_external_text(TilStr *return_out);
+extern U0 unsupported();
+
+U0 unsupported()
+{
+    noop_proc();
+    U64 hoisted__U64_0_0 = 2;
+    TilStrArray _va_Array_0_1;
+    TilStrArrayNew(&_va_Array_0_1, hoisted__U64_0_0);
+    I64 _va_Array_0_ek_2 = 0;
+    I64 hoisted__I64_1_3 = get_external_value();
+    U64 hoisted__U64_2_4 = 0;
+    TilStr hoisted__Str_unsupported_3_5;
+    TilStrFromI64(&hoisted__Str_unsupported_3_5, hoisted__I64_1_3);
+    TilStrArraySet(&_va_Array_0_1, hoisted__U64_2_4, &hoisted__Str_unsupported_3_5);
+    U64 hoisted__U64_4_6 = 1;
+    TilStr hoisted__Str_unsupported_5_7;
+    get_external_text(&hoisted__Str_unsupported_5_7);
+    TilStrArraySet(&_va_Array_0_1, hoisted__U64_4_6, &hoisted__Str_unsupported_5_7);
+    TilPrintln(&_va_Array_0_1);
+}
+
+I64 TilMain()
+{
+    unsupported();
+    return 0;
+}
+
+TilMain;

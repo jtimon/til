@@ -2531,6 +2531,9 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str inline_call_sigs;
     Map__Str_call_Set_USize inline_cleanup;
     Set__Str inline_indirect;
+    priv___src_self_holyc_codegen_til__HolyCLocalState global_locals;
+    Set__Str source_functions;
+    Bool needs_take_word;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;
 
 

@@ -1089,16 +1089,11 @@ public I64 TilStrToI64(TilStr *s)
   return result;
 }
 
-public U0 TilStrFromI64(TilStr *out,I64 value)
+U0 TilStrFromMagnitude(TilStr *out,U64 magnitude,Bool negative)
 {
-  U64 magnitude,rest;
+  U64 rest;
   TIL_USIZE digits=1,count,index;
-  Bool negative=value<0;
   U8 *data;
-  if (negative)
-    magnitude=-(value+1)+1;
-  else
-    magnitude=value;
   rest=magnitude;
   while (rest>=10) {
     rest/=10;
@@ -1120,6 +1115,22 @@ public U0 TilStrFromI64(TilStr *out,I64 value)
   out->c_str=data;
   out->count=count;
   out->cap=count;
+}
+
+public U0 TilStrFromI64(TilStr *out,I64 value)
+{
+  U64 magnitude;
+  Bool negative=value<0;
+  if (negative)
+    magnitude=-(value+1)+1;
+  else
+    magnitude=value;
+  TilStrFromMagnitude(out,magnitude,negative);
+}
+
+public U0 TilStrFromU64(TilStr *out,U64 value)
+{
+  TilStrFromMagnitude(out,value,FALSE);
 }
 
 public Bool TilStrEq(TilStr *a,TilStr *b)

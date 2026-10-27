@@ -173,6 +173,28 @@ main := proc() {
             run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
         }
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "test/globals_cli.til").run_checked()
+        File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
+        cli_globals := captured(Cmd.new("bin/til", "interpret", format("--usize=", bits), "test/globals_cli.til"))
+        run_guest(identity, format("cli_globals_", bits), cli_globals, "pass")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "examples/cli_typed.til").run_checked()
+        File.appendfile(format(WORK, "/TILTEST.HC"),
+            "\nTilStr guest_name; TilStrInitLit(&guest_name,\"TempleOS\",8); TilMain(&guest_name,42);\n")
+        run_guest(identity, format("cli_typed_", bits), "TempleOS 42\n", "pass")
+        cli_arguments := format("\nTilStrArray guest_args; TilStrArrayNew(&guest_args,2);\n",
+            "TilStr guest_first,guest_second; TilStrInitLit(&guest_first,\"alpha\",5); TilStrInitLit(&guest_second,\"beta\",4);\n",
+            "TilStrArraySet(&guest_args,0,&guest_first); TilStrArraySet(&guest_args,1,&guest_second);\n")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "examples/cli_args.til").run_checked()
+        File.appendfile(format(WORK, "/TILTEST.HC"), format(cli_arguments, "TilMain(&guest_args);\n"))
+        run_guest(identity, format("cli_variadic_", bits), "alpha\nbeta\n", "pass")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "test/main_return7.til").run_checked()
+        File.appendfile(format(WORK, "/TILTEST.HC"), format(cli_arguments,
+            "if (TilMain(&guest_args)!=7) TilPanicZ(\"CLI return value mismatch\\n\");\n"))
+        run_guest(identity, format("cli_return_", bits), "args=2\n", "pass")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))
         redsea_setup := format(

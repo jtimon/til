@@ -1259,9 +1259,8 @@ main := proc(args: ..Str) {
 
     // #151: Linux performs the frontend and emits HolyC; TempleOS is the
     // compiler/runtime. The first accepted subset is the fully lowered shape
-    // of examples/hello_script.til, and build must stop before looking for a
-    // host `holyc` executable. Other modes fail explicitly rather than
-    // falling through to C emission.
+    // of examples/hello_script.til. CLI output exposes a typed TilMain;
+    // build still stops before looking for a host `holyc` executable.
     add_single(tests, "holyc_hello_translate", "build", 0, "test/hello_templeos.expected",
         format(til_bin, " translate --target=templeos examples/hello_script.til '&&' cat gen/til/examples/hello_script.HC"))
     add_single(tests, "holyc_fizzbuzz_translate", "build", 0, "test/fizzbuzz_templeos.expected",
@@ -1286,12 +1285,20 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos -c gen/c/holyc_percent.HC test/holyc_percent.til '&&' cat gen/c/holyc_percent.HC"))
     add_single(tests, "holyc_rejects_unsupported_mode", "build", 1, "test/holyc_mode.expected",
         format(til_bin, " translate --target=templeos -c gen/c/hello_pure.HC examples/hello_pure.til"))
-    add_single(tests, "holyc_rejects_unsupported_shape", "build", 1, "test/holyc_shape.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_shape.HC test/holyc_unsupported.til"))
+    add_single(tests, "holyc_external_declarations_translate", "build", 0, "test/holyc_shape.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_shape.HC test/holyc_unsupported.til '&&' cat gen/c/holyc_shape.HC"))
     add_single(tests, "holyc_counted_nul", "build", 0, "test/holyc_nul.expected",
         format(til_bin, " translate --target=templeos -c gen/c/holyc_nul.HC test/holyc_nul.til '&&' cat gen/c/holyc_nul.HC"))
-    add_single(tests, "holyc_rejects_link_flags", "build", 1, "test/holyc_link.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_link.HC examples/hello_script.til -lunsupported"))
+    add_single(tests, "holyc_records_link_flags", "build", 0, "test/holyc_link.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_link.HC examples/hello_script.til -lunsupported '&&' cat gen/c/holyc_link.HC"))
+    add_counts(tests, "holyc_cli_globals_translate", "build",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_cli_globals.HC test/globals_cli.til '&&' cat gen/c/holyc_cli_globals.HC"),
+        CountCheck(needle = "U0 TilMain()", expected_count = 1),
+        CountCheck(needle = "\nTilMain;\n", expected_count = 0))
+    add_count(tests, "holyc_cli_typed_translate", "build", "U0 TilMain(TilStr *name, I64 count)", 1,
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_cli_typed.HC examples/cli_typed.til '&&' cat gen/c/holyc_cli_typed.HC"))
+    add_count(tests, "holyc_cli_variadic_translate", "build", "U0 TilMain(TilStrArray *args)", 1,
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_cli_variadic.HC examples/cli_args.til '&&' cat gen/c/holyc_cli_variadic.HC"))
     add_single(tests, "holyc_build_requires_guest", "build", 1, "test/holyc_build.expected",
         format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
     add_single(tests, "templeos_target_width", "build", 0, "",

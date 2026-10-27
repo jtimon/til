@@ -156,17 +156,22 @@
     equality first, then Array and Vec, then Map/Set as the guest corpus
     requires them.
   - [ ] Add TempleOS-native filesystem, timing, task, and other ~ext_func~
-    primitives individually. Keep host ~link_c~, include flags, generic
-    libffi, and unavailable primitives as explicit errors.
+    primitives individually. Translation may retain supported external
+    declarations and record host C link inputs, but must not manufacture
+    implementations of unavailable primitives or pretend to link C libraries.
   - [X] Add function addresses, indirect calls, closures, ~dyn_fn~,
     reflection, and callable cleanup only after the scalar and aggregate ABI
     is stable; these need a HolyC-specific callable representation.
   - [X] Make guest acceptance reproducible in the repository and CI:
     ~make test_templeos~, pinned ISO, isolated disks, exact output, failure
     classification, exit status, and timeout enforcement at both USize widths.
+  - [X] Translate mode cli modules with globals and a native typed entrypoint.
+    Keep argument transport and unsupported host dependencies explicit.
   - [ ] Integrate guest compilation/execution with ~build~ and ~run~ after
     defining their TempleOS output and provisioning contract.
-  - [ ] Add mode gui last, using TempleOS graphics rather than raylib.
+  - [ ] Add mode gui using TempleOS graphics rather than raylib. A basic
+    Tiled editor host is an application milestone before a complete native
+    compiler; compare the actual GUI and host dependencies first.
 
   The first HolyC slice emits the lowered literal-only form of
   ~examples/hello_script.til~ as ~gen/til/hello_script.HC~. TempleOS 5.03
@@ -700,6 +705,98 @@
   458/458 (including clang validation); TempleOS passes all 55 cases at USize
   32/64. The aggregate and collection checklist entries above now reflect the
   completed guest coverage.
+
+*** CLI translation and future compiler/application milestones
+
+  Mode cli emits a loadable HolyC module. Its global declarations and
+  dependency-ordered initialization are outside the source main function, and
+  functions receive the same global binding/type information. TilMain exposes
+  the source main's lowered typed signature; it is not automatically called.
+  This avoids inventing an empty argv or a host command-line convention.
+
+  For example, translating examples/cli_typed.til produces an entrypoint
+  ~U0 TilMain(TilStr *name, I64 count)~. After loading the generated module in
+  TempleOS, a native caller can construct a TilStr and call
+  ~TilMain(&name, 42)~. A ~main(args: ..Str)~ takes a TilStrArray; an integer
+  result from main is returned to that caller. Source-level shell argument
+  parsing, exit/task lifecycle and a general TempleOS command launcher remain
+  future work, not implied by successfully translating a CLI module.
+
+  Supported ext_func/ext_proc signatures retain extern declarations, with no
+  empty substitute body. Target-selected host C source/link/include inputs are
+  recorded as comments in the existing .HC output; they are not linked by HolyC.
+  This is useful for emission work on programs whose platform boundaries are not
+  yet ported. The installed compiler has no new Docker or QEMU dependency. The
+  previously considered Docker-backed build/run integration was set aside;
+  Docker/QEMU remains the repository's explicit guest acceptance machinery.
+
+  CLI/compiler-shaped coverage also exercises core enum fields, Dynamic word
+  collections and reuse of ordinary core Str implementations such as
+  starts_with, ends_with, find and strip_prefix. Referenced core types and
+  borrowed niche types must be discovered without turning reference cycles
+  into inline class dependencies. Typed adopt helpers remain ownership-ABI
+  operations rather than functions whose C-oriented bodies are copied blindly.
+  Unsigned integer formatting preserves the full U64 range, including CLI
+  argument counts at either USize width.
+
+  Verification on master ~a9d3a8fde~: clean hosted ASAN suite 471/471, including
+  clang validation. The shared aggregate corpus has 173 output lines matching
+  interpreter, compiled C and native TempleOS. All 63 guest cases completed:
+  46 passed before the user interruption, including all new CLI cases at both
+  widths; a temporary continuation completed the remaining 17 after the rebase.
+  No persistent resume cache, flag or runner surface was added.
+
+  Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
+  development pressure test, not a claim of a working TempleOS compiler.
+  The latest full attempt reaches ~IdentData_ident_name~ and reports
+  ~unsupported direct call 'cast'~. General Dynamic-to-typed casts, the remaining
+  compiler data/operation shapes, and actual foreign/native boundaries still
+  need coverage. Translation, native compilation and a usable compiler are
+  separate acceptance milestones. Broader CLI checks should include imported
+  globals, initialization/cleanup ordering, typed and variadic arguments, and
+  returned status values before adding a native shell/launcher contract.
+
+**** Tiled/raylib versus TempleOS graphics
+
+  Source inspection: jtimon/tiled at ~cd3612e~ (local checkout supplied by the
+  user), especially ~src/editor.til~, ~src/text_view.til~,
+  ~src/window_input.til~, ~src/editor_model.til~ and ~doc/architecture.org~.
+  This is a proposed native host, not a raylib port or a promise that the
+  existing Tiled application already runs unchanged.
+
+  | Tiled/raylib use | TempleOS facility | Porting consequence |
+  |-----------------+-------------------+---------------------|
+  | BeginDrawing/EndDrawing, SetTargetFPS(60) | task draw_it callback, about 30 Hz window-manager refresh | Adapt rendering/lifetime to a task callback; bridge the native callback ABI to managed til callables. |
+  | DrawRectangle and RGBA Color | GrRect, CDC.color, raster operations; 640x480 screen and 16 palette colors | Choose a native theme/palette policy; arbitrary RGB and alpha are not equivalent. |
+  | BeginScissorMode per pane and minibuffer | CDC/window bounds clipping; DCNew and GrBlot for off-screen composition | Window clipping alone is not pane clipping. Preserve nested/intersected pane clip semantics explicitly. |
+  | LoadFontEx, GetGlyphInfo, MeasureTextEx, DrawTextCodepoint | default 8x8 bitmap glyphs; GrPutChar/GrPrint consume byte characters | No direct TrueType/Unicode-scalar equivalent. Keep Unicode buffer/editing semantics separate from native rendering and input policy. |
+  | ordered GLFW key/text/close bridge plus mouse polling | GetMsg, MSG_KEY_DOWN/UP, scan-code modifier flags and mouse messages/state | Map key codes, text, repeats, modifiers, ordering and coordinates; replacing GetCharPressed alone is insufficient. |
+  | pixel-sized windows, monitor placement and maximization | one window per task; WinHorz/WinVert use character-cell bounds; WinMax | Reflow the initial layout for the smaller native viewport and define resize/placement semantics. |
+  | GetClipboardText/SetClipboardText | DolDoc sys_clip_doc and ClipCopy/ClipPaste | Add deliberate plain-text conversion; DolDoc data is not an interchangeable UTF-8 C string. |
+  | tinyfiledialogs and fontconfig lookup | native task/DolDoc UI and bitmap-font facilities | Replace those host adapters explicitly; do not retain Linux commands or fake successful font loading. |
+
+  TempleOS references (archive source):
+  - [[https://github.com/cia-foundation/TempleOS/blob/archive/Doc/GraphicsOverview.DD][GraphicsOverview]]: task callbacks, one window per task, DCNew/GrBlot.
+  - [[https://github.com/cia-foundation/TempleOS/blob/archive/Kernel/KernelA.HH][KernelA.HH]]: GR_WIDTH/HEIGHT, COLORS_NUM, FONT_WIDTH/HEIGHT, messages and scan flags.
+  - [[https://github.com/cia-foundation/TempleOS/blob/archive/Adam/Gr/GrPrimatives.HC][GrPrimatives]] and [[https://github.com/cia-foundation/TempleOS/blob/archive/Adam/Gr/GrComposites.HC][GrComposites]]: clipped drawing and byte-oriented text.
+  - [[https://github.com/cia-foundation/TempleOS/blob/archive/Adam/Win.HC][Win.HC]], [[https://github.com/cia-foundation/TempleOS/blob/archive/Demo/MsgLoop.HC][MsgLoop]], [[https://github.com/cia-foundation/TempleOS/blob/archive/Doc/CharOverview.DD][CharOverview]] and [[https://github.com/cia-foundation/TempleOS/blob/archive/Adam/DolDoc/DocClipBoard.HC][DocClipBoard]].
+
+  A first application milestone is a native editor frame that draws text,
+  cursor/selection and split panes, handles ordered keyboard/mouse input and
+  opens/edits/saves a file. Confirm the reusable model boundary first:
+  editor_model.til already imports the generated terminal_api and includes
+  terminal viewport state. Tiled also has C save/input bridges, PTY-backed
+  terminals, platform configuration paths and optional TilVm startup/live
+  configuration. Those do not become native merely by replacing drawing calls;
+  the full application is a broader milestone than the initial editor host.
+
+  Mode gui currently imports raylib/tinyfd through src/modes/gui.til. A future
+  target-native support selection must happen before those support imports are
+  loaded, while keeping frontend semantics and editor policy shared. Design the
+  native host/support boundary with [[439.org][#439]]; do not special-case Tiled
+  in the compiler or introduce new GUI APIs/layouts without an explicit design
+  decision. Validate native drawing/input with guest pixel/event checks as well
+  as text output; matching an emitted call name is not graphics acceptance.
 
 *** QEMU validation
 

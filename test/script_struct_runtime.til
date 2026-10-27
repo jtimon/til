@@ -854,3 +854,39 @@ callable_runtime_view := callable_lookup("CallableRuntime", callable_method_view
 println(callable_runtime_view(callable_runtime).to_str())
 callable_literal_read : CallableRuntimeGetter = dyn_fn("CallableRuntime", "read")
 println(callable_literal_read(callable_runtime).to_str())
+
+// Compiler metadata stores payload-free core enums in ordinary fields.
+CompilerEnumField := struct { kind := OwnType.Ref }
+mut compiler_enum := CompilerEnumField()
+compiler_enum.kind = OwnType.Own
+compiler_enum_copy := compiler_enum.clone()
+if compiler_enum.eq(compiler_enum_copy) { println("enum field copied") }
+compiler_enum.kind = OwnType.Shallow
+if compiler_enum_copy.kind.is(OwnType.Own) { println("enum field independent") }
+
+// Dynamic collection cells copy erased words out of a transferred box.
+mut compiler_word_box : I64 = malloc(I64.size())
+compiler_word_box = 41
+compiler_words := Vec(Dynamic).new()
+compiler_words.push(own compiler_word_box)
+compiler_words_copy := compiler_words.clone()
+ref compiler_word : Dynamic = compiler_words[0]
+ref compiler_value : I64 = to_ptr(compiler_word)
+println(compiler_value.to_str())
+own compiler_words.delete()
+ref compiler_word_copy : Dynamic = compiler_words_copy[0]
+ref compiler_value_copy : I64 = to_ptr(compiler_word_copy)
+println(compiler_value_copy.to_str())
+own compiler_words_copy.delete()
+
+// Reuse the core Str implementations needed by compiler/CLI programs.
+compiler_text_checks := proc(value: Str) {
+    if value.starts_with("prefix").and(value.ends_with("end")) { println("source string prefixes") }
+    if value.starts_with("absent").or(value.ends_with("missing")).not() { println("source string negatives") }
+    println(value.find("body").to_str())
+    println(value.strip_prefix("prefix-"))
+}
+compiler_text_checks("prefix-body-end")
+mut compiler_unsigned : U64 = 0
+compiler_unsigned.dec()
+println(compiler_unsigned.to_str())
