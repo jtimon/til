@@ -9104,7 +9104,7 @@ U0 callable_throwing(TilStr *return_out, I64 n, I64 *_err_kind, CallableError *_
             TilMemCpy(&hoisted__CallableError_0_247, &swap_value_249, sizeof(CallableError));
         }
         CallableError_Delete(&hoisted__CallableError_0_247, FALSE);
-        I64 hoisted__I64_2_250 = 5;
+        I64 hoisted__I64_2_250 = 5956990367655552573;
         (*((TilCheckPtr(_err_kind))(I64 *))) = hoisted__I64_2_250;
     }
     I64 hoisted__I64_6_251 = 0;
@@ -13104,7 +13104,7 @@ I64 TilMain()
     I64 hoisted__I64_g1071_1846 = 1;
     TilStr _bang_ret_g15_1847;
     TilCall_CallableThrower(callable_throw_fn_1845, &_bang_ret_g15_1847, hoisted__I64_g1071_1846, &_err_kind_286, &_err_CallableError_287);
-    I64 hoisted__I64_g1072_1848 = 5;
+    I64 hoisted__I64_g1072_1848 = 5956990367655552573;
     Bool hoisted__Bool_g1073_1849 = (_err_kind_286 == hoisted__I64_g1072_1848);
     if (hoisted__Bool_g1073_1849) {
         I64 hoisted__I64_g362_1850 = 0;
@@ -13140,7 +13140,7 @@ I64 TilMain()
         TilStrDelete(&callable_outcome_1862, FALSE);
         TilStrCopyValue(&callable_outcome_1862, &replacement_1864);
     }
-    I64 hoisted__I64_g1078_1865 = 5;
+    I64 hoisted__I64_g1078_1865 = 5956990367655552573;
     Bool hoisted__Bool_g1079_1866 = (_err_kind_286 == hoisted__I64_g1078_1865);
     if (hoisted__Bool_g1079_1866) {
         I64 hoisted__I64_g367_1867 = 0;

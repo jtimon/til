@@ -45,7 +45,59 @@ choose := func(value: Choice, amount: U8) returns U8 {
 identity := func<T: Type>(value: T) returns T { return value }
 pick_chooser := func() returns Choose { return choose }
 
+CommandTable := struct {
+    entries := Vec(Binding).new()
+namespace:
+    add := func(mut self: CommandTable, action: TextEdit) {
+        value := Binding(action = action)
+        self.entries.push(own value)
+    }
+    invoke := proc(self: CommandTable, mut text: Str) {
+        for entry : Binding in self.entries { entry.action(text) }
+    }
+}
+CommandCapture := struct { text: Str }
+owned_command := proc(seed: Str) returns TextEdit {
+    noop_proc()
+    state := CommandCapture(text = seed.clone())
+    return proc(mut text: Str) [own mut state] {
+        noop_proc()
+        state.text = format(state.text, "!")
+        text = format(text, state.text)
+    }
+}
+check_command_storage := proc(seed: Str) {
+    mut suffix := seed.clone()
+    mut borrowed := CommandTable()
+    action := proc(mut text: Str) [mut suffix] {
+        noop_proc()
+        suffix = format(suffix, "!")
+        text = format(text, suffix)
+    }
+    borrowed.add(action)
+    mut text := ""
+    borrowed.invoke(text)
+    borrowed.invoke(text)
+    assert(text == format(seed, "!", seed, "!!"))
+    own borrowed.delete()
+    own suffix.delete()
+
+    mut owned := CommandTable()
+    owned.add(owned_command(seed))
+    // Copying the table clones each callable and its owned aggregate capture.
+    copy := owned.clone()
+    mut original_text := ""
+    owned.invoke(original_text)
+    owned.invoke(original_text)
+    own owned.delete()
+    mut copied_text := ""
+    copy.invoke(copied_text)
+    assert_eq(Str, original_text, format(seed, "!", seed, "!!"))
+    assert_eq(Str, copied_text, format(seed, "!"))
+}
+
 main := proc() {
+    check_command_storage("retained")
     binding := Binding(action = edit)
     mut text := "live"
     call_parameter(binding.action, text)

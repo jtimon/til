@@ -55,3 +55,24 @@ bad_borrow_escape := func(borrow: BorrowText) returns ref Str {
 SumParts := func(base: I64, parts: ..I64) returns I64
 bad_variadic_type := func(sum: SumParts) returns I64 { return sum(1, "wrong") }
 bad_variadic_required := func(sum: SumParts) returns I64 { return sum() }
+
+CommandTable := struct {
+    entries := Vec(Binding).new()
+namespace:
+    add := func(mut self: CommandTable, action: TextEdit) {
+        value := Binding(action = action)
+        self.entries.push(own value)
+    }
+}
+bad_command_table_escape := func() returns CommandTable {
+    mut local := "local"
+    mut commands := CommandTable()
+    action := proc(mut text: Str) [mut local] { noop_proc(); local = format(local, "!"); text = local.clone() }
+    commands.add(action)
+    return commands
+}
+bad_command_field_escape := func() returns Binding {
+    mut local := "local"
+    action := proc(mut text: Str) [mut local] { noop_proc(); local = format(local, "!"); text = local.clone() }
+    return Binding(action = action)
+}

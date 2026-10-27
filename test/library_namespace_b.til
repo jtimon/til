@@ -4,6 +4,12 @@ link_c("library_namespace_b_link.c")
 
 LibraryNamespaceBCallback := func(I64) returns I64
 
+BindingPayloadError := struct { message: Str = ""; code: I64 = 0 }
+library_namespace_b_throwing := func(value: I64) returns I64 throws BindingPayloadError {
+    if value < 0 { throw BindingPayloadError(message = format("native", " error"), code = 7) }
+    return value
+}
+
 library_link_helper := ext_func(shallow value: I64) returns shallow I64 {}
 
 library_namespace_b_value := func() returns I64 {

@@ -1252,6 +1252,20 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         if fld_decl.own_type.is(OwnType.Own).not() {
             if type_ctor_consumes(fld_decl.til_type).not() { continue }
         }
+        // A callable parameter lends its closure even when its pointer-sized
+        // ABI is shallow. Constructors must copy that environment, not consume
+        // the caller's box. Field reads likewise borrow their containing slot.
+        if type_is_callable_storage(fld_slot_type) {
+            ref value : Expr = e.children[ai]
+            if value.node_type.is(NodeType.FieldAccess) { continue }
+            switch value.node_type {
+            case .Ident(id):
+                ref binding : TypeBinding = scope.get_binding_sym(id.ident_sym()).unwrap()
+                if binding.own_type.is(OwnType.Ref)
+                    .or(binding.is_param.and(binding.own_type.is(OwnType.Own).not())) { continue }
+            case:
+            }
+        }
         set_own_arg(e, ai)
     }
     e.set_til_type(Type.StructSym(ctx.symbols.intern(resolve_type_alias(scope, name, ctx.symbols))))
@@ -5434,7 +5448,13 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
     rdef_o := scope.get_struct(resolved, symbols)
     if rdef_o.is_none() { return false }
     if enum_has_ref_payload(rdef_o.unwrap()) { return true }
-    return type_carries_borrow(scope, resolved, symbols)
+    // Callable-containing values can carry references without borrowing the
+    // argument SLOT itself. Do not disable scalar value arguments merely
+    // because e.g. DynVec stores clone/delete function pointers. Only an
+    // actual into-argument relation requires preserving that storage.
+    if fdef.ref_return_into_params != 0 { return true }
+    mut visited := Set(Str).new()
+    return type_carries_borrow_v(scope, resolved, visited, symbols, false)
 }
 
 priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, mut ctx: Context) {
@@ -8064,10 +8084,10 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         // with a ref field, or an enum with a ref payload, built by a
         // constructor or returned by a call -- records the storages that
         // value reaches, so a later write through the carried borrow can
-        // be credited to them. Only call results are recorded: a plain
-        // copy of another binding arrives clone-wrapped and contributes
-        // no summary, which is the conservative no-roots answer.
-        if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)) {
+        // be credited to them. Callable copies also carry their borrowed
+        // captures: copying the environment does not own those referents.
+        if sdecl.own_type.is(OwnType.Ref).not()
+            .and(rhs.node_type.is(NodeType.FCall).or(type_is_callable_storage(stmt.til_type()))) {
             if type_carries_borrow_t(scope, stmt.til_type(), ctx.symbols) {
                 mut carried_roots := expr_borrow_roots(scope, rhs, ctx.symbols)
                 for mut crr : BorrowRoot in carried_roots {
@@ -11914,9 +11934,10 @@ priv summary_fcall_arg_for_param := func(fcall: Expr, cfd: FunctionDef, pi: USiz
 // storage. The visited set is real control flow, not a guard: the type
 // graph has cycles through own/ref fields (a list node's next), and a
 // type already being tested carries nothing new.
-priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Set(Str), symbols: SymbolPool) returns Bool {
+priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Set(Str), symbols: SymbolPool, callables: Bool = true) returns Bool {
     if tname.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, tname, symbols)
+    if callables.and(type_is_callable_storage(type_from_name_init_name(resolved, scope, symbols))) { return true }
     if visited.has(resolved) { return false }
     visited.add(own resolved.clone())
     tdef_o := scope.get_struct(resolved, symbols)
@@ -11926,7 +11947,7 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
     case .StructDef(sdd):
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Ref) { return true }
-            if type_carries_borrow_v(scope, decl_type_name_ref(fd, symbols), visited, symbols) { return true }
+            if type_carries_borrow_v(scope, decl_type_name_ref(fd, symbols), visited, symbols, callables) { return true }
         }
     case .EnumDef:
         if enum_has_ref_payload(tdef) { return true }
@@ -11958,6 +11979,7 @@ type_carries_borrow := func(scope: TypeScope, tname: Str, symbols: SymbolPool) r
 // a named one resolves its alias by symbol, so the only hash left is the
 // memo probe on the resolved spelling.
 type_carries_borrow_t := func(scope: TypeScope, t: Type, symbols: SymbolPool) returns Bool {
+    if type_is_callable_storage(t) { return true }
     if is_named_type(t).not() { return false }
     sym := type_sym(t, symbols)
     // An unregistered spelling (0) names no def, and a def is the only
@@ -12138,6 +12160,10 @@ priv push_root_unique := func(mut out: Vec(BorrowRoot), r: BorrowRoot) {
 expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
     mut out := Vec(BorrowRoot).new()
     switch e.node_type {
+    case .FuncDef(fd):
+        return capture_borrow_roots(scope, fd.captures, symbols)
+    case .BodyValue(bd):
+        return capture_borrow_roots(scope, bd.captures, symbols)
     case .Ident(id):
         bo := scope.get_binding_sym(id.ident_sym())
         if bo.is_none() { return out }
@@ -12265,6 +12291,25 @@ expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) return
         case:
         }
     case:
+    }
+    return out
+}
+
+priv capture_borrow_roots := func(scope: TypeScope, captures: Vec(Declaration), symbols: SymbolPool) returns Vec(BorrowRoot) {
+    mut out := Vec(BorrowRoot).new()
+    for capture : Declaration in captures {
+        ref binding : TypeBinding = scope.get_binding_name(capture.name, symbols).unwrap()
+        if capture.own_type.is(OwnType.Ref) {
+            mut root := borrow_root_of_binding(binding)
+            root.carried = true
+            push_root_unique(out, root)
+        }
+        // Owning the capture owns its value, not the values it borrows.
+        for root : BorrowRoot in binding.borrow_roots {
+            mut carried := root.clone()
+            carried.carried = true
+            push_root_unique(out, carried)
+        }
     }
     return out
 }

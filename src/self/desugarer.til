@@ -1040,21 +1040,34 @@ make_default_value_expr := func(type_name: Str, line: U32, col: U32, mut symbols
 }
 
 priv tag_for_type := func(ctx: Context, type_name: Str, _type_to_tag_names: Vec(Str)) returns I64 {
-    // Issue #198: read from ctx.throw_type_registry so the tag for a
-    // given type is the same in every function (caller and callee
-    // agree). The local Vec param is kept for backward shape but no
-    // longer consulted.
-    for i in 0..ctx.throw_type_registry.len() {
-        ref n : Str = ctx.throw_type_registry[i]
-        if n == type_name { return i.to_i64() + 1 }
+    for name : Str in ctx.throw_type_registry {
+        if name == type_name { return throw_type_tag(type_name) }
     }
     return 0
+}
+
+// Exception identities cross separately compiled library boundaries. A
+// registration index only agrees within one program. Preserve the core ABI
+// tags used by native collection helpers; other nominal names use fixed-width
+// FNV-1a, independent of import order, target USize, and the chosen hasher.
+priv throw_type_tag := func(name: Str) returns I64 {
+    switch name {
+    case "OutOfBounds": return 1
+    case "IntegerOverflow": return 2
+    case "DivideByZero": return 3
+    case "KeyNotFound": return 4
+    case:
+    }
+    return hash_str(name).band(4611686018427387903).bor(4611686018427387904).to_i64()
 }
 
 priv register_throw_type := func(mut ctx: Context, name: Str) {
     if name.len() == 0 { return }
     for existing : Str in ctx.throw_type_registry {
         if existing == name { return }
+        if throw_type_tag(existing) == throw_type_tag(name) {
+            panic("exception identity collision: ", existing, " and ", name)
+        }
     }
     ctx.throw_type_registry.push(own name.clone())
 }
