@@ -1,0 +1,53 @@
+# priority: high
+# category: bugs
+** FIXED #444 Loops continue after an unhandled propagating call fails
+
+*** Post-mortem
+
+The consolidated throw pass guarded later statements inside a loop but
+left its backedge unconditional. It now appends an error-kind break on
+paths with an unhandled body error, before the next condition/iterator
+evaluation. A throwing while condition is also gated on a clear error
+kind before the body starts. Locally caught errors reset the kind and
+continue normally; existing ownership cleanup sees the generated break.
+
+Regression tests in ~test/errors.til~:
+~test_loop_propagation_stops_backedge~, ~test_nested_for_propagation~,
+~test_loop_local_catch_continues~, and ~test_throwing_loop_condition~.
+The focused file passes 81/81 interpreted and compiled with ASAN; the
+clean full suite passes 465/465. Nested expression consumption is a
+separate defect tracked by #443 and is not claimed fixed here.
+
+*** Original report
+
+Found while preparing the MLIR buffer backend (#317), on master d2e52f609
+plus the SIMD follow-up 1a07795e9. C/ASAN prints ~attempts: 3~ below;
+propagation must leave the loop after the first failure. A loop whose
+increment is after the throwing call can instead stop advancing forever.
+
+#+begin_src til
+mode cli
+loop_error := func(values: Array(F32), mut attempts: USize) throws OutOfBounds {
+    while attempts < 3 {
+        attempts++
+        values.get(0)?
+    }
+}
+main := proc() {
+    values := Array(F32).new(0)
+    mut attempts : USize = 0
+    mut caught := false
+    loop_error(values, attempts)? catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+    println("attempts: ", attempts)
+    assert_eq(USize, attempts, 1)
+}
+#+end_src
+
+The shared pass guards statements after a throwing call within the body,
+but does not gate the next iteration on the pending error. Fix loop
+condition/backedge handling, including condition effects, nested loops,
+for-in loops and locally handled errors that should permit iteration to
+continue. Do not insert an MLIR-specific error shortcut.
+
+Scratch reproducer: ~tmp/mlir_buffers_loop_error.til~.

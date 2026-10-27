@@ -2412,6 +2412,20 @@ priv process_match_arms_in := proc(
     }
 }
 
+// A pending error must leave the loop before its next condition/iterator
+// evaluation. A locally handled error is reset before this edge (#444).
+priv append_loop_error_break := func(mut body: Expr, mut symbols: SymbolPool) {
+    mut kind := Expr.new(own ident_node(symbols.intern("_err_kind")), body.line, body.col)
+    mut condition := make_method_call_fcall(own kind, "neq", body.line, body.col, symbols)
+    condition.add_child(own make_int_lit(0, body.line, body.col))
+    mut branch := Expr.new(own NodeType.If, body.line, body.col)
+    branch.add_child(own condition)
+    mut stop := Expr.new(own NodeType.Body, body.line, body.col)
+    stop.add_child(own Expr.new(own NodeType.Break, body.line, body.col))
+    branch.add_child(own stop)
+    body.add_child(own branch)
+}
+
 priv process_throw_catch_in_body := proc(
     mut scope: TypeScope,
     mut ctx: Context,
@@ -2550,12 +2564,24 @@ priv process_throw_catch_in_body := proc(
         case .While:
             if stmt.children.len() >= 2 {
                 ref mut wb : Expr = stmt.children[1]
+                body_pending := subtree_has_pending_throw(wb)
                 process_throw_catch_in_body(scope, ctx, wb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                if body_pending { append_loop_error_break(wb, ctx.symbols) }
+                if subtree_has_pending_throw(stmt.children[0]) {
+                    mut condition := make_method_call_fcall(own stmt.children[0].clone(), "and", stmt_line, stmt_col, ctx.symbols)
+                    mut kind := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), stmt_line, stmt_col)
+                    mut clear := make_method_call_fcall(own kind, "eq", stmt_line, stmt_col, ctx.symbols)
+                    clear.add_child(own make_int_lit(0, stmt_line, stmt_col))
+                    condition.add_child(own clear)
+                    stmt.children[0] = condition
+                }
             }
         case .ForIn:
             if stmt.children.len() >= 2 {
                 ref mut fb : Expr = stmt.children[1]
+                body_pending := subtree_has_pending_throw(fb)
                 process_throw_catch_in_body(scope, ctx, fb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                if body_pending { append_loop_error_break(fb, ctx.symbols) }
             }
         case .Switch:
             for ci in 1..stmt.children.len() {

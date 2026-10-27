@@ -415,6 +415,17 @@ typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_s
 typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct priv___src_self_mlir_codegen_til__MlirState priv___src_self_mlir_codegen_til__MlirState;
+typedef struct Map__Str_U64 Map__Str_U64;
+enum {
+    Option__U64_TAG_None,
+    Option__U64_TAG_Some
+};
+typedef struct Option__U64 Option__U64;
+enum {
+    Option__Bool_TAG_None,
+    Option__Bool_TAG_Some
+};
+typedef struct Option__Bool Option__Bool;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
@@ -458,11 +469,6 @@ typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
-enum {
-    Option__U64_TAG_None,
-    Option__U64_TAG_Some
-};
-typedef struct Option__U64 Option__U64;
 typedef struct Array__U64 Array__U64;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
@@ -1454,13 +1460,27 @@ typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
 } Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
-typedef struct priv___src_self_mlir_codegen_til__MlirState {
-    Str text;
-    USize next;
-    Map__Str_Str values;
-    Set__Str functions;
-} priv___src_self_mlir_codegen_til__MlirState;
+typedef struct Map__Str_U64 {
+    Vec__Str keys;
+    Vec__U64 values;
+} Map__Str_U64;
 
+
+struct Option__U64 {
+    U8 tag;
+    union {
+        U64 Some;
+        void *_til_payload_align;
+    } data;
+};
+
+struct Option__Bool {
+    U8 tag;
+    union {
+        Bool Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Str ref_return_type;
@@ -1730,14 +1750,6 @@ typedef struct Vec__priv___src_self_interpreter_til__InterpAlias {
 
 struct Option__ref_ffi_type {
     ffi_type *data;
-};
-
-struct Option__U64 {
-    U8 tag;
-    union {
-        U64 Some;
-        void *_til_payload_align;
-    } data;
 };
 
 typedef struct Array__U64 {
@@ -2148,6 +2160,16 @@ typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites {
     Vec__UPtr keys;
     Vec__priv___src_self_c_codegen_til__BuilderFuncSites values;
 } Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
+
+
+typedef struct priv___src_self_mlir_codegen_til__MlirState {
+    Str text;
+    USize next;
+    Map__Str_Str values;
+    Set__Str functions;
+    Map__Str_U64 integers;
+    Map__Str_Bool booleans;
+} priv___src_self_mlir_codegen_til__MlirState;
 
 
 typedef struct Map__Str_call_Map_Str_Bool {

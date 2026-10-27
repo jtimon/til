@@ -131,8 +131,10 @@
 
   This is a restricted straight-line value backend, not GPU execution or a
   replacement for the general C backend. It supports immutable F32 and
-  ~Simd(F32,4)~ parameters/locals/results, addition, cloning, F32 literals,
-  same-file direct function calls and returns. Unsupported arithmetic,
+  ~Simd(F32,4)~ parameters/locals/results, addition, multiplication, cloning,
+  F32 literals, same-file direct function calls and returns. SIMD ~new~,
+  ~splat~, ~zero~, fixed-order ~reduce_add~ and statically in-range lane
+  access (~v[2]~ or ~v.get(2)!~) are supported. Unsupported arithmetic,
   control flow, ownership, globals, runtime calls and types produce
   source-located errors. Generated compile-time core helpers are not treated
   as exported source functions. A runnable program needs a no-argument,
@@ -141,9 +143,20 @@
   Scalar-aligned four-F32 storage retains the C backend's Linux SysV ABI:
   each value argument is split into two ~vector<2xf32>~ arguments, and the
   return is a two-member LLVM struct. Inside a function, values use
-  ~vector<4xf32>~ and ~arith.addf~, without fast-math flags. More than eight
+  ~vector<4xf32>~, ~arith.addf~ and ~arith.mulf~, without fast-math flags.
+  ~reduce_add~ emits exactly ~(lane0+lane2)+(lane1+lane3)~, not a reassociating
+  vector reduction or an extra initial addition of positive zero. Multiply
+  followed by add remains unfused. More than eight
   SSE argument slots is rejected until aggregate stack passing is supported.
   Mutable, borrowed and owning parameters are outside the initial subset.
+
+  Lane access is lowered only after proving the index is in 0..3. The
+  backend tracks compile-time integer/boolean bookkeeping to prove the
+  prepared AST's bounds-error branch unreachable; it leaves the error
+  argument untouched on success. It rejects unknown/out-of-range indices
+  rather than emitting an unchecked extract or discarding a live catch.
+  This does not implement general integer parameters, runtime control flow
+  or exception handling. Both USize32 and USize64 index bookkeeping are tested.
 
   til writes ~gen/mlir/<source>.mlir~, preserving the same normalized source
   hierarchy as C output. ~mlir-opt-18~ lowers vector/arith operations to the
@@ -172,6 +185,7 @@
   mode pure
   F4 := Simd(F32, 4)
   add4 := func(a: F4, b: F4) returns F4 { return a + b }
+  dot4 := func(a: F4, b: F4) returns F32 { return (a * b).reduce_add() }
   #+end_src
 
   #+begin_src sh
@@ -183,10 +197,15 @@
 
   ~test/mlir_options.til~ is part of ~make test~ and checks emission and
   diagnostics without requiring LLVM tools. The opt-in ~test/mlir.til~
-  checks ABI calls, private helpers, scalar/four-lane addition, argument
-  register limits, signed zeros, subnormals, infinities and NaNs at O0/O2.
-  Finite results and zeros are compared bit-for-bit; NaN payloads are not
-  specified by til and are checked by classification.
+  checks ABI calls, private helpers, construction, lane reordering, arithmetic,
+  dot products, argument register limits, cancellation, signed zeros,
+  subnormals, infinities and NaNs at O0/O2/O3. The same dot-product checks
+  run against interpreted til, the C backend and a til/C caller of the MLIR
+  library. Finite results and zeros are compared bit-for-bit; arithmetic NaN
+  results are checked by classification. Construction, splatting and lane
+  reordering preserve raw bits, including signaling-NaN payloads, and are
+  checked byte-for-byte. A multiply/add case distinguishes separate rounding
+  from FMA (zero versus one).
 
 ** Single-pass build
 

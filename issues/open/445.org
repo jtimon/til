@@ -1,0 +1,26 @@
+# priority: medium
+# category: bugs
+** OPEN #445 C library binding generation rejects builtin SIMD types
+
+Discovered during MLIR/C interoperability work (#317), reproduced on
+master d2e52f609 plus 1a07795e9. Translating this ordinary C-backend library
+panics while generating its public bindings:
+
+#+begin_src til
+mode pure
+F4 := Simd(F32, 4)
+add4 := func(a: F4, b: F4) returns F4 { return a + b }
+#+end_src
+
+~bin/til translate -c tmp/simd_binding_bug.c tmp/simd_binding_bug.til~:
+
+#+begin_example
+panic: public generated binding type 'Simd__F32_n1_4' uses unsupported user-defined generator 'Simd'
+#+end_example
+
+~src/self/c_codegen.til~ treats builtin Simd as an unsupported user-defined
+generator at the public-binding boundary. SIMD values already have a
+documented consecutive-scalar layout and working C ABI, so investigate
+supporting that builtin in the binding emitter without relaxing rejection
+of genuinely unsupported user-defined generators. Cover generated headers
+and til bindings, not only a manually declared C caller.

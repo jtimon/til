@@ -6,6 +6,85 @@ mode test
 
 AAAError := struct {}
 
+// #444: an unhandled error exits before the loop condition/iterator is
+// evaluated again. A handled error still permits the next iteration.
+propagation_loop := func(values: Array(I64), mut attempts: I64, mut conditions: I64) throws OutOfBounds {
+    while propagation_condition(conditions) {
+        attempts++
+        label := format("iteration ", attempts)
+        assert(label.len() > 0)
+        values.get(0)?
+    }
+}
+
+propagation_condition := func(mut conditions: I64) returns Bool {
+    conditions++
+    return conditions < 4
+}
+
+test_loop_propagation_stops_backedge := test() {
+    values := Array(I64).new(0)
+    mut attempts : I64 = 0
+    mut conditions : I64 = 0
+    mut caught := false
+    propagation_loop(values, attempts, conditions)? catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+    assert_eq(I64, attempts, 1)
+    assert_eq(I64, conditions, 1)
+}
+
+propagation_nested_loop := func(values: Array(I64), mut attempts: I64) throws OutOfBounds {
+    for i in 0..3 {
+        for j in 0..3 {
+            assert(i >= 0 && j >= 0)
+            attempts++
+            values.get(0)?
+        }
+    }
+}
+
+test_nested_for_propagation := test() {
+    values := Array(I64).new(0)
+    mut attempts : I64 = 0
+    mut caught := false
+    propagation_nested_loop(values, attempts)? catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+    assert_eq(I64, attempts, 1)
+}
+
+test_loop_local_catch_continues := test() {
+    values := Array(I64).new(0)
+    mut attempts : I64 = 0
+    mut caught : I64 = 0
+    while attempts < 3 {
+        attempts++
+        values.get(0)? catch (err: OutOfBounds) { caught++ }
+    }
+    assert_eq(I64, attempts, 3)
+    assert_eq(I64, caught, 3)
+}
+
+propagation_bad_condition := func(mut calls: I64) returns Bool throws AAAError {
+    calls++
+    throw AAAError()
+}
+
+propagation_condition_loop := func(mut calls: I64, mut bodies: I64) throws AAAError {
+    while calls < 3 && propagation_bad_condition(calls)?.not() {
+        bodies++
+    }
+}
+
+test_throwing_loop_condition := test() {
+    mut calls : I64 = 0
+    mut bodies : I64 = 0
+    mut caught := false
+    propagation_condition_loop(calls, bodies)? catch (err: AAAError) { caught = true }
+    assert(caught)
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, bodies, 0)
+}
+
 throwing_index := func(values: Vec(I64), index: USize) returns I64 throws AAAError, OutOfBounds {
     if values.len() == 0 { throw AAAError() }
     ref value : I64 = values.get(index)?

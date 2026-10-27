@@ -15,22 +15,56 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
-    File.writefile(format(work, "/arithmetic.til"),
-        "mode pure\nF4 := Simd(F32,4)\nscalar_add := func(a: F32, b: F32) returns F32 { return a + b }\nadd4 := func(a: F4, b: F4) returns F4 { return a + b }\npriv helper := func(a: F4, b: F4) returns F4 { return add4(a,b) }\ntwice := func(a: F4, b: F4) returns F4 { first := helper(a, b); return add4(first, b) }\nfour := func(a: F4, b: F4, c: F4, d: F4) returns F4 { ab := add4(a,b); cd := add4(c,d); return add4(ab,cd) }\nconstant := func() returns F32 { return 0.1 }\n")
+    File.writefile(format(work, "/arithmetic.til"), format(
+        "mode pure\nF4 := Simd(F32,4)\nscalar_add := func(a: F32, b: F32) returns F32 { return a + b }\nadd4 := func(a: F4, b: F4) returns F4 { return a + b }\npriv helper := func(a: F4, b: F4) returns F4 { return add4(a,b) }\ntwice := func(a: F4, b: F4) returns F4 { first := helper(a, b); return add4(first, b) }\nfour := func(a: F4, b: F4, c: F4, d: F4) returns F4 { ab := add4(a,b); cd := add4(c,d); return add4(ab,cd) }\nconstant := func() returns F32 { return 0.1 }\n",
+        "make4 := func(a: F32,b: F32,c: F32,d: F32) returns F4 { return F4.new(a,b,c,d) }\n",
+        "splat4 := func(a: F32) returns F4 { return F4.splat(a) }\nzero4 := func() returns F4 { return F4.zero() }\n",
+        "literal4 := func() returns F4 { return F4.new(0.1,-0.0,3,4) }\n",
+        "mul4 := func(a: F4,b: F4) returns F4 { return a*b }\n",
+        "reduce4 := func(a: F4) returns F32 { return a.reduce_add() }\ndot4 := func(a: F4,b: F4) returns F32 { return (a*b).reduce_add() }\n",
+        "reverse4 := func(a: F4) returns F4 { return F4.new(a[3],a[2],a[1],a[0]) }\n",
+        "madd4 := func(a: F4,b: F4,c: F4) returns F4 { return a*b+c }\n",
+        "scalar_madd := func(a: F32,b: F32,c: F32) returns F32 { return a*b+c }\n"))
     File.writefile(format(work, "/caller.c"), format(
         "#include <assert.h>\n#include <math.h>\n#include <stdint.h>\n#include <string.h>\n",
         "typedef struct { float lane0,lane1,lane2,lane3; } F4;\n",
         "extern F4 add4(F4,F4); extern F4 twice(F4,F4); extern F4 four(F4,F4,F4,F4); extern float scalar_add(float,float); extern float constant(void);\n",
+        "extern F4 make4(float,float,float,float), splat4(float), zero4(void), literal4(void), reverse4(F4), mul4(F4,F4), madd4(F4,F4,F4);\nextern float reduce4(F4), dot4(F4,F4), scalar_madd(float,float,float);\n",
         "static void equal(float a,float b) { if (isnan(a)) assert(isnan(b)); else assert(memcmp(&a,&b,4)==0); }\n",
         "int main(void) { const float v[]={0.0f,-0.0f,1.0f,-2.5f,0x1p-149f,0x1p-126f,0x1p24f,INFINITY,-INFINITY,NAN};\n",
         "equal(constant(),0.1f);\nfor(unsigned i=0;i<10;i++) {\nfor(unsigned j=0;j<10;j++) {\n",
         "F4 a={v[i],v[(i+1)%10],v[(i+2)%10],v[(i+3)%10]}, b={v[j],v[(j+2)%10],v[(j+4)%10],v[(j+6)%10]};\n",
         "F4 r=add4(a,b), s=twice(a,b), t=four(a,b,b,a); float aa[4],bb[4],rr[4],ss[4],tt[4]; memcpy(aa,&a,16); memcpy(bb,&b,16); memcpy(rr,&r,16); memcpy(ss,&s,16); memcpy(tt,&t,16);\n",
-        "for(unsigned k=0;k<4;k++){float once=aa[k]+bb[k]; equal(rr[k],once); equal(ss[k],once+bb[k]); equal(tt[k],once+(bb[k]+aa[k]));}\nequal(scalar_add(v[i],v[j]),v[i]+v[j]);\n}\n}\nreturn 0;\n}\n"))
+        "F4 m=mul4(a,b), ma=madd4(a,b,a); float mm[4],maa[4]; memcpy(mm,&m,16); memcpy(maa,&ma,16);\n",
+        "for(unsigned k=0;k<4;k++){float once=aa[k]+bb[k], product=aa[k]*bb[k]; equal(rr[k],once); equal(ss[k],once+bb[k]); equal(tt[k],once+(bb[k]+aa[k])); equal(mm[k],product); equal(maa[k],product+aa[k]);}\nequal(scalar_add(v[i],v[j]),v[i]+v[j]);\n",
+        "equal(reduce4(a),(aa[0]+aa[2])+(aa[1]+aa[3])); equal(dot4(a,b),(mm[0]+mm[2])+(mm[1]+mm[3]));\n}\n}\n",
+        "F4 cancel={1e20f,1,-1e20f,3}, ones=splat4(1); equal(reduce4(cancel),4); equal(dot4(cancel,ones),4); equal(reduce4(splat4(-0.0f)),-0.0f);\n",
+        "equal(scalar_madd(4097,4097,-16785408),0); F4 unfused=madd4(splat4(4097),splat4(4097),splat4(-16785408)); equal(unfused.lane0,0);\n",
+        "const uint32_t raw[4]={0x7f800001u,0xffc12345u,0x80000000u,1u}; F4 rawv; memcpy(&rawv,raw,16); F4 copy=make4(rawv.lane0,rawv.lane1,rawv.lane2,rawv.lane3), rev=reverse4(rawv), spl=splat4(rawv.lane0); uint32_t revbits[4],splbits[4]; memcpy(revbits,&rev,16); memcpy(splbits,&spl,16); assert(memcmp(&copy,raw,16)==0);\n",
+        "for(unsigned k=0;k<4;k++){assert(revbits[k]==raw[3-k]); assert(splbits[k]==raw[0]);}\nF4 z=zero4(),lit=literal4(); const uint32_t zeros[4]={0}; assert(memcmp(&z,zeros,16)==0); equal(lit.lane0,0.1f); equal(lit.lane1,-0.0f); equal(lit.lane2,3); equal(lit.lane3,4);\nreturn 0;\n}\n"))
+    reference_checks := format(
+        "bits := func(value: F32) returns U32 { mut out: U32 = 0; memcpy(to_ptr(out),to_ptr(value),4); return out }\n",
+        "from_bits := func(value: U32) returns F32 { mut out: F32 = 0; memcpy(to_ptr(out),to_ptr(value),4); return out }\n",
+        "same := func(a: F32,b: F32) { if b != b { assert(a != a) } else { assert_eq(U32,bits(a),bits(b)) } }\n",
+        "main := proc() { patterns := array(U32,0,0x80000000,0x3f800000,0xc0200000,1,0x00800000,0x7f800000,0xff800000,0x7fc12345);\n",
+        "for p in patterns { for q in patterns { a := from_bits(p); b := from_bits(q); va := make4(a,b,a,b); vb := splat4(b); product := a*b; square := b*b; expected := (product+product)+(square+square); same(dot4(va,vb),expected); same(reduce4(va),(a+a)+(b+b)) } }\n",
+        "cancel := make4(1e20,1,-1e20,3); same(dot4(cancel,splat4(1)),4); same(reduce4(splat4(from_bits(0x80000000))),from_bits(0x80000000)); same(scalar_madd(4097,4097,-16785408),0);\n",
+        "rev := reverse4(make4(1,2,3,4)); assert(rev.eq(F4.new(4,3,2,1)).all()); println(\"SIMD reference PASS\") }\n")
+    File.writefile(format(work, "/reference.til"), format("mode cli\nimport(\"arithmetic\")\n", reference_checks))
+    File.writefile(format(work, "/simd_consumer.til"), format(
+        "mode cli\nlink(\"gen/lib/libarithmetic.so\")\nF4 := Simd(F32,4)\n",
+        "make4 := ext_func(shallow a: F32,shallow b: F32,shallow c: F32,shallow d: F32) returns shallow F4 {}\n",
+        "splat4 := ext_func(shallow a: F32) returns shallow F4 {}\nreverse4 := ext_func(shallow a: F4) returns shallow F4 {}\n",
+        "reduce4 := ext_func(shallow a: F4) returns shallow F32 {}\ndot4 := ext_func(shallow a: F4,shallow b: F4) returns shallow F32 {}\n",
+        "scalar_madd := ext_func(shallow a: F32,shallow b: F32,shallow c: F32) returns shallow F32 {}\n", reference_checks))
     File.writefile(format(work, "/consumer.til"),
         "mode cli\nlink(\"gen/lib/libarithmetic.so\")\nF4 := Simd(F32,4)\nadd4 := ext_func(shallow a: F4, shallow b: F4) returns shallow F4 {}\nmain := proc() { a := F4.new(1,2,3,4); b := F4.new(4,3,2,1); result := add4(a,b); expected := F4.splat(5); assert(result.eq(expected).all()) }\n")
     File.writefile(format(work, "/main.til"), "mode cli\npriv noop := func() {}\nmain := proc() { noop() }\n")
-    for level in array(Str, "0", "2") {
+    for command in array(Str, "interpret", "run") {
+        reference := Cmd.new(compiler, command, "reference.til")
+        checked(reference, work)
+    }
+    for level in array(Str, "0", "2", "3") {
         build := Cmd.new(compiler, "build", "--backend=mlir", format("--opt=", level), "arithmetic.til")
         checked(build, work)
         cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "caller.c", "gen/lib/libarithmetic.a", "-o", "caller")
@@ -39,6 +73,8 @@ main := proc(compiler_arg: Str) {
         checked(run, work)
         consumer := Cmd.new(compiler, "run", "--opt=2", "consumer.til")
         checked(consumer, work)
+        simd_consumer := Cmd.new(compiler, "run", "--opt=2", "simd_consumer.til")
+        checked(simd_consumer, work)
         main_run := Cmd.new(compiler, "run", "--backend=mlir", "-o", "custom executable", "main.til")
         checked(main_run, work)
     }

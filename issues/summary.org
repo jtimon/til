@@ -1,8 +1,12 @@
 * Bugs
+** High
+*** [[./open/443.org][#443]] Nested propagating calls consume failed reference results
+*** [[./open/446.org][#446]] Discarded owned call result is destroyed twice before return
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it
 *** [[./open/431.org][#431]] til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
+*** [[./open/445.org][#445]] C library binding generation rejects builtin SIMD types
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade

@@ -159,6 +159,29 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** SIMD dot-product operations (2026-10-27)
+
+The MLIR F32/F32x4 subset now includes multiplication, SIMD ~new~, ~splat~,
+~zero~, statically in-range lane access and ~reduce_add~. A til dot product
+~(a*b).reduce_add()~ lowers with separate multiply/add rounding and exactly
+~(lane0+lane2)+(lane1+lane3)~; no reassociating vector reduction or initial
+positive-zero addition is introduced. Constructors and lane reordering are
+bit-preserving, including signaling-NaN payloads.
+
+Checked lane reads retain their contract: compile-time index/error-tag
+bookkeeping proves the bounds-error branch unreachable for indices 0..3.
+Unknown or out-of-range indices are explicitly unsupported, not converted
+to unchecked/poison extracts. This is not general runtime control flow or
+exception support. The tool-independent tests cover both USize widths.
+
+Verification: clean full ASAN suite 465/465; expanded opt-in tests pass
+using the ASAN compiler/test driver at O0/O2/O3. The same dot checks run
+through the interpreter, C and a til/C caller of the MLIR library. The C
+oracle adds exceptional FP pairs, cancellation, negative-zero reduction,
+raw-bit construction/reordering and separate-rounding versus FMA cases.
+The native oracle also passes with MLIR libraries built at O3 for
+x86-64-v3 and x86-64-v4 on the local host. No timing claims are made.
+
 *** Initial CPU value backend (2026-10-27)
 
 The approved ~--backend=mlir~ selector is independent of the CPU ~--target~.
