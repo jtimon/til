@@ -80,6 +80,45 @@ check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
     }
 }
 
+// Issue #422: a mode's ~targets~ list and link()'s optional target list.
+// --cc=echo prints the C commands instead of running them, so the checks
+// see which link() flags applied without a cross toolchain.
+build_targets := proc(compiler: Str, root: Str, target: Str) returns Cmd {
+    cmd := Cmd.new(compiler, "build", format("--target=", target), "--cc=echo",
+        format("--extra-modes=", root, "/test/imports/mode_definitions.til"))
+    cmd.cwd(root)
+    cmd.args("-c", "gen/c/mode_targets.c", "-o", "bin/test/mode_targets", "test/mode_targets.til")
+    cmd.capture()
+    return cmd
+}
+
+check_mode_targets := proc(compiler: Str, root: Str) {
+    // An unlisted target is refused before anything is compiled.
+    refused := build_targets(compiler, root, "wasm32")
+    refused_status := refused.run()
+    refused_out := format(refused.out(), refused.err())
+    if refused_status == 0 || refused_out.contains("mode loading_targets does not support --target=wasm32").not() {
+        panic("mode targets: wasm32 not refused: ", refused_out)
+    }
+    // linux-x64: only the linux-x64 link applies.
+    x64 := build_targets(compiler, root, "linux-x64")
+    if x64.run() != 0 { panic("mode targets: linux-x64 build failed: ", x64.out(), x64.err()) }
+    if x64.out().contains("-ltilmode422").not().or(x64.out().contains("libtarget_only.a")) {
+        panic("mode targets: wrong links for linux-x64: ", x64.out())
+    }
+    // linux-arm64: its archive is missing, and the report names the
+    // mode's build_hint with the path as link() wrote it.
+    arm := build_targets(compiler, root, "linux-arm64")
+    arm_status := arm.run()
+    arm_out := format(arm.out(), arm.err())
+    if arm_status == 0
+        || arm_out.contains("links test/imports/no_such_dir_422/libtarget_only.a for --target=linux-arm64, and it is not built").not()
+        || arm_out.contains("build it first: bin/make test/imports/no_such_dir_422/libtarget_only.a").not()
+        || arm_out.contains("-ltilmode422") {
+        panic("mode targets: missing linux-arm64 archive not reported: ", arm_out)
+    }
+}
+
 main := proc(args: ..Str) {
     root := realpath_str(".")
     compiler := realpath_str(args[0])
@@ -97,6 +136,8 @@ main := proc(args: ..Str) {
             "duplicate mode 'loading_entry'", false, asan)
         check_mode_loading(compiler, root, command, "mode_loading_app.til",
             "is not a 'mode mode' file", false, asan)
+        check_mode_loading(compiler, root, command, "imports/mode_bad_targets.til",
+            "Unknown target 'linux-x46'", false, asan)
     }
     for command : Str in array(Str, "interpret", "translate") {
         check_mode_policy(compiler, root, command, "mode_decls_only_bad.til",
@@ -107,5 +148,6 @@ main := proc(args: ..Str) {
     }
     check_gui_link(compiler, root, "mode_gui_composed.til", true)
     check_gui_link(compiler, root, "mode_gui_name_only.til", false)
+    check_mode_targets(compiler, root)
     println("mode loading passed")
 }

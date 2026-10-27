@@ -182,15 +182,15 @@ or procs. ~is_library = true~ selects library artifacts, independently of
 this top-level rule. ~needs_main = true~ uses Til's built-in ~main~ contract.
 
 [[file:../../examples/custom_modes.til][examples/custom_modes.til]] defines
-four modes that each import a different messaging prelude:
+four modes (~receiver~, ~sender~, ~publisher~, ~subscriber~) that each
+import a different messaging prelude; one of them:
 
 #+begin_src til
 mode mode
 
-receiver := Mode(auto_import = "examples/lib/custom_modes/receiver", decls_only = false)
-sender := Mode(auto_import = "examples/lib/custom_modes/sender", decls_only = false)
-publisher := Mode(auto_import = "examples/lib/custom_modes/publisher", decls_only = false)
-subscriber := Mode(auto_import = "examples/lib/custom_modes/subscriber", decls_only = false)
+sender := Mode(auto_import = "examples/lib/custom_modes/sender", decls_only = false,
+    targets = "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32 windows-x64 windows-x86 macos-x64 macos-arm64",
+    build_hint = "bin/make {path}")
 #+end_src
 
 Pass a mode-definition file when loading a program that uses those names:
@@ -201,6 +201,26 @@ til run --extra-modes=examples/custom_modes.til program.til
 
 This keeps application files concise while allowing a project to define its
 own entry contracts and automatically provided APIs.
+
+~targets~ lists the ~--target~ names a program in the mode may be built
+for, separated by spaces; empty (the default) allows every target. Any other
+~--target~ is refused before anything is compiled, naming the mode, and a
+misspelled name in the list is an error where the mode is defined. The
+messaging modes above leave out ~wasm32~, which has no sockets.
+
+A support module names each target's own build of a C library with
+~link()~'s optional second argument, the targets that link applies to:
+
+#+begin_src til
+link("vendor/nng/build-linux-arm64/libnng.a", "linux-arm64")
+link("vendor/nng/build-windows-x64/libnng.a", "windows-x64")
+link("ws2_32", "windows-x64 windows-x86")
+#+end_src
+
+A ~link()~ without the second argument applies to every target, as before.
+When a target-restricted archive does not exist, the build stops before the
+C compile and names it; ~build_hint~ adds the command that builds it, with
+~{path}~ replaced by the archive's path as ~link()~ wrote it.
 
 Mode-definition files can import other ~mode mode~ files with ordinary
 ~import("other_modes")~ calls. Each file is loaded once, including shared

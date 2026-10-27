@@ -3704,8 +3704,8 @@ jvm_codegen_translate := proc(lp: LoadedProgram, source_dir: Str,
             println("error: JVM mode lib support is not implemented")
             return 1
         }
-        if lp.link_c_paths.len().gt(0).or(lp.link_flags.len().gt(0))
-            .or(lp.include_flags.len().gt(0)) {
+        if lp.link_c_paths.len().gt(0).or(lp.link_flags_for_target().len().gt(0))
+            .or(lp.include_flags_for_target().len().gt(0)) {
             println("error: JVM target does not support C link inputs")
             return 1
         }

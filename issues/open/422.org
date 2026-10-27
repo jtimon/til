@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #422 Modes with C (and other) dependencies: declaring and building them per target
+** WIP #422 Modes with C (and other) dependencies: declaring and building them per target
 
 Brainstorm, not a plan yet. Split out of #420: nng is a dependency of
 the custom server modes in ~examples/custom_modes.til~ -- a user-defined
@@ -74,3 +74,47 @@ the observed errors for nng).
 - Cross-builds are verified in CI by RUNNING the result (qemu, wine, the
   windows and mac runners); a mechanism should make that easy for a mode
   author too.
+
+*** Decisions (2026-10-27)
+
+- ~Mode~ gets ~targets~: a space-separated list of ~--target~ names;
+  empty (the default) means every target. Any other ~--target~ is
+  refused before compiling, naming the mode.
+- ~link()~ gets an optional second argument listing the targets it
+  applies to; each target names its own archive on its own line. No
+  placeholder in the path, and no manifest format: the declaration
+  stays plain til in the mode's support file. (A compile-time switch
+  around ~link()~ was considered: ~host_os()~ at compile time is the
+  compiler's host, not the target, and the loader reads ~link()~ before
+  any evaluation, so that would be a much larger change.)
+- ~Mode~ gets ~build_hint~: the command printed with a missing
+  target-restricted archive, ~{path}~ replaced by the path as written.
+- Building stays outside the compiler (make.til in this repo).
+- nng first, then the built-ins (libsecp256k1, raylib + tinyfd, libffi)
+  move onto the same mechanism, staying built-in and installed: their
+  per-target directories renamed to target names and each host's native
+  archive built under ~build-<host target>~ too.
+
+*** Progress
+
+- [X] Mechanism + nng: ~Mode.targets~ / ~Mode.build_hint~
+  (src/std/mode_type.til, parsed in src/self/loader.til), ~link(path,
+  "<targets>")~ (loader's ~TargetLink~, resolved by
+  ~link_flags_for_target~ / ~include_flags_for_target~ once ~lp.target~
+  is known), the refusal in src/til.til, the missing-archive report in
+  src/self/builder.til (~report_missing_target_archives~). nng builds
+  per target into ~vendor/nng/build-<target>~ from make.til's
+  ~NngTarget~ table (every linux target, both windows, both macs
+  SDK-less off a mac; not wasm32), the host's included, so the old
+  ~vendor/nng/libnng.a~ and the builder's windows nng swap are gone; the
+  server modes and src/til.til list per-target links and the winsock
+  libraries. Tests: test/mode_loading.til (refusal, per-target links,
+  the report with the hint, a misspelled target), test/nng_pair.til (a
+  one-process inproc:// round trip) on both backends in the suite and,
+  cross-built, under qemu / wine / the windows and mac runners in CI.
+  Not done: an nng ~.dll~ twin for til.exe interpreting server-mode
+  programs on a windows host -- nng on msvcrt needs ~timespec_get~, which
+  only ext.c's shim inside til.exe provides, and a DLL must resolve it
+  at link time.
+- [ ] The built-ins onto the same mechanism (see Decisions).
+

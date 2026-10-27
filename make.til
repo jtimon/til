@@ -43,9 +43,9 @@ RAYLIB_SO := "vendor/raylib/src/libraylib.so"
 TINYFD_LIB := "vendor/tinyfiledialogs/libtinyfd.a"
 TINYFD_SO := "vendor/tinyfiledialogs/libtinyfd.so"
 TINYFD_SRC := "vendor/tinyfiledialogs/tinyfiledialogs.c"
-NNG_LIB := "vendor/nng/libnng.a"
-NNG_SO := "vendor/nng/libnng.so"
-NNG_WIN_LIB := "vendor/nng/build-win64/libnng.a"
+// nng is built per --target into vendor/nng/build-<target> (issue #422);
+// nng_lib names the archive, the path the server modes' link()s name.
+NNG_DIR := "vendor/nng"
 SECP256K1_LIB := "vendor/secp256k1/libsecp256k1.a"
 SECP256K1_SO := "vendor/secp256k1/libsecp256k1.so"
 SECP256K1_WIN64_LIB := "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
@@ -99,6 +99,12 @@ namespace:
     timeout_cmd := func(self: Host) returns Str {
         if self.is_mac() { return "gtimeout" }
         return "timeout"
+    }
+
+    /// This host's --target name ("linux-x64", "macos-arm64", ...): the
+    /// os and arch spellings are the target's own.
+    target_name := func(self: Host) returns Str {
+        return format(self.os, "-", self.arch)
     }
 
     /// The mac target matching this mac: a native sweep follows the
@@ -206,6 +212,22 @@ have_tool := proc(name: Str) returns Bool {
     probe := Cmd.new(name, "--version")
     probe.capture()
     return probe.run() == 0
+}
+
+/// A cross recipe's C compiler, checked where the build starts (issue
+/// #435) instead of left to fail deep inside cmake or configure as
+/// "compiler not found". ~cc~ may carry flags; its first word is the
+/// program. ~option~ is the bin/make option that names another
+/// compiler, if the recipe has one.
+require_cross_cc := proc(cc: Str, option: Str, what: Str) {
+    mut tool := cc.clone()
+    space := cc.find(" ")
+    if space >= 0 { tool = cc.substr(0, space.to_usize()).clone() }
+    if have_tool(tool) { return }
+    if option.is_empty() {
+        panic("the ", what, " build needs the C compiler '", tool, "', which is not installed")
+    }
+    panic("the ", what, " build needs the C compiler '", tool, "', which is not installed -- pass ", option, " to name this host's one")
 }
 
 /// True when ~output~ is missing, or older than any of ~inputs~. The
@@ -459,16 +481,20 @@ build_ffi_twins := proc(mut b: Build) {
         run_argv(argv)
     }
 
+    // The host's nng: the interpreter loads the twin beside the archive
+    // the server modes' link() names for the host target.
+    nng_host_lib := nng_lib(b.host.target_name())
+    nng_so := format(nng_host_lib.strip_suffix(".a"), ".so")
     mut nng_inputs := Vec(Str).new()
-    nng_inputs.push(own NNG_LIB.clone())
-    if needs_rebuild(NNG_SO, nng_inputs) {
+    nng_inputs.push(own nng_host_lib.clone())
+    if needs_rebuild(nng_so, nng_inputs) {
         mut argv := Vec(Str).new()
         argv.push(own "cc")
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
-        argv.push(own NNG_SO.clone())
-        argv.append(own force_load_args(b.host, NNG_LIB))
+        argv.push(own nng_so.clone())
+        argv.append(own force_load_args(b.host, nng_host_lib))
         argv.push(own "-lpthread")
         argv.append(own nng_sys_flags(b.host))
         run_argv(argv)
@@ -488,26 +514,9 @@ build_ffi_twins := proc(mut b: Build) {
     }
 }
 
-/// nng, built from vendored source via cmake. Static only, no
-/// tests/tools/TLS, so the build stays self-contained.
-///
-/// POSITION_INDEPENDENT_CODE because build_ffi_twins relinks this
-/// archive into a shared object; without it the link fails on
-/// posix_debug.c.o's relocation against stdout ("recompile with
-/// -fPIC"). This file is an input for the same reason tinyfd lists it:
-/// an archive built before the flag existed would otherwise sit there
-/// forever and keep failing the twin link.
+/// The host's own nng, what bin/til and the interpreter's twin link.
 build_nng := proc(mut b: Build) {
-    if b.begin("nng").not() { return }
-    mut inputs := Vec(Str).new()
-    inputs.push(own SELF_SRC.clone())
-    if needs_rebuild(NNG_LIB, inputs).not() { return }
-    run("cmake", "-S", "vendor/nng", "-B", "vendor/nng/build",
-        "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF",
-        "-DNNG_TESTS=OFF", "-DNNG_ENABLE_NNGCAT=OFF", "-DNNG_ENABLE_TLS=OFF",
-        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
-    run("cmake", "--build", "vendor/nng/build", "--parallel")
-    copy("vendor/nng/build/libnng.a", NNG_LIB)
+    build_nng_target(b, b.host.target_name())
 }
 
 /// libsecp256k1 (issue #235), built from the vendored upstream release
@@ -675,7 +684,7 @@ build_debug := proc(mut b: Build) {
     argv.append(own raylib_sys_flags(b.host))
     argv.push(own "-Lvendor/tinyfiledialogs")
     argv.push(own "-ltinyfd")
-    argv.push(own "-Lvendor/nng")
+    argv.push(own format("-L", NNG_DIR, "/build-", b.host.target_name()))
     argv.push(own "-lnng")
     argv.push(own "-lpthread")
     argv.append(own nng_sys_flags(b.host))
@@ -1230,6 +1239,8 @@ LibffiCross := struct {
     host := ""
     // Empty only for riscv32 before --riscv32-cc is given.
     cc := ""
+    // The bin/make option that picks cc, for the missing-compiler report.
+    cc_option := ""
     // For riscv32, the Bootlin binutils, which are not on PATH under
     // --host's prefix; for a mac archive from a non-mac host, llvm's
     // (GNU ar cannot index Mach-O objects).
@@ -1260,9 +1271,8 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
     // The host gcc in 32-bit mode, like every linux-x86 build here.
     // libffi's closures.c reaches asm/types.h, which only gcc-multilib's
     // /usr/include/asm link supplies; the directory it points to goes
-    // LAST (-idirafter, unlike til's own -I in targets.til's
-    // target_prefix_args) so a system x86_64 ffi.h there cannot shadow
-    // libffi's own.
+    // LAST (-idirafter, as in targets.til's target_prefix_args) so a
+    // system x86_64 ffi.h there cannot shadow libffi's own.
     out.push(own LibffiCross(name = "linux-x86", host = "i686-linux-gnu",
         cc = "gcc -m32 -idirafter /usr/include/x86_64-linux-gnu"))
     out.push(own LibffiCross(name = "linux-arm32", host = "arm-linux-gnueabihf", cc = "arm-linux-gnueabihf-gcc"))
@@ -1273,6 +1283,7 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
         riscv32_ranlib = format(b.riscv32_cc.strip_suffix("-gcc"), "-ranlib")
     }
     out.push(own LibffiCross(name = "linux-riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
+        cc_option = "--riscv32-cc=<path> (or RISCV32_CC)",
         ar = riscv32_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
     for arch : Str in MAC_ARCHES.split(" ") {
         // The deployment targets til links mac programs for (targets.til's
@@ -1314,6 +1325,7 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     }
     if t.sdkless_mac { check_mac_cross_tools(b) }
     if needs_rebuild(t.lib(), no_inputs()).not() { return }
+    require_cross_cc(t.cc, t.cc_option, t.dir())
     if mkdir_p(t.dir()) != 0 { panic("could not create ", t.dir()) }
     // --disable-multi-os-directory: the archive is linked from the build
     // directory, never installed, and the install-dir probe is a gcc
@@ -1328,30 +1340,151 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     run("make", "-C", t.dir())
 }
 
-/// nng for win64 (mode server and the nng custom modes).
-///
-/// nng's cmake rejects "legacy mingw" unless three C11 symbols probe
-/// true, and mingw only exposes timespec_get under the UCRT. We do NOT
-/// build against the UCRT: a UCRT nng imports ucrtbase.dll, and since
-/// mingw's startup is msvcrt the program ends up importing both, which
-/// real Windows refuses to load (wine tolerated it, which hid the bug).
-/// So the three probes are forced true, TIME_UTC is defined so nng
-/// compiles, and the one genuinely missing function is supplied by
-/// ext.c's msvcrt shim. Built in its own directory so the native nng
-/// build is untouched.
-build_nng_win := proc(mut b: Build) {
-    if b.begin("nng_win").not() { return }
-    if needs_rebuild(NNG_WIN_LIB, no_inputs()).not() { return }
-    run("cmake", "-S", "vendor/nng", "-B", "vendor/nng/build-win64",
-        "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF",
-        "-DNNG_TESTS=OFF", "-DNNG_ENABLE_NNGCAT=OFF", "-DNNG_ENABLE_TLS=OFF",
-        "-DCMAKE_SYSTEM_NAME=Windows",
-        "-DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc",
-        "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
-        "-DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres",
-        "-DCMAKE_C_FLAGS=-DTIME_UTC=1", "-DNNG_HAVE_TIMESPEC_GET=1",
-        "-DNNG_HAVE_CONDVAR=1", "-DNNG_HAVE_SNPRINTF=1")
-    run("cmake", "--build", "vendor/nng/build-win64", "--parallel")
+/// nng, one archive per --target (issue #422): vendor/nng/build-<target>/
+/// libnng.a, the path the server modes' link() lines name for that target
+/// (examples/lib/custom_modes/nng_base.til; src/til.til links the same).
+/// Built from the vendored source via cmake, static only, no
+/// tests/tools/TLS. POSITION_INDEPENDENT_CODE because the host's archive
+/// is relinked into the interpreter's shared twin (build_ffi_twins);
+/// without it posix_debug.c.o's relocation against stdout fails that
+/// link ("recompile with -fPIC").
+NngTarget := struct {
+    target := ""
+    // CMAKE_SYSTEM_NAME and CMAKE_SYSTEM_PROCESSOR for a cross build.
+    system := ""
+    processor := ""
+    // Empty only for riscv32 before --riscv32-cc is given.
+    cc := ""
+    // The bin/make option that picks cc, for the missing-compiler report.
+    cc_option := ""
+    cflags := ""
+    // CMAKE_C_COMPILER_TARGET: clang's triple for the mac archives.
+    clang_target := ""
+    // Mac archives from a non-mac host: the vendored SDK-less headers,
+    // lld and libSystem.tbd for cmake's probe links, llvm's binutils.
+    sdkless_mac := false
+    // mingw: nng's cmake rejects "legacy mingw" unless three C11 symbols
+    // probe true, and mingw only exposes timespec_get under the UCRT. We
+    // do NOT build against the UCRT: a UCRT nng imports ucrtbase.dll, and
+    // since mingw's startup is msvcrt the program ends up importing both,
+    // which real Windows refuses to load (wine tolerated it, which hid the
+    // bug). So the three probes are forced true, TIME_UTC is defined so
+    // nng compiles, and the one genuinely missing function is supplied by
+    // ext.c's msvcrt shim.
+    mingw := false
+
+namespace:
+    lib := func(self: NngTarget) returns Str {
+        return nng_lib(self.target)
+    }
+}
+
+nng_lib := func(target: Str) returns Str {
+    return format(NNG_DIR, "/build-", target, "/libnng.a")
+}
+
+/// Every nng target, as data. The server modes list the same targets
+/// (examples/custom_modes.til); wasm32 has no sockets, so it is not one.
+nng_targets := proc(b: Build) returns Vec(NngTarget) {
+    mut out := Vec(NngTarget).new()
+    out.push(own NngTarget(target = "linux-x64", system = "Linux", processor = "x86_64",
+        cc = b.linux_x64_cc.clone(), cc_option = "--linux-x64-cc=<path> (or LINUX_X64_CC)"))
+    out.push(own NngTarget(target = "linux-arm64", system = "Linux", processor = "aarch64", cc = "aarch64-linux-gnu-gcc"))
+    out.push(own NngTarget(target = "linux-riscv64", system = "Linux", processor = "riscv64", cc = "riscv64-linux-gnu-gcc"))
+    // The host gcc in 32-bit mode, like every linux-x86 build here.
+    out.push(own NngTarget(target = "linux-x86", system = "Linux", processor = "i686", cc = "gcc", cflags = "-m32"))
+    out.push(own NngTarget(target = "linux-arm32", system = "Linux", processor = "arm", cc = "arm-linux-gnueabihf-gcc"))
+    out.push(own NngTarget(target = "linux-riscv32", system = "Linux", processor = "riscv32",
+        cc = b.riscv32_cc.clone(), cc_option = "--riscv32-cc=<path> (or RISCV32_CC)"))
+    out.push(own NngTarget(target = "windows-x64", system = "Windows", processor = "x86_64",
+        cc = "x86_64-w64-mingw32-gcc", mingw = true))
+    out.push(own NngTarget(target = "windows-x86", system = "Windows", processor = "i686",
+        cc = "i686-w64-mingw32-gcc", mingw = true))
+    for arch : Str in MAC_ARCHES.split(" ") {
+        // til's mac deployment targets (targets.til's target_prefix_args).
+        mut t := NngTarget(target = format("macos-", arch), system = "Darwin", processor = "x86_64",
+            cc = "clang", clang_target = "x86_64-apple-macos10.12")
+        if arch == "arm64" {
+            t.processor = "arm64"
+            t.clang_target = "arm64-apple-macos11"
+        }
+        if b.host.is_mac().not() {
+            t.cflags = format("-nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
+            t.sdkless_mac = true
+        }
+        out.push(own t)
+    }
+    return out
+}
+
+build_nng_target := proc(mut b: Build, target: Str) {
+    if b.begin(format("nng-", target)).not() { return }
+    mut found := false
+    mut t := NngTarget()
+    for c : NngTarget in nng_targets(b) {
+        if c.target == target {
+            t = c.clone()
+            found = true
+        }
+    }
+    if found.not() { panic("no nng build for --target=", target) }
+    // The host's own archive is a plain native build; any other target
+    // is a cross build with its compiler.
+    is_host := target == b.host.target_name()
+    if is_host.not() {
+        if t.cc.is_empty() {
+            panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
+        }
+        if t.sdkless_mac { check_mac_cross_tools(b) }
+    }
+    dir := format(NNG_DIR, "/build-", target)
+    mut inputs := Vec(Str).new()
+    inputs.push(own SELF_SRC.clone())
+    if needs_rebuild(t.lib(), inputs).not() { return }
+    if is_host.not() { require_cross_cc(t.cc, t.cc_option, dir) }
+    mut argv := Vec(Str).new()
+    argv.push(own "cmake")
+    argv.push(own "-S")
+    argv.push(own NNG_DIR.clone())
+    argv.push(own "-B")
+    argv.push(own dir.clone())
+    argv.push(own "-DCMAKE_BUILD_TYPE=Release")
+    argv.push(own "-DBUILD_SHARED_LIBS=OFF")
+    argv.push(own "-DNNG_TESTS=OFF")
+    argv.push(own "-DNNG_ENABLE_NNGCAT=OFF")
+    argv.push(own "-DNNG_ENABLE_TLS=OFF")
+    argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+    mut cflags := t.cflags.clone()
+    if is_host.not() {
+        argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
+        argv.push(own format("-DCMAKE_SYSTEM_PROCESSOR=", t.processor))
+        argv.push(own format("-DCMAKE_C_COMPILER=", t.cc))
+        if t.clang_target.is_empty().not() {
+            argv.push(own format("-DCMAKE_C_COMPILER_TARGET=", t.clang_target))
+        }
+        if t.mingw {
+            prefix := t.cc.strip_suffix("-gcc")
+            argv.push(own format("-DCMAKE_CXX_COMPILER=", prefix, "-g++"))
+            argv.push(own format("-DCMAKE_RC_COMPILER=", prefix, "-windres"))
+        }
+        if t.sdkless_mac {
+            argv.push(own format("-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -L", get_cwd_str(), "/vendor/macos"))
+            // :STRING keeps the bare names for PATH lookup at build time; as
+            // the default FILEPATH cmake resolves them against the cwd.
+            argv.push(own "-DCMAKE_AR:STRING=llvm-ar")
+            argv.push(own "-DCMAKE_RANLIB:STRING=llvm-ranlib")
+        }
+    }
+    if t.mingw {
+        if cflags.is_empty() { cflags = "-DTIME_UTC=1" }
+        else { cflags = format(cflags, " -DTIME_UTC=1") }
+        argv.push(own "-DNNG_HAVE_TIMESPEC_GET=1")
+        argv.push(own "-DNNG_HAVE_CONDVAR=1")
+        argv.push(own "-DNNG_HAVE_SNPRINTF=1")
+    }
+    if cflags.is_empty().not() { argv.push(own format("-DCMAKE_C_FLAGS=", cflags)) }
+    run_argv(argv)
+    run("cmake", "--build", dir, "--parallel")
 }
 
 /// One libsecp256k1 cross archive (issue #235): what a program importing
@@ -1370,6 +1503,8 @@ SecpCross := struct {
     processor := ""
     // Empty only for riscv32 before --riscv32-cc is given.
     cc := ""
+    // The bin/make option that picks cc, for the missing-compiler report.
+    cc_option := ""
     // CMAKE_C_FLAGS: -m32 for linux-x86, the SDK-less header path for a
     // mac cross build.
     cflags := ""
@@ -1396,7 +1531,8 @@ secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
     // archive on linux-x64 itself, so this one only ever serves a
     // non-linux-x64 host (targets.til's target_secp256k1_lib).
     out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-x64",
-        system = "Linux", processor = "x86_64", cc = b.linux_x64_cc.clone()))
+        system = "Linux", processor = "x86_64", cc = b.linux_x64_cc.clone(),
+        cc_option = "--linux-x64-cc=<path> (or LINUX_X64_CC)"))
     out.push(own SecpCross(dir = "vendor/secp256k1/build-win64",
         system = "Windows", processor = "x86_64", cc = "x86_64-w64-mingw32-gcc"))
     out.push(own SecpCross(dir = "vendor/secp256k1/build-win32",
@@ -1414,7 +1550,8 @@ secp256k1_cross_targets := proc(b: Build) returns Vec(SecpCross) {
     // No distro ships a riscv32 gcc: --riscv32-cc / RISCV32_CC, as for
     // the riscv32 gui archives.
     out.push(own SecpCross(dir = "vendor/secp256k1/build-linux-riscv32",
-        system = "Linux", processor = "riscv32", cc = b.riscv32_cc.clone()))
+        system = "Linux", processor = "riscv32", cc = b.riscv32_cc.clone(),
+        cc_option = "--riscv32-cc=<path> (or RISCV32_CC)"))
     // emcc, with emscripten's libc: the same toolchain a wasm32 mode gui
     // program links with (--cc=emcc).
     out.push(own SecpCross(dir = "vendor/secp256k1/build-wasm32", emscripten = true))
@@ -1460,6 +1597,7 @@ build_secp256k1_cross := proc(mut b: Build, dir: Str) {
     mut inputs := Vec(Str).new()
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(t.lib(), inputs).not() { return }
+    if t.emscripten.not() { require_cross_cc(t.cc, t.cc_option, t.dir) }
     mut argv := secp256k1_cmake_configure(t.dir)
     if t.emscripten {
         if b.emcc.ends_with("/emcc").not() {
@@ -1665,7 +1803,7 @@ build_win32 := proc(mut b: Build) {
 build_win_server := proc(mut b: Build) {
     if b.begin("win_server").not() { return }
     build_til(b)
-    build_nng_win(b)
+    build_nng_target(b, "windows-x64")
     for path : Str in server_examples() {
         run(TIL, "build", "--target=windows-x64",
             "--extra-modes=examples/custom_modes.til",
@@ -1680,14 +1818,14 @@ build_win_host := proc(mut b: Build) {
     if b.begin("build_win_host").not() { return }
     build_til(b)
     build_libffi_cross(b, "x86_64-w64-mingw32", LIBFFI_WIN64_LIB)
-    build_nng_win(b)
+    build_nng_target(b, "windows-x64")
     // Not linked into til.exe: the interpreter loads these at run time.
     build_secp256k1_win_twin(b)
     build_gui_win_twins(b)
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     inputs.push(own LIBFFI_WIN64_LIB.clone())
-    inputs.push(own NNG_WIN_LIB.clone())
+    inputs.push(own nng_lib("windows-x64"))
     if needs_rebuild("bin/til.exe", inputs).not() { return }
     run(TIL, "build", "--target=windows-x64", "--usize=32", "-o", "bin/til.exe", "src/til.til")
 }
@@ -1820,11 +1958,10 @@ build_mac_framework_stubs := proc(mut b: Build) {
 /// build_mac mirrors build_win, and is host-split.
 ///
 /// On a mac it sweeps every example natively (arch following the host)
-/// plus the server examples against the native vendored libnng. On any
-/// other host it CROSS-compiles for BOTH mac arches with the vendored
-/// SDK-less toolchain; the server examples are skipped there, because
-/// their libnng would have to be a mac-native archive that does not
-/// exist in this tree.
+/// plus the server examples against the host's nng. On any other host it
+/// CROSS-compiles for BOTH mac arches with the vendored SDK-less
+/// toolchain, server examples included: their nng cross-builds SDK-less
+/// too (issue #422).
 build_mac := proc(mut b: Build) {
     if b.begin("build_mac").not() { return }
     build_til(b)
@@ -1851,6 +1988,15 @@ build_mac := proc(mut b: Build) {
             format("bin/", name, "-macos-arm64"), path)
         run(TIL, "build", "--target=macos-x64", "-o",
             format("bin/", name, "-macos-x64"), path)
+    }
+    build_nng_target(b, "macos-arm64")
+    build_nng_target(b, "macos-x64")
+    for path : Str in server_examples() {
+        name := example_name(path)
+        for arch : Str in MAC_ARCHES.split(" ") {
+            run(TIL, "build", format("--target=macos-", arch), "--extra-modes=examples/custom_modes.til",
+                "-o", format("bin/", name, "-macos-", arch), path)
+        }
     }
 }
 
@@ -1959,6 +2105,16 @@ libffi_linux_arm32 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-ar
 libffi_linux_riscv32 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-riscv32") }
 libffi_macos_arm64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "macos-arm64") }
 libffi_macos_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "macos-x64") }
+nng_linux_x64 := proc(mut b: Build) { build_nng_target(b, "linux-x64") }
+nng_linux_arm64 := proc(mut b: Build) { build_nng_target(b, "linux-arm64") }
+nng_linux_riscv64 := proc(mut b: Build) { build_nng_target(b, "linux-riscv64") }
+nng_linux_x86 := proc(mut b: Build) { build_nng_target(b, "linux-x86") }
+nng_linux_arm32 := proc(mut b: Build) { build_nng_target(b, "linux-arm32") }
+nng_linux_riscv32 := proc(mut b: Build) { build_nng_target(b, "linux-riscv32") }
+nng_windows_x64 := proc(mut b: Build) { build_nng_target(b, "windows-x64") }
+nng_windows_x86 := proc(mut b: Build) { build_nng_target(b, "windows-x86") }
+nng_macos_arm64 := proc(mut b: Build) { build_nng_target(b, "macos-arm64") }
+nng_macos_x64 := proc(mut b: Build) { build_nng_target(b, "macos-x64") }
 secp256k1_win64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win64") }
 secp256k1_win32 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-win32") }
 secp256k1_linux_x64 := proc(mut b: Build) { build_secp256k1_cross(b, "vendor/secp256k1/build-linux-x64") }
@@ -2053,8 +2209,25 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = "bin/til.exe", alias_of = "build_win_host", is_path = true, go = build_win_host))
     out.push(own Command(name = RAYLIB_LIB, alias_of = "vendor", is_path = true, go = build_raylib))
     out.push(own Command(name = TINYFD_LIB, alias_of = "vendor", is_path = true, go = build_tinyfd))
-    out.push(own Command(name = NNG_LIB, alias_of = "vendor", is_path = true, go = build_nng))
-    out.push(own Command(name = NNG_WIN_LIB, alias_of = "win_server", is_path = true, go = build_nng_win))
+    out.push(own Command(name = nng_lib("linux-x64"), is_path = true, go = nng_linux_x64,
+        about = "linux-x64 nng, for the server modes (--linux-x64-cc= off a linux-x64 host)"))
+    out.push(own Command(name = nng_lib("linux-arm64"), is_path = true, go = nng_linux_arm64,
+        about = "linux-arm64 nng, for the server modes"))
+    out.push(own Command(name = nng_lib("linux-riscv64"), is_path = true, go = nng_linux_riscv64,
+        about = "linux-riscv64 nng, for the server modes"))
+    out.push(own Command(name = nng_lib("linux-x86"), is_path = true, go = nng_linux_x86,
+        about = "linux-x86 nng, for the server modes"))
+    out.push(own Command(name = nng_lib("linux-arm32"), is_path = true, go = nng_linux_arm32,
+        about = "linux-arm32 nng, for the server modes"))
+    out.push(own Command(name = nng_lib("linux-riscv32"), is_path = true, go = nng_linux_riscv32,
+        about = "linux-riscv32 nng (needs --riscv32-cc=), for the server modes"))
+    out.push(own Command(name = nng_lib("windows-x64"), alias_of = "win_server", is_path = true, go = nng_windows_x64))
+    out.push(own Command(name = nng_lib("windows-x86"), is_path = true, go = nng_windows_x86,
+        about = "windows-x86 nng, for the server modes"))
+    out.push(own Command(name = nng_lib("macos-arm64"), is_path = true, go = nng_macos_arm64,
+        about = "macos-arm64 nng (SDK-less off a mac), for the server modes"))
+    out.push(own Command(name = nng_lib("macos-x64"), is_path = true, go = nng_macos_x64,
+        about = "macos-x64 nng (SDK-less off a mac), for the server modes"))
     out.push(own Command(name = LIBFFI_WIN64_LIB, alias_of = "build_win_host", is_path = true, go = libffi_win64))
     out.push(own Command(name = LIBFFI_WIN32_LIB, alias_of = "build_win32", is_path = true, go = libffi_win32))
     out.push(own Command(name = "vendor/libffi/build-linux-arm64/.libs/libffi.a", is_path = true, go = libffi_linux_arm64,
@@ -2174,8 +2347,11 @@ usage := proc() {
     println("Makefile; recovery is `git checkout HEAD boot/ && make test`.")
 }
 
+/// ~s~ padded with spaces to ~width~ columns -- always at least one, so
+/// a name longer than the column (the artifact goals' paths) is still
+/// separated from the text after it (issue #435).
 pad := func(s: Str, width: USize) returns Str {
-    mut out := s.clone()
+    mut out := format(s, " ")
     while out.len() < width {
         out = format(out, " ")
     }

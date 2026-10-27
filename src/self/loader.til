@@ -315,6 +315,19 @@ priv unit_is_native_api := func(path: Str, unit: ImportUnit, ctx: Context) retur
 
 // --- LoadedProgram ---
 
+// A link() restricted to some targets by its optional second argument
+// (issue #422): the flag and include directory it contributes, kept
+// apart from LoadedProgram's unconditional ones until the build target
+// is known -- load_program runs before til.til sets lp.target.
+TargetLink := struct {
+    flag := ""
+    include := ""
+    targets := ""
+    // The link() argument as written, for the missing-archive report's
+    // build_hint (bin/make goals are root-relative, not resolved paths).
+    written := ""
+}
+
 LoadedProgram := struct {
     own core_units := Vec(ProgramUnit).new()
     own units := Vec(ProgramUnit).new()
@@ -331,6 +344,9 @@ LoadedProgram := struct {
     ext_c_path := ""
     link_flags := ""
     include_flags := ""
+    // link()s with a target list; link_flags_for_target and
+    // include_flags_for_target add the ones that apply to `target`.
+    target_links := Vec(TargetLink).new()
     link_c_paths := ""
     compiler_revision := ""
     asan_build := false
@@ -402,6 +418,22 @@ namespace:
         for u : ProgramUnit in self.units { paths.push(own u.path.clone()) }
         return paths
     }
+    // Every link flag of the program for its target: the unconditional
+    // link()s plus the target-restricted ones naming self.target.
+    link_flags_for_target := func(self: LoadedProgram) returns Str {
+        mut out := self.link_flags.clone()
+        for tl : TargetLink in self.target_links {
+            if target_list_has(tl.targets, self.target) { out = format(out, tl.flag) }
+        }
+        return out
+    }
+    include_flags_for_target := func(self: LoadedProgram) returns Str {
+        mut out := self.include_flags.clone()
+        for tl : TargetLink in self.target_links {
+            if target_list_has(tl.targets, self.target) { out = format(out, tl.include) }
+        }
+        return out
+    }
     delete := func(own self: LoadedProgram, call_free: Bool = true) {
         own self.core_units.delete(true)
         own self.units.delete(true)
@@ -415,6 +447,7 @@ namespace:
         Str.delete(own self.ext_c_path, false)
         Str.delete(own self.link_flags, false)
         Str.delete(own self.include_flags, false)
+        own self.target_links.delete(false)
         Str.delete(own self.link_c_paths, false)
         Str.delete(own self.compiler_revision, false)
         if call_free { free(own self) }
@@ -882,29 +915,39 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
         for idx in 0..old_children.count {
             ref stmt : Expr = old_children[idx]
             mut keep := true
-            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
+            mut nargs : USize = 0
+            if stmt.node_type.is(NodeType.FCall) { nargs = stmt.children.len() - 1 }
+            if nargs.eq(1).or(nargs.eq(2)) {
                 switch stmt.children[0].node_type {
                 case .Ident(fname):
                     switch stmt.children[1].node_type {
                     case .Literal(Literal.Str(arg)):
                         if fname.ident_name(lp.ctx.symbols.names) == "link" {
                             keep = false
+                            mut flag := format(" -l", arg)
+                            mut include := ""
                             if arg.find("/") >= 0 {
                                 resolved := resolve_link_path(base_dir, link_root, arg)
-                                lp.link_flags = lp.link_flags.format(" ", resolved)
+                                flag = format(" ", resolved)
                                 last_slash := resolved.rfind("/")
                                 if last_slash >= 0 {
                                     parent_dir := resolved.substr(0, last_slash.to_usize())
                                     parent_slash := parent_dir.rfind("/")
                                     if parent_slash >= 0 {
-                                        inc_dir := parent_dir.substr(0, parent_slash.to_usize()).format("/include")
-                                        lp.include_flags = lp.include_flags.format(" -I", inc_dir)
+                                        include = format(" -I", parent_dir.substr(0, parent_slash.to_usize()), "/include")
                                     }
                                 }
-                            } else {
-                                lp.link_flags = lp.link_flags.format(" -l", arg)
                             }
-                        } else if fname.ident_name(lp.ctx.symbols.names) == "link_c" {
+                            if nargs == 2 {
+                                // link(path, "<targets>") (issue #422): only for the
+                                // listed targets, decided once lp.target is known.
+                                targets := link_targets_arg(stmt.children[2], u.path)
+                                lp.target_links.push(own TargetLink(flag = flag, include = include, targets = targets, written = arg.clone()))
+                            } else {
+                                lp.link_flags = lp.link_flags.format(flag)
+                                lp.include_flags = lp.include_flags.format(include)
+                            }
+                        } else if nargs.eq(1).and(fname.ident_name(lp.ctx.symbols.names) == "link_c") {
                             keep = false
                             if lp.link_c_paths.len() > 0 {
                                 lp.link_c_paths = format(lp.link_c_paths, " ")
@@ -921,6 +964,23 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
         }
         iu.ast.children.move_from(own new_children)
     }
+}
+
+// link()'s optional second argument (issue #422): a string literal listing
+// the --target names the link applies to. Validated here, where the
+// source is known: an empty list or an unknown name is an error.
+priv link_targets_arg := func(arg: Expr, path: Str) returns Str {
+    switch arg.node_type {
+    case .Literal(Literal.Str(list)):
+        if list.trim().len() == 0 {
+            panic(": link()'s target list is empty; omit it to link for every target", loc = path)
+        }
+        _validated := target_list_has(list, Target.LinuxX64)
+        return list.clone()
+    case:
+    }
+    panic(": link()'s second argument must be a string literal listing --target names", loc = path)
+    return ""
 }
 
 // Definition-relative paths are authoritative. The remaining locations
@@ -996,6 +1056,13 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str,
                                             else { panic(": unknown bool argument '", arg_name, "'", loc = disp) }
                                         case .Literal(Literal.Str(s)):
                                             if arg_name == "auto_import" { m.auto_import = s.clone() }
+                                            else if arg_name == "targets" {
+                                                // Parsed now, so a misspelled target fails at
+                                                // the mode definition (issue #422).
+                                                _validated := target_list_has(s, Target.LinuxX64)
+                                                m.targets = s.clone()
+                                            }
+                                            else if arg_name == "build_hint" { m.build_hint = s.clone() }
                                             else { panic(": unknown string argument '", arg_name, "'", loc = disp) }
                                         case:
                                             panic(": argument '", arg_name, "' must be a literal", loc = disp)

@@ -1,0 +1,58 @@
+# priority: high
+# category: bugs
+** OPEN #447 A view of a temporary Str dangles: format(...).trim() reads freed memory
+
+Calling a view-returning ~Str~ method -- ~trim~, ~substr~,
+~strip_prefix~ -- on an owned temporary (a ~format(...)~ result) yields a
+view into memory that is already freed. Printing it shows garbage; the
+length is right, the bytes are not. Chaining ~.clone()~ onto the view
+does not help: the temporary is gone before the clone copies it. Both
+backends. Viewing a NAMED string, or a literal, works.
+
+*** Reproducer (master d2e52f6)
+
+#+begin_src til
+mode script
+
+a := format("a", " b").substr(0, 3)
+println(format("substr[", a, "]"))
+b := format("x", "yz").strip_prefix("x")
+println(format("strip_prefix[", b, "]"))
+c := format("a", " b").trim().clone()
+println(format("trim.clone[", c, "]"))
+d := format("a", " b").trim().len()
+println(format("trim.len[", d.to_str(), "]"))
+
+t := format("a", " b")
+e := t.trim().clone()
+println(format("named[", e, "]"))
+#+end_src
+
+Expected ~substr[a b]~, ~strip_prefix[yz]~, ~trim.clone[a b]~,
+~trim.len[3]~, ~named[a b]~. Actual (interpret; ~til run~ is the same
+with different garbage):
+
+#+begin_example
+substr[$)�]
+strip_prefix[oi]
+trim.clone[��@]
+trim.len[3]
+named[a b]
+#+end_example
+
+*** Where to look
+
+~Str.trim~ / ~substr~ / ~strip_prefix~ (src/core/str.til) return views
+of their receiver (no allocation, by design). When the receiver is a
+temporary, the garbager's temporary cleanup frees it right after the
+call, before the view is used -- even by a method chained in the same
+expression. Either the temporary must live as long as the view (to the
+end of the statement, or of the enclosing binding when the view is
+stored), or a view of a temporary must be a compile-time error. A silent
+use-after-free is neither.
+
+Found during #422: make.til's nng recipe built its mingw ~CMAKE_C_FLAGS~
+with ~format(cflags, " -DTIME_UTC=1").trim().clone()~ and handed cmake
+garbage; the recipe no longer trims a temporary. Existing ~.trim()~ calls
+in the tree view named strings or views of them and are unaffected.
+Regression for the fix: the reproducer above, on both backends.

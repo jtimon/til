@@ -461,7 +461,6 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         is_win := is_windows_target(target)
         tokens := lf.split(" ")
         mut new_lf := ""
-        mut has_nng := false
         for t : Str in tokens {
             if t.len() == 0 { continue }
             if t.eq("-ldl").or(t.eq("-lrt")).or(t.eq("-lpthread")).or(t.eq("-lm")) { continue }
@@ -471,23 +470,10 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
             if is_macos.not() {
                 if t.ends_with("libraylib.a").or(t.ends_with("libtinyfd.a")) { continue }
             }
-            // Windows nng: swap the linux libnng.a (from nng_base.til's
-            // link()) for the mingw cross-build; remember to append the
-            // winsock libs. nng needs the C11 timespec_get, which msvcrt
-            // lacks -- but we build nng against msvcrt anyway and supply
-            // timespec_get from ext.c's shim (see the Makefile NNG_WIN_LIB
-            // rule). We must NOT add -lucrtbase here: it would pull
-            // ucrtbase.dll in beside mingw's msvcrt.dll startup, and that
-            // dual-CRT binary fails to load on real Windows (issue #25 --
-            // the windows-host exit-127 that wine masked).
-            if is_win.and(t.ends_with("libnng.a")) {
-                has_nng = true
-                new_lf = new_lf.format(" vendor/nng/build-win64/libnng.a")
-                continue
-            }
+            // nng is no longer swapped here: its link()s name each
+            // target's own archive and winsock libraries (issue #422).
             new_lf = new_lf.format(" ", t)
         }
-        if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32") }
         lf = new_lf
     }
     // A wasm gui build links only what target_gui_libs supplies: the
@@ -523,7 +509,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
                 secp_resolved := resolve_target_archives(secp_lib, ext_c_path)
                 if realpath_str(secp_resolved).len() == 0 {
                     println(format("error: this program links libsecp256k1 (std/crypto), and this target's archive is not built: ", secp_lib))
-                    println(format("  build it first: bin/make ", secp_lib))
+                    println(format("  build it first: ", target_secp256k1_build_hint(target)))
                     return 1
                 }
                 secp_lf = secp_lf.format(" ", secp_resolved)
@@ -859,14 +845,37 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // Standard excess precision also makes x87 casts/assignments round to
     // the declared format instead of retaining extended intermediates.
     build_flags := format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard")
+    link_flags := lp.link_flags_for_target()
+    include_flags := lp.include_flags_for_target()
+    if report_missing_target_archives(lp) != 0 { return 1 }
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
-            lp.link_c_paths, lp.link_flags, lp.include_flags, target,
+            lp.link_c_paths, link_flags, include_flags, target,
             cc_override, asan, usize64, lp.uses_shared_runtime(),
             lp.runtime_stem(), lp.runtime_shared_basename(),
             lp.core_stem(), lp.core_shared_basename(), build_flags)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, build_flags)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, link_flags, include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, build_flags)
+}
+
+// A target-restricted link() archive (issue #422) is one target's own
+// build of a library, which is often not built yet. Report it before the
+// C compile, naming the target and -- when the program's mode supplies
+// one -- the command that builds it, instead of leaving it to the linker.
+priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
+    for tl : TargetLink in lp.target_links {
+        if target_list_has(tl.targets, lp.target).not() { continue }
+        archive := tl.flag.trim()
+        if archive.ends_with(".a").not() { continue }
+        if realpath_str(resolve_target_archives(archive, lp.ext_c_path)).len() > 0 { continue }
+        println(format("error: this program links ", tl.written, " for --target=",
+            target_to_str(lp.target), ", and it is not built"))
+        if lp.cur_mode.build_hint.len() > 0 {
+            println(format("  build it first: ", lp.cur_mode.build_hint.replace("{path}", tl.written)))
+        }
+        return 1
+    }
+    return 0
 }
 
 priv mlir_shell_quote := func(value: Str) returns Str {

@@ -149,7 +149,7 @@ static void stdio_capture_fail(const char *op) {
 
 // nng's win_clock.c calls the C11 timespec_get(&ts, TIME_UTC), which mingw only
 // declares under the universal CRT (_UCRT). We deliberately build nng against
-// the default msvcrt instead (see the Makefile NNG_WIN_LIB rule): a UCRT nng
+// the default msvcrt instead (see make.til's NngTarget): a UCRT nng
 // pulls ucrtbase.dll in alongside mingw's msvcrt.dll startup, and Windows
 // refuses to load the resulting dual-CRT binary (issue #25 -- the exit-127 the
 // windows-host runner hit; wine tolerated it). So supply timespec_get here for

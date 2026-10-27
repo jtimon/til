@@ -1,0 +1,2 @@
+mode loading_targets
+main := proc() { println(mode_targets_answer().to_str()) }

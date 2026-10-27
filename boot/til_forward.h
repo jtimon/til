@@ -401,9 +401,11 @@ typedef struct SymMap__U8 SymMap__U8;
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef Map__Str_priv___src_self_scavenger_til__DeclRef;
 typedef struct Vec__priv___src_self_scavenger_til__DeclRef Vec__priv___src_self_scavenger_til__DeclRef;
 typedef struct ProgramUnit ProgramUnit;
+typedef struct TargetLink TargetLink;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct DocMeta DocMeta;
 typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
+typedef struct Vec__TargetLink Vec__TargetLink;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
 typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
@@ -1380,6 +1382,14 @@ typedef struct ProgramUnit {
 } ProgramUnit;
 
 
+typedef struct TargetLink {
+    Str flag;
+    Str include;
+    Str targets;
+    Str written;
+} TargetLink;
+
+
 typedef struct DocMeta {
     Str body;
     Str group;
@@ -1397,6 +1407,13 @@ typedef struct priv___src_self_loader_til__ImportCheckEntry {
     Str dep;
     Str decl_name;
 } priv___src_self_loader_til__ImportCheckEntry;
+
+
+typedef struct Vec__TargetLink {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__TargetLink;
 
 
 typedef struct Vec__ProgramUnit {
@@ -1849,6 +1866,8 @@ typedef struct Mode {
     Bool is_pure;
     Bool run_tests;
     Bool debug_prints;
+    Str targets;
+    Str build_hint;
 } Mode;
 
 
@@ -2451,6 +2470,7 @@ typedef struct LoadedProgram {
     Str ext_c_path;
     Str link_flags;
     Str include_flags;
+    Vec__TargetLink target_links;
     Str link_c_paths;
     Str compiler_revision;
     Bool asan_build;

@@ -5258,7 +5258,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         println("error: HolyC codegen does not support link_c yet")
         return 1
     }
-    if lp.link_flags.len().gt(0).or(lp.include_flags.len().gt(0)) {
+    if lp.link_flags_for_target().len().gt(0).or(lp.include_flags_for_target().len().gt(0)) {
         println("error: HolyC codegen does not support link or include flags yet")
         return 1
     }

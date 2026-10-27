@@ -130,6 +130,16 @@ jobs:
           make vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a
           ./bin/til build --target=linux-arm64 -o bin/crypto_arm64 test/crypto.til
           qemu-aarch64 -L /usr/aarch64-linux-gnu bin/crypto_arm64
+      # Issue #422: nng for this target, from make.til's per-target table
+      # (vendor/nng/build-linux-arm64), which the server modes' link() lines
+      # name; test/nng_pair.til -- a one-process round trip over inproc://
+      # -- runs under qemu. Before the libffi step: til itself links nng.
+      - name: Cross-compile and run the nng test for linux-arm64
+        run: |
+          make vendor/nng/build-linux-arm64/libnng.a
+          ./bin/til build --target=linux-arm64 --extra-modes=examples/custom_modes.til \
+            -o bin/nng_pair_linux-arm64 test/nng_pair.til
+          qemu-aarch64 -L /usr/aarch64-linux-gnu bin/nng_pair_linux-arm64 | grep -q "nng pair ok"
       # Issue #420: libffi for this target, built out of tree into
       # vendor/libffi/build-linux-arm64. test/ffi_prep.til calls it directly;
       # til itself, cross-built, links it for the interpreter's ext_func
@@ -178,6 +188,16 @@ jobs:
           make vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a
           ./bin/til build --target=linux-riscv64 -o bin/crypto_riscv64 test/crypto.til
           qemu-riscv64 -L /usr/riscv64-linux-gnu bin/crypto_riscv64
+      # Issue #422: nng for this target, from make.til's per-target table
+      # (vendor/nng/build-linux-riscv64), which the server modes' link() lines
+      # name; test/nng_pair.til -- a one-process round trip over inproc://
+      # -- runs under qemu. Before the libffi step: til itself links nng.
+      - name: Cross-compile and run the nng test for linux-riscv64
+        run: |
+          make vendor/nng/build-linux-riscv64/libnng.a
+          ./bin/til build --target=linux-riscv64 --extra-modes=examples/custom_modes.til \
+            -o bin/nng_pair_linux-riscv64 test/nng_pair.til
+          qemu-riscv64 -L /usr/riscv64-linux-gnu bin/nng_pair_linux-riscv64 | grep -q "nng pair ok"
       # Issue #420: libffi for this target, built out of tree into
       # vendor/libffi/build-linux-riscv64. test/ffi_prep.til calls it directly;
       # til itself, cross-built, links it for the interpreter's ext_func
@@ -249,6 +269,16 @@ jobs:
           make vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a
           ./bin/til build --target=linux-x86 -o bin/crypto_x86 test/crypto.til
           qemu-i386 bin/crypto_x86
+      # Issue #422: nng for this target, from make.til's per-target table
+      # (vendor/nng/build-linux-x86), which the server modes' link() lines
+      # name; test/nng_pair.til -- a one-process round trip over inproc://
+      # -- runs under qemu.
+      - name: Cross-compile and run the nng test for linux-x86
+        run: |
+          make vendor/nng/build-linux-x86/libnng.a
+          ./bin/til build --target=linux-x86 --extra-modes=examples/custom_modes.til \
+            -o bin/nng_pair_linux-x86 test/nng_pair.til
+          qemu-i386 bin/nng_pair_linux-x86 | grep -q "nng pair ok"
       # Issue #420: libffi for this target, built out of tree into
       # vendor/libffi/build-linux-x86; test/ffi_prep.til calls it directly.
       # (til itself does not build for a 32-bit target, so no interpreter
@@ -307,6 +337,16 @@ jobs:
           make vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a
           ./bin/til build --target=linux-arm32 -o bin/crypto_arm32 test/crypto.til
           qemu-arm -L /usr/arm-linux-gnueabihf bin/crypto_arm32
+      # Issue #422: nng for this target, from make.til's per-target table
+      # (vendor/nng/build-linux-arm32), which the server modes' link() lines
+      # name; test/nng_pair.til -- a one-process round trip over inproc://
+      # -- runs under qemu.
+      - name: Cross-compile and run the nng test for linux-arm32
+        run: |
+          make vendor/nng/build-linux-arm32/libnng.a
+          ./bin/til build --target=linux-arm32 --extra-modes=examples/custom_modes.til \
+            -o bin/nng_pair_linux-arm32 test/nng_pair.til
+          qemu-arm -L /usr/arm-linux-gnueabihf bin/nng_pair_linux-arm32 | grep -q "nng pair ok"
       # Issue #420: libffi for this target, built out of tree into
       # vendor/libffi/build-linux-arm32; test/ffi_prep.til calls it directly.
       # (til itself does not build for a 32-bit target, so no interpreter
@@ -374,6 +414,17 @@ jobs:
             -o bin/crypto_riscv32 test/crypto.til
           SYSROOT=$("$RISCV32_CC" -print-sysroot)
           qemu-riscv32 -L "$SYSROOT" bin/crypto_riscv32
+      # Issue #422: nng for this target, from make.til's per-target table
+      # (vendor/nng/build-linux-riscv32), which the server modes' link() lines
+      # name; test/nng_pair.til -- a one-process round trip over inproc://
+      # -- runs under qemu.
+      - name: Cross-compile and run the nng test for linux-riscv32
+        run: |
+          RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)
+          make RISCV32_CC="$RISCV32_CC" vendor/nng/build-linux-riscv32/libnng.a
+          ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" --extra-modes=examples/custom_modes.til \
+            -o bin/nng_pair_linux-riscv32 test/nng_pair.til
+          qemu-riscv32 -L "$("$RISCV32_CC" -print-sysroot)" bin/nng_pair_linux-riscv32 | grep -q "nng pair ok"
       # Issue #420: libffi for this target, built out of tree (with the
       # Bootlin compiler and binutils) into vendor/libffi/build-linux-riscv32;
       # test/ffi_prep.til calls it directly. (til itself does not build for
@@ -490,6 +541,16 @@ jobs:
           file bin/ffi_prep.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/ffi_prep-x86.exe test/ffi_prep.til
           file bin/ffi_prep-x86.exe | grep -q "Intel 80386"
+      # Issue #422: nng for both windows arches, from make.til's per-target
+      # table; test/nng_pair.til (a one-process round trip over inproc://)
+      # runs on the windows runner below.
+      - name: Cross-compile the nng test for windows-x64 and windows-x86
+        run: |
+          make vendor/nng/build-windows-x64/libnng.a vendor/nng/build-windows-x86/libnng.a
+          ./bin/til build --target=windows-x64 --extra-modes=examples/custom_modes.til -o bin/nng_pair.exe test/nng_pair.til
+          file bin/nng_pair.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 --extra-modes=examples/custom_modes.til -o bin/nng_pair-x86.exe test/nng_pair.til
+          file bin/nng_pair-x86.exe | grep -q "Intel 80386"
       - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -501,6 +562,8 @@ jobs:
             bin/crypto-x86.exe
             bin/ffi_prep.exe
             bin/ffi_prep-x86.exe
+            bin/nng_pair.exe
+            bin/nng_pair-x86.exe
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
@@ -530,6 +593,11 @@ jobs:
         run: |
           ./ffi_prep.exe | grep -q "ffi_prep ok"
           ./ffi_prep-x86.exe | grep -q "ffi_prep ok"
+      - name: Run the nng test (x64 + x86 via WOW64)
+        shell: bash
+        run: |
+          ./nng_pair.exe | grep -q "nng pair ok"
+          ./nng_pair-x86.exe | grep -q "nng pair ok"
 
   # Issue #25: til itself running on a windows HOST. bin/til.exe is the
   # compiler cross-built for windows (build_win_host) on linux, then run
@@ -537,7 +605,8 @@ jobs:
   # prove the interpreter and codegen run natively on windows -- neither
   # needs a C toolchain, and the win64 libffi is statically linked so
   # ext_func dispatch works. sender.exe is the nng mode-server example,
-  # cross-built against the win64 nng (UCRT via -lucrtbase); running it
+  # cross-built against the win64 nng (msvcrt, with ext.c's timespec_get
+  # shim -- never the UCRT, see examples/lib/custom_modes/nng_base.til); running it
   # here proves nng works on real winsock -- wine's winsock is incomplete
   # and cannot, so this job IS the nng-on-windows proof.
   windows-x64-host-build:
@@ -975,11 +1044,17 @@ jobs:
       # configure's probe links). test/ffi_prep.til calls it directly, and
       # til itself links it for the interpreter's ext_func dispatch; the
       # mac runners below run both, the cross-built til interpreting.
-      - name: Cross-compile libffi programs and til for macos-arm64 and macos-x64
+      # Issue #422: nng for both mac arches, SDK-less like the archives above
+      # -- til itself links it, and test/nng_pair.til (a one-process round
+      # trip over inproc://) runs on the mac runners below.
+      - name: Cross-compile libffi programs, the nng test and til for macos-arm64 and macos-x64
         run: |
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
+          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
           for arch in arm64 x64; do
             ./bin/til build --target=macos-$arch -o bin/ffi_prep-macos-$arch test/ffi_prep.til
+            ./bin/til build --target=macos-$arch --extra-modes=examples/custom_modes.til \
+              -o bin/nng_pair-macos-$arch test/nng_pair.til
             ./bin/til build --target=macos-$arch -o bin/til-macos-$arch src/til.til
           done
           file bin/ffi_prep-macos-arm64 bin/til-macos-arm64 | grep -c "Mach-O 64-bit arm64" | grep -q 2
@@ -1038,6 +1113,8 @@ jobs:
           path: |
             bin/ffi_prep-macos-arm64
             bin/ffi_prep-macos-x64
+            bin/nng_pair-macos-arm64
+            bin/nng_pair-macos-x64
             bin/til-macos-arm64
             bin/til-macos-x64
 
@@ -1069,8 +1146,9 @@ jobs:
       # through the cross-built til's interpreter.
       - name: Run the cross-built libffi test and til interpreter
         run: |
-          chmod +x machost/ffi_prep-macos-arm64 machost/til-macos-arm64
+          chmod +x machost/ffi_prep-macos-arm64 machost/nng_pair-macos-arm64 machost/til-macos-arm64
           ./machost/ffi_prep-macos-arm64 | grep -q "ffi_prep ok"
+          ./machost/nng_pair-macos-arm64 | grep -q "nng pair ok"
           ./machost/til-macos-arm64 interpret examples/hello_script.til | grep -q "Hello World"
           ./machost/til-macos-arm64 interpret test/ext_libc.til
 
@@ -1102,8 +1180,9 @@ jobs:
       # through the cross-built til's interpreter.
       - name: Run the cross-built libffi test and til interpreter
         run: |
-          chmod +x machost/ffi_prep-macos-x64 machost/til-macos-x64
+          chmod +x machost/ffi_prep-macos-x64 machost/nng_pair-macos-x64 machost/til-macos-x64
           ./machost/ffi_prep-macos-x64 | grep -q "ffi_prep ok"
+          ./machost/nng_pair-macos-x64 | grep -q "nng pair ok"
           ./machost/til-macos-x64 interpret examples/hello_script.til | grep -q "Hello World"
           ./machost/til-macos-x64 interpret test/ext_libc.til
 

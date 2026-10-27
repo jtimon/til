@@ -1,0 +1,3 @@
+mode mode
+// Issue #422: a misspelled target fails at the mode definition.
+loading_bad_targets := Mode(targets = "linux-x46")

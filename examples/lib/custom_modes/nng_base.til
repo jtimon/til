@@ -1,5 +1,24 @@
 import("../../../vendor/bindings/nng")
-link("vendor/nng/libnng.a")
+// Each target links its own nng build (issue #422): bin/make builds
+// vendor/nng/build-<target>/libnng.a for every target the server modes
+// list in examples/custom_modes.til, and the mode's build_hint names it.
+link("vendor/nng/build-linux-x64/libnng.a", "linux-x64")
+link("vendor/nng/build-linux-arm64/libnng.a", "linux-arm64")
+link("vendor/nng/build-linux-riscv64/libnng.a", "linux-riscv64")
+link("vendor/nng/build-linux-x86/libnng.a", "linux-x86")
+link("vendor/nng/build-linux-arm32/libnng.a", "linux-arm32")
+link("vendor/nng/build-linux-riscv32/libnng.a", "linux-riscv32")
+link("vendor/nng/build-windows-x64/libnng.a", "windows-x64")
+link("vendor/nng/build-windows-x86/libnng.a", "windows-x86")
+link("vendor/nng/build-macos-x64/libnng.a", "macos-x64")
+link("vendor/nng/build-macos-arm64/libnng.a", "macos-arm64")
+// nng on windows calls winsock. Built against msvcrt, NOT the UCRT: a
+// -lucrtbase here would pull ucrtbase.dll in beside mingw's msvcrt.dll
+// startup, and that dual-CRT binary fails to load on real Windows (issue
+// #25); ext.c supplies the one missing C11 function, timespec_get.
+link("ws2_32", "windows-x64 windows-x86")
+link("mswsock", "windows-x64 windows-x86")
+link("advapi32", "windows-x64 windows-x86")
 link("pthread")
 link("atomic")
 

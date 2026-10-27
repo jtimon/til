@@ -8,4 +8,12 @@ Mode := struct {
     is_pure := false
     run_tests := false
     debug_prints := false
+    // The targets a program in this mode may be built for, as a
+    // space-separated list of --target names; empty means every target
+    // (issue #422). Any other --target is refused before compiling.
+    targets := ""
+    // The command that builds a missing target-restricted link() archive,
+    // printed with the report; "{path}" is replaced by the archive's path
+    // (issue #422). Empty prints the path alone.
+    build_hint := ""
 }

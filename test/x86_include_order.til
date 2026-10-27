@@ -1,0 +1,78 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/targets")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+// Issue #436: linux-x86 compiles reach /usr/include/x86_64-linux-gnu for
+// the arch headers only gcc-multilib's /usr/include/asm link would
+// otherwise supply (asm/types.h). That directory must come LAST
+// (-idirafter): as a -I it came first, and any header it also holds
+// shadowed the program's own -- libffi's ffi.h was one (#420).
+
+WORK := "tmp/x86_include_order"
+SYS_DIR := "/usr/include/x86_64-linux-gnu"
+
+build := proc(compiler: Str, cc: Str) returns Cmd {
+    cmd := Cmd.new(compiler, "build", "--target=linux-x86", cc, "-o", "bin/probe", "./probe.til")
+    cmd.cwd(WORK)
+    cmd.capture()
+    return cmd
+}
+
+main := proc(args: ..Str) {
+    compiler := realpath_str(args[0])
+    File.remove_tree(WORK)
+    mkdir_p(format(WORK, "/shadow/include"))
+    mkdir_p(format(WORK, "/shadow/lib"))
+    // The program's own fpu_control.h, a name /usr/include/x86_64-linux-gnu
+    // also has; link() adds shadow/include as a -I.
+    File.writefile(format(WORK, "/shadow/include/fpu_control.h"),
+        "#define TIL_436_OWN_HEADER 1\n")
+    File.writefile(format(WORK, "/probe.c"), format(
+        "#include <fpu_control.h>\n",
+        "#ifndef TIL_436_OWN_HEADER\n",
+        "#error the x86_64 system fpu_control.h shadowed the program header\n",
+        "#endif\n",
+        "int probe436(void) { return 436; }\n"))
+    File.writefile(format(WORK, "/probe.til"), format(
+        "mode script\n",
+        "link(\"shadow/lib/libshadow436.a\")\n",
+        "link_c(\"probe.c\")\n",
+        "probe436 := ext_proc() returns shallow I32 {}\n",
+        "println(probe436().to_str())\n"))
+    // An empty archive: link() is only here for the include directory.
+    archive := Cmd.new("ar", "rc", "shadow/lib/libshadow436.a")
+    archive.cwd(WORK)
+    archive.run_checked()
+
+    // Every host: the flag the builder emits, before any compiler runs.
+    flags := build(compiler, "--cc=echo")
+    if flags.run() != 0 { panic("linux-x86 --cc=echo build failed: ", flags.out(), flags.err()) }
+    if flags.out().contains(format("-idirafter ", SYS_DIR)).not() {
+        panic("linux-x86 compiles must add ", SYS_DIR, " with -idirafter: ", flags.out())
+    }
+    if flags.out().contains(format("-I", SYS_DIR)) {
+        panic("linux-x86 compiles put ", SYS_DIR, " ahead of the include path: ", flags.out())
+    }
+
+    // A linux-x64 host with the multiarch directory and a 32-bit libc
+    // (gcc-multilib; CI's linux-x86 job installs it, the linux-x64 one
+    // does not): really compile it, so the program's header has to win
+    // over the system one.
+    host := detect_current_target()
+    File.writefile(format(WORK, "/m32.c"), "int main(void) { return 0; }\n")
+    m32 := Cmd.new("gcc", "-m32", "m32.c", "-o", "m32")
+    m32.cwd(WORK)
+    m32.capture()
+    builds_32 := host.is(Target.LinuxX64).and(m32.run() == 0)
+    if builds_32.and(File.exists(format(SYS_DIR, "/fpu_control.h"))) {
+        real := build(compiler, "--cc=gcc")
+        if real.run() != 0 {
+            panic("linux-x86 build of a link_c file with its own fpu_control.h failed: ", real.out(), real.err())
+        }
+    }
+    println("x86 include order passed")
+}

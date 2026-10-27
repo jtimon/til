@@ -1245,6 +1245,12 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/mlir_options -c gen/c/mlir_options.c test/mlir_options.til ", til_bin))
 
+    // Issue #436: linux-x86 compiles put the x86_64 multiarch include dir
+    // LAST, so a program's own header of the same name wins over it.
+    add_count(tests, "x86_include_order", "build", "x86 include order passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/x86_include_order -c gen/c/x86_include_order.c test/x86_include_order.til ", til_bin))
+
     // Independent driver and scratch directory: the scheduler can overlap
     // pointer-width checks with CPU-option checks within its normal -j limit.
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,
@@ -2613,6 +2619,13 @@ main := proc(args: ..Str) {
     // pointers and an inproc-free socket open/close.
     add_single(tests, "interp_nng_ffi", "build", 0, "",
         format(til_bin, " interpret --extra-modes=examples/custom_modes.til test/nng_interp.til"))
+    // Issue #422: an nng message round trip over inproc:// in one process,
+    // on both backends; the cross CI jobs run the same file built for
+    // their target.
+    add_single(tests, "interp_nng_pair", "build", 0, "",
+        format(til_bin, " interpret --extra-modes=examples/custom_modes.til test/nng_pair.til"))
+    add_single(tests, "run_nng_pair", "build", 0, "",
+        format(til_bin, " run", asan_flag, " -o bin/nng_pair -c gen/c/nng_pair.c --extra-modes=examples/custom_modes.til test/nng_pair.til"))
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.

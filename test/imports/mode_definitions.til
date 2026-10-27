@@ -8,3 +8,7 @@ loading_legacy_entry := Mode(auto_import = "imports/mode_support")
 loading_decls := Mode(decls_only = true)
 loading_gui := Mode(needs_main = true, auto_import = "mode_gui_support")
 loading_name_only := Mode(needs_main = true, auto_import = "gui")
+// Issue #422: a mode that lists its targets, with target-restricted
+// link()s in its support file and a build hint for a missing archive.
+loading_targets := Mode(needs_main = true, auto_import = "mode_targets_support",
+    targets = "linux-x64 linux-arm64", build_hint = "bin/make {path}")

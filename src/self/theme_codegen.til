@@ -310,7 +310,7 @@ theme_codegen_translate := proc(lp: LoadedProgram, output_path: Str) returns I32
         println("error: theme codegen does not support user imports")
         return 1
     }
-    if lp.link_c_paths.len().gt(0).or(lp.link_flags.len().gt(0)).or(lp.include_flags.len().gt(0)) {
+    if lp.link_c_paths.len().gt(0).or(lp.link_flags_for_target().len().gt(0)).or(lp.include_flags_for_target().len().gt(0)) {
         println("error: theme codegen does not support link, link_c, or include directives")
         return 1
     }

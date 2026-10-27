@@ -1,7 +1,18 @@
 mode mode
 
-receiver := Mode(auto_import = "examples/lib/custom_modes/receiver", decls_only = false)
-sender := Mode(auto_import = "examples/lib/custom_modes/sender", decls_only = false)
-publisher := Mode(auto_import = "examples/lib/custom_modes/publisher", decls_only = false)
-subscriber := Mode(auto_import = "examples/lib/custom_modes/subscriber", decls_only = false)
-
+// The nng server modes (issue #422): every target nng builds for (wasm32
+// has no sockets), each linking that target's own archive from
+// examples/lib/custom_modes/nng_base.til; a missing one is reported with
+// the bin/make goal that builds it.
+receiver := Mode(auto_import = "examples/lib/custom_modes/receiver", decls_only = false,
+    targets = "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32 windows-x64 windows-x86 macos-x64 macos-arm64",
+    build_hint = "bin/make {path}")
+sender := Mode(auto_import = "examples/lib/custom_modes/sender", decls_only = false,
+    targets = "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32 windows-x64 windows-x86 macos-x64 macos-arm64",
+    build_hint = "bin/make {path}")
+publisher := Mode(auto_import = "examples/lib/custom_modes/publisher", decls_only = false,
+    targets = "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32 windows-x64 windows-x86 macos-x64 macos-arm64",
+    build_hint = "bin/make {path}")
+subscriber := Mode(auto_import = "examples/lib/custom_modes/subscriber", decls_only = false,
+    targets = "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32 windows-x64 windows-x86 macos-x64 macos-arm64",
+    build_hint = "bin/make {path}")

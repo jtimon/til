@@ -1,0 +1,32 @@
+mode sender
+
+// Issue #422: an nng message round trip in ONE process over inproc://, so
+// a binary cross-built for another target runs on its own -- under qemu,
+// wine or that target's CI runner -- with no second process, no network
+// and no timing. The suite runs it natively on both backends.
+url := "inproc://til-nng-pair"
+
+mut srv := nng_socket(id = 0)
+check(nng_pair0_open(srv), "pair0_open srv")
+mut lst := nng_listener(id = 0)
+check(nng_listen(srv, url.c_str, lst, 0), "listen")
+
+mut cli := nng_socket(id = 0)
+check(nng_pair0_open(cli), "pair0_open cli")
+// Bound the receive so a broken build fails instead of hanging.
+check(nng_socket_set_ms(cli, "recv-timeout".c_str, 3000), "set recv-timeout")
+mut dlr := nng_dialer(id = 0)
+check(nng_dial(cli, url.c_str, dlr, 0), "dial")
+
+msg := "hello over inproc"
+// len+1 sends the trailing NUL so the receiver can read a C string.
+check(nng_send(srv, msg.c_str, msg.len().add(1), 0), "send")
+mut rbuf := Str.with_capacity(256)
+mut sz : USize = 256
+check(nng_recv(cli, rbuf.c_str, sz, 0), "recv")
+got := read_cstr(rbuf.c_str)
+if got != msg { panic("nng pair received '", got, "', expected '", msg, "'") }
+
+check(nng_close(cli), "close cli")
+check(nng_close(srv), "close srv")
+println("nng pair ok")

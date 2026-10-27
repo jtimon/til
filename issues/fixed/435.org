@@ -1,6 +1,31 @@
 # priority: low
 # category: cleanups
-** OPEN #435 Build tooling papercuts: unignored libffi copies, bin/make help spacing, missing cross-compiler hints
+** FIXED #435 Build tooling papercuts: unignored libffi copies, bin/make help spacing, missing cross-compiler hints
+
+*** Post-mortem
+
+Root causes: the Makefile's stable-path libffi copies were added
+without an ignore line; make.til's ~pad~ appended spaces only up to the
+column, never past it; and the cross recipes handed their compiler
+straight to cmake / configure, with the builder's libsecp256k1 hint
+built from the archive path alone.
+
+Changes: ~.gitignore~ ignores ~vendor/libffi/libffi-*.a~. ~pad~ always
+emits at least one space. A new ~require_cross_cc~ in make.til checks
+a cross recipe's compiler (the first word of its ~cc~) with ~have_tool~
+once the archive needs building, and panics naming it and, for the
+libsecp256k1 and libffi cross tables' new ~cc_option~ field,
+~--linux-x64-cc=~ / ~--riscv32-cc=~. targets.til's new
+~target_secp256k1_build_hint~ (beside ~target_secp256k1_lib~, like
+~target_ffi_build_hint~) gives the builder's missing-archive report the
+option riscv32 and linux-x64 need.
+
+Checked by hand (no suite test: these are messages and help text): the
+help line now reads ~.../libsecp256k1.a linux-x64 libsecp256k1 ...~;
+~LINUX_X64_CC=no-such-gcc~ and a bad ~RISCV32_CC~ panic with the
+option; a linux-riscv32 std/crypto build without the archive prints
+~build it first: bin/make --riscv32-cc=<path to riscv32 gcc> ...~; a
+~vendor/libffi/libffi-linux-arm64.a~ no longer shows in ~git status~.
 
 Three small things found while working on #420, none of them filed
 until now.

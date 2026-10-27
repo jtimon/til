@@ -6826,7 +6826,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         // Embedding only loads prebuilt libraries. It never builds a link_c
         // bridge or takes ownership of the process-global user-FFI handle.
         if lp.ctx.imported[lp.path].prelude_import.len() == 0 {
-            if ffi_init_link_libs(lp.link_flags, lp.ctx) != 0 { return 1 }
+            if ffi_init_link_libs(lp.link_flags_for_target(), lp.ctx) != 0 { return 1 }
         } else {
             root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
             for unit : ProgramUnit in lp.units {
@@ -6834,6 +6834,15 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
                 mut link_root := root_dir.clone()
                 if iu.host_source.len() > 0 { link_root = "" }
                 for directive : Expr in iu.link_directives {
+                    // link(path, "<targets>") applies only to the listed
+                    // targets (issue #422); an embedded load runs on the host.
+                    if directive.children.len() == 3 {
+                        switch directive.children[2].node_type {
+                        case .Literal(Literal.Str(targets)):
+                            if target_list_has(targets, lp.target).not() { continue }
+                        case: UNREACHABLE("non-literal link target list")
+                        }
+                    }
                     switch directive.children[1].node_type {
                     case .Literal(Literal.Str(path)):
                         mut flag := format("-l", path)
@@ -6845,7 +6854,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
             }
         }
     } else {
-        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
+        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags_for_target(), lp.ctx)
         if ffi_rc.eq(0).not() { return ffi_rc }
     }
     runtime_ext_path := realpath_str(lp.ext_c_path)

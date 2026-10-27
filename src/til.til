@@ -34,7 +34,25 @@ link("m")
 link("pthread")
 link("rt")
 link("vendor/tinyfiledialogs/libtinyfd.a")
-link("vendor/nng/libnng.a")
+// nng, linked into til itself as before, per target (issue #422): the
+// same archives the server modes link (examples/lib/custom_modes/nng_base.til).
+link("vendor/nng/build-linux-x64/libnng.a", "linux-x64")
+link("vendor/nng/build-linux-arm64/libnng.a", "linux-arm64")
+link("vendor/nng/build-linux-riscv64/libnng.a", "linux-riscv64")
+link("vendor/nng/build-linux-x86/libnng.a", "linux-x86")
+link("vendor/nng/build-linux-arm32/libnng.a", "linux-arm32")
+link("vendor/nng/build-linux-riscv32/libnng.a", "linux-riscv32")
+link("vendor/nng/build-windows-x64/libnng.a", "windows-x64")
+link("vendor/nng/build-windows-x86/libnng.a", "windows-x86")
+link("vendor/nng/build-macos-x64/libnng.a", "macos-x64")
+link("vendor/nng/build-macos-arm64/libnng.a", "macos-arm64")
+// nng on windows calls winsock. Built against msvcrt, NOT the UCRT: a
+// -lucrtbase here would pull ucrtbase.dll in beside mingw's msvcrt.dll
+// startup, and that dual-CRT binary fails to load on real Windows (issue
+// #25); ext.c supplies the one missing C11 function, timespec_get.
+link("ws2_32", "windows-x64 windows-x86")
+link("mswsock", "windows-x64 windows-x86")
+link("advapi32", "windows-x64 windows-x86")
 link("atomic")
 
 link("dl")
@@ -1173,6 +1191,13 @@ main := proc(args: ..Str) {
         exit(1)
     }
     lp.target = target
+    // A mode may list the targets it supports (issue #422); refuse any
+    // other one here, before anything is translated or compiled.
+    if lp.cur_mode.targets.len().gt(0).and(target_list_has(lp.cur_mode.targets, target).not()) {
+        println(format("error: mode ", lp.mode_str, " does not support --target=", target_to_str(target),
+            "; it supports: ", lp.cur_mode.targets))
+        exit(1)
+    }
     lp.cpu = cpu
     lp.opt_level = cli.opt_level
     // #309: --usize override must be set before prepare_program stamps the
@@ -1211,7 +1236,7 @@ main := proc(args: ..Str) {
     prepare_program(lp, cli.command == "test")
 
     if cli.backend == "mlir" {
-        if lp.link_c_paths.len() > 0 || lp.link_flags.len() > 0 {
+        if lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0 {
             println("error: MLIR backend does not yet support link_c or link flags")
             exit(1)
         }
