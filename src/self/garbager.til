@@ -27,6 +27,8 @@ priv LocalInfo := struct {
     name := ""
     type := Type.Unknown
     decl_index : I64 = 0
+    // An unused local ends at its declaration. -1 is reserved for an unused
+    // incoming owner (e.g. an own parameter), which has no declaration here.
     last_use : I64 = 0
     own_transfer : I64 = -1
     // #302 stage 3: "some statement of this body transfers this name",
@@ -1826,7 +1828,9 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             }
         }
 
-        mut last_use : I64 = -1
+        // #446: creation is the final use of a discarded result. Leaving -1
+        // scheduled its immediate delete AND made later exits consider it live.
+        mut last_use : I64 = decl_idx
         mut own_transfer : I64 = -1
         mut scan_from : USize = 0
         if decl_idx >= 0 {
@@ -3015,15 +3019,6 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
                     }
                 }
             }
-            if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
-                del_o := gc_make_delete(local, stmt, ctx.symbols)
-                if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }
-            } else if local.is_heap {
-                del := make_free_call(local.name, local.type, stmt, ctx.symbols)
-                new_ch.push(own del)
-            }
-        }
-        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i64())) {
             if local.raw_alloc.not().and(type_to_name_ref(local.type, ctx.symbols).len().gt(0)) {
                 del_o := gc_make_delete(local, stmt, ctx.symbols)
                 if del_o.is_some() { new_ch.push(own Option(Expr).take(own del_o)) }

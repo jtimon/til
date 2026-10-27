@@ -48,6 +48,30 @@ borrow_len := func(s: Str) returns USize {
     return s.len()
 }
 
+// #446: discarded results die immediately, and no later return may destroy
+// them again. Proc factories keep the allocations/counters at runtime.
+discarded_string446 := proc(value: Str) returns Str {
+    noop_proc()
+    return format(value, " owned")
+}
+
+discard_string_paths446 := proc(value: Str, path: I64) returns Str {
+    if path == 0 { discarded_string446(value); return "early" }
+    discarded_string446(value)
+    if path == 1 {
+        if value.len() > 0 { return "nested" }
+    }
+    if path == 2 { discarded_string446(value) }
+    return value.clone()
+}
+
+discarded_owned_string_exit_paths := test() {
+    assert_eq(Str, discard_string_paths446("input", 0), "early")
+    assert_eq(Str, discard_string_paths446("input", 1), "nested")
+    assert_eq(Str, discard_string_paths446("input", 2), "input")
+    assert_eq(Str, discard_string_paths446("input", 3), "input")
+}
+
 // --- owned local -------------------------------------------------------
 
 /// Straight-line: a ctor field consumes an owned local.
@@ -774,6 +798,39 @@ Counted415 := struct {
     delete := func(own self: Counted415, call_free: Bool = true) {
         Counted415.deletes = Counted415.deletes.add(1)
         if call_free { free(own self) }
+    }
+}
+
+discarded_counted446 := proc() returns Counted415 {
+    noop_proc()
+    return Counted415(id = 446)
+}
+
+discard_counted_paths446 := proc(path: I64) returns I64 {
+    if path == 0 {
+        discarded_counted446()
+        assert_eq(I64, Counted415.deletes, 1)
+        return 0
+    }
+    discarded_counted446()
+    assert_eq(I64, Counted415.deletes, 1)
+    if path == 1 {
+        if Counted415.deletes == 1 { return 1 }
+    }
+    if path == 2 {
+        discarded_counted446()
+        assert_eq(I64, Counted415.deletes, 2)
+    }
+    return path
+}
+
+discarded_owned_result_destroyed_once := test() {
+    for path in 0..4 {
+        Counted415.deletes = 0
+        assert_eq(I64, discard_counted_paths446(path), path)
+        mut expected := 1
+        if path == 2 { expected = 2 }
+        assert_eq(I64, Counted415.deletes, expected)
     }
 }
 

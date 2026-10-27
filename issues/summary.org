@@ -1,7 +1,6 @@
 * Bugs
 ** High
 *** [[./open/443.org][#443]] Nested propagating calls consume failed reference results
-*** [[./open/446.org][#446]] Discarded owned call result is destroyed twice before return
 *** [[./open/447.org][#447]] A view of a temporary Str dangles: format(...).trim() reads freed memory
 *** [[./open/450.org][#450]] A struct field named like a global function shadows it inside the struct's methods
 ** Medium

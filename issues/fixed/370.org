@@ -46,7 +46,7 @@ ownership and packaging details are in ~doc/ffi.org~.
 Closing this embedding contract does not close the shared compiler defects in
 [[../open/443.org][#443]] (nested propagating reference results),
 [[../open/445.org][#445]] (builtin SIMD binding generation), or
-[[../open/446.org][#446]] (discarded owned results on early-return edges).
+[[./446.org][#446]] (discarded owned results on early-return edges, fixed separately).
 Their reproducers are distinct from this issue's native return decoding,
 dependency composition, and owned-parameter wrapper cleanup regressions.
 

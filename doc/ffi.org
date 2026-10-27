@@ -310,9 +310,11 @@ The embedding regressions do not close these separately tracked compiler bugs:
 - [[../issues/open/445.org][#445]]: generated C-library bindings still reject the
   builtin SIMD generator. Dependency-binding composition and enum marshalling
   do not extend that generator's binding support.
-- [[../issues/open/446.org][#446]]: a discarded owned call result can be destroyed
-  twice on an early-return edge. Releasing an owned parameter's outer box after
-  moving its contents into a global is a different ownership path.
+
+[[../issues/fixed/446.org][#446]] separately fixed duplicate destruction of a
+discarded owned result on an early-return edge. Its lifetime now ends at the
+discard's declaration; this differs from releasing an owned parameter's outer
+box after moving its contents into a global.
 
 ** Why bindings need a human reviewer
 

@@ -1,0 +1,54 @@
+# priority: high
+# category: bugs
+** FIXED #446 Discarded owned call result is destroyed twice before return
+
+*** Post-mortem
+
+A discarded owned call is lowered to an unused hoisted local. The garbager
+recorded its last_use as -1, scheduled destruction immediately after its
+declaration, and then treated that same sentinel as a live incoming owner at
+return/branch exits. Both cleanup paths therefore destroyed the same value.
+
+Unused locals now end at their declaration index. The ordinary last-use path
+performs their one immediate destruction, and later exit paths see that their
+lifetime has ended. The separate unused-local cleanup branch was removed.
+Unused incoming owned parameters still have no declaration and retain -1.
+
+Regression tests in test/ownership_shapes.til:
+- discarded_owned_string_exit_paths exercises allocated Str discards with
+  direct/nested early returns and fall-through paths under ASAN.
+- discarded_owned_result_destroyed_once checks a custom destructor counter
+  both immediately after each discard and after returning, proving cleanup
+  is neither duplicated, delayed to scope exit, nor omitted.
+
+Verification: the original runtime-input reproducer passes under ASAN, and
+the ownership-shape tests pass interpreted and compiled. ~make test_two_pass~
+passed 468/468. Two-pass regeneration is required: the fixed compiler removes
+four duplicate deletes from its own JVM diagnostic paths, so a single-pass
+build leaves stale boot output and fails the self-translation comparison.
+
+*** Original report
+
+Found during the initial MLIR emitter implementation and reduced/reproduced
+on master d2e52f609 plus 1a07795e9. C/ASAN diagnoses an attempted double free:
+
+#+begin_src til
+mode cli
+produce := func(value: Str) returns Str { return format(value, " owned") }
+discard := func(value: Str, flag: Bool) returns Str {
+    if flag { produce(value); return "done" }
+    return value.clone()
+}
+main := proc(value: Str) { println(discard(value, true)) }
+#+end_src
+
+Run with ~bin/til run --asan tmp/discard_return_bug.til input~. The runtime
+argument prevents constant folding from replacing the allocated result
+with a string literal. Generated C calls ~Str_delete~ twice on the same
+hoisted discarded result: once for the discard and again on the return
+edge. The ASAN allocation stack is ~produce -> format -> Str_with_capacity~.
+
+Fix lifetime/destruction accounting at its source. Cover a discarded
+owned result followed by an early return, including nested branches and
+the non-returning path. The result must be destroyed exactly once; do not
+change the caller to retain or leak it as a workaround.
