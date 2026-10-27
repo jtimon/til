@@ -1974,10 +1974,26 @@ gloc328 := func(T: Type, v: T, loc: Str = __LOC__) returns Str {
 }
 gvarsum328 := func(T: Type, base: T, rest: ..T) returns T {
     mut acc := base
-    for i in 0..rest.len() {
-        acc = acc.add(rest[i])
+    for value: T in rest {
+        acc = acc.add(value)
     }
     return acc
+}
+
+make_loop_sum := macro(T: Type) returns FuncDef {
+    return func(values: Vec(T), zero: T) returns T {
+        mut total := zero
+        for value: T in values { total = total.add(value) }
+        return total
+    }
+}
+generated_loop_sum := make_loop_sum(I64)
+
+test_generated_loop_type := test() {
+    mut values := Vec(I64).new()
+    values.push(own 3)
+    values.push(own 4)
+    assert_eq(I64, generated_loop_sum(values, 0), 7)
 }
 gtwo328 := func(T: Type, v: T) returns T { return gid58g_compose(v) }
 

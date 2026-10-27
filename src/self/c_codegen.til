@@ -1914,6 +1914,8 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                     if ns_d.default_value.is_some() {
                         core_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_rsl_ns_i))
                         if ctx.builder_core_c_names.has(core_name) { continue }
+                        if ns_d.default_expr().node_type.is(NodeType.FuncDef)
+                            .and(builder_is_virtual_interface_method(core_name, ns_d.default_expr(), ctx)) { continue }
                         builder_register_str_lits_for_expr(ns_d.default_expr(), ctx)
                     }
                 }
@@ -6205,6 +6207,11 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
     f.write(func_return_ctype(fd, lp.ctx)).write(" ").write(full_name).write("(")
     emit_param_list(f, fdef, true, false, lp.ctx)
     f.write(") {\n")
+    if interface_method_requires_concrete_types(fd, name, lp.ctx) {
+        for p : Declaration in fd.sig.params { f.write("    (void)").write(p.name).write(";\n") }
+        f.write("    fprintf(stderr, \"nested interface types require concrete dispatch: ").write(name).write(".").write(method).write("\\n\");\n    exit(1);\n}\n\n")
+        return
+    }
     f.write("    ").write(name).write(" *").write(receiver).write(" = ")
     if fd.sig.params[0].own_type.is(OwnType.Shallow) { f.write("&") }
     f.write(fd.sig.params[0].name).write(";\n")

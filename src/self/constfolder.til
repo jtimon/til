@@ -445,6 +445,10 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
             ref vname : Str = cf_vd.name
             if cf_vd.payload_type.len() > 0 {
+                // Rebuilding a borrowed payload as a literal would replace
+                // its owner with a fresh temporary and lose the borrow's
+                // identity and lifetime. Keep the original expression.
+                if cf_vd.payload_ref { return Option(Expr).None }
                 mut recv := Expr.new(own ident_node(ename_sym), src.line, src.col)
                 recv.set_til_type(t)
                 mut variant := Expr.new(own field_access_node(ctx.symbols.intern(vname)), src.line, src.col)

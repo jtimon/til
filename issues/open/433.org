@@ -4,9 +4,23 @@
 
    Let a template (macro) type argument carry an ownership qualifier, so a
    container can say how it holds its elements: `Vec(own T)` owns each
-   element, `Vec(ref T)` borrows each element. Today a type argument is a
-   bare Type and the container's ownership of its elements is fixed by the
-   container.
+   element, `Vec(ref T)` borrows each element. Ref-qualified arguments already
+   work for typed template fields and enum payloads, including Option(ref T).
+   The remaining gap is making raw-buffer containers honor the qualifier in
+   their element layout, insertion, cloning, destruction and borrow tracking.
+
+*** DECIDED: interface element types require own or ref (2026-10-27)
+
+   - Reject unqualified interface element instantiations such as Vec(Iface).
+   - Reject shallow interface elements, including Vec(shallow Iface).
+   - Vec(own Iface) holds owning interface handles; Vec(ref Iface) holds
+     borrowing interface handles. Payload ownership remains static.
+   - Iface() remains forbidden. Bare interface parameters and returns remain
+     valid: parameters borrow by default and returns own by default.
+   - These rules do not redefine own/ref for ordinary types. Their existing
+     meaning and the existing ref-qualified template machinery are reused.
+   - The old unqualified Vec(Iface) behavior must not be used as justification
+     for silently substituting Vec(Concrete) inside a copied default.
 
 *** Motivation
 
@@ -19,12 +33,9 @@
 
    2. A static, per-container statement of interface ownership. Since
       d11c2acf (#251 follow-up) a heterogeneous `Vec(Drawable)` already
-      works: each element is the fat box {tag, ptr} of #432, and its
-      iface_owned flag says whether THAT element owns or borrows its
-      concrete, decided by the provenance rule (fresh value -> owned,
-      existing storage -> borrowed) and guarded by the deposit escape
-      checks. The qualifier form makes ownership a property of the
-      container instead of each element:
+      works using a fixed-size dispatch handle. #432 has already removed
+      iface_owned: ownership is static, not a per-element runtime flag.
+      The decision above now requires the element qualifier to be explicit:
 
           shapes := Vec(own Drawable).new()
           shapes.push(Circle(r = 1))       // owned clone; the Vec frees it
@@ -34,17 +45,17 @@
           views := Vec(ref Drawable).new()
           views.push(c)                    // borrow; c must outlive views
 
-      This is the same shape as `Vec(Dynamic)` plus a cast (#212), with the
-      type tag carried by the element. Whether it REPLACES per-element
-      iface_owned for interface elements or merely constrains it follows
-      the #432 decision; it is useful for ordinary types either way.
+      The handle carries method-selection information as well as the payload
+      reference. The wrapper's fixed size does not make a bare interface a
+      concrete, directly instantiable element type.
 
 *** Semantics to settle
 
    - Element clone/delete follow the qualifier: own -> the element type's
      clone/delete (for an interface element, the tag-dispatching pair);
-     ref -> pointer copy and no-op delete. Unqualified keeps today's
-     behaviour.
+     ref -> copy the borrowing handle without destroying its referent.
+     Unqualified concrete element types keep today's behavior; unqualified
+     interface element types are rejected as decided above.
    - Lifetime: a `Vec(ref T)` borrows every source. The deposit escape
      checks d11c2acf added for interface elements are the model for the
      general case: an inner-scope or caller-owned destination may not
@@ -72,5 +83,5 @@
    - `Vec(own Drawable)` and `Vec(ref Drawable)` hold mixed conforming
      concretes with the stated ownership and dispatch per element in
      interpret and compile modes, ASAN clean.
-   - Existing Vec/Array/Set/Map behaviour unchanged for unqualified
-     arguments.
+   - Existing Vec/Array/Set/Map behaviour unchanged for unqualified concrete
+     arguments; unqualified and shallow interface element arguments rejected.

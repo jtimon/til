@@ -174,6 +174,87 @@
    Multi-argument abstract dispatch landed on master in the meantime
    (MultiContract tests), so that gap is closed.
 
+*** Pending decision: bounded-generic UFCS (2026-10-27)
+
+   No option below has been selected. These are alternatives for discussion,
+   not newly supported syntax or an instruction to implement one.
+
+   Current spelling:
+
+   #+begin_src til
+   use_values := proc(T: Type implements Drawable, values: Vec(T)) {
+       println(values[0].draw())
+   }
+   #+end_src
+
+   An isolated probe accepts ~use_values(my_vals)~ for ~Vec(Circle)~, infers
+   T = Circle and checks the bound. ~my_vals.use_values()~ instead reports
+   "no method 'use_values' for type 'Vec__Circle'". try_ufcs_rewrite checks
+   the first declared parameter (~T: Type~) against the receiver's type,
+   rather than using the runtime argument list and generic inference.
+
+**** Keep the current syntax; use ordinary generic inference for UFCS
+
+   Resolve the free function after existing namespace-method lookup, insert
+   the receiver into the runtime argument list and use the ordinary call's
+   inference, bounds, ownership, mutability and effect checks.
+
+   Advantages: no syntax migration; one inference path for ordinary and UFCS
+   calls; applies to generics generally, not only interface bounds.
+   Tradeoffs: the written first parameter can differ from the receiver;
+   explicit type-argument placement needs a rule. Only genuinely erased type
+   parameters may be skipped -- a runtime Type argument is still an argument.
+
+**** Separate generic parameters from runtime parameters
+
+   Possible syntax: ~proc<T implements Drawable>(values: Vec(T)) { ... }~.
+
+   Advantages: the receiver is visibly the first runtime parameter; bounds
+   and value parameters are separated. Tradeoffs: multiple type parameters
+   and multiple bounds need an unambiguous grammar; today's ~func<T>~ sugar
+   has no bounds. UFCS must still use the runtime signature after lowering,
+   so changing the surface syntax alone does not fix the implementation.
+
+**** Trailing constraints
+
+   Possible syntax: ~proc(values: Vec(T)) with T implements Drawable { ... }~.
+
+   Advantages: emphasizes the runtime call shape and keeps constraints out
+   of the value-parameter list. Tradeoffs: decide whether the clause declares
+   T or constrains an already-declared parameter, how multiple variables and
+   bounds are written, and how unconstrained variables and shadowing work.
+   This is a broader generic-syntax change.
+
+**** Explicit type arguments at the UFCS call
+
+   Possible syntax: ~my_vals.use_values<Circle>()~.
+
+   Advantages: explicit selection, useful when inference lacks information.
+   Tradeoffs: redundant when the receiver already identifies T; new call
+   syntax; does not provide the desired inferred ~my_vals.use_values()~ form.
+
+**** Separate questions and independent work
+
+   - A bound restricts which concrete T may instantiate a function. It does
+     not determine the container's element ownership. Qualified container
+     arguments (~Vec(ref T)~, ~Vec(own T)~) are #433's separate implementation
+     work, with the interface rule now decided below.
+   - DECIDED: reject ~Vec(Iface)~ and ~Vec(shallow Iface)~; use
+     ~Vec(own Iface)~ for owning handles and ~Vec(ref Iface)~ for borrowing
+     handles. Bare parameters borrow and bare returns own as before.
+     Consequently the nested-substitution draft's automatic
+     ~Vec(Iface) -> Vec(Concrete)~ rewrite is not the selected rule and must
+     be revised. The generic UFCS syntax options above remain undecided.
+   - The ordinary-call probe with ~for value: T in values~ previously failed
+     with "undefined type 'T'". Fixed: init_substitute_idents now substitutes
+     ForInData.til_type as well as Declaration.til_type. Regression coverage:
+     test_interface_bound_loop_type (explicit/inferred bounded calls, struct
+     and enum elements), test_generated_loop_type (a function generator),
+     and gvarsum328's typed variadic loop. The focused change passed
+     ~make clean && make test~: 464/464. No UFCS syntax decision is implied.
+   - Restricting generated interface clone/delete reachability to the
+     interface's implementers is independent of these syntax decisions.
+
 *** Remaining gaps
 
    - The generated box clone/delete still dispatch by runtime tag through
@@ -186,10 +267,10 @@
      rewrites only direct parameter and return types equal to the interface
      name; nested generic types (`Vec(Self)`, `Option(Self)`) and explicit
      interface-name references inside the body are not rewritten. The
-     nested case is not a string substitution: `Vec(Self)` in a default
-     copied into Circle means `Vec(Circle)`, a template instance that may
-     not exist yet, so it needs the macro machinery to instantiate it per
-     implementer (#433/#434 territory).
+     previous proposal to rewrite `Vec(Iface)` into `Vec(Concrete)` is
+     superseded by the explicit own/ref element decision above. Concrete
+     element types should be expressed with an explicit bounded T; qualified
+     interface elements retain their interface-handle meaning (#433).
    - [X] A user-declared clone/delete on an interface used to suppress the
      generated box lifecycle methods silently; it is a typer error now
      ("cannot declare 'clone': the box's lifecycle is generated",
@@ -215,3 +296,11 @@
    of element ownership). #434 (static generic bounds -- the
    other half of "interfaces"; most `d: Drawable` parameters written so far
    are better expressed there).
+
+   Shared correctness issues to include when verifying interface ownership
+   and throwing methods: #443 tracks nested propagating calls consuming a
+   failed reference result before its error check; #446 tracks a discarded
+   owned result being destroyed again on an early-return edge. Neither is
+   interface-specific or resolved by this work. #444's loop error-propagation
+   fix is now on master; it is separate from the generic loop-binder type
+   substitution fixed here.

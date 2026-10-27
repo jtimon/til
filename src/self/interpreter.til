@@ -3689,6 +3689,10 @@ priv bind_interface_receiver := func(mut dispatch_scope: Scope, mut box: Dynamic
 }
 
 priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str, method: Str, contract: FunctionDef, mut ctx: Context, mut destination: Dynamic) returns Dynamic {
+    if interface_method_requires_concrete_types(contract, iface_name, ctx) {
+        interp_eval_error(e, format("nested interface types require concrete dispatch: ", iface_name, ".", method), ctx)
+        return raw_unit_result(e.til_type(), ctx)
+    }
     own_self := contract.sig.params[0].own_type.is(OwnType.Own)
     mut receiver_info := raw_result_info_new()
     mut box : Dynamic = 0

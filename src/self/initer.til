@@ -2770,6 +2770,13 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
         if new_type.len() > 0 {
             dd.til_type = decl_type_from_name(new_type, symbols)
         }
+    case .ForIn(fd):
+        // The loop binder's annotation lives in the ForIn payload, not in
+        // its child expressions. Specialize it alongside local declarations.
+        new_type := init_subst_ident_name(subs, ref_params, type_name_ref(fd.til_type, symbols), symbols)
+        if new_type.len() > 0 {
+            fd.til_type = decl_type_from_name(new_type, symbols)
+        }
     case:
     }
     for i in 0..e.children.len() {
@@ -5811,7 +5818,7 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
     }
 }
 
-gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool) {
+gen_implements_defaults_for_stmt := func(mut stmt: Expr, mut requests: Expr, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut impl_name := ""
     switch stmt.node_type {
@@ -5830,7 +5837,7 @@ gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut s
     mut default_owner := Set(Str).new()
     mut ambiguous := Set(Str).new()
     for scan_name : Str in ifaces {
-        scan_def_o := scope.get_struct(scan_name, symbols)
+        scan_def_o := ctx.scope.get_struct(scan_name, ctx.symbols)
         if scan_def_o.is_none() { continue }
         ref scan_def : Expr = scan_def_o.unwrap()
         if def_is_interface_def(scan_def).not() { continue }
@@ -5845,7 +5852,7 @@ gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut s
         }
     }
     for iface_name : Str in ifaces {
-        iface_def_o := scope.get_struct(iface_name, symbols)
+        iface_def_o := ctx.scope.get_struct(iface_name, ctx.symbols)
         if iface_def_o.is_none() { continue }
         ref iface_def : Expr = iface_def_o.unwrap()
         // Only copy from an actual interface; the typer reports the
@@ -5857,12 +5864,17 @@ gen_implements_defaults_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut s
         for am : Declaration in iface_ns {
             ref am_name : Str = def_ns_name_at(iface_def, idfi)
             idfi = idfi + 1
-            if ns_member_is_concrete_default(am).not() { continue }
-            if ambiguous.has(am_name) { continue }
-            // Override: the implementing type already provides this method.
-            if def_ns_has(tdef, am_name) { continue }
-            mut copy := am.default_expr().clone()
-            gen_substitute_self_type(copy, iface_name, impl_name, symbols)
+            if am.default_value.is_none() { continue }
+            if am.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+            ref fd : FunctionDef = funcdef_of(am.default_expr())
+            if fd.auto_generated { continue }
+            copy_default := ns_member_is_concrete_default(am).and(ambiguous.has(am_name).not()).and(def_ns_has(tdef, am_name).not())
+            // Required and overridden methods still need their concrete
+            // signature types prepared for the conformance check.
+            mut copy := Expr.new(own NodeType.FuncDef(FunctionDef(sig = fd.sig.clone())), stmt.line, stmt.col)
+            if copy_default { copy = am.default_expr().clone() }
+            gen_substitute_self_type(copy, iface_name, impl_name, requests, ctx)
+            if copy_default.not() { continue }
             switch tdef.node_type {
             case .StructDef(sdd):
                 sdd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
@@ -5893,20 +5905,148 @@ priv ns_member_is_concrete_default := func(am: Declaration) returns Bool {
     }
 }
 
-// Rewrite the interface Self type to the implementing type in a copied
-// default method's signature: any param whose declared type is the interface
-// name, and a return type equal to it, become the implementing type. Body
-// references resolve through the (now-substituted) `self` param, so only the
-// signature needs touching for the common cases.
-priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: Str, mut symbols: SymbolPool) {
-    switch fexpr.node_type {
-    case .FuncDef(fd):
-        for mut pd : Declaration in fd.sig.params {
-            if decl_type_name_ref(pd, symbols) == from_name { pd.til_type = decl_type_from_name(to_name, symbols) }
+// Reconstruct dependent applications from their recorded source, rather than
+// splitting generated names. This preserves nested arguments, ref qualifiers,
+// aliases and value arguments, including names that themselves contain '_'.
+priv interface_type_contains := func(name: Str, iface: Str, ctx: Context) returns Bool {
+    ref resolved : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
+    if resolved == iface { return true }
+    if ctx.type_gen_binding_sources.has(resolved).not() { return false }
+    return interface_application_contains(ctx.type_gen_binding_sources[resolved], iface, ctx)
+}
+
+priv interface_application_contains := func(e: Expr, iface: Str, ctx: Context) returns Bool {
+    for child : Expr in e.children {
+        switch child.node_type {
+        case .Ident(id):
+            if interface_type_contains(id.ident_name(ctx.symbols.names), iface, ctx) { return true }
+        case:
+            if interface_application_contains(child, iface, ctx) { return true }
         }
-        if fd.sig.return_type == from_name { fd.sig.return_type = to_name.clone() }
+    }
+    return false
+}
+
+// A box can adapt a direct Self argument/result, but cannot reinterpret an
+// arbitrary generated container of boxes as a container of concrete values.
+interface_method_requires_concrete_types := func(fd: FunctionDef, iface: Str, ctx: Context) returns Bool {
+    if fd.auto_generated.or(fd.sig.params.len() == 0) { return false }
+    if resolve_type_alias(ctx.scope, decl_type_name_ref(fd.sig.params[0], ctx.symbols), ctx.symbols) != iface { return false }
+    ref result : Str = resolve_type_alias(ctx.scope, fd.sig.return_type, ctx.symbols)
+    if result.neq(iface).and(interface_type_contains(result, iface, ctx)) { return true }
+    for p : Declaration in fd.sig.params {
+        ref name : Str = resolve_type_alias(ctx.scope, decl_type_name_ref(p, ctx.symbols), ctx.symbols)
+        if name.neq(iface).and(interface_type_contains(name, iface, ctx)) { return true }
+    }
+    for name : Str in fd.sig.throw_types { if interface_type_contains(name, iface, ctx) { return true } }
+    return false
+}
+
+interface_concrete_type_name := func(name: Str, from_name: Str, to_name: Str, mut requests: Expr, mut ctx: Context) returns Str {
+    if name.is_empty().or(from_name.is_empty()) { return name.clone() }
+    resolved := resolve_type_alias(ctx.scope, name, ctx.symbols).clone()
+    if resolved == from_name { return to_name.clone() }
+    if ctx.type_gen_binding_sources.has(resolved).not() { return name.clone() }
+    mut application := ctx.type_gen_binding_sources[resolved].clone()
+    if interface_substitute_application(application, from_name, to_name, requests, ctx).not() { return name.clone() }
+    // Canonicalize nested applications before naming their parent. Otherwise
+    // Option(Vec(T)) and Option(VecAlias) could acquire different concrete
+    // names even though both arguments denote the same generated Vec type.
+    mut nested := Vec(Expr).new()
+    init_hoist_walk(application, Map(Str, Expr).new(), ctx.scope, ctx, nested, false)
+    for dependency : Expr in nested {
+        mut queued := false
+        for pending : Expr in requests.children {
+            if decl_of(pending).name == decl_of(dependency).name { queued = true; break }
+        }
+        if queued.not() { requests.add_child(own dependency.clone()) }
+    }
+    concrete := init_macro_inst_name_in_scope(application, Map(Str, Expr).new(), ctx.scope, ctx)
+    if ctx.type_gen_synths.has(concrete).not() {
+        for pending : Expr in requests.children {
+            if decl_of(pending).name == concrete { return concrete }
+        }
+        mut decl := Expr.new(own NodeType.Decl(Declaration(name = concrete.clone())), application.line, application.col)
+        decl.add_child(own application)
+        requests.add_child(own decl)
+    }
+    return concrete
+}
+
+priv interface_substitute_application := func(mut e: Expr, from_name: Str, to_name: Str, mut requests: Expr, mut ctx: Context) returns Bool {
+    mut changed := false
+    switch e.node_type {
+    case .Ident(id):
+        old := id.ident_name(ctx.symbols.names).clone()
+        name := interface_concrete_type_name(old, from_name, to_name, requests, ctx)
+        if name != old {
+            e.node_type = ident_node(ctx.symbols.intern(name))
+            changed = true
+        }
     case:
     }
+    for mut child : Expr in e.children {
+        if interface_substitute_application(child, from_name, to_name, requests, ctx) { changed = true }
+    }
+    return changed
+}
+
+priv interface_record_substitution := func(name: Str, from_name: Str, to_name: Str, mut subs: Map(Str, Expr), mut requests: Expr, mut ctx: Context) {
+    if subs.has(name) { return }
+    concrete := interface_concrete_type_name(name, from_name, to_name, requests, ctx)
+    if concrete != name { subs.set(name, own Expr.new(own ident_node(ctx.symbols.intern(concrete)), 0, 0)) }
+}
+
+priv interface_collect_substitutions := func(e: Expr, from_name: Str, to_name: Str, mut subs: Map(Str, Expr), mut requests: Expr, mut ctx: Context) {
+    switch e.node_type {
+    case .Ident(id):
+        interface_record_substitution(id.ident_name(ctx.symbols.names), from_name, to_name, subs, requests, ctx)
+    case .Decl(d):
+        interface_record_substitution(decl_type_name_ref(d, ctx.symbols), from_name, to_name, subs, requests, ctx)
+    case .FuncDef(fd):
+        interface_record_substitution(fd.sig.return_type, from_name, to_name, subs, requests, ctx)
+        for p : Declaration in fd.sig.params {
+            interface_record_substitution(decl_type_name_ref(p, ctx.symbols), from_name, to_name, subs, requests, ctx)
+            if p.default_value.is_some() { interface_collect_substitutions(p.default_expr(), from_name, to_name, subs, requests, ctx) }
+        }
+        for t : Str in fd.sig.throw_types { interface_record_substitution(t, from_name, to_name, subs, requests, ctx) }
+    case .StructDef(sd):
+        for d : Declaration in sd.fields {
+            interface_record_substitution(decl_type_name_ref(d, ctx.symbols), from_name, to_name, subs, requests, ctx)
+            if d.default_value.is_some() { interface_collect_substitutions(d.default_expr(), from_name, to_name, subs, requests, ctx) }
+        }
+        for d : Declaration in sd.ns_decls {
+            if d.default_value.is_some() { interface_collect_substitutions(d.default_expr(), from_name, to_name, subs, requests, ctx) }
+        }
+    case .EnumDef(ed):
+        for v : VariantDef in ed.variants { interface_record_substitution(v.payload_type, from_name, to_name, subs, requests, ctx) }
+        for d : Declaration in ed.ns_decls {
+            if d.default_value.is_some() { interface_collect_substitutions(d.default_expr(), from_name, to_name, subs, requests, ctx) }
+        }
+    case:
+    }
+    for child : Expr in e.children { interface_collect_substitutions(child, from_name, to_name, subs, requests, ctx) }
+}
+
+priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: Str, mut requests: Expr, mut ctx: Context) {
+    mut subs := Map(Str, Expr).new()
+    interface_collect_substitutions(fexpr, from_name, to_name, subs, requests, ctx)
+    init_substitute_type_params(fexpr, subs, Set(Str).new(), ctx.symbols)
+}
+
+// Append only after the method-copy walk has released its declaration refs.
+// The ordinary initializer expands the applications and registers their real
+// types; the typer then prepares their methods in the same unit.
+init_interface_type_requests := proc(mut program: Expr, mut requests: Expr, mut ctx: Context) returns USize {
+    start := program.children.len()
+    if requests.children.len() == 0 { return start }
+    path := ctx.path.clone()
+    errors := init_declarations_unit(path, requests, ctx.scope, ctx, false)
+    if errors != 0 { ctx.errors = errors; return start }
+    program.take_children(requests)
+    init_refresh_seeded_scope_defs(program, ctx.scope, ctx.symbols)
+    init_refresh_interp_type_defs_from(program, start, ctx)
+    return start
 }
 
 // VariantDef has one type-name slot, consumed directly by layout, niche

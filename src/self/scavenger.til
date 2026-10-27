@@ -2528,6 +2528,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
             if alias_base == "UPtr" { push_qn(worklist, lp.ctx.target_uptr_pname, alias_member) }
         }
 
+        mut virtual_interface_method := false
         if alias_dot >= 0 {
             dot_pos := alias_dot.to_usize()
             iface_name := name.substr(0, dot_pos)
@@ -2560,6 +2561,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                             if fd.auto_generated.not().and(fd.sig.func_type.is_ext()
                                 .or(fd.sig.func_type.is_plain().and(fd.sig.params.len().gt(0))
                                     .and(decl_type_name(fd.sig.params[0], lp.ctx.symbols) == iface_name))) {
+                                virtual_interface_method = true
                                 mut own_self := false
                                 for p : Declaration in fd.sig.params {
                                     if p.own_type.is(OwnType.Own).and(decl_type_name_ref(p, lp.ctx.symbols) == iface_name) { own_self = true }
@@ -2583,11 +2585,19 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
         }
         ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
         if ns_fdef_o.is_some() {
-            collect_refs(ns_fdef_o.unwrap(), worklist, lp.ctx.symbols)
+            if virtual_interface_method {
+                // The box dispatches to concrete copies/overrides; its source
+                // default body is never executed and is not a runtime edge.
+                signature := Expr.new(own NodeType.FuncDef(FunctionDef(sig = funcdef_of(ns_fdef_o.unwrap()).sig.clone())), 0, 0)
+                collect_refs(signature, worklist, lp.ctx.symbols)
+            } else { collect_refs(ns_fdef_o.unwrap(), worklist, lp.ctx.symbols) }
         }
         core_ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, core_top, name)
         if core_ns_fdef_o.is_some() {
-            collect_refs(core_ns_fdef_o.unwrap(), worklist, lp.ctx.symbols)
+            if virtual_interface_method {
+                signature := Expr.new(own NodeType.FuncDef(FunctionDef(sig = funcdef_of(core_ns_fdef_o.unwrap()).sig.clone())), 0, 0)
+                collect_refs(signature, worklist, lp.ctx.symbols)
+            } else { collect_refs(core_ns_fdef_o.unwrap(), worklist, lp.ctx.symbols) }
         }
     }
     return visited

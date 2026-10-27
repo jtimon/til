@@ -2784,6 +2784,9 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             if ns_fdef.sig.return_type.eq(obj3_sname).and(ns_fdef.sig.return_own_type.is(OwnType.Ref)) {
                 e.type_error("interface dispatch cannot return ref Self: the concrete reference has no owning interface box; return the interface by value instead", ctx)
             }
+            if scope.active_type_name().neq(obj3_sname).and(interface_method_requires_concrete_types(ns_fdef, obj3_sname, ctx)) {
+                e.type_error("nested interface types require concrete dispatch; call on an implementing type or through a bounded generic", ctx)
+            }
         }
         mut rt := Type.None
         if ns_fdef.sig.return_type.len() > 0 {
@@ -4919,12 +4922,13 @@ priv typer_resolve_enum_payload_types := func(edef: EnumDef, mut scope: TypeScop
 // implementation compare identically to one whose body has not been visited.
 priv interface_contract_signature := func(fd: FunctionDef, self_name: Str, impl_name: Str, scope: TypeScope, mut ctx: Context) returns FuncSig {
     mut normalized := FunctionDef(sig = fd.sig.clone())
+    mut requests := Expr.new(own NodeType.Body, 0, 0)
     if fd.sig.func_type.is_proc() { normalized.sig.func_type = FuncType.Proc }
     else { normalized.sig.func_type = FuncType.Func }
     if normalized.sig.return_type.len() > 0 {
         resolved_return := resolve_type_alias(scope, normalized.sig.return_type, ctx.symbols).clone()
-        normalized.sig.return_type = resolved_return
-        if normalized.sig.return_type == self_name { normalized.sig.return_type = impl_name.clone() }
+        concrete_return := interface_concrete_type_name(resolved_return, self_name, impl_name, requests, ctx)
+        normalized.sig.return_type = resolve_type_alias(scope, concrete_return, ctx.symbols).clone()
         if normalized.sig.return_own_type.is(OwnType.Own) {
             rt := decl_type_from_name(normalized.sig.return_type, ctx.symbols)
             if is_auto_shallow_type(rt, normalized.sig.return_type, scope, ctx) {
@@ -4936,7 +4940,8 @@ priv interface_contract_signature := func(fd: FunctionDef, self_name: Str, impl_
     for i in 0..normalized.sig.params.len() {
         ref mut param : Declaration = normalized.sig.params[i]
         mut name := resolve_type_alias(scope, decl_type_name_ref(param, ctx.symbols), ctx.symbols).clone()
-        if self_name.len().gt(0).and(name == self_name) { name = impl_name.clone() }
+        concrete := interface_concrete_type_name(name, self_name, impl_name, requests, ctx)
+        name = resolve_type_alias(scope, concrete, ctx.symbols).clone()
         param.til_type = decl_type_from_name(name, ctx.symbols)
         if i.to_i32().eq(normalized.sig.variadic_index).or(i.to_i32() == normalized.sig.kwargs_index) {
             param.own_type = OwnType.Own
@@ -4945,6 +4950,10 @@ priv interface_contract_signature := func(fd: FunctionDef, self_name: Str, impl_
                 param.own_type = OwnType.Shallow
             }
         }
+    }
+    for i in 0..normalized.sig.throw_types.len() {
+        concrete := interface_concrete_type_name(normalized.sig.throw_types[i], self_name, impl_name, requests, ctx)
+        normalized.sig.throw_types[i] = resolve_type_alias(scope, concrete, ctx.symbols).clone()
     }
     return normalized.sig.clone()
 }
@@ -6947,6 +6956,11 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                 if nsd_o.is_some() {
                     ref mut nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(nsd.til_type.clone())
+                    if type_name_is_interface(scope, obj_sname, ctx.symbols).and(nsd.default_value.is_some())
+                        .and(nsd.default_expr().node_type.is(NodeType.FuncDef))
+                        .and(interface_method_requires_concrete_types(funcdef_of(nsd.default_expr()), obj_sname, ctx)) {
+                        expr.type_error("nested interface types require concrete dispatch; take the method from an implementing type", ctx)
+                    }
                     // Only declared enum VARIANTS have the enum's value type.
                     // Ordinary namespace data on an enum keeps its own type.
                     if sdef.node_type.is(NodeType.EnumDef).and(enum_variant_index(sdef, fname).gte(0)) {
@@ -9824,6 +9838,7 @@ priv type_methods_file := proc(path: Str, mut ctx: Context) returns I32 {
         if dep.len() > 0 { total = total + type_methods_file(dep, ctx) }
     }
 
+    context_enter_file(ctx, path)
     type_methods_from(iu.ast, 0, ctx)
     return total
 }
@@ -9854,7 +9869,8 @@ priv normalize_interface_requirements := func(mut stmt: Expr) {
     }
 }
 
-priv type_methods_from := func(mut program: Expr, start_idx: USize, mut ctx: Context) {
+priv type_methods_from := proc(mut program: Expr, start_idx: USize, mut ctx: Context) {
+    mut requests := Expr.new(own NodeType.Body, 0, 0)
     // An implementer can precede its interface in this file. Classify all
     // requirements before any type copies defaults from those interfaces.
     for i in start_idx..program.children.len() { normalize_interface_requirements(program.children[i]) }
@@ -9864,7 +9880,7 @@ priv type_methods_from := func(mut program: Expr, start_idx: USize, mut ctx: Con
             if stmt.children[0].node_type.is(NodeType.StructDef) {
                 gen_interface_box_fields_for_stmt(stmt, ctx.symbols)
                 gen_interface_clone_delete_for_stmt(stmt, ctx.symbols)
-                gen_implements_defaults_for_stmt(stmt, ctx.scope, ctx.symbols)
+                gen_implements_defaults_for_stmt(stmt, requests, ctx)
             }
         }
     }
@@ -9873,12 +9889,14 @@ priv type_methods_from := func(mut program: Expr, start_idx: USize, mut ctx: Con
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.children[0].node_type.is(NodeType.EnumDef) {
                 normalize_enum_payload_aliases_for_stmt(stmt, ctx.scope, ctx.symbols)
-                gen_implements_defaults_for_stmt(stmt, ctx.scope, ctx.symbols)
+                gen_implements_defaults_for_stmt(stmt, requests, ctx)
                 gen_enum_nonclone_methods_for_stmt(stmt, ctx.scope, ctx.symbols)
                 gen_missing_enum_clone_for_stmt(stmt, ctx.scope, ctx.symbols)
             }
         }
     }
+    generated_start := init_interface_type_requests(program, requests, ctx)
+    if program.children.len() > generated_start { type_methods_from(program, generated_start, ctx) }
 }
 
 priv type_repl_delta_fields_from := proc(mut program: Expr, start_idx: USize, mut ctx: Context) {

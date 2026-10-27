@@ -1224,3 +1224,102 @@ test_interface_signature_requirements := test() {
     assert_eq(I64, inherited.value(), 11)
     inherited.nothing()
 }
+
+NestedSlot := macro(T: Type, N: USize) returns StructDef {
+    return struct {
+        item: T
+        count: USize = N
+    }
+}
+NestedVectorAlias := Vec(Nested_Copies)
+NestedSlotAlias := NestedSlot(Nested_Copies, 2)
+Nested_Copies := interface {
+    value := func(self: Nested_Copies) returns I64
+    copies := func(self: Nested_Copies) returns Vec(Nested_Copies) {
+        mut result: NestedVectorAlias = Vec(Nested_Copies).new()
+        result.push(own self.clone())
+        return result
+    }
+    optional := func(self: Nested_Copies) returns Option(Nested_Copies) {
+        return Option(Nested_Copies).Some(own self.clone())
+    }
+    nested := func(self: Nested_Copies) returns Option(NestedVectorAlias) {
+        return Option(Vec(Nested_Copies)).Some(own self.copies())
+    }
+    borrowed := func(self: Nested_Copies) returns Option(ref Nested_Copies) {
+        return Option(ref Nested_Copies).Some(self)
+    }
+    slot := func(self: Nested_Copies) returns NestedSlotAlias {
+        return NestedSlot(Nested_Copies, 2)(item = self.clone())
+    }
+    first := func(_self: Nested_Copies, items: NestedVectorAlias) returns I64 { return items[0].value() }
+    type_name := func(_self: Nested_Copies) returns Str { return dyn_type_to_str(Nested_Copies) }
+    copied_value := func(self: Nested_Copies) returns I64 {
+        values := self.copies()
+        return values[0].value()
+    }
+}
+NestedRecord := struct implements Nested_Copies {
+    n := 7
+namespace:
+    value := func(self: NestedRecord) returns I64 { return self.n }
+}
+NestedChoice := enum implements Nested_Copies {
+    Value: I64,
+namespace:
+    value := func(self: NestedChoice) returns I64 {
+        switch self { case .Value(n): return n }
+    }
+}
+read_nested_record := func(value: NestedRecord) returns I64 { return value.n }
+read_nested_choice := func(value: NestedChoice) returns I64 { return value.value() }
+bounded_nested := func(T: Type implements Nested_Copies, value: T) returns I64 {
+    values := value.copies()
+    return value.first(values)
+}
+
+test_interface_nested_default_types := test() {
+    record := NestedRecord()
+    records := record.copies()
+    assert_eq(I64, read_nested_record(records[0]), 7)
+    assert_eq(I64, read_nested_record(record.optional().unwrap()), 7)
+    nested_records := record.nested().unwrap()
+    assert_eq(I64, read_nested_record(nested_records[0]), 7)
+    assert_eq(I64, read_nested_record(record.borrowed().unwrap()), 7)
+    slot := record.slot()
+    assert_eq(I64, read_nested_record(slot.item), 7)
+    assert_eq(USize, slot.count, 2)
+    assert_eq(I64, record.first(records), 7)
+    assert_eq(Str, record.type_name(), "NestedRecord")
+    choice := NestedChoice.Value(9)
+    choices := choice.copies()
+    assert_eq(I64, read_nested_choice(choices[0]), 9)
+    assert_eq(I64, read_nested_choice(choice.optional().unwrap()), 9)
+    assert_eq(I64, read_nested_choice(choice.borrowed().unwrap()), 9)
+    assert_eq(Str, choice.type_name(), "NestedChoice")
+    assert_eq(I64, bounded_nested(record), 7)
+    assert_eq(I64, bounded_nested(choice), 9)
+    assert_eq(I64, record.copied_value(), 7)
+    view: Nested_Copies = record
+    assert_eq(I64, view.copied_value(), 7)
+    assert_eq(Str, view.type_name(), "NestedRecord")
+}
+
+draw_values := func(T: Type implements Drawable, values: Vec(T)) returns Str {
+    mut result := ""
+    for value: T in values { result = format(result, value.draw(), ";") }
+    return result
+}
+
+test_interface_bound_loop_type := test() {
+    mut circles := Vec(Circle).new()
+    circles.push(own Circle())
+    circles.push(own Circle(r = 2))
+    assert_eq(Str, draw_values(Circle, circles), "circle;circle;")
+    // A different concrete type forces the inferred instantiation path too.
+    mut polygons := Vec(Polygon).new()
+    polygons.push(own Polygon.Tri)
+    assert_eq(Str, draw_values(polygons), "polygon;")
+    empty := Vec(Circle).new()
+    assert_eq(Str, draw_values(empty), "")
+}
