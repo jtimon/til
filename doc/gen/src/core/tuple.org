@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * Tuple
@@ -24,6 +24,7 @@ namespace:
     func push(mut self: Tuple, T: Type, own val: Dynamic)
     func get(self: Tuple, i: U64) returns ref Dynamic
     func push_all_dynamic(mut self: Tuple, arr: Array__Dynamic)
+    func scalar_type_name(name: Str) returns Str
     func expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
     func get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
     func type_at(self: Tuple, i: U64) returns ref Str

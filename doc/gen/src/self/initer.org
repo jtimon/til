@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * generate_requested_value_method
@@ -278,7 +278,37 @@ func gen_interface_clone_delete_for_stmt(mut stmt: Expr, mut symbols: SymbolPool
 :END:
 
 #+begin_src til
-func gen_implements_defaults_for_stmt(mut stmt: Expr, scope: TypeScope, mut symbols: SymbolPool)
+func gen_implements_defaults_for_stmt(mut stmt: Expr, mut requests: Expr, mut ctx: Context)
+#+end_src
+
+* interface_method_requires_concrete_types
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.interface_method_requires_concrete_types
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func interface_method_requires_concrete_types(fd: FunctionDef, iface: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* interface_concrete_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.interface_concrete_type_name
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func interface_concrete_type_name(name: Str, from_name: Str, to_name: Str, mut requests: Expr, mut ctx: Context) returns Str
+#+end_src
+
+* init_interface_type_requests
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_interface_type_requests
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_interface_type_requests(mut program: Expr, mut requests: Expr, mut ctx: Context) returns shallow U64
 #+end_src
 
 * normalize_enum_payload_aliases_for_stmt
@@ -309,6 +339,16 @@ proc init_file(path: Str, mut ctx: Context) returns shallow I32
 
 #+begin_src til
 proc init_repl_delta(path: Str, mut program: Expr, mut ctx: Context) returns shallow I32
+#+end_src
+
+* init_require_comptime_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_require_comptime_type
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_require_comptime_type(name: Str, mut scope: TypeScope, mut ctx: Context) returns shallow Bool
 #+end_src
 
 * init_require_simd

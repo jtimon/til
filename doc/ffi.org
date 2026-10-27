@@ -44,6 +44,66 @@ globals; other VMs and the compiled host can continue using it. Native
 initializers and earlier native calls are not rolled back on load/call
 failure. Bindings retain their normal FFI ownership and ABI contracts.
 
+*** Retained guest callbacks and typed values
+
+~import("std/tilvm")~ provides ~TilVm.new(support_root)~. The root names the
+installed ~lib/til~ SDK matching the host build. ~vm.load_file(path) throws
+TilVmError~ loads one ~mode lib~ entry and evaluates its initializers in this
+process. Failed loads can be retried; after a successful load, reload uses a
+fresh VM. Serialize VM operations on one thread; independent VMs can coexist.
+
+~vm.lookup(name, Signature) throws TilVmError~ retains a guest callable checked
+against an ordinary named function-signature Type. Parameter/result types,
+ownership/mutability and func/proc effects must match. Omitting Signature
+retains the zero-argument, no-result func/proc contract. For a loaded guest
+exporting ~transform := func(text: Str) returns Str~, a host can write:
+
+#+begin_src til
+Transform := func(Str) returns Str
+mut transform := vm.lookup("transform", Transform)!
+mut arguments := Tuple.new()
+arguments.push(Str, own format("host", " input"))
+result := transform.call(arguments)!
+ref text : Str = result.get(0)
+#+end_src
+
+~callback.call(arguments) returns Tuple throws TilVmError~ accepts a mutable
+Tuple of checked native values. Omitting arguments supplies an empty Tuple,
+so existing ~callback.call()~ sites still work. A guest with no result returns
+an empty Tuple; otherwise it returns one independently owned value.
+
+This boundary uses snapshots:
+
+- Each input is copied into guest storage. An ~own~ parameter consumes that
+  guest snapshot, not the host Tuple element. An ~own mut~ parameter changes
+  its transferred snapshot without writing back to the host input.
+- A borrowed ~mut~ parameter copies changes back to the input Tuple, including
+  when the guest later panics or exits. Earlier effects are not rolled back.
+- Results copy strings even when the guest returned a borrow, literal or view.
+  Host results remain valid after the inputs, callback and VM are destroyed.
+- Signature, argument-count, type and width errors execute no guest code.
+  Guest runtime errors preserve the loaded VM and callback for another call.
+
+Lookup/call errors carry owned diagnostics, phase and optional exit status in
+~TilVmError~. Hosts can catch them with ~?~ and ~catch~; the example's ~!~
+instead converts an error into a host panic. Guest output uses host stdio.
+
+The fixed call boundary supports core scalars and Str, with at most 63
+arguments. Variadic, kwargs, throwing guest signatures and arbitrary record
+arguments/results are unsupported. Native library functions can still use
+their ordinary FFI throws contracts, and records can cross through the native
+reference route described below.
+
+A ~TilVmCallback~ owns its retained callable/captures and borrows the VM's
+code/session. Cloning the handle clones captures independently while sharing
+that VM's globals; calling it does not re-resolve the original global binding.
+ASAP keeps the VM alive through its handles and destroys the handles first;
+explicit teardown follows the same order. See
+[[./concepts/ownership.org][Ownership: owning handles can borrow their resource owner]].
+~test/tilvm.til~ and ~test/tilvm_lifetime_error.til~ exercise the installed API,
+snapshot ownership, recovery and lifetime rejection through
+~test/install_tilvm.til~ under ASAN with an empty PATH.
+
 *** Host-supplied prelude
 
 A host can provide its API as an implicit module when loading configuration:

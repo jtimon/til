@@ -141,8 +141,8 @@ Original design questions:
   of its layout or ownership contract.
 - The result is an internal borrow of the session's HeapBinding. It
   keeps the existing owner of code/captures; it is not exposed as a
-  native function pointer or a new public callable type. Public invocation
-  and its error/lifetime contract are the next boundary to implement.
+  native function pointer or a new public callable type. At this foundation
+  stage, public invocation and its error/lifetime contract were the next boundary.
 - ~test/first_class.til~ checks signature reflection through a Type
   argument while preserving ~Fn~ classification. The installed ASAN
   host in ~test/tilvm.til~ exercises successful and rejected lookups
@@ -177,8 +177,8 @@ Original design questions:
 - Diagnostics, output events, exit status and abort state remain available
   to the driver. Each invocation starts a new operation on the existing
   guest globals; the engine neither reloads initializers nor rolls back
-  earlier effects. The public TilVm call API and its unload-on-failure
-  policy remain a separate decision, not implied by this internal seam.
+  earlier effects. The later public TilVmCallback API preserves the session
+  and handle on invocation failure; it does not unload or roll back globals.
 - The installed ASAN host tests now perform repeated and aliased calls,
   captured callables, packed scalar arguments, owned/mutable/borrowed Str
   results, validation failures, panic and exit(0), and independent live
@@ -211,7 +211,7 @@ installed til ~0.0.1-2827886a4~. Its host checked for
 ~$HOME/.tiled/init.til~, prints a defaults notice when absent, and opens
 an unnamed ~*scratch*~ editor buffer unless a file was requested.
 
-The current workaround for an existing init file is to generate a small
+At that revision, the workaround for an existing init file was to generate a small
 ~mode gui~ entry point importing the editor and user config, then invoke
 the installed ~til run~ to compile and execute it in a child process.
 The config defines ~init(mut config: TiledConfig)~, changing window size,
@@ -225,11 +225,10 @@ editor's source checkout and the compiler at runtime. The startup
 workaround cannot install a guest callback into the already-running
 host's keymap or change its existing buffers.
 
-At that point the installed support tree supplied core/std/modes and native
-runtime support, but not ~src/self/~ as a public embedding library (see
-~install_compiler_support~ in ~src/self/install.til~). The interpreter's
-implementation exists; expose and install a supported interface around
-it rather than requiring applications to vendor compiler internals.
+At that point, the installed support tree lacked the interpreter implementation
+needed by an embedding host. The later ~std/tilvm~ slice installs private
+~src/self/~ sources and libffi support through ~install_compiler_support~;
+applications no longer need to vendor compiler internals.
 
 *** Concrete host/guest requirements
 
@@ -263,22 +262,32 @@ it rather than requiring applications to vendor compiler internals.
 
 *** First acceptance checks (completed)
 
+These completed checks use the installed native-binding route. Arbitrary record
+arguments through callback.call(Tuple) and the original manual registration
+proposal are outside the delivered contract, not unfinished acceptance work.
+
 - [X] Build a small Til host using the installed embedding interface,
   outside the compiler repository, then evaluate a config created or
   edited after the host binary was built.
-- [X] Let guest ~init~ mutate the original native config through its generated
-  binding reference, then observe changes in the original host process.
-- [X] Expose a host buffer-editing function through a shared native binding;
-  bind a guest function to
-  a key and call it after startup to edit a host-owned scratch buffer.
+- [X] Obtain a native configuration reference through generated bindings,
+  pass it into guest ~init(mut config)~, and observe I32/Bool/Str changes in
+  the original host process (~native_config_test~). Strings survive VM teardown.
+- [X] Expose native buffer-editing functions through generated bindings;
+  retain a guest key callback and call it after startup to edit the shared
+  native buffer (~editor_buffer_test~).
 - [X] Report a bad config with its filename/line while the host remains
   alive; repair the file and successfully load it in the same process.
-- [X] Exercise reload and teardown with retained callbacks and strings,
-  checking lifetime/ownership errors and multiple independent sessions.
+- [X] Exercise failed/successful reload, retained callbacks/strings, owned
+  diagnostics and independent VMs (~editor_buffer_test~, ~host_prelude_test~,
+  ~callback_tests~ and ~test/tilvm_lifetime_error.til~). Rejected candidates
+  preserve the active callback; prior native side effects remain visible.
 - [X] Run the host with compiler executables unavailable on ~PATH~; it
   still loads the config using its installed interpreter runtime.
 
 *** Approved first slice: TilVm loading and destruction
+
+Historical first-slice contract; native libraries and host preludes were
+enabled later as described in the post-mortem and doc/ffi.org.
 
 The public module is ~std/tilvm~, with type ~TilVm~. The approved first
 slice is ~TilVm.new(support_root)~ and ~vm.load_file(path) throws TilVmError~.
@@ -305,8 +314,9 @@ a compiler executable nor generated entry-point code. The first slice
 rejects guest native declarations and native link directives. It is not a
 sandbox and does not recover from arbitrary native faults.
 
-Verification: ~test/tilvm.til~ is a separately compiled ASAN host, built by
-~test/install.til~ through the installed ~std/tilvm~ module. It writes its
+Verification at that stage used ~test/tilvm.til~, a separately compiled ASAN
+host built by ~test/install.til~ through the installed ~std/tilvm~ module.
+The installed SDK checks now live in ~test/install_tilvm.til~. The host writes its
 guest configs after compilation and runs with empty ~PATH~. Regressions
 cover lexical/syntax/type/import errors, mode/native-declaration rejection,
 both exit statuses, panic, bounds failure, abort with owned string arguments,
@@ -454,7 +464,13 @@ Tiled session; this compiler change adds no embedding API.
 *** Superseded API and ownership proposal against master b201ae5d5
 
 Historical proposal, not the shipped API or a list of unfinished acceptance
-work. The initial target was a compiled Til host using the
+work. This is the original design discussion, not a description of current APIs.
+~std/tilvm~, borrowed owning callback handles, generated native bindings and
+host preludes supersede several choices below, including ~std/interp~, runtime
+handle tokens, public close/release and the blanket native-library restriction.
+This history does not authorize new public names or installation paths.
+
+The initial target was a compiled Til host using the
 C backend. Tiled's configuration remains ordinary Til, including its
 existing ~init(mut config: TiledConfig)~ function. This proposal changes
 how the host invokes it, not the user's configuration file format.

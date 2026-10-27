@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -10,6 +10,16 @@
 
 #+begin_src til
 ext_proc realpath_str(path: Str) returns Str
+#+end_src
+
+* context_diagnostic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.context_diagnostic
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc context_diagnostic(mut ctx: Context, phase: DiagnosticPhase, severity: DiagnosticSeverity, path: Str, shallow line: U32, shallow col: U32, message: Str, shallow located: Bool)
 #+end_src
 
 * simd_instance_name
@@ -91,6 +101,8 @@ struct TypeBinding {
     mut is_param : Bool
     mut own_type : OwnType
     mut is_alias : Bool
+    mut iface_payload_borrowed : Bool
+    mut iface_borrow_explicit : Bool
     mut is_type_alias : Bool
     mut is_func_decl : Bool
     mut alias_target : Str
@@ -358,6 +370,46 @@ func type_binding_is_type_token(scope: TypeScope, b: TypeBinding, symbols: Symbo
 func init_func_is_generic(rhs: Expr, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
+* def_implements_names
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.def_implements_names
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func def_implements_names(def: Expr) returns Vec__Str
+#+end_src
+
+* type_def_implements_iface
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.type_def_implements_iface
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func type_def_implements_iface(def: Expr, iface: Str, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+* type_name_implements_iface
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.type_name_implements_iface
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func type_name_implements_iface(scope: TypeScope, cname: Str, iface: Str, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+* type_name_is_interface
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.type_name_is_interface
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func type_name_is_interface(scope: TypeScope, name: Str, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
 * init_stmt_is_generic_source
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.init_stmt_is_generic_source
@@ -440,7 +492,12 @@ struct ImportUnit {
     mut import_dir : Str
     mut import_lib_dir : Str
     mut mode_import : Str
+    mut prelude_import : Str
+    mut host_source : Str
+    mut link_directives : Vec__Expr
+    mut native_bindings : Bool
 namespace:
+    func implicit_imports(self: ImportUnit) returns Vec__Str
     func size() returns shallow U64
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, shallow call_free: Bool)
@@ -565,6 +622,100 @@ namespace:
 }
 #+end_src
 
+* InterpOutputStream
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.InterpOutputStream
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+enum InterpOutputStream {
+    Stdout
+    Stderr
+namespace:
+    Stdout : I64
+    Stderr : I64
+    core_func is(self: InterpOutputStream, other: InterpOutputStream) returns shallow Bool
+    func eq(self: InterpOutputStream, other: InterpOutputStream) returns shallow Bool
+    func delete(own self: InterpOutputStream, shallow call_free: Bool)
+    func cmp(a: InterpOutputStream, b: InterpOutputStream) returns shallow I64
+    func to_str(self: InterpOutputStream) returns Str
+    func clone(self: InterpOutputStream) returns InterpOutputStream
+    func size() returns shallow U64
+    func lt(a: InterpOutputStream, b: InterpOutputStream) returns shallow Bool
+    func gt(a: InterpOutputStream, b: InterpOutputStream) returns shallow Bool
+    func neq(a: InterpOutputStream, b: InterpOutputStream) returns shallow Bool
+    func lte(a: InterpOutputStream, b: InterpOutputStream) returns shallow Bool
+    func gte(a: InterpOutputStream, b: InterpOutputStream) returns shallow Bool
+}
+#+end_src
+
+* InterpOutputEvent
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.InterpOutputEvent
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct InterpOutputEvent {
+    mut stream : InterpOutputStream
+    mut text : Str
+namespace:
+    func size() returns shallow U64
+    func clone(self: InterpOutputEvent) returns InterpOutputEvent
+    func delete(own self: InterpOutputEvent, shallow call_free: Bool)
+    func hash(self: InterpOutputEvent, hasher: HashFn) returns shallow U64
+    func cmp(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow I64
+    func to_str(self: InterpOutputEvent) returns Str
+    func eq(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow Bool
+    func lt(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow Bool
+    func gt(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow Bool
+    func neq(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow Bool
+    func lte(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow Bool
+    func gte(a: InterpOutputEvent, b: InterpOutputEvent) returns shallow Bool
+}
+#+end_src
+
+* ComptimeDefinition
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.ComptimeDefinition
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct ComptimeDefinition {
+    mut name : Str
+    ref mut original : Expr
+    mut is_type : Bool
+namespace:
+    func size() returns shallow U64
+    func clone(self: ComptimeDefinition) returns ComptimeDefinition
+    func delete(own self: ComptimeDefinition, shallow call_free: Bool)
+}
+#+end_src
+
+* ComptimePreparation
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.ComptimePreparation
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct ComptimePreparation {
+    mut definitions : Map__Str_Expr
+    mut saved : Vec__ComptimeDefinition
+    mut ready : Set__Str
+    mut active : Set__Str
+    mut globals : Vec__Str
+    mut storage_calls : Map__UPtr_Str
+namespace:
+    func size() returns shallow U64
+    func clone(self: ComptimePreparation) returns ComptimePreparation
+    func delete(own self: ComptimePreparation, shallow call_free: Bool)
+    func hash(self: ComptimePreparation, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
 * EvalState
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.EvalState
@@ -583,8 +734,16 @@ struct EvalState {
     mut interp_ret_own_type : OwnType
     mut interp_cstr_arg : Bool
     mut constfold_active : Bool
+    mut target_size_queries : Bool
     mut eval_aborted : Bool
     mut repl_session : Bool
+    mut embedded : Bool
+    mut exit_status : Option__I64
+    mut failure_site : SourceDiagnostic
+    mut guest_output : Str
+    mut function_paths : Map__UPtr_Str
+    mut capture_output : Bool
+    mut output : Vec__InterpOutputEvent
     mut ns_fields : Option__Scope
     mut foreign_places : Map__UPtr_ForeignPlace
     own mut foreign_cleanup_dirty : U8
@@ -606,6 +765,9 @@ namespace:
 struct Context {
     mut mode : Mode
     mut path : Str
+    mut collect_diagnostics : Bool
+    mut diagnostics : Vec__SourceDiagnostic
+    mut deferred_errors : Vec__SourceDiagnostic
     mut path_modes : Map__Str_Mode
     mut mode_registry : Map__Str_Mode
     mut eval_heap : EvalHeap
@@ -613,6 +775,9 @@ struct Context {
     mut target_uptr_pname : Str
     mut target_usize_bytes : USize
     mut target_simd_bits : USize
+    mut comptime_requests : Set__Str
+    mut comptime_preparation : Option__ComptimePreparation
+    mut target_scalar64_align : USize
     mut anon_type_counter : I64
     mut compile_mode : Bool
     mut constfolder_foldables : Map__Str_FuncType
@@ -1165,6 +1330,16 @@ func array_vec_elem_type_name(fcall: Expr, symbols: SymbolPool) returns Str
 
 #+begin_src til
 func delete_body_is_free_only(fdef: Expr, symbols: SymbolPool) returns shallow Bool
+#+end_src
+
+* fcall_is_struct_ctor
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.fcall_is_struct_ctor
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_is_struct_ctor(arg: Expr, scope: TypeScope, symbols: SymbolPool) returns shallow Bool
 #+end_src
 
 * init_delete_is_noop
@@ -2053,12 +2228,14 @@ struct SymMap__TypeBinding {
 namespace:
     func new() returns SymMap__TypeBinding
     func with_capacity(shallow n: U64) returns SymMap__TypeBinding
+    func empty_slots(shallow cap: U64) returns Vec__U32
     func len(self: SymMap__TypeBinding) returns shallow U64
     func find(self: SymMap__TypeBinding, shallow key: U32) returns shallow I64
     func has(self: SymMap__TypeBinding, shallow key: U32) returns shallow Bool
     func get(self: SymMap__TypeBinding, key: U32, mut _err_kind: I64) returns ref TypeBinding
     func reindex(mut self: SymMap__TypeBinding, shallow cap: U64)
     func set(mut self: SymMap__TypeBinding, shallow key: U32, own val: TypeBinding)
+    func insert_absent(mut self: SymMap__TypeBinding, shallow key: U32, own val: TypeBinding)
     func remove(mut self: SymMap__TypeBinding, shallow key: U32) returns shallow Bool
     func clear(mut self: SymMap__TypeBinding)
     func clone(self: SymMap__TypeBinding) returns SymMap__TypeBinding
@@ -2133,6 +2310,20 @@ Insert or overwrite the value for ~key~. The value is owned.
 func SymMap__TypeBinding.set(mut self: SymMap__TypeBinding, shallow key: U32, own val: TypeBinding)
 #+end_src
 
+* SymMap__TypeBinding.insert_absent
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.SymMap__TypeBinding.insert_absent
+:group: Compiler frontend
+:END:
+
+Append ~key~ -> ~val~ for a key the caller has just found absent
+(find() < 0), skipping set's own search. Inserting a key that is
+already present would shadow it: find returns the first match.
+
+#+begin_src til
+func SymMap__TypeBinding.insert_absent(mut self: SymMap__TypeBinding, shallow key: U32, own val: TypeBinding)
+#+end_src
+
 * SymMap__TypeBinding.remove
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.SymMap__TypeBinding.remove
@@ -2172,12 +2363,14 @@ struct SymMap__Dynamic {
 namespace:
     func new() returns SymMap__Dynamic
     func with_capacity(shallow n: U64) returns SymMap__Dynamic
+    func empty_slots(shallow cap: U64) returns Vec__U32
     func len(self: SymMap__Dynamic) returns shallow U64
     func find(self: SymMap__Dynamic, shallow key: U32) returns shallow I64
     func has(self: SymMap__Dynamic, shallow key: U32) returns shallow Bool
     func get(self: SymMap__Dynamic, key: U32, mut _err_kind: I64) returns ref Dynamic
     func reindex(mut self: SymMap__Dynamic, shallow cap: U64)
     func set(mut self: SymMap__Dynamic, shallow key: U32, own val: Dynamic)
+    func insert_absent(mut self: SymMap__Dynamic, shallow key: U32, own val: Dynamic)
     func remove(mut self: SymMap__Dynamic, shallow key: U32) returns shallow Bool
     func clear(mut self: SymMap__Dynamic)
     func clone(self: SymMap__Dynamic) returns SymMap__Dynamic
@@ -2250,6 +2443,20 @@ Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
 func SymMap__Dynamic.set(mut self: SymMap__Dynamic, shallow key: U32, own val: Dynamic)
+#+end_src
+
+* SymMap__Dynamic.insert_absent
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.SymMap__Dynamic.insert_absent
+:group: Compiler frontend
+:END:
+
+Append ~key~ -> ~val~ for a key the caller has just found absent
+(find() < 0), skipping set's own search. Inserting a key that is
+already present would shadow it: find returns the first match.
+
+#+begin_src til
+func SymMap__Dynamic.insert_absent(mut self: SymMap__Dynamic, shallow key: U32, own val: Dynamic)
 #+end_src
 
 * SymMap__Dynamic.remove
@@ -3193,6 +3400,854 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__UPtr.clone(self: Vec__UPtr) returns Vec__UPtr
 #+end_src
 
+* Vec__ComptimeDefinition
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Vec__ComptimeDefinition {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__ComptimeDefinition
+    func with_capacity(shallow n: U64) returns Vec__ComptimeDefinition
+    func len(self: Vec__ComptimeDefinition) returns shallow U64
+    func clear(mut self: Vec__ComptimeDefinition)
+    func delete_marked(mut self: Vec__ComptimeDefinition, marks: Dynamic)
+    func push(mut self: Vec__ComptimeDefinition, own val: ComptimeDefinition)
+    func append(mut self: Vec__ComptimeDefinition, own other: Vec__ComptimeDefinition)
+    func take(mut self: Vec__ComptimeDefinition) returns Vec__ComptimeDefinition
+    func move_to(own self: Vec__ComptimeDefinition, mut dest: Vec__ComptimeDefinition)
+    func move_from(mut self: Vec__ComptimeDefinition, own other: Vec__ComptimeDefinition)
+    func unsafe_get(self: Vec__ComptimeDefinition, i: U64) returns ref ComptimeDefinition
+    func get(self: Vec__ComptimeDefinition, shallow i: U64, mut _err_kind: I64) returns ref ComptimeDefinition
+    func pop(mut self: Vec__ComptimeDefinition) returns ComptimeDefinition
+    func remove_at(mut self: Vec__ComptimeDefinition, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__ComptimeDefinition, shallow n: U64) returns Vec__ComptimeDefinition
+    func truncate(mut self: Vec__ComptimeDefinition, shallow n: U64)
+    func unsafe_set(mut self: Vec__ComptimeDefinition, shallow i: U64, own val: ComptimeDefinition)
+    func set(mut self: Vec__ComptimeDefinition, shallow i: U64, own val: ComptimeDefinition, mut _err_kind: I64)
+    func push_take(mut self: Vec__ComptimeDefinition, mut src: Vec__ComptimeDefinition, shallow i: U64)
+    func delete(own self: Vec__ComptimeDefinition, shallow call_free: Bool)
+    func clone(self: Vec__ComptimeDefinition) returns Vec__ComptimeDefinition
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__ComptimeDefinition.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.new
+:group: Compiler frontend
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__ComptimeDefinition.new() returns Vec__ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__ComptimeDefinition.with_capacity(shallow n: U64) returns Vec__ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.clear
+:group: Compiler frontend
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__ComptimeDefinition.clear(mut self: Vec__ComptimeDefinition)
+#+end_src
+
+* Vec__ComptimeDefinition.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.delete_marked
+:group: Compiler frontend
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__ComptimeDefinition.delete_marked(mut self: Vec__ComptimeDefinition, marks: Dynamic)
+#+end_src
+
+* Vec__ComptimeDefinition.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.push
+:group: Compiler frontend
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__ComptimeDefinition.push(mut self: Vec__ComptimeDefinition, own val: ComptimeDefinition)
+#+end_src
+
+* Vec__ComptimeDefinition.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.append
+:group: Compiler frontend
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__ComptimeDefinition.append(mut self: Vec__ComptimeDefinition, own other: Vec__ComptimeDefinition)
+#+end_src
+
+* Vec__ComptimeDefinition.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.take
+:group: Compiler frontend
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__ComptimeDefinition.take(mut self: Vec__ComptimeDefinition) returns Vec__ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.move_to
+:group: Compiler frontend
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__ComptimeDefinition.move_to(own self: Vec__ComptimeDefinition, mut dest: Vec__ComptimeDefinition)
+#+end_src
+
+* Vec__ComptimeDefinition.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.move_from
+:group: Compiler frontend
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__ComptimeDefinition.move_from(mut self: Vec__ComptimeDefinition, own other: Vec__ComptimeDefinition)
+#+end_src
+
+* Vec__ComptimeDefinition.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.unsafe_get
+:group: Compiler frontend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__ComptimeDefinition.unsafe_get(self: Vec__ComptimeDefinition, i: U64) returns ref ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.get
+:group: Compiler frontend
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__ComptimeDefinition.get(self: Vec__ComptimeDefinition, shallow i: U64, mut _err_kind: I64) returns ref ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.pop
+:group: Compiler frontend
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__ComptimeDefinition.pop(mut self: Vec__ComptimeDefinition) returns ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.remove_at
+:group: Compiler frontend
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__ComptimeDefinition.remove_at(mut self: Vec__ComptimeDefinition, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__ComptimeDefinition.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.take_prefix
+:group: Compiler frontend
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__ComptimeDefinition.take_prefix(mut self: Vec__ComptimeDefinition, shallow n: U64) returns Vec__ComptimeDefinition
+#+end_src
+
+* Vec__ComptimeDefinition.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.truncate
+:group: Compiler frontend
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__ComptimeDefinition.truncate(mut self: Vec__ComptimeDefinition, shallow n: U64)
+#+end_src
+
+* Vec__ComptimeDefinition.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.unsafe_set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__ComptimeDefinition.unsafe_set(mut self: Vec__ComptimeDefinition, shallow i: U64, own val: ComptimeDefinition)
+#+end_src
+
+* Vec__ComptimeDefinition.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__ComptimeDefinition.set(mut self: Vec__ComptimeDefinition, shallow i: U64, own val: ComptimeDefinition, mut _err_kind: I64)
+#+end_src
+
+* Vec__ComptimeDefinition.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.push_take
+:group: Compiler frontend
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__ComptimeDefinition.push_take(mut self: Vec__ComptimeDefinition, mut src: Vec__ComptimeDefinition, shallow i: U64)
+#+end_src
+
+* Vec__ComptimeDefinition.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.delete
+:group: Compiler frontend
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__ComptimeDefinition.delete(own self: Vec__ComptimeDefinition, shallow call_free: Bool)
+#+end_src
+
+* Vec__ComptimeDefinition.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ComptimeDefinition.clone
+:group: Compiler frontend
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__ComptimeDefinition.clone(self: Vec__ComptimeDefinition) returns Vec__ComptimeDefinition
+#+end_src
+
+* Option__I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__I64
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+enum Option__I64 {
+    None
+    Some: I64
+namespace:
+    func is_some(self: Option__I64) returns shallow Bool
+    func is_none(self: Option__I64) returns shallow Bool
+    func unwrap_or(self: Option__I64, shallow default_v: I64) returns shallow I64
+    func unwrap(self: Option__I64) returns shallow I64
+    func take(own self: Option__I64) returns shallow I64
+    ext_func None() returns Option__I64
+    ext_func Some(val: I64) returns Option__I64
+    core_func is(self: Option__I64, other: Option__I64) returns shallow Bool
+    func eq(self: Option__I64, other: Option__I64) returns shallow Bool
+    func delete(own self: Option__I64, shallow call_free: Bool)
+    func cmp(a: Option__I64, b: Option__I64) returns shallow I64
+    func to_str(self: Option__I64) returns Str
+    func clone(self: Option__I64) returns Option__I64
+    func size() returns shallow U64
+    func lt(a: Option__I64, b: Option__I64) returns shallow Bool
+    func gt(a: Option__I64, b: Option__I64) returns shallow Bool
+    func neq(a: Option__I64, b: Option__I64) returns shallow Bool
+    func lte(a: Option__I64, b: Option__I64) returns shallow Bool
+    func gte(a: Option__I64, b: Option__I64) returns shallow Bool
+}
+#+end_src
+
+* Option__I64.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__I64.unwrap
+:group: Compiler frontend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__I64.unwrap(self: Option__I64) returns shallow I64
+#+end_src
+
+* Option__I64.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__I64.take
+:group: Compiler frontend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__I64.take(own self: Option__I64) returns shallow I64
+#+end_src
+
+* Map__UPtr_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Map__UPtr_Str {
+    mut keys : Vec__UPtr
+    mut values : Vec__Str
+namespace:
+    func new() returns Map__UPtr_Str
+    func with_capacity(shallow n: U64) returns Map__UPtr_Str
+    func len(self: Map__UPtr_Str) returns shallow U64
+    func clear(mut self: Map__UPtr_Str)
+    func has(self: Map__UPtr_Str, shallow key: UPtr) returns shallow Bool
+    func get(self: Map__UPtr_Str, key: UPtr, mut _err_kind: I64) returns ref Str
+    func set(mut self: Map__UPtr_Str, shallow key: UPtr, own val: Str)
+    func remove(mut self: Map__UPtr_Str, shallow key: UPtr) returns shallow Bool
+    func delete(own self: Map__UPtr_Str, shallow call_free: Bool)
+    func clone(self: Map__UPtr_Str) returns Map__UPtr_Str
+    func size() returns shallow U64
+    func hash(self: Map__UPtr_Str, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* Map__UPtr_Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.new
+:group: Compiler frontend
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__UPtr_Str.new() returns Map__UPtr_Str
+#+end_src
+
+* Map__UPtr_Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__UPtr_Str.with_capacity(shallow n: U64) returns Map__UPtr_Str
+#+end_src
+
+* Map__UPtr_Str.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.clear
+:group: Compiler frontend
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__UPtr_Str.clear(mut self: Map__UPtr_Str)
+#+end_src
+
+* Map__UPtr_Str.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.has
+:group: Compiler frontend
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__UPtr_Str.has(self: Map__UPtr_Str, shallow key: UPtr) returns shallow Bool
+#+end_src
+
+* Map__UPtr_Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.get
+:group: Compiler frontend
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__UPtr_Str.get(self: Map__UPtr_Str, key: UPtr, mut _err_kind: I64) returns ref Str
+#+end_src
+
+* Map__UPtr_Str.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.set
+:group: Compiler frontend
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func Map__UPtr_Str.set(mut self: Map__UPtr_Str, shallow key: UPtr, own val: Str)
+#+end_src
+
+* Map__UPtr_Str.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__UPtr_Str.remove
+:group: Compiler frontend
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__UPtr_Str.remove(mut self: Map__UPtr_Str, shallow key: UPtr) returns shallow Bool
+#+end_src
+
+* Vec__InterpOutputEvent
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Vec__InterpOutputEvent {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__InterpOutputEvent
+    func with_capacity(shallow n: U64) returns Vec__InterpOutputEvent
+    func len(self: Vec__InterpOutputEvent) returns shallow U64
+    func clear(mut self: Vec__InterpOutputEvent)
+    func delete_marked(mut self: Vec__InterpOutputEvent, marks: Dynamic)
+    func push(mut self: Vec__InterpOutputEvent, own val: InterpOutputEvent)
+    func append(mut self: Vec__InterpOutputEvent, own other: Vec__InterpOutputEvent)
+    func take(mut self: Vec__InterpOutputEvent) returns Vec__InterpOutputEvent
+    func move_to(own self: Vec__InterpOutputEvent, mut dest: Vec__InterpOutputEvent)
+    func move_from(mut self: Vec__InterpOutputEvent, own other: Vec__InterpOutputEvent)
+    func unsafe_get(self: Vec__InterpOutputEvent, i: U64) returns ref InterpOutputEvent
+    func get(self: Vec__InterpOutputEvent, shallow i: U64, mut _err_kind: I64) returns ref InterpOutputEvent
+    func pop(mut self: Vec__InterpOutputEvent) returns InterpOutputEvent
+    func remove_at(mut self: Vec__InterpOutputEvent, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__InterpOutputEvent, shallow n: U64) returns Vec__InterpOutputEvent
+    func truncate(mut self: Vec__InterpOutputEvent, shallow n: U64)
+    func unsafe_set(mut self: Vec__InterpOutputEvent, shallow i: U64, own val: InterpOutputEvent)
+    func set(mut self: Vec__InterpOutputEvent, shallow i: U64, own val: InterpOutputEvent, mut _err_kind: I64)
+    func push_take(mut self: Vec__InterpOutputEvent, mut src: Vec__InterpOutputEvent, shallow i: U64)
+    func delete(own self: Vec__InterpOutputEvent, shallow call_free: Bool)
+    func clone(self: Vec__InterpOutputEvent) returns Vec__InterpOutputEvent
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__InterpOutputEvent.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.new
+:group: Compiler frontend
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__InterpOutputEvent.new() returns Vec__InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__InterpOutputEvent.with_capacity(shallow n: U64) returns Vec__InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.clear
+:group: Compiler frontend
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__InterpOutputEvent.clear(mut self: Vec__InterpOutputEvent)
+#+end_src
+
+* Vec__InterpOutputEvent.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.delete_marked
+:group: Compiler frontend
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__InterpOutputEvent.delete_marked(mut self: Vec__InterpOutputEvent, marks: Dynamic)
+#+end_src
+
+* Vec__InterpOutputEvent.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.push
+:group: Compiler frontend
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__InterpOutputEvent.push(mut self: Vec__InterpOutputEvent, own val: InterpOutputEvent)
+#+end_src
+
+* Vec__InterpOutputEvent.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.append
+:group: Compiler frontend
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__InterpOutputEvent.append(mut self: Vec__InterpOutputEvent, own other: Vec__InterpOutputEvent)
+#+end_src
+
+* Vec__InterpOutputEvent.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.take
+:group: Compiler frontend
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__InterpOutputEvent.take(mut self: Vec__InterpOutputEvent) returns Vec__InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.move_to
+:group: Compiler frontend
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__InterpOutputEvent.move_to(own self: Vec__InterpOutputEvent, mut dest: Vec__InterpOutputEvent)
+#+end_src
+
+* Vec__InterpOutputEvent.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.move_from
+:group: Compiler frontend
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__InterpOutputEvent.move_from(mut self: Vec__InterpOutputEvent, own other: Vec__InterpOutputEvent)
+#+end_src
+
+* Vec__InterpOutputEvent.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.unsafe_get
+:group: Compiler frontend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__InterpOutputEvent.unsafe_get(self: Vec__InterpOutputEvent, i: U64) returns ref InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.get
+:group: Compiler frontend
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__InterpOutputEvent.get(self: Vec__InterpOutputEvent, shallow i: U64, mut _err_kind: I64) returns ref InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.pop
+:group: Compiler frontend
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__InterpOutputEvent.pop(mut self: Vec__InterpOutputEvent) returns InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.remove_at
+:group: Compiler frontend
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__InterpOutputEvent.remove_at(mut self: Vec__InterpOutputEvent, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__InterpOutputEvent.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.take_prefix
+:group: Compiler frontend
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__InterpOutputEvent.take_prefix(mut self: Vec__InterpOutputEvent, shallow n: U64) returns Vec__InterpOutputEvent
+#+end_src
+
+* Vec__InterpOutputEvent.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.truncate
+:group: Compiler frontend
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__InterpOutputEvent.truncate(mut self: Vec__InterpOutputEvent, shallow n: U64)
+#+end_src
+
+* Vec__InterpOutputEvent.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.unsafe_set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__InterpOutputEvent.unsafe_set(mut self: Vec__InterpOutputEvent, shallow i: U64, own val: InterpOutputEvent)
+#+end_src
+
+* Vec__InterpOutputEvent.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__InterpOutputEvent.set(mut self: Vec__InterpOutputEvent, shallow i: U64, own val: InterpOutputEvent, mut _err_kind: I64)
+#+end_src
+
+* Vec__InterpOutputEvent.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.push_take
+:group: Compiler frontend
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__InterpOutputEvent.push_take(mut self: Vec__InterpOutputEvent, mut src: Vec__InterpOutputEvent, shallow i: U64)
+#+end_src
+
+* Vec__InterpOutputEvent.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.delete
+:group: Compiler frontend
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__InterpOutputEvent.delete(own self: Vec__InterpOutputEvent, shallow call_free: Bool)
+#+end_src
+
+* Vec__InterpOutputEvent.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__InterpOutputEvent.clone
+:group: Compiler frontend
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__InterpOutputEvent.clone(self: Vec__InterpOutputEvent) returns Vec__InterpOutputEvent
+#+end_src
+
 * Map__UPtr_ForeignPlace
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.Map__UPtr_ForeignPlace
@@ -3421,6 +4476,67 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_Mode.remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
+#+end_src
+
+* Option__ComptimePreparation
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ComptimePreparation
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+enum Option__ComptimePreparation {
+    None
+    Some: ComptimePreparation
+namespace:
+    func is_some(shallow self: Option__ComptimePreparation) returns shallow Bool
+    func is_none(shallow self: Option__ComptimePreparation) returns shallow Bool
+    func unwrap_or(shallow self: Option__ComptimePreparation, default_v: ComptimePreparation) returns ComptimePreparation
+    func unwrap(shallow self: Option__ComptimePreparation) returns ComptimePreparation
+    func take(own self: Option__ComptimePreparation) returns ComptimePreparation
+    ext_func None() returns shallow Option__ComptimePreparation
+    ext_func Some(own val: ComptimePreparation) returns shallow Option__ComptimePreparation
+    core_func is(self: Option__ComptimePreparation, other: Option__ComptimePreparation) returns shallow Bool
+    func delete(own self: Option__ComptimePreparation, shallow call_free: Bool)
+    func clone(shallow self: Option__ComptimePreparation) returns shallow Option__ComptimePreparation
+    func size() returns shallow U64
+}
+#+end_src
+
+* Option__ComptimePreparation.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ComptimePreparation.unwrap
+:group: Compiler frontend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__ComptimePreparation.unwrap(shallow self: Option__ComptimePreparation) returns ComptimePreparation
+#+end_src
+
+* Option__ComptimePreparation.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ComptimePreparation.take
+:group: Compiler frontend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__ComptimePreparation.take(own self: Option__ComptimePreparation) returns ComptimePreparation
 #+end_src
 
 * Map__Str_FuncType
@@ -3844,6 +4960,7 @@ namespace:
     func new() returns Set__U32
     func with_capacity(shallow n: U64) returns Set__U32
     func len(self: Set__U32) returns shallow U64
+    func unsafe_get(self: Set__U32, i: U64) returns ref U32
     func clear(mut self: Set__U32)
     func has(self: Set__U32, shallow val: U32) returns shallow Bool
     func add(mut self: Set__U32, own val: U32)
@@ -3884,6 +5001,22 @@ doubling. n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
 func Set__U32.with_capacity(shallow n: U64) returns Set__U32
+#+end_src
+
+* Set__U32.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Set__U32.unsafe_get
+:group: Compiler frontend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ (in sorted order) with NO bounds check. The caller must
+prove ~i < len()~. This is what makes ~for x in set~ work: for-in
+uses ~unsafe_get~ when a type has it, and its ~_fi < len()~
+termination test proves the index in bounds (issue #284).
+
+#+begin_src til
+func Set__U32.unsafe_get(self: Set__U32, i: U64) returns ref U32
 #+end_src
 
 * Set__U32.clear
@@ -7886,338 +9019,6 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__StructLayout.clone(self: Vec__StructLayout) returns Vec__StructLayout
 #+end_src
 
-* Vec__call_Vec_Str
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-struct Vec__call_Vec_Str {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__call_Vec_Str
-    func with_capacity(shallow n: U64) returns Vec__call_Vec_Str
-    func len(self: Vec__call_Vec_Str) returns shallow U64
-    func clear(mut self: Vec__call_Vec_Str)
-    func delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
-    func push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
-    func append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-    func take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
-    func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
-    func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-    func unsafe_get(self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
-    func get(self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64) returns ref Vec__Str
-    func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
-    func remove_at(mut self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__call_Vec_Str, shallow n: U64) returns Vec__call_Vec_Str
-    func truncate(mut self: Vec__call_Vec_Str, shallow n: U64)
-    func unsafe_set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str)
-    func set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str, mut _err_kind: I64)
-    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U64)
-    func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
-    func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
-    func size() returns shallow U64
-}
-#+end_src
-
-* Vec__call_Vec_Str.new
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.new
-:group: Compiler frontend
-:END:
-
-Create a new empty Vec for elements of type T. Lazy: no allocation
-until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-and the grow sites below seed cap 0->1 on the first insert. This keeps
-the many containers that stay empty (e.g. the unused maps in a fresh
-Scope) allocation-free, which is the dominant per-call interpreter cost.
-
-#+begin_src til
-func Vec__call_Vec_Str.new() returns Vec__call_Vec_Str
-#+end_src
-
-* Vec__call_Vec_Str.with_capacity
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.with_capacity
-:group: Compiler frontend
-:END:
-
-Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
-items reallocs zero times. Use at call sites where the final length is
-known up front (cloning a Vec of known length, building a fixed arg
-list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
-no allocation (the grow sites seed cap 0->1 on the first insert).
-
-#+begin_src til
-func Vec__call_Vec_Str.with_capacity(shallow n: U64) returns Vec__call_Vec_Str
-#+end_src
-
-* Vec__call_Vec_Str.clear
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.clear
-:group: Compiler frontend
-:END:
-
-Drop all live elements via elem_delete but keep the allocated
-storage and element-type metadata so the Vec can be reused.
-
-#+begin_src til
-func Vec__call_Vec_Str.clear(mut self: Vec__call_Vec_Str)
-#+end_src
-
-* Vec__call_Vec_Str.delete_marked
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.delete_marked
-:group: Compiler frontend
-:END:
-
-Drop the elements flagged in ~marks~ (a byte-per-element buffer,
-nonzero = drop, at least self.count entries) via elem_delete, then
-compact the survivors forward and update count. This is the
-container home for the scavenger's mark/sweep/compact, which used
-to reach into data/count directly.
-
-#+begin_src til
-func Vec__call_Vec_Str.delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
-#+end_src
-
-* Vec__call_Vec_Str.push
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.push
-:group: Compiler frontend
-:END:
-
-Append an element to the end. ~val~ is owned: after this call the
-caller must not use the value passed -- clone it first if needed.
-
-#+begin_src til
-func Vec__call_Vec_Str.push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
-#+end_src
-
-* Vec__call_Vec_Str.append
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.append
-:group: Compiler frontend
-:END:
-
-Consume the contents of ~other~ by appending them to ~self~.
-~other~ is taken by ownership and will be empty after the call.
-
-#+begin_src til
-func Vec__call_Vec_Str.append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-#+end_src
-
-* Vec__call_Vec_Str.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.take
-:group: Compiler frontend
-:END:
-
-Take the contents out: the returned Vec owns self's buffer and
-self is left lazy-empty. No element is copied or cloned.
-
-This is how a struct FIELD hands its contents over
-(~mut old := body.children.take()~): a field cannot be an ~own~
-argument or receiver, because the callee would then free the
-ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
-pointer" compiling itself. Everything the caller can give away
-uses the two move forms below instead.
-
-#+begin_src til
-func Vec__call_Vec_Str.take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
-#+end_src
-
-* Vec__call_Vec_Str.move_to
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.move_to
-:group: Compiler frontend
-:END:
-
-Give self's contents to ~dest~, which drops whatever it held.
-SELF is consumed, so the receiver is the owned one and the call
-spells the type out: ~Vec(T).move_to(own src, dest)~.
-
-The three fields move as BYTES on purpose:
-~dest.data = self.data~ drops dest's old pointer (right) and then
-~self.data = 0~ drops the pointer dest just adopted -- a double
-free, which is what the emitted C does with field assignment.
-Blanking the source leaves a genuinely valid lazy-empty Vec, so
-a later push on it allocates afresh instead of reallocating a
-buffer that now belongs to someone else.
-
-#+begin_src til
-func Vec__call_Vec_Str.move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
-#+end_src
-
-* Vec__call_Vec_Str.move_from
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.move_from
-:group: Compiler frontend
-:END:
-
-Take ~other~'s contents, dropping whatever self held. OTHER is
-consumed -- it is the value being emptied, so it is the owned
-argument: ~dest.move_from(own src)~.
-
-#+begin_src til
-func Vec__call_Vec_Str.move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-#+end_src
-
-* Vec__call_Vec_Str.unsafe_get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.unsafe_get
-:group: Compiler frontend
-:END:
-
-Unchecked element access: return a reference to the element at
-index ~i~ with NO bounds check. The caller must prove ~i < len()~.
-This is the unchecked core that ~get~ wraps; for-in uses it
-directly because its ~_fi < len()~ termination test already
-proves the index in bounds (issue #284).
-
-#+begin_src til
-func Vec__call_Vec_Str.unsafe_get(self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
-#+end_src
-
-* Vec__call_Vec_Str.get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.get
-:group: Compiler frontend
-:END:
-
-Return a reference to the element at index ~i~. Throws
-OutOfBounds if ~i~ is past the end; call as ~vec[i]~
-to panic on a bad index. The reference is valid until the
-next mutation.
-
-#+begin_src til
-func Vec__call_Vec_Str.get(self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64) returns ref Vec__Str
-#+end_src
-
-* Vec__call_Vec_Str.pop
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.pop
-:group: Compiler frontend
-:END:
-
-Remove and return the last element. Panics if empty. The caller
-takes ownership of the returned value.
-
-#+begin_src til
-func Vec__call_Vec_Str.pop(mut self: Vec__call_Vec_Str) returns Vec__Str
-#+end_src
-
-* Vec__call_Vec_Str.remove_at
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.remove_at
-:group: Compiler frontend
-:END:
-
-Remove and drop the element at ~i~, shifting later elements left.
-
-#+begin_src til
-func Vec__call_Vec_Str.remove_at(mut self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64)
-#+end_src
-
-* Vec__call_Vec_Str.take_prefix
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.take_prefix
-:group: Compiler frontend
-:END:
-
-Split off the first ~n~ elements into a new Vec. Panics if ~n~
-exceeds self.len(). The remaining elements shift to the front.
-
-#+begin_src til
-func Vec__call_Vec_Str.take_prefix(mut self: Vec__call_Vec_Str, shallow n: U64) returns Vec__call_Vec_Str
-#+end_src
-
-* Vec__call_Vec_Str.truncate
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.truncate
-:group: Compiler frontend
-:END:
-
-Drop the elements from index ~n~ to the end, freeing each via
-elem_delete, and set count to ~n~ (the survivors [0, n) are left
-untouched). Panics if ~n~ exceeds len. This is the container home
-for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-
-#+begin_src til
-func Vec__call_Vec_Str.truncate(mut self: Vec__call_Vec_Str, shallow n: U64)
-#+end_src
-
-* Vec__call_Vec_Str.unsafe_set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.unsafe_set
-:group: Compiler frontend
-:END:
-
-Overwrite the element at index ~i~ without a bounds check, dropping
-the old value. Caller guarantees ~i < self.count~; the write-side
-mirror of unsafe_get (issue #284).
-
-#+begin_src til
-func Vec__call_Vec_Str.unsafe_set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str)
-#+end_src
-
-* Vec__call_Vec_Str.set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.set
-:group: Compiler frontend
-:END:
-
-Overwrite the element at index ~i~. ~val~ is owned. Throws
-OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
-(or ~vec.set(i, own val)!~) to panic on a bad index.
-
-#+begin_src til
-func Vec__call_Vec_Str.set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str, mut _err_kind: I64)
-#+end_src
-
-* Vec__call_Vec_Str.push_take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.push_take
-:group: Compiler frontend
-:END:
-
-Move bytes of src[i] into self (push). Source slot is zeroed so that
-src's eventual elem_delete on it is a no-op (relies on the same
-count==0/data==NULL convention used by take_children and Vec.delete).
-
-#+begin_src til
-func Vec__call_Vec_Str.push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U64)
-#+end_src
-
-* Vec__call_Vec_Str.delete
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.delete
-:group: Compiler frontend
-:END:
-
-Drop each element via elem_delete, free storage, then free self
-unless ~call_free~ is false.
-
-#+begin_src til
-func Vec__call_Vec_Str.delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
-#+end_src
-
-* Vec__call_Vec_Str.clone
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str.clone
-:group: Compiler frontend
-:END:
-
-Deep-copy the Vec and all its elements via elem_clone.
-
-#+begin_src til
-func Vec__call_Vec_Str.clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
-#+end_src
-
 * adopt__BorrowRoot
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.adopt__BorrowRoot
@@ -8226,6 +9027,16 @@ func Vec__call_Vec_Str.clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
 
 #+begin_src til
 func adopt__BorrowRoot(mut dest: Dynamic, own src: BorrowRoot)
+#+end_src
+
+* swap__Vec__U32
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.swap__Vec__U32
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func swap__Vec__U32(mut a: Vec__U32, mut b: Vec__U32)
 #+end_src
 
 * adopt__FFIEntry
@@ -8266,6 +9077,26 @@ func adopt__FFITypePtrBox(mut dest: Dynamic, own src: FFITypePtrBox)
 
 #+begin_src til
 func adopt__UPtr(mut dest: Dynamic, own src: UPtr)
+#+end_src
+
+* adopt__ComptimeDefinition
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.adopt__ComptimeDefinition
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func adopt__ComptimeDefinition(mut dest: Dynamic, own src: ComptimeDefinition)
+#+end_src
+
+* adopt__InterpOutputEvent
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.adopt__InterpOutputEvent
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func adopt__InterpOutputEvent(mut dest: Dynamic, own src: InterpOutputEvent)
 #+end_src
 
 * adopt__ForeignPlace
@@ -8316,16 +9147,6 @@ func adopt__ImportUnit(mut dest: Dynamic, own src: ImportUnit)
 
 #+begin_src til
 func adopt__StructLayout(mut dest: Dynamic, own src: StructLayout)
-#+end_src
-
-* adopt__Vec__Str
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.adopt__Vec__Str
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func adopt__Vec__Str(mut dest: Dynamic, own src: Vec__Str)
 #+end_src
 
 * adopt__TypeBinding

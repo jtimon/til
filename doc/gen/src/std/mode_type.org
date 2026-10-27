@@ -1,5 +1,5 @@
 #+TITLE: src/std/mode_type.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * Mode
@@ -17,6 +17,8 @@ struct Mode {
     mut is_pure : Bool
     mut run_tests : Bool
     mut debug_prints : Bool
+    mut targets : Str
+    mut build_hint : Str
 namespace:
     func size() returns shallow U64
     func clone(self: Mode) returns Mode

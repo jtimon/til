@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * Lang
@@ -92,6 +92,16 @@ namespace:
 
 #+begin_src til
 func target_from_str(s: Str) returns Target
+#+end_src
+
+* target_to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_to_str
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func target_to_str(target: Target) returns Str
 #+end_src
 
 * is_windows_target
@@ -248,7 +258,7 @@ func target_system_libs(target: Target) returns Str
 :END:
 
 #+begin_src til
-func target_ffi_lib(target: Target) returns Str
+proc target_ffi_lib(target: Target) returns Str
 #+end_src
 
 * target_ffi_build_hint
@@ -258,7 +268,47 @@ func target_ffi_lib(target: Target) returns Str
 :END:
 
 #+begin_src til
-func target_ffi_build_hint(target: Target) returns Str
+proc target_ffi_build_hint(target: Target) returns Str
+#+end_src
+
+* target_list_has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_list_has
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func target_list_has(list: Str, target: Target) returns shallow Bool
+#+end_src
+
+* target_is_host
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_is_host
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc target_is_host(target: Target) returns shallow Bool
+#+end_src
+
+* target_secp256k1_lib
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_secp256k1_lib
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func target_secp256k1_lib(target: Target) returns Str
+#+end_src
+
+* target_secp256k1_build_hint
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_secp256k1_build_hint
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func target_secp256k1_build_hint(target: Target) returns Str
 #+end_src
 
 * target_gui_libs

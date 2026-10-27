@@ -1,4 +1,24 @@
 * lexer
+** DiagnosticPhase: EnumDef
+*** Unknown
+*** Load
+*** Lex
+*** Parse
+*** Type
+*** Ownership
+*** Runtime }
+** DiagnosticSeverity: EnumDef
+*** Error
+*** Note
+*** Help }
+** SourceDiagnostic: StructDef
+*** phase := DiagnosticPhase.Unknown
+*** severity := DiagnosticSeverity.Error
+*** path := ""
+*** line : U32 = 0
+*** col : U32 = 0
+*** message := ""
+*** located := true
 ** TokenType: EnumDef
 *** Eof
 *** LParen
@@ -99,6 +119,7 @@
 *** gc_storage := GcStorage.Unset
 *** external_symbol := ""
 *** infer_call_ownership := false
+*** bounds := ""
 ** FuncSig: StructDef
 *** func_type := FuncType.Func
 *** params := Vec(Declaration).new()
@@ -132,6 +153,8 @@
 *** ref_args : U64 = 0
 *** splat_args : U64 = 0
 *** is_subscript := false
+*** is_throw_default := false
+*** iface_box_owns_payload := false
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -252,6 +275,7 @@
 * parser
 ** SymbolPool: StructDef
 *** names := Vec(Str).new()
+*** retired_names := Vec(Vec(Str)).new()
 *** buckets := Vec(Sym).new()
 *** next : Sym = 1
 ** Parser: StructDef
@@ -268,6 +292,9 @@
 *** pending_doc := ""
 *** error_count : I32 = 0
 *** error_msg := ""
+*** error_line : U32 = 0
+*** error_col : U32 = 0
+*** error_detail := ""
 *** source := ""
 *** ref symbols : SymbolPool
 * context
@@ -290,6 +317,8 @@
 *** is_param := false
 *** own_type := OwnType.Shallow
 *** is_alias := false
+*** iface_payload_borrowed := false
+*** iface_borrow_explicit := false
 *** is_type_alias := false
 *** is_func_decl := false
 *** alias_target := ""
@@ -335,10 +364,14 @@
 ** ImportUnit: StructDef
 *** mode_str := ""
 *** mode := Mode()
-*** own ast := Expr.new(NodeType.Body, 0, 0)
+*** own ast := Expr.new(own NodeType.Body, 0, 0)
 *** import_dir := ""
 *** import_lib_dir := ""
 *** mode_import := ""
+*** prelude_import := ""
+*** host_source := ""
+*** link_directives := Vec(Expr).new()
+*** native_bindings := false
 ** BuilderFuncScratch: StructDef
 *** local_fn_sigs := Map(Str, Dynamic).new()
 *** body_refs := Set(Sym).new()
@@ -378,6 +411,23 @@
 *** names := Vec(Str).new()
 *** roots := Vec(UPtr).new()
 *** own state : U8
+** InterpOutputStream: EnumDef
+*** Stdout
+*** Stderr }
+** InterpOutputEvent: StructDef
+*** stream := InterpOutputStream.Stdout
+*** text := ""
+** ComptimeDefinition: StructDef
+*** name: Str
+*** ref original: Expr
+*** is_type: Bool
+** ComptimePreparation: StructDef
+*** definitions := Map(Str, Expr).new()
+*** saved := Vec(ComptimeDefinition).new()
+*** ready := Set(Str).new()
+*** active := Set(Str).new()
+*** globals := Vec(Str).new()
+*** storage_calls := Map(UPtr, Str).new()
 ** EvalState: StructDef
 *** has_return := false
 *** has_break := false
@@ -389,8 +439,16 @@
 *** interp_ret_own_type := OwnType.Shallow
 *** interp_cstr_arg := false
 *** constfold_active := false
+*** target_size_queries := false
 *** eval_aborted := false
 *** repl_session := false
+*** embedded := false
+*** exit_status := Option(I64).None
+*** failure_site := SourceDiagnostic()
+*** guest_output := ""
+*** function_paths := Map(UPtr, Str).new()
+*** capture_output := false
+*** output := Vec(InterpOutputEvent).new()
 *** ns_fields := Option(Scope).None
 *** foreign_places := Map(UPtr, ForeignPlace).new()
 *** own foreign_cleanup_dirty : U8 = calloc(1, 1)
@@ -398,6 +456,9 @@
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
+*** collect_diagnostics := false
+*** diagnostics := Vec(SourceDiagnostic).new()
+*** deferred_errors := Vec(SourceDiagnostic).new()
 *** path_modes := Map(Str, Mode).new()
 *** mode_registry := Map(Str, Mode).new()
 *** eval_heap := EvalHeap.new()
@@ -405,6 +466,9 @@
 *** target_uptr_pname := "U64"
 *** target_usize_bytes : USize = 8
 *** target_simd_bits : USize = 128
+*** comptime_requests := Set(Str).new()
+*** comptime_preparation := Option(ComptimePreparation).None
+*** target_scalar64_align : USize = 8
 *** anon_type_counter : I64 = 0
 *** compile_mode := false
 *** constfolder_foldables := Map(Str, FuncType).new()
@@ -417,13 +481,7 @@
 *** import_support_dir := ""
 *** check_unused_imports := false
 *** import_use_edges := Set(Str).new()
-*** imports_init_seed_done := Set(Str).new()
-*** imports_init_active := Set(Str).new()
-*** imports_init_done := Set(Str).new()
-*** imports_typer_methods_done := Set(Str).new()
-*** imports_typer_fields_done := Set(Str).new()
-*** imports_typer_decls_done := Set(Str).new()
-*** ... (69 more)
+*** ... (75 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -451,6 +509,11 @@
 * loader
 ** ProgramUnit: StructDef
 *** path := ""
+** TargetLink: StructDef
+*** flag := ""
+*** include := ""
+*** targets := ""
+*** written := ""
 ** LoadedProgram: StructDef
 *** own core_units := Vec(ProgramUnit).new()
 *** own units := Vec(ProgramUnit).new()
@@ -466,6 +529,7 @@
 *** ext_c_path := ""
 *** link_flags := ""
 *** include_flags := ""
+*** target_links := Vec(TargetLink).new()
 *** link_c_paths := ""
 *** compiler_revision := ""
 *** asan_build := false
@@ -494,6 +558,10 @@
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr
+** ComptimeFunction: StructDef
+*** owner: Str
+*** name: Str
+*** ref definition: Expr
 ** ReturnEscapeRoots: StructDef
 *** direct := Vec(BorrowRoot).new()
 *** indirect := Vec(BorrowRoot).new()
@@ -529,6 +597,16 @@
 *** end : I32 = 0
 *** is_root := false
 *** succs := Vec(I32).new()
+** GcFlowKills: StructDef
+*** words : USize = 0
+*** owned := Vec(U64).new()
+*** moved := Vec(U64).new()
+** GcAssignVerdicts: StructDef
+*** consumed := Set(UPtr).new()
+*** mixed := false
+*** mixed_key : UPtr = 0
+*** mixed_line : U32 = 0
+*** mixed_col : U32 = 0
 ** BodyFacts: StructDef
 *** words : USize = 0
 *** n_stmts : USize = 0
@@ -536,6 +614,7 @@
 *** decls := Vec(U64).new()
 *** nested := Vec(U64).new()
 *** transfers := Vec(U64).new()
+*** reassigns := Vec(U64).new()
 *** escapes := Vec(U64).new()
 *** def_names := Vec(Str).new()
 *** def_bits := Vec(I64).new()
@@ -544,6 +623,7 @@
 *** owner := ""
 *** borrower := ""
 *** fixed_reach : I64 = -1
+*** created_at : I64 = -1
 * scavenger
 ** DeclRef: StructDef
 *** path := ""
@@ -556,6 +636,9 @@
 *** ref method : Str
 *** nargs : I32 = 1
 *** has_return := false
+** BuilderFuncSites: StructDef
+*** round_dependent := false
+*** sites := Set(Str).new()
 * builder
 ** BuildPaths: StructDef
 *** name := ""
@@ -618,12 +701,27 @@
 *** user_argc : USize = 0
 *** retained_programs := Vec(DynPtrBox).new()
 *** is_repl := false
+*** capture_output := false
 *** evaluated_units := Set(Str).new()
+** TilVmError: StructDef
+*** phase := ""
+*** diagnostics := Vec(TilVmDiagnostic).new()
+*** exit_status := Option(I64).None
+** TilVmCallback: StructDef
+*** priv session := Option(ref InterpSession).None
+*** priv own callable: U8 = calloc(1, Dynamic.size())
+** InterpRunResult: StructDef
+*** aborted := false
+*** exit_code := Option(I64).None
+*** output := Vec(InterpOutputEvent).new()
 ** RawResultInfo: StructDef
 *** ref source_type_p : U8
 *** is_ref := false
 *** is_word := false
 *** arg_deref := false
+** InterfaceCallBox: StructDef
+*** ref data: Dynamic
+*** release := false
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 ** InterpAlias: StructDef
@@ -647,6 +745,7 @@
 *** host_layout := false
 *** own cif : ffi_cif
 *** own arg_types : U8 = 0
+*** throw_kind_index : I64 = -1
 ** ExprPtrBox: StructDef
 *** ref ptr : Expr
 ** FFITypePtrBox: StructDef
@@ -693,6 +792,7 @@
 *** map_key_vecs := Map(Str, Str).new()
 *** map_value_vecs := Map(Str, Str).new()
 *** needed_methods := Map(Str, Map(Str, Bool)).new()
+*** method_prototypes := ""
 *** method_definitions := ""
 *** usize_ctype := "U64"
 *** switch_id : USize = 0
@@ -702,10 +802,10 @@
 *** needs_str_array_clone := false
 *** needs_str_array_get := false
 *** needs_str_array_concat := false
-*** needs_str_array_to_vec := false
-*** ... (2 more)
+*** ... (23 more)
 ** HolyCLocalState: StructDef
 *** ref_return_type := ""
+*** continue_label := ""
 *** param_pointer_names := Set(Str).new()
 *** payload_names := Map(Str, Str).new()
 *** pointer_types := Map(Str, Str).new()
@@ -715,6 +815,8 @@
 *** str_array_pointer_names := Set(Str).new()
 *** struct_types := Map(Str, Str).new()
 *** struct_pointer_types := Map(Str, Str).new()
+*** callable_sigs := Map(Str, Str).new()
+*** callable_slot_names := Set(Str).new()
 * jvm_codegen
 ** JvmEmitState: StructDef
 *** path := ""
@@ -724,6 +826,15 @@
 *** raw_refs := Set(Str).new()
 *** callable_defs := Map(Str, Str).new()
 *** return_cell := false
+*** ns_used := Set(Str).new()
+*** return_loads_raw := false
+*** globals := Map(Str, Str).new()
+*** global_scalars := Map(Str, Str).new()
+*** global_raws := Set(Str).new()
+*** global_raw_scalars := Map(Str, Str).new()
+*** global_jtypes := Map(Str, Str).new()
+*** locals := Set(Str).new()
+*** ref_scalars := Set(Str).new()
 ** JvmMember: StructDef
 *** name := ""
 *** text := ""
@@ -735,6 +846,14 @@
 *** members := Vec(JvmMember).new()
 *** tail := ""
 *** live := false
+* mlir_codegen
+** MlirState: StructDef
+*** text := ""
+*** next : USize = 0
+*** values := Map(Str, Str).new()
+*** functions := Set(Str).new()
+*** integers := Map(Str, U64).new()
+*** booleans := Map(Str, Bool).new()
 * repl_editor
 ** EditAction: EnumDef
 *** Continue

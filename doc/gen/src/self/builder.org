@@ -1,6 +1,16 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
+
+* cmd_mlir
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.cmd_mlir
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc cmd_mlir(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec__Str, functions: Set__Str) returns shallow I32
+#+end_src
 
 * cmd_translate
 :PROPERTIES:

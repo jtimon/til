@@ -1,5 +1,5 @@
 #+TITLE: src/self/holyc_codegen.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * holyc_codegen_translate
@@ -8,114 +8,7 @@
 :END:
 
 #+begin_src til
-proc holyc_codegen_translate(lp: LoadedProgram, output_path: Str) returns shallow I32
-#+end_src
-
-* Map__Str_call_Set_USize
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize
-:END:
-
-#+begin_src til
-struct Map__Str_call_Set_USize {
-    mut keys : Vec__Str
-    mut values : Vec__call_Set_USize
-namespace:
-    func new() returns Map__Str_call_Set_USize
-    func with_capacity(shallow n: U64) returns Map__Str_call_Set_USize
-    func len(self: Map__Str_call_Set_USize) returns shallow U64
-    func clear(mut self: Map__Str_call_Set_USize)
-    func has(self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
-    func get(self: Map__Str_call_Set_USize, key: Str, mut _err_kind: I64) returns ref Set__USize
-    func set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
-    func remove(mut self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_call_Set_USize, shallow call_free: Bool)
-    func clone(self: Map__Str_call_Set_USize) returns Map__Str_call_Set_USize
-    func size() returns shallow U64
-    func hash(self: Map__Str_call_Set_USize, hasher: HashFn) returns shallow U64
-}
-#+end_src
-
-* Map__Str_call_Set_USize.new
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.new
-:END:
-
-Create an empty Map of the types provided for the key and values respectively.
-The key type must implement ~cmp~.
-
-#+begin_src til
-func Map__Str_call_Set_USize.new() returns Map__Str_call_Set_USize
-#+end_src
-
-* Map__Str_call_Set_USize.with_capacity
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.with_capacity
-:END:
-
-Create an empty Map pre-sized for ~n~ entries, so inserting up to
-~n~ reallocs neither backing Vec (Vec.with_capacity's
-counterpart). n=0 behaves like new(): lazy-empty, no allocation.
-
-#+begin_src til
-func Map__Str_call_Set_USize.with_capacity(shallow n: U64) returns Map__Str_call_Set_USize
-#+end_src
-
-* Map__Str_call_Set_USize.clear
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.clear
-:END:
-
-Drop all live keys and values but keep the allocated storage so the Map can be reused.
-
-#+begin_src til
-func Map__Str_call_Set_USize.clear(mut self: Map__Str_call_Set_USize)
-#+end_src
-
-* Map__Str_call_Set_USize.has
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.has
-:END:
-
-True if a value exists for the given key.
-
-#+begin_src til
-func Map__Str_call_Set_USize.has(self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
-#+end_src
-
-* Map__Str_call_Set_USize.get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.get
-:END:
-
-Return a ref to the value for ~key~. Throws KeyNotFound if
-~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
-on a missing key.
-
-#+begin_src til
-func Map__Str_call_Set_USize.get(self: Map__Str_call_Set_USize, key: Str, mut _err_kind: I64) returns ref Set__USize
-#+end_src
-
-* Map__Str_call_Set_USize.set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.set
-:END:
-
-Insert or overwrite the value for ~key~. The value is owned.
-
-#+begin_src til
-func Map__Str_call_Set_USize.set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
-#+end_src
-
-* Map__Str_call_Set_USize.remove
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.remove
-:END:
-
-Remove ~key~, dropping its key and value. Returns false if absent.
-
-#+begin_src til
-func Map__Str_call_Set_USize.remove(mut self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
+proc holyc_codegen_translate(mut lp: LoadedProgram, output_path: Str) returns shallow I32
 #+end_src
 
 * Map__Str_call_Map_Str_Bool
@@ -225,315 +118,325 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 func Map__Str_call_Map_Str_Bool.remove(mut self: Map__Str_call_Map_Str_Bool, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__call_Set_USize
+* Map__Str_FuncSig
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig
 :END:
 
 #+begin_src til
-struct Vec__call_Set_USize {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
+struct Map__Str_FuncSig {
+    mut keys : Vec__Str
+    mut values : Vec__FuncSig
 namespace:
-    func new() returns Vec__call_Set_USize
-    func with_capacity(shallow n: U64) returns Vec__call_Set_USize
-    func len(self: Vec__call_Set_USize) returns shallow U64
-    func clear(mut self: Vec__call_Set_USize)
-    func delete_marked(mut self: Vec__call_Set_USize, marks: Dynamic)
-    func push(mut self: Vec__call_Set_USize, own val: Set__USize)
-    func append(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
-    func take(mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
-    func move_to(own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
-    func move_from(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
-    func unsafe_get(self: Vec__call_Set_USize, i: U64) returns ref Set__USize
-    func get(self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64) returns ref Set__USize
-    func pop(mut self: Vec__call_Set_USize) returns Set__USize
-    func remove_at(mut self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__call_Set_USize, shallow n: U64) returns Vec__call_Set_USize
-    func truncate(mut self: Vec__call_Set_USize, shallow n: U64)
-    func unsafe_set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize)
-    func set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize, mut _err_kind: I64)
-    func push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, shallow i: U64)
-    func delete(own self: Vec__call_Set_USize, shallow call_free: Bool)
-    func clone(self: Vec__call_Set_USize) returns Vec__call_Set_USize
+    func new() returns Map__Str_FuncSig
+    func with_capacity(shallow n: U64) returns Map__Str_FuncSig
+    func len(self: Map__Str_FuncSig) returns shallow U64
+    func clear(mut self: Map__Str_FuncSig)
+    func has(self: Map__Str_FuncSig, key: Str) returns shallow Bool
+    func get(self: Map__Str_FuncSig, key: Str, mut _err_kind: I64) returns ref FuncSig
+    func set(mut self: Map__Str_FuncSig, key: Str, own val: FuncSig)
+    func remove(mut self: Map__Str_FuncSig, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_FuncSig, shallow call_free: Bool)
+    func clone(self: Map__Str_FuncSig) returns Map__Str_FuncSig
     func size() returns shallow U64
+    func hash(self: Map__Str_FuncSig, hasher: HashFn) returns shallow U64
 }
 #+end_src
 
-* Vec__call_Set_USize.new
+* Map__Str_FuncSig.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.new
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.new
 :END:
 
-Create a new empty Vec for elements of type T. Lazy: no allocation
-until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-and the grow sites below seed cap 0->1 on the first insert. This keeps
-the many containers that stay empty (e.g. the unused maps in a fresh
-Scope) allocation-free, which is the dominant per-call interpreter cost.
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
 
 #+begin_src til
-func Vec__call_Set_USize.new() returns Vec__call_Set_USize
+func Map__Str_FuncSig.new() returns Map__Str_FuncSig
 #+end_src
 
-* Vec__call_Set_USize.with_capacity
+* Map__Str_FuncSig.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.with_capacity
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.with_capacity
 :END:
 
-Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
-items reallocs zero times. Use at call sites where the final length is
-known up front (cloning a Vec of known length, building a fixed arg
-list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
-no allocation (the grow sites seed cap 0->1 on the first insert).
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Vec__call_Set_USize.with_capacity(shallow n: U64) returns Vec__call_Set_USize
+func Map__Str_FuncSig.with_capacity(shallow n: U64) returns Map__Str_FuncSig
 #+end_src
 
-* Vec__call_Set_USize.clear
+* Map__Str_FuncSig.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.clear
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.clear
 :END:
 
-Drop all live elements via elem_delete but keep the allocated
-storage and element-type metadata so the Vec can be reused.
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Vec__call_Set_USize.clear(mut self: Vec__call_Set_USize)
+func Map__Str_FuncSig.clear(mut self: Map__Str_FuncSig)
 #+end_src
 
-* Vec__call_Set_USize.delete_marked
+* Map__Str_FuncSig.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.delete_marked
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.has
 :END:
 
-Drop the elements flagged in ~marks~ (a byte-per-element buffer,
-nonzero = drop, at least self.count entries) via elem_delete, then
-compact the survivors forward and update count. This is the
-container home for the scavenger's mark/sweep/compact, which used
-to reach into data/count directly.
+True if a value exists for the given key.
 
 #+begin_src til
-func Vec__call_Set_USize.delete_marked(mut self: Vec__call_Set_USize, marks: Dynamic)
+func Map__Str_FuncSig.has(self: Map__Str_FuncSig, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__call_Set_USize.push
+* Map__Str_FuncSig.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.push
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.get
 :END:
 
-Append an element to the end. ~val~ is owned: after this call the
-caller must not use the value passed -- clone it first if needed.
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
 
 #+begin_src til
-func Vec__call_Set_USize.push(mut self: Vec__call_Set_USize, own val: Set__USize)
+func Map__Str_FuncSig.get(self: Map__Str_FuncSig, key: Str, mut _err_kind: I64) returns ref FuncSig
 #+end_src
 
-* Vec__call_Set_USize.append
+* Map__Str_FuncSig.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.append
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.set
 :END:
 
-Consume the contents of ~other~ by appending them to ~self~.
-~other~ is taken by ownership and will be empty after the call.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
-func Vec__call_Set_USize.append(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+func Map__Str_FuncSig.set(mut self: Map__Str_FuncSig, key: Str, own val: FuncSig)
 #+end_src
 
-* Vec__call_Set_USize.take
+* Map__Str_FuncSig.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.take
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.remove
 :END:
 
-Take the contents out: the returned Vec owns self's buffer and
-self is left lazy-empty. No element is copied or cloned.
-
-This is how a struct FIELD hands its contents over
-(~mut old := body.children.take()~): a field cannot be an ~own~
-argument or receiver, because the callee would then free the
-ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
-pointer" compiling itself. Everything the caller can give away
-uses the two move forms below instead.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Vec__call_Set_USize.take(mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
+func Map__Str_FuncSig.remove(mut self: Map__Str_FuncSig, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__call_Set_USize.move_to
+* Map__Str_call_Set_Str
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.move_to
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str
 :END:
 
-Give self's contents to ~dest~, which drops whatever it held.
-SELF is consumed, so the receiver is the owned one and the call
-spells the type out: ~Vec(T).move_to(own src, dest)~.
-
-The three fields move as BYTES on purpose:
-~dest.data = self.data~ drops dest's old pointer (right) and then
-~self.data = 0~ drops the pointer dest just adopted -- a double
-free, which is what the emitted C does with field assignment.
-Blanking the source leaves a genuinely valid lazy-empty Vec, so
-a later push on it allocates afresh instead of reallocating a
-buffer that now belongs to someone else.
-
 #+begin_src til
-func Vec__call_Set_USize.move_to(own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
+struct Map__Str_call_Set_Str {
+    mut keys : Vec__Str
+    mut values : Vec__call_Set_Str
+namespace:
+    func new() returns Map__Str_call_Set_Str
+    func with_capacity(shallow n: U64) returns Map__Str_call_Set_Str
+    func len(self: Map__Str_call_Set_Str) returns shallow U64
+    func clear(mut self: Map__Str_call_Set_Str)
+    func has(self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
+    func get(self: Map__Str_call_Set_Str, key: Str, mut _err_kind: I64) returns ref Set__Str
+    func set(mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
+    func remove(mut self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_call_Set_Str, shallow call_free: Bool)
+    func clone(self: Map__Str_call_Set_Str) returns Map__Str_call_Set_Str
+    func size() returns shallow U64
+    func hash(self: Map__Str_call_Set_Str, hasher: HashFn) returns shallow U64
+}
 #+end_src
 
-* Vec__call_Set_USize.move_from
+* Map__Str_call_Set_Str.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.move_from
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.new
 :END:
 
-Take ~other~'s contents, dropping whatever self held. OTHER is
-consumed -- it is the value being emptied, so it is the owned
-argument: ~dest.move_from(own src)~.
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
 
 #+begin_src til
-func Vec__call_Set_USize.move_from(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+func Map__Str_call_Set_Str.new() returns Map__Str_call_Set_Str
 #+end_src
 
-* Vec__call_Set_USize.unsafe_get
+* Map__Str_call_Set_Str.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_get
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.with_capacity
 :END:
 
-Unchecked element access: return a reference to the element at
-index ~i~ with NO bounds check. The caller must prove ~i < len()~.
-This is the unchecked core that ~get~ wraps; for-in uses it
-directly because its ~_fi < len()~ termination test already
-proves the index in bounds (issue #284).
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Vec__call_Set_USize.unsafe_get(self: Vec__call_Set_USize, i: U64) returns ref Set__USize
+func Map__Str_call_Set_Str.with_capacity(shallow n: U64) returns Map__Str_call_Set_Str
 #+end_src
 
-* Vec__call_Set_USize.get
+* Map__Str_call_Set_Str.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.get
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.clear
 :END:
 
-Return a reference to the element at index ~i~. Throws
-OutOfBounds if ~i~ is past the end; call as ~vec[i]~
-to panic on a bad index. The reference is valid until the
-next mutation.
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Vec__call_Set_USize.get(self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64) returns ref Set__USize
+func Map__Str_call_Set_Str.clear(mut self: Map__Str_call_Set_Str)
 #+end_src
 
-* Vec__call_Set_USize.pop
+* Map__Str_call_Set_Str.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.pop
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.has
 :END:
 
-Remove and return the last element. Panics if empty. The caller
-takes ownership of the returned value.
+True if a value exists for the given key.
 
 #+begin_src til
-func Vec__call_Set_USize.pop(mut self: Vec__call_Set_USize) returns Set__USize
+func Map__Str_call_Set_Str.has(self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__call_Set_USize.remove_at
+* Map__Str_call_Set_Str.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.remove_at
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.get
 :END:
 
-Remove and drop the element at ~i~, shifting later elements left.
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
 
 #+begin_src til
-func Vec__call_Set_USize.remove_at(mut self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64)
+func Map__Str_call_Set_Str.get(self: Map__Str_call_Set_Str, key: Str, mut _err_kind: I64) returns ref Set__Str
 #+end_src
 
-* Vec__call_Set_USize.take_prefix
+* Map__Str_call_Set_Str.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.take_prefix
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.set
 :END:
 
-Split off the first ~n~ elements into a new Vec. Panics if ~n~
-exceeds self.len(). The remaining elements shift to the front.
+Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
-func Vec__call_Set_USize.take_prefix(mut self: Vec__call_Set_USize, shallow n: U64) returns Vec__call_Set_USize
+func Map__Str_call_Set_Str.set(mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
 #+end_src
 
-* Vec__call_Set_USize.truncate
+* Map__Str_call_Set_Str.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.truncate
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.remove
 :END:
 
-Drop the elements from index ~n~ to the end, freeing each via
-elem_delete, and set count to ~n~ (the survivors [0, n) are left
-untouched). Panics if ~n~ exceeds len. This is the container home
-for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Vec__call_Set_USize.truncate(mut self: Vec__call_Set_USize, shallow n: U64)
+func Map__Str_call_Set_Str.remove(mut self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
 #+end_src
 
-* Vec__call_Set_USize.unsafe_set
+* Map__Str_call_Set_USize
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_set
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize
 :END:
 
-Overwrite the element at index ~i~ without a bounds check, dropping
-the old value. Caller guarantees ~i < self.count~; the write-side
-mirror of unsafe_get (issue #284).
-
 #+begin_src til
-func Vec__call_Set_USize.unsafe_set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize)
+struct Map__Str_call_Set_USize {
+    mut keys : Vec__Str
+    mut values : Vec__call_Set_USize
+namespace:
+    func new() returns Map__Str_call_Set_USize
+    func with_capacity(shallow n: U64) returns Map__Str_call_Set_USize
+    func len(self: Map__Str_call_Set_USize) returns shallow U64
+    func clear(mut self: Map__Str_call_Set_USize)
+    func has(self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
+    func get(self: Map__Str_call_Set_USize, key: Str, mut _err_kind: I64) returns ref Set__USize
+    func set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
+    func remove(mut self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_call_Set_USize, shallow call_free: Bool)
+    func clone(self: Map__Str_call_Set_USize) returns Map__Str_call_Set_USize
+    func size() returns shallow U64
+    func hash(self: Map__Str_call_Set_USize, hasher: HashFn) returns shallow U64
+}
 #+end_src
 
-* Vec__call_Set_USize.set
+* Map__Str_call_Set_USize.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.set
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.new
 :END:
 
-Overwrite the element at index ~i~. ~val~ is owned. Throws
-OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
-(or ~vec.set(i, own val)!~) to panic on a bad index.
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
 
 #+begin_src til
-func Vec__call_Set_USize.set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize, mut _err_kind: I64)
+func Map__Str_call_Set_USize.new() returns Map__Str_call_Set_USize
 #+end_src
 
-* Vec__call_Set_USize.push_take
+* Map__Str_call_Set_USize.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.push_take
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.with_capacity
 :END:
 
-Move bytes of src[i] into self (push). Source slot is zeroed so that
-src's eventual elem_delete on it is a no-op (relies on the same
-count==0/data==NULL convention used by take_children and Vec.delete).
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Vec__call_Set_USize.push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, shallow i: U64)
+func Map__Str_call_Set_USize.with_capacity(shallow n: U64) returns Map__Str_call_Set_USize
 #+end_src
 
-* Vec__call_Set_USize.delete
+* Map__Str_call_Set_USize.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.delete
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.clear
 :END:
 
-Drop each element via elem_delete, free storage, then free self
-unless ~call_free~ is false.
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Vec__call_Set_USize.delete(own self: Vec__call_Set_USize, shallow call_free: Bool)
+func Map__Str_call_Set_USize.clear(mut self: Map__Str_call_Set_USize)
 #+end_src
 
-* Vec__call_Set_USize.clone
+* Map__Str_call_Set_USize.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.clone
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.has
 :END:
 
-Deep-copy the Vec and all its elements via elem_clone.
+True if a value exists for the given key.
 
 #+begin_src til
-func Vec__call_Set_USize.clone(self: Vec__call_Set_USize) returns Vec__call_Set_USize
+func Map__Str_call_Set_USize.has(self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
+#+end_src
+
+* Map__Str_call_Set_USize.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.get
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__Str_call_Set_USize.get(self: Map__Str_call_Set_USize, key: Str, mut _err_kind: I64) returns ref Set__USize
+#+end_src
+
+* Map__Str_call_Set_USize.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.set
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func Map__Str_call_Set_USize.set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
+#+end_src
+
+* Map__Str_call_Set_USize.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.remove
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__Str_call_Set_USize.remove(mut self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
 #+end_src
 
 * Vec__call_Map_Str_Bool
@@ -847,13 +750,937 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__call_Map_Str_Bool.clone(self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
 #+end_src
 
-* adopt__Set__USize
+* Vec__FuncSig
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.holyc_codegen.adopt__Set__USize
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig
 :END:
 
 #+begin_src til
-func adopt__Set__USize(mut dest: Dynamic, own src: Set__USize)
+struct Vec__FuncSig {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__FuncSig
+    func with_capacity(shallow n: U64) returns Vec__FuncSig
+    func len(self: Vec__FuncSig) returns shallow U64
+    func clear(mut self: Vec__FuncSig)
+    func delete_marked(mut self: Vec__FuncSig, marks: Dynamic)
+    func push(mut self: Vec__FuncSig, own val: FuncSig)
+    func append(mut self: Vec__FuncSig, own other: Vec__FuncSig)
+    func take(mut self: Vec__FuncSig) returns Vec__FuncSig
+    func move_to(own self: Vec__FuncSig, mut dest: Vec__FuncSig)
+    func move_from(mut self: Vec__FuncSig, own other: Vec__FuncSig)
+    func unsafe_get(self: Vec__FuncSig, i: U64) returns ref FuncSig
+    func get(self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64) returns ref FuncSig
+    func pop(mut self: Vec__FuncSig) returns FuncSig
+    func remove_at(mut self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__FuncSig, shallow n: U64) returns Vec__FuncSig
+    func truncate(mut self: Vec__FuncSig, shallow n: U64)
+    func unsafe_set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig)
+    func set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig, mut _err_kind: I64)
+    func push_take(mut self: Vec__FuncSig, mut src: Vec__FuncSig, shallow i: U64)
+    func delete(own self: Vec__FuncSig, shallow call_free: Bool)
+    func clone(self: Vec__FuncSig) returns Vec__FuncSig
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__FuncSig.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__FuncSig.new() returns Vec__FuncSig
+#+end_src
+
+* Vec__FuncSig.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__FuncSig.with_capacity(shallow n: U64) returns Vec__FuncSig
+#+end_src
+
+* Vec__FuncSig.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__FuncSig.clear(mut self: Vec__FuncSig)
+#+end_src
+
+* Vec__FuncSig.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__FuncSig.delete_marked(mut self: Vec__FuncSig, marks: Dynamic)
+#+end_src
+
+* Vec__FuncSig.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__FuncSig.push(mut self: Vec__FuncSig, own val: FuncSig)
+#+end_src
+
+* Vec__FuncSig.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__FuncSig.append(mut self: Vec__FuncSig, own other: Vec__FuncSig)
+#+end_src
+
+* Vec__FuncSig.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__FuncSig.take(mut self: Vec__FuncSig) returns Vec__FuncSig
+#+end_src
+
+* Vec__FuncSig.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__FuncSig.move_to(own self: Vec__FuncSig, mut dest: Vec__FuncSig)
+#+end_src
+
+* Vec__FuncSig.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__FuncSig.move_from(mut self: Vec__FuncSig, own other: Vec__FuncSig)
+#+end_src
+
+* Vec__FuncSig.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__FuncSig.unsafe_get(self: Vec__FuncSig, i: U64) returns ref FuncSig
+#+end_src
+
+* Vec__FuncSig.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__FuncSig.get(self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64) returns ref FuncSig
+#+end_src
+
+* Vec__FuncSig.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__FuncSig.pop(mut self: Vec__FuncSig) returns FuncSig
+#+end_src
+
+* Vec__FuncSig.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__FuncSig.remove_at(mut self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__FuncSig.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__FuncSig.take_prefix(mut self: Vec__FuncSig, shallow n: U64) returns Vec__FuncSig
+#+end_src
+
+* Vec__FuncSig.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__FuncSig.truncate(mut self: Vec__FuncSig, shallow n: U64)
+#+end_src
+
+* Vec__FuncSig.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__FuncSig.unsafe_set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig)
+#+end_src
+
+* Vec__FuncSig.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__FuncSig.set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig, mut _err_kind: I64)
+#+end_src
+
+* Vec__FuncSig.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__FuncSig.push_take(mut self: Vec__FuncSig, mut src: Vec__FuncSig, shallow i: U64)
+#+end_src
+
+* Vec__FuncSig.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__FuncSig.delete(own self: Vec__FuncSig, shallow call_free: Bool)
+#+end_src
+
+* Vec__FuncSig.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__FuncSig.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__FuncSig.clone(self: Vec__FuncSig) returns Vec__FuncSig
+#+end_src
+
+* Vec__call_Set_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str
+:END:
+
+#+begin_src til
+struct Vec__call_Set_Str {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__call_Set_Str
+    func with_capacity(shallow n: U64) returns Vec__call_Set_Str
+    func len(self: Vec__call_Set_Str) returns shallow U64
+    func clear(mut self: Vec__call_Set_Str)
+    func delete_marked(mut self: Vec__call_Set_Str, marks: Dynamic)
+    func push(mut self: Vec__call_Set_Str, own val: Set__Str)
+    func append(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
+    func take(mut self: Vec__call_Set_Str) returns Vec__call_Set_Str
+    func move_to(own self: Vec__call_Set_Str, mut dest: Vec__call_Set_Str)
+    func move_from(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
+    func unsafe_get(self: Vec__call_Set_Str, i: U64) returns ref Set__Str
+    func get(self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64) returns ref Set__Str
+    func pop(mut self: Vec__call_Set_Str) returns Set__Str
+    func remove_at(mut self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__call_Set_Str, shallow n: U64) returns Vec__call_Set_Str
+    func truncate(mut self: Vec__call_Set_Str, shallow n: U64)
+    func unsafe_set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str)
+    func set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str, mut _err_kind: I64)
+    func push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, shallow i: U64)
+    func delete(own self: Vec__call_Set_Str, shallow call_free: Bool)
+    func clone(self: Vec__call_Set_Str) returns Vec__call_Set_Str
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__call_Set_Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__call_Set_Str.new() returns Vec__call_Set_Str
+#+end_src
+
+* Vec__call_Set_Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__call_Set_Str.with_capacity(shallow n: U64) returns Vec__call_Set_Str
+#+end_src
+
+* Vec__call_Set_Str.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__call_Set_Str.clear(mut self: Vec__call_Set_Str)
+#+end_src
+
+* Vec__call_Set_Str.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__call_Set_Str.delete_marked(mut self: Vec__call_Set_Str, marks: Dynamic)
+#+end_src
+
+* Vec__call_Set_Str.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__call_Set_Str.push(mut self: Vec__call_Set_Str, own val: Set__Str)
+#+end_src
+
+* Vec__call_Set_Str.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__call_Set_Str.append(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
+#+end_src
+
+* Vec__call_Set_Str.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__call_Set_Str.take(mut self: Vec__call_Set_Str) returns Vec__call_Set_Str
+#+end_src
+
+* Vec__call_Set_Str.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__call_Set_Str.move_to(own self: Vec__call_Set_Str, mut dest: Vec__call_Set_Str)
+#+end_src
+
+* Vec__call_Set_Str.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__call_Set_Str.move_from(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
+#+end_src
+
+* Vec__call_Set_Str.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__call_Set_Str.unsafe_get(self: Vec__call_Set_Str, i: U64) returns ref Set__Str
+#+end_src
+
+* Vec__call_Set_Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__call_Set_Str.get(self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64) returns ref Set__Str
+#+end_src
+
+* Vec__call_Set_Str.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__call_Set_Str.pop(mut self: Vec__call_Set_Str) returns Set__Str
+#+end_src
+
+* Vec__call_Set_Str.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__call_Set_Str.remove_at(mut self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__call_Set_Str.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__call_Set_Str.take_prefix(mut self: Vec__call_Set_Str, shallow n: U64) returns Vec__call_Set_Str
+#+end_src
+
+* Vec__call_Set_Str.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__call_Set_Str.truncate(mut self: Vec__call_Set_Str, shallow n: U64)
+#+end_src
+
+* Vec__call_Set_Str.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__call_Set_Str.unsafe_set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str)
+#+end_src
+
+* Vec__call_Set_Str.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__call_Set_Str.set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str, mut _err_kind: I64)
+#+end_src
+
+* Vec__call_Set_Str.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__call_Set_Str.push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, shallow i: U64)
+#+end_src
+
+* Vec__call_Set_Str.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__call_Set_Str.delete(own self: Vec__call_Set_Str, shallow call_free: Bool)
+#+end_src
+
+* Vec__call_Set_Str.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_Str.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__call_Set_Str.clone(self: Vec__call_Set_Str) returns Vec__call_Set_Str
+#+end_src
+
+* Vec__call_Set_USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize
+:END:
+
+#+begin_src til
+struct Vec__call_Set_USize {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__call_Set_USize
+    func with_capacity(shallow n: U64) returns Vec__call_Set_USize
+    func len(self: Vec__call_Set_USize) returns shallow U64
+    func clear(mut self: Vec__call_Set_USize)
+    func delete_marked(mut self: Vec__call_Set_USize, marks: Dynamic)
+    func push(mut self: Vec__call_Set_USize, own val: Set__USize)
+    func append(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+    func take(mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
+    func move_to(own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
+    func move_from(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+    func unsafe_get(self: Vec__call_Set_USize, i: U64) returns ref Set__USize
+    func get(self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64) returns ref Set__USize
+    func pop(mut self: Vec__call_Set_USize) returns Set__USize
+    func remove_at(mut self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__call_Set_USize, shallow n: U64) returns Vec__call_Set_USize
+    func truncate(mut self: Vec__call_Set_USize, shallow n: U64)
+    func unsafe_set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize)
+    func set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize, mut _err_kind: I64)
+    func push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, shallow i: U64)
+    func delete(own self: Vec__call_Set_USize, shallow call_free: Bool)
+    func clone(self: Vec__call_Set_USize) returns Vec__call_Set_USize
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__call_Set_USize.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__call_Set_USize.new() returns Vec__call_Set_USize
+#+end_src
+
+* Vec__call_Set_USize.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__call_Set_USize.with_capacity(shallow n: U64) returns Vec__call_Set_USize
+#+end_src
+
+* Vec__call_Set_USize.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__call_Set_USize.clear(mut self: Vec__call_Set_USize)
+#+end_src
+
+* Vec__call_Set_USize.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__call_Set_USize.delete_marked(mut self: Vec__call_Set_USize, marks: Dynamic)
+#+end_src
+
+* Vec__call_Set_USize.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__call_Set_USize.push(mut self: Vec__call_Set_USize, own val: Set__USize)
+#+end_src
+
+* Vec__call_Set_USize.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__call_Set_USize.append(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+#+end_src
+
+* Vec__call_Set_USize.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__call_Set_USize.take(mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
+#+end_src
+
+* Vec__call_Set_USize.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__call_Set_USize.move_to(own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
+#+end_src
+
+* Vec__call_Set_USize.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__call_Set_USize.move_from(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+#+end_src
+
+* Vec__call_Set_USize.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__call_Set_USize.unsafe_get(self: Vec__call_Set_USize, i: U64) returns ref Set__USize
+#+end_src
+
+* Vec__call_Set_USize.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__call_Set_USize.get(self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64) returns ref Set__USize
+#+end_src
+
+* Vec__call_Set_USize.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__call_Set_USize.pop(mut self: Vec__call_Set_USize) returns Set__USize
+#+end_src
+
+* Vec__call_Set_USize.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__call_Set_USize.remove_at(mut self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__call_Set_USize.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__call_Set_USize.take_prefix(mut self: Vec__call_Set_USize, shallow n: U64) returns Vec__call_Set_USize
+#+end_src
+
+* Vec__call_Set_USize.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__call_Set_USize.truncate(mut self: Vec__call_Set_USize, shallow n: U64)
+#+end_src
+
+* Vec__call_Set_USize.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__call_Set_USize.unsafe_set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize)
+#+end_src
+
+* Vec__call_Set_USize.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__call_Set_USize.set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize, mut _err_kind: I64)
+#+end_src
+
+* Vec__call_Set_USize.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__call_Set_USize.push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, shallow i: U64)
+#+end_src
+
+* Vec__call_Set_USize.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__call_Set_USize.delete(own self: Vec__call_Set_USize, shallow call_free: Bool)
+#+end_src
+
+* Vec__call_Set_USize.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.Vec__call_Set_USize.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__call_Set_USize.clone(self: Vec__call_Set_USize) returns Vec__call_Set_USize
 #+end_src
 
 * adopt__Map__Str_Bool
@@ -863,4 +1690,31 @@ func adopt__Set__USize(mut dest: Dynamic, own src: Set__USize)
 
 #+begin_src til
 func adopt__Map__Str_Bool(mut dest: Dynamic, own src: Map__Str_Bool)
+#+end_src
+
+* adopt__FuncSig
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.adopt__FuncSig
+:END:
+
+#+begin_src til
+func adopt__FuncSig(mut dest: Dynamic, own src: FuncSig)
+#+end_src
+
+* adopt__Set__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.adopt__Set__Str
+:END:
+
+#+begin_src til
+func adopt__Set__Str(mut dest: Dynamic, own src: Set__Str)
+#+end_src
+
+* adopt__Set__USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.holyc_codegen.adopt__Set__USize
+:END:
+
+#+begin_src til
+func adopt__Set__USize(mut dest: Dynamic, own src: Set__USize)
 #+end_src

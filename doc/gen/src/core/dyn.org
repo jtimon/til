@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -86,6 +86,17 @@ ext_func dyn_call_ret(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dy
 :CUSTOM_ID: til.src.core.dyn.dyn_fn
 :group: Core
 :END:
+
+Look up a namespace method; the method name must be a string literal.
+In a concrete named FuncSig destination (local, field, argument or return),
+the lookup checks the selected method's signature and adapts its calling
+convention to that FuncSig. The type name may be selected at runtime.
+Signatures with Dynamic parameters or results retain the erased collection
+convention (CloneFn, DeleteFn, etc.), as does an untyped Dynamic result.
+A result stored in Dynamic can later be bound or cast to a concrete FuncSig;
+that typed use selects the same adapter and rejects an incompatible method.
+A callable value and a ref to a collection's callable slot remain distinct:
+conversion loads the slot, while a returned ref continues to borrow it.
 
 #+begin_src til
 ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic

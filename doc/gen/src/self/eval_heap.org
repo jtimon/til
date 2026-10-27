@@ -1,5 +1,5 @@
 #+TITLE: src/self/eval_heap.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * word_bits
@@ -42,6 +42,16 @@ ext_func f32_word(shallow f: F32) returns shallow U64
 ext_func word_f32(shallow b: U64) returns shallow F32
 #+end_src
 
+* f32_bits_fma
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f32_bits_fma
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f32_bits_fma(shallow a: U64, shallow b: U64, shallow c: U64) returns shallow U64
+#+end_src
+
 * f64_bits_add
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.eval_heap.f64_bits_add
@@ -80,6 +90,16 @@ ext_func f64_bits_mul(shallow a: U64, shallow b: U64) returns shallow U64
 
 #+begin_src til
 ext_func f64_bits_div(shallow a: U64, shallow b: U64) returns shallow U64
+#+end_src
+
+* f64_bits_fma
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_fma
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_fma(shallow a: U64, shallow b: U64, shallow c: U64) returns shallow U64
 #+end_src
 
 * f64_bits_cmp

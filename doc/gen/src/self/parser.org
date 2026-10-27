@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * SymbolPool
@@ -11,12 +11,14 @@
 #+begin_src til
 struct SymbolPool {
     mut names : Vec__Str
+    mut retired_names : Vec__call_Vec_Str
     mut buckets : Vec__U32
     mut next : U32
 namespace:
     func rebuild(mut self: SymbolPool, shallow count: U64)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
+    func grow_names(mut self: SymbolPool)
     func resolve(self: SymbolPool, sym: U32) returns ref Str
     func size() returns shallow U64
     func clone(self: SymbolPool) returns SymbolPool
@@ -112,7 +114,17 @@ func take_expr(mut e: Expr) returns Expr
 :END:
 
 #+begin_src til
-proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32, shallow quiet: Bool) returns Expr
+proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32, shallow quiet: Bool, mut diagnostics: Vec__SourceDiagnostic) returns Expr
+#+end_src
+
+* decl_type_name_ref
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.decl_type_name_ref
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func decl_type_name_ref(dd: Declaration, symbols: SymbolPool) returns ref Str
 #+end_src
 
 * decl_type_name
@@ -133,6 +145,16 @@ func decl_type_name(dd: Declaration, symbols: SymbolPool) returns Str
 
 #+begin_src til
 func expr_type_name_ref(e: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
+#+end_src
+
+* til_type_name_c_ref
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.til_type_name_c_ref
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func til_type_name_c_ref(t: Type, symbols: SymbolPool) returns ref Str
 #+end_src
 
 * til_type_name_c
@@ -313,6 +335,338 @@ func func_type_name(ft: FuncType) returns Str
 
 #+begin_src til
 Option__Sym is a None
+#+end_src
+
+* Vec__call_Vec_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Vec__call_Vec_Str {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__call_Vec_Str
+    func with_capacity(shallow n: U64) returns Vec__call_Vec_Str
+    func len(self: Vec__call_Vec_Str) returns shallow U64
+    func clear(mut self: Vec__call_Vec_Str)
+    func delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
+    func push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
+    func append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+    func take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
+    func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+    func unsafe_get(self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64) returns ref Vec__Str
+    func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
+    func remove_at(mut self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__call_Vec_Str, shallow n: U64) returns Vec__call_Vec_Str
+    func truncate(mut self: Vec__call_Vec_Str, shallow n: U64)
+    func unsafe_set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str)
+    func set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str, mut _err_kind: I64)
+    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U64)
+    func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
+    func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func size() returns shallow U64
+}
+#+end_src
+
+* Vec__call_Vec_Str.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.new
+:group: Compiler frontend
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__call_Vec_Str.new() returns Vec__call_Vec_Str
+#+end_src
+
+* Vec__call_Vec_Str.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.with_capacity
+:group: Compiler frontend
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__call_Vec_Str.with_capacity(shallow n: U64) returns Vec__call_Vec_Str
+#+end_src
+
+* Vec__call_Vec_Str.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.clear
+:group: Compiler frontend
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__call_Vec_Str.clear(mut self: Vec__call_Vec_Str)
+#+end_src
+
+* Vec__call_Vec_Str.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.delete_marked
+:group: Compiler frontend
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__call_Vec_Str.delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
+#+end_src
+
+* Vec__call_Vec_Str.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.push
+:group: Compiler frontend
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__call_Vec_Str.push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
+#+end_src
+
+* Vec__call_Vec_Str.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.append
+:group: Compiler frontend
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__call_Vec_Str.append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+#+end_src
+
+* Vec__call_Vec_Str.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.take
+:group: Compiler frontend
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__call_Vec_Str.take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+#+end_src
+
+* Vec__call_Vec_Str.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.move_to
+:group: Compiler frontend
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__call_Vec_Str.move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
+#+end_src
+
+* Vec__call_Vec_Str.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.move_from
+:group: Compiler frontend
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__call_Vec_Str.move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+#+end_src
+
+* Vec__call_Vec_Str.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.unsafe_get
+:group: Compiler frontend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__call_Vec_Str.unsafe_get(self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
+#+end_src
+
+* Vec__call_Vec_Str.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.get
+:group: Compiler frontend
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__call_Vec_Str.get(self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64) returns ref Vec__Str
+#+end_src
+
+* Vec__call_Vec_Str.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.pop
+:group: Compiler frontend
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__call_Vec_Str.pop(mut self: Vec__call_Vec_Str) returns Vec__Str
+#+end_src
+
+* Vec__call_Vec_Str.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.remove_at
+:group: Compiler frontend
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__call_Vec_Str.remove_at(mut self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64)
+#+end_src
+
+* Vec__call_Vec_Str.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.take_prefix
+:group: Compiler frontend
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__call_Vec_Str.take_prefix(mut self: Vec__call_Vec_Str, shallow n: U64) returns Vec__call_Vec_Str
+#+end_src
+
+* Vec__call_Vec_Str.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.truncate
+:group: Compiler frontend
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__call_Vec_Str.truncate(mut self: Vec__call_Vec_Str, shallow n: U64)
+#+end_src
+
+* Vec__call_Vec_Str.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.unsafe_set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__call_Vec_Str.unsafe_set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str)
+#+end_src
+
+* Vec__call_Vec_Str.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.set
+:group: Compiler frontend
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__call_Vec_Str.set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str, mut _err_kind: I64)
+#+end_src
+
+* Vec__call_Vec_Str.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.push_take
+:group: Compiler frontend
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__call_Vec_Str.push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U64)
+#+end_src
+
+* Vec__call_Vec_Str.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.delete
+:group: Compiler frontend
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__call_Vec_Str.delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
+#+end_src
+
+* Vec__call_Vec_Str.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Vec__call_Vec_Str.clone
+:group: Compiler frontend
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__call_Vec_Str.clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
 #+end_src
 
 * Vec__U32
@@ -731,6 +1085,7 @@ namespace:
     func new() returns Set__Str
     func with_capacity(shallow n: U64) returns Set__Str
     func len(self: Set__Str) returns shallow U64
+    func unsafe_get(self: Set__Str, i: U64) returns ref Str
     func clear(mut self: Set__Str)
     func has(self: Set__Str, val: Str) returns shallow Bool
     func add(mut self: Set__Str, own val: Str)
@@ -771,6 +1126,22 @@ doubling. n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
 func Set__Str.with_capacity(shallow n: U64) returns Set__Str
+#+end_src
+
+* Set__Str.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Set__Str.unsafe_get
+:group: Compiler frontend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ (in sorted order) with NO bounds check. The caller must
+prove ~i < len()~. This is what makes ~for x in set~ work: for-in
+uses ~unsafe_get~ when a type has it, and its ~_fi < len()~
+termination test proves the index in bounds (issue #284).
+
+#+begin_src til
+func Set__Str.unsafe_get(self: Set__Str, i: U64) returns ref Str
 #+end_src
 
 * Set__Str.clear
@@ -1272,6 +1643,16 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__Bool.clone(self: Vec__Bool) returns Vec__Bool
 #+end_src
 
+* swap__Vec__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.swap__Vec__Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func swap__Vec__Str(mut a: Vec__Str, mut b: Vec__Str)
+#+end_src
+
 * swap__Expr
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.parser.swap__Expr
@@ -1280,6 +1661,16 @@ func Vec__Bool.clone(self: Vec__Bool) returns Vec__Bool
 
 #+begin_src til
 func swap__Expr(mut a: Expr, mut b: Expr)
+#+end_src
+
+* adopt__Vec__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.adopt__Vec__Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func adopt__Vec__Str(mut dest: Dynamic, own src: Vec__Str)
 #+end_src
 
 * adopt__U32

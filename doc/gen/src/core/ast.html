@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -76,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -404,6 +405,7 @@ a clone would copy a whole subtree and break node identity.</p>
     mut gc_storage : GcStorage
     mut external_symbol : Str
     mut infer_call_ownership : Bool
+    mut bounds : Str
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
@@ -517,6 +519,8 @@ markers in fcall.children:</p>
     mut ref_args : U64
     mut splat_args : U64
     mut is_subscript : Bool
+    mut is_throw_default : Bool
+    mut iface_box_owns_payload : Bool
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns shallow Bool
     func to_str(_self: FCallData) returns Str
@@ -1301,7 +1305,7 @@ namespace:
     func add_child(mut self: Expr, own child: Expr)
     func push_child_clone(mut self: Expr, child: Expr)
     func take_children(mut self: Expr, mut other: Expr)
-    func new(data: NodeType, shallow line: U32, shallow col: U32) returns Expr
+    func new(own data: NodeType, shallow line: U32, shallow col: U32) returns Expr
     func eq(_self: Expr, _other: Expr) returns shallow Bool
     func til_type(self: Expr) returns ref Type
     func set_til_type(mut self: Expr, shallow t: Type)
@@ -1318,11 +1322,10 @@ namespace:
 <h2>Expr.delete</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <div class="doc-body">
-<p>Null-safe delete. The auto-generated version dereferences <code>self</code>
-unconditionally, so the asap pass deleting an owned-but-null Expr
-(e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
-here lets functions return owned <code>Expr</code> that may be null without
-the caller having to clone-and-leak to dodge the deep delete.</p>
+<p>Delete the payload and every child. <code>self</code> is never null: #415
+removed the null early-return this used to start with (it absorbed
+a delete of a NULL Expr instead of failing at the caller that made
+one), and the full suite, ASAN included, never reached it.</p>
 </div>
 <pre><code class="language-til">func (own self: Expr, shallow call_free: Bool)
 </code></pre>
@@ -1388,7 +1391,7 @@ Zeroes other's count so it no longer owns the moved items.</p>
 <div class="doc-body">
 <p>Create a new Expr with the given node_type and source location.</p>
 </div>
-<pre><code class="language-til">func (data: NodeType, shallow line: U32, shallow col: U32) returns Expr
+<pre><code class="language-til">func (own data: NodeType, shallow line: U32, shallow col: U32) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.ast.ident_of">

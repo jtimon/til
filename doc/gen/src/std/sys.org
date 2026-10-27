@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -395,7 +395,7 @@ A command to run, built from argv elements -- never from shell text.
 /bin/sh or cmd.exe, which re-splits it on whitespace, expands $VAR
 and globs it; every caller then has to quote its arguments back out
 of that, differently per host. A Cmd passes its elements straight to
-execvp / CreateProcess, so an argument means exactly the bytes it
+posix_spawnp / CreateProcess, so an argument means exactly the bytes it
 holds -- spaces, quotes, dollars and all. A shell is still reachable
 by asking for one: ~Cmd.new("sh", "-c", script)~.
 

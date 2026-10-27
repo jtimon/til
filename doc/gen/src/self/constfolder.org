@@ -1,6 +1,16 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
+
+* constfolder_eval_generator_function
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.constfolder_eval_generator_function
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc constfolder_eval_generator_function(mut scope: Scope, mut function: Expr, definitions: Map__Str_Expr, mut globals: Expr, mut ctx: Context) returns shallow I32
+#+end_src
 
 * constfolder_clear_known
 :PROPERTIES:
@@ -20,6 +30,16 @@ func constfolder_clear_known(mut ctx: Context)
 
 #+begin_src til
 func constfolder_reset_state(mut ctx: Context)
+#+end_src
+
+* from_source_form
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.from_source_form
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func from_source_form(s: Str) returns Str
 #+end_src
 
 * is_macro_call
@@ -72,65 +92,24 @@ func constfolder_register_fold_scope(mut global: Scope, prog: Expr, mut ctx: Con
 func constfolder_register_core_constants(mut global: Scope, usize_name: Str, mut ctx: Context)
 #+end_src
 
-* Option__ref_Scope
+* Vec__Sym
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.Option__ref_Scope
+:CUSTOM_ID: til.src.self.constfolder.Vec__Sym
 :group: Compiler backend
 :END:
 
 #+begin_src til
-enum Option__ref_Scope {
-    None
-    Some: Scope
-namespace:
-    func is_some(shallow self: Option__ref_Scope) returns shallow Bool
-    func is_none(shallow self: Option__ref_Scope) returns shallow Bool
-    func unwrap_or(self: Option__ref_Scope, default_v: Scope) returns ref Scope
-    func unwrap(self: Option__ref_Scope) returns ref Scope
-    func take(own self: Option__ref_Scope) returns ref Scope
-    ext_func None() returns shallow Option__ref_Scope
-    ext_func Some(val: Scope) returns shallow Option__ref_Scope
-    core_func is(self: Option__ref_Scope, other: Option__ref_Scope) returns shallow Bool
-    func delete(own self: Option__ref_Scope, shallow call_free: Bool)
-    func clone(self: Option__ref_Scope) returns shallow Option__ref_Scope
-    func size() returns shallow U64
-}
+Vec__Sym is a None
 #+end_src
 
-* Option__ref_Scope.unwrap
+* Set__Sym
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.Option__ref_Scope.unwrap
+:CUSTOM_ID: til.src.self.constfolder.Set__Sym
 :group: Compiler backend
 :END:
 
-The contained value; PANICS on None, ala Rust's unwrap. For the
-~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a ~switch~ when both arms do real work, and ~unwrap_or~ when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.
-
 #+begin_src til
-func Option__ref_Scope.unwrap(self: Option__ref_Scope) returns ref Scope
-#+end_src
-
-* Option__ref_Scope.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.Option__ref_Scope.take
-:group: Compiler backend
-:END:
-
-The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an ~Option(Expr)~ returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.
-
-#+begin_src til
-func Option__ref_Scope.take(own self: Option__ref_Scope) returns ref Scope
+Set__Sym is a None
 #+end_src
 
 * swap__Option__Scope
@@ -143,6 +122,16 @@ func Option__ref_Scope.take(own self: Option__ref_Scope) returns ref Scope
 func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
 #+end_src
 
+* swap__Map__Str_FuncType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.swap__Map__Str_FuncType
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func swap__Map__Str_FuncType(mut a: Map__Str_FuncType, mut b: Map__Str_FuncType)
+#+end_src
+
 * swap__Set__Str
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.constfolder.swap__Set__Str
@@ -151,6 +140,16 @@ func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
 
 #+begin_src til
 func swap__Set__Str(mut a: Set__Str, mut b: Set__Str)
+#+end_src
+
+* swap__FfiState
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.swap__FfiState
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func swap__FfiState(mut a: FfiState, mut b: FfiState)
 #+end_src
 
 * safe_ref__Scope

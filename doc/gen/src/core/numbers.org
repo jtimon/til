@@ -1,5 +1,5 @@
 #+TITLE: src/core/numbers.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * U8
@@ -1290,6 +1290,7 @@ namespace:
     core_func add(shallow a: F32, shallow b: F32) returns shallow F32
     core_func sub(shallow a: F32, shallow b: F32) returns shallow F32
     core_func mul(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func fma(shallow a: F32, shallow b: F32, shallow c: F32) returns shallow F32
     core_func div(shallow a: F32, shallow b: F32) returns shallow F32
     core_func eq(shallow a: F32, shallow b: F32) returns shallow Bool
     core_func neq(shallow a: F32, shallow b: F32) returns shallow Bool
@@ -1330,6 +1331,19 @@ Convert from I64 to F32.
 
 #+begin_src til
 func F32.from_i64(shallow val: I64) returns shallow F32
+#+end_src
+
+* F32.fma
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.fma
+:group: Core
+:END:
+
+Fused a*b+c: one final rounding, unlike separate mul and add.
+IEEE NaN/Inf/zero results; NaN payload and sign are unspecified.
+
+#+begin_src til
+core_func F32.fma(shallow a: F32, shallow b: F32, shallow c: F32) returns shallow F32
 #+end_src
 
 * F32.safe_div
@@ -1390,6 +1404,7 @@ namespace:
     core_func add(shallow a: F64, shallow b: F64) returns shallow F64
     core_func sub(shallow a: F64, shallow b: F64) returns shallow F64
     core_func mul(shallow a: F64, shallow b: F64) returns shallow F64
+    core_func fma(shallow a: F64, shallow b: F64, shallow c: F64) returns shallow F64
     core_func div(shallow a: F64, shallow b: F64) returns shallow F64
     core_func eq(shallow a: F64, shallow b: F64) returns shallow Bool
     core_func neq(shallow a: F64, shallow b: F64) returns shallow Bool
@@ -1430,6 +1445,19 @@ Convert from I64 to F64.
 
 #+begin_src til
 func F64.from_i64(shallow val: I64) returns shallow F64
+#+end_src
+
+* F64.fma
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.fma
+:group: Core
+:END:
+
+Fused a*b+c: one final rounding, unlike separate mul and add.
+IEEE NaN/Inf/zero results; NaN payload and sign are unspecified.
+
+#+begin_src til
+core_func F64.fma(shallow a: F64, shallow b: F64, shallow c: F64) returns shallow F64
 #+end_src
 
 * F64.safe_div
@@ -1560,11 +1588,11 @@ UPtr is a None
 :END:
 
 Convert a container-sized byte count to the target's pointer width.
-USize and UPtr are retargeted together before type checking, so this
-cast is either same-width or same-signedness widening on every target.
+Panic if the byte count cannot fit; --usize=64 can exceed a 32-bit
+target's address range. Non-narrowing targets have no runtime check.
 
 #+begin_src til
-func usize_to_uptr(shallow val: U64) returns shallow UPtr
+usize_to_uptr is a None
 #+end_src
 
 * U256

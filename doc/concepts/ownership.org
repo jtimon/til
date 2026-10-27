@@ -91,6 +91,12 @@ share ownership of the VM. Each handle can be destroyed independently;
 the guest globals still belong to their common VM. No reference counters
 are involved. The callback's ~close~ helper is private, called by ~delete~.
 
+Typed callback arguments/results use an explicit snapshot boundary: the input
+Tuple keeps its ownership, borrowed mut parameters copy back even on failure,
+and results are independent host values. This differs from borrowing a native
+configuration record through FFI. Both contracts are documented in
+[[../ffi.org][FFI: retained guest callbacks and mutable native configuration records]].
+
 ** Destruction by context and qualifier
 
 Read this together with qualifiers.org's identical four-context split. "Who

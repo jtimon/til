@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -48,7 +48,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
-<li><a class="current" href="../../src/self/parser.html">src/self/parser.til</a><ul><li><a href="#til.src.self.parser.SymbolPool">SymbolPool</a></li><li><a href="#til.src.self.parser.builtin_primitive_from_name">builtin_primitive_from_name</a></li><li><a href="#til.src.self.parser.builtin_primitive_size_align">builtin_primitive_size_align</a></li><li><a href="#til.src.self.parser.sym_of">sym_of</a></li><li><a href="#til.src.self.parser.builtin_type_from_name">builtin_type_from_name</a></li><li><a href="#til.src.self.parser.builtin_type_from_name_sym">builtin_type_from_name_sym</a></li><li><a href="#til.src.self.parser.decl_type_from_name">decl_type_from_name</a></li><li><a href="#til.src.self.parser.decl_typed">decl_typed</a></li><li><a href="#til.src.self.parser.take_expr">take_expr</a></li><li><a href="#til.src.self.parser.parse">parse</a></li><li><a href="#til.src.self.parser.decl_type_name">decl_type_name</a></li><li><a href="#til.src.self.parser.expr_type_name_ref">expr_type_name_ref</a></li><li><a href="#til.src.self.parser.til_type_name_c">til_type_name_c</a></li><li><a href="#til.src.self.parser.node_name">node_name</a></li><li><a href="#til.src.self.parser.ident_node">ident_node</a></li><li><a href="#til.src.self.parser.literal_num_node">literal_num_node</a></li><li><a href="#til.src.self.parser.field_access_node">field_access_node</a></li><li><a href="#til.src.self.parser.FCALL_ARG_BITS">FCALL_ARG_BITS</a></li><li><a href="#til.src.self.parser.set_own_arg">set_own_arg</a></li><li><a href="#til.src.self.parser.get_own_arg">get_own_arg</a></li><li><a href="#til.src.self.parser.set_splat_arg">set_splat_arg</a></li><li><a href="#til.src.self.parser.get_splat_arg">get_splat_arg</a></li><li><a href="#til.src.self.parser.set_ref_arg">set_ref_arg</a></li><li><a href="#til.src.self.parser.get_ref_arg">get_ref_arg</a></li><li><a href="#til.src.self.parser.fcall_has_ref_args">fcall_has_ref_args</a></li><li><a href="#til.src.self.parser.fcall_data_has_arg_markers">fcall_data_has_arg_markers</a></li><li><a href="#til.src.self.parser.set_keep_outer_arg">set_keep_outer_arg</a></li><li><a href="#til.src.self.parser.get_keep_outer_arg">get_keep_outer_arg</a></li><li><a href="#til.src.self.parser.func_type_name">func_type_name</a></li><li><a href="#til.src.self.parser.Option__Sym">Option__Sym</a></li><li><a href="#til.src.self.parser.Vec__U32">Vec__U32</a></li><li><a href="#til.src.self.parser.Vec__U32.new">Vec__U32.new</a></li><li><a href="#til.src.self.parser.Vec__U32.with_capacity">Vec__U32.with_capacity</a></li><li><a href="#til.src.self.parser.Vec__U32.clear">Vec__U32.clear</a></li><li><a href="#til.src.self.parser.Vec__U32.delete_marked">Vec__U32.delete_marked</a></li><li><a href="#til.src.self.parser.Vec__U32.push">Vec__U32.push</a></li><li><a href="#til.src.self.parser.Vec__U32.append">Vec__U32.append</a></li><li><a href="#til.src.self.parser.Vec__U32.take">Vec__U32.take</a></li><li><a href="#til.src.self.parser.Vec__U32.move_to">Vec__U32.move_to</a></li><li><a href="#til.src.self.parser.Vec__U32.move_from">Vec__U32.move_from</a></li><li><a href="#til.src.self.parser.Vec__U32.unsafe_get">Vec__U32.unsafe_get</a></li><li><a href="#til.src.self.parser.Vec__U32.get">Vec__U32.get</a></li><li><a href="#til.src.self.parser.Vec__U32.pop">Vec__U32.pop</a></li><li><a href="#til.src.self.parser.Vec__U32.remove_at">Vec__U32.remove_at</a></li><li><a href="#til.src.self.parser.Vec__U32.take_prefix">Vec__U32.take_prefix</a></li><li><a href="#til.src.self.parser.Vec__U32.truncate">Vec__U32.truncate</a></li><li><a href="#til.src.self.parser.Vec__U32.unsafe_set">Vec__U32.unsafe_set</a></li><li><a href="#til.src.self.parser.Vec__U32.set">Vec__U32.set</a></li><li><a href="#til.src.self.parser.Vec__U32.push_take">Vec__U32.push_take</a></li><li><a href="#til.src.self.parser.Vec__U32.delete">Vec__U32.delete</a></li><li><a href="#til.src.self.parser.Vec__U32.clone">Vec__U32.clone</a></li><li><a href="#til.src.self.parser.Option__U32">Option__U32</a></li><li><a href="#til.src.self.parser.Option__U32.unwrap">Option__U32.unwrap</a></li><li><a href="#til.src.self.parser.Option__U32.take">Option__U32.take</a></li><li><a href="#til.src.self.parser.Set__Str">Set__Str</a></li><li><a href="#til.src.self.parser.Set__Str.new">Set__Str.new</a></li><li><a href="#til.src.self.parser.Set__Str.with_capacity">Set__Str.with_capacity</a></li><li><a href="#til.src.self.parser.Set__Str.clear">Set__Str.clear</a></li><li><a href="#til.src.self.parser.Set__Str.has">Set__Str.has</a></li><li><a href="#til.src.self.parser.Set__Str.add">Set__Str.add</a></li><li><a href="#til.src.self.parser.Set__Str.remove">Set__Str.remove</a></li><li><a href="#til.src.self.parser.Map__Str_Str">Map__Str_Str</a></li><li><a href="#til.src.self.parser.Map__Str_Str.new">Map__Str_Str.new</a></li><li><a href="#til.src.self.parser.Map__Str_Str.with_capacity">Map__Str_Str.with_capacity</a></li><li><a href="#til.src.self.parser.Map__Str_Str.clear">Map__Str_Str.clear</a></li><li><a href="#til.src.self.parser.Map__Str_Str.has">Map__Str_Str.has</a></li><li><a href="#til.src.self.parser.Map__Str_Str.get">Map__Str_Str.get</a></li><li><a href="#til.src.self.parser.Map__Str_Str.set">Map__Str_Str.set</a></li><li><a href="#til.src.self.parser.Map__Str_Str.remove">Map__Str_Str.remove</a></li><li><a href="#til.src.self.parser.Vec__Bool">Vec__Bool</a></li><li><a href="#til.src.self.parser.Vec__Bool.new">Vec__Bool.new</a></li><li><a href="#til.src.self.parser.Vec__Bool.with_capacity">Vec__Bool.with_capacity</a></li><li><a href="#til.src.self.parser.Vec__Bool.clear">Vec__Bool.clear</a></li><li><a href="#til.src.self.parser.Vec__Bool.delete_marked">Vec__Bool.delete_marked</a></li><li><a href="#til.src.self.parser.Vec__Bool.push">Vec__Bool.push</a></li><li><a href="#til.src.self.parser.Vec__Bool.append">Vec__Bool.append</a></li><li><a href="#til.src.self.parser.Vec__Bool.take">Vec__Bool.take</a></li><li><a href="#til.src.self.parser.Vec__Bool.move_to">Vec__Bool.move_to</a></li><li><a href="#til.src.self.parser.Vec__Bool.move_from">Vec__Bool.move_from</a></li><li><a href="#til.src.self.parser.Vec__Bool.unsafe_get">Vec__Bool.unsafe_get</a></li><li><a href="#til.src.self.parser.Vec__Bool.get">Vec__Bool.get</a></li><li><a href="#til.src.self.parser.Vec__Bool.pop">Vec__Bool.pop</a></li><li><a href="#til.src.self.parser.Vec__Bool.remove_at">Vec__Bool.remove_at</a></li><li><a href="#til.src.self.parser.Vec__Bool.take_prefix">Vec__Bool.take_prefix</a></li><li><a href="#til.src.self.parser.Vec__Bool.truncate">Vec__Bool.truncate</a></li><li><a href="#til.src.self.parser.Vec__Bool.unsafe_set">Vec__Bool.unsafe_set</a></li><li><a href="#til.src.self.parser.Vec__Bool.set">Vec__Bool.set</a></li><li><a href="#til.src.self.parser.Vec__Bool.push_take">Vec__Bool.push_take</a></li><li><a href="#til.src.self.parser.Vec__Bool.delete">Vec__Bool.delete</a></li><li><a href="#til.src.self.parser.Vec__Bool.clone">Vec__Bool.clone</a></li><li><a href="#til.src.self.parser.swap__Expr">swap__Expr</a></li><li><a href="#til.src.self.parser.adopt__U32">adopt__U32</a></li><li><a href="#til.src.self.parser.adopt__Bool">adopt__Bool</a></li></ul></li>
+<li><a class="current" href="../../src/self/parser.html">src/self/parser.til</a><ul><li><a href="#til.src.self.parser.SymbolPool">SymbolPool</a></li><li><a href="#til.src.self.parser.builtin_primitive_from_name">builtin_primitive_from_name</a></li><li><a href="#til.src.self.parser.builtin_primitive_size_align">builtin_primitive_size_align</a></li><li><a href="#til.src.self.parser.sym_of">sym_of</a></li><li><a href="#til.src.self.parser.builtin_type_from_name">builtin_type_from_name</a></li><li><a href="#til.src.self.parser.builtin_type_from_name_sym">builtin_type_from_name_sym</a></li><li><a href="#til.src.self.parser.decl_type_from_name">decl_type_from_name</a></li><li><a href="#til.src.self.parser.decl_typed">decl_typed</a></li><li><a href="#til.src.self.parser.take_expr">take_expr</a></li><li><a href="#til.src.self.parser.parse">parse</a></li><li><a href="#til.src.self.parser.decl_type_name_ref">decl_type_name_ref</a></li><li><a href="#til.src.self.parser.decl_type_name">decl_type_name</a></li><li><a href="#til.src.self.parser.expr_type_name_ref">expr_type_name_ref</a></li><li><a href="#til.src.self.parser.til_type_name_c_ref">til_type_name_c_ref</a></li><li><a href="#til.src.self.parser.til_type_name_c">til_type_name_c</a></li><li><a href="#til.src.self.parser.node_name">node_name</a></li><li><a href="#til.src.self.parser.ident_node">ident_node</a></li><li><a href="#til.src.self.parser.literal_num_node">literal_num_node</a></li><li><a href="#til.src.self.parser.field_access_node">field_access_node</a></li><li><a href="#til.src.self.parser.FCALL_ARG_BITS">FCALL_ARG_BITS</a></li><li><a href="#til.src.self.parser.set_own_arg">set_own_arg</a></li><li><a href="#til.src.self.parser.get_own_arg">get_own_arg</a></li><li><a href="#til.src.self.parser.set_splat_arg">set_splat_arg</a></li><li><a href="#til.src.self.parser.get_splat_arg">get_splat_arg</a></li><li><a href="#til.src.self.parser.set_ref_arg">set_ref_arg</a></li><li><a href="#til.src.self.parser.get_ref_arg">get_ref_arg</a></li><li><a href="#til.src.self.parser.fcall_has_ref_args">fcall_has_ref_args</a></li><li><a href="#til.src.self.parser.fcall_data_has_arg_markers">fcall_data_has_arg_markers</a></li><li><a href="#til.src.self.parser.set_keep_outer_arg">set_keep_outer_arg</a></li><li><a href="#til.src.self.parser.get_keep_outer_arg">get_keep_outer_arg</a></li><li><a href="#til.src.self.parser.func_type_name">func_type_name</a></li><li><a href="#til.src.self.parser.Option__Sym">Option__Sym</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.new">Vec__call_Vec_Str.new</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.with_capacity">Vec__call_Vec_Str.with_capacity</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.clear">Vec__call_Vec_Str.clear</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.delete_marked">Vec__call_Vec_Str.delete_marked</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.push">Vec__call_Vec_Str.push</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.append">Vec__call_Vec_Str.append</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.take">Vec__call_Vec_Str.take</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.move_to">Vec__call_Vec_Str.move_to</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.move_from">Vec__call_Vec_Str.move_from</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.unsafe_get">Vec__call_Vec_Str.unsafe_get</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.get">Vec__call_Vec_Str.get</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.pop">Vec__call_Vec_Str.pop</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.remove_at">Vec__call_Vec_Str.remove_at</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.take_prefix">Vec__call_Vec_Str.take_prefix</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.truncate">Vec__call_Vec_Str.truncate</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.unsafe_set">Vec__call_Vec_Str.unsafe_set</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.set">Vec__call_Vec_Str.set</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.push_take">Vec__call_Vec_Str.push_take</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.delete">Vec__call_Vec_Str.delete</a></li><li><a href="#til.src.self.parser.Vec__call_Vec_Str.clone">Vec__call_Vec_Str.clone</a></li><li><a href="#til.src.self.parser.Vec__U32">Vec__U32</a></li><li><a href="#til.src.self.parser.Vec__U32.new">Vec__U32.new</a></li><li><a href="#til.src.self.parser.Vec__U32.with_capacity">Vec__U32.with_capacity</a></li><li><a href="#til.src.self.parser.Vec__U32.clear">Vec__U32.clear</a></li><li><a href="#til.src.self.parser.Vec__U32.delete_marked">Vec__U32.delete_marked</a></li><li><a href="#til.src.self.parser.Vec__U32.push">Vec__U32.push</a></li><li><a href="#til.src.self.parser.Vec__U32.append">Vec__U32.append</a></li><li><a href="#til.src.self.parser.Vec__U32.take">Vec__U32.take</a></li><li><a href="#til.src.self.parser.Vec__U32.move_to">Vec__U32.move_to</a></li><li><a href="#til.src.self.parser.Vec__U32.move_from">Vec__U32.move_from</a></li><li><a href="#til.src.self.parser.Vec__U32.unsafe_get">Vec__U32.unsafe_get</a></li><li><a href="#til.src.self.parser.Vec__U32.get">Vec__U32.get</a></li><li><a href="#til.src.self.parser.Vec__U32.pop">Vec__U32.pop</a></li><li><a href="#til.src.self.parser.Vec__U32.remove_at">Vec__U32.remove_at</a></li><li><a href="#til.src.self.parser.Vec__U32.take_prefix">Vec__U32.take_prefix</a></li><li><a href="#til.src.self.parser.Vec__U32.truncate">Vec__U32.truncate</a></li><li><a href="#til.src.self.parser.Vec__U32.unsafe_set">Vec__U32.unsafe_set</a></li><li><a href="#til.src.self.parser.Vec__U32.set">Vec__U32.set</a></li><li><a href="#til.src.self.parser.Vec__U32.push_take">Vec__U32.push_take</a></li><li><a href="#til.src.self.parser.Vec__U32.delete">Vec__U32.delete</a></li><li><a href="#til.src.self.parser.Vec__U32.clone">Vec__U32.clone</a></li><li><a href="#til.src.self.parser.Option__U32">Option__U32</a></li><li><a href="#til.src.self.parser.Option__U32.unwrap">Option__U32.unwrap</a></li><li><a href="#til.src.self.parser.Option__U32.take">Option__U32.take</a></li><li><a href="#til.src.self.parser.Set__Str">Set__Str</a></li><li><a href="#til.src.self.parser.Set__Str.new">Set__Str.new</a></li><li><a href="#til.src.self.parser.Set__Str.with_capacity">Set__Str.with_capacity</a></li><li><a href="#til.src.self.parser.Set__Str.unsafe_get">Set__Str.unsafe_get</a></li><li><a href="#til.src.self.parser.Set__Str.clear">Set__Str.clear</a></li><li><a href="#til.src.self.parser.Set__Str.has">Set__Str.has</a></li><li><a href="#til.src.self.parser.Set__Str.add">Set__Str.add</a></li><li><a href="#til.src.self.parser.Set__Str.remove">Set__Str.remove</a></li><li><a href="#til.src.self.parser.Map__Str_Str">Map__Str_Str</a></li><li><a href="#til.src.self.parser.Map__Str_Str.new">Map__Str_Str.new</a></li><li><a href="#til.src.self.parser.Map__Str_Str.with_capacity">Map__Str_Str.with_capacity</a></li><li><a href="#til.src.self.parser.Map__Str_Str.clear">Map__Str_Str.clear</a></li><li><a href="#til.src.self.parser.Map__Str_Str.has">Map__Str_Str.has</a></li><li><a href="#til.src.self.parser.Map__Str_Str.get">Map__Str_Str.get</a></li><li><a href="#til.src.self.parser.Map__Str_Str.set">Map__Str_Str.set</a></li><li><a href="#til.src.self.parser.Map__Str_Str.remove">Map__Str_Str.remove</a></li><li><a href="#til.src.self.parser.Vec__Bool">Vec__Bool</a></li><li><a href="#til.src.self.parser.Vec__Bool.new">Vec__Bool.new</a></li><li><a href="#til.src.self.parser.Vec__Bool.with_capacity">Vec__Bool.with_capacity</a></li><li><a href="#til.src.self.parser.Vec__Bool.clear">Vec__Bool.clear</a></li><li><a href="#til.src.self.parser.Vec__Bool.delete_marked">Vec__Bool.delete_marked</a></li><li><a href="#til.src.self.parser.Vec__Bool.push">Vec__Bool.push</a></li><li><a href="#til.src.self.parser.Vec__Bool.append">Vec__Bool.append</a></li><li><a href="#til.src.self.parser.Vec__Bool.take">Vec__Bool.take</a></li><li><a href="#til.src.self.parser.Vec__Bool.move_to">Vec__Bool.move_to</a></li><li><a href="#til.src.self.parser.Vec__Bool.move_from">Vec__Bool.move_from</a></li><li><a href="#til.src.self.parser.Vec__Bool.unsafe_get">Vec__Bool.unsafe_get</a></li><li><a href="#til.src.self.parser.Vec__Bool.get">Vec__Bool.get</a></li><li><a href="#til.src.self.parser.Vec__Bool.pop">Vec__Bool.pop</a></li><li><a href="#til.src.self.parser.Vec__Bool.remove_at">Vec__Bool.remove_at</a></li><li><a href="#til.src.self.parser.Vec__Bool.take_prefix">Vec__Bool.take_prefix</a></li><li><a href="#til.src.self.parser.Vec__Bool.truncate">Vec__Bool.truncate</a></li><li><a href="#til.src.self.parser.Vec__Bool.unsafe_set">Vec__Bool.unsafe_set</a></li><li><a href="#til.src.self.parser.Vec__Bool.set">Vec__Bool.set</a></li><li><a href="#til.src.self.parser.Vec__Bool.push_take">Vec__Bool.push_take</a></li><li><a href="#til.src.self.parser.Vec__Bool.delete">Vec__Bool.delete</a></li><li><a href="#til.src.self.parser.Vec__Bool.clone">Vec__Bool.clone</a></li><li><a href="#til.src.self.parser.swap__Vec__Str">swap__Vec__Str</a></li><li><a href="#til.src.self.parser.swap__Expr">swap__Expr</a></li><li><a href="#til.src.self.parser.adopt__Vec__Str">adopt__Vec__Str</a></li><li><a href="#til.src.self.parser.adopt__U32">adopt__U32</a></li><li><a href="#til.src.self.parser.adopt__Bool">adopt__Bool</a></li></ul></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
@@ -76,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -95,12 +96,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">struct {
     mut names : Vec__Str
+    mut retired_names : Vec__call_Vec_Str
     mut buckets : Vec__U32
     mut next : U32
 namespace:
     func rebuild(mut self: SymbolPool, shallow count: U64)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns shallow U32
+    func grow_names(mut self: SymbolPool)
     func resolve(self: SymbolPool, sym: U32) returns ref Str
     func size() returns shallow U64
     func clone(self: SymbolPool) returns SymbolPool
@@ -160,7 +163,13 @@ namespace:
 <article class="doc-entry" id="til.src.self.parser.parse">
 <h2>parse</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32, shallow quiet: Bool) returns Expr
+<pre><code class="language-til">proc (tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32, shallow quiet: Bool, mut diagnostics: Vec__SourceDiagnostic) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.decl_type_name_ref">
+<h2>decl_type_name_ref</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (dd: Declaration, symbols: SymbolPool) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.decl_type_name">
@@ -173,6 +182,12 @@ namespace:
 <h2>expr_type_name_ref</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Option__ref_Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.til_type_name_c_ref">
+<h2>til_type_name_c_ref</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (t: Type, symbols: SymbolPool) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.til_type_name_c">
@@ -281,6 +296,272 @@ namespace:
 <h2>Option__Sym</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til"> is a None
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str">
+<h2>Vec__call_Vec_Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__call_Vec_Str
+    func with_capacity(shallow n: U64) returns Vec__call_Vec_Str
+    func len(self: Vec__call_Vec_Str) returns shallow U64
+    func clear(mut self: Vec__call_Vec_Str)
+    func delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
+    func push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
+    func append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+    func take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
+    func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+    func unsafe_get(self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64) returns ref Vec__Str
+    func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
+    func remove_at(mut self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64)
+    func take_prefix(mut self: Vec__call_Vec_Str, shallow n: U64) returns Vec__call_Vec_Str
+    func truncate(mut self: Vec__call_Vec_Str, shallow n: U64)
+    func unsafe_set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str)
+    func set(mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str, mut _err_kind: I64)
+    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U64)
+    func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
+    func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func size() returns shallow U64
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.new">
+<h2>Vec__call_Vec_Str.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__call_Vec_Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.with_capacity">
+<h2>Vec__call_Vec_Str.with_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (shallow n: U64) returns Vec__call_Vec_Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.clear">
+<h2>Vec__call_Vec_Str.clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.delete_marked">
+<h2>Vec__call_Vec_Str.delete_marked</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.push">
+<h2>Vec__call_Vec_Str.push</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Append an element to the end. <code>val</code> is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, own val: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.append">
+<h2>Vec__call_Vec_Str.append</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.take">
+<h2>Vec__call_Vec_Str.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.move_to">
+<h2>Vec__call_Vec_Str.move_to</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.move_from">
+<h2>Vec__call_Vec_Str.move_from</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: <code>dest.move_from(own src)</code>.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.unsafe_get">
+<h2>Vec__call_Vec_Str.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.get">
+<h2>Vec__call_Vec_Str.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64) returns ref Vec__Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.pop">
+<h2>Vec__call_Vec_Str.pop</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str) returns Vec__Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.remove_at">
+<h2>Vec__call_Vec_Str.remove_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, shallow i: U64, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.take_prefix">
+<h2>Vec__call_Vec_Str.take_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, shallow n: U64) returns Vec__call_Vec_Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.truncate">
+<h2>Vec__call_Vec_Str.truncate</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, shallow n: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.unsafe_set">
+<h2>Vec__call_Vec_Str.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.set">
+<h2>Vec__call_Vec_Str.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, shallow i: U64, own val: Vec__Str, mut _err_kind: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.push_take">
+<h2>Vec__call_Vec_Str.push_take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.delete">
+<h2>Vec__call_Vec_Str.delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless <code>call_free</code> is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__call_Vec_Str, shallow call_free: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.clone">
+<h2>Vec__call_Vec_Str.clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32">
@@ -619,6 +900,7 @@ namespace:
     func new() returns Set__Str
     func with_capacity(shallow n: U64) returns Set__Str
     func len(self: Set__Str) returns shallow U64
+    func unsafe_get(self: Set__Str, i: U64) returns ref Str
     func clear(mut self: Set__Str)
     func has(self: Set__Str, val: Str) returns shallow Bool
     func add(mut self: Set__Str, own val: Str)
@@ -653,6 +935,19 @@ where the final size is known or well predicted; <code>new()</code> grows
 doubling. n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
 <pre><code class="language-til">func (shallow n: U64) returns Set__Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Set__Str.unsafe_get">
+<h2>Set__Str.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index <code>i</code> (in sorted order) with NO bounds check. The caller must
+prove <code>i &lt; len()</code>. This is what makes <code>for x in set</code> work: for-in
+uses <code>unsafe_get</code> when a type has it, and its <code>_fi &lt; len()</code>
+termination test proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Set__Str, i: U64) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Set__Str.clear">
@@ -1051,10 +1346,22 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__Bool) returns Vec__Bool
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.parser.swap__Vec__Str">
+<h2>swap__Vec__Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut a: Vec__Str, mut b: Vec__Str)
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.parser.swap__Expr">
 <h2>swap__Expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func (mut a: Expr, mut b: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.adopt__Vec__Str">
+<h2>adopt__Vec__Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Vec__Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.adopt__U32">

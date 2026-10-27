@@ -1,5 +1,5 @@
 #+TITLE: vendor/bindings/libffi.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * FFI_TYPE_VOID
@@ -416,6 +416,11 @@ struct ffi_cif {
     mut bytes : U32
     mut flags : U32
     mut extra_cif_fields : U32
+    mut extra_cif_fields_2 : U32
+    mut extra_cif_fields_3 : U32
+    mut extra_cif_fields_4 : U32
+    mut extra_cif_fields_5 : U32
+    mut extra_cif_fields_6 : U32
 namespace:
     func size() returns shallow U64
     func clone(self: ffi_cif) returns ffi_cif

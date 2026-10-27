@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-1299f248c
+#+SUBTITLE: til 0.0.1-9d6752f54
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -90,133 +90,6 @@ Set__Sym is a None
 
 #+begin_src til
 Vec__Sym is a None
-#+end_src
-
-* Array__USize
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize
-:group: Compiler backend
-:END:
-
-#+begin_src til
-struct Array__USize {
-    own mut data : U8
-    cap : USize
-namespace:
-    func new(shallow cap: U64) returns Array__USize
-    func len(self: Array__USize) returns shallow U64
-    func unsafe_get(self: Array__USize, i: U64) returns ref U64
-    func get(self: Array__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
-    func unsafe_set(mut self: Array__USize, shallow i: U64, own val: U64)
-    func set(mut self: Array__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
-    func delete(own self: Array__USize, shallow call_free: Bool)
-    func concat(self: Array__USize, other: Array__USize) returns Array__USize
-    func to_vec(self: Array__USize) returns Vec__USize
-    func clone(self: Array__USize) returns Array__USize
-    func size() returns shallow U64
-}
-#+end_src
-
-* Array__USize.new
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.new
-:group: Compiler backend
-:END:
-
-Create a zero-initialized Array with the given capacity.
-
-#+begin_src til
-func Array__USize.new(shallow cap: U64) returns Array__USize
-#+end_src
-
-* Array__USize.unsafe_get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.unsafe_get
-:group: Compiler backend
-:END:
-
-Unchecked element access: ref to the element at index ~i~ with
-NO bounds check. The caller must prove ~i < len()~. This is the
-unchecked core that ~get~ wraps; for-in uses it directly because
-its ~_fi < len()~ termination test already proves the index in
-bounds (issue #284).
-
-#+begin_src til
-func Array__USize.unsafe_get(self: Array__USize, i: U64) returns ref U64
-#+end_src
-
-* Array__USize.get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.get
-:group: Compiler backend
-:END:
-
-Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
-past the end; call as ~arr.get(i)!~ to panic on a bad index.
-
-#+begin_src til
-func Array__USize.get(self: Array__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
-#+end_src
-
-* Array__USize.unsafe_set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.unsafe_set
-:group: Compiler backend
-:END:
-
-Overwrite the element at index ~i~ without a bounds check, dropping
-the old value. Caller guarantees ~i < self.cap~; the write-side
-mirror of unsafe_get (issue #284).
-
-#+begin_src til
-func Array__USize.unsafe_set(mut self: Array__USize, shallow i: U64, own val: U64)
-#+end_src
-
-* Array__USize.set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.set
-:group: Compiler backend
-:END:
-
-Overwrite the element at index ~i~. Drops the old value. ~val~ is
-owned. Throws OutOfBounds if ~i~ is past the end; call as
-~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
-
-#+begin_src til
-func Array__USize.set(mut self: Array__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
-#+end_src
-
-* Array__USize.concat
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.concat
-:group: Compiler backend
-:END:
-
-#342: a fresh Array holding ~self~'s elements followed by ~other~'s.
-Both sources keep theirs -- every element is cloned, exactly as
-~clone~ does -- so neither is moved out from under its owner. The
-mixed-splat variadic lowering builds its collector with this: the
-fixed arguments become one Array, the splatted Array is the other,
-and the call is then the pure-splat form the desugar already handles.
-
-#+begin_src til
-func Array__USize.concat(self: Array__USize, other: Array__USize) returns Array__USize
-#+end_src
-
-* Array__USize.to_vec
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__USize.to_vec
-:group: Compiler backend
-:END:
-
-#342: a fresh Vec holding a clone of every element, ~self~ intact.
-The ~vec(T, x, ..arr)~ lowering ends here: a splat's length is a
-runtime value, so the literal's block is folded into one Array with
-~concat~ and converted, instead of the desugar hand-building a push
-loop whose nodes no later pass would infer.
-
-#+begin_src til
-func Array__USize.to_vec(self: Array__USize) returns Vec__USize
 #+end_src
 
 * Array__Bool
@@ -344,133 +217,6 @@ loop whose nodes no later pass would infer.
 
 #+begin_src til
 func Array__Bool.to_vec(self: Array__Bool) returns Vec__Bool
-#+end_src
-
-* Array__U8
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8
-:group: Compiler backend
-:END:
-
-#+begin_src til
-struct Array__U8 {
-    own mut data : U8
-    cap : USize
-namespace:
-    func new(shallow cap: U64) returns Array__U8
-    func len(self: Array__U8) returns shallow U64
-    func unsafe_get(self: Array__U8, i: U64) returns ref U8
-    func get(self: Array__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
-    func unsafe_set(mut self: Array__U8, shallow i: U64, own val: U8)
-    func set(mut self: Array__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
-    func delete(own self: Array__U8, shallow call_free: Bool)
-    func concat(self: Array__U8, other: Array__U8) returns Array__U8
-    func to_vec(self: Array__U8) returns Vec__U8
-    func clone(self: Array__U8) returns Array__U8
-    func size() returns shallow U64
-}
-#+end_src
-
-* Array__U8.new
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.new
-:group: Compiler backend
-:END:
-
-Create a zero-initialized Array with the given capacity.
-
-#+begin_src til
-func Array__U8.new(shallow cap: U64) returns Array__U8
-#+end_src
-
-* Array__U8.unsafe_get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.unsafe_get
-:group: Compiler backend
-:END:
-
-Unchecked element access: ref to the element at index ~i~ with
-NO bounds check. The caller must prove ~i < len()~. This is the
-unchecked core that ~get~ wraps; for-in uses it directly because
-its ~_fi < len()~ termination test already proves the index in
-bounds (issue #284).
-
-#+begin_src til
-func Array__U8.unsafe_get(self: Array__U8, i: U64) returns ref U8
-#+end_src
-
-* Array__U8.get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.get
-:group: Compiler backend
-:END:
-
-Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
-past the end; call as ~arr.get(i)!~ to panic on a bad index.
-
-#+begin_src til
-func Array__U8.get(self: Array__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
-#+end_src
-
-* Array__U8.unsafe_set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.unsafe_set
-:group: Compiler backend
-:END:
-
-Overwrite the element at index ~i~ without a bounds check, dropping
-the old value. Caller guarantees ~i < self.cap~; the write-side
-mirror of unsafe_get (issue #284).
-
-#+begin_src til
-func Array__U8.unsafe_set(mut self: Array__U8, shallow i: U64, own val: U8)
-#+end_src
-
-* Array__U8.set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.set
-:group: Compiler backend
-:END:
-
-Overwrite the element at index ~i~. Drops the old value. ~val~ is
-owned. Throws OutOfBounds if ~i~ is past the end; call as
-~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
-
-#+begin_src til
-func Array__U8.set(mut self: Array__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
-#+end_src
-
-* Array__U8.concat
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.concat
-:group: Compiler backend
-:END:
-
-#342: a fresh Array holding ~self~'s elements followed by ~other~'s.
-Both sources keep theirs -- every element is cloned, exactly as
-~clone~ does -- so neither is moved out from under its owner. The
-mixed-splat variadic lowering builds its collector with this: the
-fixed arguments become one Array, the splatted Array is the other,
-and the call is then the pure-splat form the desugar already handles.
-
-#+begin_src til
-func Array__U8.concat(self: Array__U8, other: Array__U8) returns Array__U8
-#+end_src
-
-* Array__U8.to_vec
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.Array__U8.to_vec
-:group: Compiler backend
-:END:
-
-#342: a fresh Vec holding a clone of every element, ~self~ intact.
-The ~vec(T, x, ..arr)~ lowering ends here: a splat's length is a
-runtime value, so the literal's block is folded into one Array with
-~concat~ and converted, instead of the desugar hand-building a push
-loop whose nodes no later pass would infer.
-
-#+begin_src til
-func Array__U8.to_vec(self: Array__U8) returns Vec__U8
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge
@@ -803,6 +549,260 @@ Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
 func Vec__priv___src_self_garbager_til__GcBorrowEdge.clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+#+end_src
+
+* Array__USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Array__USize {
+    own mut data : U8
+    cap : USize
+namespace:
+    func new(shallow cap: U64) returns Array__USize
+    func len(self: Array__USize) returns shallow U64
+    func unsafe_get(self: Array__USize, i: U64) returns ref U64
+    func get(self: Array__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
+    func unsafe_set(mut self: Array__USize, shallow i: U64, own val: U64)
+    func set(mut self: Array__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
+    func delete(own self: Array__USize, shallow call_free: Bool)
+    func concat(self: Array__USize, other: Array__USize) returns Array__USize
+    func to_vec(self: Array__USize) returns Vec__USize
+    func clone(self: Array__USize) returns Array__USize
+    func size() returns shallow U64
+}
+#+end_src
+
+* Array__USize.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.new
+:group: Compiler backend
+:END:
+
+Create a zero-initialized Array with the given capacity.
+
+#+begin_src til
+func Array__USize.new(shallow cap: U64) returns Array__USize
+#+end_src
+
+* Array__USize.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.unsafe_get
+:group: Compiler backend
+:END:
+
+Unchecked element access: ref to the element at index ~i~ with
+NO bounds check. The caller must prove ~i < len()~. This is the
+unchecked core that ~get~ wraps; for-in uses it directly because
+its ~_fi < len()~ termination test already proves the index in
+bounds (issue #284).
+
+#+begin_src til
+func Array__USize.unsafe_get(self: Array__USize, i: U64) returns ref U64
+#+end_src
+
+* Array__USize.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.get
+:group: Compiler backend
+:END:
+
+Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
+past the end; call as ~arr.get(i)!~ to panic on a bad index.
+
+#+begin_src til
+func Array__USize.get(self: Array__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
+#+end_src
+
+* Array__USize.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.unsafe_set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.cap~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Array__USize.unsafe_set(mut self: Array__USize, shallow i: U64, own val: U64)
+#+end_src
+
+* Array__USize.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~. Drops the old value. ~val~ is
+owned. Throws OutOfBounds if ~i~ is past the end; call as
+~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Array__USize.set(mut self: Array__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
+#+end_src
+
+* Array__USize.concat
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.concat
+:group: Compiler backend
+:END:
+
+#342: a fresh Array holding ~self~'s elements followed by ~other~'s.
+Both sources keep theirs -- every element is cloned, exactly as
+~clone~ does -- so neither is moved out from under its owner. The
+mixed-splat variadic lowering builds its collector with this: the
+fixed arguments become one Array, the splatted Array is the other,
+and the call is then the pure-splat form the desugar already handles.
+
+#+begin_src til
+func Array__USize.concat(self: Array__USize, other: Array__USize) returns Array__USize
+#+end_src
+
+* Array__USize.to_vec
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__USize.to_vec
+:group: Compiler backend
+:END:
+
+#342: a fresh Vec holding a clone of every element, ~self~ intact.
+The ~vec(T, x, ..arr)~ lowering ends here: a splat's length is a
+runtime value, so the literal's block is folded into one Array with
+~concat~ and converted, instead of the desugar hand-building a push
+loop whose nodes no later pass would infer.
+
+#+begin_src til
+func Array__USize.to_vec(self: Array__USize) returns Vec__USize
+#+end_src
+
+* Array__U8
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Array__U8 {
+    own mut data : U8
+    cap : USize
+namespace:
+    func new(shallow cap: U64) returns Array__U8
+    func len(self: Array__U8) returns shallow U64
+    func unsafe_get(self: Array__U8, i: U64) returns ref U8
+    func get(self: Array__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
+    func unsafe_set(mut self: Array__U8, shallow i: U64, own val: U8)
+    func set(mut self: Array__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
+    func delete(own self: Array__U8, shallow call_free: Bool)
+    func concat(self: Array__U8, other: Array__U8) returns Array__U8
+    func to_vec(self: Array__U8) returns Vec__U8
+    func clone(self: Array__U8) returns Array__U8
+    func size() returns shallow U64
+}
+#+end_src
+
+* Array__U8.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.new
+:group: Compiler backend
+:END:
+
+Create a zero-initialized Array with the given capacity.
+
+#+begin_src til
+func Array__U8.new(shallow cap: U64) returns Array__U8
+#+end_src
+
+* Array__U8.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.unsafe_get
+:group: Compiler backend
+:END:
+
+Unchecked element access: ref to the element at index ~i~ with
+NO bounds check. The caller must prove ~i < len()~. This is the
+unchecked core that ~get~ wraps; for-in uses it directly because
+its ~_fi < len()~ termination test already proves the index in
+bounds (issue #284).
+
+#+begin_src til
+func Array__U8.unsafe_get(self: Array__U8, i: U64) returns ref U8
+#+end_src
+
+* Array__U8.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.get
+:group: Compiler backend
+:END:
+
+Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
+past the end; call as ~arr.get(i)!~ to panic on a bad index.
+
+#+begin_src til
+func Array__U8.get(self: Array__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
+#+end_src
+
+* Array__U8.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.unsafe_set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.cap~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Array__U8.unsafe_set(mut self: Array__U8, shallow i: U64, own val: U8)
+#+end_src
+
+* Array__U8.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~. Drops the old value. ~val~ is
+owned. Throws OutOfBounds if ~i~ is past the end; call as
+~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Array__U8.set(mut self: Array__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
+#+end_src
+
+* Array__U8.concat
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.concat
+:group: Compiler backend
+:END:
+
+#342: a fresh Array holding ~self~'s elements followed by ~other~'s.
+Both sources keep theirs -- every element is cloned, exactly as
+~clone~ does -- so neither is moved out from under its owner. The
+mixed-splat variadic lowering builds its collector with this: the
+fixed arguments become one Array, the splatted Array is the other,
+and the call is then the pure-splat form the desugar already handles.
+
+#+begin_src til
+func Array__U8.concat(self: Array__U8, other: Array__U8) returns Array__U8
+#+end_src
+
+* Array__U8.to_vec
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Array__U8.to_vec
+:group: Compiler backend
+:END:
+
+#342: a fresh Vec holding a clone of every element, ~self~ intact.
+The ~vec(T, x, ..arr)~ lowering ends here: a splat's length is a
+runtime value, so the literal's block is folded into one Array with
+~concat~ and converted, instead of the desugar hand-building a push
+loop whose nodes no later pass would infer.
+
+#+begin_src til
+func Array__U8.to_vec(self: Array__U8) returns Vec__U8
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo
@@ -1874,26 +1874,6 @@ func Vec__U8.clone(self: Vec__U8) returns Vec__U8
 func swap__priv___src_self_garbager_til__LocalInfo(mut a: priv___src_self_garbager_til__LocalInfo, mut b: priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
-* adopt__U8
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.adopt__U8
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func adopt__U8(mut dest: Dynamic, own src: U8)
-#+end_src
-
-* safe_ref__FunctionDef
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.safe_ref__FunctionDef
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func safe_ref__FunctionDef(value: FunctionDef) returns shallow Option__ref_FunctionDef
-#+end_src
-
 * adopt__priv___src_self_garbager_til__GcBorrowEdge
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.garbager.adopt__priv___src_self_garbager_til__GcBorrowEdge
@@ -1902,6 +1882,16 @@ func safe_ref__FunctionDef(value: FunctionDef) returns shallow Option__ref_Funct
 
 #+begin_src til
 func adopt__priv___src_self_garbager_til__GcBorrowEdge(mut dest: Dynamic, own src: priv___src_self_garbager_til__GcBorrowEdge)
+#+end_src
+
+* adopt__U8
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.adopt__U8
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__U8(mut dest: Dynamic, own src: U8)
 #+end_src
 
 * adopt__priv___src_self_garbager_til__LocalInfo
@@ -1922,4 +1912,14 @@ func adopt__priv___src_self_garbager_til__LocalInfo(mut dest: Dynamic, own src: 
 
 #+begin_src til
 func adopt__priv___src_self_garbager_til__GcCfgBlock(mut dest: Dynamic, own src: priv___src_self_garbager_til__GcCfgBlock)
+#+end_src
+
+* safe_ref__FunctionDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.safe_ref__FunctionDef
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func safe_ref__FunctionDef(value: FunctionDef) returns shallow Option__ref_FunctionDef
 #+end_src

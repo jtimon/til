@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-1299f248c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -59,7 +59,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Compiler backend</h2><ul>
 <li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
-<li><a class="current" href="../../src/self/constfolder.html">src/self/constfolder.til</a><ul><li><a href="#til.src.self.constfolder.constfolder_clear_known">constfolder_clear_known</a></li><li><a href="#til.src.self.constfolder.constfolder_reset_state">constfolder_reset_state</a></li><li><a href="#til.src.self.constfolder.is_macro_call">is_macro_call</a></li><li><a href="#til.src.self.constfolder.constfolder_normalize_stack_decls_in_body">constfolder_normalize_stack_decls_in_body</a></li><li><a href="#til.src.self.constfolder.process_body">process_body</a></li><li><a href="#til.src.self.constfolder.constfolder_register_fold_scope">constfolder_register_fold_scope</a></li><li><a href="#til.src.self.constfolder.constfolder_register_core_constants">constfolder_register_core_constants</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope">Option__ref_Scope</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope.unwrap">Option__ref_Scope.unwrap</a></li><li><a href="#til.src.self.constfolder.Option__ref_Scope.take">Option__ref_Scope.take</a></li><li><a href="#til.src.self.constfolder.swap__Option__Scope">swap__Option__Scope</a></li><li><a href="#til.src.self.constfolder.swap__Set__Str">swap__Set__Str</a></li><li><a href="#til.src.self.constfolder.safe_ref__Scope">safe_ref__Scope</a></li></ul></li>
+<li><a class="current" href="../../src/self/constfolder.html">src/self/constfolder.til</a><ul><li><a href="#til.src.self.constfolder.constfolder_eval_generator_function">constfolder_eval_generator_function</a></li><li><a href="#til.src.self.constfolder.constfolder_clear_known">constfolder_clear_known</a></li><li><a href="#til.src.self.constfolder.constfolder_reset_state">constfolder_reset_state</a></li><li><a href="#til.src.self.constfolder.from_source_form">from_source_form</a></li><li><a href="#til.src.self.constfolder.is_macro_call">is_macro_call</a></li><li><a href="#til.src.self.constfolder.constfolder_normalize_stack_decls_in_body">constfolder_normalize_stack_decls_in_body</a></li><li><a href="#til.src.self.constfolder.process_body">process_body</a></li><li><a href="#til.src.self.constfolder.constfolder_register_fold_scope">constfolder_register_fold_scope</a></li><li><a href="#til.src.self.constfolder.constfolder_register_core_constants">constfolder_register_core_constants</a></li><li><a href="#til.src.self.constfolder.Vec__Sym">Vec__Sym</a></li><li><a href="#til.src.self.constfolder.Set__Sym">Set__Sym</a></li><li><a href="#til.src.self.constfolder.swap__Option__Scope">swap__Option__Scope</a></li><li><a href="#til.src.self.constfolder.swap__Map__Str_FuncType">swap__Map__Str_FuncType</a></li><li><a href="#til.src.self.constfolder.swap__Set__Str">swap__Set__Str</a></li><li><a href="#til.src.self.constfolder.swap__FfiState">swap__FfiState</a></li><li><a href="#til.src.self.constfolder.safe_ref__Scope">safe_ref__Scope</a></li></ul></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
 <li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
@@ -76,6 +76,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -90,6 +91,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/constfolder.til</h1>
+<article class="doc-entry" id="til.src.self.constfolder.constfolder_eval_generator_function">
+<h2>constfolder_eval_generator_function</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc (mut scope: Scope, mut function: Expr, definitions: Map__Str_Expr, mut globals: Expr, mut ctx: Context) returns shallow I32
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.constfolder.constfolder_clear_known">
 <h2>constfolder_clear_known</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
@@ -100,6 +107,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>constfolder_reset_state</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">func (mut ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.constfolder.from_source_form">
+<h2>from_source_form</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func (s: Str) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.is_macro_call">
@@ -132,55 +145,16 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func (mut global: Scope, usize_name: Str, mut ctx: Context)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Scope">
-<h2>Option__ref_Scope</h2>
+<article class="doc-entry" id="til.src.self.constfolder.Vec__Sym">
+<h2>Vec__Sym</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">enum {
-    None
-    Some: Scope
-namespace:
-    func is_some(shallow self: Option__ref_Scope) returns shallow Bool
-    func is_none(shallow self: Option__ref_Scope) returns shallow Bool
-    func unwrap_or(self: Option__ref_Scope, default_v: Scope) returns ref Scope
-    func unwrap(self: Option__ref_Scope) returns ref Scope
-    func take(own self: Option__ref_Scope) returns ref Scope
-    ext_func None() returns shallow Option__ref_Scope
-    ext_func Some(val: Scope) returns shallow Option__ref_Scope
-    core_func is(self: Option__ref_Scope, other: Option__ref_Scope) returns shallow Bool
-    func delete(own self: Option__ref_Scope, shallow call_free: Bool)
-    func clone(self: Option__ref_Scope) returns shallow Option__ref_Scope
-    func size() returns shallow U64
-}
+<pre><code class="language-til"> is a None
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Scope.unwrap">
-<h2>Option__ref_Scope.unwrap</h2>
+<article class="doc-entry" id="til.src.self.constfolder.Set__Sym">
+<h2>Set__Sym</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<div class="doc-body">
-<p>The contained value; PANICS on None, ala Rust's unwrap. For the
-<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.</p>
-</div>
-<pre><code class="language-til">func (self: Option__ref_Scope) returns ref Scope
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.constfolder.Option__ref_Scope.take">
-<h2>Option__ref_Scope.take</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<div class="doc-body">
-<p>The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.</p>
-</div>
-<pre><code class="language-til">func (own self: Option__ref_Scope) returns ref Scope
+<pre><code class="language-til"> is a None
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.swap__Option__Scope">
@@ -189,10 +163,22 @@ a clone would copy a whole subtree and break node identity.</p>
 <pre><code class="language-til">func (mut a: Option__Scope, mut b: Option__Scope)
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.constfolder.swap__Map__Str_FuncType">
+<h2>swap__Map__Str_FuncType</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func (mut a: Map__Str_FuncType, mut b: Map__Str_FuncType)
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.constfolder.swap__Set__Str">
 <h2>swap__Set__Str</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
 <pre><code class="language-til">func (mut a: Set__Str, mut b: Set__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.constfolder.swap__FfiState">
+<h2>swap__FfiState</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func (mut a: FfiState, mut b: FfiState)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.constfolder.safe_ref__Scope">
