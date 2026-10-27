@@ -215,6 +215,104 @@ priv check_prelude_declarations := proc(body: Expr, path: Str, units: Vec(Progra
     return true
 }
 
+priv native_api_calls_external := func(e: Expr, path: Str, ctx: Context, mut visited: Set(Str)) returns Bool {
+    // A factory defining a local closure is implementation, not a native
+    // wrapper merely because that closure eventually calls native code.
+    if e.node_type.is(NodeType.FuncDef).or(e.node_type.is(NodeType.BodyValue)) { return false }
+    if e.node_type.is(NodeType.FCall).and(fcall_is_direct(e)).and(e.children.len() > 0) {
+        switch e.children[0].node_type {
+        case .Ident(id):
+            ref name : Str = id.ident_name(ctx.symbols.names)
+            target := ctx.scope.lookup_func_name(name, ctx.symbols)
+            if target.is_some() {
+                ref definition : Expr = target.unwrap()
+                ref fd : FunctionDef = funcdef_of(definition)
+                if name.starts_with("til_").and(name.contains("__")).and(fd.sig.func_type.is_ext()) { return true }
+                binding := ctx.scope.get_binding_name(name, ctx.symbols)
+                if binding.is_some().and(binding.unwrap().path == path)
+                    .and(definition.children.len() > 0).and(visited.has(name).not()) {
+                    visited.add(own name.clone())
+                    if native_api_calls_external(definition.children[0], path, ctx, visited) { return true }
+                }
+            }
+        case:
+        }
+    }
+    for child : Expr in e.children {
+        if native_api_calls_external(child, path, ctx, visited) { return true }
+    }
+    return false
+}
+
+priv native_api_wrapper := func(def: Expr, path: Str, ctx: Context) returns Bool {
+    if def.children.len() == 0 { return false }
+    mut visited := Set(Str).new()
+    return native_api_calls_external(def.children[0], path, ctx, visited)
+}
+
+// Recognize the native API declarations emitted by the library builder, even
+// when a packager adds mode lib or renames the file. No filename/header marker
+// is authoritative: exported functions delegate to native symbols, types have
+// native lifecycle wrappers, and data slots are external rather than a second
+// independently initialized copy of library state.
+priv unit_is_native_api := func(path: Str, unit: ImportUnit, ctx: Context) returns Bool {
+    if unit.host_source.len() > 0 { return false }
+    mut native_symbols := false
+    for stmt : Expr in unit.ast.children {
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+        ref declaration : Declaration = decl_of(stmt)
+        if declaration.external_symbol.len() > 0 { native_symbols = true }
+        switch stmt.children[0].node_type {
+        case .FuncDef(fd):
+            if fd.sig.func_type.is_ext().and(declaration.name.starts_with("til_")).and(declaration.name.contains("__")) { native_symbols = true }
+        case:
+        }
+    }
+    if native_symbols.not() { return false }
+    for stmt : Expr in unit.ast.children {
+        if import_path_for_stmt(stmt, path, ctx.symbols).len() > 0 { continue }
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { return false }
+        ref declaration : Declaration = decl_of(stmt)
+        if ctx.type_gen_synths.has(declaration.name).or(ctx.generic_func_synth_names.has(declaration.name)) { continue }
+        if declaration.external_symbol.len() > 0 { continue }
+        ref value : Expr = stmt.children[0]
+        switch value.node_type {
+        case .FuncDef(fd):
+            if fd.sig.func_type.is_ext().or(value.children.len() == 0) { continue }
+            if declaration.is_priv.not().and(native_api_wrapper(value, path, ctx).not()) { return false }
+        case .StructDef, .EnumDef:
+            if ctx.type_gen_synths.has(declaration.name) { continue }
+            mut native_lifecycle := false
+            ref members : Vec(Declaration) = def_ns_decls(value)
+            for i in 0..members.len() {
+                ref member : Declaration = members[i]
+                if member.external_symbol.len() > 0 { continue }
+                if member.default_value.is_none() { return false }
+                ref member_value : Expr = member.default_expr()
+                switch member_value.node_type {
+                case .FuncDef(fd):
+                    if fd.auto_generated.or(member.is_priv) { continue }
+                    if native_api_wrapper(member_value, path, ctx).not() { return false }
+                    ref name : Str = def_ns_name_at(value, i)
+                    if name.eq("clone").or(name.eq("delete")).or(name.eq("size")) { native_lifecycle = true }
+                case:
+                    // Enum variant constants are part of their type schema.
+                    if value.node_type.is(NodeType.EnumDef) {
+                        if enum_variant_index(value, def_ns_name_at(value, i)) >= 0 { continue }
+                    }
+                    return false
+                }
+            }
+            if native_lifecycle.not() { return false }
+        case .Ident:
+            ref binding : TypeBinding = ctx.scope.get_binding_name(declaration.name, ctx.symbols).unwrap()
+            if binding.is_type_alias.or(binding.is_func_decl).not() { return false }
+        case: return false
+        }
+    }
+    return true
+}
+
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
@@ -4387,6 +4485,11 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
         return type_errors
     }
 
+    for unit : ProgramUnit in lp.units {
+        if unit.path == lp.path { continue }
+        ref mut imported : ImportUnit = lp.ctx.imported[unit.path]
+        imported.native_bindings = unit_is_native_api(unit.path, imported, lp.ctx)
+    }
     return 0
 }
 

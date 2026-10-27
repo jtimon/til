@@ -92,6 +92,17 @@ main := proc() returns I64 {
         "native_config_identity := proc(mut value: NativeConfig) returns ref NativeConfig { noop_proc(); value.width++; return value }\n",
         "native_config_reset := proc() { noop_proc(); native_config_state = NativeConfig(title = format(\"host \", \"title\")) }\n",
         "native_config_take := proc(own title: Str) { noop_proc(); native_config_state.title = title }\n",
+        "NativeChoice := enum { Empty, Number: I64, Real: F64, Text: Str, Config: NativeConfig }\n",
+        "NativeMaybeConfig := enum { None, Some: NativeConfig }\n",
+        "NativeAction := proc()\nNativeCallableChoice := enum { None, Action: NativeAction }\n",
+        "native_callable_choice := func() returns NativeCallableChoice { return NativeCallableChoice.None }\n",
+        "mut native_choice_state := NativeChoice.Empty\nmut native_maybe_state := NativeMaybeConfig.None\n",
+        "native_choice_echo := func(shallow value: NativeChoice) returns NativeChoice { return value.clone() }\n",
+        "native_choice_store := proc(own value: NativeChoice) { noop_proc(); native_choice_state = value }\n",
+        "native_maybe_store := proc(own value: NativeMaybeConfig) { noop_proc(); native_maybe_state = value }\n",
+        "native_choice_title := proc() returns Str { noop_proc(); switch native_choice_state { case .Config(value): return value.title.clone(); case: panic(\"not config\") } }\n",
+        "native_maybe_title := proc() returns Str { noop_proc(); switch native_maybe_state { case .Some(value): return value.title.clone(); case: panic(\"no config\") } }\n",
+        "native_enum_reset := proc() { noop_proc(); native_choice_state = NativeChoice.Empty; native_maybe_state = NativeMaybeConfig.None }\n",
         "NativeError := struct { code : I64 = 0 }\n",
         "native_fail := func() throws NativeError { throw NativeError(code = 7) }\n"))
     native_build := Cmd.new(installed_til, "build", "--asan", "vm_native.til")
@@ -136,6 +147,9 @@ main := proc() returns I64 {
     }
     if native_run.out().contains("installed TilVm host prelude PASS").not() {
         panic("native TilVm prelude test did not finish: ", native_run.out(), native_run.err())
+    }
+    if native_run.out().contains("installed TilVm native enum PASS").not() {
+        panic("native TilVm enum test did not finish: ", native_run.out(), native_run.err())
     }
     println("install TilVm PASS")
     return 0

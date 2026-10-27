@@ -6,7 +6,7 @@ Add a backend that runs til programs in a Lua host by emitting Lua source.
 The C backend remains the default and the only bootstrap path; normal builds
 and ~make test~ must not require Lua or LuaJIT.
 
-Related: [[./370.org][#370]] (embedding til in the Lua/Lisp editor sense).
+Related: [[../fixed/370.org][#370]] (embedding til in the Lua/Lisp editor sense).
 This backend lets til code enter existing Lua hosts such as Neovim, while #370
 provides the complementary native design in which a til host loads guest til.
 It must not be mistaken for, or block, that all-til embedding API.

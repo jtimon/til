@@ -1700,6 +1700,7 @@ typedef struct FFIEntry {
     Bool host_layout;
     ffi_cif *cif;
     U8 *arg_types;
+    I64 throw_kind_index;
 } FFIEntry;
 
 
@@ -2018,6 +2019,7 @@ typedef struct ImportUnit {
     Str prelude_import;
     Str host_source;
     Vec__Expr link_directives;
+    Bool native_bindings;
 } ImportUnit;
 
 

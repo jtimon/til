@@ -1142,6 +1142,8 @@ ImportUnit := struct {
     // Link directives move out of executable AST children, but retain their
     // module/line provenance for embedded loading diagnostics.
     link_directives := Vec(Expr).new()
+    // Typed native API role, captured before folding erases wrapper calls.
+    native_bindings := false
 namespace:
     implicit_imports := func(self: ImportUnit) returns Vec(Str) {
         mut imports := Vec(Str).new()

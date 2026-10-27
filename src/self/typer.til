@@ -1056,6 +1056,13 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         }
     }
 
+    // A throwing enum function has no value on its error path. Preserve the
+    // existing synthetic zero-storage constructor instead of treating the
+    // EnumDef as a StructDef or invoking an application variant constructor.
+    if fcall_of(e).is_throw_default.and(sdef.node_type.is(NodeType.EnumDef)) {
+        e.set_til_type(Type.EnumSym(ctx.symbols.intern(resolve_type_alias(scope, name, ctx.symbols))))
+        return true
+    }
     ref mut ctor_sdd : StructDef = structdef_of(sdef)
     // #432: an interface has no values of its own -- only a struct or enum
     // that implements it does. The typer's boxes (make_owned_iface_box,

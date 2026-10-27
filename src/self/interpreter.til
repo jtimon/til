@@ -162,7 +162,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         // Normalize the wrapper, then clone its payload by the normal host
         // ownership walk. The temporary only borrows the payload pointers.
         cloned : Dynamic = heap_clone(struct_name, dst_data, ctx)
-        if struct_name == "Vec__Str" { ffi_release_vec_str_buffer(dst_data, true, ctx) }
+        ffi_release_conversion_storage(struct_name, dst_data, true, ctx)
         EvalHeap.heap_free(own dst_data)
         return cloned
     }
@@ -560,7 +560,13 @@ priv enum_clone_str_payload := func(mut data: Dynamic, ctx: Context) {
 // payload ownership metadata; value bytes stay raw.
 priv heap_clone_enum := func(enum_name: Str, data: Dynamic, data_size: USize, ctx: Context) returns Dynamic {
     mut pdata : Dynamic = EvalHeap.heap_alloc(data_size)
-    memcpy(pdata, data, data_size.to_uptr())
+    if ffi_place_is_foreign(data, ctx) {
+        ffi_copy_struct_into(enum_name, data, false, pdata, true, ctx)
+        cloned : Dynamic = heap_clone_enum(enum_name, pdata, data_size, ctx)
+        ffi_release_conversion_storage(enum_name, pdata, true, ctx)
+        EvalHeap.heap_free(own pdata)
+        return cloned
+    } else { memcpy(pdata, data, data_size.to_uptr()) }
     enum_payload_deep_clone(enum_name, pdata, ctx)
     return pdata
 }
@@ -1751,16 +1757,31 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
     if layout.layout_status != FFI_OK { panic("cannot borrow foreign layout: ", type_name) }
     ffi_remember_place(type_name, data, root, ctx)
     ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
-    ref sd : StructDef = structdef_of(def)
-    for i in 0..sd.fields.len() {
-        ref fd : Declaration = sd.fields[i]
-        fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
-        ref slot : Dynamic = ptr_add(data, fl.offset)
-        if fd.own_type.is(OwnType.Shallow) {
-            ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), slot, root, visited, ctx)
-        } else {
-            ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), deref(slot), root, visited, ctx)
+    switch def.node_type {
+    case .EnumDef(ed):
+        index := enum_variant_index_for_tag(def, enum_data_tag_key(data, def))
+        if index < 0 {
+            if ffi_enum_empty_storage(type_name, data, false, ctx) { return }
+            panic("invalid borrowed native enum tag: ", type_name)
         }
+        ref variant : VariantDef = ed.variants[index.to_usize()]
+        if variant.payload_type.len().eq(0).or(variant.payload_funcsig) { return }
+        ref slot : Dynamic = ffi_enum_payload_slot(type_name, data, false, ctx)
+        if variant.payload_ref.or(enum_is_niche(def)) {
+            ffi_borrow_place_walk(variant.payload_type, deref(slot), root, visited, ctx)
+        } else { ffi_borrow_place_walk(variant.payload_type, slot, root, visited, ctx) }
+    case .StructDef(sd):
+        for i in 0..sd.fields.len() {
+            ref fd : Declaration = sd.fields[i]
+            fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
+            ref slot : Dynamic = ptr_add(data, fl.offset)
+            if fd.own_type.is(OwnType.Shallow) {
+                ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), slot, root, visited, ctx)
+            } else {
+                ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), deref(slot), root, visited, ctx)
+            }
+        }
+    case: UNREACHABLE("FFI layout without an aggregate definition")
     }
 }
 
@@ -3771,6 +3792,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
     ref mut callee_expr : Expr = e.children[0]
     info.is_ref = false
     info.is_word = destination.is_null().and(raw_type_is_prim(call_type, ctx))
+    if fcall_of(e).is_throw_default.and(is_enum_type(call_type)) {
+        empty : Dynamic = EvalHeap.heap_alloc(dispatch_enum_size(type_name_ref(call_type, ctx.symbols), ctx))
+        return raw_result_finish(call_type, empty, destination, false, ctx)
+    }
 
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
@@ -5241,6 +5266,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         if drop_old { heap_drop_struct(sname, dst, ctx) }
         if ffi_place_is_foreign(dst, ctx) {
             ffi_copy_struct_into(sname, src, true, dst, false, ctx, true)
+            ffi_release_conversion_storage(sname, src, true, ctx)
         } else {
             memcpy(dst, src, ctx_total_size(sname, ctx).to_uptr())
         }
@@ -5252,7 +5278,10 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
         if drop_old { heap_drop_enum(ename, dst, ctx) }
         mut total : USize = ctx_total_size(ename, ctx)
         if total < 8 { total = 8 }
-        memcpy(dst, src, total.to_uptr())
+        if ffi_place_is_foreign(dst, ctx) {
+            ffi_copy_struct_into(ename, src, true, dst, false, ctx, true)
+            ffi_release_conversion_storage(ename, src, true, ctx)
+        } else { memcpy(dst, src, total.to_uptr()) }
         owned_src3 : Dynamic = src
         EvalHeap.heap_free(own owned_src3)
         return true
@@ -6821,9 +6850,13 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     }
     runtime_ext_path := realpath_str(lp.ext_c_path)
     runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
+    // Layouts can refer to types in sibling units, including cyclic imports.
+    // Register the complete aggregate inventory before preparing any CIF.
+    for upath : Str in lp.unit_paths() {
+        ffi_init_struct_defs_append(lp.ctx.imported[upath].ast, lp.ctx)
+    }
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
-        ffi_init_struct_defs_append(iu.ast, lp.ctx)
         runtime_module := iu.host_source.len().eq(0)
             .and(realpath_str(upath).starts_with(runtime_src_prefix))
         ffi_init_scan_program(iu.ast, lp.ctx, runtime_module)
@@ -7332,6 +7365,7 @@ FFIEntry := struct {
     host_layout := false
     own cif : ffi_cif
     own arg_types : U8 = 0
+    throw_kind_index : I64 = -1
 namespace:
     // The REPL clones the whole LoadedProgram -- Context and ffi.entries
     // included -- on every turn (repl_clone_loaded_program), and
@@ -7369,7 +7403,7 @@ namespace:
             return_type = self.return_type, nparam = np,
             return_is_shallow = self.return_is_shallow,
             return_is_ref = self.return_is_ref,
-            host_layout = self.host_layout)
+            host_layout = self.host_layout, throw_kind_index = self.throw_kind_index)
         // Patch AFTER the ctor adopts the buffers, and through the entry's
         // own fields: stashing the bare local into the cif first would add
         // a garbager borrow edge (FieldAssign to a ref field pins the
@@ -7638,14 +7672,14 @@ priv ffi_init_struct_defs := func(program: Expr, mut ctx: Context) {
     ffi_init_struct_defs_append(program, ctx)
 }
 
-// Append struct defs found in program into ctx.ffi.struct_defs (does not reset).
+// Append aggregate defs to the existing FFI layout inventory (does not reset).
 ffi_init_struct_defs_append := func(program: Expr, mut ctx: Context) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
         }
         ref sdef : Expr = stmt.children[0]
-        if sdef.node_type.is(NodeType.StructDef).not() {
+        if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)).not() {
             continue
         }
         switch stmt.node_type {
@@ -8830,6 +8864,8 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
     ref def_box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
     ref struct_def : Expr = def_box.ptr
     switch struct_def.node_type {
+    case .EnumDef:
+        return ffi_enum_layout(type_name, key, struct_def, ctx, host_layout)
     case .StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
         // A field-less (opaque) ext_struct has no libffi layout of its own:
@@ -8874,10 +8910,89 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
         status := ffi_get_struct_offsets(ffi_host_default_abi(), st, offsets_arg)
         box := FFITypePtrBox(ptr = st, offsets = offsets, layout_status = status)
         ctx.ffi.type_cache.set(key, own box)
+        if type_name == "Vec__Str" { build_struct_ffi_type("Str", ctx, host_layout) }
         return ctx.ffi.type_cache[key]
     case:
         panic(__LOC__, "build_struct_ffi_type: node is not a StructDef")
     }
+}
+
+// The emitted union always contains a pointer-alignment member. Together with
+// the integer tag this prevents a homogeneous floating aggregate ABI. At most
+// two register words are both integer-class on SysV x64; larger enums use the
+// aggregate-memory convention. Integer cells reproduce the union's size and
+// alignment without pretending its inactive variants are sequential fields.
+priv ffi_enum_layout := proc(type_name: Str, key: Str, def: Expr, mut ctx: Context,
+    host_layout: Bool) returns ref FFITypePtrBox {
+    niche := enum_is_niche(def)
+    mut cells : USize = 0
+    ref pointer_type : ffi_type = ffi_type_ref("ffi_type_pointer")
+    mut size := pointer_type.size.to_usize()
+    mut alignment := pointer_type.alignment.cast(USize)
+    if niche.not().and(enum_has_payloads(def)) {
+        for variant : VariantDef in enumdef_of(def).variants {
+            if variant.payload_type.len() == 0 { continue }
+            ref payload : ffi_type = ffi_enum_payload_type(variant, ctx, host_layout)
+            if payload.size.to_usize() > size { size = payload.size.to_usize() }
+            if payload.alignment.cast(USize) > alignment { alignment = payload.alignment.cast(USize) }
+        }
+    }
+    ref cell : ffi_type = ffi_enum_cell_type(alignment, type_name)
+    if niche.not().and(enum_has_payloads(def)) {
+        cells = (size + cell.size.to_usize() - 1) / cell.size.to_usize()
+    }
+    count := cells + 1
+    mut elements : Dynamic = calloc(count + 1, Dynamic.size())
+    if niche { write_ptr(elements, ffi_type_ref("ffi_type_pointer")) }
+    else { write_ptr(elements, known_ffi_type(enum_tag_type(def), ctx, host_layout).unwrap()) }
+    for i in 0..cells { write_ptr(ptr_add(elements, (i + 1) * Dynamic.size()), cell) }
+    mut descriptor : ffi_type = calloc(1, ffi_type.size())
+    descriptor.type = FFI_TYPE_STRUCT.to_u16()
+    descriptor.elements = elements
+    mut offsets : Dynamic = calloc(count + 1, U64.size())
+    ref mut offset_argument : USize = to_ptr(offsets)
+    status := ffi_get_struct_offsets(ffi_host_default_abi(), descriptor, offset_argument)
+    ctx.ffi.type_cache.set(key, own FFITypePtrBox(ptr = descriptor, offsets = offsets, layout_status = status))
+    // Install the pointer carrier before following an owned niche payload:
+    // recursive shapes such as Option(Node) -> Node -> Option(Node) reuse it.
+    if niche {
+        ref variant : VariantDef = enumdef_of(def).variants[enum_niche_some_index(def).to_usize()]
+        if variant.payload_ref.not() { build_struct_ffi_type(variant.payload_type, ctx, host_layout) }
+    }
+    return ctx.ffi.type_cache[key]
+}
+
+priv ffi_enum_payload_type := proc(variant: VariantDef, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+    if variant.payload_ref.or(variant.payload_funcsig) { return ffi_type_ref("ffi_type_pointer") }
+    return known_ffi_type(variant.payload_type, ctx, host_layout).unwrap()
+}
+
+priv ffi_enum_payload_slot := func(type_name: Str, data: Dynamic, host_layout: Bool, ctx: Context) returns ref Dynamic {
+    ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
+    if enum_is_niche(def) { return to_ptr(data) }
+    ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
+    ref offset : U64 = ptr_add(layout.offsets, 8)
+    return ptr_add(data, offset.to_uptr())
+}
+
+// Error-only return storage is zeroed even when zero is not a declared tag.
+// It owns no payload. Conversion and destruction preserve that absence; an
+// unknown tag carrying any nonzero data remains an ABI error.
+priv ffi_enum_empty_storage := func(type_name: Str, data: Dynamic, host_layout: Bool, ctx: Context) returns Bool {
+    ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
+    for i in 0..layout.ptr.size.to_usize() {
+        ref byte : U8 = ptr_add(data, i.to_uptr())
+        if byte != 0 { return false }
+    }
+    return true
+}
+
+priv ffi_enum_cell_type := func(alignment: USize, type_name: Str) returns ref ffi_type {
+    ref word32 : ffi_type = ffi_type_ref("ffi_type_uint32")
+    if alignment == word32.alignment.cast(USize) { return word32 }
+    ref word64 : ffi_type = ffi_type_ref("ffi_type_uint64")
+    if alignment == word64.alignment.cast(USize) { return word64 }
+    panic("unsupported native enum alignment: ", type_name)
 }
 
 priv build_struct_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
@@ -9703,18 +9818,20 @@ priv ffi_release_vec_str_buffer := func(header: Dynamic, host_layout: Bool, ctx:
 }
 
 priv ffi_marshal_struct_into := proc(type_name: Str, src: Dynamic, src_host: Bool,
-                                     mut dst: Dynamic, dst_host: Bool, mut ctx: Context, transfer_owned: Bool = false) {
+                                     mut dst: Dynamic, dst_host: Bool, mut ctx: Context, transfer_owned: Bool = false,
+                                     reuse_owned: Bool = false) {
     build_struct_ffi_type(type_name, ctx, src_host)
     build_struct_ffi_type(type_name, ctx, dst_host)
     if type_name == "Vec__Str" {
         build_struct_ffi_type("Str", ctx, src_host)
         build_struct_ffi_type("Str", ctx, dst_host)
     }
-    ffi_copy_struct_into(type_name, src, src_host, dst, dst_host, ctx, transfer_owned)
+    ffi_copy_struct_into(type_name, src, src_host, dst, dst_host, ctx, transfer_owned, reuse_owned)
 }
 
 priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
-                                 mut dst: Dynamic, dst_host: Bool, ctx: Context, transfer_owned: Bool = false) {
+                                 mut dst: Dynamic, dst_host: Bool, ctx: Context, transfer_owned: Bool = false,
+                                 reuse_owned: Bool = false) {
     // A guest literal is static only for its Context's lifetime, and a view
     // borrows another guest value. An owned native store/argument can outlive
     // both. Materialize those characters before transferring the Str header;
@@ -9738,7 +9855,67 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
     ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
     ref def : Expr = box.ptr
     switch def.node_type {
+    case .EnumDef(ed):
+        if enum_is_niche(def) {
+            ref variant : VariantDef = ed.variants[enum_niche_some_index(def).to_usize()]
+            if variant.payload_ref { memcpy(dst, src, Dynamic.size()); return }
+            ref source_box : Dynamic = deref(src)
+            if source_box.is_null() {
+                if reuse_owned { ffi_release_conversion_storage(type_name, dst, dst_host, ctx) }
+                write_ptr(dst, bits_word(0))
+                return
+            }
+            mut destination_box : Dynamic = 0
+            if reuse_owned { destination_box = deref(dst) }
+            reused := destination_box.is_null().not()
+            if reused.not() {
+                ref layout : FFITypePtrBox = ffi_cached_layout(variant.payload_type, ctx, dst_host)
+                destination_box = calloc(1, layout.ptr.size.to_usize())
+            }
+            ffi_copy_struct_into(variant.payload_type, source_box, src_host,
+                destination_box, dst_host, ctx, transfer_owned, reused)
+            write_ptr(dst, destination_box)
+            return
+        }
+        mut reuse_payload := false
+        if reuse_owned {
+            reuse_payload = enum_data_tag_key(src, def) == enum_data_tag_key(dst, def)
+            if reuse_payload.not() { ffi_release_conversion_storage(type_name, dst, dst_host, ctx) }
+        }
+        memcpy(dst, src, enum_tag_size(def))
+        index := enum_variant_index_for_tag(def, enum_data_tag_key(src, def))
+        if index < 0 {
+            if ffi_enum_empty_storage(type_name, src, src_host, ctx) {
+                ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, dst_host)
+                memset(dst, 0, layout.ptr.size.to_uptr())
+                return
+            }
+            panic("invalid native enum tag: ", type_name)
+        }
+        ref variant : VariantDef = ed.variants[index.to_usize()]
+        if variant.payload_type.len() == 0 { return }
+        ref source_layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, src_host)
+        ref destination_layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, dst_host)
+        ref source_offset : U64 = ptr_add(source_layout.offsets, 8)
+        ref destination_offset : U64 = ptr_add(destination_layout.offsets, 8)
+        ref source_payload : Dynamic = ptr_add(src, source_offset.to_uptr())
+        ref mut destination_payload : Dynamic = ptr_add(dst, destination_offset.to_uptr())
+        if variant.payload_ref.or(variant.payload_funcsig) {
+            memcpy(destination_payload, source_payload, Dynamic.size())
+        } else if variant.payload_type.eq("USize").or(variant.payload_type.eq("UPtr")) {
+            ffi_copy_width_field(type_name, variant.payload_type, "", source_payload, src_host,
+                destination_payload, dst_host, ctx)
+        } else if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)) {
+            ffi_copy_struct_into(variant.payload_type, source_payload, src_host,
+                destination_payload, dst_host, ctx, transfer_owned, reuse_payload)
+        } else {
+            payload_type := type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)
+            memcpy(destination_payload, source_payload, raw_type_size(payload_type, ctx))
+        }
     case .StructDef(sd):
+        if reuse_owned.and(type_name == "Vec__Str").and(src_host != dst_host) {
+            ffi_release_vec_str_buffer(dst, dst_host, ctx)
+        }
         ref src_layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, src_host)
         if src_layout.layout_status != FFI_OK {
             panic("libffi cannot compute source layout for ", type_name)
@@ -9764,7 +9941,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             } else {
                 ref field_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
-                    ffi_copy_struct_into(decl_type_name_ref(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx, transfer_owned)
+                    ffi_copy_struct_into(decl_type_name_ref(fd, ctx.symbols), src_field, src_host, dst_field, dst_host, ctx, transfer_owned, reuse_owned)
                 } else {
                     memcpy(dst_field, src_field, field_type.size.to_usize())
                 }
@@ -9791,6 +9968,46 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
         }
     case:
         panic("FFI aggregate is not a struct: ", type_name)
+    }
+}
+
+// Conversion owns aggregate carrier allocations, not their borrowed/transferred
+// leaf values. Release only those carriers after copy-back or result adoption.
+priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, host_layout: Bool, ctx: Context) {
+    if type_name == "Vec__Str" { ffi_release_vec_str_buffer(data, host_layout, ctx); return }
+    ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
+    switch def.node_type {
+    case .EnumDef(ed):
+        index := enum_variant_index_for_tag(def, enum_data_tag_key(data, def))
+        if index < 0 {
+            if ffi_enum_empty_storage(type_name, data, host_layout, ctx) { return }
+            panic("invalid converted enum tag: ", type_name)
+        }
+        ref variant : VariantDef = ed.variants[index.to_usize()]
+        if variant.payload_type.len().eq(0).or(variant.payload_ref).or(variant.payload_funcsig) { return }
+        if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)).not() { return }
+        if enum_is_niche(def) {
+            ref stored_box : Dynamic = deref(data)
+            mut box : Dynamic = stored_box
+            ffi_release_conversion_storage(variant.payload_type, box, host_layout, ctx)
+            free(own box)
+            write_ptr(data, bits_word(0))
+        } else {
+            ffi_release_conversion_storage(variant.payload_type,
+                ffi_enum_payload_slot(type_name, data, host_layout, ctx), host_layout, ctx)
+        }
+    case .StructDef(sd):
+        ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
+        for i in 0..sd.fields.len() {
+            ref field : Declaration = sd.fields[i]
+            if field.own_type.is(OwnType.Shallow)
+                .and(is_aggregate(declaration_resolved_type(field, ctx.scope, ctx.symbols))) {
+                ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
+                ffi_release_conversion_storage(decl_type_name_ref(field, ctx.symbols),
+                    ptr_add(data, offset.to_uptr()), host_layout, ctx)
+            }
+        }
+    case: UNREACHABLE("conversion storage without aggregate definition")
     }
 }
 
@@ -9822,6 +10039,42 @@ priv ffi_vec_str_reference_offset := func(header: Dynamic, borrowed: Dynamic,
 
 // A reference returned into a converted argument must point back into the
 // caller's original object, not into the temporary freed after ffi_call.
+priv ffi_contains_reference := func(type_name: Str, data: Dynamic, borrowed: Dynamic,
+    host_layout: Bool, ctx: Context) returns Bool {
+    ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
+    address := word_bits(borrowed)
+    start := word_bits(data)
+    if address.gte(start).and(address.lt(start + layout.ptr.size)) { return true }
+    if type_name == "Vec__Str" { return ffi_vec_str_reference_offset(data, borrowed, host_layout, ctx).is_some() }
+    ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
+    switch def.node_type {
+    case .EnumDef(ed):
+        index := enum_variant_index_for_tag(def, enum_data_tag_key(data, def))
+        if index < 0 {
+            if ffi_enum_empty_storage(type_name, data, host_layout, ctx) { return false }
+            panic("invalid native enum reference tag: ", type_name)
+        }
+        ref variant : VariantDef = ed.variants[index.to_usize()]
+        if variant.payload_type.len().eq(0).or(variant.payload_ref).or(variant.payload_funcsig) { return false }
+        if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)).not() { return false }
+        ref slot : Dynamic = ffi_enum_payload_slot(type_name, data, host_layout, ctx)
+        if enum_is_niche(def) { return ffi_contains_reference(variant.payload_type, deref(slot), borrowed, host_layout, ctx) }
+        return ffi_contains_reference(variant.payload_type, slot, borrowed, host_layout, ctx)
+    case .StructDef(sd):
+        for i in 0..sd.fields.len() {
+            ref field : Declaration = sd.fields[i]
+            if field.own_type.is(OwnType.Shallow)
+                .and(is_aggregate(declaration_resolved_type(field, ctx.scope, ctx.symbols))) {
+                ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
+                if ffi_contains_reference(decl_type_name_ref(field, ctx.symbols),
+                    ptr_add(data, offset.to_uptr()), borrowed, host_layout, ctx) { return true }
+            }
+        }
+    case: UNREACHABLE("native reference without aggregate definition")
+    }
+    return false
+}
+
 priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: Dynamic,
                                   borrowed: Dynamic, converted_host: Bool, original_host: Bool,
                                   ctx: Context) returns Dynamic {
@@ -9844,13 +10097,45 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
     if borrowed.ptr_eq(converted) { result : Dynamic = original; return result }
     ref from : FFITypePtrBox = ffi_cached_layout(type_name, ctx, converted_host)
     ref into : FFITypePtrBox = ffi_cached_layout(type_name, ctx, original_host)
-    ref sd : StructDef = structdef_of(ctx.ffi.struct_defs[type_name].ptr)
     delta := word_bits(borrowed) - word_bits(converted)
+    ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
+    if def.node_type.is(NodeType.EnumDef) {
+        index := enum_variant_index_for_tag(def, enum_data_tag_key(converted, def))
+        if index < 0 { panic("invalid native enum reference tag: ", type_name) }
+        ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
+        if enum_is_niche(def) {
+            if variant.payload_ref { return bits_word(word_bits(original) + delta) }
+            return ffi_rebase_reference(variant.payload_type, deref(converted), deref(original),
+                borrowed, converted_host, original_host, ctx)
+        }
+        if delta < enum_tag_size(def).to_u64() { return bits_word(word_bits(original) + delta) }
+        if variant.payload_type.len() == 0 { panic("native reference points into an empty enum payload") }
+        ref from_payload : Dynamic = ffi_enum_payload_slot(type_name, converted, converted_host, ctx)
+        ref into_payload : Dynamic = ffi_enum_payload_slot(type_name, original, original_host, ctx)
+        if variant.payload_ref.or(variant.payload_funcsig).not()
+            .and(is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols))) {
+            return ffi_rebase_reference(variant.payload_type, from_payload, into_payload,
+                borrowed, converted_host, original_host, ctx)
+        }
+        within := word_bits(borrowed) - word_bits(from_payload)
+        return bits_word(word_bits(into_payload) + within)
+    }
+    ref sd : StructDef = structdef_of(def)
     for i in 0..sd.fields.len() {
         ref from_offset : U64 = ptr_add(from.offsets, i.mul(8))
         ref into_offset : U64 = ptr_add(into.offsets, i.mul(8))
         ref ft : ffi_type = deref(ptr_add(from.ptr.elements, i.mul(8)))
-        if delta.lt(from_offset).or(delta.gte(from_offset + ft.size)) { continue }
+        if delta.lt(from_offset).or(delta.gte(from_offset + ft.size)) {
+            if sd.fields[i].own_type.is(OwnType.Shallow).and(ft.type == FFI_TYPE_STRUCT.to_u16()) {
+                ref field : Dynamic = ptr_add(converted, from_offset.to_uptr())
+                if ffi_contains_reference(decl_type_name_ref(sd.fields[i], ctx.symbols), field,
+                    borrowed, converted_host, ctx) {
+                    return ffi_rebase_reference(decl_type_name_ref(sd.fields[i], ctx.symbols), field,
+                        ptr_add(original, into_offset.to_uptr()), borrowed, converted_host, original_host, ctx)
+                }
+            }
+            continue
+        }
         if ft.type == FFI_TYPE_STRUCT.to_u16() {
             return ffi_rebase_reference(decl_type_name_ref(sd.fields[i], ctx.symbols),
                 ptr_add(converted, from_offset.to_usize()), ptr_add(original, into_offset.to_usize()),
@@ -9866,8 +10151,31 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
 }
 
 priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut ctx: Context) {
+    if type_name == "Vec__Str" { ffi_release_vec_str_buffer(data, ffi_place_is_foreign(data, ctx).not(), ctx) }
     ref box : ExprPtrBox = ctx.ffi.struct_defs[type_name]
     switch box.ptr.node_type {
+    case .EnumDef(ed):
+        index := enum_variant_index_for_tag(box.ptr, enum_data_tag_key(data, box.ptr))
+        if index < 0 {
+            if ffi_enum_empty_storage(type_name, data, ffi_place_is_foreign(data, ctx).not(), ctx) { return }
+            panic("invalid native enum tag: ", type_name)
+        }
+        ref variant : VariantDef = ed.variants[index.to_usize()]
+        if variant.payload_type.len().eq(0).or(variant.payload_ref) { return }
+        if enum_is_niche(box.ptr) {
+            ref stored_payload : Dynamic = deref(data)
+            mut payload : Dynamic = stored_payload
+            ffi_clear_struct_ownership(variant.payload_type, payload, ctx)
+            free(own payload)
+            write_ptr(data, bits_word(0))
+            return
+        }
+        ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, true)
+        ref offset : U64 = ptr_add(layout.offsets, 8)
+        if variant.payload_funcsig { write_ptr(ptr_add(data, offset.to_uptr()), bits_word(0)) }
+        else if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)) {
+            ffi_clear_struct_ownership(variant.payload_type, ptr_add(data, offset.to_uptr()), ctx)
+        }
     case .StructDef(sd):
         for i in 0..sd.fields.len() {
             ref fd : Declaration = sd.fields[i]
@@ -10051,9 +10359,6 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                     // The callee takes the converted Vec(Str) buffer and its
                     // elements. Drop only the old-stride source buffer; the
                     // element c_str pointers now belong to the converted one.
-                    if param_type == "Vec__Str" {
-                        ffi_release_vec_str_buffer(arg_pointer, source_host, ctx)
-                    }
                     ffi_clear_struct_ownership(param_type, arg_pointer, ctx)
                 }
                 arg_pointer = marshaled
@@ -10147,29 +10452,31 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     // raw: 16-byte buffer for return value
     mut raw : Dynamic = calloc(1, 16)
     mut shallow_struct_raw : Dynamic = 0
+    mut return_buffer : Dynamic = raw
     if ret_sdef_o.is_some() {
-        ref ret_sdef : Expr = ret_sdef_o.unwrap()
-        switch ret_sdef.node_type {
-        case .StructDef:
-            if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
-                shallow_struct_raw = ffi_marshal_struct(fe.return_type.unwrap(), result, true, false, ctx)
-                ffi_call(fe.cif, fe.fn, shallow_struct_raw, arg_ptrs)
-                ffi_marshal_struct_into(fe.return_type.unwrap(), shallow_struct_raw, false, result, true, ctx)
-                if fe.return_type.unwrap() == "Vec__Str" {
-                    ffi_release_vec_str_buffer(shallow_struct_raw, false, ctx)
-                }
-            } else {
-                ffi_call(fe.cif, fe.fn, result, arg_ptrs)
-            }
-        case:
-            ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
+        return_buffer = result
+        if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
+            ref return_layout : FFITypePtrBox = ffi_struct_layout(fe.return_type.unwrap(), ctx, false)
+            shallow_struct_raw = calloc(1, return_layout.ptr.size.to_usize())
+            return_buffer = shallow_struct_raw
         }
-    } else {
-        ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
+    }
+    ffi_call(fe.cif, fe.fn, return_buffer, arg_ptrs)
+    mut call_failed := false
+    if fe.throw_kind_index >= 0 {
+        ref error_kind : I64 = deref(ptr_add(args, fe.throw_kind_index.to_usize().mul(8)))
+        call_failed = error_kind != 0
+    }
+    // A throwing call has no result on failure. Its ABI placeholder may not
+    // be a valid enum variant (or even a non-null aggregate pointer); only
+    // the error slots and mutable argument updates are meaningful then.
+    if call_failed.not().and(shallow_struct_raw.is_null().not()) {
+        ffi_marshal_struct_into(fe.return_type.unwrap(), shallow_struct_raw, false, result, true, ctx)
+        ffi_release_conversion_storage(fe.return_type.unwrap(), shallow_struct_raw, false, ctx)
     }
 
     // Decode return value
-    if fe.return_type.is_none() {
+    if call_failed.or(fe.return_type.is_none()) {
     } else if ret_sdef_o.is_some() {
     } else if fe.return_is_shallow {
         if ffi_decode_scalar(fe.return_type.unwrap(), to_ptr(raw), result, ctx, fe.host_layout).not() {
@@ -10177,7 +10484,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         }
     } else {
         ref rtype : Str = fe.return_type.unwrap()
-        ref raw_ptr : Dynamic = deref(raw)
+        ref mut raw_ptr : Dynamic = deref(raw)
         if fe.return_is_ref {
             // Decode below after mutable arguments have been copied back:
             // a Vec(Str) copyback can replace its original element buffer.
@@ -10212,7 +10519,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         } else if ctx.ffi.struct_defs.has(fe.return_type.unwrap()) {
             if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
                 ffi_marshal_struct_into(fe.return_type.unwrap(), raw_ptr, false, result, true, ctx)
-                if rtype == "Vec__Str" { ffi_release_vec_str_buffer(raw_ptr, false, ctx) }
+                ffi_release_conversion_storage(rtype, raw_ptr, false, ctx)
             } else {
                 memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
             }
@@ -10231,13 +10538,11 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         if param_mutable.and(param_own.not()) {
             mut source : Dynamic = 0
             source = deref(ptr_add(marshal_sources, i.mul(8)))
-            if fe.param_types[i] == "Vec__Str" {
-                ffi_release_vec_str_buffer(source, ffi_place_is_foreign(source, ctx).not(), ctx)
-            }
-            ffi_marshal_struct_into(fe.param_types[i], marshaled, fe.host_layout, source, ffi_place_is_foreign(source, ctx).not(), ctx)
+            ffi_marshal_struct_into(fe.param_types[i], marshaled, fe.host_layout, source,
+                ffi_place_is_foreign(source, ctx).not(), ctx, reuse_owned = true)
         }
     }
-    if fe.return_is_ref {
+    if fe.return_is_ref.and(call_failed.not()) {
         ref rtype : Str = fe.return_type.unwrap()
         ref raw_ptr : Dynamic = deref(raw)
         mut borrowed : Dynamic = raw_ptr
@@ -10252,27 +10557,18 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                 if param_type.type != FFI_TYPE_STRUCT.to_u16() { continue }
                 ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
                 source_host := ffi_place_is_foreign(source, ctx).not()
-                ref layout : ffi_type = build_struct_ffi_type(fe.param_types[i], ctx, source_host)
-                address := word_bits(raw_ptr)
-                start := word_bits(source)
-                mut in_argument := address.gte(start).and(address.lt(start + layout.size))
+                build_struct_ffi_type(fe.param_types[i], ctx, source_host)
                 if fe.param_types[i] == "Vec__Str" {
                     build_struct_ffi_type("Str", ctx, source_host)
-                    in_argument = in_argument.or(ffi_vec_str_reference_offset(source, raw_ptr, source_host, ctx).is_some())
                 }
+                in_argument := ffi_contains_reference(fe.param_types[i], source, raw_ptr, source_host, ctx)
                 if in_argument {
                     borrowed_host = source_host
                     break
                 }
                 continue
             }
-            ref layout : FFITypePtrBox = ffi_cached_layout(fe.param_types[i], ctx, fe.host_layout)
-            address := word_bits(raw_ptr)
-            start := word_bits(converted)
-            mut in_argument := address.gte(start).and(address.lt(start + layout.ptr.size))
-            if fe.param_types[i] == "Vec__Str" {
-                in_argument = in_argument.or(ffi_vec_str_reference_offset(converted, raw_ptr, fe.host_layout, ctx).is_some())
-            }
+            in_argument := ffi_contains_reference(fe.param_types[i], converted, raw_ptr, fe.host_layout, ctx)
             if in_argument.not() { continue } // References to other foreign storage stay foreign.
             ref source : Dynamic = deref(ptr_add(marshal_sources, i.mul(8)))
             borrowed_host = ffi_place_is_foreign(source, ctx).not()
@@ -10300,8 +10596,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             // storage (delete(..., false)); its conversion box stays ours.
             ref moves_owned : Bool = ptr_add(arg_raws, i.mul(16).add(10))
             if moves_owned.not() {
-                if fe.param_types[i].eq("Vec__Str").and(param_own.not()) {
-                    ffi_release_vec_str_buffer(marshaled, fe.host_layout, ctx)
+                if param_own.not() {
+                    ffi_release_conversion_storage(fe.param_types[i], marshaled, fe.host_layout, ctx)
                 }
                 free(own marshaled)
             }
@@ -10871,8 +11167,38 @@ priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
+// Native closure carriers and interpreter callables are different ABIs. An
+// enum containing one is not made interoperable by giving its pointer the
+// right size. As with a rejected CIF, leave that signature unavailable until
+// called, rather than making an unused declaration reject the whole module.
+priv ffi_enum_has_callable := func(type_name: Str, ctx: Context, mut visited: Set(Str)) returns Bool {
+    if visited.has(type_name).or(ctx.ffi.struct_defs.has(type_name).not()) { return false }
+    visited.add(own type_name.clone())
+    ref definition : Expr = ctx.ffi.struct_defs[type_name].ptr
+    switch definition.node_type {
+    case .EnumDef(ed):
+        for variant : VariantDef in ed.variants {
+            if variant.payload_funcsig { return true }
+            if variant.payload_type.len() > 0 {
+                if ffi_enum_has_callable(variant.payload_type, ctx, visited) { return true }
+            }
+        }
+    case .StructDef(sd):
+        for field : Declaration in sd.fields {
+            if ffi_enum_has_callable(decl_type_name_ref(field, ctx.symbols), ctx, visited) { return true }
+        }
+    case: UNREACHABLE("FFI type inventory contains a non-aggregate")
+    }
+    return false
+}
+
 priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
+    mut visited := Set(Str).new()
+    if ffi_enum_has_callable(fd.sig.return_type, ctx, visited) { return }
+    for parameter : Declaration in fd.sig.params {
+        if ffi_enum_has_callable(decl_type_name_ref(parameter, ctx.symbols), ctx, visited) { return }
+    }
     np := fd.sig.params.len()
     mut alloc_np := np
     if alloc_np == 0 { alloc_np = 1 }
@@ -10963,6 +11289,11 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
     entry.return_is_shallow = ret_shallow
     entry.return_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
     entry.host_layout = host_layout
+    if fd.sig.throw_types.len() > 0 {
+        for i in 0..fd.sig.params.len() {
+            if fd.sig.params[i].name == "_err_kind" { entry.throw_kind_index = i.to_i64() }
+        }
+    }
 
     // Store in ctx.ffi.entries. Map.set borrows the key and deep-clones it
     // internally (ELEM_BOXED), so `name` can be passed directly; the

@@ -422,6 +422,48 @@ host_prelude_test := proc(root: Str) {
     println("installed TilVm host prelude PASS")
 }
 
+native_enum_test := proc(root: Str) {
+    File.writefile("enum_guest.til", format(
+        "mode lib\nmut guest_choice := NativeChoice.Empty\n",
+        "keep_guest := proc(own value: NativeChoice) { noop_proc(); guest_choice = value }\n",
+        "on_key := proc() {\n",
+        "    keep_guest(own native_choice_echo(NativeChoice.Text(\"guest global\")))\n",
+        "    switch guest_choice { case .Text(value): assert(value == \"guest global\"); case: assert(false) }\n",
+        "    text := native_choice_echo(NativeChoice.Text(\"enum text\"))\n",
+        "    switch text { case .Text(value): assert(value == \"enum text\"); case: assert(false) }\n",
+        "    real := native_choice_echo(NativeChoice.Real(2.5))\n",
+        "    switch real { case .Real(value): assert(value == 2.5); case: assert(false) }\n",
+        "    native_choice_store(own NativeChoice.Config(NativeConfig(title = \"VM enum literal\")))\n",
+        "    native_maybe_store(own NativeMaybeConfig.Some(NativeConfig(title = \"VM boxed literal\")))\n",
+        "    switch native_maybe_state { case .Some(value): assert(value.title == \"VM boxed literal\"); case: assert(false) }\n",
+        "    native_maybe_state = NativeMaybeConfig.Some(NativeConfig(title = \"guest replacement\"))\n",
+        "}\n",
+        "unsupported := proc() { noop_proc(); native_callable_choice() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("enum_guest.til", prelude_source = "import(\"vm_native\")\n",
+        prelude_name = "native-enum-api", prelude_base = realpath_str("gen/til"))!
+    mut key := vm.lookup("on_key")!
+    key.call()!
+    key.call()!
+    mut unsupported := vm.lookup("unsupported")!
+    mut rejected := false
+    unsupported.call()?
+    catch (err: TilVmError) {
+        rejected = true
+        expect(err.to_str().contains("native_callable_choice"), err.to_str())
+    }
+    assert(rejected)
+    own unsupported.delete()
+    own key.delete()
+    own vm.delete()
+    // Native-owned inline and niche-boxed records must not retain the VM's
+    // literal pool. Read and release both only after all guest code is gone.
+    assert_eq(Str, native.native_choice_title(), "VM enum literal")
+    assert_eq(Str, native.native_maybe_title(), "guest replacement")
+    native.native_enum_reset()
+    println("installed TilVm native enum PASS")
+}
+
 main := proc(root: Str) {
     native.native_set(41)
     // This library is NOT linked into the host. Its explicit path must load
@@ -488,4 +530,5 @@ main := proc(root: Str) {
     assert_eq(I64, native.native_get(), 48)
     println("installed native TilVm shared state PASS: 41 -> 48")
     host_prelude_test(root)
+    native_enum_test(root)
 }

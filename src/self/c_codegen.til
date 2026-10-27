@@ -7046,7 +7046,8 @@ priv emit_lib_c_name_map := proc(f: File, ctx: Context) {
     if ctx.builder_lib_c_prefix.len() == 0 { return }
     for name : Str in ctx.builder_lib_c_names {
         f.write("#define ").write(name).write(" ")
-        if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix).write(name) }
+        if ctx.builder_external_globals.has(name) { f.write(ctx.builder_external_globals[name]) }
+        else if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix).write(name) }
         else if ctx.builder_core_c_names.has(name) {
             f.write(ctx.builder_core_c_prefix).write(ctx.builder_core_c_names[name])
         }
@@ -7090,8 +7091,38 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
     c_lib_add_name("print_single", names, seen)
     c_lib_add_name("print_flush", names, seen)
 
+    // ext_global names an existing object's linker symbol. A dependent
+    // library may expose its Til alias, but never owns or renames that object.
+    mut foreign_symbols := Set(Str).new()
+    lp.ctx.builder_external_globals = Map(Str, Str).new()
+    for path : Str in lp.unit_paths() {
+        for stmt : Expr in lp.ctx.imported[path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            ref declaration : Declaration = decl_of(stmt)
+            if declaration.external_symbol.len() > 0 {
+                foreign_symbols.add(own declaration.external_symbol.clone())
+                lp.ctx.builder_external_globals.set(declaration.name, own declaration.external_symbol.clone())
+            }
+            if is_struct_or_enum(stmt) {
+                ref definition : Expr = stmt.children[0]
+                ref members : Vec(Declaration) = def_ns_decls(definition)
+                for i in 0..members.len() {
+                    ref member : Declaration = members[i]
+                    if member.external_symbol.len() == 0 { continue }
+                    foreign_symbols.add(own member.external_symbol.clone())
+                    lp.ctx.builder_external_globals.set(declaration.name.concat3("_", def_ns_name_at(definition, i)),
+                        own member.external_symbol.clone())
+                }
+            }
+        }
+    }
+    mut owned_names := Vec(Str).new()
+    for name : Str in names {
+        if foreign_symbols.has(name).not() { owned_names.push(own name.clone()) }
+    }
+
     lp.ctx.builder_lib_c_prefix = c_lib_prefix(lib_name)
-    lp.ctx.builder_lib_c_names = names
+    lp.ctx.builder_lib_c_names = owned_names
     if lp.uses_shared_runtime() {
         lp.ctx.builder_runtime_c_prefix = c_lib_prefix(lp.runtime_stem())
         lp.ctx.builder_runtime_c_names = runtime_seen
@@ -7679,7 +7710,7 @@ priv binding_param_is_throw_abi := func(param: Declaration, fd: FunctionDef) ret
     return false
 }
 
-priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
+priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context, owner: Str = "") {
     switch e.node_type {
     case .Literal(Literal.Str(s)): f.write("\"").write(s).write("\"")
     case .Literal(Literal.Num(n)): f.write(n.literal_num_text())
@@ -7689,7 +7720,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
     case .Ident(id): f.write(id.ident_name(ctx.symbols.names))
     case .FieldAccess(fa):
         if e.children.len() != 1 { panic("generated binding default has malformed field access") }
-        emit_binding_expr(f, e.children[0], ctx)
+        emit_binding_expr(f, e.children[0], ctx, owner)
         f.write(".").write(fa.field_access_name(ctx.symbols.names))
     case .FCall(call_data):
         if e.children.len() == 0 { panic("generated binding default has a call without a callee") }
@@ -7698,16 +7729,32 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
         case .Ident(id): constructor = ctx.scope.get_struct(id.ident_name(ctx.symbols.names), ctx.symbols)
         case:
         }
-        emit_binding_expr(f, e.children[0], ctx)
+        emit_binding_expr(f, e.children[0], ctx, owner)
         f.write("(")
+        mut emitted : USize = 0
         for i in 1..e.children.len() {
-            if i > 1 { f.write(", ") }
             ref arg : Expr = e.children[i]
+            if constructor.is_some().and(arg.node_type.is(NodeType.NamedArg).not()) {
+                switch constructor.unwrap().node_type {
+                case .StructDef(sd):
+                    ref field : Declaration = sd.fields[i - 1]
+                    if field.is_priv.and(owner != type_to_name(e.til_type(), ctx.symbols)) {
+                        // These slots were filled from the imported type's
+                        // defaults. Re-emitting them as explicit arguments
+                        // would violate that type's private-field boundary.
+                        if field.default_value.is_none() { panic("binding default cannot name private field: ", sd.field_name_at(i - 1)) }
+                        continue
+                    }
+                case:
+                }
+            }
+            if emitted > 0 { f.write(", ") }
+            emitted++
             switch arg.node_type {
             case .NamedArg(name):
                 if arg.children.len() != 1 { panic("generated binding default has malformed named argument") }
                 f.write(name).write("=")
-                emit_binding_expr(f, arg.children[0], ctx)
+                emit_binding_expr(f, arg.children[0], ctx, owner)
             case:
                 // Type checking has filled/reordered constructor fields into
                 // positional slots. Source constructors require their names.
@@ -7720,7 +7767,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
                 if get_own_arg(e, i) { f.write("own ") }
                 if get_ref_arg(e, i) { f.write("ref ") }
                 if get_splat_arg(e, i) { f.write("..") }
-                emit_binding_expr(f, arg, ctx)
+                emit_binding_expr(f, arg, ctx, owner)
             }
         }
         f.write(")")
@@ -7730,7 +7777,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context) {
     }
 }
 
-priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, index: USize, wrapper: Bool, ctx: Context) {
+priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, index: USize, wrapper: Bool, ctx: Context, owner: Str = "") {
     if param.own_type.is(OwnType.Own) { f.write("own ") }
     if param.own_type.is(OwnType.Shallow) {
         if wrapper.and(is_scalar_type_name(decl_type_name_ref(param, ctx.symbols))).not() { f.write("shallow ") }
@@ -7749,17 +7796,17 @@ priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, in
     }
     if param.default_value.is_some() {
         f.write(" = ")
-        emit_binding_expr(f, param.default_expr(), ctx)
+        emit_binding_expr(f, param.default_expr(), ctx, owner)
     }
 }
 
-priv emit_binding_params := proc(f: File, fd: FunctionDef, wrapper: Bool, ctx: Context) {
+priv emit_binding_params := proc(f: File, fd: FunctionDef, wrapper: Bool, ctx: Context, owner: Str = "") {
     mut emitted : USize = 0
     for p in 0..fd.sig.params.len() {
         ref param : Declaration = fd.sig.params[p]
         if binding_param_is_throw_abi(param, fd) { continue }
         if emitted > 0 { f.write(", ") }
-        emit_binding_param(f, param, fd, p, wrapper, ctx)
+        emit_binding_param(f, param, fd, p, wrapper, ctx, owner)
         emitted++
     }
 }
@@ -7790,12 +7837,12 @@ priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: Functio
 }
 
 priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str,
-        fd: FunctionDef, before_call: Str, ctx: Context) {
+        fd: FunctionDef, before_call: Str, ctx: Context, owner: Str = "") {
     mut kw := "func"
     if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "proc" }
     f.write(indent)
     f.write(name).write(" := ").write(kw).write("(")
-    emit_binding_params(f, fd, true, ctx)
+    emit_binding_params(f, fd, true, ctx, owner)
     f.write(")")
     if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
@@ -7957,7 +8004,7 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
             if method.eq("delete").and(binding_struct_has_private_fields(def)) {
                 before_call = owner.concat3(".", binding_layout_helper_name(owner, lib_name))
             }
-            emit_binding_wrapper(f, "    ", method, actual, fd, before_call, ctx)
+            emit_binding_wrapper(f, "    ", method, actual, fd, before_call, ctx, owner)
         case:
             if binding_global_representable(nsd, nsd.default_expr().til_type()) {
                 if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
@@ -7970,11 +8017,78 @@ priv emit_binding_ns_methods := proc(f: File, owner: Str, def: Expr, ctx: Contex
     }
 }
 
+priv binding_relative_import := proc(path: Str, output: Str) returns Str {
+    source := realpath_str(path)
+    parent := realpath_str(output.substr(0, output.rfind("/").to_usize()))
+    if source.len().eq(0).or(parent.len().eq(0)) { panic("cannot resolve binding dependency: ", path) }
+    source_parts := source.split("/")
+    parent_parts := parent.split("/")
+    mut common : USize = 0
+    while common.lt(source_parts.len()).and(common < parent_parts.len()) {
+        if source_parts[common] != parent_parts[common] { break }
+        common++
+    }
+    if common == 0 { panic("binding dependency and output have different filesystem roots: ", path) }
+    mut relative := ""
+    for _ in common..parent_parts.len() { relative = format(relative, "../") }
+    if relative.len() == 0 { relative = "./" }
+    for i in common..source_parts.len() {
+        if i > common { relative = format(relative, "/") }
+        relative = format(relative, source_parts[i])
+    }
+    return relative.strip_suffix(".til").clone()
+}
+
+priv binding_mark_imports := proc(path: Str, mut covered: Set(Str), lp: LoadedProgram) {
+    if covered.has(path) { return } // The ordinary dependency graph may cycle.
+    covered.add(own path.clone())
+    ref unit : ImportUnit = lp.ctx.imported[path]
+    for implicit : Str in unit.implicit_imports() { binding_mark_imports(implicit, covered, lp) }
+    for stmt : Expr in unit.ast.children {
+        dependency := resolve_import_for_stmt(stmt, path, unit, lp.ctx.import_cwd,
+            lp.ctx.imported, lp.ctx.symbols, lp.ctx.import_support_dir)
+        if dependency.len() > 0 { binding_mark_imports(dependency, covered, lp) }
+    }
+}
+
 priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) returns I32 {
+    mut dependencies := Set(Str).new()
+    for unit : ProgramUnit in lp.units {
+        if lp.ctx.imported[unit.path].native_bindings { dependencies.add(own unit.path.clone()) }
+    }
+    mut selected := Set(Str).new()
+    mut covered := Set(Str).new()
+    // Discovery is dependency-first. Select outer bindings first, then emit
+    // them in discovery order below. Their transitive imports remain imports,
+    // including non-binding helper modules; copying those would duplicate the
+    // very declarations retained by the canonical API module.
+    for n in 0..lp.units.len() {
+        ref path : Str = lp.units[lp.units.len() - n - 1].path
+        if dependencies.has(path).and(covered.has(path).not()) {
+            selected.add(own path.clone())
+            binding_mark_imports(path, covered, lp)
+        }
+    }
+    if covered.has(lp.path) { panic("native binding dependency imports this library's implementation: ", lp.path) }
+    // Never overwrite an API module the current library itself imports.
+    output_identity := realpath_str(til_path)
+    for dependency : Str in dependencies {
+        if realpath_str(dependency) == output_identity { panic("binding output would overwrite dependency: ", dependency) }
+    }
     f := File.new(til_path, true)
     f.write("// Auto-generated FFI binding for ").write(lib_name).write("\n")
     f.write("link(\"").write(lib_name).write("\")\n\n")
+    for unit : ProgramUnit in lp.units {
+        if selected.has(unit.path).not() { continue }
+        path := binding_relative_import(unit.path, til_path)
+        // This is an intentional API re-export, including dependency symbols
+        // not mentioned in this layer's own signatures. Use the existing
+        // deliberately-unused import spelling rather than dummy references.
+        f.write("_ := import(\"").write(path.replace("\\", "\\\\").replace("\"", "\\\"")).write("\")\n")
+    }
+    if dependencies.len() > 0 { f.write("\n") }
     for u : ProgramUnit in lp.units {
+        if covered.has(u.path) { continue }
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -8008,7 +8122,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     }
                     if fdd.default_value.is_some() {
                         f.write(" := ")
-                        emit_binding_expr(f, fdd.default_expr(), lp.ctx)
+                        emit_binding_expr(f, fdd.default_expr(), lp.ctx, dd.name)
                     }
                     f.write("\n")
                 }
@@ -8055,6 +8169,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
     // Aliases are emitted after concrete declarations so forward aliases and
     // callable aliases both resolve in the generated module.
     for u2 : ProgramUnit in lp.units {
+        if covered.has(u2.path) { continue }
         ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
         for stmt2 : Expr in iu2.ast.children {
             if stmt2.node_type.is(NodeType.Decl).not().or(stmt2.children.len().eq(0)) { continue }

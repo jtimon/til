@@ -2967,12 +2967,13 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
             // the clone is a wasteful copy whose deep allocations leak --
             // the original `local` is dropped by the scope-end delete right
             // after. Replace `local.clone()` with bare `local` so codegen
-            // emits a pointer move into lhs, and skip local's scope-end
-            // delete: ownership transfers wholesale to the assign target
-            // (whose own save_old_delete already freed lhs's prior value).
+            // emits a move into lhs, and skip local's scope-end delete.
+            // A value-slot target adopts only the contents, so the source's
+            // heap outer must be freed separately. The interpreter does not
+            // consume Assign.is_move; keep its clone+delete pair intact.
             // Str moves only when its defs are provably owning
             // (clone_to_move_ok above, issue #258).
-            if local.is_heap.and(is_aggregate(local.type)).and(clone_to_move_ok) {
+            if ctx.compile_mode.and(local.is_heap).and(is_aggregate(local.type)).and(clone_to_move_ok) {
                 mut assign_saves_old := false
                 switch stmt.node_type {
                 case .Assign(adata): assign_saves_old = adata.save_old_delete
@@ -3002,6 +3003,10 @@ priv insert_post_stmt_deletes := func(mut ctx: Context, mut stmt: Expr, locals: 
                                 switch stmt.node_type {
                                 case .Assign(adata_mv): adata_mv.is_move = true
                                 case:
+                                }
+                                ref target : TypeBinding = scope.get_binding_name(assign_target, ctx.symbols).unwrap()
+                                if target.is_param.or(target.own_type.is(OwnType.Ref)).or(target.is_raw_alloc).not() {
+                                    new_ch.push(own make_free_call(local.name, local.type, stmt, ctx.symbols))
                                 }
                                 continue
                             }

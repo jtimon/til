@@ -64,6 +64,63 @@ check_core_failures := proc(executable: Str) {
     check_parse_failure(executable, "u", "-9223372036854775809", "Str.to_u64: out of range in '-9223372036854775809'")
 }
 
+check_binding_composition := proc(compiler: Str) {
+    // Tiled packages generated APIs as explicit mode-lib modules. Their
+    // native ownership comes from declarations, not the default mode/header.
+    File.writefile("gen/til/library_namespace_a.til",
+        format("mode lib\n", File.readfile("gen/til/library_namespace_a.til")))
+    File.writefile("tmp/library_namespace_layer.til", format(
+        "mode lib\nimport(\"../gen/til/library_namespace_a\")\n",
+        "LayerPoint := struct { point: BindingPoint = BindingPoint() }\n",
+        "layer_point := proc() returns LayerPoint { noop_proc(); return LayerPoint(point = library_namespace_a_point(BindingPoint(scalar = 91))) }\n",
+        "layer_alias := layer_point\n",
+        "layer_bump := proc() { noop_proc(); library_namespace_a_state++ }\n"))
+    layer := Cmd.new(compiler, "build", "tmp/library_namespace_layer.til")
+    layer.env("LIBRARY_PATH", "gen/lib")
+    layer.env("LD_LIBRARY_PATH", "gen/lib")
+    layer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    layer.run_checked()
+    binding := File.readfile("gen/til/library_namespace_layer.til")
+    require_contains(binding, "import(\"./library_namespace_a\")")
+    require_absent(binding, "BindingPoint := struct")
+    require_absent(binding, "library_namespace_a_state := ext_global")
+    require_contains(binding, "LayerPoint := struct")
+
+    File.writefile("tmp/library_namespace_outer.til", format(
+        "mode lib\nimport(\"../gen/til/library_namespace_layer\")\n",
+        "outer_point := proc() returns LayerPoint { return layer_alias() }\n",
+        "outer_bump := proc() { layer_bump() }\n"))
+    outer := Cmd.new(compiler, "build", "tmp/library_namespace_outer.til")
+    outer.env("LIBRARY_PATH", "gen/lib")
+    outer.env("LD_LIBRARY_PATH", "gen/lib")
+    outer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    outer.run_checked()
+    outer_binding := File.readfile("gen/til/library_namespace_outer.til")
+    require_contains(outer_binding, "import(\"./library_namespace_layer\")")
+    require_absent(outer_binding, "LayerPoint := struct")
+    require_absent(outer_binding, "BindingPoint := struct")
+
+    // Relocate the existing binding assets together. Imports must follow the
+    // packaged modules rather than an absolute compiler-checkout pathname.
+    mkdir_p("tmp/library_namespace_package")
+    for name in vec(Str, "library_namespace_a", "library_namespace_layer", "library_namespace_outer") {
+        assert(copy_file(format("gen/til/", name, ".til"),
+            format("tmp/library_namespace_package/", name, ".til")) == 0)
+    }
+    File.writefile("tmp/library_namespace_package/consumer.til", format(
+        "import(\"library_namespace_a\")\nimport(\"library_namespace_layer\")\nimport(\"library_namespace_outer\")\n",
+        "point := layer_alias(); assert(point.point.scalar == 91)\n",
+        "other := outer_point(); assert(other.point.scalar == 91)\n",
+        "before := library_namespace_a_state; layer_bump(); outer_bump(); assert(library_namespace_a_state == before + 2)\n"))
+    for action in vec(Str, "run", "interpret") {
+        consumer := Cmd.new(compiler, action, "tmp/library_namespace_package/consumer.til")
+        consumer.env("LIBRARY_PATH", "gen/lib")
+        consumer.env("LD_LIBRARY_PATH", "gen/lib")
+        consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+        consumer.run_checked()
+    }
+}
+
 main := proc() {
     til_bin := "bin/til"
     build_a := Cmd.new(til_bin, "build", "test/library_namespace_a.til")
@@ -227,20 +284,62 @@ main := proc() {
     // and constructors are reached, including both tag-only and payload forms.
     File.writefile("tmp/library_namespace_enum_api.til", format(
         "mode lib\nProbeOperation := enum { Read, Write }\n",
-        "ProbeTag := enum { Empty, Number: I64 }\n",
+        "ProbeRecord := struct { count: USize = 9; text: Str = \"\" }\n",
+        "ProbeTag := enum { Empty, Number: I64, Real: F64, Text: Str, Record: ProbeRecord }\n",
+        "ProbeBox := enum { Absent, Value: ProbeRecord }\n",
+        "mut boxed_state := ProbeBox.Absent\n",
+        "set_box_state := proc(own value: ProbeBox) { noop_proc(); boxed_state = value }\n",
+        "ProbeRef := enum { Absent, Value: ref I64 }\n",
+        "ProbeWide := enum(U64) { High = 4294967297, Next = 4294967298 }\n",
+        "ProbeFailureTag := enum { Text: Str = 7, Empty = 8 }\nProbeError := struct {}\n",
+        "failing_enum := func() returns ProbeFailureTag throws ProbeError { throw ProbeError() }\n",
         "operation := func() returns ProbeOperation { return ProbeOperation.Read }\n",
-        "tag_value := func(value: I64) returns ProbeTag { return ProbeTag.Number(value) }\n"))
+        "tag_value := func(value: I64) returns ProbeTag { return ProbeTag.Number(value) }\n",
+        "tag_echo := func(shallow value: ProbeTag) returns ProbeTag { return value.clone() }\n",
+        "tag_text := func(text: Str) returns ProbeTag { return ProbeTag.Text(text.clone()) }\n",
+        "tag_replace := proc(mut value: ProbeTag) { noop_proc(); value = ProbeTag.Text(format(\"native \", \"replacement\")) }\n",
+        "box_echo := func(shallow value: ProbeBox) returns ProbeBox { return value.clone() }\n",
+        "box_text := func(value: ProbeBox) returns ref Str { switch value { case .Value(record): return record.text; case: panic(\"empty box\") } }\n",
+        "box_change := proc(mut value: ProbeBox) returns ref Str { noop_proc(); switch value { case .Value(record): record.text = format(record.text, \"!\"); return record.text; case: panic(\"empty box\") } }\n",
+        "ref_echo := func(shallow value: ProbeRef) returns ProbeRef { return value.clone() }\n",
+        "wide_echo := func(shallow value: ProbeWide) returns ProbeWide { return value.clone() }\n",
+        "operation_score := func(shallow value: ProbeOperation) returns I64 { if value.is(ProbeOperation.Read) { return 41 }; return 42 }\n"))
     Cmd.new(til_bin, "build", "tmp/library_namespace_enum_api.til").run_checked()
     File.writefile("tmp/library_namespace_enum.til", format(
         "import(\"../gen/til/library_namespace_enum_api\")\n",
         "assert(operation().is(ProbeOperation.Read))\n",
-        "tag := tag_value(37)\n",
-        "switch tag { case .Number(value): assert(value == 37); case: assert(false) }\n"))
+        "assert(operation_score(operation()) == 41)\n",
+        "assert(operation_score(ProbeOperation.Write) == 42)\n",
+        "tag := tag_echo(tag_value(37))\n",
+        "switch tag { case .Number(value): assert(value == 37); case: assert(false) }\n",
+        "real := tag_echo(ProbeTag.Real(1.25)); switch real { case .Real(value): assert(value == 1.25); case: assert(false) }\n",
+        "mut text := tag_text(\"borrowed text\"); tag_replace(text); switch text { case .Text(value): assert(value == \"native replacement\"); case: assert(false) }\n",
+        "record := tag_echo(ProbeTag.Record(ProbeRecord(text = \"record\"))); switch record { case .Record(value): assert(value.count == 9); assert(value.text == \"record\"); case: assert(false) }\n",
+        "mut boxed := box_echo(ProbeBox.Value(ProbeRecord(text = \"boxed\")))\n",
+        "ref before : Str = box_text(boxed); assert(before == \"boxed\")\n",
+        "ref after : Str = box_change(boxed); assert(after == \"boxed!\"); assert(before == \"boxed!\"); assert(ptr_eq(before, after))\n",
+        "empty := box_echo(ProbeBox.Absent); assert(empty.is(ProbeBox.Absent))\n",
+        "set_box_state(own ProbeBox.Value(ProbeRecord(text = \"native box\")))\n",
+        "switch boxed_state { case .Value(value): assert(value.text == \"native box\"); case: assert(false) }\n",
+        "boxed_state = ProbeBox.Value(ProbeRecord(text = \"replacement box\"))\n",
+        "switch boxed_state { case .Value(value): assert(value.text == \"replacement box\"); case: assert(false) }\n",
+        "boxed_state = ProbeBox.Absent\n",
+        "RefCell := struct { number: I64 = 17 }\n",
+        "mut cell := RefCell(); ref_value := ref_echo(ProbeRef.Value(cell.number)); cell.number = 23\n",
+        "switch ref_value { case .Value(value): assert(value == 23); case: assert(false) }\n",
+        "assert(wide_echo(ProbeWide.High).is(ProbeWide.High)); assert(wide_echo(ProbeWide.Next).is(ProbeWide.Next))\n",
+        "mut caught := false; failing_enum()?; catch (error: ProbeError) { caught = true }; assert(caught)\n"))
     enum_consumer := Cmd.new(til_bin, "run", "--asan", "tmp/library_namespace_enum.til")
     enum_consumer.env("LIBRARY_PATH", "gen/lib")
     enum_consumer.env("LD_LIBRARY_PATH", "gen/lib")
     enum_consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
     enum_consumer.run_checked()
+    enum_interpreted := Cmd.new(til_bin, "interpret", "tmp/library_namespace_enum.til")
+    enum_interpreted.env("LIBRARY_PATH", "gen/lib")
+    enum_interpreted.env("LD_LIBRARY_PATH", "gen/lib")
+    enum_interpreted.env("DYLD_LIBRARY_PATH", "gen/lib")
+    enum_interpreted.run_checked()
+    check_binding_composition(til_bin)
 
     // Issue #326: the scavenger roots `*.size` unconditionally -- get_elem_size
     // builds that call from a type name it only learns at runtime -- so a

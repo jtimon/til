@@ -168,9 +168,49 @@ registration-index ABI; old custom-error tags are not compatible.
 
 Generated enum bindings declare variants once, rather than also exporting their
 generated constructors/constants as duplicate namespace members. Typed nested
-record defaults recover named constructor fields. The compiled binding regression
-uses both a tag-only enum and a payload enum; this does not extend the VM's
-native by-value enum marshalling support.
+record defaults recover named constructor fields; automatically filled private
+fields remain defaults rather than becoming illegal explicit arguments.
+
+Native by-value enum marshalling covers tag-only enums (including wide tags),
+tagged integer/float/string/record payloads, borrowed-pointer niches and owned
+record-box niches. Descriptors match the emitted tag/union/pointer layout; only
+the active payload is converted between interpreter and native widths. Mutable
+copy-back preserves existing owned-box identity, and references returned into
+converted arguments are rebased before the temporary carriers are released.
+Owned native transfers materialize VM literals/views so stored strings survive
+VM teardown. A native throw has no return value: the error slot is checked before
+decoding its result, and zeroed error-only enum storage owns no payload.
+
+This does not make native and interpreted closure carriers interchangeable.
+Signatures containing callable enum payloads remain unavailable through FFI and
+report an error when called; importing an unused declaration is allowed. Retain
+guest commands through ~TilVmCallback~ or the command-table pattern below.
+~test/library_namespace.til~ covers compiled/interpreted enum round trips and
+cross-width boxed references; ~native_enum_test~ in the installed ASAN host
+checks native-owned strings after VM destruction and unsupported callable enums.
+
+*** Composing generated Til bindings
+
+A library consuming another library's generated binding now retains that API
+as an import rather than emitting a second copy of its types and globals. The
+native API role is derived from checked external declarations/lifecycle wrappers
+before folding, so a packaged binding can use ~mode lib~ or a different filename.
+Ordinary implementation modules remain part of their owning library's export.
+
+Generated imports use relative paths and the existing intentional-re-export
+spelling (~_ := import("./dependency")~). Transitive imports retain normal module
+identity and deduplication. An imported ~ext_global~ keeps its original native
+linker symbol; a dependent library does not rename or recreate its storage.
+Consumers can import both dependency and dependent APIs without duplicate type
+declarations. They must use the generated model definition rather than also
+importing the implementation source that defines that same model.
+
+Regenerate affected bindings in dependency order and package the existing binding
+files with their relative layout and native libraries. Installing one library
+does not automatically bundle its dependency assets. No extra schema, manifest,
+generated source copy or runtime compilation is involved. The composition test
+builds two dependent layers, relocates their binding files together, and checks
+both compiled and interpreted consumers against the same native global state.
 
 *** Retaining commands in ordinary records and vectors
 
@@ -194,6 +234,21 @@ escaping tables/records that carry a closure borrowing a dead local.
 
 These ownership rules do not publish candidate editor state or undo native
 effects. Reload still requires the host's explicit staging/publication policy.
+
+*** Related compiler limitations
+
+The embedding regressions do not close these separately tracked compiler bugs:
+
+- [[../issues/open/443.org][#443]]: nested propagating calls can consume a failed
+  reference result before checking its error. Checking a native call's error
+  slot before decoding its return value does not fix enclosing-expression
+  throw lowering.
+- [[../issues/open/445.org][#445]]: generated C-library bindings still reject the
+  builtin SIMD generator. Dependency-binding composition and enum marshalling
+  do not extend that generator's binding support.
+- [[../issues/open/446.org][#446]]: a discarded owned call result can be destroyed
+  twice on an early-return edge. Releasing an owned parameter's outer box after
+  moving its contents into a global is a different ownership path.
 
 ** Why bindings need a human reviewer
 

@@ -1,6 +1,60 @@
 # priority: low
 # category: features
-** WIP #370 til embeds in the lua/lisp sense: host program, guest til
+** FIXED #370 til embeds in the lua/lisp sense: host program, guest til
+
+*** Post-mortem
+
+The interpreter existed, but its CLI-owned lifetime, error handling and native
+setup were not an installed embedding contract. A retained callable also needs
+its program/captures alive, and native values cannot retain VM-owned literal
+buffers. Composition exposed compilation-local exception IDs, missing callable
+clone roots, dangling command-table copies, malformed generated defaults and
+duplicate dependent schemas.
+
+The delivered interface is ~std/tilvm~: ~TilVm.new~, one successful ~load_file~,
+checked ~lookup~, and owning ~TilVmCallback~ handles borrowing their VM. Calls
+return owned diagnostics/results, preserve surviving sessions on failure, and
+need no compiler executable. The installed SDK includes the private interpreter
+sources and native support. Fresh candidate VMs support reload replacement;
+host-side staging/publication and rollback of native effects remain application
+responsibilities.
+
+Host APIs use prebuilt shared libraries and their generated bindings, not the
+unimplemented manual registration/snapshot API proposed below. Optional source,
+logical-name and base-directory prelude arguments provide that API to config and
+user helpers through the existing implicit-import machinery. Code/source and
+input-string ownership, filenames, relative imports, collisions, retry and
+independent VMs have installed-host coverage.
+
+The final native follow-ups add by-value enum ABI layouts, active-payload
+conversion, boxed ownership/reference handling and error-result cleanup.
+Generated bindings import canonical dependency APIs instead of redeclaring them;
+imported native globals keep their linker identities. Native owned-argument
+value moves also release their otherwise-orphaned outer boxes. Callable enum
+payloads are explicitly unavailable through FFI, not mistaken for compatible
+native closure pointers.
+
+Regression coverage: ~test/install_tilvm.til~ builds separate ASAN hosts; its
+native/prelude host uses empty PATH and private HOME. ~test/tilvm.til~,
+~test/tilvm_native.til~ (including
+~editor_buffer_test~, ~native_config_test~, ~host_prelude_test~ and
+~native_enum_test~), ~test/tilvm_lifetime_error.til~, ~test/interp_session.til~,
+~test/stored_callbacks{,_error}.til~, ~test/errors.til~, and
+~test/library_namespace.til~ cover the delivered contracts. The current API,
+ownership and packaging details are in ~doc/ffi.org~.
+
+Closing this embedding contract does not close the shared compiler defects in
+[[../open/443.org][#443]] (nested propagating reference results),
+[[../open/445.org][#445]] (builtin SIMD binding generation), or
+[[../open/446.org][#446]] (discarded owned results on early-return edges).
+Their reproducers are distinct from this issue's native return decoding,
+dependency composition, and owned-parameter wrapper cleanup regressions.
+
+*** Original problem and design history
+
+The narrative and milestones below record how this feature evolved. Earlier
+"next" steps and the registration proposal are historical, superseded by the
+delivered contract above and the completed acceptance checks below.
 
 [[https://github.com/jtimon/tiled/blob/master/issues/open/1.org][Tiled #1]] (formerly Til #83) is emacs/neovim done without the split brain:
 til for the host AND til for the guest. That only works if til can be EMBEDDED the
@@ -14,23 +68,23 @@ the point -- past the editor wars and past the eclipse: no elisp/vimscript
 / lua / json split, and no IDE-platform bolted onto a different
 language than the one it edits.
 
-What exists today, and how far it is from embedding:
+At filing time, the gap to embedding was:
 
   - The interpreter is ordinary til code (src/self/interpreter.til)
     linked into bin/til, with reusable session machinery driven by
-    cmd_interpret / the REPL. It is not yet an embedding library:
+     cmd_interpret / the REPL. It was not yet an embedding library:
     process-wide state, exit/error handling, native binding setup and
     installation also need explicit embedding contracts.
-  - What is missing is the API AROUND it: create a session from inside
+   - What was missing was the API AROUND it: create a session from inside
     a running program, eval a string or file into it, look a symbol up,
     call it, and register HOST functions the guest can call. The REPL
     has internal machinery for several of these operations, but there
-    is no supported installed host-facing API for them.
+     was no supported installed host-facing API for them.
   - The FFI already crosses the other direction (guest calls C via
     ext_func + libffi), so "host function visible to the guest" has
     machinery to build on rather than invent.
 
-Shape to aim at (lua's, roughly, spelled in til):
+Original sketch (superseded by TilVm and generated native bindings):
 
   #+begin_src til
   mut vm := Interp.new()
@@ -39,7 +93,7 @@ Shape to aim at (lua's, roughly, spelled in til):
   on_key := vm.lookup("on_key")                // guest fn, host-callable
   #+end_src
 
-Open questions:
+Original design questions:
 
   - Ownership across the boundary: what does a guest-returned Str mean
     in the host's single-owner model? (The #275 line of work is where
@@ -150,10 +204,10 @@ The bootstrap compiler rejected the new callback method before a self rebuild
 as documented in doc/self.org. The preparation's make clean && make test passed
 456/456; the callback API extension follows on its regenerated bootstrap.
 
-*** Findings from Tiled's startup implementation
+*** Historical findings from Tiled's original startup workaround
 
-The separate [[https://github.com/jtimon/tiled][tiled repository]] now exercises this exact use case with
-installed til ~0.0.1-2827886a4~. Its host checks for
+The separate [[https://github.com/jtimon/tiled][tiled repository]] first exercised this use case with
+installed til ~0.0.1-2827886a4~. Its host checked for
 ~$HOME/.tiled/init.til~, prints a defaults notice when absent, and opens
 an unnamed ~*scratch*~ editor buffer unless a file was requested.
 
@@ -171,7 +225,7 @@ editor's source checkout and the compiler at runtime. The startup
 workaround cannot install a guest callback into the already-running
 host's keymap or change its existing buffers.
 
-The installed support tree currently supplies core/std/modes and native
+At that point the installed support tree supplied core/std/modes and native
 runtime support, but not ~src/self/~ as a public embedding library (see
 ~install_compiler_support~ in ~src/self/install.til~). The interpreter's
 implementation exists; expose and install a supported interface around
@@ -207,18 +261,19 @@ it rather than requiring applications to vendor compiler internals.
   version/ABI relationship documented. A compiler-checkout-relative
   import of interpreter internals is not the installation contract.
 
-*** First acceptance checks
+*** First acceptance checks (completed)
 
 - [X] Build a small Til host using the installed embedding interface,
   outside the compiler repository, then evaluate a config created or
   edited after the host binary was built.
-- [ ] Pass a mutable config value into guest ~init~, then observe its
-  changes in the original host process.
-- [ ] Register a host buffer-editing function; bind a guest function to
+- [X] Let guest ~init~ mutate the original native config through its generated
+  binding reference, then observe changes in the original host process.
+- [X] Expose a host buffer-editing function through a shared native binding;
+  bind a guest function to
   a key and call it after startup to edit a host-owned scratch buffer.
 - [X] Report a bad config with its filename/line while the host remains
   alive; repair the file and successfully load it in the same process.
-- [ ] Exercise reload and teardown with retained callbacks and strings,
+- [X] Exercise reload and teardown with retained callbacks and strings,
   checking lifetime/ownership errors and multiple independent sessions.
 - [X] Run the host with compiler executables unavailable on ~PATH~; it
   still loads the config using its installed interpreter runtime.
@@ -266,8 +321,9 @@ the installed SDK and host source under ~til_worktrees/tmp/issue-370-host/~
 with empty ~PATH~, without ASAN errors. Logs are that project's
 ~tmp/build.log~ and ~tmp/run.log~. No system installation was changed.
 
-Host-function registration and guest value interchange remain the next API
-decisions. The broader proposal below is still pending;
+At this milestone host-function registration and value interchange were the next
+decisions. Later work selected generated shared-library bindings and retained
+typed callbacks. The broader registration proposal below was not adopted;
 its ~Interp~ spelling is superseded by ~TilVm~.
 
 *** Approved callback slice: borrowed VM, owning callable
@@ -395,10 +451,10 @@ now retain its proc and mutable-state contracts without a dummy direct proc
 call or extracting the callable to a local. Application edits stay in the
 Tiled session; this compiler change adds no embedding API.
 
-*** API and ownership proposal against master b201ae5d5
+*** Superseded API and ownership proposal against master b201ae5d5
 
-Design proposal, pending approval before adding public modules, APIs or
-installation paths. The initial target is a compiled Til host using the
+Historical proposal, not the shipped API or a list of unfinished acceptance
+work. The initial target was a compiled Til host using the
 C backend. Tiled's configuration remains ordinary Til, including its
 existing ~init(mut config: TiledConfig)~ function. This proposal changes
 how the host invokes it, not the user's configuration file format.
@@ -603,10 +659,10 @@ guest-global mutations either.
   does not introduce side-by-side compiler installs or promise arbitrary
   cross-revision compatibility.
 
-All new public names, installation additions, generated-in-binary
-registration descriptors and the explicit snapshot semantics above
-require approval before implementation. They are documented here so
-those decisions precede code rather than being invented while coding.
+These proposed registration descriptors and snapshot operations were not
+introduced. The supported route uses existing generated native bindings,
+ordinary ownership and an optional host prelude; no second value/schema format
+was added. This proposal remains here as design history.
 
 **** Delivery and acceptance
 
@@ -633,6 +689,6 @@ the full set of requirements above complete.
 
 Related: [[https://github.com/jtimon/tiled/blob/master/issues/open/1.org][Tiled #1]] (tiled itself, formerly Til #83), #84 (mode theme -- one .til theme file
 generating .el/.vim/.json is the same "til as the one config language"
-idea, minus the runtime), [[./385.org][#385]] (Elisp backend into an existing
-Emacs host), and [[./386.org][#386]] (Lua backend into existing Lua hosts such
+idea, minus the runtime), [[../open/385.org][#385]] (Elisp backend into an existing
+Emacs host), and [[../open/386.org][#386]] (Lua backend into existing Lua hosts such
 as Neovim).
