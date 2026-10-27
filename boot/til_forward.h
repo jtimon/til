@@ -580,6 +580,7 @@ typedef struct FCallData {
     U64 splat_args;
     Bool is_subscript;
     Bool is_throw_default;
+    Bool iface_box_owns_payload;
 } FCallData;
 
 

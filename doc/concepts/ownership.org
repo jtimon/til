@@ -160,14 +160,16 @@ are existing references to a value, Mojo extends the lifetime of the owner."
 
 **** Interface-typed locals (#432)
 
-An interface value is a fat box ~{iface_type_name, iface_val, iface_owned}~
-whose ~iface_val~ points at the concrete. The box itself is an ordinary
+An interface value is a fat box ~{iface_type_name, iface_val}~ whose
+~iface_val~ points at the concrete; an interface has no values of its own
+(~Drawable()~ is a typer error), a value is always a boxed struct or enum
+that implements it. The box itself is an ordinary
 aggregate local (owned, promoted, deleted at last use); the qualifier on the
 binding says who owns the PAYLOAD, with the same rule as any aggregate:
 
 | til                        | payload                                   | destruction                                       |
 |----------------------------+-------------------------------------------+---------------------------------------------------|
-| ~d : Iface = c~            | owned copy of ~c~ (deep clone)             | the box frees its copy (~iface_owned~ = true)     |
+| ~d : Iface = c~            | owned copy of ~c~ (deep clone)             | the box frees its copy                            |
 | ~mut d : Iface = c~        | owned copy; reassignment frees the old one | same                                              |
 | ~ref d : Iface = c~        | borrowed: the box points at ~c~'s storage  | nothing; ~c~'s lifetime is extended to cover ~d~  |
 | ~ref mut d : Iface = c~    | mutable borrow; ~c~ must be ~mut~          | same as ~ref~                                     |
@@ -184,9 +186,18 @@ A user-written ~ref~ binding (~iface_borrow_explicit~) is a ref variable
 instead, and those uses are rejected as for any ref. The interface's
 generated ~clone~ always produces an owned box (deep copy through the tag),
 so copying a box -- into a field, a collection, a return -- never aliases
-the source; ~iface_owned~ only tells ~delete~ whether this box frees its
-payload. Arguments keep their own context's rule: a ~d: Iface~ parameter
-borrows a named concrete (params are Ref) and owns a fresh one.
+the source. The box carries NO ownership flag: payload ownership is the
+typer's static knowledge, like every other aggregate's. A borrowing box is
+never deleted at all (its tag is a literal, the box a stack value, the
+payload somebody else's: the garbager skips it, ~LocalInfo~ via
+~iface_payload_borrowed~ / ~expr_is_borrowed_iface_box_ctor~), and every
+box that IS deleted -- an owning local, a field, a collection element --
+owns its payload, so the generated ~delete~ frees it unconditionally (a
+consumed ~own self~ receiver leaves a null payload behind, the moved-out
+state). Arguments keep their own context's rule: a ~d: Iface~ parameter
+borrows a named concrete (params are Ref) and owns a fresh one; ~shallow~
+is rejected on interface parameters and returns, since a by-value copy of
+the box would alias the payload without owning it.
 
 *** Fields
 

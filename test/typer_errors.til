@@ -794,6 +794,15 @@ terr_iface_own_ref_result := func(values: Vec(TErrIfaceConcrete)) returns I64 {
     return view.must()
 }
 
+// #432: an interface has no values of its own, and a box is never passed or
+// returned by value: `shallow` is neither a borrow nor an owned box.
+terr_iface_instantiate := func() returns I64 {
+    view := TErrConfIface()
+    return view.must()
+}
+terr_iface_shallow_param := func(shallow view: TErrConfIface) returns I64 { return view.must() }
+terr_iface_shallow_return := func(value: TErrIfaceConcrete) returns shallow TErrConfIface { return value }
+
 terr_iface_bad_assign := func() returns I64 {
     mut view: TErrConfIface = TErrIfaceConcrete()
     view = TErrConfNotIface()

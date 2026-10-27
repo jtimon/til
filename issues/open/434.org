@@ -63,10 +63,17 @@
      Vec(T) territory, #243).
    - Instantiation policy: per call site with dedup by concrete type; error
      on unbounded recursive instantiation.
-   - Whether `d: Drawable` on a parameter should eventually be sugar for the
-     bound (static) rather than the box (dynamic), leaving the box to
-     explicit own/ref positions and containers. Not decided; record the
-     tradeoff.
+   - DECIDED (2026-10-20): the two forms COEXIST. `d: Drawable` on a
+     parameter stays the dynamic form (one function, dispatch on the box's
+     tag, the only way to hold mixed concretes in one collection) and
+     `T: Type implements Drawable, d: T` is the static one (one copy per
+     T, direct calls, more generated code). Rust has both (`dyn Trait` /
+     `impl Trait`), Go only the first; til keeps the dynamic one as the
+     default so nothing already written changes meaning, and the static
+     form is opt-in where the extra code is worth the speed. Each default
+     and abstract call keeps the same meaning in both: #432's
+     conformance check and virtual defaults apply to the box, direct
+     resolution to the bound.
 
 *** Relations
 

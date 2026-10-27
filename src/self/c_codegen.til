@@ -6176,7 +6176,7 @@ priv interface_method_dispatchable := func(name: Str, fd: FunctionDef, symbols: 
     return fd.sig.return_type.eq(name).and(fd.sig.return_own_type.is(OwnType.Ref)).not()
 }
 
-priv emit_interface_receiver := proc(f: File, iface_name: Str, concrete: Str, def: Expr, param: Declaration, index: USize, lp: LoadedProgram) {
+priv emit_interface_receiver := proc(f: File, iface_name: Str, concrete: Str, param: Declaration, index: USize) {
     source := format("_t_iface_box_", index.to_str())
     payload := format("_t_iface_receiver_", index.to_str())
     if index > 0 {
@@ -6189,15 +6189,10 @@ priv emit_interface_receiver := proc(f: File, iface_name: Str, concrete: Str, de
     }
     f.write("        ").write(concrete).write(" *").write(payload).write(" = (").write(concrete).write(" *)").write(source).write("->iface_val;\n")
     if param.own_type.is(OwnType.Own) {
-        ref clone_fd : FunctionDef = funcdef_of(find_namespace_func(def, "clone", lp.ctx.scope, lp.ctx.symbols).unwrap())
-        f.write("        if (!").write(source).write("->iface_owned) {\n")
-        if func_returns_c_value(clone_fd) {
-            f.write("            ").write(concrete).write(" *_t_iface_copy = malloc(TIL_BOX(").write(concrete).write("));\n            *_t_iface_copy = ")
-        } else { f.write("            ").write(concrete).write(" *_t_iface_copy = ") }
-        f.write(concrete).write("_clone(")
-        if func_param_passes_c_value(clone_fd, 0, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols) { f.write("*") }
-        f.write(payload).write(");\n            ").write(payload).write(" = _t_iface_copy;\n        }\n")
-        f.write("        ").write(source).write("->iface_owned = 0;\n        ").write(source).write("->iface_val = NULL;\n")
+        // #432: an `own` receiver always arrives in an owning box (the typer
+        // clones an elided copy and rejects a `ref` binding), so the payload
+        // moves out; the null left behind is the box's moved-out state.
+        f.write("        ").write(source).write("->iface_val = NULL;\n")
     }
 }
 
@@ -6212,20 +6207,6 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
     f.write("    ").write(name).write(" *").write(receiver).write(" = ")
     if fd.sig.params[0].own_type.is(OwnType.Shallow) { f.write("&") }
     f.write(fd.sig.params[0].name).write(";\n")
-    if fd.sig.func_type.is_plain() {
-        // Standalone Iface() values have no concrete payload. They retain
-        // their own default body; boxed implementers use the branches below.
-        f.write("    if (").write(receiver).write("->iface_type_name.count == 0) {\n        ")
-        if fd.sig.return_type.len() > 0 { f.write("return ") }
-        f.write("_t_").write(full_name).write("_default(")
-        for i in 0..fd.sig.params.len() {
-            if i > 0 { f.write(", ") }
-            f.write(fd.sig.params[i].name)
-        }
-        f.write(");\n")
-        if fd.sig.return_type.len() == 0 { f.write("        return;\n") }
-        f.write("    }\n")
-    }
     mut arms : USize = 0
     for path : Str in lp.unit_paths() {
         for stmt : Expr in lp.ctx.imported[path].ast.children {
@@ -6260,7 +6241,7 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                         .write(fd.sig.params[i].name).write("->cap != TIL_CAP_LIT;\n")
                 }
                 if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols) == name {
-                    emit_interface_receiver(f, name, concrete, def, fd.sig.params[i], i, lp)
+                    emit_interface_receiver(f, name, concrete, fd.sig.params[i], i)
                 } else if func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
                     .and(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not())
                     .and(func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()) {
@@ -6344,7 +6325,7 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                         f.write("        ").write(name).write(" *_t_iface_box = malloc(TIL_BOX(").write(name).write("));\n        *_t_iface_box = (")
                     }
                     f.write(name).write("){.iface_type_name = (Str){.c_str=(void *)\"")
-                        .write(concrete).write("\", .count=").write(concrete.len().to_str()).write(", .cap=TIL_CAP_LIT}, .iface_val=(void *)_t_iface_payload, .iface_owned=1};\n")
+                        .write(concrete).write("\", .count=").write(concrete.len().to_str()).write(", .cap=TIL_CAP_LIT}, .iface_val=(void *)_t_iface_payload};\n")
                     f.write("        return _t_iface_box;\n")
                 } else if func_returns_c_value(fd).not().and(func_returns_c_value(target)) {
                     result_type := type_name_to_c_value(fd.sig.return_type, lp.ctx)
@@ -6374,7 +6355,9 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
         .and(def_is_interface(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())) {
         if qname_in_set(lp.ctx.builder_ns_member_sites, name, ".", dd_name)
             .or(builder_dyn_fn_target_kept(name, dd_name, lp.ctx)).or(lp.ctx.builder_keep_all_exports) {
-            emit_func_def(f, format("_t_", name, "_", dd_name, "_default"), fdef, mode, true, lp)
+            // #432: an interface cannot be instantiated, so a default is
+            // only ever reached through a boxed implementer: the dispatcher
+            // alone, no standalone copy of the default body.
             emit_interface_dispatch(f, name, dd_name, fdef, lp)
         }
         return

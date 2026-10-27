@@ -5654,16 +5654,13 @@ gen_interface_box_fields_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPoo
             is_mut = true, own_type = OwnType.Ref,
             default_value = Option(Expr).Some(own Expr.new(own NodeType.Literal(Literal.Null), stmt.line, stmt.col)))
         sdd.push_field(own val_decl)
-        // #269 follow-up: discriminate a borrowed box (the concrete outlives
-        // it -- arguments, same-scope locals) from an OWNED box (the concrete
-        // escapes -- returns, fields, Vec elements), which holds a heap copy
-        // of the concrete. The custom clone/delete below branch on this:
-        // owned boxes deep-clone / free iface_val via dyn_call; borrowed boxes
-        // leave it alone, exactly as before.
-        mut owned_decl := Declaration(name = "iface_owned", til_type = Type.Primitive(Primitive.Bool),
-            is_mut = true, own_type = OwnType.Shallow,
-            default_value = Option(Expr).Some(own Expr.new(own NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col)))
-        sdd.push_field(own owned_decl)
+        // #432: no ownership flag in the box. Whether iface_val is owned is
+        // the typer's static knowledge (the binding's qualifier), the same
+        // as for every aggregate: a box whose payload is a borrow (`ref d :
+        // Iface = c`, or the elided copy of an immutable local) is never
+        // deleted by the garbager at all (its tag is a literal, the box a
+        // stack value), while every box that IS deleted -- an owning local,
+        // a field, a collection element -- owns its payload.
     case:
     }
 }
@@ -5701,8 +5698,8 @@ priv iface_dyn_delete_call := func(stmt: Expr, mut symbols: SymbolPool) returns 
     return dc
 }
 
-// Iface(iface_type_name = <tn>, iface_val = <val>, iface_owned = <owned>)
-priv iface_box_ctor := func(stmt: Expr, sname: Str, own tn: Expr, own val: Expr, owned: Bool, mut symbols: SymbolPool) returns Expr {
+// Iface(iface_type_name = <tn>, iface_val = <val>)
+priv iface_box_ctor := func(stmt: Expr, sname: Str, own tn: Expr, own val: Expr, mut symbols: SymbolPool) returns Expr {
     mut ctor := Expr.new(own NodeType.FCall(FCallData()), stmt.line, stmt.col)
     ctor.add_child(own Expr.new(own ident_node(symbols.intern(sname)), stmt.line, stmt.col))
     mut na1 := Expr.new(own NodeType.NamedArg("iface_type_name"), stmt.line, stmt.col)
@@ -5711,22 +5708,25 @@ priv iface_box_ctor := func(stmt: Expr, sname: Str, own tn: Expr, own val: Expr,
     mut na2 := Expr.new(own NodeType.NamedArg("iface_val"), stmt.line, stmt.col)
     na2.add_child(own val)
     ctor.add_child(own na2)
-    mut na3 := Expr.new(own NodeType.NamedArg("iface_owned"), stmt.line, stmt.col)
-    na3.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(owned)), stmt.line, stmt.col))
-    ctor.add_child(own na3)
+    switch ctor.node_type {
+    case .FCall(ctor_fcd): ctor_fcd.iface_box_owns_payload = true
+    case:
+    }
     return ctor
 }
 
-// #269 follow-up: generate ownership-aware clone/delete for an interface box.
-// The generic field-wise versions are wrong for an OWNED box -- clone would
-// value-copy (alias) the iface_val pointer and delete would skip it (Ref),
-// leaking the heap copy. delete branches on iface_owned: an owned box frees
-// the concrete via dyn_call, a borrowed box leaves the pointer alone. clone
-// (#432) always produces an OWNED box: a copy of an interface value owns its
-// payload exactly as a copy of any aggregate owns its heap, whether the
-// source box owned or merely borrowed (`ref d : Iface = c`) its concrete.
-// Only the empty Iface() box, which has no concrete to copy, is copied as
-// is. Runs before gen_struct_clone_delete_for_stmt so it sees clone/delete
+// #269 follow-up: generate clone/delete for an interface box. The generic
+// field-wise versions are wrong for it -- clone would value-copy (alias) the
+// iface_val pointer and delete would skip it (Ref), leaking the heap copy.
+// Both go through dyn_call on the runtime tag because the payload is
+// type-erased. clone (#432) produces an OWNED box: a copy of an interface
+// value owns its payload exactly as a copy of any aggregate owns its heap,
+// whether the source box owned or merely borrowed (`ref d : Iface = c`) its
+// concrete. delete frees the payload: every box the garbager deletes owns it
+// (a borrowing box is never deleted, see gen_interface_box_fields_for_stmt);
+// a consumed receiver leaves a null payload behind (the moved-out state, the
+// dispatcher's `iface_val = NULL`), which there is nothing left to free.
+// Runs before gen_struct_clone_delete_for_stmt so it sees clone/delete
 // already present and skips them.
 gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
@@ -5744,31 +5744,14 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
         has_delete := sdd.ns_index.has("delete")
 
         if has_clone.not() {
-            // if self.iface_type_name.len() > 0 {
-            //     return Iface(self.iface_type_name.clone(), <deep copy>, true)
-            // }
+            // return Iface(self.iface_type_name.clone(), <deep copy>)
             mut owned_tn := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name", symbols), "clone", stmt.line, stmt.col, symbols)
-            mut owned_box := iface_box_ctor(stmt, sname, own owned_tn, own iface_dyn_clone_call(stmt, symbols), true, symbols)
+            mut owned_box := iface_box_ctor(stmt, sname, own owned_tn, own iface_dyn_clone_call(stmt, symbols), symbols)
             mut owned_ret := Expr.new(own NodeType.Return, stmt.line, stmt.col)
             owned_ret.add_child(own owned_box)
-            mut then_body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
-            then_body.add_child(own owned_ret)
-            mut tn_len := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name", symbols), "len", stmt.line, stmt.col, symbols)
-            mut has_payload := make_method_call_fcall(own tn_len, "gt", stmt.line, stmt.col, symbols)
-            has_payload.add_child(own Expr.new(own literal_num_node("0"), stmt.line, stmt.col))
-            mut if_node := Expr.new(own NodeType.If, stmt.line, stmt.col)
-            if_node.add_child(own has_payload)
-            if_node.add_child(own then_body)
-
-            // empty Iface(): return Iface(self.iface_type_name.clone(), self.iface_val, false)
-            mut bor_tn := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name", symbols), "clone", stmt.line, stmt.col, symbols)
-            mut bor_box := iface_box_ctor(stmt, sname, own bor_tn, own iface_self_field(stmt, "iface_val", symbols), false, symbols)
-            mut bor_ret := Expr.new(own NodeType.Return, stmt.line, stmt.col)
-            bor_ret.add_child(own bor_box)
 
             mut clone_body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
-            clone_body.add_child(own if_node)
-            clone_body.add_child(own bor_ret)
+            clone_body.add_child(own owned_ret)
 
             mut clone_decl := FunctionDef(auto_generated = true)
             clone_decl.sig.func_type = FuncType.Func
@@ -5782,11 +5765,15 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
         }
 
         if has_delete.not() {
-            // if self.iface_owned { dyn_call(... "delete" ... true) }
+            // if self.iface_val.is_null().not() { dyn_call(... "delete" ... true) }
+            // REM: the null payload is the consumed receiver's moved-out
+            // state, not a defensive guard.
             mut del_then := Expr.new(own NodeType.Body, stmt.line, stmt.col)
             del_then.add_child(own iface_dyn_delete_call(stmt, symbols))
+            mut val_is_null := make_method_call_fcall(own iface_self_field(stmt, "iface_val", symbols), "is_null", stmt.line, stmt.col, symbols)
+            mut val_present := make_method_call_fcall(own val_is_null, "not", stmt.line, stmt.col, symbols)
             mut del_if := Expr.new(own NodeType.If, stmt.line, stmt.col)
-            del_if.add_child(own iface_self_field(stmt, "iface_owned", symbols))
+            del_if.add_child(own val_present)
             del_if.add_child(own del_then)
 
             // self.iface_type_name.delete(false)
