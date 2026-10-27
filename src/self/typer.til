@@ -5073,6 +5073,16 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
                     // auto-generates for the (empty) interface struct --
                     // only user-written members carry the contract.
                     if if_fd.auto_generated { continue }
+                    // #432: the box's lifecycle is generated -- clone deep-copies
+                    // and delete releases the payload through the runtime tag
+                    // -- and an interface has no values of its own to give a
+                    // hand-written one a meaning. A per-type clone or delete
+                    // belongs on the implementer.
+                    if if_name.eq("clone").or(if_name.eq("delete")) {
+                        if_nd.default_expr().type_error(format("interface '", inner.active_type_name(), "' cannot declare '", if_name,
+                            "': the box's lifecycle is generated; a per-type '", if_name, "' belongs on the implementing struct or enum"), ctx)
+                        continue
+                    }
                     ift := if_fd.sig.func_type
                     ok_kind := ift.is_plain().or(ift.is_ext())
                     if ok_kind.not() {

@@ -686,6 +686,13 @@ TErrInterfaceBadKind := interface {
     t := test() {}
 }
 
+// #432: the box's clone/delete are generated; an interface cannot declare
+// its own (a per-type one belongs on the implementer).
+TErrInterfaceLifecycle := interface {
+    clone := func(_self: TErrInterfaceLifecycle) returns I64 { return 1 }
+    delete := proc(_self: TErrInterfaceLifecycle) { print("") }
+}
+
 // #251: `implements` conformance. An interface for the cases below.
 TErrConfIface := interface {
     must := ext_func(self: TErrConfIface) returns I64 {}

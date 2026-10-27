@@ -190,8 +190,10 @@
      copied into Circle means `Vec(Circle)`, a template instance that may
      not exist yet, so it needs the macro machinery to instantiate it per
      implementer (#433/#434 territory).
-   - A user-declared clone/delete on an interface still suppresses the
-     generated box lifecycle methods.
+   - [X] A user-declared clone/delete on an interface used to suppress the
+     generated box lifecycle methods silently; it is a typer error now
+     ("cannot declare 'clone': the box's lifecycle is generated",
+     TErrInterfaceLifecycle in test/typer_errors.til).
 
 *** Acceptance
 

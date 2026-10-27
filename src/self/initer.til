@@ -5778,6 +5778,9 @@ gen_interface_clone_delete_for_stmt := func(mut stmt: Expr, mut symbols: SymbolP
     switch stmt.children[0].node_type {
     case .StructDef(sdd):
         if sdd.is_interface.not() { return }
+        // A user-written clone/delete on an interface is a typer error
+        // (#432); the guards only keep this pass from declaring the member
+        // twice before that error is reported.
         has_clone := sdd.ns_index.has("clone")
         has_delete := sdd.ns_index.has("delete")
 
