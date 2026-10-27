@@ -40,6 +40,14 @@ Independent of [[./317.org][#317]] (MLIR). Coordinate operation coverage with
 [[./410.org][#410]]; explicit device execution is tracked by [[./411.org][#411]]
 and its prototype by [[./412.org][#412]].
 
+*** Interleaved eight-row address use (code base ef2b9c557)
+
+The [[../../examples/preann.til][preann example]] interleaves independent rows to remove Clang's serial
+address walk from the dot loop. Correctness and the full ASAN suite pass
+(464/464). Extra outer-loop setup is a tradeoff; speedups remain unclaimed
+until exclusive merge-time measurements. Assembly evidence and reproduction:
+[[../../doc/optimizations.org::*Interleaved eight-row address use (2026-10-27, #409)][Optimization measurements]].
+
 *** Cross-row reductions (base 2537a67cb)
 
 The [[../../examples/preann.til][preann example]] reduces four outputs together within its eight-row

@@ -119,13 +119,16 @@ return func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), ro
             mut offset : UPtr = 0
             while offset < row_bytes {
                 x := load4_bytes(inputs.data, offset)
+                // Interleave independent output rows so Clang retains row
+                // bases instead of rebuilding a serial address walk here.
+                // Each row still visits input vectors in the same order.
                 a0 = a0 + x * load4_bytes(w0, offset)
-                a1 = a1 + x * load4_bytes(w1, offset)
-                a2 = a2 + x * load4_bytes(w2, offset)
-                a3 = a3 + x * load4_bytes(w3, offset)
                 a4 = a4 + x * load4_bytes(w4, offset)
+                a1 = a1 + x * load4_bytes(w1, offset)
                 a5 = a5 + x * load4_bytes(w5, offset)
+                a2 = a2 + x * load4_bytes(w2, offset)
                 a6 = a6 + x * load4_bytes(w6, offset)
+                a3 = a3 + x * load4_bytes(w3, offset)
                 a7 = a7 + x * load4_bytes(w7, offset)
                 offset = offset + 16
             }
