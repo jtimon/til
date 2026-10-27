@@ -6,6 +6,187 @@ mode test
 
 AAAError := struct {}
 
+// #443: guard uses of a failed reference result and later operands, not
+// just statements following the enclosing expression.
+nested_pair := func(a: Array(F32), b: Array(F32)) returns F32 throws OutOfBounds {
+    return a.get(0)? + b.get(0)?
+}
+
+nested_mark := func(mut trace: I64, digit: I64) returns F32 {
+    trace = trace * 10 + digit
+    return digit.to_f32()
+}
+
+nested_consume := func(a: F32, b: F32, mut calls: I64) returns F32 {
+    calls++
+    return a + b
+}
+
+nested_arguments := func(a: Array(F32), mut trace: I64, mut calls: I64) returns F32 throws OutOfBounds {
+    return nested_consume(nested_mark(trace, 1) + a.get(0)?, nested_mark(trace, 2), calls)
+}
+
+test_nested_question_returns_and_arguments := test() {
+    a := array(F32, 4)
+    empty := Array(F32).new(0)
+    assert_eq(F32, nested_pair(a, a)!, 8)
+    mut caught := 0
+    nested_pair(empty, a)? catch (err: OutOfBounds) { caught++ }
+    nested_pair(a, empty)? catch (err: OutOfBounds) { caught++ }
+    assert_eq(I64, caught, 2)
+    mut trace := 0
+    mut calls := 0
+    nested_arguments(empty, trace, calls)? catch (err: OutOfBounds) { caught++ }
+    assert_eq(I64, trace, 1)
+    assert_eq(I64, calls, 0)
+    trace = 0
+    assert_eq(F32, nested_arguments(a, trace, calls)!, 7)
+    assert_eq(I64, trace, 12)
+    assert_eq(I64, calls, 1)
+}
+
+test_nested_question_initializers_and_stores := test() {
+    a := array(F32, 4)
+    empty := Array(F32).new(0)
+    mut caught := 0
+    good := a.get(0)? + a.get(0)?
+    assert_eq(F32, good, 8)
+    catch (err: OutOfBounds) { assert(false) }
+    bad := a.get(0)? + empty.get(0)?
+    assert_eq(F32, bad, 8)
+    catch (err: OutOfBounds) { caught++ }
+    mut target : F32 = 99
+    target = a.get(0)? + empty.get(0)?
+    catch (err: OutOfBounds) { caught++ }
+    assert_eq(F32, target, 99)
+    target = nested_outer_bang(-1)?
+    catch (err: OutOfBounds) { caught++ }
+    assert_eq(F32, target, 99)
+    assert_eq(I64, caught, 3)
+}
+
+NestedReader := func(values: Array(F32), index: USize) returns ref F32 throws OutOfBounds
+
+nested_read := func(values: Array(F32), index: USize) returns ref F32 throws OutOfBounds {
+    return values.get(index)?
+}
+
+nested_callback_pair := func(reader: NestedReader, values: Array(F32)) returns F32 throws OutOfBounds {
+    return reader(values, 0)? + reader(values, 1)?
+}
+
+nested_conditions := func(values: Array(F32), mut branches: I64) throws OutOfBounds {
+    if values.get(0)? > 0 { branches++ }
+    while values.get(0)? > 0 {
+        branches++
+        break
+    }
+}
+
+test_nested_question_callbacks_and_conditions := test() {
+    values := array(F32, 4, 5)
+    empty := Array(F32).new(0)
+    short_values := array(F32, 4)
+    assert_eq(F32, nested_callback_pair(nested_read, values)!, 9)
+    mut caught := 0
+    nested_callback_pair(nested_read, empty)? catch (err: OutOfBounds) { caught++ }
+    nested_callback_pair(nested_read, short_values)? catch (err: OutOfBounds) { caught++ }
+    mut branches := 0
+    nested_conditions(empty, branches)? catch (err: OutOfBounds) { caught++ }
+    assert_eq(I64, branches, 0)
+    nested_conditions(values, branches)!
+    assert_eq(I64, branches, 2)
+    assert_eq(I64, caught, 3)
+}
+
+nested_change := func(mut values: Array(F32)) returns ref F32 throws OutOfBounds {
+    ref mut v : F32 = values.get(0)?
+    v = v + 10
+    return v
+}
+
+nested_snapshot := func(mut values: Array(F32)) returns F32 throws OutOfBounds {
+    return values.get(0)? + nested_change(values)?
+}
+
+test_nested_question_value_snapshot := test() {
+    mut values := array(F32, 1)
+    assert_eq(F32, nested_snapshot(values)!, 12)
+    assert_eq(F32, values[0], 11)
+}
+
+nested_pick_ref := func(values: Array(F32), marker: F32) returns ref F32 throws OutOfBounds {
+    if marker < 0 { throw OutOfBounds() }
+    return values.get(0)?
+}
+
+nested_ref_initializer := func(values: Array(F32)) returns F32 throws OutOfBounds {
+    ref selected : F32 = nested_pick_ref(values, values.get(0)?)?
+    return selected.clone()
+}
+
+nested_ref_initializer_bang := func(values: Array(F32)) returns F32 throws OutOfBounds {
+    ref selected : F32 = nested_pick_ref(values, values.get(0)?)!
+    return selected.clone()
+}
+
+nested_ref_return_bang := func(values: Array(F32)) returns ref F32 throws OutOfBounds {
+    return nested_pick_ref(values, values.get(0)?)!
+}
+
+test_nested_question_reference_lifetimes := test() {
+    values := array(F32, 4)
+    empty := Array(F32).new(0)
+    assert_eq(F32, nested_ref_initializer(values)!, 4)
+    assert_eq(F32, nested_ref_initializer_bang(values)!, 4)
+    ref selected : F32 = nested_ref_return_bang(values)!
+    assert_eq(F32, selected, 4)
+    mut caught := 0
+    nested_ref_initializer(empty)? catch (err: OutOfBounds) { caught++ }
+    nested_ref_initializer_bang(empty)? catch (err: OutOfBounds) { caught++ }
+    nested_ref_return_bang(empty)? catch (err: OutOfBounds) { caught++ }
+    assert_eq(I64, caught, 3)
+}
+
+nested_owned := func(value: F32) returns Str { return format("value ", value) }
+
+nested_format := func(values: Array(F32)) returns Str throws OutOfBounds {
+    return format("value ", values.get(0)?)
+}
+
+nested_outer_bang := func(value: F32) returns F32 throws OutOfBounds {
+    if value < 0 { throw OutOfBounds() }
+    return value
+}
+
+nested_question_inside_bang := func(values: Array(F32)) returns F32 throws OutOfBounds {
+    return nested_outer_bang(values.get(0)?)!
+}
+
+test_nested_question_variadic_and_bang := test() {
+    values := array(F32, 4)
+    empty := Array(F32).new(0)
+    assert_eq(Str, nested_format(values)!, "value 4")
+    assert_eq(F32, nested_question_inside_bang(values)!, 4)
+    mut caught := 0
+    nested_format(empty)? catch (err: OutOfBounds) { caught++ }
+    nested_question_inside_bang(empty)? catch (err: OutOfBounds) { caught++ }
+    assert_eq(I64, caught, 2)
+}
+
+test_nested_question_owned_result := test() {
+    values := array(F32, 4)
+    empty := Array(F32).new(0)
+    good := nested_owned(values.get(0)?)
+    assert_eq(Str, good, "value 4")
+    catch (err: OutOfBounds) { assert(false) }
+    mut caught := false
+    bad := nested_owned(empty.get(0)?)
+    assert_eq(Str, bad, "unreachable")
+    catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+}
+
 // #444: an unhandled error exits before the loop condition/iterator is
 // evaluated again. A handled error still permits the next iteration.
 propagation_loop := func(values: Array(I64), mut attempts: I64, mut conditions: I64) throws OutOfBounds {

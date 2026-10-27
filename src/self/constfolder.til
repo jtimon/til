@@ -1440,12 +1440,23 @@ priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
 // elements reference runtime values (e.g. a generated `Mode.to_str` doing
 // format(self.field, ...)), and eval_expr would raise "undefined variable
 // 'self'". This mirrors the all_comptime gate the wrapper-form fold uses.
+priv contains_va_set := func(e: Expr, va: Str, symbols: SymbolPool) returns Bool {
+    if is_va_set(e, va, symbols) { return true }
+    for child : Expr in e.children {
+        if contains_va_set(child, va, symbols) { return true }
+    }
+    return false
+}
+
 priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, mut ctx: Context) returns Bool {
     mut k := decl_idx + 1
     while k < body.children.len() {
         ref s : Expr = body.children[k]
         // Stop at the consumer: first use of va that is not a build stmt.
         if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va, ctx.symbols).or(is_va_array_decl(s)).not()) {
+            // A guarded build is not a consumer of the completed array.
+            // Materializing just its unconditional prefix loses operands.
+            if contains_va_set(s, va, ctx.symbols) { return false }
             break
         }
         if is_va_set(s, va, ctx.symbols) {
@@ -1566,7 +1577,7 @@ priv fold_va_calls := proc(mut scope: Scope, mut e: Expr, va: Str, mut ctx: Cont
     for i in 0..e.children.len() {
         fold_va_calls(scope, e.children[i], va, ctx)
         ref mut child : Expr = e.children[i]
-        if child.node_type.is(NodeType.FCall).and(is_func_call(child, ctx)).and(expr_uses_var_p(child, va, ctx)).and(va_consumer_args_ok(child, va, ctx)) {
+        if child.node_type.is(NodeType.FCall).and(is_func_call(child, ctx)).and(expr_uses_var_p(child, va, ctx)).and(va_consumer_args_ok(child, va, ctx)).and(is_delete_call_on(child, va, ctx.symbols).not()) {
             // Bind the consumer's other comptime-known args (e.g. a positional
             // arg's hoist like `hoisted__I64 := 100` in prefix_sum(100, va))
             // into the fold scope; only `va` was bound by materialize_va, so

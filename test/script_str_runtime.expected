@@ -60,7 +60,7 @@ inner
 8
 nested continue:10:16
 number
-scalar throw:0:18
+scalar throw:7:18
 throwing reference
 variadic:16:10
 scalar swap

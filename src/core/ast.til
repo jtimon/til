@@ -611,6 +611,12 @@ FCallData := struct {
     // Dynamic type, so the shape of the argument cannot tell them apart.
     // Appended so the bootstrap compiler's existing fields keep their layout.
     iface_box_owns_payload := false
+    // #443: retain the error disposition after does_throw/is_bang are
+    // consumed by lowering. Late argument hoisting must not confuse a ?
+    // continuation with a ! check, or with an ordinary read of _err_kind.
+    propagates_error := false
+    panic_on_error := false
+    is_bang_check := false
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

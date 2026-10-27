@@ -1,0 +1,25 @@
+# priority: medium
+# category: bugs
+** OPEN #452 C keyword used as a til local name breaks C emission
+
+Found while adding #443 regressions on base bf835288e. A local named
+~short~ is accepted and runs in the interpreter, but the C backend emits
+the identifier verbatim, producing ~Array__F32 short = ...~ and invalid
+expressions such as ~&short~. C compilation fails with "two or more data
+types in declaration specifiers" / "expected expression before short".
+
+Reproducer shape:
+
+#+begin_src til
+mode cli
+main := proc() {
+    short := array(F32, 4)
+    println(short.len())
+}
+#+end_src
+
+The original test passed interpretation before failing C compilation.
+It now uses ~short_values~ so this independent naming defect does not
+obscure the propagation regression. Fix identifier escaping consistently
+for declarations and uses; cover other C keywords and collisions with the
+escaped spelling. This is a C emission problem, not a missing til keyword.

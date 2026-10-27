@@ -1,0 +1,72 @@
+# priority: high
+# category: bugs
+** FIXED #443 Nested propagating calls consume failed reference results
+
+*** Post-mortem
+
+The throw pass injected error arguments before type inference, but later
+argument hoisting introduced new consumers without success guards. Calls
+and their dependent evaluations now form success-guarded continuations in
+the shared typed lowering, preserving the existing operand snapshots/order.
+Explicit call metadata retains the distinction between propagation, panic
+and ordinary error-kind comparisons after the source markers are cleared.
+
+The continuation includes variadic pack construction and an outer bang's
+generated checks/return. Nested question-mark errors remain pending rather
+than being consumed by an outer bang that never ran. Value initializers keep
+their original scope; reference initializers stage an address in a UPtr
+cell using write_ptr/deref, preserving borrowed storage and null error-path
+references without interpreting the pointee as a pointer. Catch validation
+also tracks errors nested in reference initializers.
+
+Variadic constant folding must see a complete build region: a conditional
+setter is not a consumer of an already-complete array. The folder now rejects
+partial materialization and does not evaluate cleanup as a variadic consumer.
+HolyC/runtime goldens were updated for preserving an assignment target when
+its call fails, rather than storing the unused fallback result.
+
+Regression tests in test/errors.til:
+- test_nested_question_returns_and_arguments
+- test_nested_question_initializers_and_stores
+- test_nested_question_callbacks_and_conditions
+- test_nested_question_value_snapshot
+- test_nested_question_reference_lifetimes
+- test_nested_question_variadic_and_bang
+- test_nested_question_owned_result
+
+Verified after rebasing onto bf835288e: the error tests pass interpreted and
+compiled with ASAN, and the clean full suite passes 471/471. No MLIR-specific
+error shortcut was added. The separate identifier-escaping failure found
+while writing the callback test is recorded in #452.
+
+*** Original report
+
+Found while preparing the MLIR buffer backend (#317), on master d2e52f609
+plus the SIMD follow-up 1a07795e9. This is shared throw lowering, not an
+MLIR-only defect. Both interpretation and C/ASAN report ~panic: null deref~
+instead of reaching the caller's catch:
+
+#+begin_src til
+mode cli
+read_pair := func(a: Array(F32), b: Array(F32), i: USize) returns F32 throws OutOfBounds {
+    return a.get(i)? + b.get(i)?
+}
+main := proc() {
+    a := array(F32, 1)
+    b := Array(F32).new(0)
+    mut caught := false
+    read_pair(a, b, 0)? catch (err: OutOfBounds) { caught = true }
+    assert(caught)
+}
+#+end_src
+
+The shared pass injects error arguments into nested question-mark calls,
+but does not split the enclosing expression into success-guarded steps.
+Later ordinary hoisting dereferences the failed get's null result before
+any error check. The first failure must prevent consumers and later
+operands from running, without changing evaluation order or skipping a
+local catch. Cover return expressions, call arguments and initializers,
+including observable operand effects and successful reference lifetimes.
+
+Reproduce with ~bin/til interpret~ and ~bin/til run --asan~ on the source
+above. Scratch reproducer: ~tmp/mlir_buffers_error.til~.

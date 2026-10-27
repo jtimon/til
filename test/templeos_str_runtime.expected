@@ -2842,7 +2842,9 @@ I64 TilMain()
     }
     I64 hoisted__I64_g819_908 = -1;
     I64 hoisted__I64_g820_909 = language_number(hoisted__I64_g819_908, &language_closes_796, &_err_kind_172, &_err_LanguageError_173);
-    number_result_890 = hoisted__I64_g820_909;
+    if ((_err_kind_172 == 0)) {
+        number_result_890 = hoisted__I64_g820_909;
+    }
     I64 hoisted__I64_g821_910 = 8108222931882104611;
     Bool hoisted__Bool_g822_911 = (_err_kind_172 == hoisted__I64_g821_910);
     if (hoisted__Bool_g822_911) {

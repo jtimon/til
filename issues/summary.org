@@ -1,6 +1,5 @@
 * Bugs
 ** High
-*** [[./open/443.org][#443]] Nested propagating calls consume failed reference results
 *** [[./open/447.org][#447]] A view of a temporary Str dangles: format(...).trim() reads freed memory
 *** [[./open/450.org][#450]] A struct field named like a global function shadows it inside the struct's methods
 ** Medium
@@ -9,6 +8,7 @@
 *** [[./open/431.org][#431]] til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
 *** [[./open/445.org][#445]] C library binding generation rejects builtin SIMD types
 *** [[./open/448.org][#448]] Same top-level function name in two units compiles silently; last definition wins everywhere
+*** [[./open/452.org][#452]] C keyword used as a til local name breaks C emission
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade

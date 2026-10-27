@@ -598,6 +598,9 @@ typedef struct FCallData {
     Bool is_subscript;
     Bool is_throw_default;
     Bool iface_box_owns_payload;
+    Bool propagates_error;
+    Bool panic_on_error;
+    Bool is_bang_check;
 } FCallData;
 
 

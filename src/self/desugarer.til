@@ -1365,6 +1365,7 @@ priv clear_bang_flag := proc(mut e: Expr) {
         if fcd_clr.is_bang {
             fcd_clr.is_bang = false
             fcd_clr.does_throw = true
+            fcd_clr.panic_on_error = true
         }
     case:
     }
@@ -1841,7 +1842,9 @@ priv inject_err_args_on_one_fcall_consolidated := func(mut ctx: Context, mut e: 
         e.add_child(own slot_arg)
     }
     switch e.node_type {
-    case .FCall(fcd_clr): fcd_clr.does_throw = false
+    case .FCall(fcd_clr):
+        fcd_clr.propagates_error = fcd_clr.panic_on_error.not()
+        fcd_clr.does_throw = false
     case:
     }
 }
@@ -1935,6 +1938,7 @@ priv build_bang_lowered := func(mut ctx: Context, error_type: Str, line: U32, co
     mut tag_lit := make_int_lit(tag, line, col)
     mut cond := make_method_call_fcall(own kind_id, "eq", line, col, ctx.symbols)
     cond.add_child(own tag_lit)
+    fcall_of(cond).is_bang_check = true
     mut if_node := Expr.new(own NodeType.If, line, col)
     if_node.add_child(own cond)
     if_node.add_child(own blk)
@@ -2412,6 +2416,23 @@ priv process_match_arms_in := proc(
     }
 }
 
+// An outer bang handles its own errors, not errors raised by nested ? calls.
+// Keep those types pending after the bang's generated checks are installed.
+priv collect_question_types := func(e: Expr, root: Expr, mut scope: TypeScope, mut ctx: Context, mut out: Vec(Str)) {
+    switch e.node_type {
+    case .FuncDef, .StructDef, .EnumDef, .BodyValue: return
+    case .FCall(fcd):
+        if fcd.does_throw && fcd.is_bang.or(fcd.panic_on_error).not() {
+            key := find_callee_throws_key(scope, ctx, e, root)
+            if key.len() > 0 {
+                for name : Str in ctx.throws_global[key] { vec_str_push_uniq(out, name) }
+            }
+        }
+    case:
+    }
+    for child : Expr in e.children { collect_question_types(child, root, scope, ctx, out) }
+}
+
 // A pending error must leave the loop before its next condition/iterator
 // evaluation. A locally handled error is reset before this edge (#444).
 priv append_loop_error_break := func(mut body: Expr, mut symbols: SymbolPool) {
@@ -2539,6 +2560,8 @@ priv process_throw_catch_in_body := proc(
         // next stmt's wrap decision. Bangs don't count -- they panic and
         // reset on the error path (see subtree_has_pending_throw).
         had_throw_subtree := subtree_has_pending_throw(stmt)
+        mut nested_questions := Vec(Str).new()
+        if find_bang_fcall(stmt).is_some() { collect_question_types(stmt, root_body, scope, ctx, nested_questions) }
 
         // 1. Hoist nested bangs in stmt's expression tree.
         mut pre_stmts := Vec(Expr).new()
@@ -2667,23 +2690,17 @@ priv process_throw_catch_in_body := proc(
         // panics on the error path and never reaches a catch, so it is
         // not recorded; step 3 has already turned its flag into does_throw,
         // hence the root_bang_throws gate.
-        if stmt.node_type.is(NodeType.Decl).and(root_bang_throws.len().eq(0)).and(stmt.children.len().eq(1)) {
+        if stmt.node_type.is(NodeType.Decl).and(root_bang_throws.len().eq(0).or(nested_questions.len().gt(0))).and(stmt.children.len().eq(1)) {
             switch stmt.node_type {
             case .Decl(dd_ref):
                 if dd_ref.own_type.is(OwnType.Ref) {
                     ref rhs_ref : Expr = stmt.children[0]
-                    mut rhs_throws := false
-                    switch rhs_ref.node_type {
-                    case .FCall(fcd_ref): rhs_throws = fcd_ref.does_throw
-                    case:
-                    }
-                    if rhs_throws {
-                        key_ref := find_callee_throws_key(scope, ctx, rhs_ref, root_body)
-                        if key_ref.len() > 0 {
-                            mut rb := PendingRefBinding(name = dd_ref.name.clone(), line = stmt_line, col = stmt_col)
-                            rb.throw_types = ctx.throws_global[key_ref].clone()
-                            pending_refs.push(own rb)
-                        }
+                    mut binding_throws := Vec(Str).new()
+                    collect_question_types(rhs_ref, root_body, scope, ctx, binding_throws)
+                    if binding_throws.len() > 0 {
+                        mut rb := PendingRefBinding(name = dd_ref.name.clone(), line = stmt_line, col = stmt_col)
+                        rb.throw_types = binding_throws.clone()
+                        pending_refs.push(own rb)
                     }
                 }
             case:
@@ -2979,10 +2996,10 @@ priv process_throw_catch_in_body := proc(
                 mut new_ret := Expr.new(own NodeType.Return, stmt_line, stmt_col)
                 new_ret.add_child(own Expr.new(own ident_node(ctx.symbols.intern(tmp_name)), stmt_line, stmt_col))
                 new_ch.push(own new_ret)
-                // The lowered bang checks both panic AND reset
-                // _err_kind = 0 on the error path, so subsequent
-                // stmts don't need wrapping.
-                seen_throwing = false
+                // The bang itself cannot leave a pending error, but a nested
+                // ? may skip it and still needs the following success guard.
+                for name : Str in nested_questions { vec_str_push_uniq(pending, name) }
+                seen_throwing = nested_questions.len() > 0
                 continue
             }
             if hoisted_store {
@@ -3001,7 +3018,8 @@ priv process_throw_catch_in_body := proc(
                     _matched_b3 := pending_remove_all_matching(pending, tn)
                 }
                 new_ch.push_take(old, j)
-                seen_throwing = false
+                for name : Str in nested_questions { vec_str_push_uniq(pending, name) }
+                seen_throwing = nested_questions.len() > 0
                 continue
             }
             if seen_throwing {
@@ -3014,7 +3032,8 @@ priv process_throw_catch_in_body := proc(
                 new_ch.push(own build_bang_lowered(ctx, tn, stmt_line, stmt_col))
                 _matched_b2 := pending_remove_all_matching(pending, tn)
             }
-            seen_throwing = false
+            for name : Str in nested_questions { vec_str_push_uniq(pending, name) }
+            seen_throwing = nested_questions.len() > 0
             continue
         }
 
@@ -5003,6 +5022,19 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
 // Compile directives (link / link_c / import) flow through untouched:
 // the call-desugar walk is a no-op on them, the hoist switch's default
 // case skips them, and field_delete is FieldAssign-only.
+priv propagation_success_body := func(stmt: Expr, depth: USize) returns ref Expr {
+    ref body : Expr = stmt.children[1]
+    if depth == 1 { return body }
+    return propagation_success_body(body.children[body.children.len() - 1], depth - 1)
+}
+
+priv is_lowered_bang_check := func(stmt: Expr) returns Bool {
+    if stmt.node_type.is(NodeType.If).not() { return false }
+    ref condition : Expr = stmt.children[0]
+    if condition.node_type.is(NodeType.FCall).not() { return false }
+    return fcall_of(condition).is_bang_check
+}
+
 body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, owns_scope: I32, returns_ref: I32) returns Bool {
     mut has_set_lit := false
     mut has_map_lit := false
@@ -5053,7 +5085,9 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
 
     // Lower bound: each old stmt lands in new_ch (some expand to more).
     mut new_ch := Vec(Expr).with_capacity(old.len())
+    mut consumed_until : USize = 0
     for i in 0..old.len() {
+        if i < consumed_until { continue }
         ref mut stmt : Expr = old[i]
 
         // (1) Top-level desugar: may emit N replacement stmts. Each
@@ -5096,7 +5130,36 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
                 new_ch.push_take(temp_ch, j)
             }
         } else {
-            apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete, returns_ref)
+            mut guarded_body := apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete, returns_ref)
+            if guarded_body.is_some() {
+                // An outer ! checks only errors from calls it actually ran.
+                // Its generated checks (and return for `return f(...)!`)
+                // belong inside the nested ? calls' successful continuation.
+                mut next := i + 1
+                ref mut success : Expr = guarded_body.unwrap()
+                while next < old.len() {
+                    if is_lowered_bang_check(old[next]).not() { break }
+                    success.add_child(own old[next].clone())
+                    next++
+                }
+                if next > i + 1 && next < old.len() {
+                    ref candidate : Expr = old[next]
+                    if candidate.node_type.is(NodeType.Return) && candidate.line == stmt.line && candidate.col == stmt.col {
+                        success.add_child(own candidate.clone())
+                        next++
+                        // A ref-returning `return f(...)!` now binds and
+                        // returns its synthesized ref entirely inside success.
+                        // Its error-path alias outside the guard has no user.
+                        if stmt.node_type.is(NodeType.Decl) {
+                            if decl_of(stmt).own_type.is(OwnType.Ref) {
+                                stmt.children.clear()
+                                stmt.node_type = NodeType.Body
+                            }
+                        }
+                    }
+                }
+                consumed_until = next
+            }
             new_ch.push_take(old, i)
         }
     }
@@ -5190,6 +5253,44 @@ hoist_constfolded_stack_outer_ctors := proc(mut ctx: Context, mut program: Expr)
 
 // Apply per-stmt hoist (the body_pre_passes equivalent of the old
 // hoist_fcall_args dispatch). Prepends any new temp Decls to new_ch.
+// A nested ? call is now a separate, typed hoisted declaration. Its users
+// must stay on the success edge, including subsequent argument evaluations.
+priv hoisted_call_can_propagate := func(stmt: Expr) returns Bool {
+    if stmt.node_type.is(NodeType.Decl) {
+        if stmt.children.len() != 1 { return false }
+        return hoisted_call_can_propagate(stmt.children[0])
+    }
+    if stmt.node_type.is(NodeType.FCall).not() { return false }
+    return fcall_of(stmt).propagates_error
+}
+
+priv typed_error_clear := proc(line: U32, col: U32, mut scope: TypeScope, mut ctx: Context) returns Expr {
+    mut kind := Expr.new(own ident_node(ctx.symbols.intern("_err_kind")), line, col)
+    mut condition := make_method_call_fcall(own kind, "eq", line, col, ctx.symbols)
+    condition.add_child(own make_int_lit(0, line, col))
+    infer_expr(scope, condition, 1, ctx)
+    return condition
+}
+
+priv guard_hoisted_sequence := proc(mut steps: Vec(Expr), start: USize, stmt: Expr, mut scope: TypeScope, mut ctx: Context) returns Expr {
+    mut body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
+    for i in start..steps.len() {
+        pending := hoisted_call_can_propagate(steps[i])
+        body.children.push_take(steps, i)
+        if pending {
+            mut guard := Expr.new(own NodeType.If, stmt.line, stmt.col)
+            guard.add_child(own typed_error_clear(stmt.line, stmt.col, scope, ctx))
+            guard.add_child(own guard_hoisted_sequence(steps, i + 1, stmt, scope, ctx))
+            body.add_child(own guard)
+            return body
+        }
+    }
+    if stmt.node_type.is(NodeType.Body) {
+        for child : Expr in stmt.children { body.add_child(own child.clone()) }
+    } else { body.add_child(own stmt.clone()) }
+    return body
+}
+
 priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, returns_ref: I32) {
     mut hoisted := Vec(Expr).new()
     switch stmt.node_type {
@@ -5212,6 +5313,85 @@ priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: V
     new_ch.append(own hoisted)
 }
 
+// Include argument-pack setters in the continuation as well as the final
+// call: they may consume a failed operand or evaluate a later one (#443).
+priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut new_ch: Vec(Expr), mut scope: TypeScope) returns Option(ref Expr) {
+    mut guards : USize = 0
+    for step : Expr in hoisted {
+        if hoisted_call_can_propagate(step) { guards++ }
+    }
+    if guards > 0 {
+        // Keep a user binding in its original scope. This is the same default
+        // result convention as a throwing call, not a replacement for its error.
+        // Only the real initializer is evaluated on the successful path.
+        if stmt.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = decl_of(stmt)
+            if dd.own_type.is(OwnType.Ref) {
+                // A ref cannot be assigned/rebound through an ordinary Assign.
+                // Stage its pointer instead, then establish the original ref
+                // binding after the guard. The error path carries a null ref,
+                // just like a direct throwing ref-returning call.
+                slot_name := format("_question_ptr_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
+                ctx.hoist_counter++
+                slot_type := type_from_name_init_name("UPtr", scope, ctx.symbols)
+                mut slot := Expr.new(own NodeType.Decl(Declaration(name = slot_name.clone(), is_mut = true, til_type = slot_type.clone())), stmt.line, stmt.col)
+                mut null_value := make_int_lit(0, stmt.line, stmt.col)
+                null_value.set_til_type(slot_type)
+                slot.add_child(own null_value)
+                scope.set(slot_name, slot_type, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
+                new_ch.push(own slot)
+                // Use a pointer-sized word cell and the existing pointer
+                // load/store primitives. Assigning a ref Dynamic result to a
+                // Dynamic value would read the referent as a pointer word.
+                mut store := Expr.new(own NodeType.FCall(FCallData(til_type = Type.None)), stmt.line, stmt.col)
+                store.add_child(own Expr.new(own ident_node(ctx.symbols.intern("write_ptr")), stmt.line, stmt.col))
+                mut slot_id := Expr.new(own ident_node(ctx.symbols.intern(slot_name)), stmt.line, stmt.col)
+                slot_id.set_til_type(slot_type)
+                store.add_child(own slot_id.clone())
+                mut inner_ref := Expr.new(own ident_node(ctx.symbols.intern(dd.name)), stmt.line, stmt.col)
+                inner_ref.set_til_type(dd.til_type)
+                store.add_child(own inner_ref)
+                mark_fcall_direct(store)
+                mut continuation := Expr.new(own NodeType.Body, stmt.line, stmt.col)
+                continuation.add_child(own stmt.clone())
+                continuation.add_child(own store)
+                ref_sequence := guard_hoisted_sequence(hoisted, 0, continuation, scope, ctx)
+                for step : Expr in ref_sequence.children { new_ch.push(own step.clone()) }
+                mut source := Expr.new(own NodeType.FCall(FCallData(til_type = Type.Dynamic)), stmt.line, stmt.col)
+                source.add_child(own Expr.new(own ident_node(ctx.symbols.intern("deref")), stmt.line, stmt.col))
+                source.add_child(own slot_id)
+                mark_fcall_direct(source)
+                stmt.children[0] = source
+                return safe_ref(propagation_success_body(new_ch[new_ch.len() - 1], guards))
+            }
+            mut initial := stmt.clone()
+            ref mut initial_dd : Declaration = decl_of(initial)
+            initial_dd.is_mut = true
+            mut value := make_default_value_expr(decl_type_name(dd, ctx.symbols), stmt.line, stmt.col, ctx.symbols)
+            switch value.node_type {
+            case .FCall(fcd): fcd.is_throw_default = true
+            case:
+            }
+            if value.node_type.is_literal_num() { value.set_til_type(dd.til_type) }
+            infer_expr(scope, value, 1, ctx)
+            initial.children[0] = value
+            new_ch.push(own initial)
+            mut assign := Expr.new(own NodeType.Assign(AssignData(name = dd.name.clone(), save_old_delete = true)), stmt.line, stmt.col)
+            assign.add_child(own stmt.children[0].clone())
+            stmt = assign
+        }
+        sequence := guard_hoisted_sequence(hoisted, 0, stmt, scope, ctx)
+        // Leave the final guard in stmt for the caller's ordinary push.
+        last := sequence.children.len() - 1
+        for i in 0..last { new_ch.push(own sequence.children[i].clone()) }
+        stmt = sequence.children[last].clone()
+        return safe_ref(propagation_success_body(stmt, guards))
+    } else {
+        new_ch.append(own hoisted.take())
+    }
+    return Option(ref Expr).None
+}
+
 // Per-stmt pipeline: call-desugar, hoist, field-delete. Each step
 // prepends any helper decls/setters/deletes to new_ch; the caller is
 // responsible for pushing the (possibly-rewritten) stmt itself.
@@ -5222,19 +5402,20 @@ priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: V
 // must be hoisted into a temp Decl so the builder takes its address).
 // To match the original two-pass flow, every desugar-emitted stmt is
 // routed through hoist before being pushed.
-priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool, returns_ref: I32) {
-    if is_compile_directive(stmt, ctx.symbols) { return }
+priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool, returns_ref: I32) returns Option(ref Expr) {
+    if is_compile_directive(stmt, ctx.symbols) { return Option(ref Expr).None }
+    mut prefix := Vec(Expr).new()
     if has_array_vec.or(has_variadic).or(has_kwargs) {
         mut emitted := Vec(Expr).new()
         process_call_desugars(ctx, stmt, emitted, scope, has_array_vec, has_variadic, has_kwargs)
         for j in 0..emitted.len() {
             ref mut es : Expr = emitted[j]
-            if do_hoist { apply_hoist_to_stmt(ctx, es, new_ch, scope, returns_ref) }
-            new_ch.push_take(emitted, j)
+            if do_hoist { apply_hoist_to_stmt(ctx, es, prefix, scope, returns_ref) }
+            prefix.push_take(emitted, j)
         }
     }
     if do_hoist {
-        apply_hoist_to_stmt(ctx, stmt, new_ch, scope, returns_ref)
+        apply_hoist_to_stmt(ctx, stmt, prefix, scope, returns_ref)
     }
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
         if field_assign_needs_delete(stmt, scope, ctx.symbols) {
@@ -5248,6 +5429,7 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
             }
         }
     }
+    return guard_hoisted_statement(ctx, stmt, prefix, new_ch, scope)
 }
 
 priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
