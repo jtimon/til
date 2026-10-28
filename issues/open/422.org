@@ -133,5 +133,19 @@ the observed errors for nng).
   errors (the JVM names the unsupported secp256k1 calls) instead of the
   builder's refusal.
 - [ ] raylib + tinyfd (mode gui) onto the mechanism.
-- [ ] libffi onto the mechanism.
+- [ ] libffi onto the mechanism. Staged (doc/self.org, "Staged
+  migration across master merges"): the bootstrap's til_boot runs the
+  OLD builder, which hard-requires libffi at its old native path when
+  the generated C calls libffi (src/til.til always does), so moving the
+  native archive under ~build-<host target>~ in one commit breaks pass 1.
+  - [X] Transitional: the builder skips its ~target_ffi_lib~ table when
+    a link() line already names a libffi archive (no line does yet).
+  - [ ] Migration (after the transitional commit is on master): the
+    Makefile builds the native libffi out of tree into
+    ~vendor/libffi/build-<host target>~, make.til's ~LibffiCross~ table
+    covers every target (linux-x64 and both windows included),
+    src/self/interpreter.til and the programs that import the libffi
+    binding carry per-target link() lines, and ~target_ffi_lib~ /
+    ~target_ffi_build_hint~, the in-tree triple builds and the
+    stable-path copies go.
 
