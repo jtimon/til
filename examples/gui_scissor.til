@@ -1,0 +1,169 @@
+mode gui
+
+// Finite two-pane clipping proof for raylib and TempleOS. All drawing uses
+// screen coordinates. BeginScissorMode replaces the clip; End disables it.
+scissor_check_pixel := func(image: Image, x: I64, y: I64, expected: Color) {
+    actual := GetImageColor(image, x.to_i32(), y.to_i32())
+    if actual.r != expected.r || actual.g != expected.g || actual.b != expected.b || actual.a != expected.a {
+        panic("scissor pixel mismatch at ", x.to_str(), ",", y.to_str(), ": ",
+            actual.r.to_str(), ",", actual.g.to_str(), ",", actual.b.to_str(), ",", actual.a.to_str())
+    }
+}
+
+scissor_check_box := func(image: Image, x: I64, y: I64, width: I64, height: I64, expected: Color) {
+    for dy in 0..height {
+        for dx in 0..width { scissor_check_pixel(image, x + dx, y + dy, expected) }
+    }
+}
+
+scissor_check_glyph := func(image: Image, x: I64, y: I64) {
+    mut pixels := 0
+    for dy in 0..16 {
+        for dx in 0..16 {
+            color := GetImageColor(image, (x + dx).to_i32(), (y + dy).to_i32())
+            if color.r == 255 && color.g == 255 && color.b == 255 { pixels++ }
+        }
+    }
+    if pixels == 0 || pixels == 256 { panic("scissor proof did not draw a glyph") }
+}
+
+scissor_pane := proc(left: I64, paper: Color) {
+    white := Color(r=255, g=255, b=255, a=255)
+    red := Color(r=170, g=0, b=0, a=255)
+    BeginScissorMode(left.to_i32(), 40, 240, 180)
+    ClearBackground(paper)
+    DrawRectangle((left - 16).to_i32(), 80, 288, 24, red)
+    DrawText("M".c_str, (left + 24).to_i32(), 120, 16, white)
+    // Glyphs cross all four pane edges, including partial scaled glyph pixels.
+    DrawText("MMMMMMMM".c_str, (left + 64).to_i32(), 32, 16, white)
+    DrawText("MMMMMMMM".c_str, (left - 7).to_i32(), 144, 16, white)
+    DrawText("MMMMMMMM".c_str, (left + 233).to_i32(), 144, 16, white)
+    DrawText("MMMMMMMM".c_str, (left + 64).to_i32(), 213, 16, white)
+    DrawRectangle((left + 228).to_i32(), 204, 32, 32, white)
+    EndScissorMode()
+}
+
+scissor_check_pane := func(image: Image, left: I64, paper: Color) {
+    black := Color(r=0, g=0, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    red := Color(r=170, g=0, b=0, a=255)
+    // Check whole strips, rather than assuming matching host/native glyph shapes.
+    scissor_check_box(image, left - 16, 24, 272, 16, black)
+    scissor_check_box(image, left - 16, 220, 272, 16, black)
+    scissor_check_box(image, left - 16, 40, 16, 180, black)
+    scissor_check_box(image, left + 240, 40, 16, 180, black)
+    scissor_check_pixel(image, left, 40, paper)
+    scissor_check_pixel(image, left, 219, paper)
+    scissor_check_pixel(image, left, 90, red)
+    scissor_check_pixel(image, left + 239, 90, red)
+    scissor_check_box(image, left + 228, 204, 12, 16, white)
+    scissor_check_glyph(image, left + 24, 120)
+}
+
+scissor_edges := proc() {
+    red := Color(r=170, g=0, b=0, a=255)
+    blue := Color(r=0, g=0, b=170, a=255)
+    green := Color(r=0, g=170, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    BeginScissorMode(-4, 260, 12, 8)
+    DrawRectangle(-20, 250, 60, 40, red)
+    EndScissorMode()
+    BeginScissorMode(632, 472, 24, 24)
+    ClearBackground(blue)
+    EndScissorMode()
+
+    BeginScissorMode(16, 260, 0, 12)
+    ClearBackground(red)
+    DrawRectangle(0, 240, 160, 100, red)
+    DrawText("M".c_str, 12, 260, 16, white)
+    EndScissorMode()
+    BeginScissorMode(16, 280, 12, 0)
+    ClearBackground(red)
+    DrawRectangle(0, 240, 160, 100, red)
+    EndScissorMode()
+    BeginScissorMode(700, 500, 16, 16)
+    DrawRectangle(0, 0, 640, 480, red)
+    ClearBackground(red)
+    EndScissorMode()
+    BeginScissorMode(-20, 260, 8, 8)
+    ClearBackground(red)
+    EndScissorMode()
+
+    BeginScissorMode(24, 260, 1, 1)
+    DrawRectangle(20, 256, 16, 16, white)
+    EndScissorMode()
+    // A disjoint Begin replaces its parent, rather than intersecting it.
+    BeginScissorMode(40, 280, 40, 40)
+    DrawRectangle(0, 270, 160, 60, blue)
+    BeginScissorMode(96, 280, 16, 16)
+    DrawRectangle(0, 270, 160, 60, green)
+    EndScissorMode()
+    DrawRectangle(128, 280, 8, 8, white)
+    EndScissorMode()
+    DrawRectangle(144, 280, 4, 4, red)
+    // The same replacement rule holds for overlapping clips.
+    BeginScissorMode(40, 340, 40, 24)
+    DrawRectangle(0, 330, 160, 60, blue)
+    BeginScissorMode(64, 340, 40, 24)
+    DrawRectangle(0, 330, 160, 60, green)
+    EndScissorMode()
+    DrawRectangle(116, 340, 8, 8, white)
+}
+
+scissor_check_edges := func(image: Image) {
+    black := Color(r=0, g=0, b=0, a=255)
+    red := Color(r=170, g=0, b=0, a=255)
+    blue := Color(r=0, g=0, b=170, a=255)
+    green := Color(r=0, g=170, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    scissor_check_box(image, 0, 260, 8, 8, red)
+    scissor_check_pixel(image, 8, 264, black)
+    scissor_check_pixel(image, 0, 259, black)
+    scissor_check_box(image, 632, 472, 8, 8, blue)
+    scissor_check_pixel(image, 631, 479, black)
+    scissor_check_pixel(image, 639, 471, black)
+    scissor_check_box(image, 12, 256, 8, 40, black)
+    scissor_check_pixel(image, 24, 260, white)
+    scissor_check_pixel(image, 23, 260, black)
+    scissor_check_pixel(image, 25, 260, black)
+    scissor_check_pixel(image, 24, 259, black)
+    scissor_check_pixel(image, 24, 261, black)
+    scissor_check_box(image, 40, 280, 40, 40, blue)
+    scissor_check_box(image, 96, 280, 16, 16, green)
+    scissor_check_pixel(image, 95, 288, black)
+    scissor_check_pixel(image, 112, 288, black)
+    scissor_check_box(image, 128, 280, 8, 8, white)
+    scissor_check_box(image, 144, 280, 4, 4, red)
+    scissor_check_box(image, 40, 340, 24, 24, blue)
+    scissor_check_box(image, 64, 340, 40, 24, green)
+    scissor_check_pixel(image, 104, 350, black)
+    scissor_check_box(image, 116, 340, 8, 8, white)
+}
+
+main := proc() {
+    InitWindow(640, 480, "til clipped panes".c_str)
+    SetTargetFPS(30)
+    black := Color(r=0, g=0, b=0, a=255)
+    blue := Color(r=0, g=0, b=170, a=255)
+    green := Color(r=0, g=170, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    for frame in 0..30 {
+        BeginDrawing()
+        ClearBackground(black)
+        scissor_pane(40, blue)
+        scissor_pane(320, green)
+        DrawRectangle(296, 48, 8, 8, white)
+        scissor_edges()
+        EndDrawing()
+        if frame == 0 {
+            image := LoadImageFromScreen()
+            scissor_check_pane(image, 40, blue)
+            scissor_check_pane(image, 320, green)
+            scissor_check_box(image, 296, 48, 8, 8, white)
+            scissor_check_edges(image)
+            UnloadImage(image)
+        }
+    }
+    CloseWindow()
+    println("GUI scissor passed")
+}

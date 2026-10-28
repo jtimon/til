@@ -948,6 +948,39 @@
   deterministic boundaries, interactive grid/pixel readback and the two-task
   focus regression. The full guest matrix was not rerun for this follow-up.
 
+**** Fourth shared GUI POC: pane scissoring
+
+  examples/gui_scissor.til is a finite, unchanged source for raylib and TempleOS.
+  Two colored panes deliberately overdraw backgrounds, glyphs and block cursors
+  past their edges. Pixel checks inspect whole outside strips, exact cursor
+  boundaries and visible glyph ink without requiring identical font shapes.
+
+  The existing BeginScissorMode/EndScissorMode facade now maps to native helpers.
+  Clips use screen coordinates and half-open bounds, intersected with the fixed
+  native surface. Begin replaces the active clip, including for disjoint or
+  overlapping calls; End disables it and does not restore a parent. This matches
+  raylib, which has no scissor stack. A UI needing nested intersections must
+  compute/reapply those rectangles explicitly on either backend.
+
+  Native rectangle and scaled-glyph writes share TilGuiFillRect, and clipped
+  ClearBackground fills only the active region. Zero-area and wholly off-screen
+  clips draw nothing. Nonnegative extents are supported; negative extents fail
+  explicitly instead of relying on OpenGL's invalid-argument state behavior.
+  Scissor state survives frame-buffer swaps and resets when a window is opened.
+
+  The shared example also checks one-pixel, partly off-screen and empty clips,
+  replacement behavior and repeated End calls. Native lifecycle checks exercise
+  clipping across EndDrawing and close/reopen; a separate case verifies the
+  negative-extent panic. Native pane acceptance still reads the composited screen.
+  Its fixture disables and restores AutoComplete, whose always-on-top window
+  otherwise obscures the right pane; it does not substitute private-buffer
+  readback for presentation checks.
+
+  Verification on master 73cfa28ba: clean hosted ASAN suite 483/483, including
+  the raylib pane example, HolyC translation and clang validation. All six
+  focused native scissor cases pass (shared pixel proof, lifecycle and invalid
+  extents at USize 32/64). The full guest matrix was not rerun for this sprint.
+
 *** QEMU validation
 
   The repository driver formats an isolated FAT32 data disk per case and

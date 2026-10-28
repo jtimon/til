@@ -1659,6 +1659,8 @@ I32 TilGuiKeyQueue[32],TilGuiCharQueue[32];
 I64 TilGuiKeyCount=0,TilGuiKeyRead=0,TilGuiCharCount=0,TilGuiCharRead=0;
 I64 TilGuiExitKey=256;
 Bool TilGuiShouldClose=FALSE;
+Bool TilGuiScissorActive=FALSE;
+I64 TilGuiScissorLeft,TilGuiScissorTop,TilGuiScissorRight,TilGuiScissorBottom;
 
 I64 TilGuiKeyCode(I64 scan)
 {
@@ -1838,6 +1840,7 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
   TilGuiKeyCount=0; TilGuiKeyRead=0; TilGuiCharCount=0; TilGuiCharRead=0;
   TilGuiShouldClose=FALSE; TilGuiExitKey=256;
+  TilGuiScissorActive=FALSE;
   FlushMsgs;
   TilGuiOldLeft=Fs->win_left; TilGuiOldRight=Fs->win_right;
   TilGuiOldTop=Fs->win_top; TilGuiOldBottom=Fs->win_bottom;
@@ -1865,6 +1868,38 @@ public U0 TilGuiBeginDrawing()
   TilGuiDrawing=TRUE;
 }
 
+public U0 TilGuiBeginScissorMode(I64 x,I64 y,I64 width,I64 height)
+{
+  if (width<0 || height<0) TilPanicZ("GUI scissor requires nonnegative extents\n");
+  // The facade uses I32 coordinates/extents, so these sums fit in I64.
+  // Like raylib, Begin replaces the clip; End disables it, without a stack.
+  TilGuiScissorLeft=MaxI64(0,x);
+  TilGuiScissorTop=MaxI64(0,y);
+  TilGuiScissorRight=MinI64(GR_WIDTH,x+width);
+  TilGuiScissorBottom=MinI64(GR_HEIGHT,y+height);
+  TilGuiScissorActive=TRUE;
+}
+
+public U0 TilGuiEndScissorMode()
+{
+  TilGuiScissorActive=FALSE;
+}
+
+U0 TilGuiFillRect(I64 x,I64 y,I64 width,I64 height)
+{
+  I64 right,bottom;
+  if (TilGuiScissorActive) {
+    right=MinI64(x+width,TilGuiScissorRight);
+    bottom=MinI64(y+height,TilGuiScissorBottom);
+    x=MaxI64(x,TilGuiScissorLeft);
+    y=MaxI64(y,TilGuiScissorTop);
+    width=right-x; height=bottom-y;
+    // Empty and wholly off-screen clips legitimately draw no pixels.
+    if (width<=0 || height<=0) return;
+  }
+  GrRect(TilGuiBack,x,y,width,height);
+}
+
 I64 TilGuiPaletteColor(U8 *opaque)
 {
   TilGuiColor *color=opaque(TilGuiColor *);
@@ -1881,13 +1916,17 @@ I64 TilGuiPaletteColor(U8 *opaque)
 
 public U0 TilGuiClearBackground(U8 *color)
 {
-  DCFill(TilGuiBack,TilGuiPaletteColor(color));
+  I64 ink=TilGuiPaletteColor(color);
+  if (TilGuiScissorActive) {
+    TilGuiBack->color=ink;
+    TilGuiFillRect(0,0,GR_WIDTH,GR_HEIGHT);
+  } else DCFill(TilGuiBack,ink);
 }
 
 public U0 TilGuiDrawRectangle(I64 x,I64 y,I64 width,I64 height,U8 *color)
 {
   TilGuiBack->color=TilGuiPaletteColor(color);
-  GrRect(TilGuiBack,x,y,width,height);
+  TilGuiFillRect(x,y,width,height);
 }
 
 public U0 TilGuiDrawText(U8 *text,I64 x,I64 y,I64 font_size,U8 *color)
@@ -1910,7 +1949,7 @@ public U0 TilGuiDrawText(U8 *text,I64 x,I64 y,I64 font_size,U8 *color)
       for (gy=0;gy<FONT_HEIGHT;gy++)
         for (gx=0;gx<FONT_WIDTH;gx++)
           if (GrPeek(glyph,gx,gy)==WHITE)
-            GrRect(TilGuiBack,x+gx*scale,y+gy*scale,scale,scale);
+            TilGuiFillRect(x+gx*scale,y+gy*scale,scale,scale);
       x+=FONT_WIDTH*scale;
     }
   }

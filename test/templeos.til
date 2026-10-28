@@ -223,6 +223,38 @@ gui_keyboard_focus_checks := proc(identity: Str, bits: Str) {
     run_guest(identity, format("gui_keyboard_focus_", bits), "GUI keyboard focus passed\n", "pass", input)
 }
 
+gui_scissor_checks := proc(identity: Str, bits: Str) {
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "examples/gui_scissor.til").run_checked()
+    program := File.readfile(format(WORK, "/TILTEST.HC"))
+    // The native AutoComplete task is always on top and overlaps the panes.
+    // Check the application's unobscured composited pixels, then restore it.
+    File.appendfile(format(WORK, "/TILTEST.HC"),
+        "\nBool scissor_old_ac=AutoComplete(OFF); TilMain; AutoComplete(scissor_old_ac);\n")
+    run_guest(identity, format("gui_scissor_", bits), "GUI scissor passed\n", "pass")
+
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program,
+        "\nU0 ScissorLifecycleChecks() {\n",
+        "TilGuiColor blue,red,white; MemSet(&blue,0,sizeof(blue)); MemSet(&red,0,sizeof(red)); MemSet(&white,255,sizeof(white));\n",
+        "blue.b=170; blue.a=255; red.r=170; red.a=255;\n",
+        "TilGuiInitWindow(640,480,\"scissor lifetime\"); TilGuiSetTargetFPS(0);\n",
+        "TilGuiBeginDrawing; TilGuiClearBackground(&blue); TilGuiBeginScissorMode(4,4,2,2);\n",
+        "TilGuiDrawRectangle(0,0,16,16,&red); TilGuiEndDrawing;\n",
+        "if (GrPeek(TilGuiFront,4,4)!=RED || GrPeek(TilGuiFront,3,4)!=BLUE || GrPeek(TilGuiFront,6,4)!=BLUE) TilPanicZ(\"initial scissor bounds\\n\");\n",
+        "TilGuiBeginDrawing; TilGuiClearBackground(&white); TilGuiEndDrawing;\n",
+        "if (GrPeek(TilGuiFront,4,4)!=WHITE || GrPeek(TilGuiFront,3,4)!=BLACK || GrPeek(TilGuiFront,6,4)!=BLACK) TilPanicZ(\"scissor lost across frame swap\\n\");\n",
+        "TilGuiEndScissorMode; TilGuiBeginScissorMode(0,0,0,0); TilGuiCloseWindow;\n",
+        "TilGuiInitWindow(640,480,\"scissor reopened\"); TilGuiBeginDrawing;\n",
+        "TilGuiClearBackground(&blue); TilGuiDrawRectangle(4,4,2,2,&white); TilGuiEndDrawing;\n",
+        "if (GrPeek(TilGuiFront,200,200)!=BLUE || GrPeek(TilGuiFront,4,4)!=WHITE) TilPanicZ(\"scissor leaked across reopen\\n\");\n",
+        "TilGuiCloseWindow; TilRawWrite(\"GUI scissor lifecycle passed\\n\",29); }\nScissorLifecycleChecks;\n"))
+    run_guest(identity, format("gui_scissor_lifecycle_", bits), "GUI scissor lifecycle passed\n", "pass")
+
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program,
+        "\nTilGuiBeginScissorMode(0,0,-1,16);\n"))
+    run_guest(identity, format("gui_scissor_negative_", bits), "GUI scissor requires nonnegative extents\n", "panic")
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -288,6 +320,7 @@ main := proc() {
             "-c", format(WORK, "/TILTEST.HC"), "examples/gui_terminal_grid.til").run_checked()
         File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
         run_guest(identity, format("gui_terminal_grid_", bits), "GUI terminal grid passed\n", "pass")
+        gui_scissor_checks(identity, bits)
         gui_keyboard_checks(identity, bits)
         gui_keyboard_focus_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
