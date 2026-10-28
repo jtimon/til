@@ -1295,12 +1295,22 @@ general_custom_size := general_size_is(GenericSizeCustom, 6)
 general_custom_not_storage := general_size_is(GenericSizeCustom, 8)
 general_payload_fit := size_gt441(GenericSizePayload, 1)
 
+GenericNamespaceSize := struct {
+namespace:
+    TOTAL : USize = GenericNamespaceSize.BASE + SIZE_METHOD_BIAS
+    BASE : USize = size_method_value()
+    size := func() returns USize { return GenericNamespaceSize.TOTAL }
+}
+GenericNamespaceAlias := GenericNamespaceSize
+general_namespace_size := general_size_is(GenericNamespaceAlias, 8)
+
 test_general_size_methods_in_generators := test() {
     assert(general_point_size())
     assert(general_tag_size())
     assert(general_payload_fit())
     assert(general_custom_size())
     assert(general_custom_not_storage().not())
+    assert(general_namespace_size())
 }
 
 // init's pre-pass evaluates `T.is(Type.<Variant>)` at expand time and

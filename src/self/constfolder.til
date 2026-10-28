@@ -49,7 +49,7 @@ constfolder_eval_generator_function := proc(mut scope: Scope, mut function: Expr
         }
     }
     ctx.ffi.loaded = true
-    process_body(scope, globals, ctx, true)
+    eval_body(scope, globals, ctx)
     ctx.eval.constfold_active = true
     folded := try_eval_call(scope, call, true, ctx)
     mut answer : I32 = -1

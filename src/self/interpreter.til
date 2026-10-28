@@ -2878,7 +2878,7 @@ priv eval_replacement_delete := proc(mut scope: Scope, shallow value_type: Type,
     scope_free(own drop_scope)
 }
 
-priv eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
+eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
         if c.eval.has_return { break }
@@ -10868,6 +10868,16 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
     scalar_type := type_from_name_init_name(type_str, ctx.scope, ctx.symbols)
     op_start := u_pos.add(1)
     op_str := name.substr(op_start, name.len().sub(op_start))
+
+    // Namespace initializers run before the ordinary FFI bridge is loaded.
+    // Cloning a scalar is a bit-preserving value copy, like other scalar ops.
+    // Erased dyn_call operands use the FFI argument adapter below instead;
+    // their Dynamic slot describes borrowed storage, not a scalar expression.
+    if op_str.eq("clone").and(e.children[1].til_type().is(Type.Dynamic).not()) {
+        value : Dynamic = scalar_read_arg(scope, e.children[1], scalar_type, ctx)
+        scalar_word_store(scalar_type, result, value, ctx)
+        return true
+    }
 
     if op_str == "fma" {
         av : Dynamic = scalar_read_arg(scope, e.children[1], scalar_type, ctx)

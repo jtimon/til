@@ -6962,7 +6962,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
                 mut nsd_o := def_ns_get(sdef, fname)
                 if nsd_o.is_some() {
                     ref mut nsd : Declaration = nsd_o.unwrap()
-                    expr.set_til_type(nsd.til_type.clone())
+                    expr.set_til_type(declaration_resolved_type(nsd, scope, ctx.symbols))
                     if type_name_is_interface(scope, obj_sname, ctx.symbols).and(nsd.default_value.is_some())
                         .and(nsd.default_expr().node_type.is(NodeType.FuncDef))
                         .and(interface_method_requires_concrete_types(funcdef_of(nsd.default_expr()), obj_sname, ctx)) {
@@ -9461,7 +9461,10 @@ priv comptime_prepare_named_function := proc(name_in: Str, mut prep: ComptimePre
     context_enter_file(ctx, saved_path)
 }
 
-priv comptime_prepare_global := proc(name: Str, mut prep: ComptimePreparation, mut ctx: Context) {
+// Both file and namespace constants enter the same temporary evaluation
+// scope. Qualified member names are internal to this preparation frame;
+// the source namespace declarations and normal runtime storage stay intact.
+priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: ComptimePreparation, mut ctx: Context) {
     key := format("global:", name)
     if prep.active.has(key) {
         context_diagnostic(ctx, DiagnosticPhase.Type, DiagnosticSeverity.Error, ctx.path, 0, 0,
@@ -9469,6 +9472,31 @@ priv comptime_prepare_global := proc(name: Str, mut prep: ComptimePreparation, m
         return
     }
     if prep.definitions.has(name) { return }
+    ref decl : Declaration = decl_of(stmt)
+    mut prepared := Expr.new(own NodeType.Body, stmt.line, stmt.col)
+    prepared.add_child(own stmt.clone())
+    prep.active.add(own key.clone())
+    saved_path := ctx.path.clone()
+    context_enter_file(ctx, path)
+    mut local := TypeScope(parent = safe_ref(ctx.scope))
+    comptime_prepare_expr(prepared.children[0].children[0], local, prep, ctx)
+    if ctx.errors == 0 { infer_body(local, prepared, 0, 0, 0, 0, 0, ctx) }
+    comptime_prepare_expr(prepared, local, prep, ctx)
+    b_o := local.get_binding_name(name, ctx.symbols)
+    if b_o.is_some() {
+        ref b : TypeBinding = b_o.unwrap()
+        ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
+        ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+        global_binding.is_priv = decl.is_priv
+        global_binding.orig_name = decl.orig_name.clone()
+    }
+    context_enter_file(ctx, saved_path)
+    prep.definitions.set(name, own prepared)
+    prep.active.remove(key)
+    prep.globals.push(own name.clone())
+}
+
+priv comptime_prepare_global := proc(name: Str, mut prep: ComptimePreparation, mut ctx: Context) {
     for path, unit in ctx.imported {
         for stmt : Expr in unit.ast.children {
             if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
@@ -9478,28 +9506,7 @@ priv comptime_prepare_global := proc(name: Str, mut prep: ComptimePreparation, m
             if stmt.children[0].node_type.is(NodeType.FuncDef)
                 .or(stmt.children[0].node_type.is(NodeType.StructDef))
                 .or(stmt.children[0].node_type.is(NodeType.EnumDef)) { return }
-            mut program := Expr.new(own NodeType.Body, stmt.line, stmt.col)
-            program.add_child(own stmt.clone())
-            prep.definitions.set(name, own program)
-            prep.active.add(own key.clone())
-            ref mut prepared : Expr = prep.definitions[name]
-            saved_path := ctx.path.clone()
-            context_enter_file(ctx, path)
-            mut local := TypeScope(parent = safe_ref(ctx.scope))
-            comptime_prepare_expr(prepared.children[0].children[0], local, prep, ctx)
-            if ctx.errors == 0 { infer_body(local, prepared, 0, 0, 0, 0, 0, ctx) }
-            comptime_prepare_expr(prepared, local, prep, ctx)
-            b_o := local.get_binding_name(name, ctx.symbols)
-            if b_o.is_some() {
-                ref b : TypeBinding = b_o.unwrap()
-                ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
-                ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
-                global_binding.is_priv = decl.is_priv
-                global_binding.orig_name = decl.orig_name.clone()
-            }
-            context_enter_file(ctx, saved_path)
-            prep.active.remove(key)
-            prep.globals.push(own name.clone())
+            comptime_prepare_value(name, path, stmt, prep, ctx)
             return
         }
     }
@@ -9512,7 +9519,7 @@ priv comptime_local_binding := func(scope: TypeScope, sym: Sym, ctx: Context) re
     return global_o.is_none().or(binding_o.unwrap().ptr_eq(global_o.unwrap()).not())
 }
 
-priv comptime_prepare_member := proc(e: Expr, scope: TypeScope, mut prep: ComptimePreparation, mut ctx: Context) {
+priv comptime_prepare_member := proc(mut e: Expr, scope: TypeScope, mut prep: ComptimePreparation, mut ctx: Context) {
     if e.children.len() != 1 { return }
     mut name := ""
     switch e.children[0].node_type {
@@ -9530,6 +9537,19 @@ priv comptime_prepare_member := proc(e: Expr, scope: TypeScope, mut prep: Compti
     ref mut body : Expr = member_o.unwrap().default_expr()
     if body.node_type.is(NodeType.FuncDef) {
         comptime_prepare_function(method, name, body, prep, ctx)
+    } else {
+        ref member : Declaration = member_o.unwrap()
+        if member.is_mut.or(member.own_type.is(OwnType.Ref)).or(member.external_symbol.len() > 0) { return }
+        qualified := format(name, ".", method)
+        mut decl := member.clone()
+        decl.name = qualified.clone()
+        decl.default_value = Option(Expr).None
+        mut stmt := Expr.new(own NodeType.Decl(decl), body.line, body.col)
+        stmt.add_child(own body.clone())
+        path := ctx.scope.get_binding_name(name, ctx.symbols).unwrap().path.clone()
+        comptime_prepare_value(qualified, path, stmt, prep, ctx)
+        e.node_type = ident_node(ctx.symbols.intern(qualified))
+        e.children.clear()
     }
 }
 

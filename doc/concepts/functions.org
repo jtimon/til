@@ -320,7 +320,9 @@ and before typing the generated body; it does not leave a runtime branch.
 Alongside ~T.is(Type.Primitive(...))~ tests, conditions use ordinary typed
 expressions evaluated by the shared compile-time interpreter. Dependencies
 are prepared on demand, including aggregate size methods and user-defined
-functions, their helpers, loops, and immutable global values.
+functions, their helpers, loops, and immutable file-level and namespace
+constants. Constant initializers use the same evaluator in dependency order,
+including references to later namespace members and through type aliases.
 Combine conditions with ~or~ / ~and~, in method or plain-call form. ~||~ /
 ~&&~ are sugar for these operations and retain their left-to-right
 short-circuit behavior: an operand skipped by ~or~ or ~and~ is not evaluated.
