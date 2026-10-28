@@ -1789,7 +1789,118 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
     return bf
 }
 
+// Index of the lowest set bit of a non-zero word (six halving steps; no
+// ctz intrinsic in til).
+priv low_bit_index := func(word: U64) returns USize {
+    mut x := word
+    mut n : USize = 0
+    m32 : U64 = 4294967295
+    m16 : U64 = 65535
+    m8 : U64 = 255
+    m4 : U64 = 15
+    m2 : U64 = 3
+    m1 : U64 = 1
+    if x.band(m32) == 0 { n = n + 32; x = x.shr(32) }
+    if x.band(m16) == 0 { n = n + 16; x = x.shr(16) }
+    if x.band(m8) == 0 { n = n + 8; x = x.shr(8) }
+    if x.band(m4) == 0 { n = n + 4; x = x.shr(4) }
+    if x.band(m2) == 0 { n = n + 2; x = x.shr(2) }
+    if x.band(m1) == 0 { n = n + 1 }
+    return n
+}
+
+// Per-universe-bit summaries of the fact rows, filled in ONE pass over
+// the statements so collect_scope_locals answers each binding from a
+// handful of array reads. It used to rescan every statement row per
+// binding -- five bit tests per (binding, statement) pair, 1.09M
+// fact_bit_test calls per first_class translate, the largest self cost
+// in the garbager -- and the top-level Decl scan was a Str compare per
+// pair on top. The per-row statement work is now one word read per
+// row plus a few operations per SET bit, and set bits are sparse.
+//
+// -1 everywhere means "no statement". Directive statements are skipped
+// for uses/transfers/nested/escapes exactly as the per-binding scans
+// skipped them; the decls row is read for every statement, as before.
+priv LocalFactSummary := struct {
+    // First top-level Decl statement of the bit's name.
+    top_decl := Vec(I64).new()
+    // First statement whose decls row has the bit (nested Decls too).
+    first_decl := Vec(I64).new()
+    last_use := Vec(I64).new()
+    first_transfer := Vec(I64).new()
+    last_transfer := Vec(I64).new()
+    last_nested_or_escape := Vec(I64).new()
+}
+
+// Same shape as zeroed_words: one malloc and one memset (0xFF bytes are
+// -1 in two's complement at every width), not a malloc/free pair per
+// element through Vec.push's owned value.
+priv minus_ones := func(n: USize) returns Vec(I64) {
+    if n == 0 { return Vec(I64).new() }
+    mut v := Vec(I64).with_capacity(n)
+    memset(v.data, 255, n.mul(I64.size()))
+    v.count = n
+    return v
+}
+
+priv summarize_local_facts := func(body: Expr, facts: BodyFacts, fi: FactIndex) returns LocalFactSummary {
+    nbits := fi.idx.len()
+    mut s := LocalFactSummary()
+    s.top_decl = minus_ones(nbits)
+    s.first_decl = minus_ones(nbits)
+    s.last_use = minus_ones(nbits)
+    s.first_transfer = minus_ones(nbits)
+    s.last_transfer = minus_ones(nbits)
+    s.last_nested_or_escape = minus_ones(nbits)
+    for j in 0..body.children.len() {
+        ref stmt : Expr = body.children[j]
+        switch stmt.node_type {
+        case .Decl(dd):
+            // def_bits already resolved the name for an initialized Decl;
+            // a bare one (no initializer) is still a top-level Decl in the
+            // universe, so resolve it here.
+            mut dbit : I64 = facts.def_bits.unsafe_get(j).clone()
+            if dbit < 0 { dbit = fact_bit_req(fi, dd.name).to_i64() }
+            if s.top_decl.unsafe_get(dbit.to_usize()) < 0 { s.top_decl[dbit.to_usize()] = j.to_i64() }
+        case:
+        }
+        fbase := j.mul(facts.words)
+        directive : Bool = facts.directives.unsafe_get(j).clone()
+        for w in 0..facts.words {
+            wbase := w.mul(64)
+            mut dword : U64 = facts.decls.unsafe_get(fbase.add(w)).clone()
+            while dword != 0 {
+                bit := wbase.add(low_bit_index(dword))
+                dword = dword.band(dword.sub(1))
+                if s.first_decl.unsafe_get(bit) < 0 { s.first_decl[bit] = j.to_i64() }
+            }
+            if directive { continue }
+            mut uword : U64 = facts.uses.unsafe_get(fbase.add(w)).clone()
+            while uword != 0 {
+                bit := wbase.add(low_bit_index(uword))
+                uword = uword.band(uword.sub(1))
+                s.last_use[bit] = j.to_i64()
+            }
+            mut tword : U64 = facts.transfers.unsafe_get(fbase.add(w)).clone()
+            while tword != 0 {
+                bit := wbase.add(low_bit_index(tword))
+                tword = tword.band(tword.sub(1))
+                if s.first_transfer.unsafe_get(bit) < 0 { s.first_transfer[bit] = j.to_i64() }
+                s.last_transfer[bit] = j.to_i64()
+            }
+            mut nword : U64 = facts.nested.unsafe_get(fbase.add(w)).bor(facts.escapes.unsafe_get(fbase.add(w))).clone()
+            while nword != 0 {
+                bit := wbase.add(low_bit_index(nword))
+                nword = nword.band(nword.sub(1))
+                s.last_nested_or_escape[bit] = j.to_i64()
+            }
+        }
+    }
+    return s
+}
+
 priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, stack_own_params: Set(Str), mut locals_vec: Vec(LocalInfo)) {
+    summary := summarize_local_facts(body, facts, fi)
     for bi in 0..scope.bindings.keys.count {
         ref bsym : Sym = scope.bindings.keys.unsafe_get(bi)
         ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
@@ -1803,30 +1914,15 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if scope.local_struct_def_sym(bsym).is_some() { continue }
         if scope.local_func_def_sym(bsym).is_some().and(b.type.is_funcptr().or(b.type.is(Type.Body)).not()) { continue }
 
-        // One name->bit resolution per binding; every per-statement
-        // question below is then a bit test.
+        // One name->bit resolution per binding; every question below is
+        // then a read of the one-pass summary.
         bbit := fact_bit_req(fi, b.name)
 
-        mut decl_idx : I64 = -1
-        for j in 0..body.children.len() {
-            ref s : Expr = body.children[j]
-            switch s.node_type {
-            case .Decl(dd):
-                if dd.name == b.name {
-                    decl_idx = j.to_i64()
-                    break
-                }
-            case:
-            }
-        }
-        if decl_idx == -1 {
-            for j in 0..body.children.len() {
-                if fact_bit_test(facts.decls, j.mul(facts.words), bbit) {
-                    decl_idx = j.to_i64()
-                    break
-                }
-            }
-        }
+        // The top-level Decl first (names are injective into the universe,
+        // so the bit's first top-level Decl IS this binding's); failing
+        // that, the first statement whose subtree declares it.
+        mut decl_idx : I64 = summary.top_decl.unsafe_get(bbit).clone()
+        if decl_idx == -1 { decl_idx = summary.first_decl.unsafe_get(bbit) }
 
         // #446: creation is the final use of a discarded result. Leaving -1
         // scheduled its immediate delete AND made later exits consider it live.
@@ -1836,15 +1932,20 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if decl_idx >= 0 {
             scan_from = decl_idx.add(1).to_usize()
         }
-        for j in scan_from..body.children.len() {
-            if facts.directives.unsafe_get(j) { continue }
-            fbase := j.mul(facts.words)
-            if fact_bit_test(facts.uses, fbase, bbit) {
-                last_use = j.to_i64()
-            }
-            if own_transfer == -1 {
-                if fact_bit_test(facts.transfers, fbase, bbit) {
+        // The questions are about statements at or after scan_from: the
+        // last use is the row-wide last use when that lies there; the
+        // first transfer is the row-wide first when it lies there, and
+        // only a transfer BEFORE scan_from with another after it (a name
+        // transferred before its own Decl) needs the row rescanned.
+        if summary.last_use.unsafe_get(bbit) >= scan_from.to_i64() { last_use = summary.last_use.unsafe_get(bbit) }
+        if summary.first_transfer.unsafe_get(bbit) >= scan_from.to_i64() {
+            own_transfer = summary.first_transfer.unsafe_get(bbit)
+        } else if summary.last_transfer.unsafe_get(bbit) >= scan_from.to_i64() {
+            for j in scan_from..body.children.len() {
+                if facts.directives.unsafe_get(j) { continue }
+                if fact_bit_test(facts.transfers, j.mul(facts.words), bbit) {
                     own_transfer = j.to_i64()
+                    break
                 }
             }
         }
@@ -1870,18 +1971,11 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // hoist pass always declares them in the body it serves.
         mut skip_scope_delete := is_program_scope.and(decl_idx.lt(0).or(b.name.starts_with("hoisted__").not()))
         if skip_scope_delete.not() {
-            for j in scan_from..body.children.len() {
-                if facts.directives.unsafe_get(j) { continue }
-                fbase := j.mul(facts.words)
-                // A closure body use, or a write_ptr that stored this
-                // binding's pointer into raw memory: in both cases it stays
-                // reachable past its last textual mention, so the pass must
-                // not schedule a delete for it.
-                if fact_bit_test(facts.nested, fbase, bbit).or(fact_bit_test(facts.escapes, fbase, bbit)) {
-                    skip_scope_delete = true
-                    break
-                }
-            }
+            // A closure body use, or a write_ptr that stored this
+            // binding's pointer into raw memory: in both cases it stays
+            // reachable past its last textual mention, so the pass must
+            // not schedule a delete for it.
+            if summary.last_nested_or_escape.unsafe_get(bbit) >= scan_from.to_i64() { skip_scope_delete = true }
         }
         // Ref bindings do not own data and skip cleanup. Shallow parameters
         // are C values and were filtered with the other non-Own parameters.

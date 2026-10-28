@@ -387,6 +387,7 @@ typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager
 typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbager_til__GcFlowKills;
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
+typedef struct priv___src_self_garbager_til__LocalFactSummary priv___src_self_garbager_til__LocalFactSummary;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__Bool Array__Bool;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
@@ -1302,6 +1303,16 @@ typedef struct priv___src_self_garbager_til__BodyFacts {
     Vec__I64 def_bits;
     Vec__Bool directives;
 } priv___src_self_garbager_til__BodyFacts;
+
+
+typedef struct priv___src_self_garbager_til__LocalFactSummary {
+    Vec__I64 top_decl;
+    Vec__I64 first_decl;
+    Vec__I64 last_use;
+    Vec__I64 first_transfer;
+    Vec__I64 last_transfer;
+    Vec__I64 last_nested_or_escape;
+} priv___src_self_garbager_til__LocalFactSummary;
 
 
 typedef struct priv___src_self_garbager_til__GcBorrowEdge {
