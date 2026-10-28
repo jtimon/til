@@ -43,8 +43,31 @@ main := proc(args: ..Str) {
         "link_c(\"probe.c\")\n",
         "probe436 := ext_proc() returns shallow I32 {}\n",
         "println(probe436().to_str())\n"))
-    // An empty archive: link() is only here for the include directory.
-    archive := Cmd.new("ar", "rc", "shadow/lib/libshadow436.a")
+    // A linux-x64 host with the multiarch directory and a 32-bit libc
+    // (gcc-multilib; CI's linux-x86 job installs it, the linux-x64 one
+    // does not) really compiles the probe below, so the program's header
+    // has to win over the system one. Probed first: the archive's one
+    // member must match that link's width.
+    host := detect_current_target()
+    File.writefile(format(WORK, "/m32.c"), "int main(void) { return 0; }\n")
+    m32 := Cmd.new("gcc", "-m32", "m32.c", "-o", "m32")
+    m32.cwd(WORK)
+    m32.capture()
+    builds_32 := host.is(Target.LinuxX64).and(m32.run() == 0)
+
+    // The archive: link() is only here for the include directory, but the
+    // file must exist and hold a member -- macOS's ar refuses to create an
+    // archive with no members ("no archive members specified") where GNU ar
+    // writes an empty one. One object nothing references, 32-bit when the
+    // real linux-x86 link below will see it, the host's width otherwise
+    // (never linked then).
+    File.writefile(format(WORK, "/member436.c"), "int shadow436_unused(void) { return 0; }\n")
+    member := Cmd.new("cc")
+    if builds_32 { member.arg("-m32") }
+    member.args("-c", "member436.c", "-o", "shadow/lib/member436.o")
+    member.cwd(WORK)
+    member.run_checked()
+    archive := Cmd.new("ar", "rcs", "shadow/lib/libshadow436.a", "shadow/lib/member436.o")
     archive.cwd(WORK)
     archive.run_checked()
 
@@ -58,16 +81,6 @@ main := proc(args: ..Str) {
         panic("linux-x86 compiles put ", SYS_DIR, " ahead of the include path: ", flags.out())
     }
 
-    // A linux-x64 host with the multiarch directory and a 32-bit libc
-    // (gcc-multilib; CI's linux-x86 job installs it, the linux-x64 one
-    // does not): really compile it, so the program's header has to win
-    // over the system one.
-    host := detect_current_target()
-    File.writefile(format(WORK, "/m32.c"), "int main(void) { return 0; }\n")
-    m32 := Cmd.new("gcc", "-m32", "m32.c", "-o", "m32")
-    m32.cwd(WORK)
-    m32.capture()
-    builds_32 := host.is(Target.LinuxX64).and(m32.run() == 0)
     if builds_32.and(File.exists(format(SYS_DIR, "/fpu_control.h"))) {
         real := build(compiler, "--cc=gcc")
         if real.run() != 0 {
