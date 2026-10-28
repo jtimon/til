@@ -34,6 +34,7 @@
 *** [[./open/433.org][#433]] Qualifiers in template/macro type arguments: Vec(ref T) / Vec(own T)
 *** [[./open/439.org][#439]] Evaluate and coordinate the user-defined mode promise against real downstream applications
 *** [[./open/451.org][#451]] T() on a primitive type parameter: "cannot instantiate builtin type"
+*** [[./open/454.org][#454]] Generate Kotlin bindings by default for mode lib
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
@@ -55,6 +56,7 @@
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
+*** [[./open/453.org][#453]] Add a FASM native assembly backend
 ** Low
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/317.org][#317]] MLIR backend alongside the C backend

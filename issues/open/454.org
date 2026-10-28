@@ -1,0 +1,54 @@
+# priority: medium
+# category: features
+** OPEN #454 Generate Kotlin bindings by default for mode lib
+
+Generate Kotlin bindings for ~mode lib~ libraries by default, alongside the
+existing Python bindings. The goal is to expose native til libraries through
+a Kotlin-friendly interface for JVM and Android callers, independently of
+the Java/JVM code-generation backend (#375).
+
+*** Scope
+
+  - Reuse the library's existing exported interface and native ABI as the
+    source of truth, rather than maintaining separate Kotlin declarations.
+  - Generate idiomatic Kotlin wrappers for supported exported functions and
+    types, preserving til's numeric widths, ownership and error semantics.
+  - Define a native interoperability bridge suitable for both JVM and Android
+    use. JNI is the initial candidate; Kotlin source alone cannot call the
+    native C ABI. Kotlin/Native is a separate platform, not interchangeable
+    with Kotlin/JVM or Android.
+  - Specify strings, aggregates, enums, borrowed and mutable references,
+    owned results, explicit resource release, callbacks and throws. Reject
+    unsupported interfaces explicitly rather than changing their semantics.
+  - Integrate generation with the existing ~mode lib~ binding flow, with no
+    extra opt-in needed for Kotlin source generation, as with Python.
+  - Keep binding generation distinct from compiling and packaging its native
+    bridge. Document desktop JVM library loading and Android NDK/ABI packaging;
+    generated bindings alone do not constitute Android platform support.
+
+*** Implementation decisions
+
+  Before implementation, agree on the generated Kotlin and bridge filenames,
+  package naming, writer/reader and regeneration flow, installation layout,
+  native library loading, and required tools. Reuse existing library metadata
+  and artifacts where possible. Any additional generated artifacts or tool
+  dependencies need explicit approval; this issue records the requested default
+  binding behavior without choosing those details.
+
+*** Acceptance
+
+  - [ ] Building a supported ~mode lib~ library generates Kotlin bindings
+    alongside Python bindings by default.
+  - [ ] A Kotlin/JVM caller compiles and invokes an actual generated library
+    through the selected native bridge.
+  - [ ] Tests cover value conversion, ownership/release and error propagation
+    against the same library interface exercised by other language bindings.
+  - [ ] An Android integration check demonstrates calling a generated binding
+    with an NDK-built native library, with packaging requirements documented.
+  - [ ] Unsupported exported signatures produce actionable diagnostics, and
+    existing Python/C/til bindings continue to work.
+
+*** Related
+
+  #375 provides managed JVM code generation. This issue instead provides
+  Kotlin access to native til libraries; it does not require that backend.

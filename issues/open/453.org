@@ -1,0 +1,46 @@
+# priority: medium
+# category: backends
+** OPEN #453 Add a FASM native assembly backend
+
+Implement a native assembly backend that emits flat assembler (FASM) source
+from til's prepared program, then assembles it into native code. Backend
+selection and the target OS/architecture are separate concerns, as with the
+existing C and MLIR backends.
+
+*** Reference
+
+  - Official FASM 1 source repository: https://github.com/tgrysztar/fasm
+  - Website and binary releases: https://flatassembler.net/
+  - Local reference clone: ~.inspirations/fasm~ in the task worktree.
+  - Initial reference revision: ~225ce90e81e69877ab42505f7713e3d3fd531d42~.
+
+  The clone is reference material, not a vendored build dependency. This
+  issue targets FASM 1; fasmg is a separate assembler project.
+
+*** Plan
+
+  - [ ] Agree on the initial OS/architecture and ABI; Linux x86-64 is the
+    proposed first slice. Specify object versus executable output, linking,
+    entry points, stack alignment, argument passing and return values.
+  - [ ] Agree on backend selection, generated-source paths and assembler
+    discovery before adding CLI or installation surfaces.
+  - [ ] Emit a minimal runnable program, then scalar arithmetic, locals,
+    direct calls, returns and control flow. Reject unsupported constructs
+    with source-located diagnostics.
+  - [ ] Extend lowering to aggregate layout, pointers, ownership cleanup,
+    indirect calls and exception propagation using the existing language
+    semantics rather than backend-specific substitutes.
+  - [ ] Define the native runtime boundary with #383, including the proposed
+    ~ext.fasm~ role, allocation, strings, output, panic and platform services.
+    Decide its concrete layout and linkage before implementing it.
+  - [ ] Integrate translation, assembly and execution with the existing build
+    workflow; document tool requirements and propagate assembler/linker errors.
+  - [ ] Run progressively larger subsets of the existing shared tests and
+    compare behavior with the C backend. Keep backend-specific tests for
+    assembly syntax, ABI boundaries and unsupported-feature diagnostics.
+
+*** Related
+
+  #383 coordinates alternative-backend runtime contracts and conformance
+  testing. Follow its shared-source-test convention rather than cloning the
+  suite into FASM-specific copies.
