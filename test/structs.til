@@ -830,3 +830,23 @@ test_subscript_non_throwing_get := test() {
     assert_eq(I64, s[0], 10)
     assert_eq(Str, s.label, "shelf")
 }
+
+// #450: a field named like a global function must not shadow it inside the
+// type's own methods. `format` was bound as a bare name in the scope the
+// methods were typed (and garbage-walked) in, so the generated to_str's
+// `format(...)` resolved to the FIELD: the interpreter panicked on a moved
+// variadic array and the C backend freed the array a second time.
+Shadow450 := struct {
+    format: Str = "x"
+    len := 3
+namespace:
+    show := func(self: Shadow450) returns Str { return format("<", self.format, ">") }
+    count := func(self: Shadow450) returns I64 { return self.len + 1 }
+}
+
+test_field_named_like_global_function := test() {
+    s := Shadow450()
+    assert_eq(Str, s.show(), "<x>")
+    assert_eq(Str, s.to_str(), "Shadow450(format=x, len=3)")
+    assert_eq(I64, s.count(), 4)
+}

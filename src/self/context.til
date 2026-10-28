@@ -746,11 +746,11 @@ namespace:
     // Is ANY function named `name` reachable, IGNORING value bindings
     // that shadow it? The mirror image of lookup_func, which stops at
     // the first scope that binds the name. Needed by the not-callable
-    // diagnostic: infer_type_def_expr binds a struct's FIELDS in the
-    // very scope its namespace methods are typed in, so a field named
-    // `format` (vendor/bindings/raylib.til's Image/Texture) shadows the
-    // global `format` function that the generated `to_str` body calls
-    // and actually reaches at run time.
+    // diagnostic: a local value next to a global function of the same
+    // name (`foo := 0` beside `foo := func() ...`) does not make `foo()`
+    // a value call -- both backends resolve it to the function. (Struct
+    // fields used to shadow the same way inside their type's methods;
+    // #450 gave them a scope of their own.)
     any_func_def := func(self: TypeScope, name: Str, symbols: SymbolPool) returns Bool {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return false }

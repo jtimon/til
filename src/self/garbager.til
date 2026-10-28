@@ -4398,28 +4398,29 @@ priv garbager_body_binding_count := func(body: Expr) returns USize {
 }
 
 // Struct/enum namespace declarations are payload-owned AST, not Expr children.
-// Rebuild the type scope infer_type_def_expr used, including fields in source
-// order, then visit field defaults and namespace values so method bodies join
-// the same post-order destruction walk as ordinary functions.
+// Rebuild the type scope infer_type_def_expr used: the fields in source order
+// in a scope of their own (#450: a field named like a global function must
+// not shadow it in the method bodies -- `format` made the callee look like a
+// value, so the variadic array was freed after a call that owns it), then
+// visit field defaults and namespace values so method bodies join the same
+// post-order destruction walk as ordinary functions.
 priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_name: Str,
     parent: TypeScope, insert: Bool) {
-    mut binding_capacity : USize = 0
-    switch type_def.node_type {
-    case .StructDef(sd): binding_capacity = sd.fields.len()
-    case:
-    }
     mut type_scope := TypeScope(
-        bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
+        bindings = SymMap(TypeBinding).with_capacity(def_ns_decls(type_def).len()),
         parent = safe_ref(parent), current_type_name = type_name.clone())
     switch type_def.node_type {
     case .StructDef(sd):
+        mut fields_scope := TypeScope(
+            bindings = SymMap(TypeBinding).with_capacity(sd.fields.len()),
+            parent = safe_ref(parent), current_type_name = type_name.clone())
         for field_idx, mut field in sd.fields {
             ref field_name : Str = sd.field_name_at(field_idx)
             if field.default_value.is_some() {
-                garbager_walk_expr(ctx, field.default_expr(), type_scope, insert)
+                garbager_walk_expr(ctx, field.default_expr(), fields_scope, insert)
             }
-            field_type := declaration_resolved_type(field, type_scope, ctx.symbols)
-            type_scope.set(field_name, field_type, field.is_mut, ctx.path,
+            field_type := declaration_resolved_type(field, fields_scope, ctx.symbols)
+            fields_scope.set(field_name, field_type, field.is_mut, ctx.path,
                 type_def.line, type_def.col, false, field.own_type, ctx.symbols)
         }
     case .EnumDef:

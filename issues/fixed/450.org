@@ -1,6 +1,29 @@
 # priority: high
 # category: bugs
-** OPEN #450 A struct field named like a global function shadows it inside the struct's methods
+** FIXED #450 A struct field named like a global function shadows it inside the struct's methods
+
+*** Post-mortem
+
+   Root cause: two passes built the struct's method scope with the fields
+   bound in it as bare names. ~infer_type_def_expr~ (typer) bound each
+   field into ~inner~, the scope every namespace method body is typed in,
+   so ~format(...)~ inside ~to_str~ resolved to the field. The garbager's
+   ~garbager_walk_type_def~ rebuilt the same scope the same way, so even
+   with the typer fixed, the garbager took the callee for a value and
+   freed the variadic array after a call that owns it (the C double free;
+   the interpreter's "argument from moved binding" panic).
+
+   What changed: both passes type/walk the fields in a ~fields_scope~ of
+   their own (same parent, same ~current_type_name~) and keep the method
+   scope field-free; a field is reachable only through a struct value.
+   The ~any_func_def~ look-past in the not-callable diagnostic stays for
+   the one behaviour that remains: a local value beside a global function
+   of the same name (~foo := 0~; ~foo()~) still calls the function on both
+   backends. Its comment no longer blames fields.
+
+   Regression test: ~test_field_named_like_global_function~ in
+   test/structs.til (fields ~format~ and ~len~; ~show~, the generated
+   ~to_str~, and a method reading ~self.len~).
 
 ~infer_type_def_expr~ binds a struct's FIELDS as bare names in the very
 scope its namespace methods are typed in. A field named ~format~ (or

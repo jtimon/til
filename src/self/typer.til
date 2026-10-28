@@ -5148,11 +5148,19 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     case:
     }
     mut inner := TypeScope(
-        bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
+        bindings = SymMap(TypeBinding).with_capacity(def_ns_decls(expr).len()),
         parent = safe_ref(scope), current_type_name = type_name.clone())
     switch expr.node_type {
     case .StructDef:
-        type_struct_fields(expr, inner, false, ctx)
+        // #450: the fields are typed in a scope of their own. Binding them
+        // in `inner` put every field name in front of the global function
+        // of the same name for every method body typed below (a field
+        // `format` captured the generated to_str's `format(...)` call):
+        // a field is reachable only through a struct value, never bare.
+        mut fields_scope := TypeScope(
+            bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
+            parent = safe_ref(scope), current_type_name = type_name.clone())
+        type_struct_fields(expr, fields_scope, false, ctx)
     case .EnumDef(tc_edd):
         // Issue #57: see typer_resolve_enum_payload_types.
         typer_resolve_enum_payload_types(tc_edd, inner, ctx)
