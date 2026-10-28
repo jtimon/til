@@ -2304,6 +2304,29 @@ test_generic_infer_from_funcsig_argument := test() {
     assert_eq(I64, gsig_apply328(GSig328, gsig_add328, 2, 5), 7)
 }
 
+// #451: `T()` with a primitive T is that primitive's default -- the value
+// an uninitialised field of the type gets -- so a generic body can seed a
+// reduction without an explicit seed. The direct spellings (`I64()`,
+// `Bool()`) are the same rule; a builtin called WITH arguments still has
+// no constructor (terr451_with_arg in test/typer_errors.til).
+gzero451 := func(T: Type) returns T { return T() }
+gsum451 := func(T: Type, xs: ..T) returns T {
+    mut acc := T()
+    for x in xs { acc = acc.add(x) }
+    return acc
+}
+
+test_primitive_default_constructor := test() {
+    assert_eq(I64, gzero451(I64), 0)
+    assert_eq(F32, gzero451(F32), 0.0)
+    assert_eq(Bool, gzero451(Bool), false)
+    assert_eq(I64, gsum451(I64, 1, 2, 3), 6)
+    assert_eq(F64, gsum451(F64, 1.5, 2.5), 4.0)
+    assert_eq(U8, U8(), 0)
+    assert_eq(USize, USize(), 0)
+    assert_eq(Bool, Bool(), false)
+}
+
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2

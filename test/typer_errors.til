@@ -1833,6 +1833,10 @@ gnoev_conflict : GNoEv328 = gpair_noev328("s", GNoEv328())
 gbare_apply328 := func(T: Type, f: T, a: I64, b: I64) returns I64 { return f(a, b) }
 gbare_fn328 := func(a: I64, b: I64) returns I64 { return a + b }
 gbare_call328 := gbare_apply328(gbare_fn328, 2, 5)
+
+// #451: `I64()` is the primitive's default; `I64(5)` still has no
+// constructor to resolve to (a conversion is `cast` or `.to_i64()`).
+terr451_with_arg := I64(5)
 // #396: the same address reaching the OTHER slots. #391 closed the Decl;
 // expr_is_address / slot_takes_address are now one rule consulted by each
 // site, and each keeps its own message because the fix differs by slot.

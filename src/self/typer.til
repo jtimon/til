@@ -1037,6 +1037,27 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
     switch sf_sb {
     case .Found(sb):
         if sb.is_builtin {
+            // #451: `I64()` / `Bool()` / `T()` with a primitive T is the
+            // primitive's default -- the value an uninitialised field of
+            // that type gets -- so the call becomes that literal, typed.
+            // A builtin with arguments has no constructor to resolve to.
+            prim := type_from_name(name, scope, ctx)
+            if e.children.len() == 1 {
+                if is_numeric_type(prim) {
+                    mut zero_text := "0"
+                    if is_integral_numeric_type(prim).not() { zero_text = "0.0" }
+                    e.node_type = NodeType.Literal(Literal.Num(LiteralNumData(text = zero_text)))
+                    e.children.clear()
+                    e.set_til_type(prim)
+                    return true
+                }
+                if name.eq("Bool") {
+                    e.node_type = NodeType.Literal(Literal.Bool(false))
+                    e.children.clear()
+                    e.set_til_type(prim)
+                    return true
+                }
+            }
             e.type_error(format("cannot instantiate builtin type '", name, "'"), ctx)
             e.set_til_type(Type.Unknown)
             return true
@@ -4518,7 +4539,8 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
             return
         }
         if infer_struct_constructor_fcall(scope, e, name, callee_sym, in_func, ctx) {
-            mark_fcall_direct(e)
+            // #451: a primitive's `I64()` became its default literal.
+            if e.node_type.is(NodeType.FCall) { mark_fcall_direct(e) }
             return
         }
     }

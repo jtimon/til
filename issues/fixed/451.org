@@ -1,6 +1,28 @@
 # priority: medium
 # category: features
-** OPEN #451 T() on a primitive type parameter: "cannot instantiate builtin type"
+** FIXED #451 T() on a primitive type parameter: "cannot instantiate builtin type"
+
+*** Post-mortem
+
+   Root cause: ~infer_struct_constructor_fcall_impl~ reaches the
+   builtin primitives (their core struct defs resolve like any other
+   struct) and refused every one of them with "cannot instantiate
+   builtin type", so there was no zero-argument constructor for ~I64~,
+   ~F64~, ~Bool~, ~USize~... at all, directly or through a generic's
+   ~T()~.
+
+   What changed: a zero-argument call on a numeric or Bool builtin is
+   rewritten in place into that primitive's default literal (~0~ /
+   ~0.0~ / ~false~), typed as the primitive -- the same value an
+   uninitialised field of the type gets. The caller skips
+   ~mark_fcall_direct~ when the node is no longer an FCall. A builtin
+   called WITH arguments (~I64(5)~) keeps the refusal: there is no
+   constructor to resolve to; conversions are ~cast~ / ~.to_i64()~.
+
+   Regression tests: ~test_primitive_default_constructor~ in
+   test/first_class.til (direct ~U8()~ / ~USize()~ / ~Bool()~, generic
+   ~gzero451(T)~, and the ~gsum451~ reduction idiom seeded by ~T()~);
+   ~terr451_with_arg~ in test/typer_errors.til.
 
 A generic whose body constructs a default value of its type parameter
 cannot be instantiated with a primitive, even under explicit type
