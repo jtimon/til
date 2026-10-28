@@ -1318,6 +1318,12 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos -c gen/c/gui_terminal_grid.HC examples/gui_terminal_grid.til '&&' cat gen/c/gui_terminal_grid.HC"))
     add_single(tests, "holyc_gui_scissor_translate", "build", 0, "",
         format(til_bin, " translate --target=templeos -c gen/c/gui_scissor.HC examples/gui_scissor.til"))
+    add_single(tests, "holyc_gui_mouse_translate", "build", 0, "",
+        format(til_bin, " translate --target=templeos -c gen/c/gui_mouse.HC examples/gui_mouse.til"))
+    add_count(tests, "holyc_i32_divmod_interp", "build", "I32 divmod passed", 1,
+        format(til_bin, " interpret test/holyc_i32_divmod.til"))
+    add_count(tests, "holyc_i32_divmod_compile", "build", "I32 divmod passed", 1,
+        format(til_bin, " run --asan -o bin/c/holyc_i32_divmod -c gen/c/holyc_i32_divmod.c test/holyc_i32_divmod.til"))
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),
         CountCheck(needle = "TilGuiGetKeyPressed(", expected_count = 2),
@@ -2248,6 +2254,8 @@ main := proc(args: ..Str) {
             format(til_bin, " run -o bin/c/gui_scissor -c gen/c/gui_scissor.c examples/gui_scissor.til"))
         add_count(tests, "gui_keyboard_input", "build", "GUI keyboard acceptance passed", 1,
             format(til_bin, " run -o bin/c/gui_keyboard_test -c gen/c/gui_keyboard_test.c test/gui_keyboard.til"))
+        add_count(tests, "gui_mouse_input", "build", "GUI mouse acceptance passed", 1,
+            format(til_bin, " run -o bin/c/gui_mouse_test -c gen/c/gui_mouse_test.c test/gui_mouse.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""

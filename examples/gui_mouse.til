@@ -1,0 +1,131 @@
+mode gui
+
+// Click either pane, drag across its cells, and right-click to reset.
+// Enter or Escape returns to the caller so the same loaded module can run again.
+MouseDemo := struct {
+    pane: I32 = 0
+    anchor: I32 = 0
+    head: I32 = 0
+    dragging: Bool = false
+    resets: I64 = 0
+}
+
+mouse_left := func(pane: I32) returns I32 {
+    if pane == 1 { return 320 }
+    return 40
+}
+
+mouse_cell := func(x: I32, pane: I32) returns I32 {
+    mut cell := (x - mouse_left(pane)) / 20
+    if cell < 0 { cell = 0 }
+    if cell > 11 { cell = 11 }
+    return cell
+}
+
+mouse_first := func(state: MouseDemo) returns I32 {
+    if state.anchor < state.head { return state.anchor.clone() }
+    return state.head.clone()
+}
+
+mouse_last := func(state: MouseDemo) returns I32 {
+    if state.anchor > state.head { return state.anchor.clone() }
+    return state.head.clone()
+}
+
+mouse_step := proc(mut state: MouseDemo) {
+    x := GetMouseX()
+    y := GetMouseY()
+    position := GetMousePosition()
+    if position.x != x.to_f32() || position.y != y.to_f32() { panic("inconsistent mouse position") }
+    if IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) {
+        state.anchor = 0
+        state.head = 0
+        state.dragging = false
+        state.resets++
+    }
+    if IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && y >= 40 && y < 220 {
+        if (x >= 40 && x < 280) || (x >= 320 && x < 560) {
+            state.pane = 0
+            if x >= 320 { state.pane = 1 }
+            state.anchor = mouse_cell(x, state.pane)
+            state.head = state.anchor.clone()
+            state.dragging = true
+        }
+    }
+    if state.dragging && IsMouseButtonDown(MOUSE_BUTTON_LEFT) {
+        state.head = mouse_cell(x, state.pane)
+    }
+    if IsMouseButtonReleased(MOUSE_BUTTON_LEFT) { state.dragging = false }
+}
+
+mouse_draw := proc(state: MouseDemo) {
+    black := Color(r=0, g=0, b=0, a=255)
+    blue := Color(r=0, g=0, b=170, a=255)
+    green := Color(r=0, g=170, b=0, a=255)
+    red := Color(r=170, g=0, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    BeginDrawing()
+    ClearBackground(black)
+    DrawText("CLICK / DRAG / RIGHT RESET / ENTER TO CLOSE".c_str, 40, 16, 16, white)
+    for pane in 0..2 {
+        left := mouse_left(pane.to_i32())
+        mut paper := blue.clone()
+        if pane == 1 { paper = green.clone() }
+        BeginScissorMode(left, 40, 240, 180)
+        ClearBackground(paper)
+        if state.pane == pane.to_i32() {
+            DrawRectangle(left, 40, 240, 4, white)
+            DrawRectangle(left + mouse_first(state) * 20, 88, (mouse_last(state) - mouse_first(state) + 1) * 20, 24, red)
+        }
+        for column in 0..12 {
+            label := column.to_str()
+            DrawText(label.c_str, left + column.to_i32() * 20, 124, 16, white)
+        }
+        EndScissorMode()
+    }
+    EndDrawing()
+}
+
+mouse_count_pixels := func(image: Image, x: I32, y: I32, width: I32, height: I32, expected: Color) returns I64 {
+    mut pixels := 0
+    mut row: I32 = 0
+    while row < height {
+        mut column: I32 = 0
+        while column < width {
+            color := GetImageColor(image, x + column, y + row)
+            if color.r == expected.r && color.g == expected.g && color.b == expected.b && color.a == expected.a { pixels++ }
+            column++
+        }
+        row++
+    }
+    return pixels
+}
+
+mouse_check_pixels := proc(state: MouseDemo) {
+    image := LoadImageFromScreen()
+    left := mouse_left(state.pane)
+    // Native readback includes the pointer. Check visible colors over regions
+    // so manually hovering over a probe point cannot create a false failure.
+    selected := mouse_count_pixels(image, left + mouse_first(state) * 20, 88,
+        (mouse_last(state) - mouse_first(state) + 1) * 20, 24, Color(r=170, g=0, b=0, a=255))
+    active := mouse_count_pixels(image, left, 40, 240, 4, Color(r=255, g=255, b=255, a=255))
+    gutter := mouse_count_pixels(image, 290, 88, 20, 24, Color(r=0, g=0, b=0, a=255))
+    UnloadImage(image)
+    if selected == 0 { panic("mouse selection pixel mismatch") }
+    if active == 0 { panic("mouse active pane pixel mismatch") }
+    if gutter == 0 { panic("mouse selection escaped pane") }
+}
+
+main := proc() {
+    InitWindow(640, 480, "til mouse panes".c_str)
+    SetTargetFPS(30)
+    mut state := MouseDemo()
+    while WindowShouldClose().or(IsKeyPressed(KEY_ENTER)).not() {
+        mouse_step(state)
+        mouse_draw(state)
+    }
+    mouse_check_pixels(state)
+    CloseWindow()
+    println("GUI mouse: pane=", state.pane.to_str(), " selection=", mouse_first(state).to_str(),
+        "..", mouse_last(state).to_str(), " resets=", state.resets.to_str(), " dragging=", state.dragging.to_str())
+}

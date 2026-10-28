@@ -1133,6 +1133,13 @@ public U0 TilStrFromU64(TilStr *out,U64 value)
   TilStrFromMagnitude(out,value,FALSE);
 }
 
+public U0 TilStrFromBool(TilStr *out,Bool value)
+{
+  if (value) TilStrInitLit(out,"true",4);
+  else TilStrInitLit(out,"false",5);
+  TilStrPrepareReturn(out);
+}
+
 public Bool TilStrEq(TilStr *a,TilStr *b)
 {
   if (a->count!=b->count)
@@ -1644,8 +1651,10 @@ public Bool TilReadLine(TilStr *line)
 // opaque pointers keep these helpers independent of generated class names.
 class TilGuiColor { U8 r,g,b,a; };
 class TilGuiImage { U8 *data; I32 width,height,mipmaps,format; };
+class TilGuiVector2 { F32 x,y; };
 CDC *TilGuiFront=NULL,*TilGuiBack=NULL;
 I64 TilGuiFrameMs=0,TilGuiOldLeft,TilGuiOldRight,TilGuiOldTop,TilGuiOldBottom;
+I64 TilGuiOldInhibit,TilGuiMouseX=0,TilGuiMouseY=0;
 Bool TilGuiDrawing=FALSE,TilGuiOldBorder;
 U8 TilGuiOldTitle[STR_LEN];
 U0 (*TilGuiOldDraw)(CTask *task,CDC *dc);
@@ -1655,6 +1664,7 @@ TilGuiOldDraw=NULL;
 // These are not a unified ordered event stream. ScanMsg supplies both key
 // directions; ScanChar/ScanKey would discard releases (and ScanChar can block).
 U8 TilGuiKeys[512],TilGuiPreviousKeys[512],TilGuiRepeatKeys[512];
+U8 TilGuiMouseButtons[2],TilGuiPreviousMouseButtons[2];
 I32 TilGuiKeyQueue[32],TilGuiCharQueue[32];
 I64 TilGuiKeyCount=0,TilGuiKeyRead=0,TilGuiCharCount=0,TilGuiCharRead=0;
 I64 TilGuiExitKey=256;
@@ -1732,38 +1742,56 @@ U0 TilGuiPollInput()
   I64 message,ch,scan,key,raw;
   U8 physical_keys[512];
   MemCpy(TilGuiPreviousKeys,TilGuiKeys,sizeof(TilGuiKeys));
+  MemCpy(TilGuiPreviousMouseButtons,TilGuiMouseButtons,sizeof(TilGuiMouseButtons));
   MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
   TilGuiKeyCount=0; TilGuiKeyRead=0;
   TilGuiCharCount=0; TilGuiCharRead=0;
-  while (message=ScanMsg(&ch,&scan,(1<<MSG_KEY_DOWN)|(1<<MSG_KEY_UP))) {
-    key=TilGuiKeyCode(scan);
-    if (key) {
-      if (message==MSG_KEY_UP) TilGuiKeys[key]=0;
-      else if (TilGuiKeys[key]) TilGuiRepeatKeys[key]=1;
-      else {
-        TilGuiKeys[key]=1;
-        if (TilGuiKeyCount==32) TilPanicZ("GUI key queue overflow\n");
-        TilGuiKeyQueue[TilGuiKeyCount++]=key;
-        if (key==TilGuiExitKey) TilGuiShouldClose=TRUE;
+  while (message=ScanMsg(&ch,&scan,(1<<MSG_KEY_DOWN)|(1<<MSG_KEY_UP)|
+        (1<<MSG_MS_MOVE)|(1<<MSG_MS_L_DOWN)|(1<<MSG_MS_L_UP)|
+        (1<<MSG_MS_L_D_DOWN)|(1<<MSG_MS_L_D_UP)|(1<<MSG_MS_R_DOWN)|
+        (1<<MSG_MS_R_UP)|(1<<MSG_MS_R_D_DOWN)|(1<<MSG_MS_R_D_UP))) {
+    if (message==MSG_KEY_DOWN || message==MSG_KEY_UP) {
+      key=TilGuiKeyCode(scan);
+      if (key) {
+        if (message==MSG_KEY_UP) TilGuiKeys[key]=0;
+        else if (TilGuiKeys[key]) TilGuiRepeatKeys[key]=1;
+        else {
+          TilGuiKeys[key]=1;
+          if (TilGuiKeyCount==32) TilPanicZ("GUI key queue overflow\n");
+          TilGuiKeyQueue[TilGuiKeyCount++]=key;
+          if (key==TilGuiExitKey) TilGuiShouldClose=TRUE;
+        }
       }
-    }
-    if (message==MSG_KEY_DOWN && !(scan&(SCF_CTRL|SCF_ALT))) {
-      if (ch==CH_SHIFT_SPACE) ch=' ';
-      // Control/non-text messages never become printable input. TempleOS
-      // extended screen codes are not Unicode scalars: reject them explicitly.
-      if (ch>126) TilPanicZ("GUI input POC requires printable ASCII\n");
-      if (ch>=32) {
-        if (TilGuiCharCount==32) TilPanicZ("GUI character queue overflow\n");
-        TilGuiCharQueue[TilGuiCharCount++]=ch;
+      if (message==MSG_KEY_DOWN && !(scan&(SCF_CTRL|SCF_ALT))) {
+        if (ch==CH_SHIFT_SPACE) ch=' ';
+        // Control/non-text messages never become printable input. TempleOS
+        // extended screen codes are not Unicode scalars: reject them explicitly.
+        if (ch>126) TilPanicZ("GUI input POC requires printable ASCII\n");
+        if (ch>=32) {
+          if (TilGuiCharCount==32) TilPanicZ("GUI character queue overflow\n");
+          TilGuiCharQueue[TilGuiCharCount++]=ch;
+        }
+      }
+    } else {
+      switch (message) {
+        case MSG_MS_L_DOWN: case MSG_MS_L_D_DOWN: TilGuiMouseButtons[0]=1; break;
+        case MSG_MS_L_UP: case MSG_MS_L_D_UP: TilGuiMouseButtons[0]=0; break;
+        case MSG_MS_R_DOWN: case MSG_MS_R_D_DOWN: TilGuiMouseButtons[1]=1; break;
+        case MSG_MS_R_UP: case MSG_MS_R_D_UP: TilGuiMouseButtons[1]=0; break;
       }
     }
   }
+  // Match the facade's client coordinates, not DolDoc's scrolled coordinates
+  // carried by MSG_MS_MOVE. Position is sampled once for consistent X/Y/Vector2.
+  TilGuiMouseX=ms.pos.x-Fs->pix_left;
+  TilGuiMouseY=ms.pos.y-Fs->pix_top;
   if (sys_focus_task!=Fs) {
     // TempleOS delivers releases to the task focused when the release occurs,
     // not necessarily the one that received the press. Blur releases our held
     // keys once, without inventing key/text queue entries.
     MemSet(TilGuiKeys,0,sizeof(TilGuiKeys));
     MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
+    MemSet(TilGuiMouseButtons,0,sizeof(TilGuiMouseButtons));
   } else {
     // A loss and regain can both happen between polls. Reconcile existing
     // held keys with the physical bitmap so a release elsewhere is not lost.
@@ -1776,7 +1804,53 @@ U0 TilGuiPollInput()
       }
     for (key=1;key<512;key++)
       TilGuiKeys[key]&=physical_keys[key];
+    TilGuiMouseButtons[0]&=ms.lb;
+    TilGuiMouseButtons[1]&=ms.rb;
   }
+}
+
+Bool TilGuiMouseButtonValid(I64 button)
+{
+  if (button<0 || button>=8) return FALSE;
+  if (button>1) TilPanicZ("GUI mouse POC supports left/right buttons\n");
+  return TRUE;
+}
+
+public Bool TilGuiIsMouseButtonDown(I64 button)
+{
+  return TilGuiMouseButtonValid(button) && TilGuiMouseButtons[button];
+}
+
+public Bool TilGuiIsMouseButtonUp(I64 button)
+{
+  return TilGuiMouseButtonValid(button) && !TilGuiMouseButtons[button];
+}
+
+public Bool TilGuiIsMouseButtonPressed(I64 button)
+{
+  return TilGuiMouseButtonValid(button) && TilGuiMouseButtons[button] && !TilGuiPreviousMouseButtons[button];
+}
+
+public Bool TilGuiIsMouseButtonReleased(I64 button)
+{
+  return TilGuiMouseButtonValid(button) && !TilGuiMouseButtons[button] && TilGuiPreviousMouseButtons[button];
+}
+
+public I32 TilGuiGetMouseX()
+{
+  return TilGuiMouseX;
+}
+
+public I32 TilGuiGetMouseY()
+{
+  return TilGuiMouseY;
+}
+
+public U0 TilGuiGetMousePosition(U8 *out)
+{
+  TilGuiVector2 *position=out(TilGuiVector2 *);
+  position->x=TilF32FromI64(TilGuiMouseX);
+  position->y=TilF32FromI64(TilGuiMouseY);
 }
 
 public Bool TilGuiIsKeyDown(I64 key)
@@ -1838,6 +1912,8 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   MemSet(TilGuiKeys,0,sizeof(TilGuiKeys));
   MemSet(TilGuiPreviousKeys,0,sizeof(TilGuiPreviousKeys));
   MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
+  MemSet(TilGuiMouseButtons,0,sizeof(TilGuiMouseButtons));
+  MemSet(TilGuiPreviousMouseButtons,0,sizeof(TilGuiPreviousMouseButtons));
   TilGuiKeyCount=0; TilGuiKeyRead=0; TilGuiCharCount=0; TilGuiCharRead=0;
   TilGuiShouldClose=FALSE; TilGuiExitKey=256;
   TilGuiScissorActive=FALSE;
@@ -1848,6 +1924,11 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   MemSet(Fs->task_title,0,STR_LEN);
   MemCpy(Fs->task_title,title,MinI64(StrLen(title),STR_LEN-1));
   TilGuiOldDraw=Fs->draw_it;
+  TilGuiOldInhibit=Fs->win_inhibit;
+  // Deliver immediate left/right events, rather than DolDoc cursor movement,
+  // double-click-to-Escape or Ctrl-drag panning of the native task window.
+  Fs->win_inhibit|=WIF_SELF_MS_L|WIF_SELF_MS_R|WIF_SELF_GRAB_SCROLL|
+    WIF_FOCUS_TASK_MS_L_D|WIF_FOCUS_TASK_MS_R_D;
   TilGuiFront=DCNew(width,height);
   TilGuiBack=DCNew(width,height);
   TilGuiOldBorder=WinBorder(OFF);
@@ -1855,6 +1936,8 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   WinVert(0,TEXT_ROWS-1);
   Fs->draw_it=&TilGuiDraw;
   WinFocus;
+  TilGuiMouseX=ms.pos.x-Fs->pix_left;
+  TilGuiMouseY=ms.pos.y-Fs->pix_top;
 }
 
 public U0 TilGuiSetTargetFPS(I64 fps)
@@ -2010,6 +2093,7 @@ public U0 TilGuiUnloadImage(U8 *opaque)
 public U0 TilGuiCloseWindow()
 {
   Fs->draw_it=TilGuiOldDraw;
+  Fs->win_inhibit=TilGuiOldInhibit;
   DCDel(TilGuiFront); DCDel(TilGuiBack);
   TilGuiFront=NULL; TilGuiBack=NULL;
   WinBorder(TilGuiOldBorder);

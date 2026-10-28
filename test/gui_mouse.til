@@ -1,0 +1,42 @@
+mode gui
+
+link_c("gui_mouse.c")
+gui_mouse_move := ext_proc(shallow x: I32, shallow y: I32) {}
+gui_mouse_button := ext_proc(shallow button: I32, shallow action: I32) {}
+
+priv next_frame := proc() { BeginDrawing(); EndDrawing() }
+
+main := proc() {
+    InitWindow(640, 480, "til mouse acceptance".c_str)
+    SetTargetFPS(30)
+    if IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonReleased(MOUSE_BUTTON_LEFT) { panic("initial mouse state") }
+    if IsMouseButtonUp(MOUSE_BUTTON_LEFT).not() { panic("initial mouse up") }
+    gui_mouse_move(80, 90)
+    position := GetMousePosition()
+    if GetMouseX() != 80 || GetMouseY() != 90 || position.x != 80.0 || position.y != 90.0 { panic("mouse position ABI") }
+    gui_mouse_button(MOUSE_BUTTON_LEFT, 1)
+    if IsMouseButtonDown(MOUSE_BUTTON_LEFT).not() || IsMouseButtonPressed(MOUSE_BUTTON_LEFT).not() { panic("mouse press") }
+    if IsMouseButtonPressed(MOUSE_BUTTON_LEFT).not() { panic("mouse query consumed edge") }
+    next_frame()
+    if IsMouseButtonDown(MOUSE_BUTTON_LEFT).not() || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) { panic("held mouse state") }
+    gui_mouse_move(120, 90)
+    gui_mouse_button(MOUSE_BUTTON_RIGHT, 1)
+    if IsMouseButtonDown(MOUSE_BUTTON_LEFT).not() || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT).not() || GetMouseX() != 120 { panic("mouse drag/chord") }
+    next_frame()
+    gui_mouse_button(MOUSE_BUTTON_LEFT, 0)
+    if IsMouseButtonReleased(MOUSE_BUTTON_LEFT).not() || IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT).not() { panic("mouse release") }
+    next_frame()
+    if IsMouseButtonReleased(MOUSE_BUTTON_LEFT) { panic("mouse release persisted") }
+    gui_mouse_button(MOUSE_BUTTON_RIGHT, 0)
+    if IsMouseButtonReleased(MOUSE_BUTTON_RIGHT).not() { panic("right mouse release") }
+    next_frame()
+    gui_mouse_button(MOUSE_BUTTON_LEFT, 1)
+    gui_mouse_button(MOUSE_BUTTON_LEFT, 0)
+    if IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonReleased(MOUSE_BUTTON_LEFT) { panic("same-frame tap snapshot") }
+    gui_mouse_move(-8, 500)
+    outside := GetMousePosition()
+    if GetMouseX() != -8 || GetMouseY() != 500 || outside.x != -8.0 || outside.y != 500.0 { panic("mouse coordinates were clamped") }
+    if IsMouseButtonDown(-1) || IsMouseButtonUp(8) { panic("invalid mouse button") }
+    CloseWindow()
+    println("GUI mouse acceptance passed")
+}

@@ -981,6 +981,113 @@
   focused native scissor cases pass (shared pixel proof, lifecycle and invalid
   extents at USize 32/64). The full guest matrix was not rerun for this sprint.
 
+**** Fifth shared GUI POC: mouse position and left/right buttons
+
+  examples/gui_mouse.til selects either pane with a left click, drags a cell
+  selection, resets it with a right click, and exits with Enter/Escape. It uses
+  the existing GetMouseX/Y/Position and IsMouseButtonDown/Up/Pressed/Released
+  facade. Position is sampled per frame in client coordinates; Vector2 retains
+  its two-F32 layout. Out-of-client coordinates remain signed rather than being
+  clamped to the viewport.
+
+  The native message pump now handles mouse messages without treating their
+  coordinates as keyboard input. Left/right held state is cleared on blur and
+  reconciled with physical state on refocus, including a release elsewhere
+  between frames. InitWindow temporarily inhibits DolDoc mouse actions, delayed
+  double-click handling and Ctrl-drag window panning; CloseWindow restores the
+  previous policy. This gives the application immediate button events instead
+  of moving the console cursor or generating a double-click Escape.
+
+  This sprint supports left/right buttons. Middle/auxiliary button queries fail
+  explicitly on the native target; wheel input and pointer warp/scale/cursor
+  APIs remain later work. Invalid button indices retain the facade's false
+  result. Key/text queues remain separate from mouse frame state.
+
+  Mouse cell arithmetic exposed missing native I32 div/mod lowering. It now
+  uses the signed division helpers and narrows the result, preserving signed
+  truncation and the zero-divisor rule. Bool.to_str is also lowered with the
+  ordinary returned-string ownership convention. test/holyc_i32_divmod.til
+  checks runtime signed div/mod, zero divisors and both Boolean spellings.
+
+  Hosted test/gui_mouse.til drives raylib's GLFW callbacks. Native acceptance
+  checks client coordinates, Vector2 ABI, holds/edges/chords, focus changes,
+  same-frame taps, window-policy restoration and reopen. Real PS/2 injection
+  clicks/drags both panes, checks selection pixels and calls the loaded module
+  twice in one VM. Existing keyboard focus cases also run in focused verification.
+  Pixel checks use visible color regions, so manually placing the native pointer
+  over a probe point does not cause a false failure; injection also covers that
+  hover position.
+
+  Verification on master 2d9d1c893: clean hosted ASAN suite 489/489, including
+  clang validation. All ten focused native cases pass at USize 32/64: arithmetic
+  and formatting, mouse interaction/reuse, mouse boundaries, unsupported-button
+  rejection and the existing keyboard focus regression. The full guest matrix
+  was not rerun for this sprint.
+
+**** Manual GUI testing in one VM
+
+  The task worktree already has the existing ~til-templeos-test~ Docker image,
+  ~tmp/templeos/TempleOS.ISO~ and FAT32 ~tmp/templeos/guest.raw~ used by the
+  native tests. Use that prepared worktree for these commands. A fresh checkout
+  needs the setup at the start of ~test/templeos.til~ first.
+
+  Stop the VM before staging files. The test runner recreates ~guest.raw~ for
+  each case, so it is test storage, not a place to keep personal files. Re-stage
+  after native tests if they replaced the program. Hosted manual testing is just
+  ~bin/til run examples/gui_mouse.til~.
+
+  Compile the mouse example and add a guest-side repeat prompt to the existing
+  generated module. This keeps the same compiled module and VM alive across
+  interactions, without reloading its symbols into the task:
+
+  #+begin_src sh
+  bin/til translate --target=templeos --usize=64 -c tmp/templeos/TILTEST.HC examples/gui_mouse.til
+  cp src/holyc/ext.HC tmp/templeos/Ext.HC
+  cat >> tmp/templeos/TILTEST.HC <<'HC'
+  Bool manual_old_ac=AutoComplete(OFF);
+  I64 manual_again;
+  MsSet(0,0);
+  do {
+    TilMain;
+    Print("Run again? y/n\n");
+    manual_again=GetChar(,FALSE);
+  } while (manual_again=='y');
+  AutoComplete(manual_old_ac);
+HC
+  docker run --rm --user "$(id -u):$(id -g)" \
+    -v "$PWD/tmp/templeos:/work" -w /work til-templeos-test \
+    mcopy -o -i guest.raw@@1048576 Ext.HC TILTEST.HC ::/Home/
+  #+end_src
+
+  Launch QEMU in the foreground, with VNC published only on localhost. The
+  image's VNC backend works without installing a host QEMU or GTK backend:
+
+  #+begin_src sh
+  docker run --rm -it --user "$(id -u):$(id -g)" \
+    -p 127.0.0.1:5900:5900 -v "$PWD/tmp/templeos:/work" -w /work \
+    til-templeos-test qemu-system-x86_64 -accel tcg -m 512 -smp 1 \
+    -drive file=guest.raw,format=raw,if=ide -cdrom TempleOS.ISO -boot d \
+    -display vnc=0.0.0.0:0 -monitor stdio
+  #+end_src
+
+  Connect a VNC viewer to ~127.0.0.1:5900~. Answer ~n~ to installation and tour.
+  In the TempleOS console, mount the test disk and run the staged module:
+
+  #+begin_src c
+  CBlkDev *bd=BlkDevNextFreeSlot('C',BDT_ATA);bd->base0=0x1F0;bd->base1=0x3F6;bd->unit=0;BlkDevAdd(bd,I64_MIN,FALSE,TRUE);
+  Cd("C:/Home");
+  ExeFile("TILTEST.HC");
+  #+end_src
+
+  Wait for the window, then click/drag and right-click. Enter/Escape closes the
+  example; ~y~ at the repeat prompt starts a fresh run in the same VM, and ~n~
+  returns to the console. Type ~quit~ at the host terminal's ~(qemu)~ monitor to
+  stop the VM. For a new host build, quit, regenerate/re-stage and boot again;
+  this repeat loop is not a host-to-guest hot-reload mechanism.
+
+  Verified with the VNC/RFB handshake and two complete mouse-demo interactions
+  through the repeat prompt in one VM, including final text and pixel checks.
+
 *** QEMU validation
 
   The repository driver formats an isolated FAT32 data disk per case and

@@ -709,6 +709,11 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
                 return format(runtime_name, "(&", dest, ", ", src, ")")
             }
         }
+        if owner.eq("Bool").and(method.eq("to_str")) {
+            if e.children.len() != 2 { error = "invalid Bool.to_str call"; return "" }
+            value := holyc_expr(e.children[1], ctx, state, locals, error)
+            return format("TilStrFromBool(&", dest, ", ", value, ")")
+        }
         if holyc_scalar_type_name(owner).and(owner.starts_with("I").or(owner.starts_with("U")))
             .and(method.eq("to_str")) {
             if e.children.len() != 2 { error = format("invalid ", owner, ".to_str call"); return "" }
@@ -2282,7 +2287,9 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
             case "InitWindow", "CloseWindow", "SetTargetFPS", "BeginDrawing", "EndDrawing",
                 "ClearBackground", "DrawRectangle", "DrawText", "LoadImageFromScreen", "GetImageColor", "UnloadImage",
                 "GetKeyPressed", "GetCharPressed", "IsKeyDown", "IsKeyUp", "IsKeyPressed", "IsKeyReleased",
-                "IsKeyPressedRepeat", "WindowShouldClose", "SetExitKey", "BeginScissorMode", "EndScissorMode":
+                "IsKeyPressedRepeat", "WindowShouldClose", "SetExitKey", "BeginScissorMode", "EndScissorMode",
+                "GetMouseX", "GetMouseY", "GetMousePosition", "IsMouseButtonDown", "IsMouseButtonUp",
+                "IsMouseButtonPressed", "IsMouseButtonReleased":
                 return format("TilGui", name)
             case:
             }
@@ -3362,16 +3369,16 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             left := holyc_expr(e.children[1], ctx, state, locals, error)
             right := holyc_expr(e.children[2], ctx, state, locals, error)
             if method.eq("div").or(method.eq("mod")) {
-                if owner != "I64" {
+                if owner.eq("I64").or(owner.eq("I32")).not() {
                     error = format("unsupported core call '", owner, ".", method, "'")
                     return ""
                 }
                 if method == "div" {
                     state.needs_i64_div = true
-                    return format("TilI64Div(", left, ", ", right, ")")
+                    return holyc_narrow_wrap(format("TilI64Div(", left, ", ", right, ")"), owner)
                 }
                 state.needs_i64_mod = true
-                return format("TilI64Mod(", left, ", ", right, ")")
+                return holyc_narrow_wrap(format("TilI64Mod(", left, ", ", right, ")"), owner)
             }
             op := holyc_core_binop(method)
             if op.len() == 0 {

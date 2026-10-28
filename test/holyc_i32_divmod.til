@@ -1,0 +1,15 @@
+mode script
+
+// Runtime operands exercise signed truncation and the language's zero rule.
+mut numerator: I32 = 6
+numerator.inc()
+denominator: I32 = 2
+mut zero: I32 = 1
+zero.dec()
+negative := zero - numerator
+if numerator / denominator != 3 || numerator % denominator != 1 { panic("positive I32 divmod") }
+if negative / denominator != -3 || negative % denominator != -1 { panic("negative I32 divmod") }
+if numerator / -2 != -3 || numerator % -2 != 1 { panic("negative I32 divisor") }
+if numerator / zero != 0 || numerator % zero != 0 { panic("zero I32 divisor") }
+if numerator.gt(0).to_str() != "true" || numerator.lt(0).to_str() != "false" { panic("runtime Bool formatting") }
+println("I32 divmod passed")

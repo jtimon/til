@@ -255,6 +255,61 @@ gui_scissor_checks := proc(identity: Str, bits: Str) {
     run_guest(identity, format("gui_scissor_negative_", bits), "GUI scissor requires nonnegative extents\n", "panic")
 }
 
+gui_mouse_input := func() returns Str {
+    return format("after 4000\nfor {set run 0} {$run<2} {incr run} {\n",
+        "foreach command {\"mouse_move 160 160\" \"mouse_button 1\" \"mouse_move 80 0\" \"mouse_button 0\" \"mouse_button 2\" \"mouse_button 0\" \"mouse_move 600 0\" \"mouse_button 1\" \"mouse_move -120 0\" \"mouse_button 0\" \"mouse_move 8 24\"} {\n",
+        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 150\n}\n",
+        "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\nafter 600\n}\n")
+}
+
+gui_mouse_checks := proc(identity: Str, bits: Str) {
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "test/holyc_i32_divmod.til").run_checked()
+    run_guest(identity, format("i32_divmod_", bits), "I32 divmod passed\n", "pass")
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "examples/gui_mouse.til").run_checked()
+    program := File.readfile(format(WORK, "/TILTEST.HC"))
+    // Loading the module once and calling TilMain twice exercises manual VM reuse.
+    File.appendfile(format(WORK, "/TILTEST.HC"),
+        "\nBool mouse_old_ac=AutoComplete(OFF); MsSet(0,0); TilMain; MsSet(0,0); TilMain; AutoComplete(mouse_old_ac);\n")
+    expected := "GUI mouse: pane=1 selection=2..5 resets=1 dragging=false\n"
+    run_guest(identity, format("gui_mouse_", bits), format(expected, expected), "pass", gui_mouse_input())
+
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program,
+        "\nBool MousePeerReady=FALSE;\n",
+        "U0 MouseFocusPeer() { Fs->win_inhibit=WIG_USER_TASK_DFT|WIF_SELF_MS_L|WIF_SELF_MS_R; MousePeerReady=TRUE; while (TRUE) { FlushMsgs; Sleep(10); } }\n",
+        "U0 MouseBoundaryChecks() {\n",
+        "CTask *owner=Fs,*peer=Spawn(&MouseFocusPeer,NULL,\"mouse peer\"); I64 old_inhibit=Fs->win_inhibit; TilGuiVector2 position;\n",
+        "while (!MousePeerReady) Yield; TilGuiInitWindow(640,480,\"mouse boundaries\");\n",
+        "if (TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonUp(0) || TilGuiIsMouseButtonPressed(0) || TilGuiIsMouseButtonReleased(0)) TilPanicZ(\"initial mouse state\\n\");\n",
+        "MsSet(80,90,0,TRUE,FALSE); Msg(MSG_MS_L_DOWN,80,90); TilGuiPollInput; TilGuiGetMousePosition(&position);\n",
+        "if (TilGuiGetMouseX!=80 || TilGuiGetMouseY!=90 || TilF32Load(position.x)!=80.0 || TilF32Load(position.y)!=90.0) TilPanicZ(\"mouse position ABI\\n\");\n",
+        "if (!TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonPressed(0) || !TilGuiIsMouseButtonPressed(0)) TilPanicZ(\"mouse press\\n\");\n",
+        "TilGuiPollInput; if (!TilGuiIsMouseButtonDown(0) || TilGuiIsMouseButtonPressed(0)) TilPanicZ(\"held mouse state\\n\");\n",
+        "MsSet(120,90,0,TRUE,TRUE); Msg(MSG_MS_R_DOWN,120,90); TilGuiPollInput;\n",
+        "if (!TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonPressed(1) || TilGuiGetMouseX!=120) TilPanicZ(\"mouse drag/chord\\n\");\n",
+        "MsSet(120,90,0,FALSE,TRUE); Msg(MSG_MS_L_UP,120,90); TilGuiPollInput;\n",
+        "if (!TilGuiIsMouseButtonReleased(0) || TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonDown(1)) TilPanicZ(\"mouse release\\n\");\n",
+        "WinFocus(peer); TilGuiPollInput; if (TilGuiIsMouseButtonDown(1) || !TilGuiIsMouseButtonReleased(1)) TilPanicZ(\"mouse stuck on blur\\n\");\n",
+        "TilGuiPollInput; if (TilGuiIsMouseButtonReleased(1)) TilPanicZ(\"mouse release persisted\\n\");\n",
+        "MsSet(120,90,0,FALSE,FALSE); Sleep(40); WinFocus(owner); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonDown(1) || TilGuiIsMouseButtonPressed(1)) TilPanicZ(\"mouse resurrected on refocus\\n\");\n",
+        "MsSet(120,90,0,TRUE,FALSE); Msg(MSG_MS_L_DOWN,120,90); TilGuiPollInput;\n",
+        "WinFocus(peer); MsSet(120,90,0,FALSE,FALSE); Sleep(40); WinFocus(owner); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonReleased(0)) TilPanicZ(\"between-frame mouse release lost\\n\");\n",
+        "TilGuiPollInput; MsSet(120,90,0,TRUE,FALSE); Msg(MSG_MS_L_DOWN,120,90); MsSet(120,90,0,FALSE,FALSE); Msg(MSG_MS_L_UP,120,90); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonPressed(0) || TilGuiIsMouseButtonReleased(0)) TilPanicZ(\"same-frame mouse tap\\n\");\n",
+        "WinHorz(10,79); MsSet(72,90); TilGuiPollInput; TilGuiGetMousePosition(&position);\n",
+        "if (TilGuiGetMouseX!=-8 || TilF32Load(position.x)!=-8.0 || TilGuiGetMouseY!=90) TilPanicZ(\"mouse client coordinates\\n\");\n",
+        "if (TilGuiIsMouseButtonDown(-1) || TilGuiIsMouseButtonUp(8)) TilPanicZ(\"invalid mouse button\\n\");\n",
+        "TilGuiCloseWindow; if (Fs->win_inhibit!=old_inhibit) TilPanicZ(\"mouse window policy not restored\\n\");\n",
+        "TilGuiInitWindow(640,480,\"mouse reopened\"); if (TilGuiIsMouseButtonDown(0) || TilGuiIsMouseButtonReleased(0)) TilPanicZ(\"mouse reopen state\\n\");\n",
+        "TilGuiCloseWindow; Kill(peer); TilRawWrite(\"GUI mouse boundaries passed\\n\",28); }\nMouseBoundaryChecks;\n"))
+    run_guest(identity, format("gui_mouse_boundaries_", bits), "GUI mouse boundaries passed\n", "pass")
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program, "\nTilGuiIsMouseButtonDown(2);\n"))
+    run_guest(identity, format("gui_mouse_unsupported_", bits), "GUI mouse POC supports left/right buttons\n", "panic")
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -323,6 +378,7 @@ main := proc() {
         gui_scissor_checks(identity, bits)
         gui_keyboard_checks(identity, bits)
         gui_keyboard_focus_checks(identity, bits)
+        gui_mouse_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))
