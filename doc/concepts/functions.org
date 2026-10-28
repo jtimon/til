@@ -387,6 +387,20 @@ Interface arguments to aggregate generators require an explicit qualifier:
 and enum generators too, including aliases and type annotations. Ordinary
 concrete arguments such as ~Vec(Str)~ keep their existing default.
 
+Here, ~StructDef~ and ~EnumDef~ are the types of definition values returned
+by macros, not the categories used to distinguish concrete element types
+from interfaces. A named struct type is represented by ~Type.Struct(name)~,
+and a named enum type by ~Type.Enum(name)~. An interface also uses
+~Type.Struct(name)~; its ~StructDef~ has ~is_interface = true~. There is no
+separate ~Type.Interface~ variant. Internally the compiler also uses the
+symbol-backed ~StructSym~ and ~EnumSym~ forms of named types.
+
+The explicit ~own~ / ~ref~ requirement above checks the interface marker.
+It does not reject ordinary struct or enum element types, and does not
+depend on whether those concrete types implement an interface. Both
+~Vec(Circle)~ and ~Vec(Polygon)~ remain valid concrete containers even when
+~Circle~ and ~Polygon~ implement ~Drawable~; ~Vec(Drawable)~ is rejected.
+
 An alias of a generated function (~add5~ above) can be called or used as a
 function value, just like an inline instantiation (~f : IntOp = make_adder(5)~).
 
