@@ -24,7 +24,7 @@ SysV 64-bit scalar alignment exception. Both raw-slot overflow checks and
 auto-shallow classification use these target sizes; scalar operands now
 participate in overflow checks too.
 
-Regression coverage: ~check_dynamic_widths~ in test/cpu_options.til checks
+Regression coverage: ~check_dynamic_widths~ (now in test/dynamic_widths.til) checks
 native interpreted/compiled Array/Vec/Tuple round-trips at both USize
 widths; all five 32-bit C targets check the Dynamic size emission, nested
 one-word acceptance, U64 literal/push and two-word aggregate rejection,
@@ -84,6 +84,30 @@ and substituted signatures still preserve width-alias spellings.
 must be absent on non-narrowing builds and present on narrowing builds.
 This reuses the existing compilations and target matrix. All 520 tests and
 the linux-x86 QEMU checks at both USize widths passed.
+
+*** Session completion and related generator work
+
+#400 is complete. The Dynamic-width fix, target-aware fit/ABI checks,
+checked byte-count conversion, and 32-bit runtime coverage described above
+are merged. The earlier follow-up sections record their implementation and
+verification at the time; the regression harness now lives in
+~test/dynamic_widths.til~.
+
+The conversion factory is now a private zero-argument
+~make_usize_to_uptr()~ whose condition is ~USize.size() <= UPtr.size()~.
+The subsequent generator work replaced the primitive-only condition
+recognizer with ordinary typed compile-time evaluation. It supports
+generated struct/enum sizes, user-written size methods and their helpers,
+short-circuit Boolean expressions, and file-level and namespace constants
+evaluated in dependency order. See ~doc/concepts/functions.org~,
+"Conditional definitions".
+
+Cross-target evaluation of container-using generator conditions remains
+limited: target size queries and host interpreter storage can disagree,
+and layout-dependent raw calls are rejected. Removing that restriction is
+a follow-up to the generalized generator evaluator, not an outstanding
+requirement of #400. No new storage-size intrinsic or change to the
+~dyn_size_of~ contract has been implemented as part of this session.
 
 The analysis below records the pre-fix state.
 

@@ -348,13 +348,16 @@ Generated struct and enum size methods describe target layout too;
 user-defined ~size~ methods execute their ordinary bodies. Interpreter
 storage remains host-sized. Layout-dependent raw-memory calls are rejected
 when their size dependencies differ between host and target storage.
+This can prevent a user-defined condition from using a container during
+cross-target evaluation: its allocation or element stride may depend on a
+target size while its objects occupy host storage. Such calls in an untaken
+short-circuit operand are not executed or rejected for that storage mismatch.
 Unavailable runtime values and calls that cannot be evaluated produce an
 expansion error, not a false condition. The same selection rules apply to
 generators returning ~StructDef~ or ~EnumDef~.
 
-Known gap: an alias of a generated function (~add5~ above) can be
-called but not yet used as a function VALUE (#425); the inline form
-(~f : IntOp = make_adder(5)~) works.
+An alias of a generated function (~add5~ above) can be called or used as a
+function value, just like an inline instantiation (~f : IntOp = make_adder(5)~).
 
 * Inlining the compiler does on its own
 
