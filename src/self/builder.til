@@ -479,46 +479,14 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     }
     // A wasm gui build links only what target_gui_libs supplies: the
     // inherited desktop archives and -l flags mean nothing to emcc. The
-    // exception is std/crypto's libsecp256k1, which has an emcc-built
-    // wasm32 archive of its own (swapped in just below).
+    // exception is std/crypto's libsecp256k1, whose wasm32 link() names
+    // an emcc-built archive of its own (issue #422).
     if wasm_gui {
         mut wasm_lf := ""
         for wt : Str in lf.split(" ") {
             if wt.ends_with("libsecp256k1.a") { wasm_lf = wasm_lf.format(" ", wt) }
         }
         lf = wasm_lf
-    }
-
-    // libsecp256k1 (issue #235): std/crypto's link() names the canonical
-    // archive, which is the HOST's. For any other target swap the token
-    // for that target's cross archive (target_secp256k1_lib), resolved
-    // like the gui/ffi archives so an installed tree finds it under its
-    // root. A missing archive is reported with the command that builds it
-    // rather than left to the linker, and a target with no cross archive
-    // is refused rather than linked against the host's. No system libs
-    // follow: the library is plain C with no dependencies.
-    if lf.contains("libsecp256k1.a").and(target_is_host(target).not()) {
-        mut secp_lf := ""
-        for st : Str in lf.split(" ") {
-            if st.len() == 0 { continue }
-            if st.ends_with("libsecp256k1.a") {
-                secp_lib := target_secp256k1_lib(target)
-                if secp_lib.is_empty() {
-                    println("error: std/crypto (libsecp256k1) has no cross build for this --target from this host")
-                    return 1
-                }
-                secp_resolved := resolve_target_archives(secp_lib, ext_c_path)
-                if realpath_str(secp_resolved).len() == 0 {
-                    println(format("error: this program links libsecp256k1 (std/crypto), and this target's archive is not built: ", secp_lib))
-                    println(format("  build it first: ", target_secp256k1_build_hint(target)))
-                    return 1
-                }
-                secp_lf = secp_lf.format(" ", secp_resolved)
-                continue
-            }
-            secp_lf = secp_lf.format(" ", st)
-        }
-        lf = secp_lf
     }
 
     // Per-target system + ffi + (gui) link flags. Tables in
@@ -863,6 +831,19 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
 // build of a library, which is often not built yet. Report it before the
 // C compile, naming the target and -- when the program's mode supplies
 // one -- the command that builds it, instead of leaving it to the linker.
+// Does a link() path, as written, name an archive of one of til's own
+// vendored libraries -- vendor/<lib>/..., with vendor/<lib> under the
+// compiler root? Decided from the written path because a missing archive
+// has no resolved location to test (resolve_link_path falls back to the
+// importing file's directory).
+priv is_vendored_archive := proc(written: Str, root: Str) returns Bool {
+    if written.starts_with("vendor/").not() { return false }
+    rest := written.strip_prefix("vendor/")
+    slash := rest.find("/")
+    if slash < 0 { return false }
+    return File.is_dir(format(root, "/vendor/", rest.substr(0, slash.to_usize())))
+}
+
 priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
     for tl : TargetLink in lp.target_links {
         if target_list_has(tl.targets, lp.target).not() { continue }
@@ -873,6 +854,11 @@ priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
             target_to_str(lp.target), ", and it is not built"))
         if lp.cur_mode.build_hint.len() > 0 {
             println(format("  build it first: ", lp.cur_mode.build_hint.replace("{path}", tl.written)))
+        } else if is_vendored_archive(tl.written, builder_compiler_root(lp)) {
+            // A built-in library's archive (std/crypto's libsecp256k1, an
+            // import rather than a mode): til's own build program makes
+            // every target's, from the til source tree.
+            println(format("  build it first, in the til source tree: bin/make ", tl.written))
         }
         return 1
     }

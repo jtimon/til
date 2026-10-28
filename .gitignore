@@ -38,10 +38,12 @@ vendor/nng/build-*/
 vendor/nng/libnng.a
 vendor/nng/libnng.so
 vendor/nng/build/
+# libsecp256k1 builds, one per --target, the host's included (issue #422).
+vendor/secp256k1/build-*/
+# Left in trees built before #422: the old host archive, twins and build dir.
 vendor/secp256k1/libsecp256k1.a
 vendor/secp256k1/libsecp256k1.so
 vendor/secp256k1/build/
-vendor/secp256k1/build-*/
 vendor/secp256k1/libsecp256k1.dll
 vendor/emscripten/.emscripten
 vendor/emscripten/.emscripten.old

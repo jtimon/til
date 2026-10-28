@@ -116,5 +116,22 @@ the observed errors for nng).
   programs on a windows host -- nng on msvcrt needs ~timespec_get~, which
   only ext.c's shim inside til.exe provides, and a DLL must resolve it
   at link time.
-- [ ] The built-ins onto the same mechanism (see Decisions).
+- [X] libsecp256k1 onto the mechanism: std/crypto lists one
+  ~link("vendor/secp256k1/build-<target>/lib/libsecp256k1.a", "<target>")~
+  per target (every linux target, both windows, both macs, wasm32), and
+  make.til's ~SecpTarget~ table builds every one of them, the host's
+  included (natively, position-independent for the interpreter's twin),
+  so the plain-path ~vendor/secp256k1/libsecp256k1.a~ is gone and
+  ~build-win64~ / ~build-win32~ are now ~build-windows-x64~ /
+  ~build-windows-x86~. Deleted: targets.til's ~target_secp256k1_lib~ and
+  ~target_secp256k1_build_hint~ and the builder's libsecp256k1 swap. The
+  windows-host twin is ~build-windows-x64/lib/libsecp256k1.dll~, and an
+  installed til carries ~build-<host>/lib~. The missing-archive report
+  names ~bin/make <path>~ for a built-in library's archive (std/crypto
+  is an import, so no mode build_hint applies). On jvm and templeos-x86,
+  which have no archive, std/crypto now fails on the backends' own
+  errors (the JVM names the unsupported secp256k1 calls) instead of the
+  builder's refusal.
+- [ ] raylib + tinyfd (mode gui) onto the mechanism.
+- [ ] libffi onto the mechanism.
 

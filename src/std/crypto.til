@@ -23,7 +23,20 @@ mode lib
 // string to a 256-bit digest. Neither is a substitute for the other.
 
 import("../../vendor/bindings/secp256k1")
-link("vendor/secp256k1/libsecp256k1.a")
+// Each target links its own libsecp256k1 build (issue #422): bin/make
+// builds vendor/secp256k1/build-<target>/lib/libsecp256k1.a, the host's
+// included, and an installed til carries the host's at the same path.
+link("vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a", "linux-x64")
+link("vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a", "linux-arm64")
+link("vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a", "linux-riscv64")
+link("vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a", "linux-x86")
+link("vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a", "linux-arm32")
+link("vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a", "linux-riscv32")
+link("vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a", "windows-x64")
+link("vendor/secp256k1/build-windows-x86/lib/libsecp256k1.a", "windows-x86")
+link("vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a", "macos-x64")
+link("vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a", "macos-arm64")
+link("vendor/secp256k1/build-wasm32/lib/libsecp256k1.a", "wasm32")
 
 /// Thrown for an invalid key: a secret key of zero or at least the
 /// curve order, or an x-only public key that is not on the curve.

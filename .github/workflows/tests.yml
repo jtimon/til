@@ -525,7 +525,7 @@ jobs:
       # against those archives and RUNS on the windows runner below.
       - name: Cross-compile the std/crypto test for windows-x64 and windows-x86
         run: |
-          make vendor/secp256k1/build-win64/lib/libsecp256k1.a vendor/secp256k1/build-win32/lib/libsecp256k1.a
+          make vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a vendor/secp256k1/build-windows-x86/lib/libsecp256k1.a
           ./bin/til build --target=windows-x64 -o bin/crypto.exe test/crypto.til
           file bin/crypto.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/crypto-x86.exe test/crypto.til
@@ -658,16 +658,17 @@ jobs:
             bin/repl_wincon.exe
       # Issue #235: what til.exe's interpreter loads for a program
       # importing std/crypto -- the DLL twin build_win_host made from the
-      # win64 archive -- plus that archive, which is a windows host's
-      # NATIVE libsecp256k1. Its own artifact: mixed directories in the
-      # one above would move bin/til.exe off the path every step uses.
+      # windows-x64 archive -- plus that archive, which std/crypto's
+      # windows-x64 link() names (issue #422). Its own artifact: mixed
+      # directories in the one above would move bin/til.exe off the path
+      # every step uses.
       - name: Upload the windows-host libsecp256k1
         uses: actions/upload-artifact@v4
         with:
           name: secp256k1-windows-host
           path: |
-            vendor/secp256k1/libsecp256k1.dll
-            vendor/secp256k1/build-win64/lib/libsecp256k1.a
+            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.dll
+            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a
       # Issue #420: the same for mode gui -- the raylib and tinyfd DLL
       # twins build_win_host made, plus the win64 archives a windows
       # host's tree holds at the canonical paths.
@@ -699,21 +700,20 @@ jobs:
           ./winhost/til.exe interpret examples/hello_script.til | grep -q "Hello World"
           ./winhost/til.exe translate -c tmp_hello.c examples/hello_script.til
           test -s tmp_hello.c
+      # Both files share one directory, which becomes the artifact's root.
       - name: Download the windows-host libsecp256k1
         uses: actions/download-artifact@v4
         with:
           name: secp256k1-windows-host
-          path: vendor/secp256k1
+          path: vendor/secp256k1/build-windows-x64/lib
       # Issue #235: interpret std/crypto ON windows. The interpreter loads
-      # the twin beside the archive the program's link() resolves to
-      # (ffi_load_archive_twin: libsecp256k1.a -> libsecp256k1.dll on a
-      # windows host), so lay the tree out the way a windows host's own
-      # build would: its native win64 archive at the canonical path, the
-      # DLL beside it. A failing vector panics and fails the step.
+      # the twin beside the archive the program's link() resolves to for
+      # the host (ffi_load_archive_twin: libsecp256k1.a -> libsecp256k1.dll
+      # on a windows host): the windows-x64 one, where the artifact
+      # landed. A failing vector panics and fails the step.
       - name: Interpret the std/crypto test on windows
         shell: bash
         run: |
-          cp vendor/secp256k1/build-win64/lib/libsecp256k1.a vendor/secp256k1/libsecp256k1.a
           ./winhost/til.exe interpret test/crypto.til
       - name: Download the windows-host gui libraries
         uses: actions/download-artifact@v4

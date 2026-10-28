@@ -412,54 +412,6 @@ target_is_host := proc(target: Target) returns Bool {
     return target_to_str(target) == target_to_str(detect_current_target())
 }
 
-// The libsecp256k1 archive a program importing std/crypto links when
-// built for `target` from a different host (issue #235). The canonical
-// vendor/secp256k1/libsecp256k1.a is the HOST's own archive -- make builds
-// it natively, and a windows host's tree lays its win64 archive out there
-// too -- so the builder consults this table only when `target` is not
-// the host (target_is_host). Each path is a bin/make goal (make.til's
-// secp256k1_cross_targets builds them; keep the two in step). "" means no
-// cross archive exists for the target, which the builder reports instead
-// of linking the host's archive.
-target_secp256k1_lib := func(target: Target) returns Str {
-    switch target {
-    case .WindowsX64:   return "vendor/secp256k1/build-win64/lib/libsecp256k1.a"
-    case .WindowsX86:   return "vendor/secp256k1/build-win32/lib/libsecp256k1.a"
-    case .LinuxArm64:   return "vendor/secp256k1/build-linux-arm64/lib/libsecp256k1.a"
-    case .LinuxRiscv64: return "vendor/secp256k1/build-linux-riscv64/lib/libsecp256k1.a"
-    case .LinuxX86:     return "vendor/secp256k1/build-linux-x86/lib/libsecp256k1.a"
-    case .LinuxArm32:   return "vendor/secp256k1/build-linux-arm32/lib/libsecp256k1.a"
-    case .LinuxRiscv32: return "vendor/secp256k1/build-linux-riscv32/lib/libsecp256k1.a"
-    case .MacosX64:     return "vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a"
-    case .MacosArm64:   return "vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a"
-    // Built with emcc (issue #420), so it links where wasm32 programs
-    // link with emscripten's libc: the mode gui path.
-    case .Wasm32:       return "vendor/secp256k1/build-wasm32/lib/libsecp256k1.a"
-    // linux-x64 from another host (a mac, an arm64 linux): built with that
-    // host's linux-x64 cross gcc (bin/make --linux-x64-cc=, issue #420).
-    case .LinuxX64:     return "vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a"
-    // TempleOS, JVM: none.
-    case: return ""
-    }
-    return ""
-}
-
-// The command that builds target_secp256k1_lib's archive, for the
-// builder's missing-archive report (issue #435): its bin/make path goal,
-// plus the option that names the compiler where the default cannot be
-// relied on -- riscv32 has none, and linux-x64's x86_64-linux-gnu-gcc
-// is the distro cross gcc, which a mac does not have.
-target_secp256k1_build_hint := func(target: Target) returns Str {
-    lib := target_secp256k1_lib(target)
-    switch target {
-    case .LinuxRiscv32: return format("bin/make --riscv32-cc=<path to riscv32 gcc> ", lib)
-    case .LinuxX64:
-        return format("bin/make ", lib, " (with --linux-x64-cc=<path> unless x86_64-linux-gnu-gcc is this host's linux-x64 cross gcc)")
-    case: return format("bin/make ", lib)
-    }
-    return ""
-}
-
 // raylib + tinyfd + windowing-system libs when src/modes/gui.til is loaded.
 // Builder checks the resolved import graph. A proc because the macOS
 // case is host-aware (macos_is_cross). Empty on targets where GUI

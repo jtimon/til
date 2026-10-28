@@ -313,7 +313,7 @@ main := proc() returns I64 {
     // Use the installed crypto module from outside the checkout on both
     // backends: the archive and interpreter twin must both be installed.
     require(format(PREFIX, "/lib/til/vendor/bindings/secp256k1.til"))
-    require(format(PREFIX, "/lib/til/vendor/secp256k1/libsecp256k1.a"))
+    require(format(PREFIX, "/lib/til/vendor/secp256k1/build-", target_to_str(detect_current_target()), "/lib/libsecp256k1.a"))
     File.writefile(format(WORK, "/installed_crypto.til"), format(
         "mode cli\nimport(\"std/crypto\")\n",
         "main := proc() {\n",
