@@ -11416,20 +11416,24 @@ priv str_method_returns_view := func(name: Str) returns Bool {
 // rather than flagged, and only a base that is itself an owned local
 // reports.
 // The binding a view-producing initializer borrows FROM, or "" when the
-// initializer is not one. Lowered form is `Str.<method>(self, ...)`, so
-// the receiver is argument one.
-priv str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
+// initializer is not one. Lowered form is `Str.<method>(self, ...)` or
+// `Str_<method>(self, ...)` after flattening; the receiver is argument one.
+str_view_source_name := func(rhs: Expr, scope: TypeScope, symbols: SymbolPool) returns Str {
     if rhs.node_type.is(NodeType.FCall).not() { return "" }
     if rhs.children.len() < 2 { return "" }
     switch rhs.children[0].node_type {
+    case .Ident(callee):
+        ref name : Str = callee.ident_name(symbols.names)
+        if name.starts_with("Str_").not() { return "" }
+        if str_method_returns_view(name.substr(4, name.len() - 4)).not() { return "" }
     case .FieldAccess(vfa):
         if str_method_returns_view(vfa.field_access_name(symbols.names)).not() { return "" }
-        switch rhs.children[1].node_type {
-        case .Ident(vid):
-            if scope.find_sym(vid.ident_sym()).is(ScopeFind.Found).not() { return "" }
-            return Str.clone(vid.ident_name(symbols.names))
-        case: return ""
-        }
+    case: return ""
+    }
+    switch rhs.children[1].node_type {
+    case .Ident(vid):
+        if scope.find_sym(vid.ident_sym()).is(ScopeFind.Found).not() { return "" }
+        return Str.clone(vid.ident_name(symbols.names))
     case: return ""
     }
 }

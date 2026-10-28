@@ -1,6 +1,24 @@
 # priority: high
 # category: bugs
-** OPEN #447 A view of a temporary Str dangles: format(...).trim() reads freed memory
+** FIXED #447 A view of a temporary Str dangles: format(...).trim() reads freed memory
+
+*** Post-mortem
+
+The conservative view-taint pass skipped compiler-generated temporaries,
+so an owned temporary receiver was deleted immediately after producing
+its view. The ordinary borrow graph did not describe Str's runtime
+CAP_VIEW aliasing. Both backends consequently read freed storage.
+
+The garbager now adds explicit receiver-to-view lifetime edges using the
+typer's existing Str view-method classifier, extended to recognize the
+flattened Str_<method> call form. The graph propagates reach through
+chained views and retains the receiver until the stored view's last use.
+Unrelated temporary lifetimes retain their existing destruction order.
+
+Regression: test/strings.til::test_temporary_views calls a runtime proc
+covering substr, strip_prefix, strip_suffix, trim().clone(), trim().len(),
+and chained stored views. The HolyC string-runtime expected output also
+records the corrected receiver deletion order.
 
 Calling a view-returning ~Str~ method -- ~trim~, ~substr~,
 ~strip_prefix~ -- on an owned temporary (a ~format(...)~ result) yields a

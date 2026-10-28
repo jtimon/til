@@ -2134,6 +2134,13 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         switch stmt.node_type {
         case .Decl(dd):
             if stmt.children.len() > 0 {
+                // #447: identify the receiver of Str view calls.
+                // Include compiler-generated receivers in the same borrow
+                // graph, so chained and stored views retain their buffer.
+                view_source := str_view_source_name(stmt.children[0], scope, symbols)
+                if view_source.len() > 0 {
+                    gc_add_borrow_edge(edges, view_source, dd.name, si.to_i64(), si.to_i64())
+                }
                 if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow_t(scope, dd.til_type, symbols)) {
                     collect_call_ref_return_edges(stmt.children[0], dd.name, si.to_i64(), edges, scope, symbols)
                 }

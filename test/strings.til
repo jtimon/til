@@ -59,6 +59,26 @@ test_substr := test() {
     assert_eq(Str, "hello".substr(0, 1), "h")
 }
 
+priv check_temporary_views := proc(value: Str) {
+    print("")
+    a := format(value, " b").substr(0, value.len() + 2)
+    assert_eq(Str, a, format(value, " b"))
+    b := format("x", value).strip_prefix("x")
+    assert_eq(Str, b, value)
+    c := format(" ", value, " ").trim().clone()
+    assert_eq(Str, c, value)
+    assert_eq(USize, format(" ", value, " ").trim().len(), value.len())
+    d := format(" ", value, " ").trim().substr(1, 2)
+    assert_eq(Str, d, "bc")
+    e := format(value, "x").strip_suffix("x")
+    assert_eq(Str, e, value)
+}
+
+test_temporary_views := test() {
+    // A proc parameter keeps the allocations and view reads at runtime.
+    check_temporary_views("abc")
+}
+
 test_contains := test() {
     assert("hello world".contains("world"))
     assert("hello".contains("hello"))

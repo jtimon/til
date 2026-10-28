@@ -1469,7 +1469,6 @@ I64 TilMain()
         U64 hoisted__U64_g51_264 = 16;
         TilStr host_fs_view_265;
         TilStrSubstr(&host_fs_view_265, &hoisted__Str_g49_262, hoisted__U64_g50_263, hoisted__U64_g51_264);
-        TilStrDelete(&hoisted__Str_g49_262, FALSE);
         Bool hoisted__Bool_g52_266 = TilFileExists(&host_fs_view_265);
         if (hoisted__Bool_g52_266) {
             U64 hoisted__U64_g10_267 = 1;
@@ -1567,6 +1566,7 @@ I64 TilMain()
         }
         TilStr host_read_311;
         TilFileRead(&host_read_311, &host_fs_view_265);
+        TilStrDelete(&hoisted__Str_g49_262, FALSE);
         U64 hoisted__U64_g56_312 = 1;
         TilStrArray _va_Array_g8_313;
         TilStrArrayNew(&_va_Array_g8_313, hoisted__U64_g56_312);
@@ -1631,7 +1631,6 @@ I64 TilMain()
         U64 hoisted__U64_g110_343 = 6;
         TilStr guest_fs_view_344;
         TilStrSubstr(&guest_fs_view_344, &hoisted__Str_g108_341, hoisted__U64_g109_342, hoisted__U64_g110_343);
-        TilStrDelete(&hoisted__Str_g108_341, FALSE);
         Bool hoisted__Bool_g111_345 = TilFileExists(&guest_fs_view_344);
         if (hoisted__Bool_g111_345) {
             U64 hoisted__U64_g70_346 = 1;
@@ -1729,6 +1728,7 @@ I64 TilMain()
         }
         TilStr guest_read_390;
         TilFileRead(&guest_read_390, &guest_fs_view_344);
+        TilStrDelete(&hoisted__Str_g108_341, FALSE);
         U64 hoisted__U64_g115_391 = 1;
         TilStrArray _va_Array_g17_392;
         TilStrArrayNew(&_va_Array_g17_392, hoisted__U64_g115_391);
@@ -1859,7 +1859,6 @@ I64 TilMain()
     U64 hoisted__U64_g709_454 = 11;
     TilStr write_path_455;
     TilStrSubstr(&write_path_455, &hoisted__Str_g707_452, hoisted__U64_g708_453, hoisted__U64_g709_454);
-    TilStrDelete(&hoisted__Str_g707_452, FALSE);
     TilStr hoisted__Str_g710_456;
     TilStrInitLit(&hoisted__Str_g710_456, "src/holyc/ext.HC", 16);
     Bool hoisted__Bool_g711_457 = TilFileExists(&hoisted__Str_g710_456);
@@ -3036,6 +3035,7 @@ I64 TilMain()
     TilStrArraySet(&_va_Array_g100_1009, hoisted__U64_g859_1011, &hoisted__Str_g860_1012);
     TilPrintln(&_va_Array_g100_1009);
     File_remove(&write_path_455);
+    TilStrDelete(&hoisted__Str_g707_452, FALSE);
     F32 float_small_1013 = 1266679808;
     F64 float_large_1014 = TilF64Bits(4715268809856909312);
     F32 hoisted__F32_g861_1015 = 1065353216;
