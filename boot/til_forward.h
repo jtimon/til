@@ -2538,6 +2538,7 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     priv___src_self_holyc_codegen_til__HolyCLocalState global_locals;
     Set__Str source_functions;
     Bool needs_take_word;
+    Bool gui_enabled;
 } priv___src_self_holyc_codegen_til__HolyCEmitState;
 
 

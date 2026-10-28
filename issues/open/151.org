@@ -798,6 +798,42 @@
   decision. Validate native drawing/input with guest pixel/event checks as well
   as text output; matching an emitted call name is not graphics acceptance.
 
+**** First shared GUI POC: one rectangle
+
+  examples/gui_rectangle.til is one unchanged mode-gui program for both
+  backends. The hosted path uses raylib; HolyC maps the existing facade's
+  window/frame/rectangle and image-readback calls to src/holyc/ext.HC. This
+  sprint adds no new user-facing GUI API or target conditionals to the example.
+
+  The program opens a 640x480 surface, draws an opaque rectangle for 30 frames,
+  checks one rectangle pixel and one background pixel through
+  LoadImageFromScreen/GetImageColor, releases the image, closes and exits.
+  EndDrawing precedes readback so raylib's batched drawing has been submitted.
+
+  TempleOS uses DCNew back/front buffers, GrRect and an Fs->draw_it callback
+  that GrBlots the presented buffer. CloseWindow restores the previous callback,
+  title, border and window bounds and frees both contexts. Native readback uses
+  DCScrnCapture after refresh, not just the private drawing buffer: the POC also
+  verifies the window-manager presentation path. Image data follows the existing
+  RGBA8 layout, including the raw single-pointer Image.data field.
+
+  This initial subset requires a 640x480 surface and opaque colors. RGB colors
+  map to the nearest standard 16-color palette entry; the example uses an exact
+  palette color so both backends assert identical pixel values. Other window
+  sizes, alpha blending, input, text and chess belong to subsequent small
+  sprints rather than being implied by this rectangle proof.
+
+  Hosted acceptance runs the finite program under the suite's Xvfb and checks
+  its success marker after the pixel assertions. The windowed child is an
+  ordinary binary: a separate ASAN run passed the pixel checks but reported
+  368 bytes in three Mesa/LLVM driver allocations at context teardown. The
+  compiler and the required hosted suite retain their ASAN checks. Native
+  acceptance runs the same source on TempleOS 5.03 at USize 32 and 64 and is
+  included in the existing test/templeos.til matrix.
+  The clean hosted suite passes 473/473, including the raylib POC and clang
+  validation. The two focused native POC cases pass at both USize widths;
+  this small sprint did not rerun the entire guest regression matrix.
+
 *** QEMU validation
 
   The repository driver formats an isolated FAT32 data disk per case and

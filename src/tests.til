@@ -1303,6 +1303,11 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos -c gen/c/holyc_cli_typed.HC examples/cli_typed.til '&&' cat gen/c/holyc_cli_typed.HC"))
     add_count(tests, "holyc_cli_variadic_translate", "build", "U0 TilMain(TilStrArray *args)", 1,
         format(til_bin, " translate --target=templeos -c gen/c/holyc_cli_variadic.HC examples/cli_args.til '&&' cat gen/c/holyc_cli_variadic.HC"))
+    add_counts(tests, "holyc_gui_rectangle_translate", "build",
+        format(til_bin, " translate --target=templeos -c gen/c/gui_rectangle.HC examples/gui_rectangle.til '&&' cat gen/c/gui_rectangle.HC"),
+        CountCheck(needle = "TilGuiDrawRectangle(", expected_count = 1),
+        CountCheck(needle = "TilGuiGetImageColor(", expected_count = 2),
+        CountCheck(needle = "U0 TilMain()", expected_count = 1))
     add_single(tests, "holyc_build_requires_guest", "build", 1, "test/holyc_build.expected",
         format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
     add_single(tests, "templeos_target_width", "build", 0, "",
@@ -2216,6 +2221,10 @@ main := proc(args: ..Str) {
         // context and keeps leak detection on, unlike an InitWindow test.
         add_single(tests, "interp_gui_ffi", "build", 0, "",
             format(til_bin, " test/gui_interp.til"))
+        // A finite pixel-checked GUI run, using an ordinary child binary:
+        // closing a GL context under LSan reports Mesa/LLVM driver allocations.
+        add_count(tests, "gui_rectangle_pixels", "build", "GUI rectangle passed", 1,
+            format(til_bin, " run -o bin/c/gui_rectangle -c gen/c/gui_rectangle.c examples/gui_rectangle.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""

@@ -1639,3 +1639,135 @@ public Bool TilReadLine(TilStr *line)
   line->cap=count;
   return TRUE;
 }
+
+// Minimal mode-gui bridge. Color and Image use the existing facade's layouts;
+// opaque pointers keep these helpers independent of generated class names.
+class TilGuiColor { U8 r,g,b,a; };
+class TilGuiImage { U8 *data; I32 width,height,mipmaps,format; };
+CDC *TilGuiFront=NULL,*TilGuiBack=NULL;
+I64 TilGuiFrameMs=0,TilGuiOldLeft,TilGuiOldRight,TilGuiOldTop,TilGuiOldBottom;
+Bool TilGuiDrawing=FALSE,TilGuiOldBorder;
+U8 TilGuiOldTitle[STR_LEN];
+U0 (*TilGuiOldDraw)(CTask *task,CDC *dc);
+TilGuiOldDraw=NULL;
+
+U0 TilGuiDraw(CTask *task,CDC *dc)
+{
+  GrBlot(dc,0,0,TilGuiFront);
+}
+
+public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
+{
+  if (width!=GR_WIDTH || height!=GR_HEIGHT)
+    TilPanicZ("GUI POC requires 640x480\n");
+  TilGuiOldLeft=Fs->win_left; TilGuiOldRight=Fs->win_right;
+  TilGuiOldTop=Fs->win_top; TilGuiOldBottom=Fs->win_bottom;
+  MemCpy(TilGuiOldTitle,Fs->task_title,STR_LEN);
+  MemSet(Fs->task_title,0,STR_LEN);
+  MemCpy(Fs->task_title,title,MinI64(StrLen(title),STR_LEN-1));
+  TilGuiOldDraw=Fs->draw_it;
+  TilGuiFront=DCNew(width,height);
+  TilGuiBack=DCNew(width,height);
+  TilGuiOldBorder=WinBorder(OFF);
+  WinHorz(0,TEXT_COLS-1);
+  WinVert(0,TEXT_ROWS-1);
+  Fs->draw_it=&TilGuiDraw;
+  WinFocus;
+}
+
+public U0 TilGuiSetTargetFPS(I64 fps)
+{
+  if (fps>0) TilGuiFrameMs=1000/fps;
+  else TilGuiFrameMs=0;
+}
+
+public U0 TilGuiBeginDrawing()
+{
+  TilGuiDrawing=TRUE;
+}
+
+I64 TilGuiPaletteColor(U8 *opaque)
+{
+  TilGuiColor *color=opaque(TilGuiColor *);
+  I64 i,distance,best=I64_MAX,result=0;
+  if (color->a!=255) TilPanicZ("GUI POC requires opaque colors\n");
+  for (i=0;i<COLORS_NUM;i++) {
+    distance=SqrI64(color->r-(gr_palette_std[i].r>>8))+
+      SqrI64(color->g-(gr_palette_std[i].g>>8))+
+      SqrI64(color->b-(gr_palette_std[i].b>>8));
+    if (distance<best) { best=distance; result=i; }
+  }
+  return result;
+}
+
+public U0 TilGuiClearBackground(U8 *color)
+{
+  DCFill(TilGuiBack,TilGuiPaletteColor(color));
+}
+
+public U0 TilGuiDrawRectangle(I64 x,I64 y,I64 width,I64 height,U8 *color)
+{
+  TilGuiBack->color=TilGuiPaletteColor(color);
+  GrRect(TilGuiBack,x,y,width,height);
+}
+
+public U0 TilGuiEndDrawing()
+{
+  CDC *old=TilGuiFront;
+  TilGuiFront=TilGuiBack;
+  TilGuiBack=old;
+  TilGuiDrawing=FALSE;
+  if (TilGuiFrameMs) Sleep(TilGuiFrameMs);
+  else Yield;
+}
+
+public U0 TilGuiLoadImageFromScreen(U8 *opaque)
+{
+  TilGuiImage *image=opaque(TilGuiImage *);
+  CDC *source;
+  I64 x,y,index;
+  U8 *pixel;
+  if (TilGuiDrawing) TilPanicZ("GUI POC captures after EndDrawing\n");
+  // Capture the composited screen, exercising the window manager callback,
+  // rather than merely reading back our off-screen drawing buffer.
+  source=DCScrnCapture(FALSE);
+  image->width=source->width; image->height=source->height;
+  image->mipmaps=1; image->format=7; // PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
+  image->data=TilMAlloc(source->width*source->height*4);
+  for (y=0;y<source->height;y++)
+    for (x=0;x<source->width;x++) {
+      index=GrPeek(source,x,y);
+      pixel=image->data+(y*source->width+x)*4;
+      pixel[0]=gr_palette_std[index].r>>8;
+      pixel[1]=gr_palette_std[index].g>>8;
+      pixel[2]=gr_palette_std[index].b>>8;
+      pixel[3]=255;
+    }
+  DCDel(source);
+}
+
+public U0 TilGuiGetImageColor(U8 *out,U8 *opaque,I64 x,I64 y)
+{
+  TilGuiImage *image=opaque(TilGuiImage *);
+  if (image->format!=7) TilPanicZ("GUI POC requires RGBA8 images\n");
+  if (x<0 || y<0 || x>=image->width || y>=image->height)
+    TilPanicZ("image pixel out of bounds\n");
+  TilMemCpy(out,image->data+(y*image->width+x)*4,4);
+}
+
+public U0 TilGuiUnloadImage(U8 *opaque)
+{
+  TilGuiImage *image=opaque(TilGuiImage *);
+  TilFree(image->data);
+}
+
+public U0 TilGuiCloseWindow()
+{
+  Fs->draw_it=TilGuiOldDraw;
+  DCDel(TilGuiFront); DCDel(TilGuiBack);
+  TilGuiFront=NULL; TilGuiBack=NULL;
+  WinBorder(TilGuiOldBorder);
+  WinHorz(TilGuiOldLeft,TilGuiOldRight);
+  WinVert(TilGuiOldTop,TilGuiOldBottom);
+  MemCpy(Fs->task_title,TilGuiOldTitle,STR_LEN);
+}

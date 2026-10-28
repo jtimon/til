@@ -1,0 +1,29 @@
+mode gui
+
+// The same finite program exercises raylib and the TempleOS GUI backend.
+main := proc() {
+    InitWindow(640, 480, "til GUI rectangle".c_str)
+    SetTargetFPS(30)
+    background := Color(r=0, g=0, b=0, a=255)
+    foreground := Color(r=170, g=0, b=0, a=255)
+    for frame in 0..30 {
+        BeginDrawing()
+        ClearBackground(background)
+        DrawRectangle(160, 120, 320, 240, foreground)
+        EndDrawing()
+        if frame == 0 {
+            image := LoadImageFromScreen()
+            inside := GetImageColor(image, 200, 200)
+            outside := GetImageColor(image, 20, 20)
+            if inside.r != 170 || inside.g != 0 || inside.b != 0 || inside.a != 255 {
+                panic("rectangle pixel mismatch")
+            }
+            if outside.r != 0 || outside.g != 0 || outside.b != 0 || outside.a != 255 {
+                panic("background pixel mismatch")
+            }
+            UnloadImage(image)
+        }
+    }
+    CloseWindow()
+    println("GUI rectangle passed")
+}

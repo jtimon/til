@@ -62,6 +62,7 @@ priv HolyCEmitState := struct {
     global_locals := HolyCLocalState()
     source_functions := Set(Str).new()
     needs_take_word := false
+    gui_enabled := false
 }
 
 priv HolyCLocalState := struct {
@@ -343,6 +344,8 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
         return format("&", emitted_name)
     case .FieldAccess(fa):
         switch e.children[0].node_type {
+        case .Literal(Literal.Str(text)):
+            if fa.field_access_name(ctx.symbols.names) == "c_str" { return format("\"", text, "\"") }
         case .FCall:
             base_call := holyc_callable_name(e.children[0], ctx, state)
             if state.ref_return_functions.has(base_call) {
@@ -2269,6 +2272,14 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
     }
     if cleanup.len() == 0 {
         if indirect { return format("TilCall_", name) }
+        if state.gui_enabled {
+            switch name {
+            case "InitWindow", "CloseWindow", "SetTargetFPS", "BeginDrawing", "EndDrawing",
+                "ClearBackground", "DrawRectangle", "LoadImageFromScreen", "GetImageColor", "UnloadImage":
+                return format("TilGui", name)
+            case:
+            }
+        }
         return name.clone()
     }
     key := format(name, mask)
@@ -4203,6 +4214,8 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
 priv holyc_struct_field_ctype := func(owner: Str, field_name: Str,
     field: Declaration, state: HolyCEmitState, mut error: Str, symbols: SymbolPool) returns Str {
     field_type := holyc_storage_type_name(decl_type_name_ref(field, symbols))
+    // Dynamic already denotes a raw address, including a borrowed Image.data.
+    if field_type == "Dynamic" { return "U8 *" }
     if holyc_callable_type(field_type, state) {
         if field.own_type.is(OwnType.Ref) { return "TilClosure **" }
         return "TilClosure *"
@@ -5402,8 +5415,8 @@ priv holyc_runtime_prelude := func(rest: Str, state: HolyCEmitState) returns Str
 }
 
 holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns I32 {
-    if lp.mode_str.eq("script").or(lp.mode_str.eq("cli")).not() {
-        println("error: HolyC codegen currently supports only modes script and cli")
+    if lp.mode_str.eq("script").or(lp.mode_str.eq("cli")).or(lp.mode_str.eq("gui")).not() {
+        println("error: HolyC codegen currently supports only modes script, cli and gui")
         return 1
     }
     if lp.run_tests {
@@ -5419,6 +5432,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     }
 
     mut state := HolyCEmitState()
+    state.gui_enabled = lp.mode_str == "gui"
     state.usize_ctype = lp.ctx.target_usize_pname.clone()
     mut validation_error := ""
     for unit : ProgramUnit in lp.units {
@@ -5480,7 +5494,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     mut structs := ""
     mut body := ""
     mut main_locals := HolyCLocalState()
-    if lp.mode_str == "cli" {
+    if lp.mode_str.eq("cli").or(lp.mode_str.eq("gui")) {
         for unit : ProgramUnit in lp.units {
             body = format(body, holyc_body(lp.ctx.imported[unit.path].ast, 0, true, "", lp.ctx, state, main_locals, validation_error))
             if validation_error.len() > 0 { break }
@@ -5609,7 +5623,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         f.write("TIL_USIZE ELEM_POD=0, ELEM_BOXED=1, ELEM_FN=2;\n\n")
     }
     f.write(structs)
-    if lp.mode_str == "cli" { f.write(holyc_global_declarations(lp, state, main_locals)) }
+    if lp.mode_str.eq("cli").or(lp.mode_str.eq("gui")) { f.write(holyc_global_declarations(lp, state, main_locals)) }
     f.write(state.closure_classes)
     f.write(helpers)
     f.write(prototypes)
@@ -5626,7 +5640,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     f.write(state.closure_definitions)
     f.write(value_initializers)
     f.write(state.dyn_initializers)
-    if lp.mode_str == "cli" {
+    if lp.mode_str.eq("cli").or(lp.mode_str.eq("gui")) {
         ref main_expr : Expr = lp.ctx.scope.lookup_func_name("main", lp.ctx.symbols).unwrap()
         ref main_def : FunctionDef = funcdef_of(main_expr)
         signature := holyc_function_signature("TilMain", main_expr, state, validation_error, lp.ctx.symbols)
