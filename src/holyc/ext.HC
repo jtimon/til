@@ -1727,7 +1727,8 @@ I64 TilGuiKeyCode(I64 scan)
 
 U0 TilGuiPollInput()
 {
-  I64 message,ch,scan,key;
+  I64 message,ch,scan,key,raw;
+  U8 physical_keys[512];
   MemCpy(TilGuiPreviousKeys,TilGuiKeys,sizeof(TilGuiKeys));
   MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
   TilGuiKeyCount=0; TilGuiKeyRead=0;
@@ -1754,6 +1755,25 @@ U0 TilGuiPollInput()
         TilGuiCharQueue[TilGuiCharCount++]=ch;
       }
     }
+  }
+  if (sys_focus_task!=Fs) {
+    // TempleOS delivers releases to the task focused when the release occurs,
+    // not necessarily the one that received the press. Blur releases our held
+    // keys once, without inventing key/text queue entries.
+    MemSet(TilGuiKeys,0,sizeof(TilGuiKeys));
+    MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
+  } else {
+    // A loss and regain can both happen between polls. Reconcile existing
+    // held keys with the physical bitmap so a release elsewhere is not lost.
+    // Do not promote background-held keys into new GUI presses on refocus.
+    MemSet(physical_keys,0,sizeof(physical_keys));
+    for (raw=0;raw<256;raw++)
+      if (Bt(kbd.down_bitmap2,raw)) {
+        key=TilGuiKeyCode(raw<<32);
+        if (key) physical_keys[key]=1;
+      }
+    for (key=1;key<512;key++)
+      TilGuiKeys[key]&=physical_keys[key];
   }
 }
 

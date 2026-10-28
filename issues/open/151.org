@@ -916,9 +916,37 @@
 
   This is polling-facade keyboard support. Separate key/text queues cannot
   preserve a combined event order, including interleaved text and Backspace
-  within one frame. Native mouse/focus handling, OS-reserved shortcuts, Unicode
+  within one frame. Native mouse handling, OS-reserved shortcuts, Unicode
   policy and the ordered application input bridge remain later work. This
   sprint does not claim tilminal's input/session boundary is implemented.
+
+**** Keyboard follow-up: held keys across focus changes
+
+  TempleOS routes a release to the task focused at release time, which can
+  differ from the task that received the press. Message-only held state left
+  IsKeyDown stuck after switching tasks and releasing the key elsewhere.
+
+  TilGuiPollInput now releases held/repeat state while the GUI task is
+  unfocused. When focused, it intersects message-derived held keys with the
+  native physical down_bitmap2, using the same physical-to-facade key mapping.
+  This also catches a release elsewhere when focus leaves and returns entirely
+  between polls. Physical state only removes stale holds; a background-held key
+  does not turn into a new GUI press on refocus. IsKeyReleased observes the
+  transition for one frame, and genuine queued key/text events are retained.
+
+  gui_keyboard_focus_checks in test/templeos.til uses real QEMU input and a
+  second native task: Shift+A loses focus while held, releases elsewhere, B
+  stays held across refocus without becoming a GUI press, C is a fresh press,
+  and D releases during a complete focus round-trip between polls. The original
+  runtime fails this regression with "focus loss retained held key" (status 35).
+  Deterministic message tests now model and restore the corresponding physical
+  bitmap as well. Expect's timeout/EOF arms have separate lines so early guest
+  failures preserve the guest's real status during keyboard injection.
+
+  Verification on master ec93a1d88: clean hosted ASAN suite 481/481, including
+  clang validation. All six focused native keyboard cases pass at USize 32/64:
+  deterministic boundaries, interactive grid/pixel readback and the two-task
+  focus regression. The full guest matrix was not rerun for this follow-up.
 
 *** QEMU validation
 
