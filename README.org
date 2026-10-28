@@ -123,6 +123,26 @@ Select ~--backend=mlir~ explicitly with ~translate~, ~build~ or ~run~;
 ~--target~ still selects the platform and C remains the default backend.
 See [[file:doc/self.org::*Experimental MLIR backend][Experimental MLIR backend]] for the supported subset, outputs and tests.
 
+** Optional FASM bootstrap
+
+The experimental [[file:issues/open/453.org][FASM backend (#453)]] supports Linux x86-64.
+Translation needs no assembler. Build/run use the vendored assembler, built
+once with an existing FASM executable (Ubuntu/Debian package ~fasm~):
+
+#+begin_src sh
+fasm vendor/fasm/source/linux/x64/fasm.asm vendor/fasm/fasm
+chmod +x vendor/fasm/fasm
+bin/til run --backend=fasm path/to/program.til
+bin/til run test/fasm_native.til bin/til
+#+end_src
+
+The generated ~vendor/fasm/fasm~ is a native x86-64 executable, ignored by
+git. Rebuild it after updating the vendored source. This first backend is
+checkout-only; no installed assembler layout is provided yet. Ordinary C
+builds and ~make test~ do not require FASM; the suite checks translation and
+diagnostics, while ~test/fasm_native.til~ checks native execution explicitly.
+See [[file:doc/self.org::*Experimental FASM backend][Experimental FASM backend]] for the supported subset.
+
 ** Cross-compilation targets
 
 Building for non-native targets requires target-specific compilers and
@@ -149,8 +169,11 @@ sysroots. Install these packages (Ubuntu/Debian) for each target:
 - [[https://sourceforge.net/projects/tinyfiledialogs/][tinyfiledialogs]]
 - [[https://github.com/nanomsg/nng][nng]]
 - [[https://github.com/bitcoin-core/secp256k1][libsecp256k1]] (v0.8.0, for ~std/crypto~)
+- [[https://github.com/tgrysztar/fasm][flat assembler]] (optional native assembly backend)
 
 Bundled internal dependency licenses:
+
+- ~vendor/fasm/~ -- [[file:LICENSE/fasm.txt]] (upstream license, also retained in ~vendor/fasm/LICENSE.TXT~)
 
 - project: [[file:LICENSE/MIT.txt]] (MIT License)
 - ~vendor/emscripten/~ — [[file:LICENSE/emscripten.txt]]

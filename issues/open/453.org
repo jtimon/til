@@ -1,6 +1,6 @@
 # priority: medium
 # category: backends
-** OPEN #453 Add a FASM native assembly backend
+** WIP #453 Add a FASM native assembly backend
 
 Implement a native assembly backend that emits flat assembler (FASM) source
 from til's prepared program, then assembles it into native code. Backend
@@ -11,20 +11,20 @@ existing C and MLIR backends.
 
   - Official FASM 1 source repository: https://github.com/tgrysztar/fasm
   - Website and binary releases: https://flatassembler.net/
-  - Local reference clone: ~.inspirations/fasm~ in the task worktree.
+  - Vendored source: ~vendor/fasm/~; license also in ~LICENSE/fasm.txt~.
   - Initial reference revision: ~225ce90e81e69877ab42505f7713e3d3fd531d42~.
 
-  The clone is reference material, not a vendored build dependency. This
-  issue targets FASM 1; fasmg is a separate assembler project.
+   FASM is now a vendored optional build dependency; the duplicate inspiration
+   clone has been removed. This issue targets FASM 1, not fasmg.
 
 *** Plan
 
-  - [ ] Agree on the initial OS/architecture and ABI; Linux x86-64 is the
-    proposed first slice. Specify object versus executable output, linking,
+  - [X] Agree on the initial OS/architecture and ABI; Linux x86-64 is the
+    chosen first slice. Specify object versus executable output, linking,
     entry points, stack alignment, argument passing and return values.
-  - [ ] Agree on backend selection, generated-source paths and assembler
+  - [X] Agree on backend selection, generated-source paths and assembler
     discovery before adding CLI or installation surfaces.
-  - [ ] Emit a minimal runnable program, then scalar arithmetic, locals,
+  - [X] Emit a minimal runnable program, then scalar arithmetic, locals,
     direct calls, returns and control flow. Reject unsupported constructs
     with source-located diagnostics.
   - [ ] Extend lowering to aggregate layout, pointers, ownership cleanup,
@@ -33,11 +33,39 @@ existing C and MLIR backends.
   - [ ] Define the native runtime boundary with #383, including the proposed
     ~ext.fasm~ role, allocation, strings, output, panic and platform services.
     Decide its concrete layout and linkage before implementing it.
-  - [ ] Integrate translation, assembly and execution with the existing build
+  - [X] Integrate translation, assembly and execution with the existing build
     workflow; document tool requirements and propagate assembler/linker errors.
   - [ ] Run progressively larger subsets of the existing shared tests and
     compare behavior with the C backend. Keep backend-specific tests for
     assembly syntax, ABI boundaries and unsupported-feature diagnostics.
+
+*** Progress
+
+  The first slice selects ~--backend=fasm~, emits ~gen/fasm/<source>.fasm~
+  and builds standalone Linux ELF64 executables in the existing ~bin/~ paths.
+  Internal calls use SysV integer registers and 16-byte stack alignment.
+  FASM is bootstrapped manually from its vendored source; no new installation
+  layout is established. See ~doc/self.org~ for the implemented subset and
+  ~test/fasm_options.til~ / ~test/fasm_native.til~ for initial checks.
+
+  The first subset supports I64/Bool parameters and value locals, local
+  assignments, direct calls, returns, if/else, wrapping add/subtract/multiply,
+  signed comparisons and Bool negation. Core ~exit~ is the only runtime
+  service so far; libraries, other modes and unsupported constructs fail
+  explicitly. General memory, strings, loops and runtime services remain.
+
+  Verification: ~make clean && make test~ passed 477/477. The separate
+  ~test/fasm_native.til~ also passed with the ASAN compiler and test driver.
+  Native tests compare the same programs with interpretation and C, including
+  six-argument calls, nested calls, branches and signed overflow. Mutated
+  input locals prevent compile-time folding from hiding the emitted operations.
+
+  Differential testing against C and interpretation is a primary motivation.
+  Selective future JIT execution could amortize compilation for expensive or
+  repeated work. In-process code allocation, relocation, lifetime management
+  and interpreter/native value boundaries are separate future work; JIT is
+  not required to complete this initial backend, nor a wholesale interpreter
+  replacement.
 
 *** Related
 

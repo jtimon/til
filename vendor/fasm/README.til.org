@@ -1,0 +1,23 @@
+* Vendored flat assembler 1
+
+Upstream: https://github.com/tgrysztar/fasm
+Revision: 225ce90e81e69877ab42505f7713e3d3fd531d42
+
+This is a source snapshot, not a git submodule. The upstream copyright and
+LICENSE.TXT are retained verbatim; LICENSE/fasm.txt in the til root carries
+the same license for distribution with til's dependency notices.
+
+Local adaptation: SOURCE/ and all paths beneath it are lowercase because
+upstream's assembly uses lowercase include names. File contents are unchanged.
+The Linux x86-64 entry is source/linux/x64/fasm.asm.
+
+Bootstrap with an existing FASM (tested with Ubuntu's 1.73.32):
+
+#+begin_src sh
+fasm vendor/fasm/source/linux/x64/fasm.asm vendor/fasm/fasm
+chmod +x vendor/fasm/fasm
+#+end_src
+
+Run these commands from the til root. The resulting ignored executable is
+used by til's FASM backend and must be rebuilt when this snapshot changes.
+No binary bootstrap or network download is part of til's normal build.

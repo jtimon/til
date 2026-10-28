@@ -428,6 +428,7 @@ enum {
     Option__Bool_TAG_Some
 };
 typedef struct Option__Bool Option__Bool;
+typedef struct priv___src_self_fasm_codegen_til__FasmState priv___src_self_fasm_codegen_til__FasmState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
@@ -1502,6 +1503,15 @@ struct Option__Bool {
         void *_til_payload_align;
     } data;
 };
+
+typedef struct priv___src_self_fasm_codegen_til__FasmState {
+    Str text;
+    USize slots;
+    USize labels;
+    Map__Str_Str values;
+    Map__Str_Str functions;
+} priv___src_self_fasm_codegen_til__FasmState;
+
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Str ref_return_type;

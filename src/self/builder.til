@@ -4,6 +4,7 @@ import("context")
 import("loader")
 import("c_codegen")
 import("mlir_codegen")
+import("fasm_codegen")
 import("holyc_codegen")
 import("jvm_codegen")
 import("theme_codegen")
@@ -934,6 +935,31 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         println("Generated: ", archive)
         return 0
     }
+    if command == "run" { return run_artifact(paths, argv, lp.target, false) }
+    return 0
+}
+
+cmd_fasm := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str), functions: Set(Str)) returns I32 {
+    if lp.cur_mode.is_library || lp.mode_str != "cli" {
+        println("error: FASM backend currently supports mode cli only")
+        return 1
+    }
+    if argv.len() > 0 { println("error: FASM entry point takes no arguments"); return 1 }
+    mut paths := derive_build_paths(lp, output, "", lp.target)
+    paths.c_path = format("gen/fasm/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".fasm")
+    make_build_dirs(paths, lp.target)
+    result := fasm_codegen_translate(lp, paths.c_path, functions)
+    if result != 0 { return result }
+    if command == "translate" { println("Generated: ", paths.c_path); return 0 }
+    assembler := format(lp.ctx.import_support_dir, "/vendor/fasm/fasm")
+    if File.exists(assembler).not() {
+        println("error: build vendor/fasm/fasm first; see README.org's FASM bootstrap instructions")
+        return 1
+    }
+    assemble := Cmd.new(assembler, paths.c_path, paths.bin_path)
+    if assemble.run() != 0 { File.remove(paths.bin_path); return 1 }
+    permissions := Cmd.new("chmod", "+x", paths.bin_path)
+    if permissions.run() != 0 { return 1 }
     if command == "run" { return run_artifact(paths, argv, lp.target, false) }
     return 0
 }

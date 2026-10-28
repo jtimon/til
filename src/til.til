@@ -762,7 +762,7 @@ usage := proc() {
     println("")
     println("Options:")
     println("  --target=<name>  Select a target, including the portable JVM target.")
-    println("  --backend=c|mlir  Select native code generation (default c; MLIR subset).")
+    println("  --backend=c|mlir|fasm  Select native code generation (default c; experimental subsets).")
     println("  --cpu=baseline|x86-64-v3|x86-64-v4  Target CPU profile (default baseline).")
     println("              Controls SIMD width queries and C ISA flags; no host probing.")
     println("  --opt=0|2|3  C optimization level for build/run/test/install (default 0).")
@@ -937,8 +937,8 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         } else if flag.starts_with("--backend=") {
             cli.backend = flag.strip_prefix("--backend=").clone()
             cli.backend_set = true
-            if cli.backend != "c" && cli.backend != "mlir" {
-                println("error: --backend expects c or mlir")
+            if cli.backend != "c" && cli.backend != "mlir" && cli.backend != "fasm" {
+                println("error: --backend expects c, mlir or fasm")
                 exit(1)
             }
             cli.path_idx++
@@ -1178,6 +1178,17 @@ main := proc(args: ..Str) {
     }
     cpu := resolve_target_cpu(target, cli.cpu_profile)
 
+    if cli.backend == "fasm" {
+        if target.is(Target.LinuxX64).not() || detect_current_target().is(Target.LinuxX64).not() {
+            println("error: FASM backend currently supports Linux x86-64 hosts and targets only")
+            exit(1)
+        }
+        if cli.custom_c_set || cli.cc_set || cli.asan || cli.prof || cli.cpu_set || cli.opt_set {
+            println("error: FASM backend does not support -c, --cc, --asan, --prof, --cpu or --opt")
+            exit(1)
+        }
+    }
+
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
     lp.compiler_revision = COMPILER_REVISION.clone()
     lp.asan_build = cli.asan
@@ -1233,7 +1244,20 @@ main := proc(args: ..Str) {
     // Always prepare and emit the requested program, including explicit paths.
     mut mlir_functions := Set(Str).new()
     if cli.backend == "mlir" { mlir_functions = mlir_source_declarations(lp) }
+    if cli.backend == "fasm" { mlir_functions = fasm_source_declarations(lp) }
     prepare_program(lp, cli.command == "test")
+
+    if cli.backend == "fasm" {
+        if lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0 {
+            println("error: FASM backend does not yet support link_c or link flags")
+            exit(1)
+        }
+        fasm_result := cmd_fasm(lp, cli.command, cli.custom_bin, user_argv, mlir_functions)
+        ffi_cleanup(lp.ctx)
+        lexer_cleanup()
+        if fasm_result != 0 { exit(fasm_result.cast(I64)) }
+        return
+    }
 
     if cli.backend == "mlir" {
         if lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0 {

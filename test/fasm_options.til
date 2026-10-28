@@ -1,0 +1,50 @@
+mode cli
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/targets")
+realpath_str := ext_proc(path: Str) returns Str {}
+
+main := proc(compiler_arg: Str) {
+    compiler := realpath_str(compiler_arg)
+    work := "tmp/fasm_options"
+    mkdir_p(work)
+    File.writefile(format(work, "/main.til"), "mode cli\nmain := proc() {}\n")
+    if detect_current_target().is(Target.LinuxX64) {
+        good := Cmd.new(compiler, "translate", "--backend=fasm", "main.til")
+        good.cwd(work).capture()
+        good_status := good.run()
+        expect(good_status == 0, good.out(), good.err())
+        assembly := File.readfile(format(work, "/gen/fasm/main.fasm"))
+        expect(assembly.contains("format ELF64 executable 3"), assembly)
+        File.writefile(format(work, "/bad.til"), "mode cli\nbad := func(x: F32) returns F32 { return x }\nmain := proc() { bad(1.0) }\n")
+        bad := Cmd.new(compiler, "translate", "--backend=fasm", "bad.til")
+        bad.cwd(work).capture()
+        expect(bad.run() != 0, "unsupported float accepted")
+        expect(bad.out().contains("FASM backend:") && bad.out().contains("bad.til:"), bad.out(), bad.err())
+        for flag in array(Str, "--asan", "--prof", "--cpu=baseline", "--opt=0", "--cc=cc") {
+            rejected := Cmd.new(compiler, "build", "--backend=fasm", flag, "main.til")
+            rejected.cwd(work).capture()
+            expect(rejected.run() != 0, flag)
+            expect(rejected.out().contains("FASM backend does not support"), rejected.out(), rejected.err())
+        }
+        File.writefile(format(work, "/divide.til"), "mode cli\ndivide := func(a: I64,b: I64) returns I64 { return a / b }\nmain := proc() { mut x : I64 = 10; x = x + 1; exit(divide(x,2)) }\n")
+        divide := Cmd.new(compiler, "translate", "--backend=fasm", "divide.til")
+        divide.cwd(work).capture()
+        expect(divide.run() != 0, "unsupported division accepted")
+        expect(divide.out().contains("unsupported operation 'div'"), divide.out(), divide.err())
+        File.writefile(format(work, "/library.til"), "mode pure\nvalue := func() returns I64 { return 1 }\n")
+        library := Cmd.new(compiler, "translate", "--backend=fasm", "library.til")
+        library.cwd(work).capture()
+        expect(library.run() != 0, "unsupported library accepted")
+        expect(library.out().contains("mode cli only"), library.out(), library.err())
+    }
+    wrong_target := Cmd.new(compiler, "translate", "--backend=fasm", "--target=linux-arm64", "main.til")
+    wrong_target.cwd(work).capture()
+    expect(wrong_target.run() != 0, "unsupported target accepted")
+    expect(wrong_target.out().contains("Linux x86-64 hosts and targets only"), wrong_target.out(), wrong_target.err())
+    wrong_command := Cmd.new(compiler, "interpret", "--backend=fasm", "main.til")
+    wrong_command.cwd(work).capture()
+    expect(wrong_command.run() != 0, "unsupported command accepted")
+    expect(wrong_command.out().contains("--backend requires translate, build or run"), wrong_command.out(), wrong_command.err())
+    println("fasm_options PASS")
+}

@@ -1,0 +1,52 @@
+mode cli
+import("../src/std/sys")
+import("../src/std/file")
+realpath_str := ext_proc(path: Str) returns Str {}
+
+// Optional native integration: bootstrap vendor/fasm/fasm first, then:
+// bin/til run test/fasm_native.til bin/til
+main := proc(compiler_arg: Str) {
+    compiler := realpath_str(compiler_arg)
+    work := "tmp/fasm_native"
+    mkdir_p(work)
+    // Mutable input prevents compile-time evaluation of the arithmetic/calls.
+    File.writefile(format(work, "/main.til"), "mode cli\ncalc := func(a: I64, b: I64) returns I64 { return (a + b) * (a - b) }\nchoose := func(a: I64, b: I64) returns I64 { if a < b { return calc(a,b) } else { return calc(b,a) } }\nmain := proc() { mut x : I64 = 8; x = x + 1; exit(choose(x,5) + choose(2,x-1)) }\n")
+    // Independent execution paths must agree on the actual process result.
+    for execution in array(Str, "interpret", "c", "fasm") {
+        command := Cmd.new(compiler)
+        if execution == "interpret" { command.args("interpret", "main.til") }
+        else { command.args("run", format("--backend=", execution), "main.til") }
+        command.cwd(work).capture()
+        status := command.run()
+        expect(status == 140, execution, status, command.out(), command.err())
+    }
+    assembly := File.readfile(format(work, "/gen/fasm/main.fasm"))
+    expect(assembly.contains("imul rax, rcx") && assembly.contains("setl al"), "test arithmetic was folded away", assembly)
+    // Signed comparison, equality, Bool negation, and wrapping I64 arithmetic.
+    File.writefile(format(work, "/wrap.til"), "mode cli\ncheck := func(a: I64, b: I64) returns I64 { if (a + b < 0).not() { return 1 } if a + b == -9223372036854775808 { return 37 } return 2 }\nmain := proc() { mut x : I64 = 0; x = x + 1; exit(check(9223372036854775807,x)) }\n")
+    for execution in array(Str, "interpret", "c", "fasm") {
+        command := Cmd.new(compiler)
+        if execution == "interpret" { command.args("interpret", "wrap.til") }
+        else { command.args("run", format("--backend=", execution), "wrap.til") }
+        command.cwd(work).capture()
+        status := command.run()
+        expect(status == 37, execution, status, command.out(), command.err())
+    }
+    File.writefile(format(work, "/empty.til"), "mode cli\nmain := proc() {}\n")
+    File.writefile(format(work, "/arguments.til"), "mode cli\nsum := func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns I64 { return a+b+c+d+e+f }\nchoose := func(flag: Bool, x: I64) returns I64 { if flag { return x } return 1 }\nmain := proc() { mut x : I64 = 0; x = x + 1; exit(choose(sum(x,2,3,4,5,6) > 20, sum(6,5,4,3,2,x))) }\n")
+    for execution in array(Str, "interpret", "c", "fasm") {
+        command := Cmd.new(compiler)
+        if execution == "interpret" { command.args("interpret", "arguments.til") }
+        else { command.args("run", format("--backend=", execution), "arguments.til") }
+        command.cwd(work).capture()
+        status := command.run()
+        expect(status == 21, execution, status, command.out(), command.err())
+    }
+    build := Cmd.new(compiler, "build", "--backend=fasm", "-o", "bin/custom output", "empty.til")
+    build.cwd(work).capture()
+    build_status := build.run()
+    expect(build_status == 0, build.out(), build.err())
+    run := Cmd.new(format(work, "/bin/custom output"))
+    expect(run.run() == 0, "empty main failed")
+    println("fasm_native PASS")
+}

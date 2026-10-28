@@ -1,0 +1,237 @@
+mode lib
+import("loader")
+import("../std/file")
+
+// Integer-only first slice. Every live value has a frame slot, so nested
+// calls cannot clobber earlier operands. Frames preserve SysV alignment.
+priv FasmState := struct {
+    text := ""
+    slots : USize = 0
+    labels : USize = 0
+    values := Map(Str, Str).new()
+    functions := Map(Str, Str).new()
+}
+
+priv fasm_scalar := func(shallow t: Type) returns Bool {
+    return t == Type.Primitive(Primitive.I64) || t == Type.Primitive(Primitive.Bool)
+}
+
+priv fasm_error := proc(e: Expr, message: Str, mut lp: LoadedProgram) {
+    e.type_error(format("FASM backend: ", message), lp.ctx)
+}
+
+priv fasm_emit := func(mut state: FasmState, text: Str) {
+    state.text = format(state.text, "    ", text, "\n")
+}
+
+priv fasm_slot := func(mut state: FasmState) returns Str {
+    state.slots++
+    return format("qword [rbp-", (state.slots * 8).to_str(), "]")
+}
+
+priv fasm_root := func(lp: LoadedProgram) returns ref Expr {
+    return lp.ctx.imported[lp.units[lp.units.len() - 1].path].ast
+}
+
+fasm_source_declarations := func(lp: LoadedProgram) returns Set(Str) {
+    mut names := Set(Str).new()
+    for stmt : Expr in fasm_root(lp).children {
+        if stmt.node_type.is(NodeType.Decl) { names.add(own decl_of(stmt).name.clone()) }
+    }
+    return names
+}
+
+priv fasm_register := func(index: USize) returns Str {
+    switch index {
+    case 0: return "rdi"
+    case 1: return "rsi"
+    case 2: return "rdx"
+    case 3: return "rcx"
+    case 4: return "r8"
+    case 5: return "r9"
+    case: panic("invalid FASM argument register")
+    }
+}
+
+priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(lp.ctx.symbols.names)
+        if state.values.has(name).not() { fasm_error(e, format("unsupported value '", name, "'"), lp); return }
+        fasm_emit(state, format("mov rax, ", state.values[name]))
+    case .Literal(Literal.Num(n)):
+        if e.til_type() != Type.Primitive(Primitive.I64) { fasm_error(e, "only I64 numeric values are supported", lp); return }
+        fasm_emit(state, format("mov rax, ", n.to_u64().to_str()))
+    case .Literal(Literal.Bool(value)):
+        if value { fasm_emit(state, "mov eax, 1") }
+        else { fasm_emit(state, "xor eax, eax") }
+    case .FCall:
+        ref callee : Expr = e.children[0]
+        switch callee.node_type {
+        case .FieldAccess(field):
+            if callee.children.len() != 1 { fasm_error(e, "unsupported method receiver", lp); return }
+            switch callee.children[0].node_type {
+            case .Ident(id):
+                owner := type_from_name_init_name(id.ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
+                if fasm_scalar(owner).not() { fasm_error(e, "unsupported operation type", lp); return }
+                ref op : Str = field.field_access_name(lp.ctx.symbols.names)
+                if op == "clone" && e.children.len() == 2 { fasm_expr(e.children[1], state, lp); return }
+                if op == "not" && owner == Type.Primitive(Primitive.Bool) && e.children.len() == 2 {
+                    fasm_expr(e.children[1], state, lp)
+                    fasm_emit(state, "xor eax, 1")
+                    return
+                }
+                if e.children.len() == 3 && (op == "eq" || (owner == Type.Primitive(Primitive.I64) && (op == "add" || op == "sub" || op == "mul" || op == "lt" || op == "gt"))) {
+                    fasm_expr(e.children[1], state, lp)
+                    saved := fasm_slot(state)
+                    fasm_emit(state, format("mov ", saved, ", rax"))
+                    fasm_expr(e.children[2], state, lp)
+                    fasm_emit(state, "mov rcx, rax")
+                    fasm_emit(state, format("mov rax, ", saved))
+                    switch op {
+                    case "add": fasm_emit(state, "add rax, rcx")
+                    case "sub": fasm_emit(state, "sub rax, rcx")
+                    case "mul": fasm_emit(state, "imul rax, rcx")
+                    case:
+                        fasm_emit(state, "cmp rax, rcx")
+                        if op == "eq" { fasm_emit(state, "sete al") }
+                        else if op == "lt" { fasm_emit(state, "setl al") }
+                        else { fasm_emit(state, "setg al") }
+                        fasm_emit(state, "movzx eax, al")
+                    }
+                    return
+                }
+                fasm_error(e, format("unsupported operation '", op, "'"), lp)
+            case: fasm_error(e, "unsupported method receiver", lp)
+            }
+        case .Ident(id):
+            ref name : Str = id.ident_name(lp.ctx.symbols.names)
+            if name == "not" && state.functions.has(name).not() && e.children.len() == 2 && e.children[1].til_type() == Type.Primitive(Primitive.Bool) {
+                fasm_expr(e.children[1], state, lp)
+                fasm_emit(state, "xor eax, 1")
+                return
+            }
+            // The initial runtime boundary is the core process-exit operation.
+            if name == "exit" && state.functions.has(name).not() && e.children.len() == 2 && e.children[1].til_type() == Type.Primitive(Primitive.I64) {
+                fasm_expr(e.children[1], state, lp)
+                fasm_emit(state, "mov rdi, rax\n    mov eax, 60\n    syscall\n    ud2")
+                return
+            }
+            if state.functions.has(name).not() { fasm_error(e, format("unsupported call '", name, "'"), lp); return }
+            if e.children.len() > 7 { fasm_error(e, "at most six arguments are supported", lp); return }
+            mut args := Vec(Str).new()
+            for i in 1..e.children.len() {
+                fasm_expr(e.children[i], state, lp)
+                slot := fasm_slot(state)
+                fasm_emit(state, format("mov ", slot, ", rax"))
+                args.push(own slot)
+            }
+            for i in 0..args.len() { fasm_emit(state, format("mov ", fasm_register(i), ", ", args[i])) }
+            fasm_emit(state, format("call ", state.functions[name]))
+        case: fasm_error(e, "indirect calls are not supported", lp)
+        }
+    case: fasm_error(e, "unsupported expression", lp)
+    }
+}
+
+priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    saved_values := state.values.clone()
+    for stmt : Expr in body.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if stmt.children.len() != 1 || dd.own_type.is(OwnType.Ref) || fasm_scalar(declaration_resolved_type(dd, lp.ctx.scope, lp.ctx.symbols)).not() {
+                fasm_error(stmt, "only initialized I64/Bool value locals are supported", lp)
+                continue
+            }
+            fasm_expr(stmt.children[0], state, lp)
+            slot := fasm_slot(state)
+            fasm_emit(state, format("mov ", slot, ", rax"))
+            state.values.set(dd.name, own slot)
+        case .Assign(dd):
+            if state.values.has(dd.name).not() { fasm_error(stmt, "only local assignments are supported", lp); continue }
+            fasm_expr(stmt.children[0], state, lp)
+            fasm_emit(state, format("mov ", state.values[dd.name], ", rax"))
+        case .Return:
+            if stmt.children.len() > 0 { fasm_expr(stmt.children[0], state, lp) }
+            fasm_emit(state, "leave\n    ret")
+        case .FCall: fasm_expr(stmt, state, lp)
+        case .If:
+            label := state.labels.to_str()
+            state.labels++
+            fasm_expr(stmt.children[0], state, lp)
+            fasm_emit(state, format("test rax, rax\n    jz .else", label))
+            fasm_body(stmt.children[1], state, lp)
+            fasm_emit(state, format("jmp .end", label, "\n.else", label, ":"))
+            if stmt.children.len() > 2 { fasm_body(stmt.children[2], state, lp) }
+            fasm_emit(state, format(".end", label, ":"))
+        case: fasm_error(stmt, "only declarations, calls, returns and if statements are supported", lp)
+        }
+    }
+    state.values = saved_values.clone()
+}
+
+priv fasm_function := proc(decl: Expr, functions: Map(Str, Str), mut lp: LoadedProgram) returns Str {
+    ref dd : Declaration = decl_of(decl)
+    ref expr : Expr = decl.children[0]
+    ref fd : FunctionDef = funcdef_of(expr)
+    if fd.sig.func_type.is_bodyless() || fd.sig.func_type.is(FuncType.Macro) || fd.sig.throw_types.len() > 0 || fd.captures.len() > 0 || fd.sig.variadic_index >= 0 || fd.sig.kwargs_index >= 0 {
+        fasm_error(decl, "only ordinary non-throwing functions are supported", lp)
+        return ""
+    }
+    ret := type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols)
+    if (fd.sig.return_type.len() > 0 && fasm_scalar(ret).not()) || fd.sig.return_own_type.is(OwnType.Ref) {
+        fasm_error(decl, "return type must be I64, Bool or void", lp)
+        return ""
+    }
+    if dd.name == "main" && (fd.sig.params.len() > 0 || fd.sig.return_type.len() > 0) {
+        fasm_error(decl, "main must take no arguments and return no value", lp)
+        return ""
+    }
+    if fd.sig.params.len() > 6 { fasm_error(decl, "at most six parameters are supported", lp); return "" }
+    mut state := FasmState()
+    state.functions = functions.clone()
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        if p.is_mut || p.own_type.is(OwnType.Ref).or(p.own_type.is(OwnType.Own)) || fasm_scalar(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols)).not() {
+            fasm_error(decl, "parameters must be immutable I64/Bool values", lp)
+            return ""
+        }
+        slot := fasm_slot(state)
+        fasm_emit(state, format("mov ", slot, ", ", fasm_register(i)))
+        state.values.set(p.name, own slot)
+    }
+    fasm_body(expr.children[0], state, lp)
+    // A non-void fallthrough is a compiler invariant violation, not a value.
+    if fd.sig.return_type.len() > 0 { fasm_emit(state, "ud2") }
+    else { fasm_emit(state, "leave\n    ret") }
+    size := ((state.slots * 8 + 15) / 16) * 16
+    return format(functions[dd.name], ":\n    push rbp\n    mov rbp, rsp\n    sub rsp, ", size.to_str(), "\n", state.text)
+}
+
+fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: Set(Str)) returns I32 {
+    context_enter_file(lp.ctx, lp.units[lp.units.len() - 1].path)
+    mut functions := Map(Str, Str).new()
+    for stmt : Expr in fasm_root(lp).children {
+        if stmt.node_type.is(NodeType.Decl) {
+            ref dd : Declaration = decl_of(stmt)
+            if source_names.has(dd.name) || (dd.orig_name.len() > 0 && source_names.has(dd.orig_name)) {
+                functions.set(dd.name, own format("f", functions.len().to_str()))
+            }
+        }
+    }
+    if functions.has("main").not() { println("error: FASM backend requires a no-argument main"); return 1 }
+    mut text := format("format ELF64 executable 3\nentry start\nsegment readable executable\nstart:\n    call ", functions["main"], "\n    xor edi, edi\n    mov eax, 60\n    syscall\n")
+    for stmt : Expr in fasm_root(lp).children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if functions.has(dd.name).not() { continue }
+            if stmt.children.len() == 1 && stmt.children[0].node_type.is(NodeType.FuncDef) {
+                text = format(text, fasm_function(stmt, functions, lp))
+            } else { fasm_error(stmt, "only function declarations are supported at module scope", lp) }
+        case: fasm_error(stmt, "unsupported top-level statement", lp)
+        }
+    }
+    if lp.ctx.errors > 0 { return 1 }
+    File.writefile(path, text)
+    return 0
+}

@@ -243,6 +243,37 @@
   checked byte-for-byte. A multiply/add case distinguishes separate rounding
   from FMA (zero versus one).
 
+** Experimental FASM backend
+
+  ~--backend=fasm~ selects native assembly for ~translate~, ~build~ and ~run~
+  on Linux x86-64 hosts and targets. The initial subset accepts ~mode cli~
+  with a no-argument, void ~main~, ordinary non-throwing functions, up to six
+  immutable I64/Bool parameters, value locals, local assignments, calls,
+  returns and if/else.
+  I64 addition, subtraction and multiplication wrap at 64 bits; signed
+  comparisons, equality and Bool negation are supported. The only external
+  runtime operation is core ~exit(I64)~, lowered to the Linux exit syscall.
+  Unsupported constructs receive source-located errors.
+
+  Til writes ~gen/fasm/<source>.fasm~, preserving the normal source hierarchy.
+  The vendored FASM writes a standalone ELF64 executable to ~bin/<source>~
+  or the existing ~-o~ override. There is no C compiler, libc or linker in
+  that path. Internal calls use SysV integer registers and aligned frames;
+  this does not yet expose a library ABI. Libraries, program arguments,
+  other modes, ~-c~, ~--cc~, ~--asan~, ~--prof~, ~--cpu~, ~--opt~, ~link_c~
+  and link flags are rejected. See README for the assembler bootstrap.
+
+  ~test/fasm_options.til~ checks emission and diagnostics in the normal suite.
+  ~test/fasm_native.til~ explicitly exercises the assembler and compares
+  native exit results with interpretation and C execution. It requires the
+  bootstrapped vendored executable and is run separately.
+
+  Independent execution is useful for differential testing. This backend
+  also supplies groundwork for selective future JIT execution of expensive
+  functions, not a replacement for all interpretation. In-process executable
+  memory, relocations, interpreter/native calls and code lifetimes remain
+  separate future work, outside the initial backend's completion criteria.
+
 ** Single-pass build
 
   The Makefile builds til in one pass:
