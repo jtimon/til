@@ -72,6 +72,13 @@ dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
 dyn_storage_kind := ext_func(type_name: Str) returns shallow USize {}
 dyn_type_to_str := ext_func(type: Type) returns Str {}
 
+/// Whether a compile-time type argument carries ~ref~. In a generator,
+/// ~type_arg_is_ref(T)~ observes the qualifier supplied for T, including when
+/// forwarded through another generator. Unqualified and ~own~ arguments
+/// answer false. A runtime Type value or an ordinary value is not an argument
+/// to this query: the compiler resolves it before runtime code is emitted.
+type_arg_is_ref := core_func(type: Type) returns Bool {}
+
 // The allocation-free runtime classifier. The self compiler's iterable
 // PRIM_NAMES/WIDTH_ALIAS_NAMES arrays cannot live in core: their global array
 // initialization would be emitted into every user program that needs dynamic

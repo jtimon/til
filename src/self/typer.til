@@ -4382,6 +4382,31 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
     generic_finish_fcall(scope, e, src_name, subs, ref_params, explicit, in_func, ctx)
 }
 
+priv infer_type_arg_is_ref := proc(mut scope: TypeScope, mut e: Expr, mut ctx: Context) {
+    if e.children.len() != 2 {
+        e.type_error("type_arg_is_ref expects one compile-time type argument", ctx)
+        return
+    }
+    infer_expr(scope, e.children[1], 0, ctx)
+    mut is_type := false
+    switch e.children[1].node_type {
+    case .Ident(id):
+        binding_o := scope.get_binding_sym(id.ident_sym())
+        if binding_o.is_some() {
+            is_type = type_binding_is_type_token(scope, binding_o.unwrap(), ctx.symbols)
+        }
+    case:
+    }
+    if is_type.not() {
+        e.type_error("type_arg_is_ref requires a compile-time type argument, not a value", ctx)
+        return
+    }
+    borrowed := get_ref_arg(e, 1)
+    e.node_type = NodeType.Literal(Literal.Bool(borrowed))
+    e.children.clear()
+    e.set_til_type(Type.Primitive(Primitive.Bool))
+}
+
 priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, mut ctx: Context) {
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     // #320: ref-qualified args (`f(ref x)`) only mean something on type
@@ -4520,6 +4545,10 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         check_priv_access(e, name, callee_bind, scope, ctx)
         callee_fdef_o = scope.lookup_func_by_sym(callee_sym, ctx.symbols)
         if callee_fdef_o.is_some() {
+            if name.eq("type_arg_is_ref").and(funcdef_of(callee_fdef_o.unwrap()).sig.func_type.is_core()) {
+                infer_type_arg_is_ref(scope, e, ctx)
+                return
+            }
             if init_func_is_generic(callee_fdef_o.unwrap(), ctx.symbols) {
                 generic_src_name = callee_bind.name.clone()
             } else if func_gen_macro_template(callee_fdef_o.unwrap(), ctx.symbols).is_some() {
@@ -4692,7 +4721,7 @@ infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: 
     case .FCall:
         errors_before_call := ctx.errors
         infer_fcall_expr(scope, expr, in_func, ctx)
-        if ctx.errors == errors_before_call { assert_fcall_callee_classified(expr) }
+        if ctx.errors.eq(errors_before_call).and(expr.node_type.is(NodeType.FCall)) { assert_fcall_callee_classified(expr) }
     case .FieldAccess: infer_field_access_expr(scope, expr, in_func, ctx)
     case .Literal(Literal.MapLit):      infer_map_lit_expr(scope, expr, in_func, ctx)
     case .Literal(Literal.SetLit):      infer_set_lit_expr(scope, expr, in_func, ctx)

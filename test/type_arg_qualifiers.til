@@ -1,0 +1,91 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+check := proc(cmd: Cmd, expected: Str) {
+    cmd.capture()
+    status := cmd.run()
+    output := format(cmd.out(), cmd.err())
+    if status != 0 { panic(cmd.render(), ": ", output) }
+    assert_eq(Str, output, expected)
+}
+
+reject := proc(cmd: Cmd, expects_arity: Bool = true) {
+    cmd.capture()
+    status := cmd.run()
+    output := format(cmd.out(), cmd.err())
+    if status == 0 { panic("accepted invalid qualifier query: ", cmd.render()) }
+    expect(output.contains("type_arg_is_ref requires a compile-time type argument"), output)
+    if expects_arity { expect(output.contains("type_arg_is_ref expects one compile-time type argument"), output) }
+}
+
+main := proc(args: ..Str) {
+    ref compiler: Str = args[0]
+    root := "tmp/type_arg_qualifiers"
+    mkdir_p(root)
+    // Exercise the real macro source under an unrelated name and file path.
+    // The injected method only exposes the qualifier query for assertions;
+    // it makes no claim that Vec's borrowed-element operations are complete.
+    source := File.readfile("src/core/vec.til")
+    renamed := source.replace("Vec", "MyAltVec").replace("vec", "my_alt_vec")
+        .replace("import(\"", "import(\"core/")
+        .replace("namespace:", "namespace:\n    query_ref := func() returns Bool { return type_arg_is_ref(T) }\n")
+    File.writefile(format(root, "/MyAltVec.til"), renamed)
+    File.writefile(format(root, "/probe.til"), format(
+        "mode cli\nimport(\"MyAltVec\")\n",
+        "Probe := macro(Element: Type) returns StructDef {\n",
+        "    if type_arg_is_ref(Element) { return struct { borrowed := true } }\n",
+        "    else { return struct { borrowed := false } }\n}\n",
+        "OtherProbe := macro(Item: Type) returns StructDef {\n",
+        "    if type_arg_is_ref(Item).not() { return struct { borrowed := false } }\n",
+        "    else { return struct { borrowed := true } }\n}\n",
+        "Forward := macro(Value: Type) returns StructDef { return struct { probe := Probe(Value)() } }\n",
+        "make_query := macro(Value: Type) returns FuncDef { return func() returns Bool { return type_arg_is_ref(Value) } }\n",
+        "borrowed_query := make_query(ref Str)\n",
+        "owned_query := make_query(Str)\n",
+        "Alias := Str\n",
+        "main := proc() {\n",
+        "    assert(type_arg_is_ref(ref Str))\n",
+        "    assert(type_arg_is_ref(Str).not())\n",
+        "    assert(type_arg_is_ref(own Str).not())\n",
+        "    assert(type_arg_is_ref(Option(ref Str)).not())\n",
+        "    borrowed := Probe(ref Alias)()\n",
+        "    owned := Probe(Alias)()\n",
+        "    other_borrowed := OtherProbe(ref I64)()\n",
+        "    other_owned := OtherProbe(I64)()\n",
+        "    forwarded_borrowed := Forward(ref Str)()\n",
+        "    forwarded_owned := Forward(Str)()\n",
+        "    assert(borrowed.borrowed)\n",
+        "    assert(owned.borrowed.not())\n",
+        "    assert(other_borrowed.borrowed)\n",
+        "    assert(other_owned.borrowed.not())\n",
+        "    assert(forwarded_borrowed.probe.borrowed)\n",
+        "    assert(forwarded_owned.probe.borrowed.not())\n",
+        "    assert(borrowed_query())\n",
+        "    assert(owned_query().not())\n",
+        "    assert(MyAltVec(own I64).query_ref().not())\n",
+        "    assert(MyAltVec(I64).query_ref().not())\n",
+        "    mut values := MyAltVec(I64).new()\n",
+        "    values.push(own 7)\n",
+        "    assert_eq(I64, values[0], 7)\n",
+        "    println(\"qualifiers OK\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
+    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
+        "-c", format(root, "/probe.c"), format(root, "/probe.til")), "qualifiers OK\n")
+    File.writefile(format(root, "/invalid.til"), format(
+        "mode cli\nbad := func(value: Type) returns Bool { return type_arg_is_ref(value) }\n",
+        "main := proc() { println(type_arg_is_ref(1)); println(type_arg_is_ref()) }\n"))
+    reject(Cmd.new(compiler, "interpret", format(root, "/invalid.til")))
+    reject(Cmd.new(compiler, "build", "-o", format(root, "/invalid"),
+        "-c", format(root, "/invalid.c"), format(root, "/invalid.til")))
+    File.writefile(format(root, "/invalid_generator.til"), format(
+        "mode cli\nBad := macro(N: I64) returns StructDef {\n",
+        "    if type_arg_is_ref(N) { return struct { value := true } }\n",
+        "    else { return struct { value := false } }\n}\n",
+        "BadValue := Bad(3)\nmain := proc() { println(\"invalid generator\") }\n"))
+    reject(Cmd.new(compiler, "interpret", format(root, "/invalid_generator.til")), false)
+    reject(Cmd.new(compiler, "build", "-o", format(root, "/invalid_generator"),
+        "-c", format(root, "/invalid_generator.c"), format(root, "/invalid_generator.til")), false)
+    println("type argument qualifiers passed")
+}

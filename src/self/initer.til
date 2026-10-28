@@ -3053,12 +3053,31 @@ priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols:
     for mut child : Expr in e.children { init_macro_lower_type_tests(child, scope, symbols) }
 }
 
+// Qualifier queries are resolved from the macro argument before the parameter
+// name is substituted. Other uses of a Type value do not acquire a ref bit.
+priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), symbols: SymbolPool) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
+        switch e.children[0].node_type {
+        case .Ident(callee):
+            if callee.ident_name(symbols.names) == "type_arg_is_ref" {
+                switch e.children[1].node_type {
+                case .Ident(arg):
+                    if ref_params.has(arg.ident_name(symbols.names)) { set_ref_arg(e, 1) }
+                case:
+                }
+            }
+        case:
+        }
+    }
+    for mut child : Expr in e.children { init_mark_qualifier_queries(child, ref_params, symbols) }
+}
+
 // Pick the macro return literal from a possibly-if-shaped body. body
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return. unknown_condition distinguishes a failed condition from
 // an unsupported body shape; the caller must not select a branch on it.
-priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
+priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
@@ -3073,6 +3092,7 @@ priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), mut scope:
     // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
     // `T.is(Type.Primitive(Primitive.Bool))` into `Bool.is(Type.Primitive(Primitive.Bool))`.
     mut cond_clone := s.children[0].clone()
+    init_mark_qualifier_queries(cond_clone, ref_params, ctx.symbols)
     // Bare-Ident condition: the walk substitutes only children, so swap
     // the root via assignment (save_old_delete reclaims the clone).
     mut cond_root := ""
@@ -3084,8 +3104,8 @@ priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), mut scope:
         ref cond_repl : Expr = subs[cond_root]
         cond_clone = cond_repl.clone()
     } else {
-        // Ref-ness changes neither primitive target sizes nor the result
-        // of a `T.is(...)` condition.
+        // Qualifier queries retain their explicit bit above. Other condition
+        // helpers receive ordinary Type values, as before.
         init_substitute_idents(cond_clone, subs, Set(Str).new(), ctx.symbols)
     }
     init_macro_lower_type_tests(cond_clone, scope, ctx.symbols)
@@ -3099,10 +3119,10 @@ priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), mut scope:
     }
     if res < 0 { unknown_condition = true; return Option(ref Expr).None }
     if res == 1 {
-        return init_macro_pick_return(s.children[1], subs, scope, ctx, unknown_condition)
+        return init_macro_pick_return(s.children[1], subs, ref_params, scope, ctx, unknown_condition)
     }
     if s.children.len() < 3 { return Option(ref Expr).None }
-    return init_macro_pick_return(s.children[2], subs, scope, ctx, unknown_condition)
+    return init_macro_pick_return(s.children[2], subs, ref_params, scope, ctx, unknown_condition)
 }
 
 priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
@@ -5136,7 +5156,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
         return false
     }
     ctx.comptime_requests.add(own request.clone())
-    ret_val_o := init_macro_pick_return(body, subs, scope, ctx, unknown_condition)
+    ret_val_o := init_macro_pick_return(body, subs, ref_params, scope, ctx, unknown_condition)
     ctx.comptime_requests.remove(request)
     if ret_val_o.is_none() {
         if unknown_condition.and(ctx.errors == 0) {

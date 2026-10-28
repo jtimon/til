@@ -1236,6 +1236,10 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/build_outputs -c gen/c/build_outputs.c test/build_outputs.til ", til_bin))
 
+    add_count(tests, "type_arg_qualifiers", "build", "type argument qualifiers passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/type_arg_qualifiers -c gen/c/type_arg_qualifiers.c test/type_arg_qualifiers.til ", til_bin))
+
     add_count(tests, "cpu_options", "build", "cpu options passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ", til_bin))

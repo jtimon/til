@@ -356,6 +356,31 @@ Unavailable runtime values and calls that cannot be evaluated produce an
 expansion error, not a false condition. The same selection rules apply to
 generators returning ~StructDef~ or ~EnumDef~.
 
+~type_arg_is_ref(T)~ queries a compile-time type argument's qualifier. A
+generator can use it to select borrowing storage and operations:
+
+#+begin_src til
+StorageMode := macro(Element: Type) returns StructDef {
+    if type_arg_is_ref(Element) {
+        return struct { borrowed := true }
+    } else {
+        return struct { borrowed := false }
+    }
+}
+BorrowingMode := StorageMode(ref Str)
+OwningMode := StorageMode(Str)
+#+end_src
+
+The same query works inside a generated function body. Forwarding the type
+argument through another generator preserves its ~ref~ qualifier. Unqualified
+and ~own~ arguments answer false; an unqualified ~Option(ref Str)~ also answers
+false, because the query examines the argument, not its nested fields.
+Ordinary values and runtime ~Type~ values are rejected. No container or
+generator names are special: renamed copies use the same mechanism.
+
+The query provides information to the macro; it does not automatically change
+a raw-buffer container's layout, insertion, clone/delete or lifetime rules.
+
 An alias of a generated function (~add5~ above) can be called or used as a
 function value, just like an inline instantiation (~f : IntOp = make_adder(5)~).
 
