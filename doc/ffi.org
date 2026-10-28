@@ -301,17 +301,36 @@ escaping tables/records that carry a closure borrowing a dead local.
 These ownership rules do not publish candidate editor state or undo native
 effects. Reload still requires the host's explicit staging/publication policy.
 
+*** Remaining embedding gaps and follow-up ownership
+
+The #370 embedding contract is complete. Its current boundaries leave these
+possible extensions:
+
+- ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments,
+  throwing guest signatures, or arbitrary record arguments/results. Extending
+  it requires checked marshalling and ownership/error-path coverage in the
+  installed host tests. Native-library record references and native throws
+  already work; they do not provide these guest-callback contracts.
+- Callable enum payloads cannot cross the native FFI boundary. Supporting them
+  requires a defined native callable representation and capture/code lifetime
+  contract, rather than treating interpreter closures as native function pointers.
+
+These are unsupported extensions, not unfinished #370 acceptance checks. The
+historical manual-registration proposal in that issue is not the current API.
+
 *** Related compiler limitations
 
-The embedding regressions do not close these separately tracked compiler bugs:
+SIMD binding support belongs to the #409 session:
 
-- [[../issues/open/443.org][#443]]: nested propagating calls can consume a failed
-  reference result before checking its error. Checking a native call's error
-  slot before decoding its return value does not fix enclosing-expression
-  throw lowering.
 - [[../issues/open/445.org][#445]]: generated C-library bindings still reject the
   builtin SIMD generator. Dependency-binding composition and enum marshalling
-  do not extend that generator's binding support.
+  do not extend that generator's binding support. Cover generated headers and
+  til bindings, not just manually declared C callers. Supporting that export
+  path does not by itself extend ~TilVmCallback.call(Tuple)~ marshalling.
+
+[[../issues/fixed/443.org][#443]] fixed nested propagating-call consumers and
+reference preservation. [[../issues/fixed/447.org][#447]] fixed temporary Str
+receivers being freed before their returned views were consumed.
 
 [[../issues/fixed/446.org][#446]] separately fixed duplicate destruction of a
 discarded owned result on an early-return edge. Its lifetime now ends at the

@@ -43,10 +43,12 @@ native/prelude host uses empty PATH and private HOME. ~test/tilvm.til~,
 ~test/library_namespace.til~ cover the delivered contracts. The current API,
 ownership and packaging details are in ~doc/ffi.org~.
 
-Closing this embedding contract does not close the shared compiler defects in
-[[../open/443.org][#443]] (nested propagating reference results),
-[[../open/445.org][#445]] (builtin SIMD binding generation), or
-[[./446.org][#446]] (discarded owned results on early-return edges, fixed separately).
+The remaining shared compiler defect is [[../open/445.org][#445]] (builtin SIMD
+binding generation), assigned to the #409 session. [[./443.org][#443]] (nested
+propagating reference results), [[./446.org][#446]] (discarded owned results on
+early-return edges), and [[./447.org][#447]] (views of temporary Str receivers)
+were fixed separately. Remaining embedding extensions are documented under
+"Remaining embedding gaps and follow-up ownership" in ~doc/ffi.org~.
 Their reproducers are distinct from this issue's native return decoding,
 dependency composition, and owned-parameter wrapper cleanup regressions.
 

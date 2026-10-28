@@ -2,6 +2,17 @@
 # category: bugs
 ** OPEN #445 C library binding generation rejects builtin SIMD types
 
+*** Handoff to the #409 session
+
+SIMD implementation and this binding-generation gap belong to the #409
+session. The #370 embedding session documents the boundary here; it is not
+implementing SIMD support. Acceptance includes generated C headers and til
+bindings for builtin SIMD parameters/results, beyond manually declared C
+callers. This does not by itself add SIMD marshalling to
+~TilVmCallback.call(Tuple)~, whose current boundary is core scalars and Str.
+
+*** Reproducer and scope
+
 Discovered during MLIR/C interoperability work (#317), reproduced on
 master d2e52f609 plus 1a07795e9. Translating this ordinary C-backend library
 panics while generating its public bindings:
