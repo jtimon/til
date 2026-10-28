@@ -270,8 +270,13 @@ priv holyc_global_declarations := func(lp: LoadedProgram, state: HolyCEmitState,
     return out
 }
 
-// Post-escape byte count for source-form string literals. HolyC receives the
-// same escaped spelling as C, but TilStr.count names the resulting bytes.
+// HolyC includes source through DolDoc, where a literal dollar must be doubled.
+// Escape the spelling, not the byte count of the resulting string.
+priv holyc_literal_text := func(s: Str) returns Str {
+    return s.replace("$", "$$")
+}
+
+// Post-escape byte count for the original source-form string literal.
 priv holyc_lit_byte_count := func(s: Str) returns USize {
     n := s.len()
     mut count : USize = 0
@@ -345,7 +350,7 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
     case .FieldAccess(fa):
         switch e.children[0].node_type {
         case .Literal(Literal.Str(text)):
-            if fa.field_access_name(ctx.symbols.names) == "c_str" { return format("\"", text, "\"") }
+            if fa.field_access_name(ctx.symbols.names) == "c_str" { return format("\"", holyc_literal_text(text), "\"") }
         case .FCall:
             base_call := holyc_callable_name(e.children[0], ctx, state)
             if state.ref_return_functions.has(base_call) {
@@ -608,7 +613,7 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
     mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
     switch e.node_type {
     case .Literal(Literal.Str(s)):
-        return format("TilStrInitLit(&", dest, ", \"", s, "\", ",
+        return format("TilStrInitLit(&", dest, ", \"", holyc_literal_text(s), "\", ",
             holyc_lit_byte_count(s).to_str(), ")")
     case .Ident:
         src := holyc_str_ref(e, ctx, locals, error)
@@ -2275,7 +2280,9 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
         if state.gui_enabled {
             switch name {
             case "InitWindow", "CloseWindow", "SetTargetFPS", "BeginDrawing", "EndDrawing",
-                "ClearBackground", "DrawRectangle", "DrawText", "LoadImageFromScreen", "GetImageColor", "UnloadImage":
+                "ClearBackground", "DrawRectangle", "DrawText", "LoadImageFromScreen", "GetImageColor", "UnloadImage",
+                "GetKeyPressed", "GetCharPressed", "IsKeyDown", "IsKeyUp", "IsKeyPressed", "IsKeyReleased",
+                "IsKeyPressedRepeat", "WindowShouldClose", "SetExitKey":
                 return format("TilGui", name)
             case:
             }
@@ -3388,20 +3395,20 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 case .Literal(Literal.Str(type_literal)):
                     switch e.children[2].node_type {
                     case .Literal(Literal.Str(method_literal)):
-                        return format("TilDynFnLiteralNames", suffix, "(\"", type_literal, "\", ",
-                            holyc_lit_byte_count(type_literal).to_str(), ", \"", method_literal, "\", ",
+                        return format("TilDynFnLiteralNames", suffix, "(\"", holyc_literal_text(type_literal), "\", ",
+                            holyc_lit_byte_count(type_literal).to_str(), ", \"", holyc_literal_text(method_literal), "\", ",
                             holyc_lit_byte_count(method_literal).to_str(), ")")
                     case:
                     }
                     method_ref := holyc_str_ref(e.children[2], ctx, locals, error)
-                    return format("TilDynFnLiteralType", suffix, "(\"", type_literal, "\", ",
+                    return format("TilDynFnLiteralType", suffix, "(\"", holyc_literal_text(type_literal), "\", ",
                         holyc_lit_byte_count(type_literal).to_str(), ", ", method_ref, ")")
                 case:
                 }
                 type_name := holyc_str_ref(e.children[1], ctx, locals, error)
                 switch e.children[2].node_type {
                 case .Literal(Literal.Str(s)):
-                    return format("TilDynFnLiteralMethod", suffix, "(", type_name, ", \"", s, "\", ", holyc_lit_byte_count(s).to_str(), ")")
+                    return format("TilDynFnLiteralMethod", suffix, "(", type_name, ", \"", holyc_literal_text(s), "\", ", holyc_lit_byte_count(s).to_str(), ")")
                 case:
                 }
                 method := holyc_str_ref(e.children[2], ctx, locals, error)
@@ -3412,7 +3419,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 type_name := holyc_str_ref(e.children[1], ctx, locals, error)
                 switch e.children[2].node_type {
                 case .Literal(Literal.Str(s)):
-                    return format("TilDynHasMethodLiteral(", type_name, ", \"", s, "\", ", holyc_lit_byte_count(s).to_str(), ")")
+                    return format("TilDynHasMethodLiteral(", type_name, ", \"", holyc_literal_text(s), "\", ", holyc_lit_byte_count(s).to_str(), ")")
                 case:
                 }
                 method := holyc_str_ref(e.children[2], ctx, locals, error)

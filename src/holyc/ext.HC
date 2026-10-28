@@ -1651,6 +1651,159 @@ U8 TilGuiOldTitle[STR_LEN];
 U0 (*TilGuiOldDraw)(CTask *task,CDC *dc);
 TilGuiOldDraw=NULL;
 
+// Raylib-compatible frame snapshots and separate, consuming key/text queues.
+// These are not a unified ordered event stream. ScanMsg supplies both key
+// directions; ScanChar/ScanKey would discard releases (and ScanChar can block).
+U8 TilGuiKeys[512],TilGuiPreviousKeys[512],TilGuiRepeatKeys[512];
+I32 TilGuiKeyQueue[32],TilGuiCharQueue[32];
+I64 TilGuiKeyCount=0,TilGuiKeyRead=0,TilGuiCharCount=0,TilGuiCharRead=0;
+I64 TilGuiExitKey=256;
+Bool TilGuiShouldClose=FALSE;
+
+I64 TilGuiKeyCode(I64 scan)
+{
+  // The upper scan-code half retains physical left/right/keypad identity.
+  I64 raw=scan>>32,code=raw&0x7F,ch;
+  if (raw&SCF_E0_PREFIX) {
+    switch (code) {
+      case 0x1C: return 335; // keypad enter
+      case 0x1D: return 345; // right control
+      case 0x35: return 331; // keypad divide
+      case 0x37: return 283; // print screen
+      case 0x38: return 346; // right alt
+      case 0x47: return 268; // home
+      case 0x48: return 265; // up
+      case 0x49: return 266; // page up
+      case 0x4B: return 263; // left
+      case 0x4D: return 262; // right
+      case 0x4F: return 269; // end
+      case 0x50: return 264; // down
+      case 0x51: return 267; // page down
+      case 0x52: return 260; // insert
+      case 0x53: return 261; // delete
+      case 0x5B: return 343; // left super
+      case 0x5C: return 347; // right super
+      case 0x5D: return 348; // menu
+    }
+    // E0 synthetic shift packets have no corresponding facade key.
+    return 0;
+  }
+  switch (code) {
+    case 0x01: return 256;
+    case 0x0E: return 259;
+    case 0x0F: return 258;
+    case 0x1C: return 257;
+    case 0x1D: return 341;
+    case 0x2A: return 340;
+    case 0x36: return 344;
+    case 0x37: return 332; // keypad multiply
+    case 0x38: return 342;
+    case 0x3A: return 280;
+    case 0x45: return 282;
+    case 0x46: return 281;
+    case 0x47: return 327;
+    case 0x48: return 328;
+    case 0x49: return 329;
+    case 0x4A: return 333;
+    case 0x4B: return 324;
+    case 0x4C: return 325;
+    case 0x4D: return 326;
+    case 0x4E: return 334;
+    case 0x4F: return 321;
+    case 0x50: return 322;
+    case 0x51: return 323;
+    case 0x52: return 320;
+    case 0x53: return 330;
+    case 0x57: return 300;
+    case 0x58: return 301;
+  }
+  if (code>=SC_F1 && code<=SC_F10) return 290+code-SC_F1;
+  ch=ScanCode2Char(code);
+  if (ch>='a' && ch<='z') return ch-'a'+'A';
+  if (ch>=32 && ch<=126) return ch;
+  // Unknown/non-key scan packets do not produce a facade key.
+  return 0;
+}
+
+U0 TilGuiPollInput()
+{
+  I64 message,ch,scan,key;
+  MemCpy(TilGuiPreviousKeys,TilGuiKeys,sizeof(TilGuiKeys));
+  MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
+  TilGuiKeyCount=0; TilGuiKeyRead=0;
+  TilGuiCharCount=0; TilGuiCharRead=0;
+  while (message=ScanMsg(&ch,&scan,(1<<MSG_KEY_DOWN)|(1<<MSG_KEY_UP))) {
+    key=TilGuiKeyCode(scan);
+    if (key) {
+      if (message==MSG_KEY_UP) TilGuiKeys[key]=0;
+      else if (TilGuiKeys[key]) TilGuiRepeatKeys[key]=1;
+      else {
+        TilGuiKeys[key]=1;
+        if (TilGuiKeyCount==32) TilPanicZ("GUI key queue overflow\n");
+        TilGuiKeyQueue[TilGuiKeyCount++]=key;
+        if (key==TilGuiExitKey) TilGuiShouldClose=TRUE;
+      }
+    }
+    if (message==MSG_KEY_DOWN && !(scan&(SCF_CTRL|SCF_ALT))) {
+      if (ch==CH_SHIFT_SPACE) ch=' ';
+      // Control/non-text messages never become printable input. TempleOS
+      // extended screen codes are not Unicode scalars: reject them explicitly.
+      if (ch>126) TilPanicZ("GUI input POC requires printable ASCII\n");
+      if (ch>=32) {
+        if (TilGuiCharCount==32) TilPanicZ("GUI character queue overflow\n");
+        TilGuiCharQueue[TilGuiCharCount++]=ch;
+      }
+    }
+  }
+}
+
+public Bool TilGuiIsKeyDown(I64 key)
+{
+  return key>0 && key<512 && TilGuiKeys[key];
+}
+
+public Bool TilGuiIsKeyUp(I64 key)
+{
+  return key>0 && key<512 && !TilGuiKeys[key];
+}
+
+public Bool TilGuiIsKeyPressed(I64 key)
+{
+  return key>0 && key<512 && TilGuiKeys[key] && !TilGuiPreviousKeys[key];
+}
+
+public Bool TilGuiIsKeyReleased(I64 key)
+{
+  return key>0 && key<512 && !TilGuiKeys[key] && TilGuiPreviousKeys[key];
+}
+
+public Bool TilGuiIsKeyPressedRepeat(I64 key)
+{
+  return key>0 && key<512 && TilGuiRepeatKeys[key];
+}
+
+public I32 TilGuiGetKeyPressed()
+{
+  if (TilGuiKeyRead==TilGuiKeyCount) return 0;
+  return TilGuiKeyQueue[TilGuiKeyRead++];
+}
+
+public I32 TilGuiGetCharPressed()
+{
+  if (TilGuiCharRead==TilGuiCharCount) return 0;
+  return TilGuiCharQueue[TilGuiCharRead++];
+}
+
+public Bool TilGuiWindowShouldClose()
+{
+  return TilGuiShouldClose;
+}
+
+public U0 TilGuiSetExitKey(I64 key)
+{
+  TilGuiExitKey=key;
+}
+
 U0 TilGuiDraw(CTask *task,CDC *dc)
 {
   GrBlot(dc,0,0,TilGuiFront);
@@ -1660,6 +1813,12 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
 {
   if (width!=GR_WIDTH || height!=GR_HEIGHT)
     TilPanicZ("GUI POC requires 640x480\n");
+  MemSet(TilGuiKeys,0,sizeof(TilGuiKeys));
+  MemSet(TilGuiPreviousKeys,0,sizeof(TilGuiPreviousKeys));
+  MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
+  TilGuiKeyCount=0; TilGuiKeyRead=0; TilGuiCharCount=0; TilGuiCharRead=0;
+  TilGuiShouldClose=FALSE; TilGuiExitKey=256;
+  FlushMsgs;
   TilGuiOldLeft=Fs->win_left; TilGuiOldRight=Fs->win_right;
   TilGuiOldTop=Fs->win_top; TilGuiOldBottom=Fs->win_bottom;
   MemCpy(TilGuiOldTitle,Fs->task_title,STR_LEN);
@@ -1746,6 +1905,7 @@ public U0 TilGuiEndDrawing()
   TilGuiDrawing=FALSE;
   if (TilGuiFrameMs) Sleep(TilGuiFrameMs);
   else Yield;
+  TilGuiPollInput;
 }
 
 public U0 TilGuiLoadImageFromScreen(U8 *opaque)

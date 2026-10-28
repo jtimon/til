@@ -33,7 +33,7 @@ guest_driver := func(input_commands: Str = "") returns Str {
         "spawn qemu-system-x86_64 -accel tcg -m 512 -smp 1 -drive file=guest.raw,format=raw,if=ide -cdrom TempleOS.ISO -boot d -display none -monitor stdio -debugcon file:debug.log -global isa-debugcon.iobase=0xe9 -device isa-debug-exit,iobase=0xf4,iosize=0x04\n",
         "proc abort_guest {} {\n global deadline\n after cancel $deadline\n expect_before\n set timeout 5\n catch {send \"screendump /work/screen.ppm\\r\"}\n catch {send \"quit\\r\"}\n",
         " expect {eof {} timeout {exec kill -KILL [exp_pid]; expect eof}}\n wait\n exit 124\n}\n",
-        "set deadline [after 180000 abort_guest]\nexpect_before timeout abort_guest\n",
+        "set deadline [after 180000 abort_guest]\nexpect_before {timeout abort_guest eof {after cancel $deadline; exit [lindex [wait] 3]}}\n",
         "expect \"(qemu)\"\nafter 20000\nsend \"sendkey n\\r\"\nexpect \"(qemu)\"\n",
         "after 5000\nsend \"sendkey n\\r\"\nexpect \"(qemu)\"\nafter 5000\n",
         "proc type_text {text} {\n foreach ch [split $text \"\"] {\n switch -- $ch {\n",
@@ -137,6 +137,46 @@ failure_case := proc(uid: Str, bits: Str, name: Str, source: Str, expected: Str,
     run_guest(uid, format(name, "_", bits), expected, "panic")
 }
 
+gui_keyboard_checks := proc(identity: Str, bits: Str) {
+    // Deterministic task messages exercise frame transitions without relying
+    // on host sendkey timing. The example below separately tests the PS/2 path.
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "examples/gui_rectangle.til").run_checked()
+    File.appendfile(format(WORK, "/TILTEST.HC"), format(
+        "\nU0 KeyboardBoundaryChecks() {\n",
+        "TilGuiInitWindow(640,480,\"keyboard boundaries\");\n",
+        "if (TilGuiGetKeyPressed || TilGuiGetCharPressed || !TilGuiIsKeyUp(65)) TilPanicZ(\"initial input\\n\");\n",
+        "if (TilGuiKeyCode(0x3600000036)!=344 || TilGuiKeyCode(0x9D0000009D)!=345 || TilGuiKeyCode(0x4700000047)!=327 || TilGuiKeyCode(0xC7000000C7)!=268) TilPanicZ(\"physical keys\\n\");\n",
+        "Msg(MSG_KEY_DOWN,'a',0x1E0000001E); TilGuiPollInput;\n",
+        "if (!TilGuiIsKeyDown(65) || !TilGuiIsKeyPressed(65) || TilGuiIsKeyPressedRepeat(65) || TilGuiGetKeyPressed!=65 || TilGuiGetKeyPressed || TilGuiGetCharPressed!='a' || TilGuiGetCharPressed) TilPanicZ(\"key press\\n\");\n",
+        "TilGuiPollInput; if (!TilGuiIsKeyDown(65) || TilGuiIsKeyPressed(65)) TilPanicZ(\"held key\\n\");\n",
+        "Msg(MSG_KEY_DOWN,'a',0x1E0000001E); TilGuiPollInput;\n",
+        "if (!TilGuiIsKeyPressedRepeat(65) || TilGuiIsKeyPressed(65) || TilGuiGetKeyPressed || TilGuiGetCharPressed!='a') TilPanicZ(\"key repeat\\n\");\n",
+        "Msg(MSG_KEY_UP,'a',0x11E0000011E); TilGuiPollInput;\n",
+        "if (!TilGuiIsKeyReleased(65) || !TilGuiIsKeyUp(65) || TilGuiIsKeyPressedRepeat(65)) TilPanicZ(\"key release\\n\");\n",
+        "Msg(MSG_KEY_DOWN,'B',0x23000000230); Msg(MSG_KEY_UP,'B',0x33000000330);\n",
+        "Msg(MSG_KEY_DOWN,0,0xCD0000004D); Msg(MSG_KEY_UP,0,0x1CD0000014D); TilGuiPollInput;\n",
+        "if (TilGuiGetKeyPressed!=66 || TilGuiGetKeyPressed!=262 || TilGuiGetKeyPressed || TilGuiGetCharPressed!='B' || TilGuiGetCharPressed || TilGuiIsKeyPressed(66) || TilGuiIsKeyDown(66)) TilPanicZ(\"queue order or short tap\\n\");\n",
+        "Msg(MSG_KEY_DOWN,'c',0x2E0000002E); TilGuiPollInput; TilGuiPollInput;\n",
+        "if (TilGuiGetKeyPressed || TilGuiGetCharPressed || TilGuiIsKeyReleased(65)) TilPanicZ(\"stale frame input\\n\");\n",
+        "Msg(MSG_KEY_DOWN,1,0x41E0000041E); TilGuiPollInput; if (TilGuiGetCharPressed) TilPanicZ(\"control text\\n\");\n",
+        "TilGuiSetExitKey(0); Msg(MSG_KEY_DOWN,CH_ESC,0x100000001); TilGuiPollInput;\n",
+        "if (TilGuiWindowShouldClose) TilPanicZ(\"disabled exit key\\n\");\n",
+        "TilGuiSetExitKey(257); Msg(MSG_KEY_DOWN,'\\n',0x1C0000001C); TilGuiPollInput;\n",
+        "if (!TilGuiWindowShouldClose || TilGuiGetCharPressed) TilPanicZ(\"exit key\\n\");\n",
+        "TilGuiCloseWindow; TilGuiInitWindow(640,480,\"reopened\");\n",
+        "if (TilGuiWindowShouldClose || TilGuiGetKeyPressed || TilGuiGetCharPressed || TilGuiIsKeyDown(67)) TilPanicZ(\"reopen state\\n\");\n",
+        "TilGuiCloseWindow; }\nKeyboardBoundaryChecks;\n"))
+    run_guest(identity, format("gui_keyboard_boundaries_", bits), "", "pass")
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "examples/gui_keyboard.til").run_checked()
+    File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
+    input := format("after 4000\n",
+        "foreach key {a shift-b backspace shift-4 shift-spc shift-1 ctrl-a c right right left ret} {\n",
+        "send \"sendkey $key 80\\r\"\nexpect \"(qemu)\"\nafter 300\n}\n")
+    run_guest(identity, format("gui_keyboard_", bits), "GUI keyboard: a$ !c cursor=1\n", "pass", input)
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -202,6 +242,7 @@ main := proc() {
             "-c", format(WORK, "/TILTEST.HC"), "examples/gui_terminal_grid.til").run_checked()
         File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
         run_guest(identity, format("gui_terminal_grid_", bits), "GUI terminal grid passed\n", "pass")
+        gui_keyboard_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))

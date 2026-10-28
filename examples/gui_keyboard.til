@@ -1,0 +1,73 @@
+mode gui
+
+// A small input/rendering proof, not a terminal parser or a shell session.
+// Type ASCII text, use Backspace and Left/Right, then Enter (or Escape) to exit.
+KeyboardDemo := struct {
+    text: Str = ""
+    column: I64 = 0
+    done: Bool = false
+}
+
+keyboard_step := proc(mut state: KeyboardDemo) {
+    // The facade has separate key and text queues, not a total event order.
+    // This proof keeps cursor movement separate from text insertion.
+    mut key := GetKeyPressed()
+    while key != 0 {
+        if key == KEY_LEFT && state.column > 0 { state.column = state.column - 1 }
+        if key == KEY_RIGHT && state.column < 23 { state.column = state.column + 1 }
+        if key == KEY_BACKSPACE && state.text.len() > 0 {
+            state.text = state.text.substr(0, state.text.len() - 1).clone()
+        }
+        if key == KEY_ENTER { state.done = true }
+        key = GetKeyPressed()
+    }
+    ascii := " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    mut ch := GetCharPressed()
+    while ch != 0 {
+        if ch < 32 || ch > 126 { panic("keyboard proof requires printable ASCII") }
+        if state.text.len() < 24 {
+            state.text = format(state.text, ascii.substr((ch - 32).to_usize(), 1))
+        }
+        ch = GetCharPressed()
+    }
+}
+
+keyboard_draw := proc(state: KeyboardDemo) {
+    black := Color(r=0, g=0, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    blue := Color(r=0, g=0, b=170, a=255)
+    BeginDrawing()
+    ClearBackground(black)
+    DrawText("TYPE ASCII ($) / BACKSPACE / ARROWS / ENTER".c_str, 40, 40, 16, white)
+    for column in 0..24 {
+        DrawRectangle((40 + column * 20).to_i32(), 72, 20, 24, blue)
+    }
+    for column in 0..state.text.len() {
+        glyph := state.text.get_char(column).clone()
+        DrawText(glyph.c_str, (42 + column.to_i64() * 20).to_i32(), 76, 16, white)
+    }
+    DrawRectangle((40 + state.column * 20).to_i32(), 104, 20, 24, white)
+    EndDrawing()
+}
+
+keyboard_check_cursor := proc(state: KeyboardDemo) {
+    image := LoadImageFromScreen()
+    pixel := GetImageColor(image, (50 + state.column * 20).to_i32(), 112)
+    UnloadImage(image)
+    if pixel.r != 255 || pixel.g != 255 || pixel.b != 255 || pixel.a != 255 {
+        panic("keyboard cursor pixel mismatch")
+    }
+}
+
+main := proc() {
+    InitWindow(640, 480, "til keyboard grid".c_str)
+    SetTargetFPS(30)
+    mut state := KeyboardDemo()
+    while WindowShouldClose().not() && state.done.not() {
+        keyboard_step(state)
+        keyboard_draw(state)
+    }
+    keyboard_check_cursor(state)
+    CloseWindow()
+    println("GUI keyboard: ", state.text, " cursor=", state.column.to_str())
+}

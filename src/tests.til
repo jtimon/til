@@ -1316,6 +1316,13 @@ main := proc(args: ..Str) {
         CountCheck(needle = "U0 TilMain()", expected_count = 1))
     add_count(tests, "holyc_gui_terminal_grid_translate", "build", "TilGuiDrawText(", 1,
         format(til_bin, " translate --target=templeos -c gen/c/gui_terminal_grid.HC examples/gui_terminal_grid.til '&&' cat gen/c/gui_terminal_grid.HC"))
+    add_counts(tests, "holyc_gui_keyboard_translate", "build",
+        format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),
+        CountCheck(needle = "TilGuiGetKeyPressed(", expected_count = 2),
+        CountCheck(needle = "TilGuiGetCharPressed(", expected_count = 2),
+        CountCheck(needle = "TilGuiWindowShouldClose(", expected_count = 1),
+        CountCheck(needle = "TYPE ASCII ($$)", expected_count = 1),
+        CountCheck(needle = "#$$%&", expected_count = 1))
     add_single(tests, "holyc_build_requires_guest", "build", 1, "test/holyc_build.expected",
         format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
     add_single(tests, "templeos_target_width", "build", 0, "",
@@ -2235,6 +2242,8 @@ main := proc(args: ..Str) {
             format(til_bin, " run -o bin/c/gui_rectangle -c gen/c/gui_rectangle.c examples/gui_rectangle.til"))
         add_count(tests, "gui_terminal_grid_pixels", "build", "GUI terminal grid passed", 1,
             format(til_bin, " run -o bin/c/gui_terminal_grid -c gen/c/gui_terminal_grid.c examples/gui_terminal_grid.til"))
+        add_count(tests, "gui_keyboard_input", "build", "GUI keyboard acceptance passed", 1,
+            format(til_bin, " run -o bin/c/gui_keyboard_test -c gen/c/gui_keyboard_test.c test/gui_keyboard.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""

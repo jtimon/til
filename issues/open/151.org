@@ -868,6 +868,58 @@
   ordered input, and the native replacement for session.c's PTY/ConPTY boundary
   remain separate small sprints.
 
+**** Third shared GUI POC: keyboard input
+
+  examples/gui_keyboard.til uses the existing GUI facade for ASCII text entry,
+  Backspace, Left/Right cursor movement and Enter/Escape exit. One unchanged
+  source runs on raylib and TempleOS. The text row holds 24 characters; the
+  cursor is a separate movable marker, not an insertion point or terminal model.
+  Native acceptance checks the composited cursor pixel as well as final text
+  and position after real QEMU keyboard injection.
+
+  The HolyC bridge polls ScanMsg after EndDrawing, retaining key-up messages
+  that ScanKey/ScanChar would discard. Frame snapshots implement IsKeyDown/Up,
+  IsKeyPressed/Released and IsKeyPressedRepeat. GetKeyPressed/GetCharPressed
+  consume separate queues that expire at the next frame. Repeated key-downs
+  produce repeat state and text, not another initial-press queue entry. Both
+  queues hold 32 items and overflow fails explicitly. WindowShouldClose and
+  SetExitKey support the existing default Escape/disabled/custom exit-key policy.
+
+  Physical scan codes from the upper half of the native message distinguish
+  left/right modifiers, keypad keys and extended navigation keys. Printable
+  ASCII follows the native character/modifier decoding, including shifted
+  space; control/alt chords do not become text. Native extended screen codes
+  are not Unicode scalars and fail explicitly rather than pretending to be
+  Unicode input. Key queries retain the facade's invalid-key range behavior.
+
+  The all-ASCII source literal exposed a HolyC emission bug: includes pass
+  through DolDoc, so dollars in source strings must be doubled. Literal spelling
+  is now escaped separately from the original byte count, including raw c_str
+  and literal runtime-lookup paths. The translation regression covers both a
+  Str literal and raw c_str; guest typing includes a dollar sign.
+
+  Hosted test/gui_keyboard.til drives raylib's registered GLFW callbacks through
+  a test-only C helper using the existing dependency. It checks initial, held,
+  repeat and released states, queue consumption/order, frame expiry and exit
+  policy. Native task-message checks cover those boundaries, physical key
+  identity, same-frame short taps and reopen reset at both USize widths; the
+  separate QEMU-injected example covers the real keyboard path. The Expect
+  driver now preserves an early guest exit during input injection so compiler
+  failures retain their real status and ERROR.LOG instead of a closed-spawn error.
+
+  Verification on master 47a576e03: clean hosted ASAN suite 478/478, including
+  the hosted input test, literal translation checks and clang validation. All
+  four focused native cases pass (task-message boundaries and real keyboard
+  injection at USize 32/64), including shifted punctuation/space, a filtered
+  control chord, Backspace, cursor movement and final pixel readback. The full
+  guest matrix was not rerun for this small sprint.
+
+  This is polling-facade keyboard support. Separate key/text queues cannot
+  preserve a combined event order, including interleaved text and Backspace
+  within one frame. Native mouse/focus handling, OS-reserved shortcuts, Unicode
+  policy and the ordered application input bridge remain later work. This
+  sprint does not claim tilminal's input/session boundary is implemented.
+
 *** QEMU validation
 
   The repository driver formats an isolated FAT32 data disk per case and

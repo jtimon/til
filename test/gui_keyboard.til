@@ -1,0 +1,73 @@
+mode gui
+
+link_c("gui_keyboard.c")
+gui_keyboard_key := ext_proc(shallow key: I32, shallow action: I32) {}
+gui_keyboard_char := ext_proc(shallow ch: I32) {}
+
+priv next_frame := proc() {
+    BeginDrawing()
+    EndDrawing()
+}
+
+main := proc() {
+    InitWindow(640, 480, "til keyboard acceptance".c_str)
+    SetTargetFPS(30)
+    if GetKeyPressed() != 0 || GetCharPressed() != 0 { panic("nonempty initial input") }
+    if IsKeyDown(KEY_A) || IsKeyPressed(KEY_A) || IsKeyReleased(KEY_A) { panic("initial key state") }
+    if IsKeyUp(KEY_A).not() { panic("initial key up") }
+
+    gui_keyboard_key(KEY_A, 1)
+    gui_keyboard_char(97)
+    if IsKeyDown(KEY_A).not() || IsKeyPressed(KEY_A).not() { panic("key press") }
+    if GetKeyPressed() != KEY_A || GetKeyPressed() != 0 || GetCharPressed() != 97 || GetCharPressed() != 0 {
+        panic("key/text queue consumption")
+    }
+    next_frame()
+    if IsKeyDown(KEY_A).not() || IsKeyPressed(KEY_A) { panic("held key snapshot") }
+    gui_keyboard_key(KEY_A, 2)
+    gui_keyboard_char(97)
+    if IsKeyPressedRepeat(KEY_A).not() || GetKeyPressed() != 0 { panic("repeat classification") }
+    if GetCharPressed() != 97 { panic("repeat text") }
+    next_frame()
+    if IsKeyPressedRepeat(KEY_A) { panic("repeat persisted") }
+    gui_keyboard_key(KEY_A, 0)
+    if IsKeyReleased(KEY_A).not() || IsKeyDown(KEY_A) { panic("key release") }
+
+    gui_keyboard_key(KEY_RIGHT, 1)
+    gui_keyboard_key(KEY_LEFT_SHIFT, 1)
+    gui_keyboard_key(KEY_B, 1)
+    gui_keyboard_char(66)
+    if GetKeyPressed() != KEY_RIGHT || GetKeyPressed() != KEY_LEFT_SHIFT || GetKeyPressed() != KEY_B || GetKeyPressed() != 0 {
+        panic("key queue ordering or consumption")
+    }
+    if IsKeyDown(KEY_LEFT_SHIFT).not() { panic("modifier state") }
+    if GetCharPressed() != 66 || GetCharPressed() != 0 { panic("text queue ordering or consumption") }
+    gui_keyboard_key(KEY_RIGHT, 0)
+    gui_keyboard_key(KEY_LEFT_SHIFT, 0)
+    gui_keyboard_key(KEY_B, 0)
+    next_frame()
+
+    gui_keyboard_key(KEY_RIGHT, 1)
+    gui_keyboard_key(KEY_C, 1)
+    gui_keyboard_char(99)
+    if GetKeyPressed() != KEY_RIGHT || GetKeyPressed() != KEY_C || GetCharPressed() != 99 { panic("next frame input") }
+    next_frame()
+    // Unread queues and edge flags expire at the next frame, like raylib.
+    gui_keyboard_char(122)
+    gui_keyboard_key(KEY_D, 1)
+    next_frame()
+    if GetCharPressed() != 0 || GetKeyPressed() != 0 || IsKeyReleased(KEY_A) { panic("stale frame input") }
+    SetExitKey(KEY_NULL)
+    gui_keyboard_key(KEY_ESCAPE, 1)
+    next_frame()
+    if WindowShouldClose() { panic("disabled exit key") }
+    gui_keyboard_key(KEY_ESCAPE, 0)
+    gui_keyboard_key(KEY_ENTER, 1)
+    if GetKeyPressed() != KEY_ENTER { panic("exit key queue") }
+    SetExitKey(KEY_ESCAPE)
+    gui_keyboard_key(KEY_ESCAPE, 1)
+    next_frame()
+    if WindowShouldClose().not() { panic("exit key did not close") }
+    CloseWindow()
+    println("GUI keyboard acceptance passed")
+}
