@@ -281,14 +281,12 @@
 ** Experimental FASM backend
 
   ~--backend=fasm~ selects native assembly for ~translate~, ~build~ and ~run~
-  on Linux x86-64 hosts and targets. The initial subset accepts ~mode cli~
-  with a no-argument, void ~main~, ordinary non-throwing functions, up to six
-  immutable I64/Bool parameters, value locals, local assignments, calls,
-  returns and if/else.
-  I64 addition, subtraction and multiplication wrap at 64 bits; signed
-  comparisons, equality and Bool negation are supported. The only external
-  runtime operation is core ~exit(I64)~, lowered to the Linux exit syscall.
-  Unsupported constructs receive source-located errors.
+  on Linux x86-64 hosts and targets. The subset accepts ~mode script~ and
+  ~mode cli~ with a no-argument, void ~main~, ordinary non-throwing functions,
+  up to six scalar or borrowed Str parameters, value locals, local assignments,
+  calls, returns and if/else. Integer add/subtract/multiply wrap at the declared
+  width; signed/unsigned comparisons, equality, casts and Bool negation are
+  supported. Unsupported constructs receive source-located errors.
 
   Til writes ~gen/fasm/<source>.fasm~, preserving the normal source hierarchy.
   The vendored FASM writes a standalone ELF64 executable to ~bin/<source>~
@@ -298,10 +296,69 @@
   other modes, ~-c~, ~--cc~, ~--asan~, ~--prof~, ~--cpu~, ~--opt~, ~link_c~
   and link flags are rejected. See README for the assembler bootstrap.
 
+*** Native runtime and ABI
+
+  Generated assembly includes ~src/fasm/ext.fasm~ at its absolute support-tree
+  path. That file remains hand-written source, read directly by FASM on each
+  assembly; it is not copied into generated files. Linux syscalls supply the
+  external boundary. ~src/c/ext.c~ is the behavioral reference, with
+  ~src/core/str.til~, ~io.til~ and ~exit.til~ defining the language helpers.
+
+  The ABI uses SysV integer argument registers, a 16-byte-aligned call stack
+  and RAX for scalar/pointer results. Str matches C: an eight-byte data pointer,
+  then USize count and capacity (16 bytes total for USize32, 24 for USize64).
+  CAP_VIEW/CAP_LIT retain their width-specific -2/-1 meanings. Array(Str)
+  uses inline Str elements and a {data pointer, USize capacity} header.
+  Runtime constructors return allocated wrappers; the emitter moves their
+  contents into value slots and frees only the wrapper. Borrowed references
+  retain pointer identity; cleanup calls distinguish buffers from wrappers.
+
+  Implemented services:
+
+  - Counted-byte stdout/stderr writes, including embedded NULs; print_flush
+    adds the same newline as the C implementation. Writes retry EINTR and
+    complete short writes. print/println/format use compiler-generated
+    variadic string arrays, not a separate variadic source representation.
+  - panic/assert/expect preserve stdout, source-location/message formatting
+    and exit status 1. Native Str mutation errors use a "FASM runtime" location;
+    syscall failures report a native operation diagnostic on stderr, without
+    libc's strerror text. They never turn into successful/truncated results.
+  - malloc/calloc/realloc/free use anonymous mappings with private size headers.
+    Allocation failure returns NULL; failed realloc leaves the old block intact.
+    This is a simple allocator, not a speed-optimized replacement for libc.
+    memcpy/memmove/memset/memcmp, pointer arithmetic, scalar pointer reads/writes
+    and C-string length support the typed raw-allocation boundary.
+  - Str capacity, clone, delete, borrowed views, substr, from_c_str, length,
+    equality, append and integer-to-string conversion follow the core contracts.
+    Owned buffers have a terminator beyond count; views need not. File paths
+    are copied by count and terminated before entering the kernel.
+  - cfile_open/read/write/close, update/append, exists/remove, tell and seek
+    primitives follow ext.c. Handles encode fd+1, reserving zero for closed.
+    read_n clamps negative counts and handles EOF; read_all attempts rewind,
+    then grows to EOF, including streams and /proc files with no useful size.
+
+  This is not general aggregate/container or File-wrapper lowering. User
+  arrays, aggregate reassignment/returns, indirect calls, loops and general
+  throws remain unsupported. Variadic Array(Str).set is accepted only for the
+  compiler's construction sequence with its known in-range indices.
+
+*** Verification
+
   ~test/fasm_options.til~ checks emission and diagnostics in the normal suite.
   ~test/fasm_native.til~ explicitly exercises the assembler and compares
   native exit results with interpretation and C execution. It requires the
   bootstrapped vendored executable and is run separately.
+
+  ~test/fasm_runtime.til~ compares identical runtime programs through the
+  interpreter, C and FASM at USize32 and USize64. It reuses the existing
+  ~examples/hello_script.til~ source unchanged. Frontier snippets live only
+  in ~tmp/fasm_runtime/~ during the test. Coverage includes counted bytes,
+  panic text/streams/status, ownership cleanup, raw memory, file update/append,
+  growing reads, counted path views, /proc and failed writes to /dev/full.
+  Nullable allocation failures compare native C and FASM (ASAN intentionally
+  intercepts huge allocations); a small assembly ABI check verifies that a
+  failed realloc preserves the old allocation. ASAN runs cover the compiler
+  and test driver, not the generated syscall-only executable.
 
   Independent execution is useful for differential testing. This backend
   also supplies groundwork for selective future JIT execution of expensive

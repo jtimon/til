@@ -50,6 +50,18 @@ explicitly rather than acquire silent substitutes.
 
 *** Progress
 
+  FASM (#453) now uses ~src/fasm/ext.fasm~, included directly by generated
+  assembly. It follows ext.c for the native memory/file boundary and the core
+  definitions for output, panic and strings. Its Str layout matches C at both
+  USize widths. The ABI, supported operations and diagnostic differences are
+  recorded in ~doc/self.org~ under "Experimental FASM backend".
+
+  ~test/fasm_runtime.til~ compares the same source programs against interpretation
+  and C at USize32/USize64, including the unchanged ~examples/hello_script.til~.
+  Temporary frontier cases are created under ~tmp/fasm_runtime/~; there is no
+  copied conformance suite or second test registry. The ordinary test suite
+  checks runtime-related translation without requiring an assembler.
+
   The TempleOS backend now uses ~src/holyc/ext.HC~ as its native boundary and
   documents the concrete ABI in #151. Its generated source includes the fixed
   guest path ~/Home/Ext.HC~; the runtime source remains separate support

@@ -1530,6 +1530,11 @@ typedef struct priv___src_self_fasm_codegen_til__FasmState {
     USize labels;
     Map__Str_Str values;
     Map__Str_Str functions;
+    Set__Str addresses;
+    Set__Str pointers;
+    Str data;
+    Str prefix;
+    USize literals;
 } priv___src_self_fasm_codegen_til__FasmState;
 
 

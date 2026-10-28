@@ -1,0 +1,92 @@
+mode cli
+import("../src/std/sys")
+import("../src/std/file")
+realpath_str := ext_proc(path: Str) returns Str {}
+
+// Optional runtime conformance. The SAME sources run through interpretation,
+// C and FASM; assembly/compiler output is separate from program output.
+check := proc(compiler: Str, work: Str, name: Str, source: Str,
+    output: Str, errors: Str = "", result: I64 = 0, interpret_source: Bool = true) {
+    File.writefile(format(work, "/", name, ".til"), source)
+    for width in array(Str, "32", "64") {
+        if interpret_source {
+            interpreted := Cmd.new(compiler, "interpret", format("--usize=", width), format(name, ".til"))
+            interpreted.cwd(work).capture()
+            interpreted_status := interpreted.run()
+            expect(interpreted_status == result, name, " interpret ", interpreted_status, interpreted.out(), interpreted.err())
+            expect(interpreted.out() == output, name, " interpreter stdout mismatch", interpreted.out())
+            expect(interpreted.err() == errors, name, " interpreter stderr mismatch", interpreted.err())
+        }
+        for backend in array(Str, "c", "fasm") {
+            artifact := format("bin/", name, "-", backend, "-", width)
+            build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", artifact, format(name, ".til"))
+            build.cwd(work).capture()
+            status := build.run()
+            expect(status == 0, name, backend, width, build.out(), build.err())
+            run := Cmd.new(format("./", artifact))
+            run.cwd(work).capture()
+            code := run.run()
+            expect(code == result, name, backend, width, code, run.out(), run.err())
+            expect(run.out() == output, name, backend, width, " stdout mismatch", run.out())
+            expect(run.err() == errors, name, backend, width, " stderr mismatch", run.err())
+        }
+    }
+}
+
+failure := proc(compiler: Str, work: Str, name: Str, source: Str) {
+    File.writefile(format(work, "/", name, ".til"), source)
+    for width in array(Str, "32", "64") {
+        for backend in array(Str, "c", "fasm") {
+            artifact := format("bin/", name, "-", backend, "-", width)
+            build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", artifact, format(name, ".til"))
+            build.cwd(work).capture()
+            status := build.run()
+            expect(status == 0, build.out(), build.err())
+            run := Cmd.new(format("./", artifact))
+            run.cwd(work).capture()
+            code := run.run()
+            expect(code == 1, name, backend, code, run.out(), run.err())
+            expect(run.err().len() > 0, name, backend, "missing runtime diagnostic")
+        }
+    }
+}
+
+main := proc(compiler_arg: Str) {
+    compiler := realpath_str(compiler_arg)
+    work := "tmp/fasm_runtime"
+    mkdir_p(work)
+    // Use the existing hello-world source unchanged, rather than a FASM copy.
+    check(compiler, work, "hello", File.readfile("examples/hello_script.til"), "Hello World!\n")
+    check(compiler, work, "output", "mode cli\nmain := proc() { print_single(\"a\\x00Z\\x80Z\"); eprint_single(\"err%\\n\"); println(\"x\",\"y\") }\n", "a\x00Z\x80Zxy\n", "err%\n")
+    check(compiler, work, "panic", "mode cli\nmain := proc() { panic(\"bad\",\" news\", loc = \"probe:7:3\") }\n", "probe:7:3: panic: bad news\n", "", 1)
+    check(compiler, work, "assertion", "mode cli\nmain := proc() { mut n : I64 = 0; n = n + 1; assert(n == 2, loc = \"probe:2:1\") }\n", "probe:2:1: panic: assert failed\n", "", 1)
+    check(compiler, work, "expectation", "mode cli\nmain := proc() { mut n : I64 = 0; n = n + 1; expect(n == 2, \"wrong\", loc = \"probe:3:1\") }\n", "probe:3:1: panic: assert failed: wrong\n", "", 1)
+    check(compiler, work, "strings", "mode cli\nmain := proc() { mut s := Str.with_capacity(8); s.push_str(\"ab\\x00Z\"); copy := s.clone(); assert(copy.eq(s)); print_single(copy); print_flush(); joined := format(\"<\",s,\">\"); print_single(joined); print_flush(); empty := Str.with_capacity(0); assert(empty.len() == 0); mut n : I64 = -9223372036854775807; n = n - 1; println(n.to_str()) }\n", "ab\x00Z\n<ab\x00Z>\n-9223372036854775808\n")
+    check(compiler, work, "memory", "mode cli\nmain := proc() { mut buf : I8 = calloc(8,1); memset(buf,65,7); text := Str.from_c_str(buf); println(text); mut grown : I8 = realloc(own buf,16); memset(ptr_add(grown,7),66,1); memset(ptr_add(grown,8),0,1); text2 := Str.from_c_str(grown); println(text2); memmove(ptr_add(grown,1),grown,7); text3 := Str.from_c_str(grown); println(text3); assert(memcmp(grown,ptr_add(grown,1),7) == 0); free(own grown) }\n", "AAAAAAA\nAAAAAAAB\nAAAAAAAA\n")
+    check(compiler, work, "pointer_values", "mode cli\nmain := proc() { mut slot : I64 = malloc(8); slot = 123; ref mut alias : I64 = ptr_add(slot,0); alias = alias + 1; println(slot.to_str()); free(own slot); mut value : I64 = 7; memset(to_ptr(value),0,8); assert(value == 0); mut s := Str.with_capacity(2); s.push_str(\"Z\"); assert(c_str_len(s.c_str) == 1); mut signed_value : I32 = -1; signed_value = signed_value + 0; unsigned_value := signed_value.cast(U32); println(unsigned_value.to_str()) }\n", "124\n4294967295\n")
+    // ASAN deliberately aborts rather than returning NULL for huge requests.
+    // Compare the two native allocator contracts without ASAN's interposition.
+    check(compiler, work, "allocation_failure", "mode cli\nfails := func(n: UPtr) returns Bool { p : I8 = malloc(n); mut failed := p.is_null(); free(own p); q : I8 = calloc(n,2); if q.is_null().not() { failed = false } free(own q); return failed }\nmain := proc() { mut n : UPtr = 0; n = n - 1; assert(fails(n)) }\n", "", interpret_source = false)
+    check(compiler, work, "counted_path", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"sampleZZ\"); view := path.substr(0,6); ref h : Dynamic = cfile_open(view,true); cfile_write_str(h,\"ok\"); cfile_close(h); assert(cfile_exists(\"sample\")); assert(cfile_exists(\"sampleZZ\").not()); cfile_remove(view) }\n", "")
+    mut large := "x"
+    for _ in 0..17 { large = format(large, large) }
+    File.writefile(format(work, "/large"), large.substr(0, 130000))
+    check(compiler, work, "files", "mode cli\nimport(\"std/file\")\nmain := proc() { ref h : Dynamic = cfile_open(\"sample\",true); cfile_write_str(h,\"ab\\x00Z\"); cfile_close(h); assert(cfile_exists(\"sample\")); ref a : Dynamic = cfile_open_append(\"sample\"); cfile_write_str(a,\"!\"); cfile_close(a); ref r : Dynamic = cfile_open_update(\"sample\"); cfile_seek(r,1); cfile_write_str(r,\"B\"); cfile_seek_end(r,-1); last := cfile_read_n(r,9); assert(last.eq(\"!\")); assert(cfile_tell(r) == 5); cfile_seek_cur(r,-5); empty := cfile_read_n(r,-1); assert(empty.len() == 0); all := cfile_read_all(r); print_single(all); print_flush(); cfile_close(r); cfile_remove(\"sample\"); assert(cfile_exists(\"sample\").not()); assert(cfile_exists(\".\")); ref big : Dynamic = cfile_open(\"large\",false); grown := cfile_read_all(big); println(grown.len().to_str()); cfile_close(big) }\n", "aB\x00Z!\n130000\n")
+    // /proc advertises length zero; read_all must still read to EOF.
+    check(compiler, work, "proc", "mode cli\nimport(\"std/file\")\nmain := proc() { ref h : Dynamic = cfile_open(\"/proc/version\",false); s := cfile_read_all(h); print_single(s); cfile_close(h) }\n", File.readfile("/proc/version"))
+    failure(compiler, work, "missing", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"not-created\"); ref h : Dynamic = cfile_open(path,false); cfile_close(h) }\n")
+    failure(compiler, work, "full", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"/dev/full\"); ref h : Dynamic = cfile_open(path,true); cfile_write_str(h,\"not lost silently\"); cfile_close(h) }\n")
+    // realloc's old block survives failure. Check this at the native ABI:
+    // til's `own old` transfer deliberately prevents subsequent source uses.
+    root := compiler.substr(0, compiler.rfind("/bin/").to_usize())
+    File.writefile(format(work, "/realloc.fasm"), format("format ELF64 executable 3\nentry start\nUSIZE_BYTES=8\nSTR_SIZE=24\nSTR_CAP=16\nCAP_VIEW=-2\nCAP_LIT=-1\nsegment readable executable\ninclude '", root, "/src/fasm/ext.fasm'\nsegment readable executable\nstart:\nmov edi,4\ncall rt_malloc\nmov r12,rax\nmov dword [rax],123456\nmov rdi,rax\nmov rsi,-1\ncall rt_realloc\ntest rax,rax\njnz bad\ncmp dword [r12],123456\njne bad\nmov rdi,r12\ncall rt_free\nxor edi,edi\njmp rt_exit\nbad:\nmov edi,1\njmp rt_exit\n"))
+    assemble := Cmd.new(format(root, "/vendor/fasm/fasm"), format(work, "/realloc.fasm"), format(work, "/realloc"))
+    assemble.capture()
+    assembly_status := assemble.run()
+    expect(assembly_status == 0, assemble.out(), assemble.err())
+    permissions := Cmd.new("chmod", "+x", format(work, "/realloc"))
+    expect(permissions.run() == 0, "chmod failed")
+    reallocation := Cmd.new(format(work, "/realloc"))
+    expect(reallocation.run() == 0, "failed realloc damaged the old block")
+    println("fasm_runtime PASS")
+}

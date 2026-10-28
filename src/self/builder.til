@@ -903,8 +903,8 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
 }
 
 cmd_fasm := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str), functions: Set(Str)) returns I32 {
-    if lp.cur_mode.is_library || lp.mode_str != "cli" {
-        println("error: FASM backend currently supports mode cli only")
+    if lp.cur_mode.is_library || (lp.mode_str != "cli" && lp.mode_str != "script") {
+        println("error: FASM backend currently supports mode cli or script only")
         return 1
     }
     if argv.len() > 0 { println("error: FASM entry point takes no arguments"); return 1 }

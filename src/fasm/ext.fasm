@@ -1,0 +1,909 @@
+; Linux x86-64 native runtime. Behavioral reference: src/c/ext.c and the
+; core Str/Array(Str) definitions. SysV registers; rax is the result.
+; The emitter defines USIZE_BYTES (4/8), STR_SIZE (16/24), STR_CAP (12/16).
+; Str is {pointer, USize count, USize cap}; Array(Str) is {pointer,USize cap}.
+; Aggregate-producing entries return an allocated wrapper. The emitter moves
+; it into the caller's value slot and frees ONLY that wrapper.
+
+macro load_size destination, address {
+    if USIZE_BYTES = 4
+        mov eax, dword address
+        mov destination, rax
+    else
+        mov destination, qword address
+    end if
+}
+macro store_size address, value {
+    mov rax, value
+    if USIZE_BYTES = 4
+        mov dword address, eax
+    else
+        mov qword address, rax
+    end if
+}
+macro frame bytes {
+    push rbp
+    mov rbp, rsp
+    sub rsp, bytes
+}
+
+rt_exit:
+    mov eax, 60
+    syscall
+    ud2
+
+; Fatal runtime diagnostics go to stderr. Language panic goes to stdout.
+rt_fail:
+    mov rsi, rdi
+    xor edx, edx
+.length:
+    cmp byte [rsi+rdx], 0
+    je .write
+    inc rdx
+    jmp .length
+.write:
+    test rdx, rdx
+    jz .exit
+    mov edi, 2
+    mov eax, 1
+    syscall
+    cmp rax, -4
+    je .write
+    test rax, rax
+    jle .exit
+    add rsi, rax
+    sub rdx, rax
+    jmp .write
+.exit:
+    mov edi, 1
+    jmp rt_exit
+
+; Complete writes, retrying EINTR. Zero-length writes do not dereference buf.
+rt_write_all:
+    test rdx, rdx
+    jz .done
+.next:
+    mov eax, 1
+    syscall
+    cmp rax, -4
+    je .next
+    test rax, rax
+    jle .error
+    add rsi, rax
+    sub rdx, rax
+    jnz .next
+.done:
+    ret
+.error:
+    mov rdi, rt_io_error
+    jmp rt_fail
+
+rt_print_single:
+    load_size rdx, [rdi+8]
+    mov rsi, [rdi]
+    mov edi, 1
+    jmp rt_write_all
+rt_eprint_single:
+    load_size rdx, [rdi+8]
+    mov rsi, [rdi]
+    mov edi, 2
+    jmp rt_write_all
+rt_print_flush:
+    mov edi, 1
+    mov rsi, rt_newline
+    mov edx, 1
+    jmp rt_write_all
+
+; One anonymous mapping per allocation. A 16-byte private header records
+; the requested extent for realloc and munmap. Returned storage is aligned.
+rt_malloc:
+    push rdi
+    mov rsi, rdi
+    add rsi, 16
+    jc .error
+    xor edi, edi
+    mov edx, 3
+    mov r10d, 22h
+    mov r8, -1
+    xor r9d, r9d
+    mov eax, 9
+    syscall
+    cmp rax, -4095
+    jae .error
+    pop rdi
+    mov [rax], rdi
+    add rax, 16
+    ret
+.error:
+    ; malloc's nullable failure result, including size overflow.
+    pop rdi
+    xor eax, eax
+    ret
+rt_free:
+    test rdi, rdi
+    jz .done
+    sub rdi, 16
+    mov rsi, [rdi]
+    add rsi, 16
+    mov eax, 11
+    syscall
+    test rax, rax
+    jnz .error
+.done:
+    ret
+.error:
+    mov rdi, rt_alloc_error
+    jmp rt_fail
+rt_calloc:
+    mov rax, rdi
+    mul rsi
+    test rdx, rdx
+    jnz .error
+    mov rdi, rax
+    jmp rt_malloc
+.error:
+    xor eax, eax
+    ret
+rt_realloc:
+    frame 32
+    mov [rbp-8], rdi
+    mov [rbp-16], rsi
+    test rsi, rsi
+    jnz .allocate
+    call rt_free
+    xor eax, eax
+    leave
+    ret
+.allocate:
+    mov rdi, rsi
+    call rt_malloc
+    mov [rbp-24], rax
+    test rax, rax
+    jz .done
+    mov rsi, [rbp-8]
+    test rsi, rsi
+    jz .done
+    mov rdx, [rsi-16]
+    cmp rdx, [rbp-16]
+    cmova rdx, [rbp-16]
+    mov rdi, rax
+    call rt_memcpy
+    mov rdi, [rbp-8]
+    call rt_free
+.done:
+    mov rax, [rbp-24]
+    leave
+    ret
+rt_memcpy:
+    mov rcx, rdx
+    cld
+    rep movsb
+    ret
+rt_memmove:
+    cmp rdi, rsi
+    jbe rt_memcpy
+    test rdx, rdx
+    jz .done
+    lea rdi, [rdi+rdx-1]
+    lea rsi, [rsi+rdx-1]
+    mov rcx, rdx
+    std
+    rep movsb
+    cld
+.done:
+    ret
+rt_memset:
+    mov rax, rsi
+    mov rcx, rdx
+    cld
+    rep stosb
+    ret
+rt_memcmp:
+    xor eax, eax
+    test rdx, rdx
+    jz .done
+.next:
+    movzx eax, byte [rdi]
+    movzx ecx, byte [rsi]
+    sub eax, ecx
+    jnz .done
+    inc rdi
+    inc rsi
+    dec rdx
+    jnz .next
+.done:
+    movsxd rax, eax
+    ret
+rt_c_str_len:
+    xor eax, eax
+.next:
+    cmp byte [rdi+rax], 0
+    je .done
+    inc rax
+    jmp .next
+.done:
+    ret
+rt_ptr_eq:
+    cmp rdi, rsi
+    sete al
+    movzx eax, al
+    ret
+rt_dynamic_clone:
+    frame 16
+    mov [rbp-8], rdi
+    mov edi, 8
+    call rt_malloc
+    mov rdx, [rbp-8]
+    mov rdx, [rdx]
+    mov [rax], rdx
+    leave
+    ret
+rt_dynamic_delete:
+    test rsi, rsi
+    jnz rt_free
+    ret
+
+; Allocate a descriptor and a NUL-terminated buffer with the given capacity.
+rt_str_capacity:
+    test rdi, rdi
+    jnz rt_str_allocate_owned
+    frame 0
+    mov edi, STR_SIZE
+    call rt_malloc
+    mov rdx, rax
+    mov qword [rdx], rt_empty
+    store_size [rdx+8], 0
+    store_size [rdx+STR_CAP], CAP_LIT
+    mov rax, rdx
+    leave
+    ret
+rt_str_allocate_owned:
+    frame 32
+    mov [rbp-8], rdi
+    inc rdi
+    jz .error
+    call rt_malloc
+    test rax, rax
+    jz .error
+    mov [rbp-16], rax
+    mov byte [rax], 0
+    mov edi, STR_SIZE
+    call rt_malloc
+    test rax, rax
+    jz .error
+    mov rdx, rax
+    mov rcx, [rbp-16]
+    mov [rdx], rcx
+    store_size [rdx+8], 0
+    store_size [rdx+STR_CAP], [rbp-8]
+    mov rax, rdx
+    leave
+    ret
+.error:
+    mov rdi, rt_alloc_error
+    jmp rt_fail
+rt_str_clone:
+    frame 32
+    mov [rbp-8], rdi
+    load_size rdi, [rdi+8]
+    call rt_str_capacity
+    mov [rbp-16], rax
+    mov rdi, rax
+    mov rsi, [rbp-8]
+    call rt_str_push
+    mov rax, [rbp-16]
+    leave
+    ret
+rt_str_push:
+    frame 48
+    mov [rbp-8], rdi
+    mov [rbp-16], rsi
+    load_size rdx, [rsi+8]
+    test rdx, rdx
+    jz .done
+    mov [rbp-24], rdx
+    load_size rcx, [rdi+STR_CAP]
+    mov r9, CAP_VIEW
+    cmp rcx, r9
+    jae .view_error
+    load_size r8, [rdi+8]
+    add r8, rdx
+    jc .capacity_error
+    cmp r8, rcx
+    ja .capacity_error
+    mov [rbp-32], r8
+    mov rdi, [rdi]
+    add rdi, r8
+    sub rdi, rdx
+    mov rsi, [rsi]
+    call rt_memcpy
+    mov rdi, [rbp-8]
+    mov rdx, [rbp-32]
+    store_size [rdi+8], rdx
+    mov rax, [rdi]
+    mov byte [rax+rdx], 0
+.done:
+    leave
+    ret
+.view_error:
+    mov rdi, rt_view_error
+    jmp rt_str_panic
+.capacity_error:
+    mov rdi, rt_capacity_error
+    jmp rt_str_panic
+rt_str_delete:
+    frame 16
+    mov [rbp-8], rdi
+    mov [rbp-16], rsi
+    load_size rdx, [rdi+STR_CAP]
+    mov r9, CAP_LIT
+    cmp rdx, r9
+    je .done
+    mov r9, CAP_VIEW
+    cmp rdx, r9
+    je .wrapper
+    mov rdi, [rdi]
+    call rt_free
+.wrapper:
+    cmp qword [rbp-16], 0
+    je .done
+    mov rdi, [rbp-8]
+    call rt_free
+.done:
+    leave
+    ret
+rt_str_view:
+    frame 16
+    mov [rbp-8], rdi
+    mov edi, STR_SIZE
+    call rt_malloc
+    mov [rbp-16], rax
+    mov rdi, rax
+    mov rsi, [rbp-8]
+    mov edx, STR_SIZE
+    call rt_memcpy
+    mov rdx, [rbp-16]
+    store_size [rdx+STR_CAP], CAP_VIEW
+    mov rax, rdx
+    leave
+    ret
+rt_str_from_c:
+    frame 16
+    mov [rbp-8], rdi
+    call rt_c_str_len
+    mov [rbp-16], rax
+    mov edi, STR_SIZE
+    call rt_malloc
+    mov rdx, rax
+    mov rcx, [rbp-8]
+    mov [rdx], rcx
+    store_size [rdx+8], [rbp-16]
+    store_size [rdx+STR_CAP], CAP_VIEW
+    mov rax, rdx
+    leave
+    ret
+rt_str_substr:
+    frame 32
+    mov [rbp-8], rdi
+    load_size r8, [rdi+8]
+    cmp rsi, r8
+    cmova rsi, r8
+    mov rcx, rsi
+    add rcx, rdx
+    if USIZE_BYTES = 4
+        mov ecx, ecx
+    end if
+    cmp rcx, r8
+    jbe .count
+    mov rdx, r8
+    sub rdx, rsi
+.count:
+    mov [rbp-16], rsi
+    mov [rbp-24], rdx
+    call rt_str_view
+    mov rdx, rax
+    mov rcx, [rbp-16]
+    add [rdx], rcx
+    store_size [rdx+8], [rbp-24]
+    mov rax, rdx
+    leave
+    ret
+rt_str_eq:
+    load_size rdx, [rdi+8]
+    load_size rcx, [rsi+8]
+    cmp rdx, rcx
+    jne .different
+    mov rdi, [rdi]
+    mov rsi, [rsi]
+    sub rsp, 8
+    call rt_memcmp
+    add rsp, 8
+    test rax, rax
+    sete al
+    movzx eax, al
+    ret
+.different:
+    xor eax, eax
+    ret
+
+; Variadic Array(Str) values have inline Str elements, as in the C backend.
+rt_parts_new:
+    frame 32
+    mov [rbp-8], rdi
+    mov rsi, STR_SIZE
+    call rt_calloc
+    mov [rbp-16], rax
+    mov edi, 16
+    call rt_malloc
+    mov rdx, rax
+    mov rcx, [rbp-16]
+    mov [rdx], rcx
+    store_size [rdx+8], [rbp-8]
+    mov rax, rdx
+    leave
+    ret
+rt_parts_set:
+    load_size rcx, [rdi+8]
+    cmp rsi, rcx
+    jae .error
+    imul rsi, STR_SIZE
+    add rsi, [rdi]
+    mov rdi, rsi
+    mov rsi, rdx
+    mov edx, STR_SIZE
+    jmp rt_memcpy
+.error:
+    mov rdi, rt_parts_error
+    jmp rt_fail
+rt_parts_delete:
+    frame 32
+    mov [rbp-8], rdi
+    mov [rbp-16], rsi
+    mov qword [rbp-24], 0
+.next:
+    mov rdi, [rbp-8]
+    load_size rcx, [rdi+8]
+    mov rax, [rbp-24]
+    cmp rax, rcx
+    jae .buffer
+    imul rax, STR_SIZE
+    add rax, [rdi]
+    mov rdi, rax
+    xor esi, esi
+    call rt_str_delete
+    inc qword [rbp-24]
+    jmp .next
+.buffer:
+    mov rdi, [rbp-8]
+    mov rdi, [rdi]
+    call rt_free
+    cmp qword [rbp-16], 0
+    je .done
+    mov rdi, [rbp-8]
+    call rt_free
+.done:
+    leave
+    ret
+rt_print:
+    frame 32
+    mov [rbp-8], rdi
+    mov qword [rbp-16], 0
+.next:
+    mov rdi, [rbp-8]
+    load_size rcx, [rdi+8]
+    mov rax, [rbp-16]
+    cmp rax, rcx
+    jae .done
+    imul rax, STR_SIZE
+    add rax, [rdi]
+    mov rdi, rax
+    call rt_print_single
+    inc qword [rbp-16]
+    jmp .next
+.done:
+    mov rdi, [rbp-8]
+    xor esi, esi
+    call rt_parts_delete
+    leave
+    ret
+rt_println:
+    sub rsp, 8
+    call rt_print
+    call rt_print_flush
+    add rsp, 8
+    ret
+rt_format:
+    frame 48
+    mov [rbp-8], rdi
+    mov qword [rbp-16], 0
+    mov qword [rbp-24], 0
+.count:
+    mov rdi, [rbp-8]
+    load_size rcx, [rdi+8]
+    mov rax, [rbp-16]
+    cmp rax, rcx
+    jae .allocate
+    imul rax, STR_SIZE
+    add rax, [rdi]
+    load_size rdx, [rax+8]
+    add [rbp-24], rdx
+    jc .overflow
+    inc qword [rbp-16]
+    jmp .count
+.allocate:
+    mov rdi, [rbp-24]
+    call rt_str_capacity
+    mov [rbp-32], rax
+    mov qword [rbp-16], 0
+.append:
+    mov rdi, [rbp-8]
+    load_size rcx, [rdi+8]
+    mov rax, [rbp-16]
+    cmp rax, rcx
+    jae .done
+    imul rax, STR_SIZE
+    add rax, [rdi]
+    mov rsi, rax
+    mov rdi, [rbp-32]
+    call rt_str_push
+    inc qword [rbp-16]
+    jmp .append
+.done:
+    mov rdi, [rbp-8]
+    xor esi, esi
+    call rt_parts_delete
+    mov rax, [rbp-32]
+    leave
+    ret
+.overflow:
+    mov rdi, rt_alloc_error
+    jmp rt_fail
+rt_panic:
+    frame 16
+    mov [rbp-8], rdi
+    mov rdi, rsi
+    call rt_print_single
+    mov edi, 1
+    mov rsi, rt_panic_separator
+    mov edx, 9
+    call rt_write_all
+    mov rdi, [rbp-8]
+    call rt_println
+    mov edi, 1
+    jmp rt_exit
+rt_str_panic:
+    frame 16
+    mov [rbp-8], rdi
+    call rt_c_str_len
+    mov [rbp-16], rax
+    mov edi, 1
+    mov rsi, rt_native_panic
+    mov edx, rt_native_panic_end-rt_native_panic
+    call rt_write_all
+    mov edi, 1
+    mov rsi, [rbp-8]
+    mov rdx, [rbp-16]
+    call rt_write_all
+    mov edi, 1
+    jmp rt_exit
+rt_assert:
+    test rdi, rdi
+    jz .failed
+    ret
+.failed:
+    sub rsp, 8
+    mov rdi, rsi
+    call rt_print_single
+    mov edi, 1
+    mov rsi, rt_assert_message
+    mov edx, rt_assert_message_end-rt_assert_message
+    call rt_write_all
+    mov edi, 1
+    jmp rt_exit
+rt_expect:
+    test rdi, rdi
+    jz .failed
+    mov rdi, rsi
+    xor esi, esi
+    jmp rt_parts_delete
+.failed:
+    frame 16
+    mov [rbp-8], rsi
+    mov rdi, rdx
+    call rt_print_single
+    mov edi, 1
+    mov rsi, rt_expect_message
+    mov edx, rt_expect_message_end-rt_expect_message
+    call rt_write_all
+    mov rdi, [rbp-8]
+    call rt_println
+    mov edi, 1
+    jmp rt_exit
+rt_i64_to_str:
+    mov r8, rdi
+    sar r8, 63
+    mov rax, rdi
+    xor rax, r8
+    sub rax, r8
+    jmp rt_integer_to_str
+rt_u64_to_str:
+    xor r8d, r8d
+    mov rax, rdi
+rt_integer_to_str:
+    frame 64
+    lea rsi, [rbp-32]
+    xor ecx, ecx
+    mov r9d, 10
+.digit:
+    xor edx, edx
+    div r9
+    add dl, '0'
+    dec rsi
+    mov [rsi], dl
+    inc rcx
+    test rax, rax
+    jnz .digit
+    test r8, r8
+    jz .allocate
+    dec rsi
+    mov byte [rsi], '-'
+    inc rcx
+.allocate:
+    mov [rbp-8], rsi
+    mov [rbp-16], rcx
+    mov rdi, rcx
+    call rt_str_capacity
+    mov [rbp-24], rax
+    mov rdi, [rax]
+    mov rsi, [rbp-8]
+    mov rdx, [rbp-16]
+    call rt_memcpy
+    mov rdx, [rbp-24]
+    mov rcx, [rbp-16]
+    store_size [rdx+8], rcx
+    mov rax, [rdx]
+    mov byte [rax+rcx], 0
+    mov rax, rdx
+    leave
+    ret
+
+; Paths are counted Strs: copy and terminate instead of assuming views end
+; at a NUL. File handles encode fd+1, keeping zero as the closed sentinel.
+rt_path:
+    frame 16
+    mov [rbp-8], rdi
+    load_size rdi, [rdi+8]
+    inc rdi
+    call rt_malloc
+    mov [rbp-16], rax
+    mov rdi, rax
+    mov rsi, [rbp-8]
+    load_size rdx, [rsi+8]
+    mov rsi, [rsi]
+    mov byte [rdi+rdx], 0
+    call rt_memcpy
+    mov rax, [rbp-16]
+    leave
+    ret
+rt_cfile_open:
+    test rsi, rsi
+    jz .read
+    mov esi, 241h
+    jmp rt_open
+.read:
+    xor esi, esi
+    jmp rt_open
+rt_cfile_open_update:
+    mov esi, 2
+    jmp rt_open
+rt_cfile_open_append:
+    mov esi, 441h
+rt_open:
+    frame 32
+    mov [rbp-8], rsi
+    call rt_path
+    mov [rbp-16], rax
+    mov rdi, rax
+    mov rsi, [rbp-8]
+    mov edx, 1b6h
+    mov eax, 2
+    syscall
+    mov [rbp-24], rax
+    mov rdi, [rbp-16]
+    call rt_free
+    mov rax, [rbp-24]
+    test rax, rax
+    js rt_file_fail
+    inc rax
+    leave
+    ret
+rt_cfile_close:
+    test rdi, rdi
+    jz rt_file_fail
+    dec rdi
+    mov eax, 3
+    syscall
+    test rax, rax
+    js rt_file_fail
+    ret
+rt_cfile_write_str:
+    test rdi, rdi
+    jz rt_file_fail
+    dec rdi
+    load_size rdx, [rsi+8]
+    mov rsi, [rsi]
+    jmp rt_write_all
+rt_cfile_tell:
+    xor esi, esi
+    mov edx, 1
+    jmp rt_seek
+rt_cfile_seek:
+    xor edx, edx
+    jmp rt_seek
+rt_cfile_seek_cur:
+    mov edx, 1
+    jmp rt_seek
+rt_cfile_seek_end:
+    mov edx, 2
+rt_seek:
+    test rdi, rdi
+    jz rt_file_fail
+    dec rdi
+    mov eax, 8
+    syscall
+    test rax, rax
+    js rt_file_fail
+    ret
+rt_cfile_exists:
+    frame 160
+    call rt_path
+    mov [rbp-8], rax
+    mov rdi, rax
+    lea rsi, [rbp-160]
+    mov eax, 4
+    syscall
+    mov [rbp-16], rax
+    mov rdi, [rbp-8]
+    call rt_free
+    cmp qword [rbp-16], 0
+    sete al
+    movzx eax, al
+    leave
+    ret
+rt_cfile_remove:
+    frame 16
+    call rt_path
+    mov [rbp-8], rax
+    mov rdi, rax
+    mov eax, 87
+    syscall
+    cmp rax, -21
+    jne .done
+    mov rdi, [rbp-8]
+    mov eax, 84
+    syscall
+.done:
+    ; ext.c's remove wrapper deliberately ignores remove's result.
+    mov rdi, [rbp-8]
+    call rt_free
+    leave
+    ret
+rt_cfile_read_n:
+    frame 48
+    test rdi, rdi
+    jz rt_file_fail
+    dec rdi
+    mov [rbp-8], rdi
+    xor eax, eax
+    test rsi, rsi
+    cmovs rsi, rax
+    mov [rbp-16], rsi
+    mov rdi, rsi
+    call rt_str_allocate_owned
+    mov [rbp-24], rax
+    mov qword [rbp-32], 0
+.next:
+    mov rdx, [rbp-16]
+    sub rdx, [rbp-32]
+    jz .done
+    mov rax, [rbp-24]
+    mov rsi, [rax]
+    add rsi, [rbp-32]
+    mov rdi, [rbp-8]
+    xor eax, eax
+    syscall
+    cmp rax, -4
+    je .next
+    test rax, rax
+    js rt_file_fail
+    jz .done
+    add [rbp-32], rax
+    jmp .next
+.done:
+    mov rdx, [rbp-24]
+    mov rcx, [rbp-32]
+    store_size [rdx+8], rcx
+    mov rax, [rdx]
+    mov byte [rax+rcx], 0
+    mov rax, rdx
+    leave
+    ret
+rt_cfile_read_all:
+    frame 48
+    test rdi, rdi
+    jz rt_file_fail
+    dec rdi
+    mov [rbp-8], rdi
+    xor esi, esi
+    xor edx, edx
+    mov eax, 8
+    syscall
+    ; As ext.c: failed rewind on a non-seekable stream leaves it in place.
+    mov edi, 65535
+    call rt_str_capacity
+    mov [rbp-16], rax
+    mov qword [rbp-24], 0
+    mov qword [rbp-32], 65535
+.next:
+    mov rdx, [rbp-32]
+    sub rdx, [rbp-24]
+    jnz .read
+    shl qword [rbp-32], 1
+    jc rt_file_fail
+    mov rax, [rbp-16]
+    mov rdi, [rax]
+    mov rsi, [rbp-32]
+    inc rsi
+    call rt_realloc
+    mov rdx, [rbp-16]
+    mov [rdx], rax
+    jmp .next
+.read:
+    mov rax, [rbp-16]
+    mov rsi, [rax]
+    add rsi, [rbp-24]
+    mov rdi, [rbp-8]
+    xor eax, eax
+    syscall
+    cmp rax, -4
+    je .next
+    test rax, rax
+    js rt_file_fail
+    jz .done
+    add [rbp-24], rax
+    jmp .next
+.done:
+    mov rax, [rbp-16]
+    mov rdi, [rax]
+    mov rsi, [rbp-24]
+    inc rsi
+    call rt_realloc
+    mov rdx, [rbp-16]
+    mov [rdx], rax
+    mov rcx, [rbp-24]
+    mov byte [rax+rcx], 0
+    store_size [rdx+8], rcx
+    store_size [rdx+STR_CAP], rcx
+    mov rax, rdx
+    leave
+    ret
+rt_file_fail:
+    mov rdi, rt_file_error
+    jmp rt_fail
+
+segment readable
+rt_newline db 10
+rt_empty db 0
+rt_panic_separator db ': panic: '
+rt_native_panic db 'FASM runtime: panic: '
+rt_native_panic_end:
+rt_assert_message db ': panic: assert failed',10
+rt_assert_message_end:
+rt_expect_message db ': panic: assert failed: '
+rt_expect_message_end:
+rt_io_error db 'FASM runtime: write failed',10,0
+rt_alloc_error db 'FASM runtime: allocation failure',10,0
+rt_file_error db 'cfile: file operation failed',10,0
+rt_view_error db 'Str.push_str: cannot mutate a string view or literal',10,0
+rt_capacity_error db 'Str.push_str: capacity exceeded',10,0
+rt_parts_error db 'FASM runtime: invalid variadic array index',10,0

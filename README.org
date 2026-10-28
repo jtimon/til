@@ -134,13 +134,15 @@ fasm vendor/fasm/source/linux/x64/fasm.asm vendor/fasm/fasm
 chmod +x vendor/fasm/fasm
 bin/til run --backend=fasm path/to/program.til
 bin/til run test/fasm_native.til bin/til
+bin/til run test/fasm_runtime.til bin/til
 #+end_src
 
 The generated ~vendor/fasm/fasm~ is a native x86-64 executable, ignored by
 git. Rebuild it after updating the vendored source. This first backend is
 checkout-only; no installed assembler layout is provided yet. Ordinary C
 builds and ~make test~ do not require FASM; the suite checks translation and
-diagnostics, while ~test/fasm_native.til~ checks native execution explicitly.
+diagnostics, while ~test/fasm_native.til~ and ~test/fasm_runtime.til~ check native
+execution and the ~src/fasm/ext.fasm~ runtime explicitly.
 See [[file:doc/self.org::*Experimental FASM backend][Experimental FASM backend]] for the supported subset.
 
 ** Cross-compilation targets

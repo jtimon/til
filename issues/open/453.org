@@ -30,7 +30,7 @@ existing C and MLIR backends.
   - [ ] Extend lowering to aggregate layout, pointers, ownership cleanup,
     indirect calls and exception propagation using the existing language
     semantics rather than backend-specific substitutes.
-  - [ ] Define the native runtime boundary with #383, including the proposed
+  - [X] Define the native runtime boundary with #383, including the proposed
     ~ext.fasm~ role, allocation, strings, output, panic and platform services.
     Decide its concrete layout and linkage before implementing it.
   - [X] Integrate translation, assembly and execution with the existing build
@@ -50,15 +50,46 @@ existing C and MLIR backends.
 
   The first subset supports I64/Bool parameters and value locals, local
   assignments, direct calls, returns, if/else, wrapping add/subtract/multiply,
-  signed comparisons and Bool negation. Core ~exit~ is the only runtime
-  service so far; libraries, other modes and unsupported constructs fail
-  explicitly. General memory, strings, loops and runtime services remain.
+   signed comparisons and Bool negation. That initial commit supported only
+   core ~exit~ as a runtime service.
 
   Verification: ~make clean && make test~ passed 477/477. The separate
   ~test/fasm_native.til~ also passed with the ASAN compiler and test driver.
   Native tests compare the same programs with interpretation and C, including
   six-argument calls, nested calls, branches and signed overflow. Mutated
   input locals prevent compile-time folding from hiding the emitted operations.
+
+**** Native runtime follow-up
+
+  ~src/fasm/ext.fasm~ is now the separate native boundary, following ext.c
+  and the core Str/io/exit contracts. Generated assembly includes it directly.
+  Str and variadic Array(Str) layouts match C at USize32 and USize64; value
+  slots retain their outer storage while runtime-returned wrappers are moved
+  and released. SysV register and stack conventions remain unchanged.
+
+  The implemented boundary includes counted stdout/stderr, print/format and
+  panic/assert/expect, allocation and raw memory, owned/borrowed strings,
+  integer formatting, and the cfile open/read/write/close/update/append/seek
+  primitives. Allocation failures return NULL, realloc preserves the old
+  block on failure, and file I/O failures terminate instead of reporting
+  successful truncated data. Native diagnostics are documented in self.org.
+
+  The emitter now also accepts script bodies, integer widths needed by the
+  runtime ABI, typed scalar pointer locals and borrowed Str parameters.
+  General aggregates, user arrays, aggregate returns/reassignment, loops,
+  indirect calls and general exception propagation are still outstanding.
+
+  ~test/fasm_runtime.til~ compares identical source programs through the
+  interpreter, C and FASM at both USize widths, reusing the existing hello
+  script unchanged. Temporary frontier cases cover byte-exact output, panic,
+  string ownership, memory, file growth/update/append, counted path views,
+  /proc reads, missing files and /dev/full. A native ABI check verifies failed
+  realloc preservation without bypassing til's ownership-transfer checks.
+
+  Verification on master base ~73cfa28ba~: ~make clean && make test~ passed
+  481/481; ~test/fasm_runtime.til~ and ~test/fasm_native.til~ both passed with
+  the ASAN compiler and test driver. ASAN instruments the compiler/driver,
+  not the generated native assembly runtime.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
