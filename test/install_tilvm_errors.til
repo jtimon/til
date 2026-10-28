@@ -1,0 +1,61 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/install")
+
+// Installed API rejection checks run independently of the two ASAN hosts.
+// Each driver owns its installation and scratch files so cleanup cannot race.
+PREFIX := "tmp/install_tilvm_errors"
+WORK := "tmp/install_tilvm_errors_work"
+
+main := proc() returns I64 {
+    File.remove_tree(PREFIX)
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+    if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
+        panic("copy-only TilVm compiler installation failed")
+    }
+    installed_til := "../install_tilvm_errors/bin/til"
+
+    for method : Str in vec(Str, "close", "clone") {
+        File.writefile(format(WORK, "/tilvm_private.til"), format(
+            "mode cli\nimport(\"std/tilvm\")\nmain := proc(root: Str) {\n",
+            "    mut vm := TilVm.new(root)\n    vm.", method, "()\n}\n"))
+        private_build := Cmd.new(installed_til, "build", "tilvm_private.til")
+        private_build.cwd(WORK)
+        private_build.capture()
+        if private_build.run() == 0 { panic("TilVm.", method, " unexpectedly public") }
+        if private_build.out().contains("priv").not() {
+            panic("TilVm private-member rejection missing: ", private_build.out(), private_build.err())
+        }
+    }
+
+    File.writefile(format(WORK, "/tilvm_lifetime_error.til"), File.readfile("test/tilvm_lifetime_error.til"))
+    lifetime_build := Cmd.new(installed_til, "build", "tilvm_lifetime_error.til")
+    lifetime_build.cwd(WORK)
+    lifetime_build.capture()
+    if lifetime_build.run() == 0 { panic("callback lifetime violations compiled") }
+    for diagnostic : Str in vec(Str, "cannot return a borrow of local 'vm'", "use of 'vm' after ownership transfer", "use of 'callback' after ownership transfer", "use of 'second' after ownership transfer", "cannot reassign 'vm'") {
+        if lifetime_build.out().contains(diagnostic).not() {
+            panic("callback lifetime diagnostic missing: ", diagnostic, "\n", lifetime_build.out(), lifetime_build.err())
+        }
+    }
+    if lifetime_build.out().split(": error: ").len() != 8 {
+        panic("expected seven callback lifetime errors: ", lifetime_build.out(), lifetime_build.err())
+    }
+    File.writefile(format(WORK, "/tilvm_callback_private.til"), format(
+        "mode cli\nimport(\"std/tilvm\")\nmain := proc(root: Str) {\n",
+        "    mut vm := TilVm.new(root)\n    vm.load_file(\"guest.til\")!\n",
+        "    mut callback := vm.lookup(\"on_key\")!\n    callback.close()\n}\n"))
+    callback_private := Cmd.new(installed_til, "build", "tilvm_callback_private.til")
+    callback_private.cwd(WORK)
+    callback_private.capture()
+    if callback_private.run() == 0 { panic("callback.close unexpectedly public") }
+    if callback_private.out().contains("private to its struct").not() {
+        panic("callback.close privacy diagnostic missing: ", callback_private.out(), callback_private.err())
+    }
+
+    println("install TilVm errors PASS")
+    return 0
+}

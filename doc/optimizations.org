@@ -5,6 +5,44 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Split installed TilVm coverage into three jobs (2026-10-28)
+
+Base: ~201db1ef2~. The latest master result captures contained 475 test rows
+(476 including the plot check). ~install_tilvm~ started in the first batch
+and took 127.547s, setting suite wall time to 128.030s while self-translation
+took 84.717s. Fixture timestamps placed the start of its native-library/host
+section at roughly 88.6s: that independent work was waiting behind the first
+host and the rejection checks.
+
+The suite now starts three jobs early, each with a separate copy-only
+installation prefix and work directory:
+
+- ~test/install_tilvm.til~ builds and runs the public-API ASAN host.
+- ~test/install_tilvm_errors.til~ checks private members and callback lifetimes.
+- ~test/install_tilvm_native.til~ builds the native fixtures and ASAN host.
+
+All three original check blocks were preserved byte-for-byte except for the
+native host's SDK-root argument. ASAN flags, empty-PATH execution, the native
+host's private HOME/library paths, and its Windows DLL copying were preserved.
+No application-style checks were removed, and ~preann_example~ was not reordered.
+
+The clean full ASAN suite passed 478/478 (two additional scheduled rows):
+
+| Job / metric         | Seconds |
+|----------------------+---------|
+| install_tilvm        |   81.51 |
+| install_tilvm_native |   86.75 |
+| install_tilvm_errors |   23.69 |
+| interp_session       |   90.54 |
+| self_translate       |   88.51 |
+| Suite wall           |   93.76 |
+
+Other sessions shared the machine, and the earlier capture was a different
+run: 128.03s -> 93.76s is an approximate observation, not a controlled speedup
+estimate. The structural improvement is removing the native leg's serial
+wait. ~preann_example~ finished last in this run, taking 40.13s after its
+late registration; starting it earlier remains a separate follow-up.
+
 ** Interleaved eight-row address use (2026-10-27, #409)
 
 Code baseline: ~ef2b9c557~. The eight-row dot loop now visits independent

@@ -1175,10 +1175,12 @@ main := proc(args: ..Str) {
     // examples/lib/ and the installer kept copying the old path.
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
 
-    // The installed TilVm host is another long job. A copy-only installation
-    // under its own prefix lets it overlap the compiler build/install above;
-    // the host remains ASAN-instrumented and runs with an empty PATH.
+    // The installed TilVm checks are independent jobs with separate copy-only
+    // installations. Start both ASAN hosts and the rejection checks early;
+    // neither host needs to wait for the other, and both run with an empty PATH.
     add_single(tests, "install_tilvm", "build", 0, "", format(TIL, " run test/install_tilvm.til"))
+    add_single(tests, "install_tilvm_native", "build", 0, "", format(TIL, " run test/install_tilvm_native.til"))
+    add_single(tests, "install_tilvm_errors", "build", 0, "", format(TIL, " run test/install_tilvm_errors.til"))
 
     // #90: independently generated libraries own separate C namespaces.
     // The driver checks combined headers, static/shared links, and both Til bindings.

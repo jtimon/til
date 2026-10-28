@@ -100,9 +100,11 @@ that VM's globals; calling it does not re-resolve the original global binding.
 ASAP keeps the VM alive through its handles and destroys the handles first;
 explicit teardown follows the same order. See
 [[./concepts/ownership.org][Ownership: owning handles can borrow their resource owner]].
-~test/tilvm.til~ and ~test/tilvm_lifetime_error.til~ exercise the installed API,
-snapshot ownership, recovery and lifetime rejection through
-~test/install_tilvm.til~ under ASAN with an empty PATH.
+~test/install_tilvm.til~ builds and runs ~test/tilvm.til~ against the installed
+API under ASAN with an empty PATH, exercising snapshot ownership and recovery.
+~test/install_tilvm_errors.til~ independently checks private-member and lifetime
+rejections, including ~test/tilvm_lifetime_error.til~. Each driver uses its own
+copy-only installation and work directory.
 
 *** Host-supplied prelude
 
@@ -168,9 +170,9 @@ relative native library through a base directory containing spaces.
 *** Editor buffer and reload example
 
 ~editor_buffer_test~ in ~test/tilvm_native.til~ is the concrete integration
-example for Tiled. ~test/install_tilvm.til~ builds its native library and
+example for Tiled. ~test/install_tilvm_native.til~ builds its native library and
 host against an isolated installed SDK. From a built checkout, run
-~bin/til run test/install_tilvm.til~; the driver runs the ASAN host with
+~bin/til run test/install_tilvm_native.til~; the driver runs the ASAN host with
 an empty PATH, and the host writes/changes the config after compilation.
 
 The native library owns the text buffer. ~native_buffer_set(text: Str)~

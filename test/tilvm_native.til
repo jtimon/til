@@ -4,7 +4,7 @@ import("std/tilvm")
 import("std/file")
 native := import("./gen/til/vm_native")
 
-// install_tilvm.til builds the native library and this host through an
+// install_tilvm_native.til builds the native library and this host through an
 // installed compiler. The host creates every guest AFTER it was compiled,
 // and runs with no compiler executables on PATH.
 expect_load_error := proc(mut vm: TilVm, source: Str, detail: Str) {
