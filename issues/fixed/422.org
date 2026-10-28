@@ -1,6 +1,36 @@
 # priority: low
 # category: features
-** WIP #422 Modes with C (and other) dependencies: declaring and building them per target
+** FIXED #422 Modes with C (and other) dependencies: declaring and building them per target
+
+*** Post-mortem
+
+Root cause: a ~link()~ path named ONE archive, the host's, so everything
+per-target lived in the compiler as library-specific tables (the nng
+swap, ~target_secp256k1_lib~, ~target_ffi_lib~, ~target_gui_libs~) that a
+mode outside this repo could neither extend nor satisfy; a cross build of
+such a mode failed at the final link.
+
+What changed, across the series: ~Mode.targets~ (refuse unsupported
+targets before compiling), ~link(path, "<targets>")~ (each target names
+its own archive), ~Mode.build_hint~ and the missing-archive report
+(~bin/make <path>~ for til's own vendored libraries), and every vendored
+library moved onto it -- nng, libsecp256k1, libffi (staged) and, last,
+raylib + tinyfd for mode gui. Each builds per target into
+~vendor/<lib>/build-<target>~ from a make.til table, the host's included,
+and the compiler's library tables are gone. The last step added
+~link_macos("<Frameworks>")~ for what ~link()~ cannot spell: macOS
+frameworks, linked as ~-framework~ on a mac host and as the generated
+~.tbd~ stubs off one. src/til.til stopped linking raylib and tinyfd
+altogether: the compiler calls neither (the interpreter loads their
+twins), so the archives contributed nothing. The emscripten settings of
+a wasm32 gui build stay in the builder (#437).
+
+Regression tests: test/mode_loading.til (target refusal, per-target
+links, the report and hint, a misspelled target, the wasm32 gui link),
+test/link_macos.til (frameworks only on mac targets, -framework on a mac,
+stubs or their report elsewhere, an empty list refused),
+test/nng_pair.til, test/ffi_prep.til, test/install.til, plus the CI
+cross jobs that build and run each target's archives.
 
 Brainstorm, not a plan yet. Split out of #420: nng is a dependency of
 the custom server modes in ~examples/custom_modes.til~ -- a user-defined
@@ -132,7 +162,18 @@ the observed errors for nng).
   which have no archive, std/crypto now fails on the backends' own
   errors (the JVM names the unsupported secp256k1 calls) instead of the
   builder's refusal.
-- [ ] raylib + tinyfd (mode gui) onto the mechanism.
+- [X] raylib + tinyfd (mode gui) onto the mechanism: src/modes/gui.til
+  lists one raylib and one tinyfd ~link()~ per target (raylib only for
+  wasm32), the windows system libraries for the windows targets, the
+  linux ones for linux, and ~link_macos("OpenGL Cocoa IOKit CoreAudio
+  CoreVideo")~. make.til's ~GuiTarget~ table builds every target's pair
+  into ~vendor/{raylib,tinyfiledialogs}/build-<target>~ (the host's
+  natively, the macs SDK-less off a mac, wasm32's raylib with emcc);
+  the interpreter twins sit beside the host's, the windows-host DLLs
+  beside the windows-x64 ones (CI no longer copies archives into
+  place), and an installed til carries the host's. Gone: targets.til's
+  ~target_gui_libs~ and ~target_is_host~ and the builder's raylib/tinyfd
+  dropping, wasm32 link filter and per-target gui link tail.
 - [X] libffi onto the mechanism. Staged (doc/self.org, "Staged
   migration across master merges"): the bootstrap's til_boot runs the
   OLD builder, which hard-requires libffi at its old native path when

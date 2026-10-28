@@ -6843,6 +6843,10 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
                 mut link_root := root_dir.clone()
                 if iu.host_source.len() > 0 { link_root = "" }
                 for directive : Expr in iu.link_directives {
+                    // link_macos() names frameworks for a macOS link; the
+                    // interpreter loads none (the gui archives' twins are
+                    // linked against them already).
+                    if ident_of(directive.children[0]).ident_name(lp.ctx.symbols.names) == "link_macos" { continue }
                     // link(path, "<targets>") applies only to the listed
                     // targets (issue #422); an embedded load runs on the host.
                     if directive.children.len() == 3 {
@@ -7553,10 +7557,10 @@ ffi_last_error := ext_proc() returns Str {}
 // bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
 til_built_with_asan := ext_proc() returns shallow Bool {}
 
-// `link("vendor/raylib/src/libraylib.a")` puts a PATH in link_flags. A
-// COMPILED program links that archive and stays self-contained, but an
-// INTERPRETED one calls through libffi, which needs the function's ADDRESS at
-// runtime -- and a static archive can never give one. It cannot be dlopen'd,
+// `link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")` puts a
+// PATH in link_flags. A COMPILED program links that archive and stays
+// self-contained, but an INTERPRETED one calls through libffi, which needs
+// the function's ADDRESS at runtime -- and a static archive can never give one. It cannot be dlopen'd,
 // and it contributes nothing to bin/til either, since a linker keeps only the
 // members the compiler itself references and the compiler never calls raylib.
 // So every raylib call from the interpreter resolved to nothing: `InitWindow`

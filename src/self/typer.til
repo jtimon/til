@@ -8596,7 +8596,7 @@ is_compile_directive := func(e: Expr, symbols: SymbolPool) returns Bool {
     switch e.children[0].node_type {
     case .Ident(name):
         ref name_str : Str = name.ident_name(symbols.names)
-        return name_str.eq("link").or(name_str.eq("link_c")).or(name_str.eq("import"))
+        return name_str.eq("link").or(name_str.eq("link_macos")).or(name_str.eq("link_c")).or(name_str.eq("import"))
     case:
         return false
     }

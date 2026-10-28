@@ -1261,6 +1261,12 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/x86_include_order -c gen/c/x86_include_order.c test/x86_include_order.til ", til_bin))
 
+    // Issue #422: link_macos() frameworks reach mac links only, as
+    // -framework on a mac host and the generated stubs elsewhere.
+    add_count(tests, "link_macos", "build", "link_macos passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/link_macos -c gen/c/link_macos.c test/link_macos.til ", til_bin))
+
     // Independent driver and scratch directory: the scheduler can overlap
     // pointer-width checks with CPU-option checks within its normal -j limit.
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,

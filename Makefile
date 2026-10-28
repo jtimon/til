@@ -79,8 +79,8 @@ EXT_C := $(wildcard src/c/*.c) $(wildcard src/c/*.h)
 # boot/til.c or src/c/, so their archives contribute nothing to this
 # link and their system dependencies (-lrt, -latomic, the macOS desktop
 # frameworks) are not needed either. Verified by linking without them.
-# make.til builds those libraries, because bin/til -- which does link
-# them -- is its business, not the bootstrap's.
+# make.til builds those libraries, because bin/til (which links nng)
+# and the programs it builds are its business, not the bootstrap's.
 BOOT_LD_FLAGS := -rdynamic -ldl -lm -lpthread
 
 # --- Goal delegation ---
@@ -89,7 +89,7 @@ BOOT_LD_FLAGS := -rdynamic -ldl -lm -lpthread
 # need for a catch-all pattern rule (which would need source-file guards
 # and would swallow typos): the requested goals become phony frontends
 # for one delegation target, which runs bin/make once with the whole
-# list. Arbitrary path goals -- `make vendor/raylib/src/libraylib-x86.a`
+# list. Arbitrary path goals -- `make vendor/raylib/build-linux-x86/libraylib.a`
 # -- and multi-goal invocations both keep working, and no registry of
 # til targets is duplicated here.
 BOOTSTRAP_GOALS := bin/make bin/til_boot $(LIBFFI_HOST_DIR)/.built

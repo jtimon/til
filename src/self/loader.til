@@ -347,6 +347,9 @@ LoadedProgram := struct {
     // link()s with a target list; link_flags_for_target and
     // include_flags_for_target add the ones that apply to `target`.
     target_links := Vec(TargetLink).new()
+    // link_macos()'s framework names, space-separated: linked only for the
+    // macOS targets (-framework on a mac host, the generated stubs off one).
+    macos_frameworks := ""
     link_c_paths := ""
     compiler_revision := ""
     asan_build := false
@@ -448,6 +451,7 @@ namespace:
         Str.delete(own self.link_flags, false)
         Str.delete(own self.include_flags, false)
         own self.target_links.delete(false)
+        Str.delete(own self.macos_frameworks, false)
         Str.delete(own self.link_c_paths, false)
         Str.delete(own self.compiler_revision, false)
         if call_free { free(own self) }
@@ -897,8 +901,9 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
     }
 }
 
-// Scan program AST for link()/link_c() directives; fill link_flags,
-// include_flags, link_c_paths on the given LoadedProgram.
+// Scan program AST for link()/link_macos()/link_c() directives; fill
+// link_flags, include_flags, target_links, macos_frameworks and
+// link_c_paths on the given LoadedProgram.
 priv extract_link_info := proc(mut lp: LoadedProgram) {
     root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
     // Remove link()/link_c() directives in-place from every user file so the
@@ -947,6 +952,15 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                                 lp.link_flags = lp.link_flags.format(flag)
                                 lp.include_flags = lp.include_flags.format(include)
                             }
+                        } else if nargs.eq(1).and(fname.ident_name(lp.ctx.symbols.names) == "link_macos") {
+                            // link_macos("<Framework> ...") (issue #422): the
+                            // macOS frameworks a library needs, which link()
+                            // cannot spell (-framework is two words).
+                            keep = false
+                            if arg.trim().len() == 0 {
+                                panic(": link_macos() names no framework", loc = u.path)
+                            }
+                            lp.macos_frameworks = format(lp.macos_frameworks, " ", arg.trim())
                         } else if nargs.eq(1).and(fname.ident_name(lp.ctx.symbols.names) == "link_c") {
                             keep = false
                             if lp.link_c_paths.len() > 0 {

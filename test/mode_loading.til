@@ -1,6 +1,7 @@
 mode cli
 
 import("../src/std/sys")
+import("../src/std/file")
 
 realpath_str := ext_proc(path: Str) returns Str {}
 
@@ -64,6 +65,19 @@ check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
     cmd.capture()
     status := cmd.run()
     output := format(cmd.out(), cmd.err())
+    // A gui program links wasm32's own raylib (src/modes/gui.til, issue
+    // #422), which only a tree that built it has (CI's wasm job does; the
+    // suite does not need emscripten). Without it the build stops before
+    // compiling, naming the archive and the goal that builds it -- and
+    // only a program that loaded gui.til has that link.
+    wasm_raylib := "vendor/raylib/build-wasm32/libraylib.a"
+    if has_gui.and(File.exists(format(root, "/", wasm_raylib)).not()) {
+        if status == 0 || output.contains(format("links ", wasm_raylib, " for --target=wasm32, and it is not built")).not()
+            || output.contains(format("bin/make ", wasm_raylib)).not() {
+            panic("GUI target ", source, " without the wasm32 raylib: ", output)
+        }
+        return
+    }
     if status != 0 { panic("GUI target ", source, " failed: ", output) }
     // Both wasm32 shapes are single-file emscripten builds (#424), so the
     // GUI marker is the GLFW port, which only the browser page links.

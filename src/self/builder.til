@@ -262,17 +262,15 @@ priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
     return false
 }
 
-// Resolve the archive paths in a target-data flag string (issue #348).
-// targets.til spells its archives cwd-relative ("vendor/raylib/src/
-// libraylib.a"), which is only a real place inside a repo checkout; an
-// INSTALLED til runs from the user's project directory, where those
-// tokens reach the linker unresolved. Same candidate order as the
-// loader's resolve_link_path: the cwd spelling wins when it exists (a
-// checkout's vendor/ keeps shadowing any installed one), then the
-// compiler root (<prefix>/lib/til, derived from ext_c_path exactly like
-// the loader's root_dir), and an archive found in neither keeps its
-// name and fails loudly at link. Only ".a" tokens are touched: -l /
-// -framework / -s flags and the shell-expanded *.tbd glob pass through.
+// Resolve the archive paths in a flag string (issue #348): a cwd-relative
+// spelling ("vendor/raylib/build-linux-x64/libraylib.a") is only a real
+// place inside a repo checkout; an INSTALLED til runs from the user's
+// project directory. Same candidate order as the loader's
+// resolve_link_path: the cwd spelling wins when it exists (a checkout's
+// vendor/ keeps shadowing any installed one), then the compiler root
+// (<prefix>/lib/til, derived from ext_c_path exactly like the loader's
+// root_dir), and an archive found in neither keeps its name. Only ".a"
+// tokens are touched; -l flags pass through.
 priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
     if flags.find(".a").lt(0) { return flags }
     root := ext_c_path.strip_suffix("/src/c/ext.c")
@@ -419,45 +417,23 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if is_windows_target(target) { dyn_flag = " -Wl,--export-all-symbols" }
     if target.is(Target.Wasm32) { dyn_flag = "" }
 
-    // For Windows/wasm and 32-bit-linux cross-compiles, rewrite
-    // link_flags inherited from vendor/bindings/{raylib,tinyfd}.til
-    // link() directives: they carry HOST-arch archive paths (and, for
-    // windows, POSIX-only -l flags; mingw doesn't ship -ldl/-lrt and
-    // can't load Linux ELF .a files -- a 32-bit linux link can't load
-    // the 64-bit archives either). The per-target variants are added
-    // via target_gui_libs / target_system_libs below.
-    // For macOS targets the vendored .a paths are correct as-is on a
-    // mac host (native archives at the same paths) and loudly
-    // wrong-arch on cross hosts, so they stay; every -l flag the tree
-    // uses is a libSystem alias on darwin (m, pthread, dl) or does not
-    // exist there (rt, atomic).
+    // For Windows/wasm and macOS targets, drop the -l flags a program's
+    // untargeted link()s carry for linux: mingw doesn't ship -ldl/-lrt,
+    // emcc has no use for them, and every one the tree uses is a
+    // libSystem alias on darwin (m, pthread, dl) or does not exist there
+    // (rt, atomic). The linux targets get them back from
+    // target_system_libs. Each library's archives are not touched here:
+    // their link()s name each target's own (issue #422).
     //
-    // The rewrite is TOKEN-level, never substring replace: the loader
-    // resolves link() paths importer-relative, so lf can carry the
-    // same archive as an ABSOLUTE path (that is how til.til's own
-    // windows cross-link got a dangling "/repo/root/" token when the
-    // relative substring was stripped out of it, and how a dangling
-    // ./src/self/ token once reached the mac linker). Matching whole
-    // tokens by suffix drops both spellings; anything unrecognized is
-    // kept and fails loudly at link with its real name.
-    // 32-bit linux targets cross-compiled from a 64-bit host: the
-    // inherited 64-bit archives must go (target_gui_libs supplies the
-    // -x86/-arm32 variants); the dropped -l flags come back via
-    // target_system_libs, which lists them all for linux targets.
-    is_linux32 := target.is(Target.LinuxX86).or(target.is(Target.LinuxArm32)).or(target.is(Target.LinuxRiscv32))
-    // The 64-bit non-x64 linux targets cross-built from another host
-    // (issue #420): the host's archives must go too, for the same reason
-    // as the 32-bit ones; target_gui_libs supplies -arm64/-riscv64. On a
-    // native arm64/riscv64 host the inherited archives are the right ones.
-    is_linux64_cross := target.is(Target.LinuxArm64).or(target.is(Target.LinuxRiscv64))
-        .and(target_is_host(target).not())
-    if is_windows_target(target).or(target.is(Target.Wasm32)).or(is_linux32).or(is_linux64_cross)
+    // The rewrite is TOKEN-level, never substring replace: matching whole
+    // tokens keeps a path that merely contains one of these strings
+    // intact. Anything unrecognized is kept and fails loudly at link with
+    // its real name.
+    if is_windows_target(target).or(target.is(Target.Wasm32))
         .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)) {
-        // On macos the archive paths stay (native archives live at the
-        // same paths on a mac host) and -latomic must go (no such lib
-        // on darwin). On windows/wasm the linux archives go and
-        // -latomic stays (mingw ships libatomic); 32-bit linux keeps
-        // -latomic too (multilib ships it).
+        // -latomic must go on macos (no such lib on darwin) and windows
+        // (nng's linux-only dep, which the mingw nng build does not need);
+        // on wasm it stays.
         is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
         is_win := is_windows_target(target)
         tokens := lf.split(" ")
@@ -465,53 +441,31 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         for t : Str in tokens {
             if t.len() == 0 { continue }
             if t.eq("-ldl").or(t.eq("-lrt")).or(t.eq("-lpthread")).or(t.eq("-lm")) { continue }
-            // -latomic: nonexistent on darwin, and nng's linux-only dep
-            // that the mingw nng build does not need either.
             if is_macos.or(is_win).and(t.eq("-latomic")) { continue }
-            if is_macos.not() {
-                if t.ends_with("libraylib.a").or(t.ends_with("libtinyfd.a")) { continue }
-            }
-            // nng is no longer swapped here: its link()s name each
-            // target's own archive and winsock libraries (issue #422).
             new_lf = new_lf.format(" ", t)
         }
         lf = new_lf
     }
-    // A wasm gui build links only what target_gui_libs supplies: the
-    // inherited desktop archives and -l flags mean nothing to emcc. The
-    // exception is std/crypto's libsecp256k1, whose wasm32 link() names
-    // an emcc-built archive of its own (issue #422).
-    if wasm_gui {
-        mut wasm_lf := ""
-        for wt : Str in lf.split(" ") {
-            if wt.ends_with("libsecp256k1.a") { wasm_lf = wasm_lf.format(" ", wt) }
-        }
-        lf = wasm_lf
-    }
 
-    // Per-target system + ffi + (gui) link flags. Tables in
-    // src/self/targets.til. Include them when gui.til was actually loaded,
-    // whether by a built-in mode, a custom support module, or an import.
+    // Per-target system link flags. Table in src/self/targets.til.
     sys_libs := target_system_libs(target)
-    mut gui_part := ""
-    if has_gui {
-        gui_part = format(" ", resolve_target_archives(target_gui_libs(target), ext_c_path))
-    }
 
     // A non-gui wasm32 program (issue #424) links to ONE .js file with the
-    // wasm embedded, run as `node prog.js`, with growable memory -- the
-    // single-file model the mode gui browser build already uses (its own
-    // settings come from target_gui_libs and `extra`). Link-only, so it is
-    // kept off the user-C object compiles, which share `extra`.
+    // wasm embedded, run as `node prog.js`, with growable memory. A mode
+    // gui one is a browser page instead: the same single file inside
+    // raylib's HTML shell (its archive comes from src/modes/gui.til's
+    // wasm32 link(); the emscripten settings above, in `extra`). Link-only,
+    // so it is kept off the user-C object compiles, which share `extra`.
     mut wasm_js_flags := ""
-    if target.is(Target.Wasm32).and(wasm_gui.not()) {
+    if target.is(Target.Wasm32) {
         wasm_js_flags = " -sSINGLE_FILE -sALLOW_MEMORY_GROWTH=1"
+        if wasm_gui { wasm_js_flags = " -sSINGLE_FILE --shell-file vendor/raylib/src/shell.html" }
     }
 
     cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
-        gui_part, " ", sys_libs)
+        " ", sys_libs)
 
     result := system_cmd(cmd)
     if result != 0 {
@@ -791,7 +745,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // Standard excess precision also makes x87 casts/assignments round to
     // the declared format instead of retaining extended intermediates.
     build_flags := format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard")
-    link_flags := lp.link_flags_for_target()
+    link_flags := format(lp.link_flags_for_target(), macos_framework_flags(lp))
     include_flags := lp.include_flags_for_target()
     if report_missing_target_archives(lp) != 0 { return 1 }
     if paths.do_lib {
@@ -821,7 +775,49 @@ priv is_vendored_archive := proc(written: Str, root: Str) returns Bool {
     return File.is_dir(format(root, "/vendor/", rest.substr(0, slash.to_usize())))
 }
 
+// link_macos()'s frameworks (issue #422), linked for a macOS target only.
+// A mac host links the real ones. Any other host has no Apple SDK: it
+// links the .tbd stubs bin/make generates from the mac gui archives'
+// undefined symbols (examples/gen_framework_stubs.til), which stand in for
+// every framework those reach, the way the vendored libSystem.tbd does
+// for libc; the real frameworks bind at run time on the target mac. The
+// *.tbd glob is expanded by the shell (system_cmd runs the link through
+// system()).
+priv macos_framework_flags := proc(lp: LoadedProgram) returns Str {
+    if lp.macos_frameworks.len() == 0 { return "" }
+    if lp.target.is(Target.MacosX64).or(lp.target.is(Target.MacosArm64)).not() { return "" }
+    if host_os() == "macos" {
+        mut out := ""
+        for name : Str in lp.macos_frameworks.split(" ") {
+            if name.len() == 0 { continue }
+            out = format(out, " -framework ", name)
+        }
+        return out
+    }
+    return format(" ", macos_framework_stubs_dir(lp), "/*.tbd")
+}
+
+// Where the framework stubs are: the cwd spelling inside a til checkout,
+// else under the compiler root, like resolve_target_archives. Neither
+// existing is reported before the link (report_missing_target_archives),
+// so the cwd spelling is what comes back then.
+priv macos_framework_stubs_dir := proc(lp: LoadedProgram) returns Str {
+    stubs := "vendor/macos/frameworks"
+    if File.is_dir(stubs) { return stubs }
+    root_stubs := format(builder_compiler_root(lp), "/", stubs)
+    if File.is_dir(root_stubs) { return root_stubs }
+    return stubs
+}
+
 priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
+    needs_stubs := lp.macos_frameworks.len().gt(0).and(host_os() != "macos")
+        .and(lp.target.is(Target.MacosX64).or(lp.target.is(Target.MacosArm64)))
+    if needs_stubs.and(File.is_dir(macos_framework_stubs_dir(lp)).not()) {
+        println(format("error: this program links macOS frameworks (link_macos) for --target=",
+            target_to_str(lp.target), ", and off a mac those link through stubs that are not built"))
+        println("  build them first, in the til source tree: bin/make vendor/macos/frameworks/.stamp")
+        return 1
+    }
     for tl : TargetLink in lp.target_links {
         if target_list_has(tl.targets, lp.target).not() { continue }
         archive := tl.flag.trim()

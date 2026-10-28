@@ -1,0 +1,73 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+// Issue #422: link_macos() names the macOS frameworks a library needs,
+// which link() cannot spell. A mac target links them as -framework on a
+// mac host and as the generated .tbd stubs anywhere else; no other target
+// links either. --cc=echo prints the commands instead of running them,
+// so this runs on every host without a mac toolchain.
+
+WORK := "tmp/link_macos"
+
+build := proc(compiler: Str, target: Str, source: Str) returns Cmd {
+    cmd := Cmd.new(compiler, "build", format("--target=", target), "--cc=echo",
+        "-o", format("bin/", source.strip_suffix(".til")), format("./", source))
+    cmd.cwd(WORK)
+    cmd.capture()
+    return cmd
+}
+
+main := proc(args: ..Str) {
+    compiler := realpath_str(args[0])
+    root := realpath_str(".")
+    File.remove_tree(WORK)
+    mkdir_p(format(WORK, "/bin"))
+    File.writefile(format(WORK, "/probe.til"), format(
+        "mode script\n",
+        "link_macos(\"TilProbeOne TilProbeTwo\")\n",
+        "println(\"probe\")\n"))
+    File.writefile(format(WORK, "/empty.til"), format(
+        "mode script\n",
+        "link_macos(\" \")\n",
+        "println(\"empty\")\n"))
+
+    // Not a mac target: no framework flag, no stubs.
+    other := build(compiler, "linux-x64", "probe.til")
+    if other.run() != 0 { panic("linux-x64 build failed: ", other.out(), other.err()) }
+    if other.out().contains("-framework").or(other.out().contains(".tbd")) {
+        panic("link_macos reached a linux-x64 link: ", other.out())
+    }
+
+    mac := build(compiler, "macos-arm64", "probe.til")
+    status := mac.run()
+    out := format(mac.out(), mac.err())
+    if host_os() == "macos" {
+        if status != 0 { panic("macos-arm64 build failed: ", out) }
+        if out.contains("-framework TilProbeOne -framework TilProbeTwo").not() {
+            panic("link_macos frameworks missing from the mac link: ", out)
+        }
+    } else if File.is_dir(format(root, "/vendor/macos/frameworks")) {
+        if status != 0 { panic("macos-arm64 build failed: ", out) }
+        // The shell expands the stub glob (echo prints the result).
+        if out.contains("/vendor/macos/frameworks/").not().or(out.contains(".tbd").not())
+            .or(out.contains("-framework")) {
+            panic("link_macos off a mac must link the framework stubs: ", out)
+        }
+    } else {
+        if status == 0 || out.contains("bin/make vendor/macos/frameworks/.stamp").not() {
+            panic("missing framework stubs not reported: ", out)
+        }
+    }
+
+    empty := build(compiler, "linux-x64", "empty.til")
+    empty_status := empty.run()
+    empty_out := format(empty.out(), empty.err())
+    if empty_status == 0 || empty_out.contains("link_macos() names no framework").not() {
+        panic("an empty link_macos() was not refused: ", empty_out)
+    }
+    println("link_macos passed")
+}

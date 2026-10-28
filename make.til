@@ -38,10 +38,12 @@ ASAN := "bin/til_asan"
 DEBUG := "bin/til_debug"
 SELF_SRC := "make.til"
 
-RAYLIB_LIB := "vendor/raylib/src/libraylib.a"
-RAYLIB_SO := "vendor/raylib/src/libraylib.so"
-TINYFD_LIB := "vendor/tinyfiledialogs/libtinyfd.a"
-TINYFD_SO := "vendor/tinyfiledialogs/libtinyfd.so"
+// raylib and tinyfd are built per --target into
+// vendor/{raylib,tinyfiledialogs}/build-<target> (issue #422);
+// raylib_lib and tinyfd_lib name the archives, the paths
+// src/modes/gui.til's link()s name.
+RAYLIB_DIR := "vendor/raylib"
+TINYFD_DIR := "vendor/tinyfiledialogs"
 TINYFD_SRC := "vendor/tinyfiledialogs/tinyfiledialogs.c"
 // nng is built per --target into vendor/nng/build-<target> (issue #422);
 // nng_lib names the archive, the path the server modes' link()s name.
@@ -49,13 +51,12 @@ NNG_DIR := "vendor/nng"
 // libsecp256k1 is built per --target too (issue #422); secp256k1_lib
 // names the archive, the path std/crypto's link()s name.
 SECP256K1_DIR := "vendor/secp256k1"
-RAYLIB_WIN64_DLL := "vendor/raylib/src/libraylib.dll"
-TINYFD_WIN64_DLL := "vendor/tinyfiledialogs/libtinyfd.dll"
+RAYLIB_WIN64_DLL := "vendor/raylib/build-windows-x64/libraylib.dll"
+TINYFD_WIN64_DLL := "vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll"
 // libffi is built per --target into vendor/libffi/build-<target>
 // (issue #422): the host's by the Makefile, the rest by LibffiCross.
 LIBFFI_DIR := "vendor/libffi"
 MAC_STUBS_STAMP := "vendor/macos/frameworks/.stamp"
-RAYLIB_WASM_LIB := "vendor/raylib/src/libraylib-web.a"
 EMSDK_DIR := "vendor/emscripten"
 EMSDK_VERSION := "6.0.0"
 EMSDK_STAMP := "vendor/emscripten/.til-emsdk-6.0.0"
@@ -384,30 +385,6 @@ force_load_args := func(host: Host, archive: Str) returns Vec(Str) {
 
 // --- Native vendor artifacts ---
 
-/// raylib, built by its own Makefile against the vendored X11 headers.
-build_raylib := proc(mut b: Build) {
-    if b.begin("raylib").not() { return }
-    if needs_rebuild(RAYLIB_LIB, no_inputs()).not() { return }
-    run("make", "-C", "vendor/raylib/src", "PLATFORM=PLATFORM_DESKTOP",
-        format("CUSTOM_CFLAGS=-DSUPPORT_CLIPBOARD_IMAGE=0 -I", get_cwd_str(), "/vendor/x11/include"))
-}
-
-/// tinyfiledialogs. -fPIC so the archive can also be relinked into the
-/// shared twin below; its non-PIC relocations fail a shared link
-/// otherwise. make.til is an input for the same reason the Makefile
-/// made itself one: an archive compiled before that flag was added
-/// would sit there forever and fail the shared link.
-build_tinyfd := proc(mut b: Build) {
-    if b.begin("tinyfd").not() { return }
-    mut inputs := Vec(Str).new()
-    inputs.push(own TINYFD_SRC.clone())
-    inputs.push(own SELF_SRC.clone())
-    if needs_rebuild(TINYFD_LIB, inputs).not() { return }
-    obj := "vendor/tinyfiledialogs/tinyfiledialogs.o"
-    run("cc", "-Wall", "-Wextra", "-fPIC", "-c", "-o", obj, TINYFD_SRC)
-    run("ar", "rcs", TINYFD_LIB, obj)
-}
-
 /// Loadable twins of the vendored archives, for the INTERPRETER only.
 ///
 /// The two backends need different artifacts from the same library. A
@@ -430,37 +407,42 @@ build_tinyfd := proc(mut b: Build) {
 /// never noticed, and neither did the suite: the nng tests only build.
 build_ffi_twins := proc(mut b: Build) {
     if b.begin("ffi_twins").not() { return }
-    build_raylib(b)
-    build_tinyfd(b)
+    build_gui_pair(b, b.host.target_name())
     build_nng(b)
     build_secp256k1(b)
 
+    // The host's raylib and tinyfd: the twins beside the archives
+    // src/modes/gui.til's link()s name for the host target.
+    raylib_host_lib := raylib_lib(b.host.target_name())
+    raylib_so := format(raylib_host_lib.strip_suffix(".a"), ".so")
     mut raylib_inputs := Vec(Str).new()
-    raylib_inputs.push(own RAYLIB_LIB.clone())
-    if needs_rebuild(RAYLIB_SO, raylib_inputs) {
+    raylib_inputs.push(own raylib_host_lib.clone())
+    if needs_rebuild(raylib_so, raylib_inputs) {
         mut argv := Vec(Str).new()
         argv.push(own "cc")
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
-        argv.push(own RAYLIB_SO.clone())
-        argv.append(own force_load_args(b.host, RAYLIB_LIB))
+        argv.push(own raylib_so.clone())
+        argv.append(own force_load_args(b.host, raylib_host_lib))
         argv.push(own "-lm")
         argv.push(own "-lpthread")
         argv.append(own raylib_sys_flags(b.host))
         run_argv(argv)
     }
 
+    tinyfd_host_lib := tinyfd_lib(b.host.target_name())
+    tinyfd_so := format(tinyfd_host_lib.strip_suffix(".a"), ".so")
     mut tinyfd_inputs := Vec(Str).new()
-    tinyfd_inputs.push(own TINYFD_LIB.clone())
-    if needs_rebuild(TINYFD_SO, tinyfd_inputs) {
+    tinyfd_inputs.push(own tinyfd_host_lib.clone())
+    if needs_rebuild(tinyfd_so, tinyfd_inputs) {
         mut argv := Vec(Str).new()
         argv.push(own "cc")
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
-        argv.push(own TINYFD_SO.clone())
-        argv.append(own force_load_args(b.host, TINYFD_LIB))
+        argv.push(own tinyfd_so.clone())
+        argv.append(own force_load_args(b.host, tinyfd_host_lib))
         run_argv(argv)
     }
 
@@ -582,8 +564,7 @@ secp256k1_cmake_configure := func(build_dir: Str) returns Vec(Str) {
 /// why the Makefile's bootstrap does not build these.
 build_vendor := proc(mut b: Build) {
     if b.begin("vendor").not() { return }
-    build_raylib(b)
-    build_tinyfd(b)
+    build_gui_pair(b, b.host.target_name())
     build_ffi_twins(b)
     build_nng(b)
     build_secp256k1(b)
@@ -675,12 +656,12 @@ build_debug := proc(mut b: Build) {
     argv.push(own "-ldl")
     argv.push(own format("-L", LIBFFI_DIR, "/build-", b.host.target_name(), "/.libs"))
     argv.push(own "-lffi")
-    argv.push(own "-Lvendor/raylib/src")
+    argv.push(own format("-L", RAYLIB_DIR, "/build-", b.host.target_name()))
     argv.push(own "-lraylib")
     argv.push(own "-lm")
     argv.push(own "-lpthread")
     argv.append(own raylib_sys_flags(b.host))
-    argv.push(own "-Lvendor/tinyfiledialogs")
+    argv.push(own format("-L", TINYFD_DIR, "/build-", b.host.target_name()))
     argv.push(own "-ltinyfd")
     argv.push(own format("-L", NNG_DIR, "/build-", b.host.target_name()))
     argv.push(own "-lnng")
@@ -1029,80 +1010,100 @@ clear_dir := proc(dir: Str) {
     }
 }
 
-// --- Cross-target data ---
+// --- GUI archives ---
 //
-// The GUI archives are the same three commands over and over with a
-// different toolchain, so they are data plus one loop rather than ten
-// near-identical recipes. The reasons a target differs live next to the
-// target, which is where the Makefile's comments used to be.
+// raylib and tinyfd for every target (issue #422), as data plus one
+// recipe each rather than near-identical recipes per target. The reasons
+// a target differs live next to the target, which is where the
+// Makefile's comments used to be.
 
 GuiTarget := struct {
-    // Suffix the artifacts carry: libraylib-<name>.a, libtinyfd-<name>.a.
-    name := ""
-    // Empty means the host toolchain.
+    // The --target name; the archives go under build-<target>.
+    target := ""
+    // A cross build's toolchain; the host's own archives use the host's.
+    // Empty only for riscv32 before --riscv32-cc is given.
     cc := ""
     ar := ""
+    // The bin/make option that picks cc, for the missing-compiler report.
+    cc_option := ""
     // raylib's PLATFORM_OS, needed by the mingw builds.
     platform_os := ""
     // Extra flags for raylib's CUSTOM_CFLAGS, and for the tinyfd
     // compile (only the -m32 builds need anything there).
     raylib_cflags := ""
     tinyfd_cflags := ""
-
-namespace:
-    raylib_lib := func(self: GuiTarget) returns Str {
-        return format("vendor/raylib/src/libraylib-", self.name, ".a")
-    }
-
-    tinyfd_lib := func(self: GuiTarget) returns Str {
-        return format("vendor/tinyfiledialogs/libtinyfd-", self.name, ".a")
-    }
+    // The mac targets' arch: off a mac (or for the mac that is not this
+    // one) their archives are the SDK-less recipes under macOS cross.
+    mac_arch := ""
+    // wasm32: raylib only, through emscripten (build_raylib_web).
+    web := false
 }
 
-/// The vendored X11 headers every Linux cross GUI build compiles
-/// against. They are arch-independent, and GLFW dlopens libX11 on the
-/// target device at run time, so no per-arch X11 sysroot is needed to
-/// build or link -- only the cross compiler.
+/// One target's raylib archive: the path src/modes/gui.til's link() line
+/// names for that target.
+raylib_lib := func(target: Str) returns Str {
+    return format(RAYLIB_DIR, "/build-", target, "/libraylib.a")
+}
+
+/// One target's tinyfd archive, likewise.
+tinyfd_lib := func(target: Str) returns Str {
+    return format(TINYFD_DIR, "/build-", target, "/libtinyfd.a")
+}
+
+/// The vendored X11 headers every Linux GUI build compiles against.
+/// They are arch-independent, and GLFW dlopens libX11 on the target
+/// device at run time, so no per-arch X11 sysroot is needed to build or
+/// link -- only the cross compiler.
 x11_cflags := proc() returns Str {
     return format("-DSUPPORT_CLIPBOARD_IMAGE=0 -I", get_cwd_str(), "/vendor/x11/include")
 }
 
-/// Every GUI cross target, as data.
+/// Every GUI target, as data. src/modes/gui.til lists the same ones.
 gui_targets := proc(b: Build) returns Vec(GuiTarget) {
     mut out := Vec(GuiTarget).new()
-    // mingw supplies the win32 GL/GDI backend, so the windows builds
-    // need no sysroot and no X11 headers.
-    out.push(own GuiTarget(name = "win64", platform_os = "WINDOWS",
-        cc = "x86_64-w64-mingw32-gcc", ar = "x86_64-w64-mingw32-ar"))
-    out.push(own GuiTarget(name = "win32", platform_os = "WINDOWS",
-        cc = "i686-w64-mingw32-gcc", ar = "i686-w64-mingw32-ar"))
-    // linux-x86: the host compiler in 32-bit mode, so only gcc-multilib
-    // is required -- the same dependency the CLI target already needs.
-    out.push(own GuiTarget(name = "x86",
-        raylib_cflags = format("-m32 ", x11_cflags()), tinyfd_cflags = "-m32"))
-    out.push(own GuiTarget(name = "arm32",
-        cc = "arm-linux-gnueabihf-gcc", ar = "arm-linux-gnueabihf-ar",
-        raylib_cflags = x11_cflags()))
-    // The 64-bit linux cross targets (issue #420): the same recipe as
-    // arm32, with the distro cross gcc. A native arm64 host keeps
-    // building the canonical archives instead (targets.til's
-    // target_gui_libs picks by target_is_host).
-    out.push(own GuiTarget(name = "arm64",
+    out.push(own GuiTarget(target = "linux-x64",
+        cc = b.linux_x64_cc.clone(), ar = cross_ar(b.linux_x64_cc),
+        cc_option = "--linux-x64-cc=<path> (or LINUX_X64_CC)", raylib_cflags = x11_cflags()))
+    // The 64-bit linux cross targets (issue #420), with the distro
+    // cross gcc.
+    out.push(own GuiTarget(target = "linux-arm64",
         cc = "aarch64-linux-gnu-gcc", ar = "aarch64-linux-gnu-ar",
         raylib_cflags = x11_cflags()))
-    out.push(own GuiTarget(name = "riscv64",
+    out.push(own GuiTarget(target = "linux-riscv64",
         cc = "riscv64-linux-gnu-gcc", ar = "riscv64-linux-gnu-ar",
+        raylib_cflags = x11_cflags()))
+    // linux-x86: the host compiler in 32-bit mode, so only gcc-multilib
+    // is required -- the same dependency the CLI target already needs.
+    out.push(own GuiTarget(target = "linux-x86", cc = "gcc", ar = "ar",
+        raylib_cflags = format("-m32 ", x11_cflags()), tinyfd_cflags = "-m32"))
+    out.push(own GuiTarget(target = "linux-arm32",
+        cc = "arm-linux-gnueabihf-gcc", ar = "arm-linux-gnueabihf-ar",
         raylib_cflags = x11_cflags()))
     // No distro ships a riscv32 gcc: CI downloads the Bootlin
     // toolchain and passes it in, and the matching ar is derived from
     // the compiler's name.
-    out.push(own GuiTarget(name = "riscv32",
-        cc = b.riscv32_cc.clone(), ar = riscv32_ar(b.riscv32_cc),
-        raylib_cflags = x11_cflags()))
+    out.push(own GuiTarget(target = "linux-riscv32",
+        cc = b.riscv32_cc.clone(), ar = cross_ar(b.riscv32_cc),
+        cc_option = "--riscv32-cc=<path> (or RISCV32_CC)", raylib_cflags = x11_cflags()))
+    // mingw supplies the win32 GL/GDI backend, so the windows builds
+    // need no sysroot and no X11 headers.
+    out.push(own GuiTarget(target = "windows-x64", platform_os = "WINDOWS",
+        cc = "x86_64-w64-mingw32-gcc", ar = "x86_64-w64-mingw32-ar"))
+    out.push(own GuiTarget(target = "windows-x86", platform_os = "WINDOWS",
+        cc = "i686-w64-mingw32-gcc", ar = "i686-w64-mingw32-ar"))
+    // A mac host builds its own arch natively, against the vendored X11
+    // headers like before; anything else is build_mac_raylib/tinyfd.
+    for arch : Str in MAC_ARCHES.split(" ") {
+        out.push(own GuiTarget(target = format("macos-", arch), mac_arch = arch.clone(),
+            raylib_cflags = x11_cflags()))
+    }
+    out.push(own GuiTarget(target = "wasm32", web = true))
     return out
 }
 
-riscv32_ar := func(cc: Str) returns Str {
+/// The ar beside a gcc named by path or prefix (x86_64-linux-gnu-gcc ->
+/// x86_64-linux-gnu-ar).
+cross_ar := func(cc: Str) returns Str {
     if cc.is_empty() { return "" }
     if cc.ends_with("-gcc") {
         return format(cc.strip_suffix("-gcc"), "-ar")
@@ -1110,34 +1111,43 @@ riscv32_ar := func(cc: Str) returns Str {
     return format(cc, "-ar")
 }
 
-gui_target := proc(b: Build, name: Str) returns GuiTarget {
+gui_target := proc(b: Build, target: Str) returns GuiTarget {
     for t : GuiTarget in gui_targets(b) {
-        if t.name == name { return t.clone() }
+        if t.target == target { return t.clone() }
     }
-    panic("no such gui target: ", name)
+    panic("no gui build for --target=", target)
     return GuiTarget()
 }
 
-/// The riscv32 targets are the only ones whose compiler cannot be
-/// named in advance. Say so where the build starts, not three commands
-/// later as "riscv32--gcc: not found".
-require_target_cc := func(t: GuiTarget) {
-    if t.name != "riscv32" { return }
+/// A cross build's compiler, checked where the build starts, not three
+/// commands later as "riscv32--gcc: not found".
+require_gui_cc := proc(t: GuiTarget) {
     if t.cc.is_empty() {
         panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
     }
+    require_cross_cc(t.cc, t.cc_option, format("gui ", t.target))
 }
 
-/// raylib for one cross target. Its Makefile builds .o files in its own
-/// source directory, so the sources are staged under tmp/ first and the
-/// native build's objects are left alone.
-build_gui_raylib := proc(mut b: Build, name: Str) {
-    if b.begin(format("raylib-", name)).not() { return }
-    t := gui_target(b, name)
-    require_target_cc(t)
-    if needs_rebuild(t.raylib_lib(), no_inputs()).not() { return }
+/// raylib for one target. Its Makefile builds .o files in its own source
+/// directory, so the sources are staged under tmp/ first and every
+/// target's objects stay apart.
+build_gui_raylib := proc(mut b: Build, target: Str) {
+    t := gui_target(b, target)
+    is_host := target == b.host.target_name()
+    if t.web {
+        build_raylib_web(b)
+        return
+    }
+    if t.mac_arch.is_empty().not().and(is_host.not()) {
+        build_mac_raylib(b, t.mac_arch)
+        return
+    }
+    if b.begin(format("raylib-", target)).not() { return }
+    output := raylib_lib(target)
+    if needs_rebuild(output, no_inputs()).not() { return }
+    if is_host.not() { require_gui_cc(t) }
 
-    stage := format("tmp/raylib-", t.name)
+    stage := format("tmp/raylib-", target)
     File.remove_tree(stage)
     mkdir_p(stage)
     if copy_tree("vendor/raylib/src", stage) != 0 {
@@ -1153,50 +1163,70 @@ build_gui_raylib := proc(mut b: Build, name: Str) {
     if t.platform_os.is_empty().not() {
         argv.push(own format("PLATFORM_OS=", t.platform_os))
     }
-    if t.cc.is_empty().not() {
+    if is_host.not() {
         argv.push(own format("CC=", t.cc))
         argv.push(own format("AR=", t.ar))
     }
     if t.raylib_cflags.is_empty().not() {
         argv.push(own format("CUSTOM_CFLAGS=", t.raylib_cflags))
     }
-    argv.push(own format("RAYLIB_LIB_NAME=raylib-", t.name))
     argv.push(own "RAYLIB_RELEASE_PATH=.")
     run_argv(argv)
 
-    copy(format(stage, "/libraylib-", t.name, ".a"), t.raylib_lib())
+    mkdir_p(format(RAYLIB_DIR, "/build-", target))
+    copy(format(stage, "/libraylib.a"), output)
 }
 
-/// tinyfiledialogs for one cross target: one .c file that only needs
-/// libc, so every toolchain builds it the same way.
-build_gui_tinyfd := proc(mut b: Build, name: Str) {
-    if b.begin(format("tinyfd-", name)).not() { return }
-    t := gui_target(b, name)
-    require_target_cc(t)
-    if needs_rebuild(t.tinyfd_lib(), no_inputs()).not() { return }
+/// tinyfiledialogs for one target: one .c file that only needs libc, so
+/// every toolchain builds it the same way. The host's is -fPIC, because
+/// build_ffi_twins relinks it into the interpreter's shared twin; this
+/// file is an input, so an archive built before a flag change is rebuilt.
+build_gui_tinyfd := proc(mut b: Build, target: Str) {
+    t := gui_target(b, target)
+    is_host := target == b.host.target_name()
+    if t.web { panic("tinyfd has no wasm32 build: a browser page gets no native file dialogs") }
+    if t.mac_arch.is_empty().not().and(is_host.not()) {
+        build_mac_tinyfd(b, t.mac_arch)
+        return
+    }
+    if b.begin(format("tinyfd-", target)).not() { return }
+    output := tinyfd_lib(target)
+    mut inputs := Vec(Str).new()
+    inputs.push(own TINYFD_SRC.clone())
+    inputs.push(own SELF_SRC.clone())
+    if needs_rebuild(output, inputs).not() { return }
+    if is_host.not() { require_gui_cc(t) }
     mkdir_p("tmp")
-    obj := format("tmp/tinyfiledialogs-", t.name, ".o")
+    obj := format("tmp/tinyfiledialogs-", target, ".o")
 
     mut cc := "cc"
     mut ar := "ar"
-    if t.cc.is_empty().not() {
+    if is_host.not() {
         cc = t.cc.clone()
         ar = t.ar.clone()
     }
     mut argv := Vec(Str).new()
     argv.push(own cc)
+    if is_host {
+        argv.push(own "-Wall")
+        argv.push(own "-Wextra")
+        argv.push(own "-fPIC")
+    }
     if t.tinyfd_cflags.is_empty().not() { argv.push(own t.tinyfd_cflags.clone()) }
     argv.push(own "-c")
     argv.push(own "-o")
     argv.push(own obj.clone())
     argv.push(own TINYFD_SRC.clone())
     run_argv(argv)
-    run(ar, "rcs", t.tinyfd_lib(), obj)
+    mkdir_p(format(TINYFD_DIR, "/build-", target))
+    File.remove(output)
+    run(ar, "rcs", output, obj)
 }
 
-build_gui_pair := proc(mut b: Build, name: Str) {
-    build_gui_raylib(b, name)
-    build_gui_tinyfd(b, name)
+/// Both of one target's gui archives.
+build_gui_pair := proc(mut b: Build, target: Str) {
+    build_gui_raylib(b, target)
+    build_gui_tinyfd(b, target)
 }
 
 // --- Windows cross ---
@@ -1263,7 +1293,7 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
     }
     out.push(own LibffiCross(name = "linux-riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
         cc_option = "--riscv32-cc=<path> (or RISCV32_CC)",
-        ar = riscv32_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
+        ar = cross_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
     // mingw: windows AS A HOST (til.exe links libffi for its ext_func
     // dispatch) and any windows program that calls ext_func at run time.
     out.push(own LibffiCross(name = "windows-x64", host = "x86_64-w64-mingw32", cc = "x86_64-w64-mingw32-gcc"))
@@ -1640,17 +1670,15 @@ SECP256K1_WIN64_DLL := "vendor/secp256k1/build-windows-x64/lib/libsecp256k1.dll"
 
 /// The windows-host twins of the mode gui archives (issue #420): what
 /// til.exe's interpreter loads for a mode gui program, beside the
-/// canonical libraylib.a / libtinyfd.a the gui support file links (on a
-/// windows host those hold the win64 archives; CI's windows-host job lays
-/// the tree out so). A DLL must resolve everything at link time, so each
-/// one names the windows system libraries its archive calls into -- the
-/// same libraries target_gui_libs links a windows gui program against.
+/// windows-x64 archives src/modes/gui.til links for the host target
+/// there (issue #422). A DLL must resolve everything at link time, so
+/// each one names the windows system libraries its archive calls into --
+/// among those gui.til links a windows gui program against.
 build_gui_win_twins := proc(mut b: Build) {
     if b.begin("gui_win_twins").not() { return }
-    build_gui_pair(b, "win64")
-    t := gui_target(b, "win64")
-    build_win_twin(t.raylib_lib(), RAYLIB_WIN64_DLL, "-lgdi32 -lopengl32 -lwinmm")
-    build_win_twin(t.tinyfd_lib(), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
+    build_gui_pair(b, "windows-x64")
+    build_win_twin(raylib_lib("windows-x64"), RAYLIB_WIN64_DLL, "-lgdi32 -lopengl32 -lwinmm")
+    build_win_twin(tinyfd_lib("windows-x64"), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
 }
 
 /// Force-link a win64 archive into a DLL with every symbol exported, plus
@@ -1763,15 +1791,14 @@ example_name := func(path: Str) returns Str {
 build_win := proc(mut b: Build) {
     if b.begin("build_win").not() { return }
     build_til(b)
-    build_gui_pair(b, "win64")
-    t := gui_target(b, "win64")
+    build_gui_pair(b, "windows-x64")
     for path : Str in windows_examples() {
         output := format("bin/", example_name(path), ".exe")
         mut inputs := Vec(Str).new()
         inputs.push(own path.clone())
         inputs.push(own TIL.clone())
-        inputs.push(own t.raylib_lib())
-        inputs.push(own t.tinyfd_lib())
+        inputs.push(own raylib_lib("windows-x64"))
+        inputs.push(own tinyfd_lib("windows-x64"))
         if needs_rebuild(output, inputs) {
             run(TIL, "build", "--target=windows-x64", path)
         }
@@ -1785,15 +1812,14 @@ build_win := proc(mut b: Build) {
 build_win32 := proc(mut b: Build) {
     if b.begin("build_win32").not() { return }
     build_til(b)
-    build_gui_pair(b, "win32")
-    t := gui_target(b, "win32")
+    build_gui_pair(b, "windows-x86")
     for path : Str in windows_examples() {
         output := format("bin/", example_name(path), "-x86.exe")
         mut inputs := Vec(Str).new()
         inputs.push(own path.clone())
         inputs.push(own TIL.clone())
-        inputs.push(own t.raylib_lib())
-        inputs.push(own t.tinyfd_lib())
+        inputs.push(own raylib_lib("windows-x86"))
+        inputs.push(own tinyfd_lib("windows-x86"))
         if needs_rebuild(output, inputs) {
             run(TIL, "build", "--target=windows-x86", "-o", output, path)
         }
@@ -1859,23 +1885,16 @@ mac_triple := func(arch: Str) returns Str {
     return "x86_64-apple-macos11"
 }
 
-mac_tinyfd_lib := func(arch: Str) returns Str {
-    return format("vendor/tinyfiledialogs/libtinyfd-macos-", arch, ".a")
-}
-
-mac_raylib_lib := func(arch: Str) returns Str {
-    return format("vendor/raylib/src/libraylib-macos-", arch, ".a")
-}
-
 /// tinyfd for macOS, cross-built anywhere: one .c file that only needs
 /// libc (it shells out to osascript), so the SDK-less vendored headers
 /// are enough.
 build_mac_tinyfd := proc(mut b: Build, arch: Str) {
     if b.begin(format("tinyfd-macos-", arch)).not() { return }
     check_mac_cross_tools(b)
-    output := mac_tinyfd_lib(arch)
+    output := tinyfd_lib(format("macos-", arch))
     if needs_rebuild(output, no_inputs()).not() { return }
     mkdir_p("tmp")
+    mkdir_p(format(TINYFD_DIR, "/build-macos-", arch))
     obj := format("tmp/tinyfd-macos-", arch, ".o")
     run("clang", "-target", mac_triple(arch), "-nostdlibinc",
         "-isystem", "vendor/macos/include", "-c", TINYFD_SRC, "-o", obj)
@@ -1894,7 +1913,7 @@ build_mac_tinyfd := proc(mut b: Build, arch: Str) {
 build_mac_raylib := proc(mut b: Build, arch: Str) {
     if b.begin(format("raylib-macos-", arch)).not() { return }
     check_mac_cross_tools(b)
-    output := mac_raylib_lib(arch)
+    output := raylib_lib(format("macos-", arch))
     if needs_rebuild(output, no_inputs()).not() { return }
 
     stage := format("tmp/raylib-macos-", arch)
@@ -1911,6 +1930,7 @@ build_mac_raylib := proc(mut b: Build, arch: Str) {
             format("vendor/raylib/src/", module, ".c"), "-o", obj)
         objects.push(own obj)
     }
+    mkdir_p(format(RAYLIB_DIR, "/build-macos-", arch))
     mut argv := Vec(Str).new()
     argv.push(own "llvm-ar")
     argv.push(own "rcs")
@@ -1944,14 +1964,14 @@ build_mac_framework_stubs := proc(mut b: Build) {
     build_mac_raylib(b, "x64")
     mut inputs := Vec(Str).new()
     inputs.push(own TIL.clone())
-    inputs.push(own mac_raylib_lib("arm64"))
-    inputs.push(own mac_raylib_lib("x64"))
+    inputs.push(own raylib_lib("macos-arm64"))
+    inputs.push(own raylib_lib("macos-x64"))
     inputs.push(own "examples/gen_framework_stubs.til")
     if needs_rebuild(MAC_STUBS_STAMP, inputs).not() { return }
     File.remove_tree("vendor/macos/frameworks")
     mkdir_p("vendor/macos/frameworks")
     run(TIL, "run", "examples/gen_framework_stubs.til", "--linux-map",
-        "vendor/macos/frameworks", mac_raylib_lib("arm64"), mac_raylib_lib("x64"))
+        "vendor/macos/frameworks", raylib_lib("macos-arm64"), raylib_lib("macos-x64"))
     File.writefile(MAC_STUBS_STAMP, "")
 }
 
@@ -2016,7 +2036,8 @@ build_emsdk := proc(mut b: Build) {
 build_raylib_web := proc(mut b: Build) {
     if b.begin("raylib_web").not() { return }
     build_emsdk(b)
-    if needs_rebuild(RAYLIB_WASM_LIB, no_inputs()).not() { return }
+    output := raylib_lib("wasm32")
+    if needs_rebuild(output, no_inputs()).not() { return }
     stage := "tmp/raylib-web"
     File.remove_tree(stage)
     mkdir_p(stage)
@@ -2027,7 +2048,8 @@ build_raylib_web := proc(mut b: Build) {
     run("make", "-C", stage, "PLATFORM=PLATFORM_WEB", format("CC=", b.emcc),
         format("AR=", b.emar), format("RANLIB=", b.emranlib),
         "RAYLIB_LIB_NAME=raylib-web", "RAYLIB_RELEASE_PATH=.")
-    copy(format(stage, "/libraylib-web.web.a"), RAYLIB_WASM_LIB)
+    mkdir_p(format(RAYLIB_DIR, "/build-wasm32"))
+    copy(format(stage, "/libraylib-web.web.a"), output)
 }
 
 build_wasm := proc(mut b: Build) {
@@ -2039,7 +2061,7 @@ build_wasm := proc(mut b: Build) {
     mut inputs := Vec(Str).new()
     inputs.push(own source.clone())
     inputs.push(own TIL.clone())
-    inputs.push(own RAYLIB_WASM_LIB.clone())
+    inputs.push(own raylib_lib("wasm32"))
     if needs_rebuild(output, inputs).not() { return }
     run(TIL, "build", "--target=wasm32", format("--cc=", b.emcc), "-o", output, source)
 }
@@ -2050,7 +2072,7 @@ build_wasm := proc(mut b: Build) {
 // same handler under a second name rather than a copied recipe -- so
 // the three views cannot drift apart the way a Makefile's recipes and
 // its hand-written `help` echo lines do. Artifact paths are entries
-// too: `bin/make vendor/raylib/src/libraylib-x86.a` is the goal CI
+// too: `bin/make vendor/raylib/build-linux-x86/libraylib.a` is the goal CI
 // asks for, and it resolves here rather than through a pattern rule.
 
 Handler := proc(mut Build)
@@ -2074,24 +2096,16 @@ cmd_help := proc(mut b: Build) {
 // Handlers for the goals whose step function takes an argument. A
 // registry of first-class handlers wants one function per goal; these
 // are the thin bindings that provide it.
-gui_raylib_win64 := proc(mut b: Build) { build_gui_raylib(b, "win64") }
-gui_tinyfd_win64 := proc(mut b: Build) { build_gui_tinyfd(b, "win64") }
-gui_raylib_win32 := proc(mut b: Build) { build_gui_raylib(b, "win32") }
-gui_tinyfd_win32 := proc(mut b: Build) { build_gui_tinyfd(b, "win32") }
-gui_raylib_x86 := proc(mut b: Build) { build_gui_raylib(b, "x86") }
-gui_tinyfd_x86 := proc(mut b: Build) { build_gui_tinyfd(b, "x86") }
-gui_raylib_arm32 := proc(mut b: Build) { build_gui_raylib(b, "arm32") }
-gui_tinyfd_arm32 := proc(mut b: Build) { build_gui_tinyfd(b, "arm32") }
-gui_raylib_riscv32 := proc(mut b: Build) { build_gui_raylib(b, "riscv32") }
-gui_tinyfd_riscv32 := proc(mut b: Build) { build_gui_tinyfd(b, "riscv32") }
-gui_raylib_arm64 := proc(mut b: Build) { build_gui_raylib(b, "arm64") }
-gui_tinyfd_arm64 := proc(mut b: Build) { build_gui_tinyfd(b, "arm64") }
-gui_raylib_riscv64 := proc(mut b: Build) { build_gui_raylib(b, "riscv64") }
-gui_tinyfd_riscv64 := proc(mut b: Build) { build_gui_tinyfd(b, "riscv64") }
-mac_raylib_arm64 := proc(mut b: Build) { build_mac_raylib(b, "arm64") }
-mac_raylib_x64 := proc(mut b: Build) { build_mac_raylib(b, "x64") }
-mac_tinyfd_arm64 := proc(mut b: Build) { build_mac_tinyfd(b, "arm64") }
-mac_tinyfd_x64 := proc(mut b: Build) { build_mac_tinyfd(b, "x64") }
+gui_linux_x64 := proc(mut b: Build) { build_gui_pair(b, "linux-x64") }
+gui_linux_arm64 := proc(mut b: Build) { build_gui_pair(b, "linux-arm64") }
+gui_linux_riscv64 := proc(mut b: Build) { build_gui_pair(b, "linux-riscv64") }
+gui_linux_x86 := proc(mut b: Build) { build_gui_pair(b, "linux-x86") }
+gui_linux_arm32 := proc(mut b: Build) { build_gui_pair(b, "linux-arm32") }
+gui_linux_riscv32 := proc(mut b: Build) { build_gui_pair(b, "linux-riscv32") }
+gui_windows_x64 := proc(mut b: Build) { build_gui_pair(b, "windows-x64") }
+gui_windows_x86 := proc(mut b: Build) { build_gui_pair(b, "windows-x86") }
+gui_macos_arm64 := proc(mut b: Build) { build_gui_pair(b, "macos-arm64") }
+gui_macos_x64 := proc(mut b: Build) { build_gui_pair(b, "macos-x64") }
 libffi_linux_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-x64") }
 libffi_windows_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "windows-x64") }
 libffi_windows_x86 := proc(mut b: Build) { build_libffi_out_of_tree(b, "windows-x86") }
@@ -2204,8 +2218,6 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = "bin/plot", alias_of = "plot", is_path = true, go = build_plot))
     out.push(own Command(name = "bin/tests", alias_of = "tests", is_path = true, go = build_tests))
     out.push(own Command(name = "bin/til.exe", alias_of = "build_win_host", is_path = true, go = build_win_host))
-    out.push(own Command(name = RAYLIB_LIB, alias_of = "vendor", is_path = true, go = build_raylib))
-    out.push(own Command(name = TINYFD_LIB, alias_of = "vendor", is_path = true, go = build_tinyfd))
     out.push(own Command(name = nng_lib("linux-x64"), is_path = true, go = nng_linux_x64,
         about = "linux-x64 nng, for the server modes (--linux-x64-cc= off a linux-x64 host)"))
     out.push(own Command(name = nng_lib("linux-arm64"), is_path = true, go = nng_linux_arm64,
@@ -2269,37 +2281,28 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))
     out.push(own Command(name = RAYLIB_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
     out.push(own Command(name = TINYFD_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-win64.a", alias_of = "build_win", is_path = true, go = gui_raylib_win64))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-win64.a", alias_of = "build_win", is_path = true, go = gui_tinyfd_win64))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-win32.a", alias_of = "build_win32", is_path = true, go = gui_raylib_win32))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-win32.a", alias_of = "build_win32", is_path = true, go = gui_tinyfd_win32))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-x86.a", is_path = true, go = gui_raylib_x86,
-        about = "linux-x86 GUI archive"))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-x86.a", is_path = true, go = gui_tinyfd_x86,
-        about = "linux-x86 GUI archive"))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-arm32.a", is_path = true, go = gui_raylib_arm32,
-        about = "linux-arm32 GUI archive"))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-arm32.a", is_path = true, go = gui_tinyfd_arm32,
-        about = "linux-arm32 GUI archive"))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-arm64.a", is_path = true, go = gui_raylib_arm64,
-        about = "linux-arm64 GUI archive (cross; a native arm64 host uses the plain one)"))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-arm64.a", is_path = true, go = gui_tinyfd_arm64,
-        about = "linux-arm64 GUI archive (cross; a native arm64 host uses the plain one)"))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-riscv64.a", is_path = true, go = gui_raylib_riscv64,
-        about = "linux-riscv64 GUI archive"))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-riscv64.a", is_path = true, go = gui_tinyfd_riscv64,
-        about = "linux-riscv64 GUI archive"))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-riscv32.a", is_path = true, go = gui_raylib_riscv32,
-        about = "linux-riscv32 GUI archive (needs --riscv32-cc=)"))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-riscv32.a", is_path = true, go = gui_tinyfd_riscv32,
-        about = "linux-riscv32 GUI archive (needs --riscv32-cc=)"))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-macos-arm64.a", alias_of = "build_mac", is_path = true, go = mac_raylib_arm64))
-    out.push(own Command(name = "vendor/raylib/src/libraylib-macos-x64.a", alias_of = "build_mac", is_path = true, go = mac_raylib_x64))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-macos-arm64.a", alias_of = "build_mac", is_path = true, go = mac_tinyfd_arm64))
-    out.push(own Command(name = "vendor/tinyfiledialogs/libtinyfd-macos-x64.a", alias_of = "build_mac", is_path = true, go = mac_tinyfd_x64))
+    gui_archive_goals(out, "linux-x64", gui_linux_x64, "(--linux-x64-cc= off a linux-x64 host)")
+    gui_archive_goals(out, "linux-arm64", gui_linux_arm64, "")
+    gui_archive_goals(out, "linux-riscv64", gui_linux_riscv64, "")
+    gui_archive_goals(out, "linux-x86", gui_linux_x86, "")
+    gui_archive_goals(out, "linux-arm32", gui_linux_arm32, "")
+    gui_archive_goals(out, "linux-riscv32", gui_linux_riscv32, "(needs --riscv32-cc=)")
+    gui_archive_goals(out, "windows-x64", gui_windows_x64, "")
+    gui_archive_goals(out, "windows-x86", gui_windows_x86, "")
+    gui_archive_goals(out, "macos-arm64", gui_macos_arm64, "(SDK-less off a mac)")
+    gui_archive_goals(out, "macos-x64", gui_macos_x64, "(SDK-less off a mac)")
     out.push(own Command(name = MAC_STUBS_STAMP, alias_of = "build_mac", is_path = true, go = build_mac_framework_stubs))
-    out.push(own Command(name = RAYLIB_WASM_LIB, alias_of = "build_wasm", is_path = true, go = build_raylib_web))
+    out.push(own Command(name = raylib_lib("wasm32"), is_path = true, go = build_raylib_web,
+        about = "wasm32 raylib (emcc, vendored emsdk), for mode gui"))
     return out
+}
+
+/// One target's raylib and tinyfd archive goals; either builds both.
+gui_archive_goals := func(mut out: Vec(Command), target: Str, go: Handler, note: Str) {
+    mut about := format(target, " raylib + tinyfd, for mode gui")
+    if note.is_empty().not() { about = format(target, " raylib + tinyfd ", note, ", for mode gui") }
+    out.push(own Command(name = raylib_lib(target), is_path = true, go = go, about = about.clone()))
+    out.push(own Command(name = tinyfd_lib(target), is_path = true, go = go, about = about))
 }
 
 usage := proc() {

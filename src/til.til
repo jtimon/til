@@ -29,11 +29,9 @@ import("self/builder")
 import("self/interpreter")
 import("self/binder")
 import("self/repl_editor")
-link("vendor/raylib/src/libraylib.a")
 link("m")
 link("pthread")
 link("rt")
-link("vendor/tinyfiledialogs/libtinyfd.a")
 // nng, linked into til itself as before, per target (issue #422): the
 // same archives the server modes link (examples/lib/custom_modes/nng_base.til).
 link("vendor/nng/build-linux-x64/libnng.a", "linux-x64")
@@ -201,7 +199,7 @@ repl_ast_has_loader_directive := func(e: Expr, symbols: SymbolPool) returns Bool
             case .Ident(name):
                 ref cname : Str = name.ident_name(symbols.names)
                 switch cname {
-                case "import", "link", "link_c": return true
+                case "import", "link", "link_macos", "link_c": return true
                 case:
                 }
             case:

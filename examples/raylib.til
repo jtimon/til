@@ -5,7 +5,14 @@ mode script
 // see `bin/til bindings` and the Makefile `bindings` target). Each
 // importer adds the matching link() lines next to the import.
 import("../vendor/bindings/raylib")
-link("vendor/raylib/src/libraylib.a")
+// The linux targets' own raylib builds (issue #422); src/modes/gui.til
+// lists every target's.
+link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")
+link("vendor/raylib/build-linux-arm64/libraylib.a", "linux-arm64")
+link("vendor/raylib/build-linux-riscv64/libraylib.a", "linux-riscv64")
+link("vendor/raylib/build-linux-x86/libraylib.a", "linux-x86")
+link("vendor/raylib/build-linux-arm32/libraylib.a", "linux-arm32")
+link("vendor/raylib/build-linux-riscv32/libraylib.a", "linux-riscv32")
 link("m")
 link("pthread")
 link("rt")

@@ -1,0 +1,34 @@
+# priority: medium
+# category: bugs
+** OPEN #457 til names that collide with C macros or keywords break the C backend
+
+The C codegen emits til identifiers into the generated C unchanged
+(~builder_resolve_c_ident_name~ in src/self/c_codegen.til returns the
+name as written unless it is a pooled string literal or an imported
+global). So a valid til name that C reserves -- a predefined macro, a
+keyword, or a libc identifier -- makes the generated C fail to compile,
+while the interpreter runs the same program fine.
+
+Found while writing test/link_macos.til (#422): a local named ~linux~
+failed with ~expected identifier or '(' before numeric constant~,
+because gcc in its default GNU C mode predefines ~linux~ (and ~unix~) as
+~1~. The test renamed its local.
+
+Reproduce (each a one-line ~mode script~ program: ~<name> := 3~ then
+~println(<name>.to_str())~, built with ~bin/til run~):
+
+- ~linux~, ~unix~: ~error: expected identifier or '(' before numeric
+  constant~ (predefined macros).
+- ~register~: ~error: 'register' is not at beginning of declaration
+  [-Werror=old-style-declaration]~ (a C keyword).
+- ~stdin~: ~error: conflicting types for 'stdin'; have 'I64'~ (a libc
+  global).
+- ~errno~ happened to work.
+
+Expected: any name the til lexer accepts compiles. Likely shape of a
+fix: mangle emitted user identifiers that collide with C (a fixed
+reserved-word list plus the predefined-macro spellings, or a uniform
+prefix for user locals/globals), in one place in the C codegen; or, at
+minimum, a loud til-level error naming the identifier instead of a C
+compiler error. Out of scope for the other backends unless they share
+the problem.

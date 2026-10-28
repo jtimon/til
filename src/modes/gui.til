@@ -1,14 +1,44 @@
 mode lib
 
 import("../../vendor/bindings/raylib")
-link("vendor/raylib/src/libraylib.a")
-link("m")
-link("pthread")
-link("rt")
 import("../../vendor/bindings/tinyfd")
-link("vendor/tinyfiledialogs/libtinyfd.a")
-
-link("dl")
+// Each target's own raylib and tinyfd builds (issue #422); bin/make
+// builds any of them by its path. wasm32 has raylib only: a browser page
+// gets no native file dialogs.
+link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")
+link("vendor/raylib/build-linux-arm64/libraylib.a", "linux-arm64")
+link("vendor/raylib/build-linux-riscv64/libraylib.a", "linux-riscv64")
+link("vendor/raylib/build-linux-x86/libraylib.a", "linux-x86")
+link("vendor/raylib/build-linux-arm32/libraylib.a", "linux-arm32")
+link("vendor/raylib/build-linux-riscv32/libraylib.a", "linux-riscv32")
+link("vendor/raylib/build-windows-x64/libraylib.a", "windows-x64")
+link("vendor/raylib/build-windows-x86/libraylib.a", "windows-x86")
+link("vendor/raylib/build-macos-x64/libraylib.a", "macos-x64")
+link("vendor/raylib/build-macos-arm64/libraylib.a", "macos-arm64")
+link("vendor/raylib/build-wasm32/libraylib.a", "wasm32")
+link("vendor/tinyfiledialogs/build-linux-x64/libtinyfd.a", "linux-x64")
+link("vendor/tinyfiledialogs/build-linux-arm64/libtinyfd.a", "linux-arm64")
+link("vendor/tinyfiledialogs/build-linux-riscv64/libtinyfd.a", "linux-riscv64")
+link("vendor/tinyfiledialogs/build-linux-x86/libtinyfd.a", "linux-x86")
+link("vendor/tinyfiledialogs/build-linux-arm32/libtinyfd.a", "linux-arm32")
+link("vendor/tinyfiledialogs/build-linux-riscv32/libtinyfd.a", "linux-riscv32")
+link("vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a", "windows-x64")
+link("vendor/tinyfiledialogs/build-windows-x86/libtinyfd.a", "windows-x86")
+link("vendor/tinyfiledialogs/build-macos-x64/libtinyfd.a", "macos-x64")
+link("vendor/tinyfiledialogs/build-macos-arm64/libtinyfd.a", "macos-arm64")
+// What raylib and tinyfd call into on each system.
+link("m", "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32")
+link("pthread", "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32")
+link("rt", "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32")
+link("dl", "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32")
+link("gdi32", "windows-x64 windows-x86")
+link("opengl32", "windows-x64 windows-x86")
+link("winmm", "windows-x64 windows-x86")
+link("ole32", "windows-x64 windows-x86")
+link("uuid", "windows-x64 windows-x86")
+link("comdlg32", "windows-x64 windows-x86")
+link("imm32", "windows-x64 windows-x86")
+link_macos("OpenGL Cocoa IOKit CoreAudio CoreVideo")
 
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}

@@ -2526,6 +2526,7 @@ typedef struct LoadedProgram {
     Str link_flags;
     Str include_flags;
     Vec__TargetLink target_links;
+    Str macos_frameworks;
     Str link_c_paths;
     Str compiler_revision;
     Bool asan_build;

@@ -119,13 +119,14 @@ priv support_link_artifacts := proc() returns Vec(Str) {
     mut twin_ext := ".so"
     if host_os() == "windows" { twin_ext = ".dll" }
     mut out := Vec(Str).new()
-    out.push(own "vendor/raylib/src/libraylib.a")
-    out.push(own format("vendor/raylib/src/libraylib", twin_ext))
-    out.push(own "vendor/tinyfiledialogs/libtinyfd.a")
-    out.push(own format("vendor/tinyfiledialogs/libtinyfd", twin_ext))
-    // std/crypto links the archive under its target's build directory
-    // (issue #422); an installed til carries the host's.
-    secp_dir := format("vendor/secp256k1/build-", target_to_str(detect_current_target()), "/lib")
+    // mode gui and std/crypto link the archives under their target's
+    // build directory (issue #422); an installed til carries the host's.
+    host := target_to_str(detect_current_target())
+    out.push(own format("vendor/raylib/build-", host, "/libraylib.a"))
+    out.push(own format("vendor/raylib/build-", host, "/libraylib", twin_ext))
+    out.push(own format("vendor/tinyfiledialogs/build-", host, "/libtinyfd.a"))
+    out.push(own format("vendor/tinyfiledialogs/build-", host, "/libtinyfd", twin_ext))
+    secp_dir := format("vendor/secp256k1/build-", host, "/lib")
     out.push(own format(secp_dir, "/libsecp256k1.a"))
     out.push(own format(secp_dir, "/libsecp256k1", twin_ext))
     return out

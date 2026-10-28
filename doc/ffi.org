@@ -24,6 +24,13 @@ can name its own build of a library (~link("vendor/nng/build-linux-arm64/libnng.
 see [[file:tutorial/2_modes.org][the modes tutorial]] for the mode-level
 ~targets~ and ~build_hint~ that go with it.
 
+~link_macos("OpenGL Cocoa")~ names macOS frameworks, which ~link()~ cannot
+spell. They are linked for the mac targets only: as ~-framework~ on a mac
+host, and off a mac -- where there is no Apple SDK -- as the ~.tbd~ stubs
+~bin/make vendor/macos/frameworks/.stamp~ generates from the mac gui
+archives, which stand in for every framework those reach; the real
+frameworks bind at run time on the mac. The interpreter loads none of them.
+
 A compiled host and an interpreter can share native globals by using the
 same shared-library instance. ~TilVm.load_file~ accepts these prebuilt
 libraries and imported bindings through the same ~import~ / ~link~ syntax.
