@@ -159,6 +159,37 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Mutable locals and control flow (base 201db1ef2)
+
+The MLIR backend now lowers mutable value locals, if/else, while,
+break/continue and early returns into explicit LLVM-dialect blocks. Mutable
+storage is allocated once at function entry; declaration initializers still
+run at their source position. Lexical binding snapshots preserve branch
+shadowing while stores through outer-local slots remain visible.
+
+I32/U32/I64/U64 and Bool values now complement F32/F32x4. Integer add/sub/mul
+and increment/decrement wrap without LLVM overflow assumptions; comparisons
+distinguish signed and unsigned operands. F32 comparisons retain unordered
+NaN behavior for inequality. Boolean results use i1 internally and normalized
+byte values across the C ABI. Lazy Boolean operands remain conditional.
+USize follows the existing resolved target width, including explicit test
+overrides; the default-policy/configuration migration remains separate (#455).
+
+The normal translation tests cover control flow and both USize widths without
+requiring MLIR tools. The opt-in LLVM 18 integration tests compare interpreter
+and C reference results with native C and til/C consumers at O0/O2/O3 and
+USize32/USize64. They exercise nested loop-local initialization, zero trips,
+break/continue, condition re-evaluation, both-returning branches, snapshots,
+shadowing, Boolean ABI calls, wraparound, wide counts, mutable scalar/SIMD
+values, signed/unsigned integer widening and a million-iteration bounded-stack
+check. Widened declarations emitted as clone calls retain the required
+extension rather than being mistaken for identity copies. Existing SIMD numerical
+and ABI checks also remain green.
+
+Verification: clean full ASAN suite 476/476; the expanded opt-in integration
+test passes using the ASAN-built compiler and test driver. Borrowed buffers,
+mutable parameters and general exception handling remain future increments.
+
 *** SIMD dot-product operations (2026-10-27)
 
 The MLIR F32/F32x4 subset now includes multiplication, SIMD ~new~, ~splat~,

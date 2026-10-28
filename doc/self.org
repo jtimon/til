@@ -165,16 +165,29 @@
   existing default. Backend selection is separate from ~--target~; the
   initial MLIR ABI supports Linux x86-64 hosts and targets only.
 
-  This is a restricted straight-line value backend, not GPU execution or a
-  replacement for the general C backend. It supports immutable F32 and
-  ~Simd(F32,4)~ parameters/locals/results, addition, multiplication, cloning,
-  F32 literals, same-file direct function calls and returns. SIMD ~new~,
+  This is a restricted value/control-flow backend, not GPU execution or a
+  replacement for the general C backend. It supports F32, ~Simd(F32,4)~,
+  Bool, I32/U32 and I64/U64 values, including USize/UPtr aliases resolved
+  through the existing target configuration. Parameters are immutable;
+  locals may be mutable. Arithmetic includes addition, subtraction and
+  multiplication (integer operations wrap), integer increment/decrement,
+  scalar comparisons, Boolean logic, cloning, literals, same-file direct
+  calls and returns. Integer division, shifts and other unsupported
+  operations still produce diagnostics. SIMD ~new~,
   ~splat~, ~zero~, fixed-order ~reduce_add~ and statically in-range lane
   access (~v[2]~ or ~v.get(2)!~) are supported. Unsupported arithmetic,
-  control flow, ownership, globals, runtime calls and types produce
+  ownership, globals, runtime calls and types produce
   source-located errors. Generated compile-time core helpers are not treated
   as exported source functions. A runnable program needs a no-argument,
   void ~main~; its native entry returns zero. CLI arguments are unsupported.
+
+  ~if~/~else~ and ~while~, including nested loops, ~break~, ~continue~ and
+  early returns, lower to explicit LLVM-dialect blocks and branches. Lazy
+  Boolean operands remain conditional. Mutable locals have storage allocated
+  once in the function's entry block, not once per loop iteration; their
+  initializers still execute at the source declaration. Lexical bindings
+  are restored after each block, while stores to an outer local persist.
+  LLVM/Clang may promote these non-escaping slots to SSA values when optimizing.
 
   Scalar-aligned four-F32 storage retains the C backend's Linux SysV ABI:
   each value argument is split into two ~vector<2xf32>~ arguments, and the
@@ -185,14 +198,22 @@
   followed by add remains unfused. More than eight
   SSE argument slots is rejected until aggregate stack passing is supported.
   Mutable, borrowed and owning parameters are outside the initial subset.
+  Integer parameters/results use their resolved bit width. Bool uses i1
+  internally and normalized byte values at the C ABI boundary. Integer
+  arguments do not consume the SSE argument budget. Native-width USize
+  remains the default; the existing explicit width override is unchanged.
+  Accepted 32-to-64-bit integer widening uses sign or zero extension as
+  appropriate, including widened locals, assignments and return values.
 
   Lane access is lowered only after proving the index is in 0..3. The
   backend tracks compile-time integer/boolean bookkeeping to prove the
   prepared AST's bounds-error branch unreachable; it leaves the error
   argument untouched on success. It rejects unknown/out-of-range indices
   rather than emitting an unchecked extract or discarding a live catch.
-  This does not implement general integer parameters, runtime control flow
-  or exception handling. Both USize32 and USize64 index bookkeeping are tested.
+  This does not implement general exception handling or dynamic lane access.
+  Compile-time facts are not inferred from ordinary mutable locals. Only the
+  unchanged error slots of these proven in-range reads retain that knowledge.
+  Both USize32 and USize64 index bookkeeping are tested.
 
   til writes ~gen/mlir/<source>.mlir~, preserving the same normalized source
   hierarchy as C output. ~mlir-opt-18~ lowers vector/arith operations to the
@@ -222,6 +243,12 @@
   F4 := Simd(F32, 4)
   add4 := func(a: F4, b: F4) returns F4 { return a + b }
   dot4 := func(a: F4, b: F4) returns F32 { return (a * b).reduce_add() }
+  sum_to := func(limit: USize) returns USize {
+      mut i : USize = 0
+      mut total : USize = 0
+      while i < limit { total = total + i; i++ }
+      return total
+  }
   #+end_src
 
   #+begin_src sh
@@ -242,6 +269,14 @@
   reordering preserve raw bits, including signaling-NaN payloads, and are
   checked byte-for-byte. A multiply/add case distinguishes separate rounding
   from FMA (zero versus one).
+
+  Control-flow tests compare the interpreter/C reference with native C and
+  til/C callers of the MLIR library at O0/O2/O3, with USize32 and USize64.
+  Cases cover zero iterations, condition re-evaluation, nested loop-local
+  initialization, break/continue, early returns, lexical branch locals,
+  mutable-value snapshots, signed/unsigned comparisons, integer wraparound,
+  integer widening, Boolean ABI calls and a mutable SIMD accumulator. A million-iteration
+  nested loop also checks that loop-local storage does not grow the stack.
 
 ** Experimental FASM backend
 

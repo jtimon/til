@@ -11,6 +11,78 @@ priv checked := proc(command: Cmd, work: Str) {
     expect(status == 0, command.render(), "\n", command.out(), command.err())
 }
 
+priv check_control_flow := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/flow.til"), format(
+        "mode pure\nF4 := Simd(F32,4)\nCount := USize\n",
+        "sum_to := func(n: Count) returns Count { mut i: Count = 0; mut total: Count = 0; while i < n { i++; if i == 2 { continue }; if i == 5 { break }; total = total + i }; return total }\n",
+        "repeat := func(v: F4,n: USize) returns F4 { mut result := F4.zero(); mut i: USize = 0; while i < n { result = result + v; i++ }; return result }\n",
+        "nested := func(n: USize) returns USize { mut total: USize = 0; mut i: USize = 0; while i < n { i++; mut j: USize = 0; while j < 4 { j++; if j == 2 { continue }; if j == 4 { break }; total = total + j } }; return total }\n",
+        "early := func(n: I64) returns I64 { if n < 0 { return -1 } else { mut left := n; while left > 0 { if left == 3 { return 30 }; left-- }; return 0 } }\n",
+        "choose := func(a: I64,b: I64) returns Bool { return a < b }\n",
+        "unsigned_choice := func(a: U64,b: U64) returns Bool { return a < b }\n",
+        "flip := func(a: Bool,b: Bool) returns Bool { mut result := a; if b { result = result.not() }; return result }\n",
+        "combined := func(a: I64,b: I64) returns Bool { return choose(a,b) && flip(false,true) }\n",
+        "float_choice := func(a: F32,b: F32) returns Bool { return a != b }\n",
+        "wrap := func(a: USize) returns USize { mut result := a; result++; return result }\n",
+        "snapshot := func(a: USize) returns USize { mut value := a; before := value; value++; return before }\n",
+        "signed_wrap := func(a: I32) returns I32 { mut result := a; result++; return result }\n",
+        "branch_local := func(a: Bool) returns I64 { mut result: I64 = 0; if a { value: I64 = 17; result = value } else { value: I64 = 23; result = value }; return result }\n",
+        "shadow := func(a: Bool) returns I64 { mut value: I64 = 7; value++; mut result: I64 = 0; if a { value: I64 = 20; result = value } else { value: I64 = 30; result = value }; return value + result }\n",
+        "drain := func(a: F32) returns F32 { mut value := a; while value > 0 { value = value - 1 }; return value }\n",
+        "once := func(a: I64) returns I64 { while true { if a > 0 { return a }; return 0 } }\n",
+        "wide_identity := func(a: I64) returns I64 { return a }\n",
+        "widen_assign := func(a: I32) returns I64 { mut value: I64 = 0; value = a; return value }\n",
+        "widen_return := func(a: I32) returns I64 { return a }\n",
+        "widen_call := func(a: I32) returns I64 { value: I64 = a; return wide_identity(value) }\n",
+        "widen_local := func(a: I32) returns I64 { value: I64 = a; return value }\n",
+        "widen_unsigned := func(a: U32) returns U64 { mut value: U64 = 0; value = a; return value }\n",
+        "below := func(a: USize,b: USize) returns Bool { return a < b }\n",
+        "checks := func(n: USize) returns USize { mut count: USize = 0; mut i: USize = 0; while below(i,n) { i++; count++; if i == n + 3 { break } }; return count }\n"))
+    checks := format(
+        "main := proc() { assert_eq(USize,sum_to(0),0); assert_eq(USize,sum_to(1),1); assert_eq(USize,sum_to(4),8); assert_eq(USize,sum_to(10),8);\n",
+        "assert_eq(USize,nested(3),12); assert_eq(I64,early(-7),-1); assert_eq(I64,early(2),0); assert_eq(I64,early(5),30);\n",
+        "assert(choose(-1,1)); assert(unsigned_choice(18446744073709551615,1).not()); assert(combined(-1,1)); assert(combined(1,-1).not()); assert(flip(true,true).not());\n",
+        "assert_eq(USize,wrap(USize.MAX),0); assert_eq(I32,signed_wrap(I32.MAX),I32.MIN); assert_eq(I64,branch_local(true),17); assert_eq(I64,branch_local(false),23);\n",
+        "assert_eq(USize,checks(0),0); assert_eq(USize,checks(7),7); v := repeat(Simd(F32,4).new(1,2,3,4),3); assert(v.eq(Simd(F32,4).new(3,6,9,12)).all()); println(\"control flow PASS\") }\n")
+    File.writefile(format(work, "/flow_reference.til"), format("mode cli\nimport(\"flow\")\n", checks))
+    File.writefile(format(work, "/flow_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <math.h>\n",
+        "#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct {float a,b,c,d;} F4;\nextern Count sum_to(Count),nested(Count),wrap(Count),checks(Count),snapshot(Count);\nextern F4 repeat(F4,Count); extern int64_t early(int64_t),branch_local(bool),shadow(bool),once(int64_t); extern int32_t signed_wrap(int32_t); extern float drain(float);\n",
+        "extern bool choose(int64_t,int64_t),unsigned_choice(uint64_t,uint64_t),flip(bool,bool),combined(int64_t,int64_t),float_choice(float,float);\n",
+        "extern int64_t widen_assign(int32_t),widen_return(int32_t),widen_call(int32_t),widen_local(int32_t); extern uint64_t widen_unsigned(uint32_t);\n",
+        "int main(void){for(Count n=0;n<12;n++){Count expected=0; for(Count i=1;i<=n && i<5;i++){if(i!=2)expected+=i;} assert(sum_to(n)==expected);assert(nested(n)==4*n);assert(checks(n)==n); F4 v=repeat((F4){1,2,3,4},n);assert(v.a==n && v.b==2*n && v.c==3*n && v.d==4*n);}\n",
+        "assert(early(-7)==-1 && early(2)==0 && early(5)==30); assert(choose(INT64_MIN,1)); assert(!choose(INT64_MAX,-1)); assert(!unsigned_choice(UINT64_MAX,1));\n",
+        "assert(!flip(true,true) && flip(false,true) && flip(true,false)); assert(combined(-1,1) && !combined(1,-1)); assert(float_choice(NAN,1) && !float_choice(-0.0f,0.0f));\n",
+        "assert(wrap((Count)-1)==0); assert(sum_to((Count)-1)==8); assert(snapshot((Count)-1)==(Count)-1);\n#ifndef COUNT32\nassert(wrap(UINT64_C(4294967296))==UINT64_C(4294967297));\n#endif\n",
+        "assert(widen_assign(-1)==-1 && widen_return(INT32_MIN)==INT32_MIN && widen_call(-9)==-9 && widen_local(-7)==-7); assert(widen_unsigned(UINT32_MAX)==UINT64_C(4294967295));\n",
+        "assert(signed_wrap(INT32_MAX)==INT32_MIN); assert(branch_local(true)==17 && branch_local(false)==23); assert(shadow(true)==28 && shadow(false)==38); assert(once(9)==9 && once(-1)==0); assert(drain(3.5f)==-0.5f && signbit(drain(-0.0f)) && isnan(drain(NAN))); assert(checks(100000)==100000); assert(nested(1000000)==4000000); return 0;}\n"))
+    File.writefile(format(work, "/flow_consumer.til"), format(
+        "mode cli\nlink(\"gen/lib/libflow.so\")\nF4 := Simd(F32,4)\n",
+        "sum_to := ext_func(shallow n: USize) returns shallow USize {}\nnested := ext_func(shallow n: USize) returns shallow USize {}\nchecks := ext_func(shallow n: USize) returns shallow USize {}\nwrap := ext_func(shallow n: USize) returns shallow USize {}\n",
+        "repeat := ext_func(shallow v: F4,shallow n: USize) returns shallow F4 {}\nearly := ext_func(shallow n: I64) returns shallow I64 {}\nsigned_wrap := ext_func(shallow n: I32) returns shallow I32 {}\n",
+        "choose := ext_func(shallow a: I64,shallow b: I64) returns shallow Bool {}\nunsigned_choice := ext_func(shallow a: U64,shallow b: U64) returns shallow Bool {}\ncombined := ext_func(shallow a: I64,shallow b: I64) returns shallow Bool {}\n",
+        "flip := ext_func(shallow a: Bool,shallow b: Bool) returns shallow Bool {}\nbranch_local := ext_func(shallow a: Bool) returns shallow I64 {}\n", checks))
+    for width in array(Str, "32", "64") {
+        width_flag := format("--usize=", width)
+        for command in array(Str, "interpret", "run") {
+            reference := Cmd.new(compiler, command, width_flag, "flow_reference.til")
+            checked(reference, work)
+        }
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", width_flag, format("--opt=", level), "flow.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "flow_caller.c", "gen/lib/libflow.a", "-o", "flow_caller")
+            if width == "32" { cc.arg("-DCOUNT32") }
+            checked(cc, work)
+            run := Cmd.new("./flow_caller")
+            checked(run, work)
+            consumer := Cmd.new(compiler, "run", width_flag, "flow_consumer.til")
+            checked(consumer, work)
+        }
+    }
+}
+
 main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
@@ -78,5 +150,6 @@ main := proc(compiler_arg: Str) {
         main_run := Cmd.new(compiler, "run", "--backend=mlir", "-o", "custom executable", "main.til")
         checked(main_run, work)
     }
+    check_control_flow(compiler, work)
     println("mlir PASS")
 }

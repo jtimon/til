@@ -416,7 +416,9 @@ typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___sr
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
 typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
+typedef struct priv___src_self_mlir_codegen_til__MlirBinding priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_mlir_codegen_til__MlirState priv___src_self_mlir_codegen_til__MlirState;
+typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct Map__Str_U64 Map__Str_U64;
 enum {
     Option__U64_TAG_None,
@@ -428,6 +430,7 @@ enum {
     Option__Bool_TAG_Some
 };
 typedef struct Option__Bool Option__Bool;
+typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding Vec__priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_fasm_codegen_til__FasmState priv___src_self_fasm_codegen_til__FasmState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
@@ -1482,6 +1485,14 @@ typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
 } Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
+typedef struct priv___src_self_mlir_codegen_til__MlirBinding {
+    Str value;
+    Str type_name;
+    Bool is_mut;
+    Bool is_signed;
+} priv___src_self_mlir_codegen_til__MlirBinding;
+
+
 typedef struct Map__Str_U64 {
     Vec__Str keys;
     Vec__U64 values;
@@ -1503,6 +1514,13 @@ struct Option__Bool {
         void *_til_payload_align;
     } data;
 };
+
+typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_mlir_codegen_til__MlirBinding;
+
 
 typedef struct priv___src_self_fasm_codegen_til__FasmState {
     Str text;
@@ -2197,14 +2215,10 @@ typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites {
 } Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
 
 
-typedef struct priv___src_self_mlir_codegen_til__MlirState {
-    Str text;
-    USize next;
-    Map__Str_Str values;
-    Set__Str functions;
-    Map__Str_U64 integers;
-    Map__Str_Bool booleans;
-} priv___src_self_mlir_codegen_til__MlirState;
+typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding {
+    Vec__Str keys;
+    Vec__priv___src_self_mlir_codegen_til__MlirBinding values;
+} Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
 
 
 typedef struct Map__Str_call_Map_Str_Bool {
@@ -2492,6 +2506,23 @@ typedef struct LoadedProgram {
     I32 load_errors;
     I64 usize_override_bits;
 } LoadedProgram;
+
+
+typedef struct priv___src_self_mlir_codegen_til__MlirState {
+    Str text;
+    Str allocations;
+    USize next;
+    USize next_block;
+    Bool terminated;
+    Str break_label;
+    Str continue_label;
+    Bool has_break;
+    Map__Str_priv___src_self_mlir_codegen_til__MlirBinding values;
+    Set__Str functions;
+    Set__Str error_slots;
+    Map__Str_U64 integers;
+    Map__Str_Bool booleans;
+} priv___src_self_mlir_codegen_til__MlirState;
 
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
