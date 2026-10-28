@@ -1,0 +1,74 @@
+# priority: medium
+# category: cleanups
+** OPEN #455 Replace --usize with source-level configuration while preserving cross-width use cases
+
+Move explicit USize-width selection into til code, through an early
+configuration call analogous to ~link(...)~, then remove the public
+~--usize~ command-line flag. Preserve a viable way to select the width
+under a project's own options and to exercise the same source at multiple
+widths. Removing the flag must not mean deleting the underlying capability
+or losing cross-width tests.
+
+*** Defaults and current state
+
+- Normal builds should have ~USize.size() == UPtr.size()~ for the target.
+  Keep their roles distinct: USize is for counts/indices; UPtr is for
+  pointer-width arithmetic. A USize override must not change UPtr.
+- ~src/til.til~ currently defaults ~usize_bits~ to 0 (no override), so
+  ordinary compiled programs already use target-native USize.
+- ~make.til~ explicitly uses ~--usize=32~ for the compiler's compact
+  internal container metadata. The migration should restore native-width
+  ordinary compiler builds while retaining deliberate compact-width
+  experiments through the replacement mechanism.
+- The use cases include U32 container metadata on 64-bit targets and
+  cross-width compiler/interpreter/FFI/layout testing, not just printing
+  different answers from size queries. Interpreted size queries can reflect
+  host representations; verify actual target layouts and behavior too.
+
+*** Replacement contract to agree before implementation
+
+- Specify the source call and how a project or test driver selects its
+  configuration in code. Exact syntax is not chosen by this issue.
+- A ~mode test~-only restriction was suggested. Decide whether it covers
+  the real use cases before adopting it: current fixtures also use ~mode
+  cli~ and ~mode script~, and compiler self-builds need cross-width coverage.
+  The same fixture must remain testable at both widths without maintaining
+  duplicate source copies or introducing another compiler CLI width flag.
+- Resolve configuration before width-dependent typing, layout and constant
+  evaluation. The condition selecting a width cannot already depend on
+  that width. Define the permitted early inputs and evaluation phase.
+- Resolve one width for the compilation/import graph. Conflicting source
+  requirements must fail explicitly. Separately compiled libraries must
+  satisfy the selected ABI; preserve the existing width-qualified runtime
+  and core-library identities rather than silently mixing layouts.
+- Define source/CLI conflict behavior during migration. Do not leave two
+  competing authorities or introduce a persistent configuration cache.
+
+*** Migration path
+
+- [ ] Inventory ~--usize~ callers in the compiler, build program, tests,
+  CI, documentation and installation/cross-compilation workflows.
+- [ ] Approve and implement the early source-level replacement, with a
+  concrete example of project-defined options and a two-width test driver.
+- [ ] Establish parity with the flag: container layout/stride, size queries,
+  mutable USize write-back, width-dependent constant evaluation, FFI and
+  checked count-to-pointer conversions. Cover native defaults and explicit
+  differing widths, including USize wider than UPtr where supported.
+- [ ] Migrate tests and build callers to the code-level mechanism. Remove
+  the implicit compact-width choice from ordinary compiler builds; retain
+  explicit compact and wide compiler test configurations.
+- [ ] Once the replacement and migrated coverage work, remove ~--usize~
+  parsing/help and obsolete CLI-specific tests/docs. Keep a clear diagnostic
+  for the retired option rather than treating it as a source filename.
+
+*** Acceptance
+
+Native-width defaults work without configuration. Source-controlled width
+selection demonstrably covers the former flag's use cases, and the test
+matrix continues to exercise both widths. No public ~--usize~ flag remains.
+The whole compiler need not acquire MLIR or GPU dependencies for this work.
+
+Follow-up to [[../fixed/309.org][#309]]; coordinate with [[./317.org][#317]] but do not block basic
+native-width MLIR indexing on this migration. See
+[[../../doc/self.org::*USize defaults and source-level configuration direction][the recorded configuration direction]]. New calls, driver interfaces or
+artifacts require their specific design approval before implementation.
