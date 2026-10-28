@@ -471,8 +471,14 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     return result
 }
 
-priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), mangled: Str, line: U32, col: U32) {
-    if p.type_gen_seen.has(mangled) { return }
+priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), arg_owns: Vec(Bool), mangled: Str, line: U32, col: U32) {
+    // Own and bare share a generated type, but must both reach validation:
+    // an earlier explicit-own annotation cannot legitimize a bare interface.
+    mut seen_key := mangled.clone()
+    for i in 0..arg_owns.len() {
+        if arg_owns[i] { seen_key = format(seen_key, "/own", i.to_str()) }
+    }
+    if p.type_gen_seen.has(seen_key) { return }
     mut callee := Expr.new(own ident_node(p.symbols.intern(name)), line, col)
     mut call := Expr.new(own NodeType.FCall(FCallData()), line, col)
     call.add_child(own callee)
@@ -481,13 +487,14 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: V
         // the init expansion sees the same bits a value-position
         // `Name(ref X)` instantiation would set.
         if arg_refs[i] { set_ref_arg(call, call.children.len()) }
+        if arg_owns[i] { set_own_arg(call, call.children.len()) }
         mut arg_expr := Expr.new(own ident_node(p.symbols.intern(args[i])), line, col)
         call.add_child(own arg_expr)
     }
     mut decl := Expr.new(own NodeType.Decl(Declaration(name = mangled.clone())), line, col)
     decl.add_child(own call)
     p.type_gen_decls.push(own decl)
-    p.type_gen_seen.add(own mangled.clone())
+    p.type_gen_seen.add(own seen_key)
 }
 
 priv parser_has_active_type_param := func(p: Parser, name: Str) returns Bool {
@@ -552,6 +559,7 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
     mut mangled := format(name, "__")
     mut args := Vec(Str).new()
     mut arg_refs := Vec(Bool).new()
+    mut arg_owns := Vec(Bool).new()
     mut argi := 0
     while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         if argi > 0 { mangled = format(mangled, "_") }
@@ -560,15 +568,20 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
         // the ref_args bit), so owned and borrowed instantiations are
         // distinct types.
         mut arg_is_ref := false
+        mut arg_is_own := false
         if check(p, TokenType.KwRef) {
             advance(p)
             arg_is_ref = true
             mangled = format(mangled, "ref_")
+        } else if check(p, TokenType.KwOwn) {
+            advance(p)
+            arg_is_own = true
         }
         argname := expect_text(p, TokenType.Ident)
         mangled = format(mangled, argname)
         args.push(own argname.clone())
         arg_refs.push(own arg_is_ref.clone())
+        arg_owns.push(own arg_is_own.clone())
         argi++
         if check(p, TokenType.Comma) { advance(p) }
     }
@@ -580,7 +593,7 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
         }
     }
     if has_active_type_param.not() {
-        type_gen_lift(p, name, args, arg_refs, mangled, tr_line, tr_col)
+        type_gen_lift(p, name, args, arg_refs, arg_owns, mangled, tr_line, tr_col)
     }
     return mangled
 }

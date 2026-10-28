@@ -3472,6 +3472,57 @@ priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scop
     return init_macro_inst_name(e, ctx.symbols)
 }
 
+// Check source applications before deduplication can erase an unqualified use
+// behind an explicitly owning instance of the same type. Function generators
+// may still take interface type tokens; aggregate elements require ownership.
+priv init_check_interface_type_args := proc(call: Expr, macro_fdef: Expr, scope: TypeScope, mut ctx: Context) {
+    ref sig : FuncSig = funcdef_of(macro_fdef).sig
+    if sig.return_type.eq("StructDef").or(sig.return_type.eq("EnumDef")).not() { return }
+    for i in 0..sig.params.len() {
+        arg_index := i + 1
+        if arg_index >= call.children.len() { break }
+        if decl_type_name_ref(sig.params[i], ctx.symbols).eq("Type").not() { continue }
+        if get_own_arg(call, arg_index).or(get_ref_arg(call, arg_index)) { continue }
+        switch call.children[arg_index].node_type {
+        case .Ident(id):
+            name := init_type_arg_name(scope, id.ident_name(ctx.symbols.names), ctx.symbols)
+            if type_name_is_interface(scope, name, ctx.symbols) {
+                call.type_error(format("interface type argument '", name, "' requires explicit own or ref"), ctx)
+            }
+        case:
+        }
+    }
+}
+
+priv init_check_interface_applications := proc(e: Expr, macros: Map(Str, Expr), scope: TypeScope, mut ctx: Context) {
+    switch e.node_type {
+    case .FCall:
+        switch e.children[0].node_type {
+        case .Ident(id):
+            macro_o := init_lookup_type_gen_macro(id.ident_name(ctx.symbols.names), macros, scope, ctx)
+            if macro_o.is_some() { init_check_interface_type_args(e, macro_o.unwrap(), scope, ctx) }
+        case:
+        }
+    case .StructDef(sd):
+        for field : Declaration in sd.fields {
+            if field.default_value.is_some() { init_check_interface_applications(field.default_expr(), macros, scope, ctx) }
+        }
+        for member : Declaration in sd.ns_decls {
+            if member.default_value.is_some() { init_check_interface_applications(member.default_expr(), macros, scope, ctx) }
+        }
+    case .EnumDef(ed):
+        for member : Declaration in ed.ns_decls {
+            if member.default_value.is_some() { init_check_interface_applications(member.default_expr(), macros, scope, ctx) }
+        }
+    case .FuncDef(fd):
+        for param : Declaration in fd.sig.params {
+            if param.default_value.is_some() { init_check_interface_applications(param.default_expr(), macros, scope, ctx) }
+        }
+    case:
+    }
+    for child : Expr in e.children { init_check_interface_applications(child, macros, scope, ctx) }
+}
+
 // Recursively rewrite every inline macro-instantiation call in `e`'s subtree
 // to an Ident referencing a synthesized monomorphization decl. Dedup via
 // ctx.type_gen_synths across all initialized units; accumulate any new
@@ -5221,6 +5272,8 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
     for mut stmt0 : Expr in program.children {
         init_canonicalize_local_type_args(stmt0, macros, scope, local_types, ctx)
     }
+    init_check_interface_applications(program, macros, scope, ctx)
+    if ctx.errors > 0 { return }
     for mut simd_stmt : Expr in program.children { init_simd_constants(simd_stmt, program, ctx) }
     if ctx.errors > 0 { return }
 

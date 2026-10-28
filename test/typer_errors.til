@@ -762,17 +762,17 @@ terr_iface_return_ref := func() returns TErrConfIface {
 terr_iface_own_ref := func() returns I64 {
     source := TErrIfaceConcrete()
     ref view: TErrConfIface = source
-    mut values := Vec(TErrConfIface).new()
+    mut values := Vec(own TErrConfIface).new()
     values.push(own view)
     return values[0].must()
 }
 
 terr_iface_own_ref_aliased := func() returns I64 {
-    mut values := Vec(TErrConfIface).new()
+    mut values := Vec(own TErrConfIface).new()
     if true {
         source := TErrIfaceConcrete()
         ref view: TErrConfIface = source
-        ref mut alias: Vec(TErrConfIface) = values
+        ref mut alias: Vec(own TErrConfIface) = values
         alias.push(own view)
     }
     return values[0].must()

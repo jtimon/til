@@ -381,6 +381,12 @@ generator names are special: renamed copies use the same mechanism.
 The query provides information to the macro; it does not automatically change
 a raw-buffer container's layout, insertion, clone/delete or lifetime rules.
 
+Interface arguments to aggregate generators require an explicit qualifier:
+~Vec(own Iface)~ or ~Vec(ref Iface)~. Bare ~Vec(Iface)~ and
+~Vec(shallow Iface)~ are rejected. This rule applies to user-defined struct
+and enum generators too, including aliases and type annotations. Ordinary
+concrete arguments such as ~Vec(Str)~ keep their existing default.
+
 An alias of a generated function (~add5~ above) can be called or used as a
 function value, just like an inline instantiation (~f : IntOp = make_adder(5)~).
 

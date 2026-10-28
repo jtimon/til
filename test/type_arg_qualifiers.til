@@ -34,6 +34,9 @@ main := proc(args: ..Str) {
     File.writefile(format(root, "/MyAltVec.til"), renamed)
     File.writefile(format(root, "/probe.til"), format(
         "mode cli\nimport(\"MyAltVec\")\n",
+        "Contract := interface { value := func(self: Contract) returns I64 }\n",
+        "Record := struct implements Contract { n := 11\nnamespace:\nvalue := func(self: Record) returns I64 { return self.n } }\n",
+        "empty_borrow := func(value: Option(ref Contract)) returns Bool { return value.is_none() }\n",
         "Probe := macro(Element: Type) returns StructDef {\n",
         "    if type_arg_is_ref(Element) { return struct { borrowed := true } }\n",
         "    else { return struct { borrowed := false } }\n}\n",
@@ -69,6 +72,10 @@ main := proc(args: ..Str) {
         "    mut values := MyAltVec(I64).new()\n",
         "    values.push(own 7)\n",
         "    assert_eq(I64, values[0], 7)\n",
+        "    mut contracts: MyAltVec(own Contract) = MyAltVec(own Contract).new()\n",
+        "    contracts.push(own Record())\n",
+        "    assert_eq(I64, contracts[0].value(), 11)\n",
+        "    assert(empty_borrow(Option(ref Contract).None))\n",
         "    println(\"qualifiers OK\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
     check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
@@ -87,5 +94,47 @@ main := proc(args: ..Str) {
     reject(Cmd.new(compiler, "interpret", format(root, "/invalid_generator.til")), false)
     reject(Cmd.new(compiler, "build", "-o", format(root, "/invalid_generator"),
         "-c", format(root, "/invalid_generator.c"), format(root, "/invalid_generator.til")), false)
+    contract := "Contract := interface { value := func(self: Contract) returns I64 }\n"
+    for declaration : Str in array(Str,
+        "Bad := Vec(Contract)",
+        "Bad := Array(Contract)",
+        "Bad := Map(Str, Contract)",
+        "Bad := MyAltVec(Contract)",
+        "Bad := Option(MyAltVec(Contract))",
+        "Alias := Contract\nBad := MyAltVec(Alias)",
+        "priv Private := interface { value := func(self: Private) returns I64 }\nBad := MyAltVec(Private)",
+        "Holder := struct<T: Type> { item: T }\nBad := Holder(Contract)",
+        "Bad := Option(Contract)",
+        "accept := proc(values: MyAltVec(Contract)) {}",
+        "good := proc(values: MyAltVec(own Contract)) {}\nbad := proc(values: MyAltVec(Contract)) {}",
+        "bad := proc(values: MyAltVec(Contract)) {}\ngood := proc(values: MyAltVec(own Contract)) {}",
+        "Alias := Contract\naccept := proc(values: MyAltVec(Alias)) {}",
+        "Good := Option(own Contract)\nBad := Option(Contract)",
+        "Good := Option(own Contract)\naccept := proc() { mut bad := Option(Contract).None }") {
+        File.writefile(format(root, "/interface_argument.til"), format(
+            "mode cli\nimport(\"MyAltVec\")\n", contract, declaration,
+            "\nmain := proc() {}\n"))
+        for action : Str in array(Str, "interpret", "translate") {
+            cmd := Cmd.new(compiler, action, format(root, "/interface_argument.til"))
+            cmd.capture()
+            status := cmd.run()
+            output := format(cmd.out(), cmd.err())
+            expect(status != 0, declaration, ": ", output)
+            expect(output.contains("requires explicit own or ref"), declaration, ": ", output)
+        }
+    }
+    for declaration : Str in array(Str,
+        "Bad := MyAltVec(shallow Contract)",
+        "accept := proc(values: MyAltVec(shallow Contract)) {}") {
+        File.writefile(format(root, "/interface_argument.til"), format(
+            "mode cli\nimport(\"MyAltVec\")\n", contract, declaration,
+            "\nmain := proc() {}\n"))
+        cmd := Cmd.new(compiler, "interpret", format(root, "/interface_argument.til"))
+        cmd.capture()
+        status := cmd.run()
+        output := format(cmd.out(), cmd.err())
+        expect(status != 0, declaration, ": ", output)
+        expect(output.contains("error:"), declaration, ": ", output)
+    }
     println("type argument qualifiers passed")
 }

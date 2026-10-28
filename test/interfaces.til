@@ -363,7 +363,7 @@ test_interface_elided_copy_owned_argument := test() {
     source := CloneProbe(text = format("deposited ", "copy"))
     view: Drawable = source
     before := CloneProbe.clones
-    mut values := Vec(Drawable).new()
+    mut values := Vec(own Drawable).new()
     values.push(own view)
     assert_eq(I64, CloneProbe.clones, before + 1)
     assert_eq(Str, values[0].draw(), "deposited copy")
@@ -529,7 +529,7 @@ test_interface_multiple_implements := test() {
     assert_eq(Str, d.describe(), "badge b1")
     assert_eq(Str, n.greet(), "hi b1")
     assert_eq(Str, render(Mood.Happy), "mood")
-    mut names := Vec(Named).new()
+    mut names := Vec(own Named).new()
     names.push(own b)
     names.push(own Mood.Happy)
     assert_eq(Str, names[0].name(), "b1")
@@ -590,7 +590,7 @@ test_interface_enum_local_copy := test() {
     copied = Polygon.Quad
     assert_eq(Str, copied.draw(), "polygon")
     assert_eq(Str, choice.draw(), "enum source")
-    mut values := Vec(Drawable).new()
+    mut values := Vec(own Drawable).new()
     values.push(own view)
     assert_eq(Str, values[0].draw(), "enum source")
     assert_eq(Str, view.draw(), "enum source")
@@ -640,8 +640,8 @@ test_interface_field_reassignment := test() {
     assert_eq(Str, owned.draw(), "constructor 4")
 }
 
-make_interface_collection := func(n: I64) returns Vec(Drawable) {
-    mut values := Vec(Drawable).new()
+make_interface_collection := func(n: I64) returns Vec(own Drawable) {
+    mut values := Vec(own Drawable).new()
     source := CaptionShape(text = format("named ", n.to_str()))
     values.push(own source)
     values.push(own CaptionChoice.Text(format("enum ", n.to_str())))
@@ -673,7 +673,7 @@ test_interface_collection_lifetimes := test() {
 test_interface_collection_copies := test() {
     mut source := CaptionShape(text = format("deposited ", "before"))
     view: Drawable = source
-    mut values := Vec(Drawable).new()
+    mut values := Vec(own Drawable).new()
     values.push(own view)
     source.text = format("deposited ", "after")
     assert_eq(Str, values[0].draw(), "deposited before")
@@ -717,7 +717,7 @@ test_interface_replacement_destruction := test() {
     assert_eq(I64, StorageProbe.old_drops, before_field + 1)
     assert_eq(Str, holder.shape.draw(), "2")
 
-    mut array := Array(Drawable).new(1)
+    mut array := Array(own Drawable).new(1)
     array.set(0, own StorageProbe(id = 1))!
     assert_eq(Str, array[0].draw(), "1")
     before_array := StorageProbe.old_drops
@@ -725,7 +725,7 @@ test_interface_replacement_destruction := test() {
     assert_eq(I64, StorageProbe.old_drops, before_array + 1)
     assert_eq(Str, array[0].draw(), "2")
 
-    mut map := Map(Str, Drawable).new()
+    mut map := Map(Str, own Drawable).new()
     map.set("item", own StorageProbe(id = 1))
     assert_eq(Str, map["item"].draw(), "1")
     before_map := StorageProbe.old_drops
@@ -1231,26 +1231,27 @@ NestedSlot := macro(T: Type, N: USize) returns StructDef {
         count: USize = N
     }
 }
-NestedVectorAlias := Vec(Nested_Copies)
-NestedSlotAlias := NestedSlot(Nested_Copies, 2)
+NestedVectorAlias := Vec(own Nested_Copies)
+NestedOptionAlias := Option(own Nested_Copies)
+NestedSlotAlias := NestedSlot(own Nested_Copies, 2)
 Nested_Copies := interface {
     value := func(self: Nested_Copies) returns I64
-    copies := func(self: Nested_Copies) returns Vec(Nested_Copies) {
-        mut result: NestedVectorAlias = Vec(Nested_Copies).new()
+    copies := func(self: Nested_Copies) returns NestedVectorAlias {
+        mut result: NestedVectorAlias = Vec(own Nested_Copies).new()
         result.push(own self.clone())
         return result
     }
-    optional := func(self: Nested_Copies) returns Option(Nested_Copies) {
-        return Option(Nested_Copies).Some(own self.clone())
+    optional := func(self: Nested_Copies) returns NestedOptionAlias {
+        return Option(own Nested_Copies).Some(own self.clone())
     }
     nested := func(self: Nested_Copies) returns Option(NestedVectorAlias) {
-        return Option(Vec(Nested_Copies)).Some(own self.copies())
+        return Option(Vec(own Nested_Copies)).Some(own self.copies())
     }
     borrowed := func(self: Nested_Copies) returns Option(ref Nested_Copies) {
         return Option(ref Nested_Copies).Some(self)
     }
     slot := func(self: Nested_Copies) returns NestedSlotAlias {
-        return NestedSlot(Nested_Copies, 2)(item = self.clone())
+        return NestedSlot(own Nested_Copies, 2)(item = self.clone())
     }
     first := func(_self: Nested_Copies, items: NestedVectorAlias) returns I64 { return items[0].value() }
     type_name := func(_self: Nested_Copies) returns Str { return dyn_type_to_str(Nested_Copies) }
