@@ -199,6 +199,10 @@ main := proc() {
         File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
         run_guest(identity, format("gui_rectangle_", bits), "GUI rectangle passed\n", "pass")
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "examples/gui_terminal_grid.til").run_checked()
+        File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
+        run_guest(identity, format("gui_terminal_grid_", bits), "GUI terminal grid passed\n", "pass")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))
         redsea_setup := format(

@@ -1711,6 +1711,33 @@ public U0 TilGuiDrawRectangle(I64 x,I64 y,I64 width,I64 height,U8 *color)
   GrRect(TilGuiBack,x,y,width,height);
 }
 
+public U0 TilGuiDrawText(U8 *text,I64 x,I64 y,I64 font_size,U8 *color)
+{
+  CDC *glyph;
+  I64 scale,gx,gy,ink,start_x=x,ch;
+  if (font_size<FONT_HEIGHT || font_size%FONT_HEIGHT)
+    TilPanicZ("GUI text POC requires an integer bitmap-font scale\n");
+  scale=font_size/FONT_HEIGHT;
+  ink=TilGuiPaletteColor(color);
+  glyph=DCNew(FONT_WIDTH,FONT_HEIGHT);
+  while (ch=*text++) {
+    if (ch=='\n') { x=start_x; y+=font_size; }
+    else {
+      if (ch<32 || ch>126) TilPanicZ("GUI text POC requires printable ASCII\n");
+      DCFill(glyph,TRANSPARENT);
+      glyph->color=WHITE;
+      GrPutChar(glyph,0,0,ch);
+      TilGuiBack->color=ink;
+      for (gy=0;gy<FONT_HEIGHT;gy++)
+        for (gx=0;gx<FONT_WIDTH;gx++)
+          if (GrPeek(glyph,gx,gy)==WHITE)
+            GrRect(TilGuiBack,x+gx*scale,y+gy*scale,scale,scale);
+      x+=FONT_WIDTH*scale;
+    }
+  }
+  DCDel(glyph);
+}
+
 public U0 TilGuiEndDrawing()
 {
   CDC *old=TilGuiFront;

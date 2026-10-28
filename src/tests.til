@@ -1308,6 +1308,8 @@ main := proc(args: ..Str) {
         CountCheck(needle = "TilGuiDrawRectangle(", expected_count = 1),
         CountCheck(needle = "TilGuiGetImageColor(", expected_count = 2),
         CountCheck(needle = "U0 TilMain()", expected_count = 1))
+    add_count(tests, "holyc_gui_terminal_grid_translate", "build", "TilGuiDrawText(", 1,
+        format(til_bin, " translate --target=templeos -c gen/c/gui_terminal_grid.HC examples/gui_terminal_grid.til '&&' cat gen/c/gui_terminal_grid.HC"))
     add_single(tests, "holyc_build_requires_guest", "build", 1, "test/holyc_build.expected",
         format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
     add_single(tests, "templeos_target_width", "build", 0, "",
@@ -2225,6 +2227,8 @@ main := proc(args: ..Str) {
         // closing a GL context under LSan reports Mesa/LLVM driver allocations.
         add_count(tests, "gui_rectangle_pixels", "build", "GUI rectangle passed", 1,
             format(til_bin, " run -o bin/c/gui_rectangle -c gen/c/gui_rectangle.c examples/gui_rectangle.til"))
+        add_count(tests, "gui_terminal_grid_pixels", "build", "GUI terminal grid passed", 1,
+            format(til_bin, " run -o bin/c/gui_terminal_grid -c gen/c/gui_terminal_grid.c examples/gui_terminal_grid.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""

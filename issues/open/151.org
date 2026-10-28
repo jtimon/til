@@ -834,6 +834,40 @@
   validation. The two focused native POC cases pass at both USize widths;
   this small sprint did not rerun the entire guest regression matrix.
 
+**** Second shared GUI POC: fixed terminal cells and bitmap text
+
+  examples/gui_terminal_grid.til unlocks DrawText on TempleOS through the
+  existing mode-gui facade. One finite source draws three fixed rows, cell
+  background colors, ASCII text and a block cursor on raylib and TempleOS.
+  Cell positions and advances are explicit in the example, so differing host
+  and native font metrics do not shift the grid.
+
+  The native DrawText implementation renders the OS's 8x8 glyphs with
+  GrPutChar into a temporary device context, then paints scaled foreground
+  pixels with GrRect. The temporary glyph context is freed after each call;
+  there is no persistent font/glyph cache. Positive integer multiples of the
+  bitmap font size and printable ASCII/newlines are supported; other sizes or
+  characters fail explicitly. The example uses 16-pixel text, a 2x native scale.
+  Coordinate calculations also exercise integer to_i32 narrowing in HolyC.
+
+  Pixel acceptance checks empty colored cells, the block cursor, outside
+  background and mixed foreground/background pixels in a glyph cell. It uses
+  the composited native screen readback introduced by the rectangle POC.
+  It does not require identical glyph shapes from raylib's default font and
+  TempleOS's font. The hosted run and focused native cases pass at USize 32/64;
+  both are registered alongside the rectangle checks.
+  The clean hosted suite passes 476/476 (including clang validation); the two
+  focused TempleOS grid cases pass. This sprint does not rerun the full guest
+  matrix.
+
+  This is a rendering unlock toward tilminal, not a terminal emulator or a
+  faithful application port. Inspection of tiled/lib/libterminal/view.til
+  informed the separate background and glyph passes. The POC is self-contained
+  and adds no dependency on another checkout or duplicate terminal parser/model.
+  Real TerminalScreen integration, Font/DrawTextCodepoint and Unicode rendering,
+  ordered input, and the native replacement for session.c's PTY/ConPTY boundary
+  remain separate small sprints.
+
 *** QEMU validation
 
   The repository driver formats an isolated FAT32 data disk per case and

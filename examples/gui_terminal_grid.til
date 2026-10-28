@@ -1,0 +1,68 @@
+mode gui
+
+// Fixed-cell rendering proof: no shell/session or terminal parser is needed.
+grid_colors_equal := func(a: Color, b: Color) returns Bool {
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a
+}
+
+grid_paper := func(row: I64) returns Color {
+    if row == 0 { return Color(r=0, g=0, b=170, a=255) }
+    if row == 1 { return Color(r=0, g=170, b=0, a=255) }
+    return Color(r=0, g=0, b=0, a=255)
+}
+
+grid_check_pixel := func(image: Image, x: I32, y: I32, expected: Color) {
+    actual := GetImageColor(image, x, y)
+    if grid_colors_equal(actual, expected).not() { panic("terminal grid pixel mismatch") }
+}
+
+grid_check_glyph := func(image: Image, x: I32, y: I32, ink: Color) {
+    mut pixels := 0
+    for gy in 0..16 {
+        for gx in 0..16 {
+            actual := GetImageColor(image, x + gx.to_i32(), y + gy.to_i32())
+            if grid_colors_equal(actual, ink) { pixels++ }
+        }
+    }
+    // Both fonts must draw actual ink and leave holes/background in the cell.
+    if pixels == 0 || pixels == 256 { panic("terminal grid glyph mismatch") }
+}
+
+main := proc() {
+    InitWindow(640, 480, "til terminal grid".c_str)
+    SetTargetFPS(30)
+    black := Color(r=0, g=0, b=0, a=255)
+    white := Color(r=255, g=255, b=255, a=255)
+    rows := array(Str, "READY>", "GREEN", "CURSOR")
+    for frame in 0..30 {
+        BeginDrawing()
+        ClearBackground(black)
+        // Backgrounds precede glyphs, as in tilminal's terminal view.
+        for row in 0..rows.len() {
+            paper := grid_paper(row.to_i64())
+            for column in 0..8 {
+                DrawRectangle((40 + column * 20).to_i32(), (40 + row.to_i64() * 24).to_i32(), 20, 24, paper)
+            }
+        }
+        for row in 0..rows.len() {
+            ref text : Str = rows[row]
+            for column in 0..text.len() {
+                glyph := text.get_char(column).clone()
+                DrawText(glyph.c_str, (42 + column.to_i64() * 20).to_i32(), (44 + row.to_i64() * 24).to_i32(), 16, white)
+            }
+        }
+        DrawRectangle(160, 88, 20, 24, white)
+        EndDrawing()
+        if frame == 0 {
+            image := LoadImageFromScreen()
+            grid_check_pixel(image, 20, 20, black)
+            grid_check_pixel(image, 190, 50, grid_paper(0))
+            grid_check_pixel(image, 190, 74, grid_paper(1))
+            grid_check_pixel(image, 170, 100, white)
+            grid_check_glyph(image, 42, 44, white)
+            UnloadImage(image)
+        }
+    }
+    CloseWindow()
+    println("GUI terminal grid passed")
+}

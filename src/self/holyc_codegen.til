@@ -2275,7 +2275,7 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
         if state.gui_enabled {
             switch name {
             case "InitWindow", "CloseWindow", "SetTargetFPS", "BeginDrawing", "EndDrawing",
-                "ClearBackground", "DrawRectangle", "LoadImageFromScreen", "GetImageColor", "UnloadImage":
+                "ClearBackground", "DrawRectangle", "DrawText", "LoadImageFromScreen", "GetImageColor", "UnloadImage":
                 return format("TilGui", name)
             case:
             }
@@ -3298,6 +3298,10 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 // HolyC casts an lvalue's storage type. Force a numeric value
                 // before widening so a narrow payload is not read as I64.
                 return format("((", value, ") + 0)(I64)")
+            }
+            if method.eq("to_i32").and(holyc_scalar_type_name(owner)) {
+                if e.children.len() != 2 { error = "invalid core call 'to_i32'"; return "" }
+                return holyc_narrow_wrap(holyc_expr(e.children[1], ctx, state, locals, error), "I32")
             }
             if method.eq("to_uptr").or(method.eq("to_usize")) {
                 if e.children.len() != 2 { error = "invalid pointer/size conversion"; return "" }
