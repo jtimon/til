@@ -342,6 +342,10 @@ Declaration := struct {
     // not need it: their til_type is resolved in place under the same
     // name, never replaced by an inferred type.
     annotated := Type.Unknown
+    // Parameter demotion can precede deposit-summary convergence. Preserve
+    // its provenance so a discovered escape restores borrowing, while an
+    // explicitly shallow parameter keeps its declared calling convention.
+    auto_shallow := false
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }
@@ -523,6 +527,9 @@ FunctionDef := struct {
     // 64. Losing a deposit costs only the diagnostic; inventing one
     // would cost a working program.
     deposit_matrix : U64 = 0
+    // Deposits of parameter addresses, rather than pointers carried inside a
+    // copied value. These require the source parameter to remain by-reference.
+    deposit_borrow_matrix : U64 = 0
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.sig == b.sig }
     to_str := func(self: FunctionDef) returns Str { return self.sig.to_str() }

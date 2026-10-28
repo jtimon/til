@@ -3102,6 +3102,22 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, mut ctx: Contex
 // `ref` and parameter sources are NOT exempt: borrowing a managed value
 // does not make copying its owned pointers out of it any safer. The way
 // to get a second independent value is the type's own `clone`.
+priv aggregate_borrows_type := func(scope: TypeScope, aggregate: Type, element: Str, ctx: Context) returns Bool {
+    ref name : Str = resolve_type_alias(scope, type_name_ref(aggregate, ctx.symbols), ctx.symbols)
+    if ctx.type_gen_binding_sources.has(name).not() { return false }
+    ref application : Expr = ctx.type_gen_binding_sources[name]
+    for i in 1..application.children.len() {
+        if get_ref_arg(application, i).not() { continue }
+        if element.is_empty() { return true }
+        switch application.children[i].node_type {
+        case .Ident(id):
+            if resolve_type_alias(scope, id.ident_name(ctx.symbols.names), ctx.symbols) == element { return true }
+        case:
+        }
+    }
+    return false
+}
+
 priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Context) {
     if e.children.len() < 3 { return }
     // The typer's own move-out block is the one legitimate byte copy out of
@@ -3151,6 +3167,18 @@ priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Contex
             sdef_o := scope.get_struct(tn, ctx.symbols)
             if sdef_o.is_none() { return }
             ref sdef : Expr = sdef_o.unwrap()
+            // A ref-qualified aggregate stores borrowing interface handles.
+            // Copying such a handle into its buffer creates no second owner.
+            // Ordinary managed values and owning destinations remain rejected.
+            if type_name_is_interface(scope, tn, ctx.symbols) {
+                roots := expr_borrow_roots(scope, e.children[1], ctx.symbols)
+                for root : BorrowRoot in roots {
+                    dest_o := lookup_binding_at(scope, root, ctx.symbols)
+                    if dest_o.is_some() {
+                        if aggregate_borrows_type(scope, dest_o.unwrap().type, tn, ctx) { return }
+                    }
+                }
+            }
             // SIMD is a compiler-verified scalar-lane value: copying its bytes
             // cannot duplicate ownership. Its generated outer-shell delete is
             // not evidence of owned interior storage, unlike a managed record.
@@ -5489,6 +5517,10 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: 
         }
     }
     for mut param : Declaration in fdef.sig.params {
+        if param.auto_shallow.and(fdef_deposits_param(fdef, param.name)) {
+            param.own_type = OwnType.Ref
+            param.auto_shallow = false
+        }
         ptype_name := decl_type_name(param, symbols)
         // #397: the alias step keys on the param type's symbol, and the
         // Type is rebuilt only when an alias was actually followed --
@@ -5527,8 +5559,9 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: 
         // if sig_auto_shallow.and(fdef.sig.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
         //     <raise: redundant 'shallow' on primitive parameter ... drop it>
         // }
-        if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope, symbols).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(declaration_resolved_type(param, scope, symbols))) {
+        if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope, symbols).or(fdef_deposits_param(fdef, param.name)).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(declaration_resolved_type(param, scope, symbols))) {
             param.own_type = OwnType.Shallow
+            param.auto_shallow = true
         }
         // A FuncPtr param is an 8-byte pointer; the C ABI passes it
         // by value just like a primitive, so the funcptr-sig has to
@@ -5539,12 +5572,13 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: 
         // point is Type.Custom(name) -- the FuncPtr-ness lives in
         // the scope binding for the alias name, not in the inline
         // Type, so look it up.
-        if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope, symbols).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
+        if sig_auto_shallow.and(fdef_return_carries_borrow(fdef, scope, symbols).or(fdef_deposits_param(fdef, param.name)).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
             pbind_o := scope.get_binding_sym(resolved_sym)
             mut pbind_is_funcptr := false
             if pbind_o.is_some() { pbind_is_funcptr = pbind_o.unwrap().type.is_funcptr() }
             if param.til_type.is(Type.Body).or(pbind_is_funcptr) {
                 param.own_type = OwnType.Shallow
+                param.auto_shallow = true
             }
         }
     }
@@ -5571,6 +5605,17 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: 
 // a write through the returned holder's ref field reached the copy
 // compiled while reaching the caller's own storage interpreted -- the
 // #344 divergence, one indirection removed.
+priv fdef_deposits_param := func(fdef: FunctionDef, name: Str) returns Bool {
+    for source in 0..fdef.sig.params.len() {
+        if fdef.sig.params[source].name != name { continue }
+        for sink in 0..fdef.sig.params.len() {
+            if fdef.deposit_borrow_matrix.band(deposit_bit(sink, source)) != 0 { return true }
+        }
+        return false
+    }
+    panic("missing function parameter: ", name)
+}
+
 priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if fdef.sig.return_own_type.is(OwnType.Ref) { return true }
     if fdef.sig.return_type.len() == 0 { return false }
@@ -6028,6 +6073,10 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         in_main_def := top_func_name.eq("main").and(scope.parent.is_none())
         for i in 0..fdef.sig.params.len() {
             ref mut param : Declaration = fdef.sig.params[i]
+            if param.auto_shallow.and(fdef_deposits_param(fdef, param.name)) {
+                param.own_type = OwnType.Ref
+                param.auto_shallow = false
+            }
             // #321: a `p: Dynamic = 0` param default is the null spelling;
             // the fill clones the rewritten node into call sites.
             if param.default_value.is_some().and(param.til_type.is(Type.Dynamic)) {
@@ -6120,8 +6169,9 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 // hand a param back by reference (e.g. min(a, b) returns ref I64),
                 // so its params must stay borrowed pointers -- skip auto-shallow
                 // there.
-                if auto_shallow_ok.and(fdef_return_carries_borrow(fdef, scope, ctx.symbols).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
+                if auto_shallow_ok.and(fdef_return_carries_borrow(fdef, scope, ctx.symbols).or(fdef_deposits_param(fdef, param.name)).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
                     param.own_type = OwnType.Shallow
+                    param.auto_shallow = true
                 }
                 if in_main_def.and(param.own_type.is(OwnType.Ref)) { param.own_type = OwnType.Own }
                 func_scope.set(param.name, pt, pmut, ctx.path, expr.line, expr.col, true, param.own_type, ctx.symbols)
@@ -9091,7 +9141,7 @@ priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, mut ctx
     if ctx.generic_pending.children.len() == 0 { return }
     // A flushed instantiation is a new type: settled carries answers may
     // have just changed (Option(ref T) arriving mid-unit).
-    carries_borrow_memo_clear()
+    carries_borrow_memo_clear(scope, ctx)
 
     // Nested definitions inside a substituted function body are lifted as
     // before. #382 also allows a top-level concrete type dependency in the
@@ -9299,7 +9349,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     // empty (every flush drains it), but a stale entry would be appended
     // to the WRONG unit, so clear it here and check it drained at exit.
     ctx.generic_pending.children.clear()
-    carries_borrow_memo_clear()
+    carries_borrow_memo_clear(scope, ctx)
     // #328 follow-up: same per-unit lifetime for the function-generator twins.
     // A twin is only reachable through this unit's scope registration, so
     // carrying one into the next unit would leave a dangling func_def.
@@ -11762,7 +11812,7 @@ priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, ro
         if b_o.is_none() { continue }
         ref b : TypeBinding = b_o.unwrap()
         if b.own_type.is(OwnType.Ref).or(b.is_param).or(b.is_alias).or(b.is_builtin) { continue }
-        if b.type.is(Type.Dynamic) { continue }
+        if b.type.is(Type.Dynamic).or(b.is_raw_alloc) { continue }
         if root_is_global(scope, r, ctx.symbols) { continue }
         if skip_carriers {
             ref b_type_name : Str = type_name_ref(b.type, ctx.symbols)
@@ -11770,7 +11820,6 @@ priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, ro
             if b_def_o.is_some() {
                 if b_def_o.unwrap().node_type.is(NodeType.EnumDef).and(enum_has_ref_payload(b_def_o.unwrap())) { continue }
             }
-            if type_carries_borrow(scope, b_type_name, ctx.symbols) { continue }
         }
         stmt.type_error(format("cannot return a borrow of local '", r.name, "' inside '", tn,
             "': the local dies with this call; borrow a param instead, or make the payload owned"), ctx)
@@ -12602,9 +12651,16 @@ priv summary_fcall_arg_for_param := func(fcall: Expr, cfd: FunctionDef, pi: USiz
 // storage. The visited set is real control flow, not a guard: the type
 // graph has cycles through own/ref fields (a list node's next), and a
 // type already being tested carries nothing new.
+priv mut carries_borrow_yes := Set(Str).new()
+priv mut carries_borrow_no := Set(Str).new()
+// Template-carried refs are also relevant to ABI decisions, which deliberately
+// exclude callable captures. Keep them separate from the broader result memo.
+priv mut ref_type_arg_carriers := Set(Str).new()
+
 priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Set(Str), symbols: SymbolPool, callables: Bool = true) returns Bool {
     if tname.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, tname, symbols)
+    if ref_type_arg_carriers.has(resolved) { return true }
     if callables.and(type_is_callable_storage(type_from_name_init_name(resolved, scope, symbols))) { return true }
     if visited.has(resolved) { return false }
     visited.add(own resolved.clone())
@@ -12633,9 +12689,6 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
 // type population moves. Module-level mut globals, like the diagnostics
 // counters: threading a cache through every scope-only caller would put
 // plumbing above the work it saves.
-priv mut carries_borrow_yes := Set(Str).new()
-priv mut carries_borrow_no := Set(Str).new()
-
 type_carries_borrow := func(scope: TypeScope, tname: Str, symbols: SymbolPool) returns Bool {
     if tname.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, tname, symbols)
@@ -12669,10 +12722,30 @@ priv type_carries_borrow_resolved := func(scope: TypeScope, tname: Str, resolved
     return false
 }
 
-priv carries_borrow_memo_clear := func() {
+priv carries_borrow_memo_clear := func(scope: TypeScope, ctx: Context) {
     // In place: reassigning a mut global drops the old Set unfreed.
     carries_borrow_yes.clear()
     carries_borrow_no.clear()
+    ref_type_arg_carriers.clear()
+    // A raw allocation hides element layout, but the recorded template
+    // application still describes the borrows carried by its elements.
+    mut changed := true
+    while changed {
+        changed = false
+        for name, application in ctx.type_gen_binding_sources {
+            if ref_type_arg_carriers.has(name).or(scope.get_struct(name, ctx.symbols).is_none()) { continue }
+            for i in 1..application.children.len() {
+                mut borrowed := get_ref_arg(application, i)
+                switch application.children[i].node_type {
+                case .Ident(id):
+                    mut visited := Set(Str).new()
+                    borrowed = borrowed.or(type_carries_borrow_v(scope, id.ident_name(ctx.symbols.names), visited, ctx.symbols, false))
+                case:
+                }
+                if borrowed { ref_type_arg_carriers.add(own name.clone()); changed = true; break }
+            }
+        }
+    }
 }
 
 // The field Declaration a FieldAccess crosses, resolved from the base
@@ -13296,12 +13369,24 @@ priv check_interface_deposit_lifetimes := proc(scope: TypeScope, sink: TypeBindi
 }
 
 priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, mut ctx: Context) {
-    deposited := deposit_src_roots(scope, src, ctx.symbols)
-    if deposited.len() == 0 { return }
     mut bo := deposit_sink_binding(scope, sink, ctx.symbols)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
-    if type_is_interface(src.til_type(), scope, ctx.symbols) {
+    source_type := resolved_type_name(src.til_type(), ctx.symbols)
+    retains_source := aggregate_borrows_type(scope, sink.til_type(), source_type, ctx)
+        .or(aggregate_borrows_type(scope, b.type, source_type, ctx))
+    mut deposited := deposit_src_roots(scope, src, ctx.symbols)
+    if retains_source {
+        deposited = expr_borrow_roots(scope, src, ctx.symbols)
+        if deposited.len() == 0 {
+            site.type_error("cannot store a borrow of a temporary in a ref-qualified container", ctx)
+            return
+        }
+    }
+    if deposited.len() == 0 { return }
+    if type_is_interface(src.til_type(), scope, ctx.symbols).or(retains_source)
+        .or(aggregate_borrows_type(scope, sink.til_type(), "", ctx))
+        .or(aggregate_borrows_type(scope, b.type, "", ctx)) {
         check_interface_deposit_lifetimes(scope, b, deposited, site, ctx)
     }
     deposit_roots_into_binding(scope, b, deposited, ctx.symbols)
@@ -13818,8 +13903,9 @@ priv fdef_may_deposit := func(fd: FunctionDef) returns Bool {
 // callee's writes would never reach the caller.
 DepositAcc := struct {
     m : U64 = 0
+    borrowed : U64 = 0
 namespace:
-    eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m == b.m }
+    eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m.eq(b.m).and(a.borrowed == b.borrowed) }
     to_str := func(self: DepositAcc) returns Str { return self.m.to_str() }
 }
 
@@ -13895,11 +13981,18 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
         mut dest_i : USize = 0
         if hn == "adopt" { dest_i = 2 }
         if hn.eq("adopt_from").or(hn.starts_with("adopt__")) { dest_i = 1 }
+        if hn == "write_ptr" { dest_i = 1 }
+        if hn.eq("memcpy").or(hn == "memmove") {
+            for param : Declaration in params {
+                if aggregate_borrows_type(scope, param.til_type, "", ctx) { dest_i = 1 }
+            }
+        }
         if dest_i > 0 {
             if e.children.len() < dest_i + 2 { return }
             sink_bits := summary_expr_bits(e.children[dest_i], roots, scope, self_type, params, symbols, ctx)
             src_bits := summary_expr_bits(e.children[dest_i + 1], roots, scope, self_type, params, symbols, ctx)
             acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
+            if hn == "write_ptr" { acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias)) }
             summary_note_local_deposit(summary_deposit_base_name(e.children[dest_i], symbols), src_bits, roots)
             return
         }
@@ -13922,6 +14015,9 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
                 sink_bits := summary_expr_bits(sink_arg_o.unwrap(), roots, scope, self_type, params, symbols, ctx)
                 src_bits := summary_expr_bits(src_arg_o.unwrap(), roots, scope, self_type, params, symbols, ctx)
                 acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
+                if cfd.deposit_borrow_matrix.band(deposit_bit(dsink, dsrc)) != 0 {
+                    acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias))
+                }
                 summary_note_local_deposit(summary_deposit_base_name(sink_arg_o.unwrap(), symbols), src_bits, roots)
             }
         }
@@ -14080,6 +14176,11 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         mut acc := DepositAcc()
         rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, ctx.symbols, ctx)
         mut changed := false
+        merged_borrowed := fd.deposit_borrow_matrix.bor(acc.borrowed)
+        if merged_borrowed != fd.deposit_borrow_matrix {
+            fd.deposit_borrow_matrix = merged_borrowed
+            changed = true
+        }
         merged_d := fd.deposit_matrix.bor(acc.m)
         if merged_d != fd.deposit_matrix {
             fd.deposit_matrix = merged_d

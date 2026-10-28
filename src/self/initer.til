@@ -3089,7 +3089,7 @@ priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols:
 
 // Qualifier queries are resolved from the macro argument before the parameter
 // name is substituted. Other uses of a Type value do not acquire a ref bit.
-priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), symbols: SymbolPool) {
+priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), type_params: Set(Str), scope: TypeScope, symbols: SymbolPool) {
     if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
         switch e.children[0].node_type {
         case .Ident(callee):
@@ -3097,13 +3097,26 @@ priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), symb
                 switch e.children[1].node_type {
                 case .Ident(arg):
                     if ref_params.has(arg.ident_name(symbols.names)) { set_ref_arg(e, 1) }
+                    // The qualifier belongs to the formal type argument, not
+                    // to its substituted expression (which can be Vec(Str)).
+                    if type_params.has(arg.ident_name(symbols.names)) {
+                        def_o := scope.lookup_func_by_sym(callee.ident_sym(), symbols)
+                        if def_o.is_some() {
+                            if funcdef_of(def_o.unwrap()).sig.func_type.is_core() {
+                                value := get_ref_arg(e, 1)
+                                e.node_type = NodeType.Literal(Literal.Bool(value))
+                                e.children.clear()
+                                return
+                            }
+                        }
+                    }
                 case:
                 }
             }
         case:
         }
     }
-    for mut child : Expr in e.children { init_mark_qualifier_queries(child, ref_params, symbols) }
+    for mut child : Expr in e.children { init_mark_qualifier_queries(child, ref_params, type_params, scope, symbols) }
 }
 
 // Pick the macro return literal from a possibly-if-shaped body. body
@@ -3111,7 +3124,7 @@ priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), symb
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return. unknown_condition distinguishes a failed condition from
 // an unsupported body shape; the caller must not select a branch on it.
-priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
+priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params: Set(Str), type_params: Set(Str), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
@@ -3126,7 +3139,7 @@ priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params
     // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
     // `T.is(Type.Primitive(Primitive.Bool))` into `Bool.is(Type.Primitive(Primitive.Bool))`.
     mut cond_clone := s.children[0].clone()
-    init_mark_qualifier_queries(cond_clone, ref_params, ctx.symbols)
+    init_mark_qualifier_queries(cond_clone, ref_params, type_params, scope, ctx.symbols)
     // Bare-Ident condition: the walk substitutes only children, so swap
     // the root via assignment (save_old_delete reclaims the clone).
     mut cond_root := ""
@@ -3153,10 +3166,10 @@ priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params
     }
     if res < 0 { unknown_condition = true; return Option(ref Expr).None }
     if res == 1 {
-        return init_macro_pick_return(s.children[1], subs, ref_params, scope, ctx, unknown_condition)
+        return init_macro_pick_return(s.children[1], subs, ref_params, type_params, scope, ctx, unknown_condition)
     }
     if s.children.len() < 3 { return Option(ref Expr).None }
-    return init_macro_pick_return(s.children[2], subs, ref_params, scope, ctx, unknown_condition)
+    return init_macro_pick_return(s.children[2], subs, ref_params, type_params, scope, ctx, unknown_condition)
 }
 
 priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
@@ -5199,6 +5212,28 @@ priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context
     return true
 }
 
+priv init_expand_member_generators := proc(mut definition: Expr, macros: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested: Vec(Expr)) {
+    if definition.node_type.is(NodeType.StructDef).or(definition.node_type.is(NodeType.EnumDef)).not() { return }
+    ref mut members : Vec(Declaration) = def_ns_decls(definition)
+    for mut member : Declaration in members {
+        if member.default_value.is_none() { continue }
+        ref value : Expr = member.default_expr()
+        if value.node_type.is(NodeType.FCall).not() { continue }
+        switch value.children[0].node_type {
+        case .Ident(id):
+            factory_o := init_lookup_type_gen_macro(id.ident_name(ctx.symbols.names), macros, scope, ctx)
+            if factory_o.is_none() { continue }
+            if init_macro_call_is_type_application(value, factory_o.unwrap(), macros, scope, ctx).not() { continue }
+            mut declaration := Expr.new(own NodeType.Decl(member.clone()), value.line, value.col)
+            declaration.add_child(own value.clone())
+            if init_expand_type_gen_decl(declaration, factory_o.unwrap(), macros, scope, ctx, mark_ctx, nested) {
+                member.default_value = Option(Expr).Some(own declaration.children[0].clone())
+            }
+        case:
+        }
+    }
+}
+
 priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
     ref rhs : Expr = stmt.children[0]
     switch rhs.children[0].node_type {
@@ -5218,8 +5253,10 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
             if j + 1 >= rhs.children.len() { break }
             ref param : Declaration = mfd.sig.params[j]
             ref arg : Expr = rhs.children[j + 1]
+            if decl_type_name_ref(param, ctx.symbols).eq("Type").and(get_ref_arg(rhs, j + 1)) {
+                ref_params.add(own param.name.clone())
+            }
             if decl_type_name_ref(param, ctx.symbols).eq("Type").and(arg.node_type.is(NodeType.Ident)) {
-                if get_ref_arg(rhs, j + 1) { ref_params.add(own param.name.clone()) }
                 switch arg.node_type {
                 case .Ident(an):
                     type_arg_name := init_type_arg_name(scope, an.ident_name(ctx.symbols.names), ctx.symbols)
@@ -5235,13 +5272,17 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     }
 
     mut unknown_condition := false
+    mut type_params := Set(Str).new()
+    for param : Declaration in funcdef_of(macro_fdef).sig.params {
+        if decl_type_name_ref(param, ctx.symbols) == "Type" { type_params.add(own param.name.clone()) }
+    }
     request := format("generator:", decl_of(stmt).name)
     if ctx.comptime_requests.has(request) {
         stmt.type_error(format("cyclic compile-time generator dependency: ", decl_of(stmt).name), ctx)
         return false
     }
     ctx.comptime_requests.add(own request.clone())
-    ret_val_o := init_macro_pick_return(body, subs, ref_params, scope, ctx, unknown_condition)
+    ret_val_o := init_macro_pick_return(body, subs, ref_params, type_params, scope, ctx, unknown_condition)
     ctx.comptime_requests.remove(request)
     if ret_val_o.is_none() {
         if unknown_condition.and(ctx.errors == 0) {
@@ -5257,6 +5298,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
 
     mut cloned := ret_val.clone()
     init_substitute_type_params(cloned, subs, ref_params, ctx.symbols)
+    init_expand_member_generators(cloned, macros, scope, ctx, mark_ctx, nested_synthesized)
     init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, mark_ctx)
     stmt.children[0] = cloned
     return true
@@ -5284,6 +5326,34 @@ priv init_mark_expanded_macro_used := func(mut program: Expr, name: Str, macros:
     binding.used = true
 }
 
+priv init_macro_reference_edges := func(e: Expr, owner: Str, macros: Map(Str, Expr), mut ctx: Context) {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if macros.has(name).and(name != owner) {
+            if ctx.priv_ref_edges.has(owner).not() { ctx.priv_ref_edges.set(owner, own Vec(Str).new()) }
+            ctx.priv_ref_edges[owner].push(own name.clone())
+        }
+    case .StructDef(sd):
+        for field : Declaration in sd.fields {
+            if field.default_value.is_some() { init_macro_reference_edges(field.default_expr(), owner, macros, ctx) }
+        }
+        for member : Declaration in sd.ns_decls {
+            if member.default_value.is_some() { init_macro_reference_edges(member.default_expr(), owner, macros, ctx) }
+        }
+    case .EnumDef(ed):
+        for member : Declaration in ed.ns_decls {
+            if member.default_value.is_some() { init_macro_reference_edges(member.default_expr(), owner, macros, ctx) }
+        }
+    case .FuncDef(fd):
+        for param : Declaration in fd.sig.params {
+            if param.default_value.is_some() { init_macro_reference_edges(param.default_expr(), owner, macros, ctx) }
+        }
+    case:
+    }
+    for child : Expr in e.children { init_macro_reference_edges(child, owner, macros, ctx) }
+}
+
 priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope, mut ctx: Context) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
@@ -5302,6 +5372,9 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
         }
     }
 
+    // A public template may need private helpers only for some instantiations.
+    // Record those source dependencies even when this unit selects another arm.
+    for name, source in macros { init_macro_reference_edges(source, name, macros, ctx) }
     local_types := init_seed_local_type_tokens(program, scope, ctx)
     for mut stmt0 : Expr in program.children {
         init_canonicalize_local_type_args(stmt0, macros, scope, local_types, ctx)

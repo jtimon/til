@@ -586,6 +586,7 @@ typedef struct Declaration {
     Bool infer_call_ownership;
     Str bounds;
     Type annotated;
+    Bool auto_shallow;
 } Declaration;
 
 
@@ -1181,6 +1182,7 @@ typedef struct RootBits {
 
 typedef struct DepositAcc {
     U64 m;
+    U64 borrowed;
 } DepositAcc;
 
 
@@ -1935,6 +1937,7 @@ typedef struct FunctionDef {
     U64 ref_return_carried_params;
     Option__ref_Declaration namespace_decl;
     U64 deposit_matrix;
+    U64 deposit_borrow_matrix;
 } FunctionDef;
 
 
