@@ -2,9 +2,22 @@ mode cli
 
 import("../src/std/sys")
 import("../vendor/bindings/libffi")
+// A program that imports the libffi binding links libffi itself (the
+// binder's bindings never do): each target's own build, as
+// src/self/interpreter.til does (issue #422).
+link("vendor/libffi/build-linux-x64/.libs/libffi.a", "linux-x64")
+link("vendor/libffi/build-linux-arm64/.libs/libffi.a", "linux-arm64")
+link("vendor/libffi/build-linux-riscv64/.libs/libffi.a", "linux-riscv64")
+link("vendor/libffi/build-linux-x86/.libs/libffi.a", "linux-x86")
+link("vendor/libffi/build-linux-arm32/.libs/libffi.a", "linux-arm32")
+link("vendor/libffi/build-linux-riscv32/.libs/libffi.a", "linux-riscv32")
+link("vendor/libffi/build-windows-x64/.libs/libffi.a", "windows-x64")
+link("vendor/libffi/build-windows-x86/.libs/libffi.a", "windows-x86")
+link("vendor/libffi/build-macos-x64/.libs/libffi.a", "macos-x64")
+link("vendor/libffi/build-macos-arm64/.libs/libffi.a", "macos-arm64")
 
 // Issue #420: a program that calls libffi directly links the TARGET's
-// own libffi archive (targets.til's target_ffi_lib) and runs it. The
+// own libffi archive (the link() lines above) and runs it. The
 // suite runs it natively on both backends; the cross CI jobs build it
 // for their target -- including the 32-bit ones, where til itself does
 // not build -- and run it: the linux ones under qemu, the mac and

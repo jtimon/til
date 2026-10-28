@@ -713,11 +713,11 @@ re-add what they name, and diff to review the C-side changes -- not
 re-derive 161 ~ext_proc~ flips for raylib and 354 for nng by hand.
 
 *libffi is generated from a BUILD ARTIFACT, not from tracked
-source.*  ~LIBFFI_BINDGEN_INCDIR~ points at
-~vendor/libffi/x86_64-pc-linux-gnu/include~, which
-~vendor/libffi/.gitignore~ ignores -- it appears only after
-libffi is configured and built locally, and ~vendor/libffi/.built~
-then short-circuits any rebuild.  A checkout whose build predates
+source.*  make.til's ~update_c_libs~ reads ~ffi.h~ from
+~vendor/libffi/build-linux-x64/include~ (the host's libffi build on a
+linux-x64 host, issue #422), which ~.gitignore~ ignores -- it appears
+only after libffi is configured and built locally, and
+~vendor/libffi/build-linux-x64/.built~ then short-circuits any rebuild.  A checkout whose build predates
 a libffi upgrade therefore still has the OLD ~ffi.h~ while the
 tracked source is already the new version, and regenerating there
 silently rewrites ~vendor/bindings/libffi.til~ against the older
@@ -731,7 +731,7 @@ read matches the source the repo ships:
 
 #+begin_src sh
 grep -m1 'libffi [0-9]' vendor/bindings/libffi.til                       # what the binding was built from
-grep -m1 'libffi [0-9]' vendor/libffi/x86_64-pc-linux-gnu/include/ffi.h  # what the regen will read
+grep -m1 'libffi [0-9]' vendor/libffi/build-linux-x64/include/ffi.h       # what the regen will read
 grep -m1 AC_INIT vendor/libffi/configure.ac                              # what the repo ships
 #+end_src
 
@@ -743,8 +743,7 @@ directory exists and holds the older ~ffi.h~ while ~.built~
 suppresses the rebuild.
 
 If the built header is behind (or you are unsure), either force a
-rebuild first (~rm -rf vendor/libffi/x86_64-pc-linux-gnu
-vendor/libffi/.built~, then ~make~) or keep
+rebuild first (~rm -rf vendor/libffi/build-linux-x64~, then ~make~) or keep
 ~vendor/bindings/libffi.til~ out of the regeneration -- restore it
 with ~git checkout HEAD -- vendor/bindings/libffi.til~ and re-apply
 the audit to the other three only.  This bit a real session: a

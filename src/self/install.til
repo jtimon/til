@@ -43,11 +43,18 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     // private implementation sources, not a public Context/Expr ABI.
     rc = install_tree(format(root, "/src/self"), format(dst_root, "/src/self"), "install embedding implementation sources")
     if rc != 0 { return rc }
-    ffi_archive := target_ffi_lib(detect_current_target())
-    if ffi_archive.len() > 0 {
-        rc = install_file(format(root, "/", ffi_archive), format(dst_root, "/", ffi_archive), "install embedding libffi archive")
-        if rc != 0 { return rc }
-    }
+    // The host's libffi, at the path src/self/interpreter.til's link()
+    // names for the host target (issue #422).
+    ffi_archive := format("vendor/libffi/build-", target_to_str(detect_current_target()), "/.libs/libffi.a")
+    rc = install_file(format(root, "/", ffi_archive), format(dst_root, "/", ffi_archive), "install embedding libffi archive")
+    if rc != 0 { return rc }
+    // Its loadable twin, for an interpreted program that links libffi
+    // (ffi_load_archive_twin; .so on a mac host too).
+    mut ffi_twin_ext := ".so"
+    if host_os() == "windows" { ffi_twin_ext = ".dll" }
+    ffi_twin := format(ffi_archive.strip_suffix(".a"), ffi_twin_ext)
+    rc = install_file(format(root, "/", ffi_twin), format(dst_root, "/", ffi_twin), "install embedding libffi twin")
+    if rc != 0 { return rc }
     // There is no top-level lib/ to install. It held six example-only
     // modules (alphabeta, cell, fonts, music, svg, the custom_modes
     // preludes) and moved to examples/lib/ -- nothing in src/ ever

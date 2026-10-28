@@ -425,7 +425,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // windows, POSIX-only -l flags; mingw doesn't ship -ldl/-lrt and
     // can't load Linux ELF .a files -- a 32-bit linux link can't load
     // the 64-bit archives either). The per-target variants are added
-    // via target_gui_libs / target_ffi_lib / target_system_libs below.
+    // via target_gui_libs / target_system_libs below.
     // For macOS targets the vendored .a paths are correct as-is on a
     // mac host (native archives at the same paths) and loudly
     // wrong-arch on cross hosts, so they stay; every -l flag the tree
@@ -493,38 +493,6 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // src/self/targets.til. Include them when gui.til was actually loaded,
     // whether by a built-in mode, a custom support module, or an import.
     sys_libs := target_system_libs(target)
-    // Per-target libffi archives exist only where a matching host built
-    // them (the Makefile keeps stable-path copies on native mac and
-    // native arm64-linux hosts). Cross hosts do not have them, and
-    // programs that never call ext_func at runtime do not need them, so
-    // link the archive only when it is actually present. Whether the
-    // PROGRAM needs it is decided by the generated C itself: nothing in
-    // src/c/ext.c references libffi, so ffi_* calls appear only when
-    // the emitted code carries runtime FFI dispatch (the compiler's own
-    // interpreter, or a program importing the libffi binding). A
-    // missing archive such a program needs used to be dropped silently
-    // here and surface as a screenful of unresolved-ffi_* linker
-    // errors; now it is checked BEFORE the link and reported with the
-    // path and the command that builds it. The scan only runs on the
-    // missing-archive path, so ordinary builds read nothing extra.
-    //
-    // Issue #422, transitional: a program whose link() lines already name
-    // a libffi archive (the per-target lines src/self/interpreter.til is
-    // about to carry) links that one, and this table is skipped. Until
-    // then nothing names one, so this changes nothing; the next commit
-    // moves libffi onto link() and deletes the table.
-    mut ffi_lib := resolve_target_archives(target_ffi_lib(target), ext_c_path)
-    for ffi_tok : Str in lf.split(" ") {
-        if ffi_tok.ends_with("/libffi.a") { ffi_lib = "" }
-    }
-    if ffi_lib.len().gt(0).and(realpath_str(ffi_lib).len().eq(0)) {
-        if File.readfile(c_path).contains("ffi_prep_cif") {
-            println(format("error: the generated C calls libffi (runtime ext_func dispatch), and this target's libffi archive is not built: ", ffi_lib))
-            println(format("  build it first: ", target_ffi_build_hint(target)))
-            return 1
-        }
-        ffi_lib = ""
-    }
     mut gui_part := ""
     if has_gui {
         gui_part = format(" ", resolve_target_archives(target_gui_libs(target), ext_c_path))
@@ -543,7 +511,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
-        " ", ffi_lib, gui_part, " ", sys_libs)
+        gui_part, " ", sys_libs)
 
     result := system_cmd(cmd)
     if result != 0 {

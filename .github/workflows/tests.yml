@@ -541,7 +541,7 @@ jobs:
       # on the windows runner below.
       - name: Cross-compile the libffi test for windows-x64 and windows-x86
         run: |
-          make vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a vendor/libffi/i686-w64-mingw32/.libs/libffi.a
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/libffi/build-windows-x86/.libs/libffi.a
           ./bin/til build --target=windows-x64 -o bin/ffi_prep.exe test/ffi_prep.til
           file bin/ffi_prep.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/ffi_prep-x86.exe test/ffi_prep.til

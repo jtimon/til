@@ -6,11 +6,20 @@ import("c_codegen")
 import("../std/sys")
 import("../std/file")
 import("../../vendor/bindings/libffi")
-// No link() here: the libffi static lib is host-dependent (the
-// configure triple dir only exists for the build host), so the builder
-// appends the right archive per target via target_ffi_lib instead. A
-// hardcoded Linux path made resolve_link_path fall back to a bogus
-// src/self/-relative candidate on mac hosts (issue #25).
+// The interpreter's ext_func dispatch calls libffi, so whatever embeds it
+// -- til itself, a TilVm host -- links each target's own libffi build
+// (issue #422): vendor/libffi/build-<target>, the host's built by the
+// Makefile and the rest by bin/make (make.til's LibffiCross).
+link("vendor/libffi/build-linux-x64/.libs/libffi.a", "linux-x64")
+link("vendor/libffi/build-linux-arm64/.libs/libffi.a", "linux-arm64")
+link("vendor/libffi/build-linux-riscv64/.libs/libffi.a", "linux-riscv64")
+link("vendor/libffi/build-linux-x86/.libs/libffi.a", "linux-x86")
+link("vendor/libffi/build-linux-arm32/.libs/libffi.a", "linux-arm32")
+link("vendor/libffi/build-linux-riscv32/.libs/libffi.a", "linux-riscv32")
+link("vendor/libffi/build-windows-x64/.libs/libffi.a", "windows-x64")
+link("vendor/libffi/build-windows-x86/.libs/libffi.a", "windows-x86")
+link("vendor/libffi/build-macos-x64/.libs/libffi.a", "macos-x64")
+link("vendor/libffi/build-macos-arm64/.libs/libffi.a", "macos-arm64")
 
 priv interp_error_path := func(ctx: Context) returns Str {
     return ctx.path.clone()

@@ -37,15 +37,37 @@ UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
 LIBFFI_DIR := vendor/libffi
-# configure names its build directory after the host triple, which is
-# not predictable here, so the archive is discovered rather than named.
-# make.til's cross builds sit beside it and are filtered out, as
-# make.til's libffi_native_dir skips them: the out-of-tree build-<name>
-# directories and the mingw triples (i686-w64-mingw32 sorts before
-# x86_64-pc-linux-gnu, so building the windows-x86 libffi used to make
-# the next bootstrap link it).
-LIBFFI_LIBDIR = $(firstword $(filter-out $(LIBFFI_DIR)/build-% $(LIBFFI_DIR)/%-mingw32/.libs,$(wildcard $(LIBFFI_DIR)/*/.libs)))
-LIBFFI_FLAGS = -L$(LIBFFI_LIBDIR) -lffi
+# The host's --target name (linux-x64, macos-arm64, ...), the spelling
+# make.til's Host.target_name gives the same machine. The native libffi
+# is configured out of tree into vendor/libffi/build-<host target>
+# (issue #422), the directory every target's libffi build uses, so
+# src/self/interpreter.til's per-target link() lines name the host's
+# archive like any other target's.
+ifeq ($(UNAME_S),Linux)
+HOST_OS := linux
+else ifeq ($(UNAME_S),Darwin)
+HOST_OS := macos
+else
+$(error unsupported build host '$(UNAME_S)': til builds on Linux and macOS)
+endif
+ifneq ($(filter x86_64 amd64,$(UNAME_M)),)
+HOST_ARCH := x64
+else ifneq ($(filter aarch64 arm64,$(UNAME_M)),)
+HOST_ARCH := arm64
+else ifeq ($(UNAME_M),riscv64)
+HOST_ARCH := riscv64
+else ifneq ($(filter i386 i686,$(UNAME_M)),)
+HOST_ARCH := x86
+else ifneq ($(filter armv6l armv7l,$(UNAME_M)),)
+HOST_ARCH := arm32
+else ifeq ($(UNAME_M),riscv32)
+HOST_ARCH := riscv32
+else
+$(error unsupported build host architecture '$(UNAME_M)')
+endif
+HOST_TARGET := $(HOST_OS)-$(HOST_ARCH)
+LIBFFI_HOST_DIR := $(LIBFFI_DIR)/build-$(HOST_TARGET)
+LIBFFI_FLAGS = -L$(LIBFFI_HOST_DIR)/.libs -lffi
 
 CORE := $(wildcard src/core/*.til)
 STD := $(wildcard src/std/*.til)
@@ -70,7 +92,7 @@ BOOT_LD_FLAGS := -rdynamic -ldl -lm -lpthread
 # list. Arbitrary path goals -- `make vendor/raylib/src/libraylib-x86.a`
 # -- and multi-goal invocations both keep working, and no registry of
 # til targets is duplicated here.
-BOOTSTRAP_GOALS := bin/make bin/til_boot $(LIBFFI_DIR)/.built
+BOOTSTRAP_GOALS := bin/make bin/til_boot $(LIBFFI_HOST_DIR)/.built
 DELEGATED := $(filter-out $(BOOTSTRAP_GOALS),$(MAKECMDGOALS))
 ifeq ($(MAKECMDGOALS),)
 DELEGATED := all
@@ -119,7 +141,10 @@ endif
 # nothing local is patched into this tree anymore.
 #
 # This is the one vendored library the bootstrap needs, so it is the one
-# that stays here. The cross-compiled libffi builds are make.til's.
+# that stays here: the host's own build. The other targets' libffi builds
+# are make.til's (its LibffiCross table). --with-pic because make.til
+# relinks this archive into the interpreter's loadable twin, as for every
+# archive a program links (issue #422).
 #
 # On a mac host the archive must be built for the deployment target til
 # links its programs at (targets.til: macos11 on arm64, macos10.12 on
@@ -134,20 +159,10 @@ else
 LIBFFI_ENV := MACOSX_DEPLOYMENT_TARGET=10.12
 endif
 endif
-$(LIBFFI_DIR)/.built:
-	cd $(LIBFFI_DIR) && $(LIBFFI_ENV) ./configure --disable-shared --enable-static --disable-docs --quiet
-	$(LIBFFI_ENV) $(MAKE) -C $(LIBFFI_DIR)
-ifeq ($(UNAME_S),Darwin)
-# configure names its build dir with a version-suffixed triple
-# (aarch64-apple-darwin24.3.0), which targets.til cannot predict; keep a
-# stable path for target_ffi_lib on mac hosts.
-	cp $(LIBFFI_DIR)/*apple-darwin*/.libs/libffi.a $(LIBFFI_DIR)/libffi-macos.a
-endif
-ifeq ($(UNAME_S)-$(UNAME_M),Linux-aarch64)
-# Same stable-path dance for native arm64 Linux hosts (the triple dir is
-# aarch64-unknown-linux-gnu or aarch64-linux-gnu depending on config.guess).
-	cp $(LIBFFI_DIR)/aarch64-*linux*/.libs/libffi.a $(LIBFFI_DIR)/libffi-linux-arm64.a
-endif
+$(LIBFFI_HOST_DIR)/.built:
+	mkdir -p $(LIBFFI_HOST_DIR)
+	cd $(LIBFFI_HOST_DIR) && $(LIBFFI_ENV) ../configure --disable-shared --enable-static --with-pic --disable-docs --quiet
+	$(LIBFFI_ENV) $(MAKE) -C $(LIBFFI_HOST_DIR)
 	touch $@
 
 # The recovery compiler: HEAD's committed boot/ and src/c/, extracted
@@ -155,7 +170,7 @@ endif
 # because its input is a commit and make cannot stat one -- a new HEAD
 # has to reconstruct it, which worktree mtimes would not notice.
 .PHONY: bin/til_boot
-bin/til_boot: $(LIBFFI_DIR)/.built
+bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 	mkdir -p bin tmp/boot/boot tmp/boot/src/c
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \

@@ -51,10 +51,9 @@ NNG_DIR := "vendor/nng"
 SECP256K1_DIR := "vendor/secp256k1"
 RAYLIB_WIN64_DLL := "vendor/raylib/src/libraylib.dll"
 TINYFD_WIN64_DLL := "vendor/tinyfiledialogs/libtinyfd.dll"
+// libffi is built per --target into vendor/libffi/build-<target>
+// (issue #422): the host's by the Makefile, the rest by LibffiCross.
 LIBFFI_DIR := "vendor/libffi"
-LIBFFI_STAMP := "vendor/libffi/.built"
-LIBFFI_WIN64_LIB := "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
-LIBFFI_WIN32_LIB := "vendor/libffi/i686-w64-mingw32/.libs/libffi.a"
 MAC_STUBS_STAMP := "vendor/macos/frameworks/.stamp"
 RAYLIB_WASM_LIB := "vendor/raylib/src/libraylib-web.a"
 EMSDK_DIR := "vendor/emscripten"
@@ -319,12 +318,19 @@ require_boot := proc() {
     }
 }
 
-/// The vendored libffi is the Makefile's too: the checked-in compiler C
+/// The host's libffi is the Makefile's too: the checked-in compiler C
 /// calls into it, so it has to exist before bin/til_boot can link.
-require_libffi := proc() {
-    if File.exists(LIBFFI_STAMP).not() {
-        panic(LIBFFI_STAMP, " is missing -- run `make` first: the vendored libffi is built by the Makefile, before the bootstrap compiler that links it")
+require_libffi := proc(b: Build) {
+    stamp := format(LIBFFI_DIR, "/build-", b.host.target_name(), "/.built")
+    if File.exists(stamp).not() {
+        panic(stamp, " is missing -- run `make` first: the host's libffi is built by the Makefile, before the bootstrap compiler that links it")
     }
+}
+
+/// One target's libffi archive: the path src/self/interpreter.til's
+/// link() line names for that target.
+libffi_lib := func(target: Str) returns Str {
+    return format(LIBFFI_DIR, "/build-", target, "/.libs/libffi.a")
 }
 
 // --- Native link flags ---
@@ -374,27 +380,6 @@ force_load_args := func(host: Host, archive: Str) returns Vec(Str) {
     out.push(own archive.clone())
     out.push(own "-Wl,--no-whole-archive")
     return out
-}
-
-/// Where the native libffi build put its archive. configure names the
-/// directory after the host triple, which cannot be predicted from
-/// here, so it is discovered -- skipping the cross builds' own
-/// directories, which sit beside it: the mingw per-triple ones and the
-/// linux build-linux-<name> ones (which sort before x86_64-*).
-libffi_native_dir := proc() returns Str {
-    mut best := ""
-    for name : Str in Dir.list(LIBFFI_DIR) {
-        if name.contains("mingw").or(name.starts_with("build-")) { continue }
-        candidate := format(LIBFFI_DIR, "/", name, "/.libs")
-        if File.is_dir(candidate).not() { continue }
-        if best.is_empty().or(candidate.lt(best)) {
-            best = candidate.clone()
-        }
-    }
-    if best.is_empty() {
-        panic("no built libffi under ", LIBFFI_DIR, " -- run `make` first")
-    }
-    return best
 }
 
 // --- Native vendor artifacts ---
@@ -512,6 +497,25 @@ build_ffi_twins := proc(mut b: Build) {
         argv.push(own "-o")
         argv.push(own secp_so.clone())
         argv.append(own force_load_args(b.host, secp_host_lib))
+        run_argv(argv)
+    }
+    // The host's libffi (issue #422): a program that imports the libffi
+    // binding links it through link() like any other archive, so an
+    // interpreted one loads this twin. The Makefile builds the archive
+    // --with-pic for it.
+    require_libffi(b)
+    ffi_host_lib := libffi_lib(b.host.target_name())
+    ffi_so := format(ffi_host_lib.strip_suffix(".a"), ".so")
+    mut ffi_inputs := Vec(Str).new()
+    ffi_inputs.push(own ffi_host_lib.clone())
+    if needs_rebuild(ffi_so, ffi_inputs) {
+        mut argv := Vec(Str).new()
+        argv.push(own "cc")
+        argv.push(own "-shared")
+        argv.push(own "-fPIC")
+        argv.push(own "-o")
+        argv.push(own ffi_so.clone())
+        argv.append(own force_load_args(b.host, ffi_host_lib))
         run_argv(argv)
     }
 }
@@ -647,7 +651,7 @@ build_asan := proc(mut b: Build) {
 build_debug := proc(mut b: Build) {
     if b.begin("debug").not() { return }
     build_til(b)
-    require_libffi()
+    require_libffi(b)
     mut inputs := Vec(Str).new()
     inputs.push(own "boot/til.c")
     add_matching(inputs, "src/c", ".c")
@@ -669,7 +673,7 @@ build_debug := proc(mut b: Build) {
     add_matching(argv, "src/c", ".c")
     argv.push(own "-rdynamic")
     argv.push(own "-ldl")
-    argv.push(own format("-L", libffi_native_dir()))
+    argv.push(own format("-L", LIBFFI_DIR, "/build-", b.host.target_name(), "/.libs"))
     argv.push(own "-lffi")
     argv.push(own "-Lvendor/raylib/src")
     argv.push(own "-lraylib")
@@ -943,7 +947,7 @@ run_update_c_libs := proc(mut b: Build) {
     run(TIL, "bindings", "-o", "vendor/bindings/tinyfd.til",
         "vendor/tinyfiledialogs/tinyfiledialogs.h")
     run(TIL, "bindings", "-o", "vendor/bindings/libffi.til",
-        "vendor/libffi/x86_64-pc-linux-gnu/include/ffi.h")
+        "vendor/libffi/build-linux-x64/include/ffi.h")
     run(TIL, "bindings", "-o", "vendor/bindings/nng.til",
         "vendor/nng/include/nng/nng.h")
     // secp256k1_schnorrsig.h includes secp256k1.h and
@@ -1197,36 +1201,15 @@ build_gui_pair := proc(mut b: Build, name: Str) {
 
 // --- Windows cross ---
 
-/// libffi for a mingw triple. Needed to cross-compile til.exe itself
-/// (the compiler links libffi for its ext_func dispatch -- windows AS A
-/// HOST) and any windows program that calls ext_func at run time.
-/// mingw's triple is fixed, so configure lands the build in a
-/// predictable per-triple subdir that targets.til points at directly;
-/// that subdir is built with -C rather than through the top-level
-/// Makefile, which configure repoints on every run. The native build
-/// must be configured first so its own archive is never disturbed by
-/// this second configure.
-build_libffi_cross := proc(mut b: Build, triple: Str, output: Str) {
-    if b.begin(format("libffi-", triple)).not() { return }
-    require_libffi()
-    if needs_rebuild(output, no_inputs()).not() { return }
-    configure := Cmd.new("./configure", format("--host=", triple),
-        "--disable-shared", "--enable-static", "--disable-docs", "--quiet")
-    configure.cwd(LIBFFI_DIR)
-    configure.run_checked()
-    run("make", "-C", format(LIBFFI_DIR, "/", triple))
-}
-
-/// libffi for the linux and mac cross targets (issue #420), for runtime
+/// libffi for every target but the host (issues #420, #422), for runtime
 /// ext_func dispatch in programs built for them -- til itself among
-/// them, so the interpreter works on those hosts. Unlike the mingw builds
-/// these configure OUT of tree, one vendor/libffi/build-<name> each: the
-/// archive path is fixed whatever triple config.sub makes of --host,
-/// and the in-tree native build (with the top-level Makefile configure
-/// rewrites) is never touched. The native libffi lookups skip these
-/// directories.
+/// them, so the interpreter works on those hosts (til.exe on windows).
+/// Each configures OUT of tree into vendor/libffi/build-<target>, the
+/// directory the Makefile uses for the host's own, so the archive path
+/// is fixed whatever triple config.sub makes of --host and is the one
+/// src/self/interpreter.til's link() line names.
 LibffiCross := struct {
-    // Suffix of the build directory: build-<name>, e.g. linux-arm64.
+    // The --target name, and the build directory's suffix: build-<name>.
     name := ""
     // configure's --host. With CC given, it only selects libffi's
     // backend and the prefixed binutils.
@@ -1256,10 +1239,12 @@ namespace:
     }
 }
 
-/// Every libffi cross archive, as data. targets.til's target_ffi_lib
-/// names the same paths; keep the two in step.
+/// Every libffi target, as data; src/self/interpreter.til links the same
+/// ones (the host's entry is the Makefile's to build).
 libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
     mut out := Vec(LibffiCross).new()
+    out.push(own LibffiCross(name = "linux-x64", host = "x86_64-linux-gnu", cc = b.linux_x64_cc.clone(),
+        cc_option = "--linux-x64-cc=<path> (or LINUX_X64_CC)"))
     out.push(own LibffiCross(name = "linux-arm64", host = "aarch64-linux-gnu", cc = "aarch64-linux-gnu-gcc"))
     out.push(own LibffiCross(name = "linux-riscv64", host = "riscv64-linux-gnu", cc = "riscv64-linux-gnu-gcc"))
     // The host gcc in 32-bit mode, like every linux-x86 build here.
@@ -1279,6 +1264,10 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
     out.push(own LibffiCross(name = "linux-riscv32", host = "riscv32-linux-gnu", cc = b.riscv32_cc.clone(),
         cc_option = "--riscv32-cc=<path> (or RISCV32_CC)",
         ar = riscv32_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
+    // mingw: windows AS A HOST (til.exe links libffi for its ext_func
+    // dispatch) and any windows program that calls ext_func at run time.
+    out.push(own LibffiCross(name = "windows-x64", host = "x86_64-w64-mingw32", cc = "x86_64-w64-mingw32-gcc"))
+    out.push(own LibffiCross(name = "windows-x86", host = "i686-w64-mingw32", cc = "i686-w64-mingw32-gcc"))
     for arch : Str in MAC_ARCHES.split(" ") {
         // The deployment targets til links mac programs for (targets.til's
         // target_prefix_args), as for the mac libsecp256k1 archives.
@@ -1313,7 +1302,12 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
             found = true
         }
     }
-    if found.not() { panic("no libffi cross archive for ", name) }
+    if found.not() { panic("no libffi build for --target=", name) }
+    // The host's own is the Makefile's (the bootstrap links it).
+    if name == b.host.target_name() {
+        require_libffi(b)
+        return
+    }
     if t.cc.is_empty() {
         panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
     }
@@ -1823,14 +1817,14 @@ build_win_server := proc(mut b: Build) {
 build_win_host := proc(mut b: Build) {
     if b.begin("build_win_host").not() { return }
     build_til(b)
-    build_libffi_cross(b, "x86_64-w64-mingw32", LIBFFI_WIN64_LIB)
+    build_libffi_out_of_tree(b, "windows-x64")
     build_nng_target(b, "windows-x64")
     // Not linked into til.exe: the interpreter loads these at run time.
     build_secp256k1_win_twin(b)
     build_gui_win_twins(b)
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
-    inputs.push(own LIBFFI_WIN64_LIB.clone())
+    inputs.push(own libffi_lib("windows-x64"))
     inputs.push(own nng_lib("windows-x64"))
     if needs_rebuild("bin/til.exe", inputs).not() { return }
     run(TIL, "build", "--target=windows-x64", "--usize=32", "-o", "bin/til.exe", "src/til.til")
@@ -2098,12 +2092,9 @@ mac_raylib_arm64 := proc(mut b: Build) { build_mac_raylib(b, "arm64") }
 mac_raylib_x64 := proc(mut b: Build) { build_mac_raylib(b, "x64") }
 mac_tinyfd_arm64 := proc(mut b: Build) { build_mac_tinyfd(b, "arm64") }
 mac_tinyfd_x64 := proc(mut b: Build) { build_mac_tinyfd(b, "x64") }
-libffi_win64 := proc(mut b: Build) {
-    build_libffi_cross(b, "x86_64-w64-mingw32", LIBFFI_WIN64_LIB)
-}
-libffi_win32 := proc(mut b: Build) {
-    build_libffi_cross(b, "i686-w64-mingw32", LIBFFI_WIN32_LIB)
-}
+libffi_linux_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-x64") }
+libffi_windows_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "windows-x64") }
+libffi_windows_x86 := proc(mut b: Build) { build_libffi_out_of_tree(b, "windows-x86") }
 libffi_linux_arm64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-arm64") }
 libffi_linux_riscv64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-riscv64") }
 libffi_linux_x86 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-x86") }
@@ -2234,8 +2225,11 @@ commands := func() returns Vec(Command) {
         about = "macos-arm64 nng (SDK-less off a mac), for the server modes"))
     out.push(own Command(name = nng_lib("macos-x64"), is_path = true, go = nng_macos_x64,
         about = "macos-x64 nng (SDK-less off a mac), for the server modes"))
-    out.push(own Command(name = LIBFFI_WIN64_LIB, alias_of = "build_win_host", is_path = true, go = libffi_win64))
-    out.push(own Command(name = LIBFFI_WIN32_LIB, alias_of = "build_win32", is_path = true, go = libffi_win32))
+    out.push(own Command(name = libffi_lib("linux-x64"), is_path = true, go = libffi_linux_x64,
+        about = "linux-x64 libffi (--linux-x64-cc= off a linux-x64 host), for runtime ext_func"))
+    out.push(own Command(name = libffi_lib("windows-x64"), alias_of = "build_win_host", is_path = true, go = libffi_windows_x64))
+    out.push(own Command(name = libffi_lib("windows-x86"), is_path = true, go = libffi_windows_x86,
+        about = "windows-x86 libffi, for runtime ext_func"))
     out.push(own Command(name = "vendor/libffi/build-linux-arm64/.libs/libffi.a", is_path = true, go = libffi_linux_arm64,
         about = "linux-arm64 libffi, for runtime ext_func (til itself on that host)"))
     out.push(own Command(name = "vendor/libffi/build-linux-riscv64/.libs/libffi.a", is_path = true, go = libffi_linux_riscv64,
