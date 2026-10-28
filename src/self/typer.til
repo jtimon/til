@@ -4382,27 +4382,33 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
     generic_finish_fcall(scope, e, src_name, subs, ref_params, explicit, in_func, ctx)
 }
 
-priv infer_type_arg_is_ref := proc(mut scope: TypeScope, mut e: Expr, mut ctx: Context) {
+priv infer_type_arg_query := proc(mut scope: TypeScope, mut e: Expr, name: Str, mut ctx: Context) {
     if e.children.len() != 2 {
-        e.type_error("type_arg_is_ref expects one compile-time type argument", ctx)
+        e.type_error(format(name, " expects one compile-time type argument"), ctx)
         return
     }
     infer_expr(scope, e.children[1], 0, ctx)
     mut is_type := false
+    mut is_interface := false
     switch e.children[1].node_type {
     case .Ident(id):
         binding_o := scope.get_binding_sym(id.ident_sym())
         if binding_o.is_some() {
             is_type = type_binding_is_type_token(scope, binding_o.unwrap(), ctx.symbols)
+            if is_type.and(name == "type_arg_is_interface") {
+                ref resolved : Str = resolve_type_alias(scope, id.ident_name(ctx.symbols.names), ctx.symbols)
+                is_interface = type_name_is_interface(scope, resolved, ctx.symbols)
+            }
         }
     case:
     }
     if is_type.not() {
-        e.type_error("type_arg_is_ref requires a compile-time type argument, not a value", ctx)
+        e.type_error(format(name, " requires a compile-time type argument, not a value"), ctx)
         return
     }
-    borrowed := get_ref_arg(e, 1)
-    e.node_type = NodeType.Literal(Literal.Bool(borrowed))
+    mut result := get_ref_arg(e, 1)
+    if name == "type_arg_is_interface" { result = is_interface }
+    e.node_type = NodeType.Literal(Literal.Bool(result))
     e.children.clear()
     e.set_til_type(Type.Primitive(Primitive.Bool))
 }
@@ -4545,8 +4551,9 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         check_priv_access(e, name, callee_bind, scope, ctx)
         callee_fdef_o = scope.lookup_func_by_sym(callee_sym, ctx.symbols)
         if callee_fdef_o.is_some() {
-            if name.eq("type_arg_is_ref").and(funcdef_of(callee_fdef_o.unwrap()).sig.func_type.is_core()) {
-                infer_type_arg_is_ref(scope, e, ctx)
+            if name.eq("type_arg_is_ref").or(name == "type_arg_is_interface")
+                .and(funcdef_of(callee_fdef_o.unwrap()).sig.func_type.is_core()) {
+                infer_type_arg_query(scope, e, name, ctx)
                 return
             }
             if init_func_is_generic(callee_fdef_o.unwrap(), ctx.symbols) {

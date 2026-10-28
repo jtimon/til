@@ -395,6 +395,14 @@ and a named enum type by ~Type.Enum(name)~. An interface also uses
 separate ~Type.Interface~ variant. Internally the compiler also uses the
 symbol-backed ~StructSym~ and ~EnumSym~ forms of named types.
 
+~type_arg_is_interface(T)~ exposes that distinction at compile time. It
+returns true for an interface or an alias of one, with or without an
+~own~ / ~ref~ qualifier. It returns false for concrete structs and enums,
+including implementations of the interface, and for primitives and definition
+metatypes such as ~StructDef~. Like ~type_arg_is_ref~, it works in generator
+conditions and generated bodies, rejects ordinary values and runtime ~Type~
+parameters, and leaves a Boolean constant rather than a runtime query.
+
 The explicit ~own~ / ~ref~ requirement above checks the interface marker.
 It does not reject ordinary struct or enum element types, and does not
 depend on whether those concrete types implement an interface. Both

@@ -79,6 +79,12 @@ dyn_type_to_str := ext_func(type: Type) returns Str {}
 /// to this query: the compiler resolves it before runtime code is emitted.
 type_arg_is_ref := core_func(type: Type) returns Bool {}
 
+/// Whether a compile-time type argument names an interface. Aliases resolve
+/// to their underlying type; own/ref qualifiers do not change the answer.
+/// Concrete structs and enums answer false even when they implement interfaces.
+/// Like type_arg_is_ref, this query rejects runtime Type values.
+type_arg_is_interface := core_func(type: Type) returns Bool {}
+
 // The allocation-free runtime classifier. The self compiler's iterable
 // PRIM_NAMES/WIDTH_ALIAS_NAMES arrays cannot live in core: their global array
 // initialization would be emitted into every user program that needs dynamic

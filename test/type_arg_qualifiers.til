@@ -36,6 +36,18 @@ main := proc(args: ..Str) {
         "mode cli\nimport(\"MyAltVec\")\n",
         "Contract := interface { value := func(self: Contract) returns I64 }\n",
         "Record := struct implements Contract { n := 11\nnamespace:\nvalue := func(self: Record) returns I64 { return self.n } }\n",
+        "Choice := enum implements Contract { One\nnamespace:\nvalue := func(self: Choice) returns I64 { switch self { case .One: return 1 } } }\n",
+        "ContractAlias := Contract\n",
+        "interface_query := macro(T: Type) returns FuncDef {\n",
+        "    if type_arg_is_interface(T) { return func() returns Bool { return true } }\n",
+        "    else { return func() returns Bool { return false } }\n}\n",
+        "query_interface := interface_query(ref ContractAlias)\n",
+        "query_record := interface_query(Record)\n",
+        "query_choice := interface_query(Choice)\n",
+        "InterfaceProbe := macro(T: Type) returns StructDef {\n",
+        "    if type_arg_is_interface(T).and(type_arg_is_ref(T)) { return struct { borrowed_interface := true } }\n",
+        "    else { return struct { borrowed_interface := false } }\n}\n",
+        "InterfaceForward := macro(T: Type) returns StructDef { return struct { probe := InterfaceProbe(T)() } }\n",
         "empty_borrow := func(value: Option(ref Contract)) returns Bool { return value.is_none() }\n",
         "Probe := macro(Element: Type) returns StructDef {\n",
         "    if type_arg_is_ref(Element) { return struct { borrowed := true } }\n",
@@ -50,6 +62,20 @@ main := proc(args: ..Str) {
         "Alias := Str\n",
         "main := proc() {\n",
         "    assert(type_arg_is_ref(ref Str))\n",
+        "    assert(type_arg_is_interface(Contract))\n",
+        "    assert(type_arg_is_interface(own ContractAlias))\n",
+        "    assert(type_arg_is_interface(ref Contract))\n",
+        "    assert(type_arg_is_interface(Record).not())\n",
+        "    assert(type_arg_is_interface(Choice).not())\n",
+        "    assert(type_arg_is_interface(I64).not())\n",
+        "    assert(type_arg_is_interface(StructDef).not())\n",
+        "    assert(type_arg_is_interface(EnumDef).not())\n",
+        "    assert(type_arg_is_interface(Option(ref Contract)).not())\n",
+        "    assert(query_interface())\n",
+        "    assert(query_record().not())\n",
+        "    assert(query_choice().not())\n",
+        "    interface_forward := InterfaceForward(ref ContractAlias)()\n",
+        "    assert(interface_forward.probe.borrowed_interface)\n",
         "    assert(type_arg_is_ref(Str).not())\n",
         "    assert(type_arg_is_ref(own Str).not())\n",
         "    assert(type_arg_is_ref(Option(ref Str)).not())\n",
@@ -94,6 +120,21 @@ main := proc(args: ..Str) {
     reject(Cmd.new(compiler, "interpret", format(root, "/invalid_generator.til")), false)
     reject(Cmd.new(compiler, "build", "-o", format(root, "/invalid_generator"),
         "-c", format(root, "/invalid_generator.c"), format(root, "/invalid_generator.til")), false)
+    for body : Str in array(Str,
+        "bad := func(value: Type) returns Bool { return type_arg_is_interface(value) }\nmain := proc() {}",
+        "main := proc() { println(type_arg_is_interface(1)) }",
+        "main := proc() { println(type_arg_is_interface()) }",
+        "main := proc() { println(type_arg_is_interface(I64, Str)) }") {
+        File.writefile(format(root, "/invalid_interface_query.til"), format("mode cli\n", body, "\n"))
+        for action : Str in array(Str, "interpret", "translate") {
+            cmd := Cmd.new(compiler, action, format(root, "/invalid_interface_query.til"))
+            cmd.capture()
+            status := cmd.run()
+            output := format(cmd.out(), cmd.err())
+            expect(status != 0, body, ": ", output)
+            expect(output.contains("error: type_arg_is_interface"), body, ": ", output)
+        }
+    }
     contract := "Contract := interface { value := func(self: Contract) returns I64 }\n"
     for declaration : Str in array(Str,
         "Bad := Vec(Contract)",
