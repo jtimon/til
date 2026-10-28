@@ -388,12 +388,14 @@ typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbage
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
+typedef struct priv___src_self_garbager_til__GcDeposit priv___src_self_garbager_til__GcDeposit;
 typedef struct Array__Bool Array__Bool;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
+typedef struct Vec__priv___src_self_garbager_til__GcDeposit Vec__priv___src_self_garbager_til__GcDeposit;
 typedef struct Option__ref_FunctionDef Option__ref_FunctionDef;
 typedef struct Vec__U8 Vec__U8;
 typedef struct priv___src_self_scavenger_til__DeclRef priv___src_self_scavenger_til__DeclRef;
@@ -1319,6 +1321,12 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
 } priv___src_self_garbager_til__GcBorrowEdge;
 
 
+typedef struct priv___src_self_garbager_til__GcDeposit {
+    BorrowRoot sink;
+    BorrowRoot source;
+} priv___src_self_garbager_til__GcDeposit;
+
+
 typedef struct Array__Bool {
     U8 *data;
     USize cap;
@@ -1356,6 +1364,13 @@ typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__GcCfgBlock;
+
+
+typedef struct Vec__priv___src_self_garbager_til__GcDeposit {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_garbager_til__GcDeposit;
 
 
 struct Option__ref_FunctionDef {

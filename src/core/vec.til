@@ -8,8 +8,150 @@ import("str")
 
 vec := ext_func(T: Type, elements: ..Dynamic) returns Vec {}
 
+priv vec_ref_store := macro(Element: Type) returns FuncDef {
+    if type_arg_is_interface(Element) {
+        return func(mut self: Vec(Element), i: USize, val: Element) {
+            memcpy(self.slot(i), val, Element.size().to_uptr())
+        }
+    } else {
+        return func(mut self: Vec(Element), i: USize, val: Element) {
+            write_ptr(self.slot(i), val)
+        }
+    }
+}
+
 /// Dynamic array of typed elements. Checked indexing throws [[til:OutOfBounds]].
-Vec := struct<T: Type> {
+Vec := macro(T: Type) returns StructDef {
+    if type_arg_is_ref(T) {
+        return struct {
+            own data: U8 = 0
+            count: USize = 0
+            cap: USize = 0
+        namespace:
+            priv slot_size := func() returns USize {
+                if type_arg_is_interface(T) { return T.size() }
+                return UPtr.size()
+            }
+            priv slot := func(self: Vec(T), i: USize) returns ref Dynamic {
+                return ptr_add(self.data, i.to_uptr().mul(Vec(T).slot_size().to_uptr()))
+            }
+            priv store := vec_ref_store(T)
+            new := func() returns Vec(T) { return Vec(T)() }
+            with_capacity := func(n: USize) returns Vec(T) {
+                if n == 0 { return Vec(T)() }
+                return Vec(T)(data = malloc(n.to_uptr().mul(Vec(T).slot_size().to_uptr())), cap = n)
+            }
+            len := func(self: Vec(T)) returns USize { return self.count }
+            clear := func(mut self: Vec(T)) { self.count = 0 }
+            push := func(mut self: Vec(T), val: T) {
+                if self.count == self.cap {
+                    mut capacity := self.cap * 2
+                    if capacity == 0 { capacity = 1 }
+                    self.data = realloc(own self.data, capacity.to_uptr().mul(Vec(T).slot_size().to_uptr()))
+                    self.cap = capacity
+                }
+                self.store(self.count, val)
+                self.count++
+            }
+            unsafe_get := func(self: Vec(T), i: USize) returns ref T {
+                if type_arg_is_interface(T) { return self.slot(i) }
+                return deref(self.slot(i))
+            }
+            get := func(self: Vec(T), shallow i: USize) returns ref T throws OutOfBounds {
+                if i < self.count { return self.unsafe_get(i) }
+                throw OutOfBounds()
+            }
+            unsafe_set := func(mut self: Vec(T), i: USize, val: T) { self.store(i, val) }
+            set := func(mut self: Vec(T), i: USize, val: T) throws OutOfBounds {
+                if i < self.count { self.unsafe_set(i, val); return }
+                throw OutOfBounds()
+            }
+            // Interface results borrow the handle slot as get() does; mutation
+            // or destruction of this buffer invalidates those references.
+            pop := func(mut self: Vec(T)) returns ref T {
+                if self.count == 0 { panic("Vec.pop: empty vec") }
+                self.count--
+                return self.unsafe_get(self.count)
+            }
+            remove_at := func(mut self: Vec(T), i: USize) throws OutOfBounds {
+                if i >= self.count { throw OutOfBounds() }
+                tail := self.count.sub(i).sub(1)
+                if tail > 0 { memmove(self.slot(i), self.slot(i.add(1)), tail.to_uptr().mul(Vec(T).slot_size().to_uptr())) }
+                self.count--
+            }
+            truncate := func(mut self: Vec(T), n: USize) {
+                if n > self.count { panic("Vec.truncate: count out of bounds") }
+                self.count = n
+            }
+            delete_marked := func(mut self: Vec(T), marks: Dynamic) {
+                mut next: USize = 0
+                for i in 0..self.count {
+                    ref mark: Bool = ptr_add(marks, i.to_uptr())
+                    if mark.not() {
+                        if next != i { memcpy(self.slot(next), self.slot(i), Vec(T).slot_size().to_uptr()) }
+                        next++
+                    }
+                }
+                self.count = next
+            }
+            append := func(mut self: Vec(T), own other: Vec(T)) {
+                if other.count == 0 { return }
+                needed := self.count + other.count
+                if needed > self.cap {
+                    self.data = realloc(own self.data, needed.to_uptr().mul(Vec(T).slot_size().to_uptr()))
+                    self.cap = needed
+                }
+                memcpy(self.slot(self.count), other.data, other.count.to_uptr().mul(Vec(T).slot_size().to_uptr()))
+                self.count = needed
+                other.count = 0
+            }
+            take := func(mut self: Vec(T)) returns Vec(T) {
+                mut out: Vec(T) = malloc(Vec(T).size().to_uptr())
+                adopt_from(out, self, Vec(T).size().to_uptr())
+                return out
+            }
+            move_to := func(own self: Vec(T), mut dest: Vec(T)) {
+                free(own dest.data)
+                adopt_from(dest, self, Vec(T).size().to_uptr())
+            }
+            move_from := func(mut self: Vec(T), own other: Vec(T)) { Vec(T).move_to(own other, self) }
+            take_prefix := func(mut self: Vec(T), n: USize) returns Vec(T) {
+                if n > self.count { panic("Vec.take_prefix: count out of bounds") }
+                mut out := Vec(T).with_capacity(n)
+                if n > 0 {
+                    memcpy(out.data, self.data, n.to_uptr().mul(Vec(T).slot_size().to_uptr()))
+                    remaining := self.count - n
+                    if remaining > 0 { memmove(self.data, self.slot(n), remaining.to_uptr().mul(Vec(T).slot_size().to_uptr())) }
+                }
+                out.count = n
+                self.count = self.count - n
+                return out
+            }
+            push_take := func(mut self: Vec(T), mut src: Vec(T), i: USize) {
+                if i >= src.count { panic("Vec.push_take: index out of bounds") }
+                // Resolve the source slot after growth: src may alias self.
+                if self.count == self.cap {
+                    mut capacity := self.cap * 2
+                    if capacity == 0 { capacity = 1 }
+                    self.data = realloc(own self.data, capacity.to_uptr().mul(Vec(T).slot_size().to_uptr()))
+                    self.cap = capacity
+                }
+                adopt_from(self.slot(self.count), src.slot(i), Vec(T).slot_size().to_uptr())
+                self.count++
+            }
+            clone := func(self: Vec(T)) returns Vec(T) {
+                mut out := Vec(T).with_capacity(self.cap)
+                if self.count > 0 { memcpy(out.data, self.data, self.count.to_uptr().mul(Vec(T).slot_size().to_uptr())) }
+                out.count = self.count
+                return out
+            }
+            delete := func(own self: Vec(T), call_free: Bool = true) {
+                free(own self.data)
+                if call_free { free(own self) }
+            }
+        }
+    } else {
+    return struct {
     own data : U8 = 0
     count : USize = 0
     cap : USize = 0
@@ -309,5 +451,7 @@ namespace:
             adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
         }
         return Vec(T)(data = new_data, count = self.count, cap = self.cap)
+    }
+}
     }
 }

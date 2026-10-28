@@ -2067,6 +2067,82 @@ priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrow
     edges.push(own e)
 }
 
+priv GcDeposit := struct {
+    sink := BorrowRoot()
+    source := BorrowRoot()
+}
+
+// Rebuild the typer's call deposits after hoisting. Stored addresses retain
+// their owners; copied carriers retain the owners of their carried references.
+priv gc_collect_deposits := func(e: Expr, scope: TypeScope, mut deposits: Vec(GcDeposit), symbols: SymbolPool) {
+    if e.node_type.is(NodeType.FuncDef).or(e.node_type.is(NodeType.BodyValue)) { return }
+    if e.node_type.is(NodeType.FCall) {
+        def_o := fcall_callee_fdef(e, scope, symbols)
+        if def_o.is_some().and(funcdef_of(def_o.unwrap()).deposit_matrix != 0) {
+            ref fd : FunctionDef = funcdef_of(def_o.unwrap())
+            for si in 0..DEPOSIT_PARAMS {
+                sink_o := fcall_arg_for_param(e, si, scope, symbols)
+                if sink_o.is_none() { continue }
+                for pi in 0..DEPOSIT_PARAMS {
+                    if pi >= fd.sig.params.len() { break }
+                    bit := summary_param_bit(si * DEPOSIT_PARAMS + pi)
+                    if fd.deposit_matrix.band(bit) == 0 { continue }
+                    source_o := fcall_arg_for_param(e, pi, scope, symbols)
+                    if source_o.is_none() { continue }
+                    ref source : Expr = source_o.unwrap()
+                    borrows_storage := fd.sig.params[pi].own_type.is(OwnType.Own).not()
+                        .and(fd.deposit_borrow_matrix.band(bit).neq(0).or(type_name_is_interface(scope, type_name_ref(source.til_type(), symbols), symbols)))
+                    if borrows_storage.or(type_carries_borrow_t(scope, source.til_type(), symbols)).not() { continue }
+                    mut sources := deposit_src_roots(scope, source, symbols)
+                    if borrows_storage {
+                        sources = expr_borrow_roots(scope, source, symbols)
+                    }
+                    for sink : BorrowRoot in expr_borrow_roots(scope, sink_o.unwrap(), symbols) {
+                        if sink.carried { continue }
+                        for owner : BorrowRoot in sources {
+                            if BorrowRoot.eq(sink, owner) { continue }
+                            deposits.push(own GcDeposit(sink = sink.clone(), source = owner.clone()))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for child : Expr in e.children { gc_collect_deposits(child, scope, deposits, symbols) }
+}
+
+priv gc_deposit_binding := func(scope: TypeScope, root: BorrowRoot, symbols: SymbolPool) returns Option(ref TypeBinding) {
+    binding_o := scope.local_binding_name(root.name, symbols)
+    if binding_o.is_some() {
+        ref binding : TypeBinding = binding_o.unwrap()
+        if binding.line.eq(root.line).and(binding.col == root.col).and(binding.path == root.path) { return binding_o }
+    }
+    switch scope.parent {
+    case .Some(parent): return gc_deposit_binding(parent, root, symbols)
+    case .None: return Option(ref TypeBinding).None
+    }
+}
+
+priv gc_carried_loan_start := func(root: BorrowRoot, scope: TypeScope, step: I64, symbols: SymbolPool) returns I64 {
+    if root.deposited.not() { return step }
+    owner_o := gc_deposit_binding(scope, root, symbols)
+    if owner_o.is_some() {
+        // A copied interface handle refers to the old payload allocation.
+        // A stored ordinary reference points at the owner's stable variable
+        // storage and observes assignments to that variable, like a ref local.
+        if type_name_is_interface(scope, type_name_ref(owner_o.unwrap().type, symbols), symbols) { return step }
+    }
+    return -1
+}
+
+priv gc_ref_container := func(name: Str, scope: TypeScope, ctx: Context) returns Bool {
+    ref resolved : Str = resolve_type_alias(scope, name, ctx.symbols)
+    if ctx.type_gen_binding_sources.has(resolved).not() { return false }
+    ref application : Expr = ctx.type_gen_binding_sources[resolved]
+    for i in 1..application.children.len() { if get_ref_arg(application, i) { return true } }
+    return false
+}
+
 // Rule 4's collector: walk a statement subtree adding a body-end edge
 // for every local borrowed into an enum ref payload.
 priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
@@ -2087,7 +2163,7 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I64, mut edges: 
 // An ordinary call can carry a borrow through its return just as an enum
 // constructor does. Its settled #344 summary identifies the actual arguments
 // whose roots must survive the returned value.
-priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool) {
+priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach: I64, mut edges: Vec(GcBorrowEdge), scope: TypeScope, symbols: SymbolPool, ctx: Context) {
     if e.node_type.is(NodeType.FCall) {
         fd_o := fcall_callee_fdef(e, scope, symbols)
         if fd_o.is_some() {
@@ -2114,12 +2190,22 @@ priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach
                         // original handle live after an independent clone.
                         direct := fd.ref_return_params.band(bit).bor(fd.ref_return_into_params.band(bit))
                         if direct.neq(0).and(transferred.not()) {
-                            src_name := expr_root_ident_name(arg_o.unwrap(), symbols)
-                            if src_name.len() > 0 { gc_add_borrow_edge(edges, src_name, borrower, minimum_reach, minimum_reach) }
+                            if gc_ref_container(fd.sig.return_type, scope, ctx) {
+                                for root : BorrowRoot in expr_borrow_roots(scope, arg_o.unwrap(), symbols) {
+                                    mut stored := root.clone()
+                                    stored.deposited = true
+                                    gc_add_borrow_edge(edges, root.name, borrower, minimum_reach,
+                                        gc_carried_loan_start(stored, scope, minimum_reach, symbols))
+                                }
+                            } else {
+                                src_name := expr_root_ident_name(arg_o.unwrap(), symbols)
+                                if src_name.len() > 0 { gc_add_borrow_edge(edges, src_name, borrower, minimum_reach, minimum_reach) }
+                            }
                         }
                         if fd.ref_return_carried_params.band(bit) != 0 {
                             for root : BorrowRoot in deposit_src_roots(scope, arg_o.unwrap(), symbols) {
-                                gc_add_borrow_edge(edges, root.name, borrower, minimum_reach, minimum_reach)
+                                gc_add_borrow_edge(edges, root.name, borrower, minimum_reach,
+                                    gc_carried_loan_start(root, scope, minimum_reach, symbols))
                             }
                         }
                     }
@@ -2129,11 +2215,11 @@ priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach
         }
     }
     for c : Expr in e.children {
-        collect_call_ref_return_edges(c, borrower, minimum_reach, edges, scope, symbols)
+        collect_call_ref_return_edges(c, borrower, minimum_reach, edges, scope, symbols, ctx)
     }
 }
 
-priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool) returns Vec(GcBorrowEdge) {
+priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool, ctx: Context) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
     body_last := body.children.len().sub(1).to_i64()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
@@ -2141,6 +2227,14 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
     for si in 0..body.children.len() {
         ref stmt : Expr = body.children[si]
         collect_enum_ref_payload_edges(stmt, body_last, edges, scope, symbols)
+        mut deposits := Vec(GcDeposit).new()
+        gc_collect_deposits(stmt, scope, deposits, symbols)
+        for deposit : GcDeposit in deposits {
+            mut source := deposit.source.clone()
+            source.deposited = true
+            gc_add_borrow_edge(edges, source.name, deposit.sink.name, si.to_i64(),
+                gc_carried_loan_start(source, scope, si.to_i64(), symbols))
+        }
         switch stmt.node_type {
         case .Decl(dd):
             if stmt.children.len() > 0 {
@@ -2152,20 +2246,20 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
                     gc_add_borrow_edge(edges, view_source, dd.name, si.to_i64(), si.to_i64())
                 }
                 if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow_t(scope, dd.til_type, symbols)) {
-                    collect_call_ref_return_edges(stmt.children[0], dd.name, si.to_i64(), edges, scope, symbols)
+                    collect_call_ref_return_edges(stmt.children[0], dd.name, si.to_i64(), edges, scope, symbols, ctx)
                 }
             }
         case .Assign(ad):
             if stmt.children.len() > 0 {
                 if type_carries_borrow_t(scope, stmt.children[0].til_type(), symbols) {
-                    collect_call_ref_return_edges(stmt.children[0], ad.name, si.to_i64(), edges, scope, symbols)
+                    collect_call_ref_return_edges(stmt.children[0], ad.name, si.to_i64(), edges, scope, symbols, ctx)
                 }
             }
         case .FieldAssign:
             if stmt.children.len() > 1 {
                 if type_carries_borrow_t(scope, stmt.children[1].til_type(), symbols) {
                     holder := expr_root_ident_name(stmt.children[0], symbols)
-                    collect_call_ref_return_edges(stmt.children[1], holder, si.to_i64(), edges, scope, symbols)
+                    collect_call_ref_return_edges(stmt.children[1], holder, si.to_i64(), edges, scope, symbols, ctx)
                 }
             }
         case:
@@ -2292,7 +2386,7 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(Lo
 }
 
 priv extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, mut ctx: Context) {
-    edges := collect_borrow_edges(body, scope, facts, fi, ctx.symbols)
+    edges := collect_borrow_edges(body, scope, facts, fi, ctx.symbols, ctx)
     if edges.len() == 0 { return }
     propagate_borrow_edges(edges, locals)
     for i in 0..body.children.len() {
@@ -4453,6 +4547,9 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         scope.set(dd.name, dtype, dd.is_mut, ctx.path, stmt.line, stmt.col,
             false, dd.own_type, ctx.symbols)
         ref mut binding : TypeBinding = scope.get_binding_name(dd.name, ctx.symbols).unwrap()
+        if gc_ref_container(type_name_ref(binding.type, ctx.symbols), scope, ctx) {
+            for mut root : BorrowRoot in roots { root.deposited = true }
+        }
         binding.borrow_roots = roots
         // A `ref` Decl whose RHS is the typer-lowered payload access is a
         // PAYLOAD ALIAS -- the same is_alias stamp infer_decl puts on its
@@ -4524,6 +4621,26 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
             garbager_record_carried_assignment(scope, name, stmt.children[1], ctx.symbols)
         }
     case:
+    }
+    garbager_record_call_deposits(scope, stmt, ctx.symbols)
+}
+
+priv garbager_record_call_deposits := func(mut scope: TypeScope, stmt: Expr, symbols: SymbolPool) {
+    mut deposits := Vec(GcDeposit).new()
+    gc_collect_deposits(stmt, scope, deposits, symbols)
+    for deposit : GcDeposit in deposits {
+        mut binding_o := gc_deposit_binding(scope, deposit.sink, symbols)
+        if binding_o.is_none() { continue }
+        ref mut binding : TypeBinding = binding_o.unwrap()
+        mut root := deposit.source.clone()
+        root.carried = true
+        root.deposited = true
+        root.field = ""
+        mut seen := false
+        for prior : BorrowRoot in binding.borrow_roots {
+            if BorrowRoot.eq(prior, root) { seen = true }
+        }
+        if seen.not() { binding.borrow_roots.push(own root) }
     }
 }
 

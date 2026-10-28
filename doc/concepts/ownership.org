@@ -409,6 +409,40 @@ cross-language terminology check is in [[file:./garbager.org][the garbager guide
     (Mojo's copies ride ~Copyable~ instead), and ownership of a plain local
     inferred/promoted by the pass rather than declared.
 
+** Borrowed Vec elements
+
+~Vec(ref T)~ owns its allocation but borrows its elements. ~push~ and ~set~
+take existing storage without ~own~; ~get~, indexing, iteration and ~pop~
+return borrows. This works for scalars, structs, enums and interfaces.
+Ordinary elements occupy pointer slots; interface elements occupy borrowing
+dispatch handles, preserving each concrete type's method selection.
+
+#+begin_src til
+mut text := format("original")
+mut views := Vec(ref Str).new()
+views.push(text)
+text = format("updated")
+assert_eq(Str, views[0], "updated")
+#+end_src
+
+~clone~ copies the references into an independent buffer. ~clear~, ~truncate~,
+~remove_at~, ~delete_marked~, replacement and destruction never destroy the
+referents. ~take~, ~append~, ~move_to~, ~move_from~, ~take_prefix~ and
+~push_take~ transfer buffer contents without acquiring ownership of elements.
+As with owning Vec, ~push_take~ leaves a moved-out slot that must not be read.
+
+Stored owners must outlive the container and its copies. Depositing a
+temporary or an inner-scope owner into a longer-lived container, or returning
+a container borrowing a local, is rejected. Ref aliases of the destination
+are followed. Borrowing interface results from ~get~ or ~pop~ also depends on
+the handle slot in the Vec buffer: keep that buffer alive and unchanged while
+using those results.
+
+~Vec(T)~ and ~Vec(own T)~ keep owning semantics for concrete types.
+Interfaces require ~Vec(own Iface)~ or ~Vec(ref Iface)~; bare and shallow
+interface element arguments are rejected. These are generic template rules,
+not special handling of the name ~Vec~.
+
 ** Manual free / delete: legitimate vs smell
 
 Because the garbager inserts every destructor automatically, a HAND-WRITTEN

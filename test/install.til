@@ -101,28 +101,19 @@ main := proc() returns I64 {
     // Qualifier queries in core templates must not start an interpreter that
     // recursively prepares the still-uninitialized core AST. Exercise the real
     // installed core, isolated from the checkout and other test processes.
-    vec_path := format(PREFIX, "/lib/til/src/core/vec.til")
-    vec_source := File.readfile(vec_path)
-    conditional_vec := format(vec_source.replace("Vec := struct<T: Type> {", format(
-        "Vec := macro(T: Type) returns StructDef {\n",
-        "if type_arg_is_ref(T) { return struct { borrowed := true } }\n",
-        "else if type_arg_is_interface(T) { return struct { interface_type := true } }\n",
-        "else { return struct {")), "\n}\n}\n")
     File.writefile(format(WORK, "/core_query.til"), format(
         "mode cli\nContract := interface { value := func(self: Contract) returns I64 }\n",
-        "Borrowed := Vec(ref I64)\nInterface := Vec(own Contract)\n",
+        "Record := struct implements Contract { n := 9\nnamespace:\nvalue := func(self: Record) returns I64 { return self.n } }\n",
         "main := proc() {\nmut values := Vec(I64).new()\nvalues.push(own 7)\n",
         "assert_eq(I64, values[0], 7)\n",
-        "borrowed := Borrowed()\niface := Interface()\n",
-        "assert(borrowed.borrowed)\nassert(iface.interface_type)\n",
+        "mut n := 1\nmut borrowed := Vec(ref I64).new()\nborrowed.push(n)\nn = 2\nassert_eq(I64, borrowed[0], 2)\n",
+        "record := Record()\nmut views := Vec(ref Contract).new()\nviews.push(record)\nassert_eq(I64, views[0].value(), 9)\n",
         "println(\"core queries OK\")\n}\n"))
     for action : Str in array(Str, "interpret", "run") {
-        File.writefile(vec_path, conditional_vec)
         probe := Cmd.new(installed_til, action, "core_query.til")
         probe.cwd(WORK)
         probe.capture()
         probe_status := probe.run()
-        File.writefile(vec_path, vec_source)
         expect(probe_status == 0, probe.out(), probe.err())
         assert_eq(Str, probe.out(), "core queries OK\n")
     }

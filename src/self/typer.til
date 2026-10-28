@@ -1873,6 +1873,20 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                 }
             }
         }
+        if fdef_data.ref_return_into_params != 0 {
+            result_type := type_from_name_init_name(fdef_data.sig.return_type, scope, ctx.symbols)
+            if aggregate_borrows_type(scope, result_type, "", ctx).and(is_struct_type(result_type)) {
+                for pi in 0..fdef_data.sig.params.len() {
+                    bit := summary_param_bit(pi)
+                    if fdef_data.ref_return_into_params.band(bit) == 0 { continue }
+                    source_o := summary_fcall_arg_for_param(e, fdef_data, pi, scope, ctx.symbols)
+                    if source_o.is_none() { continue }
+                    if expr_borrow_roots(scope, source_o.unwrap(), ctx.symbols).len() == 0 {
+                        e.type_error("cannot return a borrow of a temporary through a ref-qualified container", ctx)
+                    }
+                }
+            }
+        }
 }
 
 priv infer_and_validate_fcall_args := proc(mut scope: TypeScope, mut e: Expr, callee_bind_o: Option(ref TypeBinding), mut fdef_o: Option(ref Expr), in_func: I32, mut ctx: Context) {
@@ -5654,8 +5668,9 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, m
             roots.set(fdef.sig.params[pi].name, own RootBits(alias = summary_param_bit(pi)))
         }
         mut deposits := DepositAcc()
+        receivers := summary_receiver_declarations(expr.children[0], fdef.sig.params, func_scope, ctx.symbols)
         result := summary_walk(expr.children[0], roots, deposits, func_scope,
-            func_scope.active_type_name(), fdef.sig.params, ctx.symbols, ctx)
+            func_scope.active_type_name(), fdef.sig.params, receivers, ctx.symbols, ctx)
         fdef.ref_return_params = result.alias
         fdef.ref_return_into_params = result.into
         fdef.ref_return_carried_params = result.carried
@@ -6876,7 +6891,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             // The rejected ref binding needs no second report for the
             // payload's source dying with the call.
             if returned_ref_iface_binding.not() {
-                check_carried_borrow_of_local_return(scope, stmt, ctx)
+                check_carried_borrow_of_local_return(scope, stmt, false, ctx)
             }
             check_str_view_of_local_return(scope, stmt, ctx)
             // #396: the RETURN slot. `returns I8 { return s.c_str }` handed
@@ -6923,7 +6938,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                 // A ref-returning call can still borrow a local owner. Follow
                 // its summary instead of treating the ref qualifier itself
                 // as proof that the returned storage outlives this frame.
-                check_carried_borrow_of_local_return(scope, stmt, ctx)
+                check_carried_borrow_of_local_return(scope, stmt, true, ctx)
             }
         }
     } else {
@@ -8281,6 +8296,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 mut carried_roots := expr_borrow_roots(scope, rhs, ctx.symbols)
                 for mut crr : BorrowRoot in carried_roots {
                     crr.carried = true
+                    if aggregate_borrows_type(scope, stmt.til_type(), "", ctx) { crr.deposited = true }
                 }
                 decl_b.borrow_roots = carried_roots
             }
@@ -11805,16 +11821,16 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
     return out
 }
 
-priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, roots: Vec(BorrowRoot), skip_carriers: Bool, mut reported: Set(Str), mut ctx: Context) {
+priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, roots: Vec(BorrowRoot), skip_carriers: Bool, raw_ref_return: Bool, mut reported: Set(Str), mut ctx: Context) {
     for r : BorrowRoot in roots {
         if reported.has(r.name) { continue }
         b_o := lookup_binding_at(scope, r, ctx.symbols)
         if b_o.is_none() { continue }
         ref b : TypeBinding = b_o.unwrap()
         if b.own_type.is(OwnType.Ref).or(b.is_param).or(b.is_alias).or(b.is_builtin) { continue }
-        if b.type.is(Type.Dynamic).or(b.is_raw_alloc) { continue }
+        if b.type.is(Type.Dynamic).or(raw_ref_return.and(b.is_raw_alloc)) { continue }
         if root_is_global(scope, r, ctx.symbols) { continue }
-        if skip_carriers {
+        if skip_carriers.and(r.deposited.not()) {
             ref b_type_name : Str = type_name_ref(b.type, ctx.symbols)
             b_def_o := scope.get_struct(b_type_name, ctx.symbols)
             if b_def_o.is_some() {
@@ -11827,15 +11843,15 @@ priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, ro
     }
 }
 
-priv check_carried_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, mut ctx: Context) {
+priv check_carried_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, raw_ref_return: Bool, mut ctx: Context) {
     ref ret_val : Expr = stmt.children[0]
     mut tn := ""
     tn_o := expr_type_name_ref(ret_val, ctx.symbols)
     if tn_o.is_some() { tn = tn_o.unwrap().clone() }
     roots := return_escape_roots(scope, ret_val, ctx.symbols)
     mut reported := Set(Str).new()
-    report_local_return_roots(scope, stmt, tn, roots.direct, false, reported, ctx)
-    report_local_return_roots(scope, stmt, tn, roots.indirect, true, reported, ctx)
+    report_local_return_roots(scope, stmt, tn, roots.direct, false, raw_ref_return, reported, ctx)
+    report_local_return_roots(scope, stmt, tn, roots.indirect, true, raw_ref_return, reported, ctx)
 }
 
 // The binding an argument expression ADDRESSES, or NULL. Sees through
@@ -13710,24 +13726,24 @@ priv summary_fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeSc
     return false
 }
 
-// #432: is this FieldAssign's target a VALUE (non-ref) interface-typed field?
+// Value interface fields own their copies, and inline scalar fields copy bits:
+// neither assignment deposits a reference to the source's storage.
 // Resolved the way the FieldAccess arm of summary_expr_bits resolves its
 // base; an unresolvable base answers no (the conservative over-credit).
-priv summary_fieldassign_target_is_value_iface := func(e: Expr, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool) returns Bool {
+priv summary_fieldassign_stores_no_borrow := func(e: Expr, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool) returns Bool {
     ref target : Expr = e.children[0]
-    if target.node_type.is(NodeType.FieldAccess).not() { return false }
-    if target.children.len() == 0 { return false }
-    btn := summary_receiver_type(target.children[0], scope, self_type, params, symbols)
+    btn := summary_receiver_type(target, scope, self_type, params, symbols)
     if btn.len() == 0 { return false }
     bdef_o := scope.get_struct(btn, symbols)
     if bdef_o.is_none() { return false }
     switch bdef_o.unwrap().node_type {
     case .StructDef(bsd):
-        switch target.node_type {
-        case .FieldAccess(fad):
-            fo := member_get(bsd.fields_index, bsd.fields, fad.field_access_name(symbols.names))
+        switch e.node_type {
+        case .FieldAssign(fad):
+            fo := member_get(bsd.fields_index, bsd.fields, fad.name)
             if fo.is_none() { return false }
             ref tfd : Declaration = fo.unwrap()
+            if tfd.own_type.is(OwnType.Shallow).and(is_primitive(declaration_resolved_type(tfd, scope, symbols))) { return true }
             return tfd.own_type.is(OwnType.Ref).not().and(type_is_interface(tfd.til_type, scope, symbols))
         case:
         }
@@ -13990,7 +14006,20 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
         if dest_i > 0 {
             if e.children.len() < dest_i + 2 { return }
             sink_bits := summary_expr_bits(e.children[dest_i], roots, scope, self_type, params, symbols, ctx)
-            src_bits := summary_expr_bits(e.children[dest_i + 1], roots, scope, self_type, params, symbols, ctx)
+            mut src_bits := summary_expr_bits(e.children[dest_i + 1], roots, scope, self_type, params, symbols, ctx)
+            if hn.eq("memcpy").or(hn == "memmove").or(hn == "adopt_from") {
+                // Copying ref-qualified element slots retains the referents,
+                // not the source allocation containing those slots.
+                mut carriers : U64 = 0
+                for pi in 0..params.len() {
+                    if aggregate_borrows_type(scope, params[pi].til_type, "", ctx) {
+                        carriers = carriers.bor(summary_param_bit(pi))
+                    }
+                }
+                src_bits.carried = src_bits.carried.bor(src_bits.alias.bor(src_bits.into).band(carriers))
+                src_bits.alias = src_bits.alias.band(carriers.bnot())
+                src_bits.into = src_bits.into.band(carriers.bnot())
+            }
             acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
             if hn == "write_ptr" { acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias)) }
             summary_note_local_deposit(summary_deposit_base_name(e.children[dest_i], symbols), src_bits, roots)
@@ -14027,7 +14056,7 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
 
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
-priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
+priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
     case .FuncDef:
         return RootBits()
@@ -14076,7 +14105,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
                 // Bind immediately before its arm, not all arms up front:
                 // two variants can reuse a name with different ownership.
                 summary_bind_case(e.children[ci], subj, roots, scope, self_type, symbols)
-                case_bits = case_bits.bor(summary_walk(e.children[ci], roots, acc, scope, self_type, params, symbols, ctx))
+                case_bits = case_bits.bor(summary_walk(e.children[ci], roots, acc, scope, self_type, params, receivers, symbols, ctx))
             }
         }
         return case_bits
@@ -14097,7 +14126,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         // #393: `b.h = rhs` parks the source's borrows in b's storage.
         // #432: not into a VALUE interface field -- the box stored there
         // owns its payload (value_field_carries_borrow).
-        if e.children.len().gte(2).and(summary_fieldassign_target_is_value_iface(e, scope, self_type, params, symbols).not()) {
+        if e.children.len().gte(2).and(summary_fieldassign_stores_no_borrow(e, scope, self_type, receivers, symbols).not()) {
             src_bits := summary_expr_bits(e.children[1], roots, scope, self_type, params, symbols, ctx)
             if src_bits.is_zero().not() {
                 sink_bits := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
@@ -14111,9 +14140,55 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
     }
     mut bits := RootBits()
     for c : Expr in e.children {
-        bits = bits.bor(summary_walk(c, roots, acc, scope, self_type, params, symbols, ctx))
+        bits = bits.bor(summary_walk(c, roots, acc, scope, self_type, params, receivers, symbols, ctx))
     }
     return bits
+}
+
+priv summary_decl_count := func(e: Expr, name: Str) returns USize {
+    if e.node_type.is(NodeType.FuncDef) { return 0 }
+    mut count: USize = 0
+    switch e.node_type {
+    case .Decl(d): if d.name == name { count++ }
+    case:
+    }
+    for child : Expr in e.children { count = count + summary_decl_count(child, name) }
+    return count
+}
+
+// Retain known top-level local receiver types for field-copy classification.
+// Locals shadowed in nested blocks remain unresolved rather than borrowing the
+// wrong declaration's field layout. Original parameter indices stay unchanged.
+priv summary_receiver_declarations := func(body: Expr, params: Vec(Declaration), scope: TypeScope, symbols: SymbolPool) returns Vec(Declaration) {
+    mut declarations := params.clone()
+    for stmt : Expr in body.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        ref d : Declaration = decl_of(stmt)
+        mut name := decl_type_name(d, symbols)
+        if name.is_empty().and(stmt.children.len() > 0) {
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.FCall) {
+                factory_o := fcall_callee_fdef(rhs, scope, symbols)
+                if factory_o.is_some() {
+                    name = funcdef_of(factory_o.unwrap()).sig.return_type.clone()
+                } else {
+                    switch rhs.children[0].node_type {
+                    case .Ident(id):
+                        if scope.get_struct(id.ident_name(symbols.names), symbols).is_some() { name = id.ident_name(symbols.names).clone() }
+                    case:
+                    }
+                }
+            }
+        }
+        if name.is_empty() { continue }
+        definition_o := scope.get_struct(name, symbols)
+        if definition_o.is_none() { continue }
+        if definition_o.unwrap().node_type.is(NodeType.StructDef).not() { continue }
+        if structdef_of(definition_o.unwrap()).fields.len() == 0 { continue }
+        if summary_decl_count(body, d.name) != 1 { continue }
+        declarations.push(own Declaration(name = d.name.clone(), til_type = Type.Custom(name)))
+    }
+    return declarations
 }
 
 // OR this function's freshly computed summary into the recorded one.
@@ -14174,7 +14249,8 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
         mut acc := DepositAcc()
-        rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, ctx.symbols, ctx)
+        receiver_declarations := summary_receiver_declarations(fd_expr.children[0], fd.sig.params, scope, ctx.symbols)
+        rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, receiver_declarations, ctx.symbols, ctx)
         mut changed := false
         merged_borrowed := fd.deposit_borrow_matrix.bor(acc.borrowed)
         if merged_borrowed != fd.deposit_borrow_matrix {

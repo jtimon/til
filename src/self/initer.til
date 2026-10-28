@@ -5375,7 +5375,22 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
     // A public template may need private helpers only for some instantiations.
     // Record those source dependencies even when this unit selects another arm.
     for name, source in macros { init_macro_reference_edges(source, name, macros, ctx) }
-    local_types := init_seed_local_type_tokens(program, scope, ctx)
+    mut local_types := init_seed_local_type_tokens(program, scope, ctx)
+    // Aggregate aliases name their canonical generated type even before the
+    // definition is expanded. Otherwise a sibling factory sees Alias as a
+    // runtime value, and self references acquire a second instance name.
+    for stmt : Expr in program.children {
+        if init_is_direct_macro_inst_decl(stmt, macros, scope, ctx).not() { continue }
+        ref application : Expr = stmt.children[0]
+        switch application.children[0].node_type {
+        case .Ident(id):
+            factory_o := init_lookup_type_gen_macro(id.ident_name(ctx.symbols.names), macros, scope, ctx)
+            if factory_o.is_some().and(init_macro_returns_func_def(factory_o.unwrap()).not()) {
+                local_types.set(decl_of(stmt).name, own init_macro_inst_name_for_macro(application, factory_o.unwrap(), scope, ctx.symbols))
+            }
+        case:
+        }
+    }
     for mut stmt0 : Expr in program.children {
         init_canonicalize_local_type_args(stmt0, macros, scope, local_types, ctx)
     }
@@ -5451,10 +5466,17 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
                 if ctx.errors > 0 { return }
                 continue
             }
+            ctx.errors = ctx.errors + register_type_def_for_stmt(ctx, stmt, scope)
+            for alias : Expr in program.children {
+                if alias.node_type.is(NodeType.Decl).and(alias.children.len() > 0) {
+                    if alias.children[0].node_type.is(NodeType.Ident) { register_type_alias_for_stmt(ctx, alias, scope) }
+                }
+            }
             init_mark_expanded_macro_used(program, callee_name, macros, scope, ctx.symbols)
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }
+            init_refresh_seeded_scope_defs(program, scope, ctx.symbols)
             expanded_any = true
         }
     }

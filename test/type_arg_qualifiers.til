@@ -60,6 +60,8 @@ main := proc(args: ..Str) {
         "borrowed_query := make_query(ref Str)\n",
         "owned_query := make_query(Str)\n",
         "Alias := Str\n",
+        "StringVec := Vec(Str)\n",
+        "borrow_one := func(value: Str) returns MyAltVec(ref Str) { mut result := MyAltVec(ref Str).new(); result.push(value); return result }\n",
         "priv member_factory := macro(Element: Type) returns FuncDef { return func() returns USize { return Element.size() } }\n",
         "MemberProbe := macro(Element: Type) returns StructDef { return struct { namespace:\nwidth := member_factory(Element)\n} }\n",
         "main := proc() {\n",
@@ -109,6 +111,46 @@ main := proc(args: ..Str) {
         "    contracts.push(own Record())\n",
         "    assert_eq(I64, contracts[0].value(), 11)\n",
         "    assert(empty_borrow(Option(ref Contract).None))\n",
+        "    mut text := format(\"borrowed \", \"text\")\n",
+        "    other := format(\"other \", \"text\")\n",
+        "    mut texts := MyAltVec(ref Str).with_capacity(2)\n",
+        "    texts.push(text)\ntexts.push(other)\n",
+        "    text = format(\"changed \", \"text\")\n",
+        "    assert_eq(Str, texts[0], \"changed text\")\n",
+        "    mut copied_texts := texts.clone()\n",
+        "    texts.set(0, other)!\ntexts.unsafe_set(1, text)\n",
+        "    ref popped_text: Str = texts.pop()\n",
+        "    assert_eq(Str, popped_text, \"changed text\")\n",
+        "    texts.remove_at(0)!\nassert_eq(USize, texts.len(), 0)\n",
+        "    assert_eq(Str, copied_texts[0], \"changed text\")\n",
+        "    prefix := copied_texts.take_prefix(1)\ntexts.append(own prefix)\n",
+        "    assert_eq(Str, texts[0], \"changed text\")\n",
+        "    texts.push_take(copied_texts, 0)\ncopied_texts.clear()\n",
+        "    assert_eq(Str, texts[1], \"other text\")\n",
+        "    masks := array(Bool, true, false)\ntexts.delete_marked(masks.data)\n",
+        "    assert_eq(USize, texts.len(), 1)\nassert_eq(Str, texts[0], \"other text\")\n",
+        "    moved := texts.take()\nassert_eq(USize, texts.len(), 0)\ntexts.move_from(own moved)\n",
+        "    texts.truncate(0)\ntexts.push(text)\n",
+        "    lent := borrow_one(other)\nassert_eq(Str, lent[0], \"other text\")\n",
+        "    mut number: I64 = 12\n",
+        "    mut numbers := MyAltVec(ref I64).new()\n",
+        "    numbers.push(number)\nnumber = 19\nassert_eq(I64, numbers[0], 19)\n",
+        "    mut record := Record()\nchoice := Choice.One\n",
+        "    mut records := MyAltVec(ref Record).new()\nrecords.push(record)\n",
+        "    mut choices := MyAltVec(ref Choice).new()\nchoices.push(choice)\n",
+        "    mut views := MyAltVec(ref Contract).new()\nviews.push(record)\nviews.push(choice)\n",
+        "    record.n = 21\nassert_eq(I64, records[0].value(), 21)\nassert_eq(I64, choices[0].value(), 1)\n",
+        "    assert_eq(I64, views[0].value(), 21)\nassert_eq(I64, views[1].value(), 1)\n",
+        "    mut sum := 0\nfor view in views { sum = sum + view.value() }\nassert_eq(I64, sum, 22)\n",
+        "    copied_views := views.clone()\n",
+        "    views.set(0, choice)!\nviews.unsafe_set(1, record)\n",
+        "    ref popped_view: Contract = views.pop()\nassert_eq(I64, popped_view.value(), 21)\n",
+        "    views.clear()\nassert_eq(I64, copied_views[0].value(), 21)\nassert_eq(I64, copied_views[1].value(), 1)\n",
+        "    mut self_take := MyAltVec(ref Contract).with_capacity(1)\nself_take.push(record)\nself_take.push_take(self_take, 0)\nassert_eq(I64, self_take[1].value(), 21)\n",
+        "    mut strings := Vec(Str).new()\nstrings.push(own format(\"nested\"))\n",
+        "    mut nested_refs := MyAltVec(ref StringVec).new()\nnested_refs.push(strings)\nassert_eq(USize, nested_refs[0].len(), 1)\n",
+        "    mut disposable := MyAltVec(ref Str).new()\ndisposable.push(text)\nsurviving_copy := disposable.clone()\nown disposable.delete()\nassert_eq(Str, surviving_copy[0], \"changed text\")\n",
+        "    factory_refs := borrow_one(text)\ntext = format(\"after clone\")\nassert_eq(Str, factory_refs[0], \"after clone\")\nassert_eq(Str, surviving_copy[0], \"after clone\")\n",
         "    println(\"qualifiers OK\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
     check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
@@ -143,6 +185,34 @@ main := proc(args: ..Str) {
         }
     }
     contract := "Contract := interface { value := func(self: Contract) returns I64 }\n"
+    for body : Str in array(Str,
+        "bad := func() returns MyAltVec(ref Str) { text := format(\"local\"); mut v := MyAltVec(ref Str).new(); v.push(text); return v }\nmain := proc() {}",
+        "bad := func() returns MyAltVec(ref Str) { text := format(\"local\"); mut v := MyAltVec(ref Str).new(); v.push(text); return v.clone() }\nmain := proc() {}",
+        "main := proc() { mut v := MyAltVec(ref Str).new(); if true { text := format(\"local\"); v.push(text) } }",
+        "bad := proc(mut v: MyAltVec(ref Str)) { text := format(\"local\"); v.push(text) }\nmain := proc() {}",
+        "main := proc() { mut v := MyAltVec(ref Str).new(); if true { ref mut alias: MyAltVec(ref Str) = v; text := format(\"local\"); alias.push(text) } }",
+        "Holder := struct { refs := MyAltVec(ref Str).new() }\nmain := proc() { mut holder := Holder(); if true { text := format(\"local\"); holder.refs.push(text) } }",
+        "main := proc() { mut v := MyAltVec(ref Str).new(); v.push(format(\"temporary\")) }",
+        "main := proc() { mut v := MyAltVec(ref I64).new(); v.push(7) }",
+        "bad := func() returns MyAltVec(ref I64) { mut raw: I64 = malloc(I64.size().to_uptr()); raw = 5; mut v := MyAltVec(ref I64).new(); v.push(raw); return v }\nmain := proc() {}",
+        "bad := func() returns MyAltVec(ref Contract) { record := Record(); mut v := MyAltVec(ref Contract).new(); v.push(record); return v.clone() }\nmain := proc() {}",
+        "main := proc() { mut v := MyAltVec(ref Contract).new(); if true { record := Record(); v.push(record) } }",
+        "main := proc() { mut v := MyAltVec(ref Contract).new(); v.push(Record()) }",
+        "bad := func() returns MyAltVec(ref Str) { return borrow_one(format(\"temporary\")) }\nmain := proc() {}",
+        "main := proc() { mut owner: Contract = Record(); mut v := MyAltVec(ref Contract).new(); v.push(owner); copy := v.clone(); own v.delete(); owner = Record(n = 8); println(copy[0].value()) }",
+        "Opt := Option(ref Str)\nbad := func(text: Str) returns MyAltVec(ref Opt) { item := Opt.Some(text); mut v := MyAltVec(ref Opt).new(); v.push(item); return v }\nmain := proc() {}") {
+        File.writefile(format(root, "/invalid_borrow.til"), format("mode cli\nimport(\"MyAltVec\")\n", contract,
+            "Record := struct implements Contract { n := 3\nnamespace:\nvalue := func(self: Record) returns I64 { return self.n } }\n",
+            "borrow_one := func(value: Str) returns MyAltVec(ref Str) { mut result := MyAltVec(ref Str).new(); result.push(value); return result }\n", body, "\n"))
+        for action : Str in array(Str, "interpret", "translate") {
+            cmd := Cmd.new(compiler, action, format(root, "/invalid_borrow.til"))
+            cmd.capture()
+            status := cmd.run()
+            output := format(cmd.out(), cmd.err())
+            expect(status != 0, body, ": ", output)
+            expect(output.contains("cannot store a borrow").or(output.contains("cannot return a borrow")).or(output.contains("still borrows its storage")), body, ": ", output)
+        }
+    }
     for declaration : Str in array(Str,
         "Bad := Vec(Contract)",
         "Bad := Array(Contract)",
