@@ -14,7 +14,12 @@ jobs:
   templeos:
     name: TempleOS guest (QEMU TCG, USize 32/64)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # The guest corpus runs every case at both widths under QEMU TCG,
+    # ~44s each, then a deliberate 3-minute timeout case: 52 minutes on
+    # run 2802 and past 60 once the #151 GUI cases joined (runs
+    # 2806-2811 cancelled at the old limit). A hung guest is caught by
+    # the expect driver's own 180s deadline, not by this budget.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
       - name: Install compiler dependencies
