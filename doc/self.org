@@ -71,6 +71,42 @@
   Bootstrap steps explicitly select ~bin/til~ and ~gen/til/til.c~ so the
   established boot regeneration paths work with old and new compilers.
 
+** USize defaults and source-level configuration direction
+
+  ~USize~ describes counts, lengths, capacities and indices; ~UPtr~ describes
+  pointer-width arithmetic. Keep these roles separate, with
+  ~USize.size() == UPtr.size()~ as the normal target default. Compiled user
+  programs already follow this policy: both are U32 on 32-bit targets and
+  U64 on 64-bit targets unless an explicit ~--usize~ override is supplied.
+
+  The compiler's own build is currently an exception: ~make.til~ explicitly
+  selects ~--usize=32~ for compact internal container metadata, including
+  on 64-bit hosts. That choice does not change the default for programs the
+  compiler builds. Whether to remove that internal override is a separate
+  decision. The independent-width experiment can remain available for later
+  work without making unequal widths the normal language contract.
+
+  The agreed design direction is to express project configuration through
+  source-level calls, analogous to ~link(...)~, rather than requiring users
+  to repeat til-specific command-line options. Projects should be able to
+  select such settings under their own compile-time options. Exact directive
+  names, syntax and the project-option mechanism are not yet specified or
+  implemented; this direction does not remove existing CLI flags.
+
+  A USize-width directive cannot be an ordinary runtime call. It changes
+  container layout and the program's ABI, so configuration must be resolved
+  before type checking, layout calculation and constant evaluation that
+  depends on those layouts. The early configuration evaluation must not
+  depend on the width it is deciding: selecting USize using a condition
+  that already depends on USize would be circular.
+
+  Resolve one width for the compilation. An imported library cannot silently
+  choose a different width within it; incompatible requirements must produce
+  an error, and separately compiled libraries must satisfy the matching ABI.
+  The precise resolution rules, including interaction with existing CLI
+  overrides, need to be specified before implementing the directives.
+  Native-width defaults should remain usable without configuration calls.
+
 ** CPU profiles and C optimization
 
   ~--cpu=baseline|x86-64-v3|x86-64-v4~ selects a target CPU profile,
