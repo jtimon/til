@@ -3044,6 +3044,40 @@ priv init_macro_type_test := func(cond: Expr, scope: TypeScope, symbols: SymbolP
 }
 
 priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols: SymbolPool) {
+    // Core templates can ask these questions while core itself is still being
+    // initialized. They need only seeded type bindings, not an interpreter
+    // session (which would recursively prepare the unfinished core AST).
+    if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
+        switch e.children[0].node_type {
+        case .Ident(callee):
+            ref name : Str = callee.ident_name(symbols.names)
+            if name.eq("type_arg_is_ref").or(name == "type_arg_is_interface") {
+                def_o := scope.lookup_func_by_sym(callee.ident_sym(), symbols)
+                if def_o.is_some() {
+                    if funcdef_of(def_o.unwrap()).sig.func_type.is_core() {
+                        switch e.children[1].node_type {
+                        case .Ident(arg):
+                            binding_o := scope.get_binding_sym(arg.ident_sym())
+                            if binding_o.is_some() {
+                                if type_binding_is_type_token(scope, binding_o.unwrap(), symbols) {
+                                    mut value := get_ref_arg(e, 1)
+                                    if name == "type_arg_is_interface" {
+                                        ref resolved : Str = resolve_type_alias(scope, arg.ident_name(symbols.names), symbols)
+                                        value = type_name_is_interface(scope, resolved, symbols)
+                                    }
+                                    e.node_type = NodeType.Literal(Literal.Bool(value))
+                                    e.children.clear()
+                                    return
+                                }
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
+        case:
+        }
+    }
     result := init_macro_type_test(e, scope, symbols)
     if result >= 0 {
         e.node_type = NodeType.Literal(Literal.Bool(result == 1))
