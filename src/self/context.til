@@ -1800,6 +1800,14 @@ Context := struct {
     // dyn_fn's dispatch table, so this is what decides which ones are
     // emitted; without it every surviving namespace method got one.
     builder_dyn_fn_targets := Set(Str).new()
+    // The FuncSig names whose typed dyn_fn adapter (_t_dyn_fn_<Sig>) the C
+    // backend emits, and whether a `cast` of a Dynamic to such a FuncSig
+    // needs _t_dynamic_callable. The forward declarations and the lookup
+    // emitter both read them; builder_fill_emit_inventory fills them in one
+    // AST walk -- they were recomputed by four whole-program walks, 5% of a
+    // first_class translate.
+    builder_typed_dyn_fn_sigs := Set(Str).new()
+    builder_typed_dyn_fn_casts := false
     // #326: every `Type.member` pair some surviving expression NAMES in a
     // field access, keyed exactly the way the namespace-call emitter names
     // the C function -- til_type_name of the RECEIVER, which is what turns

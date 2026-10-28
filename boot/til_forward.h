@@ -2448,6 +2448,8 @@ typedef struct Context {
     HashMap__Str_USize builder_str_lit_member_seq;
     Set__Str builder_reflect_inventory;
     Set__Str builder_dyn_fn_targets;
+    Set__Str builder_typed_dyn_fn_sigs;
+    Bool builder_typed_dyn_fn_casts;
     Set__Str builder_ns_member_sites;
     Set__Str builder_collection_elem_types;
     Set__Str builder_used_ctypes;

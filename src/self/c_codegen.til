@@ -9048,10 +9048,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     // but it advertises a definition that no longer exists.
     if builder_needs_reflect("dyn_fn", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("void *dyn_fn(Str *type_name, Str *method);\n")
-        for sig_name : Str in typed_dyn_fn_sigs(lp) {
+        for sig_name : Str in lp.ctx.builder_typed_dyn_fn_sigs {
             f.write("static TilClosure *_t_dyn_fn_").write(sig_name).write("(TilClosure *value);\n")
         }
-        if typed_dyn_fn_sigs(lp, true).len() > 0 { f.write("static TilClosure *_t_dynamic_callable(void *value);\n") }
+        if lp.ctx.builder_typed_dyn_fn_casts { f.write("static TilClosure *_t_dynamic_callable(void *value);\n") }
     }
     if builder_needs_reflect("dyn_size_of", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("USize dyn_size_of(Str *type_name);\n")
@@ -9189,14 +9189,17 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if coll_infos.len() > 0 { f.write("\n") }
 }
 
-priv collect_typed_dyn_fn_sigs := func(e: Expr, mut names: Set(Str), scope: TypeScope, symbols: SymbolPool, casts_only: Bool) {
+// One walk for both typed-dyn_fn inventories: every node whose type is a
+// FuncSig with a typed (non-Dynamic) ABI names an adapter, and a `cast` of
+// a Dynamic to one also needs _t_dynamic_callable.
+priv collect_typed_dyn_fn_sigs := func(e: Expr, mut names: Set(Str), mut has_casts: Bool, scope: TypeScope, symbols: SymbolPool) {
     if dyn_fn_uses_typed_abi(e.til_type(), scope, symbols) {
-        if casts_only.not() { names.add(own type_to_name(e.til_type(), symbols)) }
-        else if e.node_type.is(NodeType.FCall) {
+        names.add(own type_to_name(e.til_type(), symbols))
+        if e.node_type.is(NodeType.FCall) {
             switch e.children[0].node_type {
             case .Ident(id):
                 if id.ident_name(symbols.names).eq("cast").and(e.children[1].til_type().is(Type.Dynamic)) {
-                    names.add(own type_to_name(e.til_type(), symbols))
+                    has_casts = true
                 }
             case:
             }
@@ -9205,28 +9208,22 @@ priv collect_typed_dyn_fn_sigs := func(e: Expr, mut names: Set(Str), scope: Type
     switch e.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.sig.params {
-            if p.default_value.is_some() { collect_typed_dyn_fn_sigs(p.default_expr(), names, scope, symbols, casts_only) }
+            if p.default_value.is_some() { collect_typed_dyn_fn_sigs(p.default_expr(), names, has_casts, scope, symbols) }
         }
     case .StructDef(sd):
         for d : Declaration in sd.fields {
-            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols, casts_only) }
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, has_casts, scope, symbols) }
         }
         for d : Declaration in sd.ns_decls {
-            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols, casts_only) }
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, has_casts, scope, symbols) }
         }
     case .EnumDef(ed):
         for d : Declaration in ed.ns_decls {
-            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, scope, symbols, casts_only) }
+            if d.default_value.is_some() { collect_typed_dyn_fn_sigs(d.default_expr(), names, has_casts, scope, symbols) }
         }
     case:
     }
-    for child : Expr in e.children { collect_typed_dyn_fn_sigs(child, names, scope, symbols, casts_only) }
-}
-
-priv typed_dyn_fn_sigs := func(lp: LoadedProgram, casts_only: Bool = false) returns Set(Str) {
-    mut names := Set(Str).new()
-    for path : Str in lp.unit_paths() { collect_typed_dyn_fn_sigs(lp.ctx.imported[path].ast, names, lp.ctx.scope, lp.ctx.symbols, casts_only) }
-    return names
+    for child : Expr in e.children { collect_typed_dyn_fn_sigs(child, names, has_casts, scope, symbols) }
 }
 
 // The destination signature owns this wrapper's ABI. The original _dyn
@@ -9319,7 +9316,7 @@ priv collect_capturing_call_names := func(e: Expr, mut calls: Set(Str)) {
 
 priv emit_typed_dyn_fn_lookups := proc(f: File, mut lp: LoadedProgram) {
     mut calls := Set(Str).new()
-    for sig_name : Str in typed_dyn_fn_sigs(lp) {
+    for sig_name : Str in lp.ctx.builder_typed_dyn_fn_sigs {
         ref want : FunctionDef = funcdef_of(lp.ctx.scope.lookup_func_name(sig_name, lp.ctx.symbols).unwrap())
         mut targets := Vec(Str).new()
         mut incompatible := Vec(Str).new()
@@ -9362,7 +9359,7 @@ priv emit_typed_dyn_fn_lookups := proc(f: File, mut lp: LoadedProgram) {
         // entry points require adaptation.
         f.write("    return value;\n}\n")
     }
-    if typed_dyn_fn_sigs(lp, true).len() > 0 {
+    if lp.ctx.builder_typed_dyn_fn_casts {
         for name : Sym in lp.ctx.closure_value_names {
             calls.add(own closure_call_name(lp.ctx.symbols.resolve(name)))
         }
@@ -12883,6 +12880,8 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)
 priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     lp.ctx.builder_reflect_inventory = Set(Str).new()
     lp.ctx.builder_dyn_fn_targets = Set(Str).new()
+    lp.ctx.builder_typed_dyn_fn_sigs = Set(Str).new()
+    lp.ctx.builder_typed_dyn_fn_casts = false
     lp.ctx.builder_ns_member_sites = Set(Str).new()
     lp.ctx.builder_free_only_delete = Map(Str, Bool).new()
     lp.ctx.builder_lit_guard_used = false
@@ -12901,6 +12900,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         builder_collect_reflect_inventory(lp.ctx.imported[upath].ast, lp.ctx.builder_reflect_inventory, lp.ctx.symbols)
         builder_collect_dyn_fn_targets(lp.ctx.imported[upath].ast, lp.ctx.builder_dyn_fn_targets, lp.ctx.symbols)
+        collect_typed_dyn_fn_sigs(lp.ctx.imported[upath].ast, lp.ctx.builder_typed_dyn_fn_sigs, lp.ctx.builder_typed_dyn_fn_casts, lp.ctx.scope, lp.ctx.symbols)
         builder_collect_lit_guard_use(lp.ctx.imported[upath].ast, lp.ctx.builder_lit_guard_used, lp.ctx.symbols)
         builder_collect_cstr_use(lp.ctx.imported[upath].ast, lp.ctx.builder_cstr_used, lp.ctx)
         collect_collection_builtins(lp.ctx.imported[upath].ast, inv_coll_infos, lp.ctx.symbols)
