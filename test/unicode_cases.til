@@ -3,10 +3,6 @@ import("std/file")
 import("std/unicode")
 
 UNICODE_CASE_TOTAL : USize = 766
-// Per-case ASAN interpretation measured 27.600s / 27.553s / 27.578s across
-// these cuts. Equal case counts would overload the longer trailing cases.
-UNICODE_CASE_FIRST_END : USize = 323
-UNICODE_CASE_SECOND_END : USize = 586
 
 hex := func(text: Str) returns I64 {
     mut value : I64 = 0
@@ -19,10 +15,8 @@ hex := func(text: Str) returns I64 {
     }
     return value
 }
-check_unicode_cases := proc(first: USize, end: USize) {
-    assert(first < end && end <= UNICODE_CASE_TOTAL)
+check_unicode_cases := proc() {
     mut cases : USize = 0
-    mut checked : USize = 0
     data := File.readfile("test/unicode_grapheme_cases.txt")
     boundary := Str.from_codepoint(0xf7)
     joined := Str.from_codepoint(0xd7)
@@ -42,9 +36,6 @@ check_unicode_cases := proc(first: USize, end: USize) {
         if comment >= 0 { body_end = comment.to_usize() }
         body := line.substr(0, body_end).trim()
         if body.len() == 0 { continue }
-        case_index := cases
-        cases++
-        if case_index < first || case_index >= end { continue }
         // The corpus's hexadecimal spelling is longer than its UTF-8 output.
         mut text := Str.with_capacity(body.len()); mut expected := Vec(USize).new()
         mut token_start : USize = 0
@@ -61,25 +52,16 @@ check_unicode_cases := proc(first: USize, end: USize) {
             else { text.push_str(Str.from_codepoint(hex(token))) }
         }
         assert(expected[0] == 0)
+        assert(expected[expected.len() - 1] == text.len())
+        // The official corpus tests every UAX #29 boundary in both directions.
+        // Navigation/clamping contracts have separate byte-position coverage;
+        // repeating them here rescans each cluster many times per corpus case.
         for i in 1..expected.len() {
             start := expected[i - 1].clone(); end := expected[i].clone()
             if grapheme_next(text, start) != end || grapheme_previous(text, end) != start { panic("grapheme conformance: ", line) }
-            assert(grapheme_offset(text, 0, text.len(), i - 1) == start)
-            for byte in start..end {
-                assert(grapheme_floor(text, byte) == start)
-                mut ceil := end; if byte == start { ceil = start }
-                assert(grapheme_ceil(text, byte) == ceil)
-            }
         }
-        assert(grapheme_count(text, 0, text.len()) == expected.len() - 1)
-        assert(grapheme_offset(text, 0, text.len(), expected.len() + 10) == text.len())
-        assert(grapheme_floor(text, text.len() + 10) == text.len())
-        assert(grapheme_ceil(text, text.len() + 10) == text.len())
-        checked++
+        cases++
     }
-    // All jobs validate the corpus size; their complementary ranges and
-    // checked counts require every case to run, with no overlap or omissions.
     assert(cases == UNICODE_CASE_TOTAL)
-    assert(checked == end - first)
-    println("PASS: ", checked, " Unicode 17.0 grapheme conformance cases [", first, ", ", end, ") of ", cases)
+    println("PASS: ", cases, " Unicode 17.0 forward/backward grapheme conformance cases")
 }

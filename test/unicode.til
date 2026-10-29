@@ -1,11 +1,61 @@
 mode cli
 import("unicode_cases")
 
+// Independent byte offsets for a mixed document, rather than deriving the
+// navigation oracle from grapheme_next. Every byte, including scalar interiors
+// and CRLF, is checked against its enclosing cluster and previous boundary.
+check_unicode_navigation := proc(text: Str, boundaries: Array(USize)) {
+    original := text.clone()
+    assert(boundaries[0] == 0 && boundaries[boundaries.len() - 1] == text.len())
+    for i in 1..boundaries.len() {
+        start := boundaries[i - 1].clone(); end := boundaries[i].clone()
+        mut before : USize = 0
+        if i > 1 { before = boundaries[i - 2].clone() }
+        assert(grapheme_next(text, start) == end)
+        assert(grapheme_previous(text, end) == start)
+        assert(grapheme_offset(text, 0, text.len(), i - 1) == start)
+        for byte in start..end {
+            assert(grapheme_floor(text, byte) == start)
+            mut ceil := end; if byte == start { ceil = start }
+            assert(grapheme_ceil(text, byte) == ceil)
+            mut previous := start; if byte == start { previous = before }
+            assert(grapheme_previous(text, byte) == previous)
+        }
+    }
+    assert(grapheme_next(text, text.len()) == text.len())
+    assert(grapheme_floor(text, text.len()) == text.len())
+    assert(grapheme_ceil(text, text.len()) == text.len())
+    assert(grapheme_floor(text, text.len() + 10) == text.len())
+    assert(grapheme_ceil(text, text.len() + 10) == text.len())
+    assert(grapheme_count(text, 0, text.len()) == boundaries.len() - 1)
+    assert(grapheme_offset(text, 0, text.len(), boundaries.len() - 1) == text.len())
+    assert(grapheme_offset(text, 0, text.len(), boundaries.len() + 10) == text.len())
+
+    // Nonzero starts, an end before EOF, zero-length ranges and index clamps.
+    start := boundaries[1].clone(); end := boundaries[boundaries.len() - 2].clone()
+    assert(grapheme_count(text, start, end) == boundaries.len() - 3)
+    assert(grapheme_offset(text, start, end, 0) == start)
+    assert(grapheme_offset(text, start, end, 1) == boundaries[2])
+    assert(grapheme_offset(text, start, end, boundaries.len()) == end)
+    assert(grapheme_count(text, start, start) == 0)
+    assert(grapheme_offset(text, start, start, 10) == start)
+    assert(text == original)
+    println("PASS: grapheme navigation, interior bytes, ranges, clamps and malformed-byte preservation")
+}
+
 main := proc() {
     assert(!unicode_scalar(-1) && !unicode_scalar(0xd800) && !unicode_scalar(0x110000))
     bad_prefix := format(Str.from_byte(0xe2), Str.from_byte(0x82), "A")
     assert(grapheme_next(bad_prefix, 0) == 2 && grapheme_previous(bad_prefix, 2) == 0)
     assert(grapheme_next("", 0) == 0 && grapheme_previous("", 0) == 0)
     assert(grapheme_floor("", 10) == 0 && grapheme_ceil("", 10) == 0)
-    check_unicode_cases(0, UNICODE_CASE_FIRST_END)
+    assert(grapheme_count("", 0, 0) == 0 && grapheme_offset("", 0, 0, 10) == 0)
+
+    accent := format("e", Str.from_codepoint(0x301))
+    emoji := format(Str.from_codepoint(0x1f469), Str.from_codepoint(0x200d), Str.from_codepoint(0x1f4bb))
+    flags := format(Str.from_codepoint(0x1f1e6), Str.from_codepoint(0x1f1e7), Str.from_codepoint(0x1f1e8))
+    malformed := format(Str.from_byte(0xe2), Str.from_byte(0x82), Str.from_codepoint(0x301), Str.from_byte(0x80), "Z")
+    text := format("A", accent, emoji, "\r\n\n", flags, malformed, "\rQ")
+    check_unicode_navigation(text, array(USize, 0, 1, 4, 15, 17, 18, 26, 30, 34, 35, 36, 37, 38))
+    check_unicode_cases()
 }

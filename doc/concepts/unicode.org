@@ -86,8 +86,10 @@ The compiler installation copies core/std recursively, including the tables,
 and copies the central =LICENSE/= directory into the SDK root beside =src/=.
 =test/install.til= checks the notices and exercises installed compiled/interpreted
 Unicode consumers from another directory. =test/utf8.til= is a core-only
-consumer. =test/unicode.til=, =test/unicode_second.til= and =test/unicode_third.til=
-run cost-balanced, complementary parts of the official boundary corpus using
-the shared assertions in =test/unicode_cases.til=. All four consumers run
-compiled and interpreted; the three grapheme jobs start early in the suite
-to avoid a long execution tail.
+consumer. =test/unicode.til= runs all 766 official cases through
+=test/unicode_cases.til=, checking every boundary forward and backward.
+Separate focused checks exercise navigation at every byte of a mixed document,
+including UTF-8 interiors, CRLF/LF, regional-indicator parity, emoji ZWJ,
+combining marks, malformed bytes, subranges and clamping. This avoids repeating
+the navigation cross-product across the entire rule corpus. Both consumers
+run compiled and interpreted; the grapheme job starts early in the suite.

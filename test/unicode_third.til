@@ -1,6 +1,0 @@
-mode cli
-import("unicode_cases")
-
-main := proc() {
-    check_unicode_cases(UNICODE_CASE_SECOND_END, UNICODE_CASE_TOTAL)
-}

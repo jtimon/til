@@ -55,11 +55,11 @@ tracked in its fixed #15.
   sessions disabled. The controlled follow-up below changes corpus preparation
   and grapheme navigation, not Str.split, codecs or the interpreter. Earlier
   concurrent-session timings remain unsuitable for performance conclusions.
-- Tests separate core UTF-8 (=test/utf8.til=) from graphemes. The requested
-  balanced split now runs =test/unicode.til=, =test/unicode_second.til= and
-  =test/unicode_third.til= early, sharing =test/unicode_cases.til= and the original
-  corpus. It retains every assertion and trades repeated loading/scanning for a shorter
-  execution tail; the measured partitioning is recorded below.
+- Tests separate core UTF-8 (=test/utf8.til=) from graphemes. After the measured
+  three-way split below, the user approved removing redundant work. The current
+  single grapheme job retains every official forward/backward boundary and
+  uses focused navigation contracts instead of multiplying byte-position checks
+  across the whole corpus. It starts early and loads/compiles the tables once.
 - The new base includes 3d1ac604d, which closes #370: native enum layouts and
   canonical generated-binding dependency composition. Host staging/reload,
   shared state ownership and callback lifetimes are still Tiled responsibilities.
@@ -150,7 +150,7 @@ the machine with the suite. Log: =tmp/unicode-perf-full-test-final.log=.
 The preceding run's sole failure was an issue-number collision with master's
 new C identifier bug (#457); the extraction was renumbered to #458.
 
-*** Balanced conformance jobs
+*** Balanced conformance jobs (superseded)
 
 After extraction merged as =681711b09=, the user requested that no Unicode
 job run longer than self-translation. Measured each case's preparation and
@@ -187,6 +187,52 @@ the split shortens the tail but repeats loading/scanning and overlaps more
 interpreters competing for CPU; this metric sums elapsed times, not CPU time.
 Log: =tmp/unicode-thirds-full-test.log=. The corpus and production Unicode
 implementation are unchanged by this follow-up.
+
+*** Focused navigation contracts
+
+After the split merged as =cc3fdd85c=, the user requested lower interpretation
+and memory totals, including removal of redundant tests. The three jobs each
+loaded and compiled the same property tables and scanned the whole corpus.
+Within each selected case, floor/ceil at every byte and count/offset checks
+repeated segmentation that the next/previous boundary checks already covered.
+
+All 766 official cases remain, with every expected boundary checked forward
+and backward. The parser also checks that the first/last expected boundaries
+span the entire input. The per-byte navigation cross-product is replaced by
+an independent, literal-offset mixed-document fixture: ASCII, a combining
+sequence, emoji ZWJ, CRLF and LF, three regional indicators, a malformed UTF-8
+prefix followed by a combining mark, a stray continuation byte and a lone CR.
+Every byte still gets floor/ceil/previous assertions in this fixture. Additional
+contracts cover EOF, out-of-range clamping, nonzero subranges, empty ranges,
+offset indices, counts and byte preservation. In particular, previous at an
+interior position and nonzero subranges were absent from the old corpus loop.
+
+The smaller workload runs as one early job again; the second/third wrappers
+and split constants are removed. Isolated ASAN =test_runner both= passed with
+identical interpreted/native output: 35.145 s interpretation, 3.397 s compilation,
+0.010 s native execution. Its measured memory contribution was 1,388,617,728
+bytes interpreted and 1,026,187,264 bytes compiled. The preceding three-job run
+contributed 4,330,311,680 and 2,971,291,648 bytes respectively. These columns
+sum per-job process-tree memory peaks, not a simultaneous suite peak.
+Log: =tmp/unicode-focused-contracts.log=.
+
+Full verification on =cc3fdd85c=: memory-limited foreground =make clean &&
+make test= passed 492/492. The Unicode job took 90.13 s interpreted, 4.29 s
+compiled and 0.01 s native, still below self-translation's 100.65 s even with
+all phases combined. Compared with the merged three-job totals:
+
+| Metric                        | Three jobs | Focused single job |
+|-------------------------------+------------+--------------------|
+| Suite wall time               |   110.74 s |           104.69 s |
+| Summed interpretation         |   620.85 s |           429.08 s |
+| Summed interpreted memory     |   55.97 GB |           53.03 GB |
+| Summed compilation memory     |   51.14 GB |           49.22 GB |
+| Simultaneous suite peak       |   17.42 GB |           16.78 GB |
+
+The count decreases by two because the shard wrappers were removed, not
+because any official conformance cases were dropped. The production Unicode
+implementation and corpus are unchanged. Full log:
+=tmp/unicode-focused-full-test.log=.
 
 *** Request
 
