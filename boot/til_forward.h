@@ -1509,6 +1509,7 @@ typedef struct priv___src_self_mlir_codegen_til__MlirBinding {
     Str type_name;
     Bool is_mut;
     Bool is_signed;
+    Bool is_ref;
 } priv___src_self_mlir_codegen_til__MlirBinding;
 
 
@@ -2548,6 +2549,10 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
     Map__Str_priv___src_self_mlir_codegen_til__MlirBinding values;
     Set__Str functions;
     Set__Str error_slots;
+    Str error_parameter;
+    Bool error_known_clear;
+    USize error_version;
+    Set__Str clear_conditions;
     Map__Str_U64 integers;
     Map__Str_Bool booleans;
 } priv___src_self_mlir_codegen_til__MlirState;

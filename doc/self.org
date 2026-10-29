@@ -168,8 +168,9 @@
   This is a restricted value/control-flow backend, not GPU execution or a
   replacement for the general C backend. It supports F32, ~Simd(F32,4)~,
   Bool, I32/U32 and I64/U64 values, including USize/UPtr aliases resolved
-  through the existing target configuration. Parameters are immutable;
-  locals may be mutable. Arithmetic includes addition, subtraction and
+  through the existing target configuration. Value parameters are immutable;
+  locals may be mutable. Borrowed ~Array(F32)~ parameters support read-only
+  inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
   scalar comparisons, Boolean logic, cloning, literals, same-file direct
   calls and returns. Integer division, shifts and other unsupported
@@ -197,7 +198,9 @@
   vector reduction or an extra initial addition of positive zero. Multiply
   followed by add remains unfused. More than eight
   SSE argument slots is rejected until aggregate stack passing is supported.
-  Mutable, borrowed and owning parameters are outside the initial subset.
+  Mutable scalar parameters and ownership-transferring parameters remain
+  outside the subset; borrowed buffers and the error-out parameter are
+  described below.
   Integer parameters/results use their resolved bit width. Bool uses i1
   internally and normalized byte values at the C ABI boundary. Integer
   arguments do not consume the SSE argument budget. Native-width USize
@@ -214,6 +217,32 @@
   Compile-time facts are not inferred from ordinary mutable locals. Only the
   unchanged error slots of these proven in-range reads retain that knowledge.
   Both USize32 and USize64 index bookkeeping are tested.
+
+  Borrowed buffers retain the existing C Array ABI: a pointer to a descriptor
+  containing a data pointer followed by a USize capacity. The capacity field
+  uses the selected USize width; the data pointer stays pointer-sized.
+  ~len~, checked scalar ~get/set~ and ~Simd(F32,4).load/store~ are supported.
+  Element references may be read or, when declared mutable, written through.
+  Buffer aliases borrow the same descriptor. Allocation, cloning, destruction,
+  array returns and descriptor replacement stay in the host; passing an array
+  as ~own~ or ~shallow~ is rejected rather than changing its ABI.
+
+  Checked memory operations use ~?~ in a function declaring ~throws
+  OutOfBounds~. They implement the existing trailing ~I64 *~ error-kind ABI:
+  the caller initializes the slot to zero; success leaves it unchanged and
+  failure writes tag 1. Failure results are unused ABI placeholders, not
+  substitute data. The shared lowered success guards and loop exits control
+  propagation. Ordinary til/C callers can use ~catch~ or ~!~. MLIR-side buffer
+  ~!~, other exception types and general panic/runtime support remain outside
+  this increment. A proven-clear error branch also permits existing constant
+  SIMD lane reads after a successful load; possibly throwing calls invalidate
+  that proof, including at loop exits.
+
+  Vector bounds checks test ~start <= count~ before ~count-start >= 4~.
+  The emitter forms the data address only in the successful block, uses
+  scalar alignment (4 bytes), and zero-extends 32-bit indices to the 64-bit
+  pointer domain. It does not attach ~inbounds~ or ~noalias~ assumptions.
+  Failed stores write no elements; earlier successful stores remain visible.
 
   til writes ~gen/mlir/<source>.mlir~, preserving the same normalized source
   hierarchy as C output. ~mlir-opt-18~ lowers vector/arith operations to the
@@ -249,6 +278,12 @@
       while i < limit { total = total + i; i++ }
       return total
   }
+  add_first4 := func(a: Array(F32), b: Array(F32), mut out: Array(F32)) throws OutOfBounds {
+      x := F4.load(a, 0)?
+      y := F4.load(b, 0)?
+      sum := x + y
+      sum.store(out, 0)?
+  }
   #+end_src
 
   #+begin_src sh
@@ -277,6 +312,13 @@
   mutable-value snapshots, signed/unsigned comparisons, integer wraparound,
   integer widening, Boolean ABI calls and a mutable SIMD accumulator. A million-iteration
   nested loop also checks that loop-local storage does not grow the stack.
+
+  Buffer integration tests run array addition and four-lane dot products with
+  scalar tails, using interpreter/C references and C/til callers of MLIR
+  libraries at both USize widths and O0/O2/O3. They cover empty buffers,
+  scalar-aligned vector starts, short inputs/outputs, maximum indices, error
+  forwarding, partial writes, in-place/overlapping buffers, cancellation,
+  reference writes and bit-preserving loads/stores of NaN payloads.
 
 ** Experimental FASM backend
 

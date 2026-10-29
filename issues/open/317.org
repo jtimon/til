@@ -159,6 +159,41 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Borrowed F32 buffers and checked memory (base ee8785cb2)
+
+The MLIR backend now accepts borrowed Array(F32) descriptors, including mut
+outputs, len, checked scalar get/set, and four-lane SIMD load/store. It uses
+the existing pointer-plus-USize-capacity layout and supports both USize
+widths without changing pointer width. References to elements and descriptor
+aliases borrow the caller's storage; allocation, cloning and ownership
+transfer remain outside this subset.
+
+Functions declaring throws OutOfBounds propagate through the existing I64
+error-out argument. Checked spans use start <= count followed by
+count-start >= 4; only the successful block forms a data address. Loads and
+stores require scalar alignment, not vector alignment. Failed stores leave
+their span untouched, while preceding successful writes remain visible.
+There are no inbounds/noalias promises. Callers initialize the error word
+to zero and handle catch/! in the ordinary C/til host.
+
+Error-state knowledge is invalidated by potentially throwing calls, writes
+and loop exits. A proven-clear branch allows a constant SIMD lane read after
+a successful buffer load without folding away a live error check. MLIR-side
+buffer/helper bangs are rejected explicitly, including helper calls followed
+by constant lane reads; they cannot inherit a stale known-zero error slot.
+
+The expanded opt-in test/mlir.til exercises array addition and four-lane dot
+products with scalar tails, interpreter/C references, native C callers and
+ASAN til/C callers, at O0/O2/O3 and both USize widths. Cases include empty
+buffers, scalar-aligned vector starts, short inputs/outputs, maximum indices,
+error forwarding, aliases, overlapping/in-place output, partial writes,
+reference mutation, cancellation and raw NaN payload loads/stores.
+test/mlir_options.til checks translation/ABI spelling and rejected operations
+without requiring the optional LLVM tools.
+
+Verification on the rebased tree: clean full ASAN suite 492/492, plus the
+expanded opt-in integration test with the ASAN-built compiler and driver.
+
 *** Mutable locals and control flow (base 201db1ef2)
 
 The MLIR backend now lowers mutable value locals, if/else, while,

@@ -83,6 +83,73 @@ priv check_control_flow := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_buffers := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/buffers.til"), format(
+        "mode pure\nF4 := Simd(F32,4)\n",
+        "buffer_len := func(a: Array(F32)) returns USize { return a.len() }\n",
+        "alias_len := func(a: Array(F32)) returns USize { ref view: Array(F32) = a; return view.len() }\n",
+        "load4_checked := func(a: Array(F32), i: USize) returns F4 throws OutOfBounds { return F4.load(a,i)? }\n",
+        "forward_load := func(a: Array(F32), i: USize) returns F4 throws OutOfBounds { return load4_checked(a,i)? }\n",
+        "lane_checked := func(a: Array(F32), i: USize) returns F32 throws OutOfBounds { v := F4.load(a,i)?; return v[2] }\n",
+        "store4_checked := func(mut a: Array(F32), i: USize, value: F4) throws OutOfBounds { value.store(a,i)? }\n",
+        "read_checked := func(a: Array(F32), i: USize) returns F32 throws OutOfBounds { ref v: F32 = a.get(i)?; return v.clone() }\n",
+        "write_checked := func(mut a: Array(F32), i: USize, value: F32) throws OutOfBounds { a.set(i, own value.clone())? }\n",
+        "increment_checked := func(mut a: Array(F32), i: USize) throws OutOfBounds { ref mut v: F32 = a.get(i)?; v = v + 1 }\n",
+        "add_buffers := func(a: Array(F32), b: Array(F32), mut out: Array(F32)) throws OutOfBounds { mut i: USize = 0; while i < a.len() { if a.len()-i >= 4 { x := F4.load(a,i)?; y := F4.load(b,i)?; sum := x+y; sum.store(out,i)?; i=i+4 } else { out.set(i,own (a.get(i)?+b.get(i)?))?; i++ } } }\n",
+        "dot_buffers := func(a: Array(F32), b: Array(F32)) returns F32 throws OutOfBounds { mut sums := F4.zero(); mut i: USize = 0; while a.len()-i >= 4 { x := F4.load(a,i)?; y := F4.load(b,i)?; sums = sums+x*y; i=i+4 }; if i < a.len() { mut p0: F32=0; mut p1: F32=0; mut p2: F32=0; p0=a.get(i)?*b.get(i)?; i++; if i<a.len() { p1=a.get(i)?*b.get(i)?; i++ }; if i<a.len() { p2=a.get(i)?*b.get(i)? }; sums=sums+F4.new(p0,p1,p2,0) }; return sums.reduce_add() }\n"))
+    File.writefile(format(work, "/buffer_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#include <math.h>\n",
+        "#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct {float *data; Count cap;} Buffer; typedef struct {float x,y,z,w;} F4;\n",
+        "extern Count buffer_len(const Buffer*),alias_len(const Buffer*); extern F4 load4_checked(const Buffer*,Count,int64_t*),forward_load(const Buffer*,Count,int64_t*);\n",
+        "extern void store4_checked(Buffer*,Count,F4,int64_t*),write_checked(Buffer*,Count,float,int64_t*),increment_checked(Buffer*,Count,int64_t*),add_buffers(const Buffer*,const Buffer*,Buffer*,int64_t*);\n",
+        "extern float read_checked(const Buffer*,Count,int64_t*),lane_checked(const Buffer*,Count,int64_t*),dot_buffers(const Buffer*,const Buffer*,int64_t*);\n",
+        "static void equal(float a,float b){if(isnan(b))assert(isnan(a));else assert(memcmp(&a,&b,4)==0);}\n",
+        "static float dot(const Buffer*a,const Buffer*b){float s[4]={0};for(Count i=0;i<a->cap;i++){float p=a->data[i]*b->data[i];s[i%4]=s[i%4]+p;}return (s[0]+s[2])+(s[1]+s[3]);}\n",
+        "int main(void){float aa[24],bb[24],oo[24];int64_t err=0;Buffer empty={0,0},wide={0,(Count)-1};assert(buffer_len(&wide)==(Count)-1 && alias_len(&wide)==(Count)-1);add_buffers(&empty,&empty,&empty,&err);assert(err==0);equal(dot_buffers(&empty,&empty,&err),0);assert(err==0);\n",
+        "for(Count n=0;n<=17;n++){for(unsigned j=0;j<24;j++){aa[j]=(float)j*0.25f;bb[j]=3.0f-(float)j*0.125f;oo[j]=-99;}Buffer a={aa+1,n},b={bb+1,n},o={oo+1,n};float before_a[24],before_b[24];memcpy(before_a,aa,sizeof aa);memcpy(before_b,bb,sizeof bb);err=0;add_buffers(&a,&b,&o,&err);assert(err==0);for(Count i=0;i<n;i++)equal(o.data[i],a.data[i]+b.data[i]);equal(oo[0],-99);equal(oo[n+1],-99);equal(dot_buffers(&a,&b,&err),dot(&a,&b));assert(err==0);assert(memcmp(aa,before_a,sizeof aa)==0 && memcmp(bb,before_b,sizeof bb)==0);}\n",
+        "Buffer a={aa+1,8},o={oo+1,8};Count starts[]={0,1,4,5,8,9,(Count)-1,(Count)-2,(Count)-3,(Count)-4};F4 value={7,8,9,10};\n",
+        "for(unsigned k=0;k<sizeof starts/sizeof starts[0];k++){Count i=starts[k];int good=i<=8 && 8-i>=4;err=0;F4 got=forward_load(&a,i,&err);assert(err==(good?0:1));if(good)assert(memcmp(&got,a.data+i,16)==0);for(unsigned j=0;j<24;j++)oo[j]=-99;float before[24];memcpy(before,oo,sizeof oo);err=0;store4_checked(&o,i,value,&err);assert(err==(good?0:1));if(good){memcpy(before+1+i,&value,16);}assert(memcmp(before,oo,sizeof oo)==0);err=0;float scalar=read_checked(&a,i,&err);assert(err==(i<8?0:1));if(i<8)equal(scalar,a.data[i]);err=0;write_checked(&o,i,23,&err);assert(err==(i<8?0:1));}\n",
+        "err=0;equal(lane_checked(&a,1,&err),a.data[3]);assert(err==0);err=0;lane_checked(&empty,0,&err);assert(err==1);\n",
+        "err=0;load4_checked(&empty,0,&err);assert(err==1);err=0;read_checked(&empty,0,&err);assert(err==1);err=0;store4_checked(&empty,(Count)-1,value,&err);assert(err==1);err=0;write_checked(&empty,0,1,&err);assert(err==1);\n",
+        "const uint32_t bits[4]={0x7f800001u,0xffc12345u,0x80000000u,1u};memcpy(aa+1,bits,16);err=0;F4 raw=load4_checked(&a,0,&err);assert(err==0 && memcmp(&raw,bits,16)==0);store4_checked(&o,1,raw,&err);assert(err==0 && memcmp(o.data+1,bits,16)==0);float single=read_checked(&a,0,&err);assert(memcmp(&single,bits,4)==0);\n",
+        "float cancel[5]={1e20f,1,-1e20f,3,0},ones[5]={1,1,1,1,1};Buffer c={cancel,5},one={ones,5};err=0;equal(dot_buffers(&c,&one,&err),4);assert(err==0);\n",
+        "for(unsigned j=0;j<24;j++){aa[j]=(float)j;bb[j]=1;oo[j]=-99;}Buffer long_a={aa+1,9},small_b={bb+1,4},long_o={oo+1,9};err=0;add_buffers(&long_a,&small_b,&long_o,&err);assert(err==1);for(unsigned j=0;j<9;j++)equal(long_o.data[j],j<4?long_a.data[j]+1:-99);\n",
+        "for(unsigned j=0;j<24;j++)oo[j]=-99;\nlong_a.cap=5;err=0;add_buffers(&long_a,&small_b,&long_o,&err);assert(err==1);equal(long_o.data[4],-99);err=0;dot_buffers(&long_a,&small_b,&err);assert(err==1);\n",
+        "Buffer b={bb+1,9};long_a.cap=9;long_o.cap=6;for(unsigned j=0;j<24;j++)oo[j]=-99;err=0;add_buffers(&long_a,&b,&long_o,&err);assert(err==1);equal(oo[5],-99);equal(oo[6],-99);\n",
+        "err=0;increment_checked(&long_a,1,&err);assert(err==0);equal(long_a.data[1],3);err=0;increment_checked(&empty,0,&err);assert(err==1);\n",
+        "float old[9];memcpy(old,long_a.data,sizeof old);err=0;add_buffers(&long_a,&b,&long_a,&err);assert(err==0);for(unsigned j=0;j<9;j++)equal(long_a.data[j],old[j]+1);\n",
+        "float overlap[12],expected[12],first[4];for(unsigned j=0;j<12;j++){overlap[j]=(float)j;expected[j]=(float)j;}for(unsigned j=0;j<4;j++){first[j]=expected[j]+1;}memcpy(expected+1,first,16);for(unsigned j=4;j<7;j++){expected[j+1]=expected[j]+1;}Buffer source={overlap,7},shifted={overlap+1,7};err=0;add_buffers(&source,&b,&shifted,&err);assert(err==0 && memcmp(overlap,expected,sizeof overlap)==0);return 0;}\n"))
+    checks := format(
+        "main := proc() { for n in 0..10 { mut a := Array(F32).new(n.to_usize()); mut b := Array(F32).new(n.to_usize()); mut out := Array(F32).new(n.to_usize()+1); for i in 0..n { a.set(i.to_usize(),own (i+1).to_f32())!; b.set(i.to_usize(),own 2.0)! }; out.set(n.to_usize(),own -99.0)!; add_buffers(a,b,out)!; mut expected: F32=0; for i in 0..n { assert_eq(F32,out[i.to_usize()],(i+3).to_f32()); expected=expected+(i+1).to_f32()*2 }; assert_eq(F32,out[n.to_usize()],-99); assert_eq(F32,dot_buffers(a,b)!,expected) };\n",
+        "a := array(F32,1,2,3,4,5); b := array(F32,2,2,2,2); mut out := Array(F32).new(5); out.set(4,own -99.0)!; mut caught:=false; add_buffers(a,b,out)? catch(err:OutOfBounds){caught=true}; assert(caught); assert_eq(F32,out[0],3); assert_eq(F32,out[4],-99);\n",
+        "mut range_error:=false; load4_checked(a,USize.MAX)? catch(err:OutOfBounds){range_error=true}; assert(range_error); println(\"buffers PASS\") }\n")
+    File.writefile(format(work, "/buffer_reference.til"), format("mode cli\nimport(\"buffers\")\n", checks))
+    File.writefile(format(work, "/buffer_consumer.til"), format(
+        "mode cli\nlink(\"gen/lib/libbuffers.so\")\nF4:=Simd(F32,4)\n",
+        "add_buffers := ext_func(a: Array(F32),b: Array(F32),mut out: Array(F32)) throws OutOfBounds {}\n",
+        "dot_buffers := ext_func(a: Array(F32),b: Array(F32)) returns shallow F32 throws OutOfBounds {}\n",
+        "load4_checked := ext_func(a: Array(F32),shallow i: USize) returns shallow F4 throws OutOfBounds {}\n", checks))
+    for width in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        for command in array(Str, "interpret", "run") {
+            reference := Cmd.new(compiler, command, flag, "buffer_reference.til")
+            checked(reference, work)
+        }
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "buffers.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "buffer_caller.c", "gen/lib/libbuffers.a", "-o", "buffer_caller")
+            if width == "32" { cc.arg("-DCOUNT32") }
+            checked(cc, work)
+            run := Cmd.new("./buffer_caller")
+            checked(run, work)
+            consumer := Cmd.new(compiler, "run", flag, "--asan", "buffer_consumer.til")
+            checked(consumer, work)
+        }
+    }
+}
+
 main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
@@ -151,5 +218,6 @@ main := proc(compiler_arg: Str) {
         checked(main_run, work)
     }
     check_control_flow(compiler, work)
+    check_buffers(compiler, work)
     println("mlir PASS")
 }

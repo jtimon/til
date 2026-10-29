@@ -9,6 +9,7 @@ priv MlirBinding := struct {
     type_name := ""
     is_mut := false
     is_signed := false
+    is_ref := false
 }
 
 priv MlirState := struct {
@@ -23,6 +24,10 @@ priv MlirState := struct {
     values := Map(Str, MlirBinding).new()
     functions := Set(Str).new()
     error_slots := Set(Str).new()
+    error_parameter := ""
+    error_known_clear := false
+    error_version : USize = 0
+    clear_conditions := Set(Str).new()
     // Compile-time values used by lane indices and lowered bounds-error checks.
     integers := Map(Str, U64).new()
     booleans := Map(Str, Bool).new()
@@ -45,6 +50,7 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
     }
     if t == Type.Primitive(Primitive.F32) { return "f32" }
     ref name : Str = type_name_ref(t, lp.ctx.symbols)
+    if name == "Array__F32" { return "!llvm.ptr" }
     if name == "F32" { return "f32" }
     if t.is(Type.None) { return "void" }
     definition := lp.ctx.scope.get_struct(name, lp.ctx.symbols)
@@ -73,7 +79,7 @@ priv mlir_value := func(mut state: MlirState, expression: Str) returns Str {
 
 priv mlir_alignment := func(t: Str) returns Str {
     if t == "i1" { return "1" }
-    if t == "i64" { return "8" }
+    if t == "i64" || t == "!llvm.ptr" { return "8" }
     return "4"
 }
 
@@ -166,10 +172,42 @@ priv mlir_integer := func(e: Expr, state: MlirState, lp: LoadedProgram) returns 
         }
     case .Ident(id):
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
+        if name == state.error_parameter {
+            if state.error_known_clear { return Option(U64).Some(0) }
+            return Option(U64).None
+        }
         if state.integers.has(name) { return Option(U64).Some(state.integers[name]) }
     case:
     }
     return Option(U64).None
+}
+
+priv mlir_error_write := func(mut state: MlirState) {
+    state.error_known_clear = false
+    state.error_version++
+    state.clear_conditions.clear()
+}
+
+priv mlir_tests_clear_error := func(e: Expr, state: MlirState, lp: LoadedProgram) returns Bool {
+    if state.error_parameter.len() == 0 { return false }
+    switch e.node_type {
+    case .Ident(id): return state.clear_conditions.has(id.ident_name(lp.ctx.symbols.names))
+    case .FCall:
+        if e.children.len() != 3 { return false }
+        switch e.children[0].node_type {
+        case .FieldAccess(field):
+            if field.field_access_name(lp.ctx.symbols.names) != "eq" { return false }
+            switch e.children[1].node_type {
+            case .Ident(id):
+                if id.ident_name(lp.ctx.symbols.names) != state.error_parameter { return false }
+                zero := mlir_integer(e.children[2], state, lp)
+                return zero.is_some().and(zero.unwrap() == 0)
+            case: return false
+            }
+        case: return false
+        }
+    case: return false
+    }
 }
 
 priv mlir_boolean := func(e: Expr, state: MlirState, lp: LoadedProgram) returns Option(Bool) {
@@ -251,14 +289,103 @@ priv mlir_find_function := func(name: Str, lp: LoadedProgram) returns Option(ref
     return Option(ref Expr).None
 }
 
-priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+priv mlir_count_type := func(lp: LoadedProgram) returns Str {
+    return mlir_type(type_from_name_init_name("USize", lp.ctx.scope, lp.ctx.symbols), lp)
+}
+
+priv mlir_buffer_length := func(buffer: Str, mut state: MlirState, lp: LoadedProgram) returns Str {
+    count_type := mlir_count_type(lp)
+    field := mlir_value(state, format("llvm.getelementptr ", buffer,
+        "[0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(!llvm.ptr, ", count_type, ")>"))
+    return mlir_value(state, format("llvm.load ", field, " {alignment = ",
+        mlir_alignment(count_type), " : i64} : !llvm.ptr -> ", count_type))
+}
+
+priv mlir_checked_memory := proc(e: Expr, vector: Bool, store: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    if state.error_parameter.len() == 0 || fcall_of(e).panic_on_error {
+        return mlir_error(e, "checked buffers require ? in a function declaring throws OutOfBounds; handle ! or catch in the host caller", lp)
+    }
+    mut arguments := Vec(Str).new()
+    for i in 1..e.children.len() - 1 { arguments.push(own mlir_expr(e.children[i], state, lp)) }
+    error := mlir_expr(e.children[e.children.len() - 1], state, lp, true)
+    mlir_error_write(state)
+    mut buffer_index : USize = 0
+    mut index_index : USize = 1
+    mut value_index : USize = 2
+    if vector && store { buffer_index = 1; index_index = 2; value_index = 0 }
+    ref buffer : Str = arguments[buffer_index]
+    ref index : Str = arguments[index_index]
+    count := mlir_buffer_length(buffer, state, lp)
+    count_type := mlir_count_type(lp)
+    success := mlir_label(state)
+    failure := mlir_label(state)
+    done := mlir_label(state)
+    mut result_type := "!llvm.ptr"
+    if vector { result_type = "vector<4xf32>" }
+    mut result_slot := ""
+    if store.not() { result_slot = mlir_slot(result_type, state) }
+    if vector {
+        span := mlir_label(state)
+        start_ok := mlir_value(state, format("arith.cmpi ule, ", index, ", ", count, " : ", count_type))
+        state.text = format(state.text, "    llvm.cond_br ", start_ok, ", ^", span, ", ^", failure, "\n")
+        mlir_block(span, state)
+        remaining := mlir_value(state, format("arith.subi ", count, ", ", index, " : ", count_type))
+        width := mlir_value(state, format("arith.constant 4 : ", count_type))
+        fits := mlir_value(state, format("arith.cmpi uge, ", remaining, ", ", width, " : ", count_type))
+        state.text = format(state.text, "    llvm.cond_br ", fits, ", ^", success, ", ^", failure, "\n")
+    } else {
+        fits := mlir_value(state, format("arith.cmpi ult, ", index, ", ", count, " : ", count_type))
+        state.text = format(state.text, "    llvm.cond_br ", fits, ", ^", success, ", ^", failure, "\n")
+    }
+    mlir_block(success, state)
+    // Form no data address until the whole access has passed its check.
+    data_field := mlir_value(state, format("llvm.getelementptr ", buffer,
+        "[0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(!llvm.ptr, ", count_type, ")>"))
+    data := mlir_value(state, format("llvm.load ", data_field, " {alignment = 8 : i64} : !llvm.ptr -> !llvm.ptr"))
+    mut wide_index := index.clone()
+    if count_type == "i32" { wide_index = mlir_value(state, format("arith.extui ", index, " : i32 to i64")) }
+    address := mlir_value(state, format("llvm.getelementptr ", data, "[", wide_index,
+        "] : (!llvm.ptr, i64) -> !llvm.ptr, f32"))
+    if store {
+        mut value_type := "f32"
+        if vector { value_type = "vector<4xf32>" }
+        mlir_store(address, arguments[value_index], value_type, state)
+    } else if vector {
+        value := mlir_value(state, format("llvm.load ", address, " {alignment = 4 : i64} : !llvm.ptr -> vector<4xf32>"))
+        mlir_store(result_slot, value, result_type, state)
+    } else { mlir_store(result_slot, address, result_type, state) }
+    mlir_branch(done, state)
+    mlir_block(failure, state)
+    kind := mlir_value(state, "arith.constant 1 : i64")
+    mlir_store(error, kind, "i64", state)
+    if store.not() {
+        mut fallback := ""
+        if vector { fallback = mlir_value(state, "arith.constant dense<0.0> : vector<4xf32>") }
+        else {
+            zero := mlir_value(state, "arith.constant 0 : i64")
+            fallback = mlir_value(state, format("llvm.inttoptr ", zero, " : i64 to !llvm.ptr"))
+        }
+        mlir_store(result_slot, fallback, result_type, state)
+    }
+    mlir_branch(done, state)
+    mlir_block(done, state)
+    if store { return "" }
+    return mlir_value(state, format("llvm.load ", result_slot, " {alignment = ",
+        mlir_alignment(result_type), " : i64} : !llvm.ptr -> ", result_type))
+}
+
+priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, borrow: Bool = false) returns Str {
     switch e.node_type {
     case .Ident(id):
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
         if state.values.has(name) {
             ref binding : MlirBinding = state.values[name]
+            if borrow && binding.type_name != "!llvm.ptr" {
+                if binding.is_ref.or(binding.is_mut).not() { return mlir_error(e, "address requires a stored local or borrowed value", lp) }
+                return binding.value.clone()
+            }
             mut value := binding.value.clone()
-            if binding.is_mut {
+            if binding.is_mut || binding.is_ref {
                 t := binding.type_name.clone()
                 value = mlir_value(state, format("llvm.load ", binding.value,
                     " {alignment = ", mlir_alignment(t), " : i64} : !llvm.ptr -> ", t))
@@ -300,6 +427,19 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
                 t := mlir_type(owner_type, lp)
                 ref op : Str = field.field_access_name(lp.ctx.symbols.names)
                 if t.len() == 0 { return mlir_error(e, "unsupported operation type", lp) }
+                if t == "!llvm.ptr" {
+                    if op == "len" && e.children.len() == 2 {
+                        buffer := mlir_expr(e.children[1], state, lp)
+                        return mlir_buffer_length(buffer, state, lp)
+                    }
+                    if op == "get" && e.children.len() == 4 {
+                        address := mlir_checked_memory(e, false, false, state, lp)
+                        if borrow { return address }
+                        return mlir_value(state, format("llvm.load ", address, " {alignment = 4 : i64} : !llvm.ptr -> f32"))
+                    }
+                    if op == "set" && e.children.len() == 5 { return mlir_checked_memory(e, false, true, state, lp) }
+                    return mlir_error(e, format("unsupported borrowed-buffer operation '", op, "'"), lp)
+                }
                 if op.eq("inc").or(op.eq("dec")) && e.children.len() == 2 && mlir_integer_type(owner_type) {
                     switch e.children[1].node_type {
                     case .Ident(id):
@@ -362,6 +502,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
                     }
                 }
                 if t == "vector<4xf32>" {
+                    if op == "load" && e.children.len() == 4 { return mlir_checked_memory(e, true, false, state, lp) }
+                    if op == "store" && e.children.len() == 5 { return mlir_checked_memory(e, true, true, state, lp) }
                     if op == "new" && e.children.len() == 5 { return mlir_construct(e, state, lp) }
                     if op == "splat" && e.children.len() == 2 {
                         value := mlir_expr(e.children[1], state, lp)
@@ -447,13 +589,23 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
             found := mlir_find_function(name, lp)
             if found.is_none() { return mlir_error(e, format("unsupported call '", name, "'"), lp) }
             ref fd : FunctionDef = funcdef_of(found.unwrap())
+            if fd.sig.throw_types.len() > 0 && (state.error_parameter.len() == 0 || fcall_of(e).panic_on_error) {
+                return mlir_error(e, "throwing MLIR calls require ? in a function declaring throws OutOfBounds; handle ! or catch in the host caller", lp)
+            }
             mut call_name := name.clone()
             if name == "main" { call_name = "til.mlir.main" }
             mut args := ""
             mut types := ""
             for i in 0..fd.sig.params.len() {
-                mut value := mlir_expr(e.children[i + 1], state, lp)
                 t := mlir_type(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols), lp)
+                if fd.sig.params[i].own_type.is(OwnType.Ref) && t != "!llvm.ptr" {
+                    address := mlir_expr(e.children[i + 1], state, lp, true)
+                    if i > 0 { args = format(args, ", "); types = format(types, ", ") }
+                    args = format(args, address)
+                    types = format(types, "!llvm.ptr")
+                    continue
+                }
+                mut value := mlir_expr(e.children[i + 1], state, lp)
                 value = mlir_coerce(value, e.children[i + 1], t, state, lp)
                 if i > 0 { args = format(args, ", "); types = format(types, ", ") }
                 if t == "vector<4xf32>" {
@@ -475,6 +627,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
             if ret == "vector<4xf32>" { abi_ret = mlir_f4_type() }
             if ret == "i1" { abi_ret = "i8" }
             mut result := ""
+            if fd.sig.throw_types.len() > 0 { mlir_error_write(state) }
             if ret == "void" {
                 state.text = format(state.text, "    llvm.call @\"", call_name, "\"(", args, ") : (", types, ") -> ()\n")
             } else {
@@ -527,21 +680,34 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
     saved_values := state.values.clone()
     saved_integers := state.integers.clone()
     saved_booleans := state.booleans.clone()
+    saved_conditions := state.clear_conditions.clone()
+    saved_error_version := state.error_version
     for stmt : Expr in body.children {
         if state.terminated { break }
         switch stmt.node_type {
         case .Decl(local):
-            if stmt.children.len() != 1 || local.own_type.is(OwnType.Ref) {
+            if stmt.children.len() != 1 {
                 mlir_error(stmt, "only initialized value locals are supported", lp)
                 break
             }
             local_type := declaration_resolved_type(local, lp.ctx.scope, lp.ctx.symbols)
             t := mlir_type(local_type, lp)
             if t.len() == 0 || t == "void" { mlir_error(stmt, "unsupported local type", lp); break }
+            if local.own_type.is(OwnType.Ref) {
+                if t != "f32" && t != "!llvm.ptr" { mlir_error(stmt, "only borrowed F32 elements and Array(F32) aliases are supported", lp); break }
+                address := mlir_expr(stmt.children[0], state, lp, true)
+                state.values.set(local.name, own MlirBinding(value = address, type_name = t.clone(),
+                    is_mut = local.is_mut && t != "!llvm.ptr", is_ref = t != "!llvm.ptr"))
+                continue
+            }
+            if t == "!llvm.ptr" { mlir_error(stmt, "Array(F32) locals must borrow existing storage", lp); break }
             integer := mlir_integer(stmt.children[0], state, lp)
             boolean := mlir_boolean(stmt.children[0], state, lp)
             raw_value := mlir_expr(stmt.children[0], state, lp)
             value := mlir_coerce(raw_value, stmt.children[0], t, state, lp)
+            clear_test := mlir_tests_clear_error(stmt.children[0], state, lp)
+            state.clear_conditions.remove(local.name)
+            if clear_test && local.is_mut.not() { state.clear_conditions.add(own local.name.clone()) }
             state.integers.remove(local.name)
             state.booleans.remove(local.name)
             if local.is_mut.not() || state.error_slots.has(local.name) {
@@ -565,6 +731,11 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             raw_value := mlir_expr(stmt.children[0], state, lp)
             value := mlir_coerce(raw_value, stmt.children[0], binding.type_name, state, lp)
             mlir_store(binding.value, value, binding.type_name, state)
+            if assignment.name == state.error_parameter {
+                zero := mlir_integer(stmt.children[0], state, lp)
+                mlir_error_write(state)
+                state.error_known_clear = zero.is_some().and(zero.unwrap() == 0)
+            }
         case .Return:
             if stmt.children.len() == 0 { state.text = format(state.text, "    llvm.return\n") }
             else {
@@ -576,28 +747,41 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
                 state.text = format(state.text, "    llvm.return ", value, " : ", abi_ret, "\n")
             }
             state.terminated = true
-        case .FCall: mlir_expr(stmt, state, lp)
+        case .FCall: mlir_expr(stmt, state, lp, true)
         case .Body: mlir_body(stmt, ret, state, lp)
         case .If:
             known := mlir_boolean(stmt.children[0], state, lp)
+            clear_test := mlir_tests_clear_error(stmt.children[0], state, lp)
             if known.is_some() {
-                if known.unwrap() { mlir_body(stmt.children[1], ret, state, lp) }
+                if known.unwrap() {
+                    if clear_test { state.error_known_clear = true }
+                    mlir_body(stmt.children[1], ret, state, lp)
+                }
                 else if stmt.children.len() == 3 { mlir_body(stmt.children[2], ret, state, lp) }
             } else {
                 condition := mlir_expr(stmt.children[0], state, lp)
+                before_clear := state.error_known_clear
+                before_conditions := state.clear_conditions.clone()
                 yes := mlir_label(state)
                 no := mlir_label(state)
                 merge := mlir_label(state)
                 state.text = format(state.text, "    llvm.cond_br ", condition, ", ^", yes, ", ^", no, "\n")
                 mlir_block(yes, state)
+                if clear_test { state.error_known_clear = true }
                 mlir_body(stmt.children[1], ret, state, lp)
                 yes_ends := state.terminated
+                yes_clear := state.error_known_clear
                 if yes_ends.not() { mlir_branch(merge, state) }
                 mlir_block(no, state)
+                state.error_known_clear = before_clear
+                state.clear_conditions = before_conditions
                 if stmt.children.len() == 3 { mlir_body(stmt.children[2], ret, state, lp) }
                 no_ends := state.terminated
+                no_clear := state.error_known_clear
                 if no_ends.not() { mlir_branch(merge, state) }
                 mlir_block(merge, state)
+                state.error_known_clear = yes_ends.or(yes_clear).and(no_ends.or(no_clear))
+                state.clear_conditions.clear()
                 if yes_ends && no_ends { state.text = format(state.text, "    llvm.unreachable\n"); state.terminated = true }
             }
         case .While:
@@ -609,6 +793,8 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             saved_break := state.break_label.clone()
             saved_continue := state.continue_label.clone()
             saved_has_break := state.has_break
+            before_clear := state.error_known_clear
+            before_version := state.error_version
             state.break_label = done.clone()
             state.continue_label = check.clone()
             state.has_break = false
@@ -624,6 +810,10 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             state.continue_label = saved_continue
             state.has_break = saved_has_break
             mlir_block(done, state)
+            // A failing iteration can leave through a break before the
+            // fall-through body's final proof. Never export that proof.
+            if state.error_version != before_version { mlir_error_write(state) }
+            else { state.error_known_clear = before_clear }
             if known.is_some() && loop_breaks.not() {
                 state.text = format(state.text, "    llvm.unreachable\n")
                 state.terminated = true
@@ -638,6 +828,8 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
     state.values = saved_values
     state.integers = saved_integers
     state.booleans = saved_booleans
+    if state.error_version == saved_error_version { state.clear_conditions = saved_conditions }
+    else { state.clear_conditions.clear() }
 }
 
 priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgram) returns Str {
@@ -645,18 +837,41 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgra
     ref fexpr : Expr = decl.children[0]
     ref fd : FunctionDef = funcdef_of(fexpr)
     if fd.sig.func_type.is_bodyless() || fd.sig.func_type.is(FuncType.Macro)
-        || fd.sig.throw_types.len() > 0 || fd.captures.len() > 0
+        || fd.captures.len() > 0
         || fd.sig.variadic_index >= 0 || fd.sig.kwargs_index >= 0 {
-        return mlir_error(decl, "only non-throwing ordinary functions are supported", lp)
+        return mlir_error(decl, "only ordinary non-capturing functions are supported", lp)
+    }
+    for error_type : Str in fd.sig.throw_types {
+        if error_type != "OutOfBounds" { return mlir_error(decl, "only OutOfBounds propagation is supported", lp) }
     }
     if fd.sig.return_own_type.is(OwnType.Ref) { return mlir_error(decl, "borrowed returns are not supported", lp) }
     mut state := MlirState()
     state.functions = functions.clone()
+    if fd.sig.throw_types.len() > 0 {
+        state.error_parameter = "_err_kind"
+        // The existing caller ABI starts each error-out transaction at zero.
+        state.error_known_clear = true
+    }
     mut signature := ""
     mut slots : USize = 0
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
+        if t == "!llvm.ptr" && p.own_type.is(OwnType.Ref) {
+            if i > 0 { signature = format(signature, ", ") }
+            arg := format("%p", i.to_str())
+            signature = format(signature, arg, ": !llvm.ptr")
+            state.values.set(p.name, own MlirBinding(value = arg, type_name = t.clone()))
+            continue
+        }
+        if p.name == state.error_parameter && t == "i64" && p.own_type.is(OwnType.Ref) && p.is_mut {
+            if i > 0 { signature = format(signature, ", ") }
+            arg := format("%p", i.to_str())
+            signature = format(signature, arg, ": !llvm.ptr")
+            state.values.set(p.name, own MlirBinding(value = arg, type_name = t.clone(), is_mut = true, is_ref = true, is_signed = true))
+            continue
+        }
+        if t == "!llvm.ptr" { return mlir_error(decl, "Array(F32) parameters must be borrowed, not own or shallow", lp) }
         if t.len() == 0 || t == "void" || p.is_mut || p.own_type.is(OwnType.Ref).or(p.own_type.is(OwnType.Own)) {
             return mlir_error(decl, format("parameters of '", dd.name, "' must be supported immutable values"), lp)
         }
@@ -685,11 +900,11 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgra
     if fd.sig.return_type.len() > 0 {
         ret = mlir_type(type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols), lp)
     }
-    if ret.len() == 0 { return mlir_error(decl, "unsupported return type", lp) }
+    if ret.len() == 0 || ret == "!llvm.ptr" { return mlir_error(decl, "unsupported return type", lp) }
     if dd.name == "main" && (ret != "void" || fd.sig.params.len() > 0) {
         return mlir_error(decl, "main must take no arguments and return no value", lp)
     }
-    mlir_collect_error_slots(fexpr.children[0], state.error_slots, lp)
+    if state.error_parameter.len() == 0 { mlir_collect_error_slots(fexpr.children[0], state.error_slots, lp) }
     mlir_body(fexpr.children[0], ret, state, lp)
     if state.terminated.not() {
         if ret != "void" { return mlir_error(decl, "missing value return", lp) }
