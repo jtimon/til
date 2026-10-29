@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -24,9 +24,9 @@ struct InterpCallableBox {
     ref mut func_def : Expr
     mut env : Option__Scope
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: InterpCallableBox) returns InterpCallableBox
-    func delete(own self: InterpCallableBox, shallow call_free: Bool)
+    func delete(own self: InterpCallableBox, call_free: Bool = true)
 }
 #+end_src
 
@@ -63,9 +63,9 @@ struct HeapBinding {
     mut ext_target_layout : Bool
     mut foreign_root : UPtr
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: HeapBinding) returns HeapBinding
-    func delete(own self: HeapBinding, shallow call_free: Bool)
+    func delete(own self: HeapBinding, call_free: Bool = true)
 }
 #+end_src
 
@@ -82,10 +82,10 @@ struct Scope {
     mut parent : Option__ref_Scope
     mut is_call_scope : Bool
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: Scope) returns Scope
-    func delete(own self: Scope, shallow call_free: Bool)
-    func hash(self: Scope, hasher: HashFn) returns shallow U64
+    func delete(own self: Scope, call_free: Bool = true)
+    func hash(self: Scope, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -105,10 +105,10 @@ struct InterpSession {
     mut capture_output : Bool
     mut evaluated_units : Set__Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: InterpSession) returns InterpSession
-    func delete(own self: InterpSession, shallow call_free: Bool)
-    func hash(self: InterpSession, hasher: HashFn) returns shallow U64
+    func delete(own self: InterpSession, call_free: Bool = true)
+    func hash(self: InterpSession, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -135,10 +135,10 @@ struct TilVmError {
     mut exit_status : Option__I64
 namespace:
     func to_str(self: TilVmError) returns Str
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: TilVmError) returns TilVmError
-    func delete(own self: TilVmError, shallow call_free: Bool)
-    func hash(self: TilVmError, hasher: HashFn) returns shallow U64
+    func delete(own self: TilVmError, call_free: Bool = true)
+    func hash(self: TilVmError, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -154,15 +154,12 @@ checker. The slot owns a clone in the existing evaluator representation.
 
 #+begin_src til
 struct TilVmCallback {
-    mut session : Option__ref_InterpSession
-    own mut callable : U8
 namespace:
-    proc lookup(mut session: InterpSession, name: Str, mut _err_kind: I64, mut _err_TilVmError: TilVmError, signature: Type) returns TilVmCallback
-    proc call(mut self: TilVmCallback, mut _err_kind: I64, mut _err_TilVmError: TilVmError, mut arguments: Tuple) returns Tuple
-    func close(mut self: TilVmCallback)
+    proc lookup(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
+    proc call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
     func clone(self: TilVmCallback) returns TilVmCallback
-    func delete(own self: TilVmCallback, shallow call_free: Bool)
-    func size() returns shallow U64
+    func delete(own self: TilVmCallback, call_free: Bool = true)
+    func size() returns U64
 }
 #+end_src
 
@@ -177,7 +174,7 @@ including on failure. Results are owned copies independent of the VM.
 Panic/exit preserve this handle and session; earlier effects remain.
 
 #+begin_src til
-proc TilVmCallback.call(mut self: TilVmCallback, mut _err_kind: I64, mut _err_TilVmError: TilVmError, mut arguments: Tuple) returns Tuple
+proc TilVmCallback.call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
 #+end_src
 
 * InterpRunResult
@@ -192,10 +189,10 @@ struct InterpRunResult {
     mut exit_code : Option__I64
     mut output : Vec__InterpOutputEvent
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: InterpRunResult) returns InterpRunResult
-    func delete(own self: InterpRunResult, shallow call_free: Bool)
-    func hash(self: InterpRunResult, hasher: HashFn) returns shallow U64
+    func delete(own self: InterpRunResult, call_free: Bool = true)
+    func hash(self: InterpRunResult, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -206,7 +203,7 @@ namespace:
 :END:
 
 #+begin_src til
-func lookup_interp_type_def(name: Str, ctx: Context) returns shallow Option__ref_Expr
+func lookup_interp_type_def(name: Str, ctx: Context) returns Option__ref_Expr
 #+end_src
 
 * enum_data_tag_key
@@ -216,7 +213,7 @@ func lookup_interp_type_def(name: Str, ctx: Context) returns shallow Option__ref
 :END:
 
 #+begin_src til
-func enum_data_tag_key(data: Dynamic, enum_def: Expr) returns shallow I64
+func enum_data_tag_key(data: Dynamic, enum_def: Expr) returns I64
 #+end_src
 
 * raw_type_is_prim
@@ -226,7 +223,7 @@ func enum_data_tag_key(data: Dynamic, enum_def: Expr) returns shallow I64
 :END:
 
 #+begin_src til
-func raw_type_is_prim(shallow t: Type, ctx: Context) returns shallow Bool
+func raw_type_is_prim(shallow t: Type, ctx: Context) returns Bool
 #+end_src
 
 * scalar_word_load
@@ -246,7 +243,7 @@ func scalar_word_load(shallow t: Type, addr: Dynamic, ctx: Context) returns Dyna
 :END:
 
 #+begin_src til
-func field_word_type(shallow ft: Type, shallow field_size: U64, ctx: Context) returns Type
+func field_word_type(shallow ft: Type, field_size: U64, ctx: Context) returns Type
 #+end_src
 
 * scalar_block_from_word
@@ -286,7 +283,7 @@ WORD_RING_SLOTS is a USize
 :END:
 
 #+begin_src til
-proc raw_result_drop(shallow t: Type, mut raw: Dynamic, shallow return_is_ref: Bool, ctx: Context)
+proc raw_result_drop(shallow t: Type, mut raw: Dynamic, return_is_ref: Bool, ctx: Context)
 #+end_src
 
 * scope_set_raw_owned
@@ -296,7 +293,7 @@ proc raw_result_drop(shallow t: Type, mut raw: Dynamic, shallow return_is_ref: B
 :END:
 
 #+begin_src til
-func scope_set_raw_owned(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic, own_type: OwnType, ctx: Context, shallow borrowed: Bool)
+func scope_set_raw_owned(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic, own_type: OwnType, ctx: Context, borrowed: Bool = false)
 #+end_src
 
 * eval_expr_raw
@@ -306,7 +303,17 @@ func scope_set_raw_owned(mut scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic
 :END:
 
 #+begin_src til
-proc eval_expr_raw(mut scope: Scope, mut e: Expr, mut ctx: Context, mut destination: Dynamic) returns Dynamic
+proc eval_expr_raw(mut scope: Scope, mut e: Expr, mut ctx: Context, mut destination: Dynamic = bits_word(0)) returns Dynamic
+#+end_src
+
+* eval_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.eval_body
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc eval_body(mut scope: Scope, mut body: Expr, mut ctx: Context)
 #+end_src
 
 * container_elem_type
@@ -326,7 +333,7 @@ func container_elem_type(struct_name: Str, ctx: Context) returns Str
 :END:
 
 #+begin_src til
-func container_elem_size(elem_type: Str, ctx: Context) returns shallow U64
+func container_elem_size(elem_type: Str, ctx: Context) returns U64
 #+end_src
 
 * container_live_count
@@ -336,7 +343,7 @@ func container_elem_size(elem_type: Str, ctx: Context) returns shallow U64
 :END:
 
 #+begin_src til
-func container_live_count(struct_name: Str, data: Dynamic, ctx: Context) returns shallow U64
+func container_live_count(struct_name: Str, data: Dynamic, ctx: Context) returns U64
 #+end_src
 
 * container_capacity
@@ -346,7 +353,7 @@ func container_live_count(struct_name: Str, data: Dynamic, ctx: Context) returns
 :END:
 
 #+begin_src til
-func container_capacity(struct_name: Str, data: Dynamic, ctx: Context) returns shallow U64
+func container_capacity(struct_name: Str, data: Dynamic, ctx: Context) returns U64
 #+end_src
 
 * scope_get
@@ -356,7 +363,7 @@ func container_capacity(struct_name: Str, data: Dynamic, ctx: Context) returns s
 :END:
 
 #+begin_src til
-func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Dynamic
+func scope_get(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFound
 #+end_src
 
 * scope_pool_drain
@@ -386,7 +393,7 @@ func scope_new(parent: Option__ref_Scope) returns Scope
 :END:
 
 #+begin_src til
-func scope_lookup_heap_binding(mut s: Scope, name: Str) returns shallow Option__ref_HeapBinding
+func scope_lookup_heap_binding(mut s: Scope, name: Str) returns Option__ref_HeapBinding
 #+end_src
 
 * hb_func_def
@@ -396,7 +403,7 @@ func scope_lookup_heap_binding(mut s: Scope, name: Str) returns shallow Option__
 :END:
 
 #+begin_src til
-func hb_func_def(hb: HeapBinding) returns shallow Option__ref_Expr
+func hb_func_def(hb: HeapBinding) returns Option__ref_Expr
 #+end_src
 
 * ns_func_def
@@ -406,7 +413,7 @@ func hb_func_def(hb: HeapBinding) returns shallow Option__ref_Expr
 :END:
 
 #+begin_src til
-func ns_func_def(sname: Str, fname: Str, mut ctx: Context) returns shallow Option__ref_Expr
+func ns_func_def(sname: Str, fname: Str, mut ctx: Context) returns Option__ref_Expr
 #+end_src
 
 * ns_func_def_sym
@@ -416,7 +423,7 @@ func ns_func_def(sname: Str, fname: Str, mut ctx: Context) returns shallow Optio
 :END:
 
 #+begin_src til
-func ns_func_def_sym(sname: U32, fname: Str, mut ctx: Context) returns shallow Option__ref_Expr
+func ns_func_def_sym(sname: U32, fname: Str, mut ctx: Context) returns Option__ref_Expr
 #+end_src
 
 * scope_read_bound_raw
@@ -446,7 +453,7 @@ func interp_intern_type(shallow t: Type, mut ctx: Context) returns Dynamic
 :END:
 
 #+begin_src til
-func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: Dynamic, own_type: OwnType, ctx: Context, shallow is_local: Bool, shallow is_borrowed: Bool, shallow is_erased_dynamic: Bool)
+func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: Dynamic, own_type: OwnType, ctx: Context, is_local: Bool, is_borrowed: Bool = false, is_erased_dynamic: Bool = false)
 #+end_src
 
 * scope_set_heap_moved
@@ -456,7 +463,7 @@ func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: Dyn
 :END:
 
 #+begin_src til
-func scope_set_heap_moved(mut s: Scope, name: Str, shallow moved_out: Bool)
+func scope_set_heap_moved(mut s: Scope, name: Str, moved_out: Bool)
 #+end_src
 
 * scope_new_owned
@@ -526,7 +533,7 @@ proc interpreter_init_ns(mut ctx: Context, mut global: Scope, mut program: Expr)
 :END:
 
 #+begin_src til
-func ns_get(sname: Str, fname: Str, mut ctx: Context) returns shallow Option__ref_Dynamic
+func ns_get(sname: Str, fname: Str, mut ctx: Context) returns Option__ref_Dynamic
 #+end_src
 
 * interpreter_free_ns
@@ -546,7 +553,7 @@ func interpreter_free_ns(mut ctx: Context)
 :END:
 
 #+begin_src til
-func str_cap_at(str_base: Dynamic, ctx: Context) returns shallow U64
+func str_cap_at(str_base: Dynamic, ctx: Context) returns U64
 #+end_src
 
 * str_count_at
@@ -556,7 +563,7 @@ func str_cap_at(str_base: Dynamic, ctx: Context) returns shallow U64
 :END:
 
 #+begin_src til
-func str_count_at(str_base: Dynamic, ctx: Context) returns shallow U64
+func str_count_at(str_base: Dynamic, ctx: Context) returns U64
 #+end_src
 
 * read_field
@@ -566,7 +573,7 @@ func str_count_at(str_base: Dynamic, ctx: Context) returns shallow U64
 :END:
 
 #+begin_src til
-func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U64, shallow field_size: U64, ctx: Context) returns Dynamic
+func read_field(inst_data: Dynamic, dd: Declaration, field_offset: U64, field_size: U64, ctx: Context) returns Dynamic
 #+end_src
 
 * interp_session_lookup_function
@@ -576,7 +583,7 @@ func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U64, 
 :END:
 
 #+begin_src til
-proc interp_session_lookup_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig) returns shallow Option__ref_HeapBinding
+proc interp_session_lookup_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig) returns Option__ref_HeapBinding
 #+end_src
 
 * interp_session_call_function
@@ -586,7 +593,7 @@ proc interp_session_lookup_function(mut session: InterpSession, mut lp: LoadedPr
 :END:
 
 #+begin_src til
-proc interp_session_call_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig, mut arguments: Tuple) returns shallow Option__Tuple
+proc interp_session_call_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig, mut arguments: Tuple) returns Option__Tuple
 #+end_src
 
 * interp_session_start
@@ -656,7 +663,7 @@ func interp_session_result(mut ctx: Context) returns InterpRunResult
 :END:
 
 #+begin_src til
-proc interp_session_prepare_context(mut session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns shallow I32
+proc interp_session_prepare_context(mut session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32
 #+end_src
 
 * interp_session_finish_context
@@ -706,7 +713,7 @@ proc interp_session_eval_imported_once(mut session: InterpSession, mut lp: Loade
 :END:
 
 #+begin_src til
-proc interp_session_eval_current_root(mut session: InterpSession, mut lp: LoadedProgram, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32) returns shallow Bool
+proc interp_session_eval_current_root(mut session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) returns Bool
 #+end_src
 
 * interp_session_eval_current_tail
@@ -716,7 +723,7 @@ proc interp_session_eval_current_root(mut session: InterpSession, mut lp: Loaded
 :END:
 
 #+begin_src til
-proc interp_session_eval_current_tail(mut session: InterpSession, mut lp: LoadedProgram, shallow start_idx: U64, shallow count: U64) returns shallow Bool
+proc interp_session_eval_current_tail(mut session: InterpSession, mut lp: LoadedProgram, start_idx: U64, count: U64) returns Bool
 #+end_src
 
 * cmd_interpret
@@ -726,7 +733,7 @@ proc interp_session_eval_current_tail(mut session: InterpSession, mut lp: Loaded
 :END:
 
 #+begin_src til
-proc cmd_interpret(mut lp: LoadedProgram, user_argv: Vec__Str) returns shallow I32
+proc cmd_interpret(mut lp: LoadedProgram, user_argv: Vec__Str) returns I32
 #+end_src
 
 * FFIEntry
@@ -753,8 +760,8 @@ struct FFIEntry {
     mut throw_kind_index : I64
 namespace:
     func clone(self: FFIEntry) returns FFIEntry
-    func size() returns shallow U64
-    func delete(own self: FFIEntry, shallow call_free: Bool)
+    func size() returns U64
+    func delete(own self: FFIEntry, call_free: Bool = true)
 }
 #+end_src
 
@@ -768,9 +775,9 @@ namespace:
 struct ExprPtrBox {
     ref mut ptr : Expr
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: ExprPtrBox) returns ExprPtrBox
-    func delete(own self: ExprPtrBox, shallow call_free: Bool)
+    func delete(own self: ExprPtrBox, call_free: Bool = true)
 }
 #+end_src
 
@@ -787,8 +794,8 @@ struct FFITypePtrBox {
     mut layout_status : I32
 namespace:
     func clone(self: FFITypePtrBox) returns FFITypePtrBox
-    func size() returns shallow U64
-    func delete(own self: FFITypePtrBox, shallow call_free: Bool)
+    func size() returns U64
+    func delete(own self: FFITypePtrBox, call_free: Bool = true)
 }
 #+end_src
 
@@ -909,7 +916,7 @@ func str_copy_into(mut result: Dynamic, src: Str, ctx: Context)
 :END:
 
 #+begin_src til
-proc ffi_init_scan_program(program: Expr, mut ctx: Context, shallow runtime_decl: Bool)
+proc ffi_init_scan_program(program: Expr, mut ctx: Context, runtime_decl: Bool = false)
 #+end_src
 
 * ffi_cleanup
@@ -943,17 +950,17 @@ enum Option__ref_InterpSession {
     None
     Some: InterpSession
 namespace:
-    func is_some(shallow self: Option__ref_InterpSession) returns shallow Bool
-    func is_none(shallow self: Option__ref_InterpSession) returns shallow Bool
+    func is_some(self: Option__ref_InterpSession) returns Bool
+    func is_none(self: Option__ref_InterpSession) returns Bool
     func unwrap_or(self: Option__ref_InterpSession, default_v: InterpSession) returns ref InterpSession
     func unwrap(self: Option__ref_InterpSession) returns ref InterpSession
     func take(own self: Option__ref_InterpSession) returns ref InterpSession
-    ext_func None() returns shallow Option__ref_InterpSession
-    ext_func Some(val: InterpSession) returns shallow Option__ref_InterpSession
-    core_func is(self: Option__ref_InterpSession, other: Option__ref_InterpSession) returns shallow Bool
-    func delete(own self: Option__ref_InterpSession, shallow call_free: Bool)
-    func clone(self: Option__ref_InterpSession) returns shallow Option__ref_InterpSession
-    func size() returns shallow U64
+    ext_func None() returns Option__ref_InterpSession
+    ext_func Some(val: InterpSession) returns Option__ref_InterpSession
+    core_func is(self: Option__ref_InterpSession, other: Option__ref_InterpSession) returns Bool
+    func delete(own self: Option__ref_InterpSession, call_free: Bool = true)
+    func clone(self: Option__ref_InterpSession) returns Option__ref_InterpSession
+    func size() returns U64
 }
 #+end_src
 
@@ -1004,25 +1011,25 @@ enum Option__ref_U8 {
     None
     Some: U8
 namespace:
-    func is_some(shallow self: Option__ref_U8) returns shallow Bool
-    func is_none(shallow self: Option__ref_U8) returns shallow Bool
+    func is_some(self: Option__ref_U8) returns Bool
+    func is_none(self: Option__ref_U8) returns Bool
     func unwrap_or(self: Option__ref_U8, default_v: U8) returns ref U8
     func unwrap(self: Option__ref_U8) returns ref U8
     func take(own self: Option__ref_U8) returns ref U8
-    ext_func None() returns shallow Option__ref_U8
-    ext_func Some(val: U8) returns shallow Option__ref_U8
-    core_func is(self: Option__ref_U8, other: Option__ref_U8) returns shallow Bool
-    func eq(shallow self: Option__ref_U8, shallow other: Option__ref_U8) returns shallow Bool
-    func delete(own self: Option__ref_U8, shallow call_free: Bool)
-    func cmp(shallow a: Option__ref_U8, shallow b: Option__ref_U8) returns shallow I64
-    func to_str(shallow self: Option__ref_U8) returns Str
-    func clone(self: Option__ref_U8) returns shallow Option__ref_U8
-    func size() returns shallow U64
-    func lt(shallow a: Option__ref_U8, shallow b: Option__ref_U8) returns shallow Bool
-    func gt(shallow a: Option__ref_U8, shallow b: Option__ref_U8) returns shallow Bool
-    func neq(shallow a: Option__ref_U8, shallow b: Option__ref_U8) returns shallow Bool
-    func lte(shallow a: Option__ref_U8, shallow b: Option__ref_U8) returns shallow Bool
-    func gte(shallow a: Option__ref_U8, shallow b: Option__ref_U8) returns shallow Bool
+    ext_func None() returns Option__ref_U8
+    ext_func Some(val: U8) returns Option__ref_U8
+    core_func is(self: Option__ref_U8, other: Option__ref_U8) returns Bool
+    func eq(self: Option__ref_U8, other: Option__ref_U8) returns Bool
+    func delete(own self: Option__ref_U8, call_free: Bool = true)
+    func cmp(a: Option__ref_U8, b: Option__ref_U8) returns I64
+    func to_str(self: Option__ref_U8) returns Str
+    func clone(self: Option__ref_U8) returns Option__ref_U8
+    func size() returns U64
+    func lt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
+    func gt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
+    func neq(a: Option__ref_U8, b: Option__ref_U8) returns Bool
+    func lte(a: Option__ref_U8, b: Option__ref_U8) returns Bool
+    func gte(a: Option__ref_U8, b: Option__ref_U8) returns Bool
 }
 #+end_src
 
@@ -1075,8 +1082,8 @@ struct Vec__priv___src_self_interpreter_til__InterfaceCallBox {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func len(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+    func len(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns U64
     func clear(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox)
     func delete_marked(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, own val: priv___src_self_interpreter_til__InterfaceCallBox)
@@ -1085,17 +1092,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut dest: Vec__priv___src_self_interpreter_til__InterfaceCallBox)
     func move_from(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, own other: Vec__priv___src_self_interpreter_til__InterfaceCallBox)
     func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox
-    func get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterfaceCallBox
+    func get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns priv___src_self_interpreter_til__InterfaceCallBox
-    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox)
-    func set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox)
+    func set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64)
+    func delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1129,7 +1136,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.with_capacity(shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.clear
@@ -1271,7 +1278,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterfaceCallBox
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop
@@ -1296,7 +1303,7 @@ func Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop(mut self: Vec__p
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.remove_at(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.remove_at(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix
@@ -1309,7 +1316,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate
@@ -1324,7 +1331,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow n: U64)
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set
@@ -1338,7 +1345,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox)
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.set
@@ -1352,7 +1359,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take
@@ -1366,7 +1373,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64)
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete
@@ -1379,7 +1386,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow call_free: Bool)
+func Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterfaceCallBox.clone
@@ -1406,17 +1413,17 @@ struct Map__Str_HeapBinding {
     mut values : Vec__HeapBinding
 namespace:
     func new() returns Map__Str_HeapBinding
-    func with_capacity(shallow n: U64) returns Map__Str_HeapBinding
-    func len(self: Map__Str_HeapBinding) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_HeapBinding
+    func len(self: Map__Str_HeapBinding) returns U64
     func clear(mut self: Map__Str_HeapBinding)
-    func has(self: Map__Str_HeapBinding, key: Str) returns shallow Bool
-    func get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64) returns ref HeapBinding
+    func has(self: Map__Str_HeapBinding, key: Str) returns Bool
+    func get(self: Map__Str_HeapBinding, key: Str) returns ref HeapBinding throws KeyNotFound
     func set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
-    func remove(mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
+    func remove(mut self: Map__Str_HeapBinding, key: Str) returns Bool
+    func delete(own self: Map__Str_HeapBinding, call_free: Bool = true)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
-    func size() returns shallow U64
-    func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -1444,7 +1451,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_HeapBinding.with_capacity(shallow n: U64) returns Map__Str_HeapBinding
+func Map__Str_HeapBinding.with_capacity(n: U64) returns Map__Str_HeapBinding
 #+end_src
 
 * Map__Str_HeapBinding.clear
@@ -1468,7 +1475,7 @@ func Map__Str_HeapBinding.clear(mut self: Map__Str_HeapBinding)
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_HeapBinding.has(self: Map__Str_HeapBinding, key: Str) returns shallow Bool
+func Map__Str_HeapBinding.has(self: Map__Str_HeapBinding, key: Str) returns Bool
 #+end_src
 
 * Map__Str_HeapBinding.get
@@ -1482,7 +1489,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_HeapBinding.get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64) returns ref HeapBinding
+func Map__Str_HeapBinding.get(self: Map__Str_HeapBinding, key: Str) returns ref HeapBinding throws KeyNotFound
 #+end_src
 
 * Map__Str_HeapBinding.set
@@ -1506,7 +1513,7 @@ func Map__Str_HeapBinding.set(mut self: Map__Str_HeapBinding, key: Str, own val:
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_HeapBinding.remove(mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
+func Map__Str_HeapBinding.remove(mut self: Map__Str_HeapBinding, key: Str) returns Bool
 #+end_src
 
 * Option__ref_Dynamic
@@ -1520,17 +1527,17 @@ enum Option__ref_Dynamic {
     None
     Some: Dynamic
 namespace:
-    func is_some(shallow self: Option__ref_Dynamic) returns shallow Bool
-    func is_none(shallow self: Option__ref_Dynamic) returns shallow Bool
+    func is_some(self: Option__ref_Dynamic) returns Bool
+    func is_none(self: Option__ref_Dynamic) returns Bool
     func unwrap_or(self: Option__ref_Dynamic, default_v: Dynamic) returns ref Dynamic
     func unwrap(self: Option__ref_Dynamic) returns ref Dynamic
     func take(own self: Option__ref_Dynamic) returns ref Dynamic
-    ext_func None() returns shallow Option__ref_Dynamic
-    ext_func Some(val: Dynamic) returns shallow Option__ref_Dynamic
-    core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns shallow Bool
-    func delete(own self: Option__ref_Dynamic, shallow call_free: Bool)
-    func clone(self: Option__ref_Dynamic) returns shallow Option__ref_Dynamic
-    func size() returns shallow U64
+    ext_func None() returns Option__ref_Dynamic
+    ext_func Some(val: Dynamic) returns Option__ref_Dynamic
+    core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns Bool
+    func delete(own self: Option__ref_Dynamic, call_free: Bool = true)
+    func clone(self: Option__ref_Dynamic) returns Option__ref_Dynamic
+    func size() returns U64
 }
 #+end_src
 
@@ -1581,19 +1588,19 @@ enum Option__FuncSig {
     None
     Some: FuncSig
 namespace:
-    func is_some(shallow self: Option__FuncSig) returns shallow Bool
-    func is_none(shallow self: Option__FuncSig) returns shallow Bool
-    func unwrap_or(shallow self: Option__FuncSig, default_v: FuncSig) returns FuncSig
-    func unwrap(shallow self: Option__FuncSig) returns FuncSig
+    func is_some(self: Option__FuncSig) returns Bool
+    func is_none(self: Option__FuncSig) returns Bool
+    func unwrap_or(self: Option__FuncSig, default_v: FuncSig) returns FuncSig
+    func unwrap(self: Option__FuncSig) returns FuncSig
     func take(own self: Option__FuncSig) returns FuncSig
-    ext_func None() returns shallow Option__FuncSig
-    ext_func Some(own val: FuncSig) returns shallow Option__FuncSig
-    core_func is(self: Option__FuncSig, other: Option__FuncSig) returns shallow Bool
-    func eq(shallow self: Option__FuncSig, shallow other: Option__FuncSig) returns shallow Bool
-    func delete(own self: Option__FuncSig, shallow call_free: Bool)
-    func to_str(shallow self: Option__FuncSig) returns Str
-    func clone(shallow self: Option__FuncSig) returns shallow Option__FuncSig
-    func size() returns shallow U64
+    ext_func None() returns Option__FuncSig
+    ext_func Some(own val: FuncSig) returns Option__FuncSig
+    core_func is(self: Option__FuncSig, other: Option__FuncSig) returns Bool
+    func eq(self: Option__FuncSig, other: Option__FuncSig) returns Bool
+    func delete(own self: Option__FuncSig, call_free: Bool = true)
+    func to_str(self: Option__FuncSig) returns Str
+    func clone(self: Option__FuncSig) returns Option__FuncSig
+    func size() returns U64
 }
 #+end_src
 
@@ -1612,7 +1619,7 @@ unreachable by construction, so it fails loudly if that ever
 stops being true.
 
 #+begin_src til
-func Option__FuncSig.unwrap(shallow self: Option__FuncSig) returns FuncSig
+func Option__FuncSig.unwrap(self: Option__FuncSig) returns FuncSig
 #+end_src
 
 * Option__FuncSig.take
@@ -1644,17 +1651,17 @@ enum Option__ref_HeapBinding {
     None
     Some: HeapBinding
 namespace:
-    func is_some(shallow self: Option__ref_HeapBinding) returns shallow Bool
-    func is_none(shallow self: Option__ref_HeapBinding) returns shallow Bool
+    func is_some(self: Option__ref_HeapBinding) returns Bool
+    func is_none(self: Option__ref_HeapBinding) returns Bool
     func unwrap_or(self: Option__ref_HeapBinding, default_v: HeapBinding) returns ref HeapBinding
     func unwrap(self: Option__ref_HeapBinding) returns ref HeapBinding
     func take(own self: Option__ref_HeapBinding) returns ref HeapBinding
-    ext_func None() returns shallow Option__ref_HeapBinding
-    ext_func Some(val: HeapBinding) returns shallow Option__ref_HeapBinding
-    core_func is(self: Option__ref_HeapBinding, other: Option__ref_HeapBinding) returns shallow Bool
-    func delete(own self: Option__ref_HeapBinding, shallow call_free: Bool)
-    func clone(self: Option__ref_HeapBinding) returns shallow Option__ref_HeapBinding
-    func size() returns shallow U64
+    ext_func None() returns Option__ref_HeapBinding
+    ext_func Some(val: HeapBinding) returns Option__ref_HeapBinding
+    core_func is(self: Option__ref_HeapBinding, other: Option__ref_HeapBinding) returns Bool
+    func delete(own self: Option__ref_HeapBinding, call_free: Bool = true)
+    func clone(self: Option__ref_HeapBinding) returns Option__ref_HeapBinding
+    func size() returns U64
 }
 #+end_src
 
@@ -1705,17 +1712,17 @@ enum Option__Tuple {
     None
     Some: Tuple
 namespace:
-    func is_some(shallow self: Option__Tuple) returns shallow Bool
-    func is_none(shallow self: Option__Tuple) returns shallow Bool
-    func unwrap_or(shallow self: Option__Tuple, default_v: Tuple) returns Tuple
-    func unwrap(shallow self: Option__Tuple) returns Tuple
+    func is_some(self: Option__Tuple) returns Bool
+    func is_none(self: Option__Tuple) returns Bool
+    func unwrap_or(self: Option__Tuple, default_v: Tuple) returns Tuple
+    func unwrap(self: Option__Tuple) returns Tuple
     func take(own self: Option__Tuple) returns Tuple
-    ext_func None() returns shallow Option__Tuple
-    ext_func Some(own val: Tuple) returns shallow Option__Tuple
-    core_func is(self: Option__Tuple, other: Option__Tuple) returns shallow Bool
-    func delete(own self: Option__Tuple, shallow call_free: Bool)
-    func clone(shallow self: Option__Tuple) returns shallow Option__Tuple
-    func size() returns shallow U64
+    ext_func None() returns Option__Tuple
+    ext_func Some(own val: Tuple) returns Option__Tuple
+    core_func is(self: Option__Tuple, other: Option__Tuple) returns Bool
+    func delete(own self: Option__Tuple, call_free: Bool = true)
+    func clone(self: Option__Tuple) returns Option__Tuple
+    func size() returns U64
 }
 #+end_src
 
@@ -1734,7 +1741,7 @@ unreachable by construction, so it fails loudly if that ever
 stops being true.
 
 #+begin_src til
-func Option__Tuple.unwrap(shallow self: Option__Tuple) returns Tuple
+func Option__Tuple.unwrap(self: Option__Tuple) returns Tuple
 #+end_src
 
 * Option__Tuple.take
@@ -1768,8 +1775,8 @@ struct Vec__priv___src_self_interpreter_til__DynPtrBox {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func len(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func len(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns U64
     func clear(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox)
     func delete_marked(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
@@ -1778,17 +1785,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut dest: Vec__priv___src_self_interpreter_til__DynPtrBox)
     func move_from(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own other: Vec__priv___src_self_interpreter_til__DynPtrBox)
     func unsafe_get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox
-    func get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
-    func remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, own val: priv___src_self_interpreter_til__DynPtrBox)
-    func set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox)
+    func set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64)
+    func delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1822,7 +1829,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity(shallow n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.clear
@@ -1964,7 +1971,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.pop
@@ -1989,7 +1996,7 @@ func Vec__priv___src_self_interpreter_til__DynPtrBox.pop(mut self: Vec__priv___s
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix
@@ -2002,7 +2009,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+func Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.truncate
@@ -2017,7 +2024,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow n: U64)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set
@@ -2031,7 +2038,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, own val: priv___src_self_interpreter_til__DynPtrBox)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.set
@@ -2045,7 +2052,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.push_take
@@ -2059,7 +2066,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.delete
@@ -2072,7 +2079,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__DynPtrBox.delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow call_free: Bool)
+func Vec__priv___src_self_interpreter_til__DynPtrBox.delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__DynPtrBox.clone
@@ -2100,8 +2107,8 @@ struct Vec__priv___src_self_interpreter_til__InterpAlias {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func len(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func len(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns U64
     func clear(mut self: Vec__priv___src_self_interpreter_til__InterpAlias)
     func delete_marked(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
@@ -2110,17 +2117,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_interpreter_til__InterpAlias, mut dest: Vec__priv___src_self_interpreter_til__InterpAlias)
     func move_from(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own other: Vec__priv___src_self_interpreter_til__InterpAlias)
     func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) returns ref priv___src_self_interpreter_til__InterpAlias
-    func get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+    func get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64) returns ref priv___src_self_interpreter_til__InterpAlias throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
-    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, own val: priv___src_self_interpreter_til__InterpAlias)
-    func set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias)
+    func set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64)
+    func delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -2154,7 +2161,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity(shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.clear
@@ -2296,7 +2303,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64) returns ref priv___src_self_interpreter_til__InterpAlias throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.pop
@@ -2321,7 +2328,7 @@ func Vec__priv___src_self_interpreter_til__InterpAlias.pop(mut self: Vec__priv__
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__InterpAlias.remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix
@@ -2334,7 +2341,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
+func Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.truncate
@@ -2349,7 +2356,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow n: U64)
+func Vec__priv___src_self_interpreter_til__InterpAlias.truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set
@@ -2363,7 +2370,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, own val: priv___src_self_interpreter_til__InterpAlias)
+func Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.set
@@ -2377,7 +2384,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64, own val: priv___src_self_interpreter_til__InterpAlias, mut _err_kind: I64)
+func Vec__priv___src_self_interpreter_til__InterpAlias.set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.push_take
@@ -2391,7 +2398,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64)
+func Vec__priv___src_self_interpreter_til__InterpAlias.push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.delete
@@ -2404,7 +2411,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_interpreter_til__InterpAlias.delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow call_free: Bool)
+func Vec__priv___src_self_interpreter_til__InterpAlias.delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_interpreter_til__InterpAlias.clone
@@ -2430,17 +2437,17 @@ enum Option__ref_ffi_type {
     None
     Some: ffi_type
 namespace:
-    func is_some(shallow self: Option__ref_ffi_type) returns shallow Bool
-    func is_none(shallow self: Option__ref_ffi_type) returns shallow Bool
+    func is_some(self: Option__ref_ffi_type) returns Bool
+    func is_none(self: Option__ref_ffi_type) returns Bool
     func unwrap_or(self: Option__ref_ffi_type, default_v: ffi_type) returns ref ffi_type
     func unwrap(self: Option__ref_ffi_type) returns ref ffi_type
     func take(own self: Option__ref_ffi_type) returns ref ffi_type
-    ext_func None() returns shallow Option__ref_ffi_type
-    ext_func Some(val: ffi_type) returns shallow Option__ref_ffi_type
-    core_func is(self: Option__ref_ffi_type, other: Option__ref_ffi_type) returns shallow Bool
-    func delete(own self: Option__ref_ffi_type, shallow call_free: Bool)
-    func clone(self: Option__ref_ffi_type) returns shallow Option__ref_ffi_type
-    func size() returns shallow U64
+    ext_func None() returns Option__ref_ffi_type
+    ext_func Some(val: ffi_type) returns Option__ref_ffi_type
+    core_func is(self: Option__ref_ffi_type, other: Option__ref_ffi_type) returns Bool
+    func delete(own self: Option__ref_ffi_type, call_free: Bool = true)
+    func clone(self: Option__ref_ffi_type) returns Option__ref_ffi_type
+    func size() returns U64
 }
 #+end_src
 
@@ -2491,17 +2498,17 @@ struct Array__U64 {
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: U64) returns Array__U64
-    func len(self: Array__U64) returns shallow U64
+    func new(cap: U64) returns Array__U64
+    func len(self: Array__U64) returns U64
     func unsafe_get(self: Array__U64, i: U64) returns ref U64
-    func get(self: Array__U64, shallow i: U64, mut _err_kind: I64) returns ref U64
-    func unsafe_set(mut self: Array__U64, shallow i: U64, own val: U64)
-    func set(mut self: Array__U64, shallow i: U64, own val: U64, mut _err_kind: I64)
-    func delete(own self: Array__U64, shallow call_free: Bool)
+    func get(self: Array__U64, shallow i: U64) returns ref U64 throws OutOfBounds
+    func unsafe_set(mut self: Array__U64, i: U64, own val: U64)
+    func set(mut self: Array__U64, i: U64, own val: U64) throws OutOfBounds
+    func delete(own self: Array__U64, call_free: Bool = true)
     func concat(self: Array__U64, other: Array__U64) returns Array__U64
     func to_vec(self: Array__U64) returns Vec__U64
     func clone(self: Array__U64) returns Array__U64
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -2514,7 +2521,7 @@ namespace:
 Create a zero-initialized Array with the given capacity.
 
 #+begin_src til
-func Array__U64.new(shallow cap: U64) returns Array__U64
+func Array__U64.new(cap: U64) returns Array__U64
 #+end_src
 
 * Array__U64.unsafe_get
@@ -2543,7 +2550,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__U64.get(self: Array__U64, shallow i: U64, mut _err_kind: I64) returns ref U64
+func Array__U64.get(self: Array__U64, shallow i: U64) returns ref U64 throws OutOfBounds
 #+end_src
 
 * Array__U64.unsafe_set
@@ -2557,7 +2564,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Array__U64.unsafe_set(mut self: Array__U64, shallow i: U64, own val: U64)
+func Array__U64.unsafe_set(mut self: Array__U64, i: U64, own val: U64)
 #+end_src
 
 * Array__U64.set
@@ -2571,7 +2578,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Array__U64.set(mut self: Array__U64, shallow i: U64, own val: U64, mut _err_kind: I64)
+func Array__U64.set(mut self: Array__U64, i: U64, own val: U64) throws OutOfBounds
 #+end_src
 
 * Array__U64.concat
@@ -2620,8 +2627,8 @@ struct Vec__HeapBinding {
     mut cap : USize
 namespace:
     func new() returns Vec__HeapBinding
-    func with_capacity(shallow n: U64) returns Vec__HeapBinding
-    func len(self: Vec__HeapBinding) returns shallow U64
+    func with_capacity(n: U64) returns Vec__HeapBinding
+    func len(self: Vec__HeapBinding) returns U64
     func clear(mut self: Vec__HeapBinding)
     func delete_marked(mut self: Vec__HeapBinding, marks: Dynamic)
     func push(mut self: Vec__HeapBinding, own val: HeapBinding)
@@ -2630,17 +2637,17 @@ namespace:
     func move_to(own self: Vec__HeapBinding, mut dest: Vec__HeapBinding)
     func move_from(mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
     func unsafe_get(self: Vec__HeapBinding, i: U64) returns ref HeapBinding
-    func get(self: Vec__HeapBinding, shallow i: U64, mut _err_kind: I64) returns ref HeapBinding
+    func get(self: Vec__HeapBinding, shallow i: U64) returns ref HeapBinding throws OutOfBounds
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
-    func remove_at(mut self: Vec__HeapBinding, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__HeapBinding, shallow n: U64) returns Vec__HeapBinding
-    func truncate(mut self: Vec__HeapBinding, shallow n: U64)
-    func unsafe_set(mut self: Vec__HeapBinding, shallow i: U64, own val: HeapBinding)
-    func set(mut self: Vec__HeapBinding, shallow i: U64, own val: HeapBinding, mut _err_kind: I64)
-    func push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, shallow i: U64)
-    func delete(own self: Vec__HeapBinding, shallow call_free: Bool)
+    func remove_at(mut self: Vec__HeapBinding, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__HeapBinding, n: U64) returns Vec__HeapBinding
+    func truncate(mut self: Vec__HeapBinding, n: U64)
+    func unsafe_set(mut self: Vec__HeapBinding, i: U64, own val: HeapBinding)
+    func set(mut self: Vec__HeapBinding, i: U64, own val: HeapBinding) throws OutOfBounds
+    func push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, i: U64)
+    func delete(own self: Vec__HeapBinding, call_free: Bool = true)
     func clone(self: Vec__HeapBinding) returns Vec__HeapBinding
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -2674,7 +2681,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__HeapBinding.with_capacity(shallow n: U64) returns Vec__HeapBinding
+func Vec__HeapBinding.with_capacity(n: U64) returns Vec__HeapBinding
 #+end_src
 
 * Vec__HeapBinding.clear
@@ -2816,7 +2823,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__HeapBinding.get(self: Vec__HeapBinding, shallow i: U64, mut _err_kind: I64) returns ref HeapBinding
+func Vec__HeapBinding.get(self: Vec__HeapBinding, shallow i: U64) returns ref HeapBinding throws OutOfBounds
 #+end_src
 
 * Vec__HeapBinding.pop
@@ -2841,7 +2848,7 @@ func Vec__HeapBinding.pop(mut self: Vec__HeapBinding) returns HeapBinding
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__HeapBinding.remove_at(mut self: Vec__HeapBinding, shallow i: U64, mut _err_kind: I64)
+func Vec__HeapBinding.remove_at(mut self: Vec__HeapBinding, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__HeapBinding.take_prefix
@@ -2854,7 +2861,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__HeapBinding.take_prefix(mut self: Vec__HeapBinding, shallow n: U64) returns Vec__HeapBinding
+func Vec__HeapBinding.take_prefix(mut self: Vec__HeapBinding, n: U64) returns Vec__HeapBinding
 #+end_src
 
 * Vec__HeapBinding.truncate
@@ -2869,7 +2876,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__HeapBinding.truncate(mut self: Vec__HeapBinding, shallow n: U64)
+func Vec__HeapBinding.truncate(mut self: Vec__HeapBinding, n: U64)
 #+end_src
 
 * Vec__HeapBinding.unsafe_set
@@ -2883,7 +2890,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__HeapBinding.unsafe_set(mut self: Vec__HeapBinding, shallow i: U64, own val: HeapBinding)
+func Vec__HeapBinding.unsafe_set(mut self: Vec__HeapBinding, i: U64, own val: HeapBinding)
 #+end_src
 
 * Vec__HeapBinding.set
@@ -2897,7 +2904,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__HeapBinding.set(mut self: Vec__HeapBinding, shallow i: U64, own val: HeapBinding, mut _err_kind: I64)
+func Vec__HeapBinding.set(mut self: Vec__HeapBinding, i: U64, own val: HeapBinding) throws OutOfBounds
 #+end_src
 
 * Vec__HeapBinding.push_take
@@ -2911,7 +2918,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__HeapBinding.push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, shallow i: U64)
+func Vec__HeapBinding.push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, i: U64)
 #+end_src
 
 * Vec__HeapBinding.delete
@@ -2924,7 +2931,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__HeapBinding.delete(own self: Vec__HeapBinding, shallow call_free: Bool)
+func Vec__HeapBinding.delete(own self: Vec__HeapBinding, call_free: Bool = true)
 #+end_src
 
 * Vec__HeapBinding.clone
@@ -2946,7 +2953,7 @@ func Vec__HeapBinding.clone(self: Vec__HeapBinding) returns Vec__HeapBinding
 :END:
 
 #+begin_src til
-func safe_ref__InterpSession(value: InterpSession) returns shallow Option__ref_InterpSession
+func safe_ref__InterpSession(value: InterpSession) returns Option__ref_InterpSession
 #+end_src
 
 * safe_ref__Dynamic
@@ -2956,7 +2963,7 @@ func safe_ref__InterpSession(value: InterpSession) returns shallow Option__ref_I
 :END:
 
 #+begin_src til
-func safe_ref__Dynamic(value: Dynamic) returns shallow Option__ref_Dynamic
+func safe_ref__Dynamic(value: Dynamic) returns Option__ref_Dynamic
 #+end_src
 
 * safe_ref__Expr
@@ -2966,7 +2973,7 @@ func safe_ref__Dynamic(value: Dynamic) returns shallow Option__ref_Dynamic
 :END:
 
 #+begin_src til
-func safe_ref__Expr(value: Expr) returns shallow Option__ref_Expr
+func safe_ref__Expr(value: Expr) returns Option__ref_Expr
 #+end_src
 
 * adopt__LoadedProgram
@@ -3036,7 +3043,7 @@ func adopt__priv___src_self_interpreter_til__InterpAlias(mut dest: Dynamic, own 
 :END:
 
 #+begin_src til
-func safe_ref__HeapBinding(value: HeapBinding) returns shallow Option__ref_HeapBinding
+func safe_ref__HeapBinding(value: HeapBinding) returns Option__ref_HeapBinding
 #+end_src
 
 * safe_ref__ffi_type
@@ -3046,5 +3053,5 @@ func safe_ref__HeapBinding(value: HeapBinding) returns shallow Option__ref_HeapB
 :END:
 
 #+begin_src til
-func safe_ref__ffi_type(value: ffi_type) returns shallow Option__ref_ffi_type
+func safe_ref__ffi_type(value: ffi_type) returns Option__ref_ffi_type
 #+end_src

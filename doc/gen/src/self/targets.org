@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * Lang
@@ -19,18 +19,18 @@ namespace:
     HolyC : I64
     TIL : I64
     Java : I64
-    core_func is(self: Lang, other: Lang) returns shallow Bool
-    func eq(self: Lang, other: Lang) returns shallow Bool
-    func delete(own self: Lang, shallow call_free: Bool)
-    func cmp(a: Lang, b: Lang) returns shallow I64
+    core_func is(self: Lang, other: Lang) returns Bool
+    func eq(self: Lang, other: Lang) returns Bool
+    func delete(own self: Lang, call_free: Bool = true)
+    func cmp(a: Lang, b: Lang) returns I64
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
-    func size() returns shallow U64
-    func lt(a: Lang, b: Lang) returns shallow Bool
-    func gt(a: Lang, b: Lang) returns shallow Bool
-    func neq(a: Lang, b: Lang) returns shallow Bool
-    func lte(a: Lang, b: Lang) returns shallow Bool
-    func gte(a: Lang, b: Lang) returns shallow Bool
+    func size() returns U64
+    func lt(a: Lang, b: Lang) returns Bool
+    func gt(a: Lang, b: Lang) returns Bool
+    func neq(a: Lang, b: Lang) returns Bool
+    func lte(a: Lang, b: Lang) returns Bool
+    func gte(a: Lang, b: Lang) returns Bool
 }
 #+end_src
 
@@ -69,18 +69,18 @@ namespace:
     Wasm32 : I64
     TempleosX86 : I64
     Jvm : I64
-    core_func is(self: Target, other: Target) returns shallow Bool
-    func eq(self: Target, other: Target) returns shallow Bool
-    func delete(own self: Target, shallow call_free: Bool)
-    func cmp(a: Target, b: Target) returns shallow I64
+    core_func is(self: Target, other: Target) returns Bool
+    func eq(self: Target, other: Target) returns Bool
+    func delete(own self: Target, call_free: Bool = true)
+    func cmp(a: Target, b: Target) returns I64
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
-    func size() returns shallow U64
-    func lt(a: Target, b: Target) returns shallow Bool
-    func gt(a: Target, b: Target) returns shallow Bool
-    func neq(a: Target, b: Target) returns shallow Bool
-    func lte(a: Target, b: Target) returns shallow Bool
-    func gte(a: Target, b: Target) returns shallow Bool
+    func size() returns U64
+    func lt(a: Target, b: Target) returns Bool
+    func gt(a: Target, b: Target) returns Bool
+    func neq(a: Target, b: Target) returns Bool
+    func lte(a: Target, b: Target) returns Bool
+    func gte(a: Target, b: Target) returns Bool
 }
 #+end_src
 
@@ -111,7 +111,7 @@ func target_to_str(target: Target) returns Str
 :END:
 
 #+begin_src til
-func is_windows_target(target: Target) returns shallow Bool
+func is_windows_target(target: Target) returns Bool
 #+end_src
 
 * target_uptr_name
@@ -141,7 +141,7 @@ func target_usize_name(target: Target) returns Str
 :END:
 
 #+begin_src til
-func target_simd_bits(target: Target) returns shallow U64
+func target_simd_bits(target: Target) returns U64
 #+end_src
 
 * TargetCpu
@@ -156,18 +156,18 @@ struct TargetCpu {
     mut simd_bits : USize
     mut c_flags : Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: TargetCpu) returns TargetCpu
-    func delete(own self: TargetCpu, shallow call_free: Bool)
-    func hash(self: TargetCpu, hasher: HashFn) returns shallow U64
-    func cmp(a: TargetCpu, b: TargetCpu) returns shallow I64
+    func delete(own self: TargetCpu, call_free: Bool = true)
+    func hash(self: TargetCpu, hasher: HashFn) returns U64
+    func cmp(a: TargetCpu, b: TargetCpu) returns I64
     func to_str(self: TargetCpu) returns Str
-    func eq(a: TargetCpu, b: TargetCpu) returns shallow Bool
-    func lt(a: TargetCpu, b: TargetCpu) returns shallow Bool
-    func gt(a: TargetCpu, b: TargetCpu) returns shallow Bool
-    func neq(a: TargetCpu, b: TargetCpu) returns shallow Bool
-    func lte(a: TargetCpu, b: TargetCpu) returns shallow Bool
-    func gte(a: TargetCpu, b: TargetCpu) returns shallow Bool
+    func eq(a: TargetCpu, b: TargetCpu) returns Bool
+    func lt(a: TargetCpu, b: TargetCpu) returns Bool
+    func gt(a: TargetCpu, b: TargetCpu) returns Bool
+    func neq(a: TargetCpu, b: TargetCpu) returns Bool
+    func lte(a: TargetCpu, b: TargetCpu) returns Bool
+    func gte(a: TargetCpu, b: TargetCpu) returns Bool
 }
 #+end_src
 
@@ -251,26 +251,6 @@ func shared_lib_extension(target: Target) returns Str
 func target_system_libs(target: Target) returns Str
 #+end_src
 
-* target_ffi_lib
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.targets.target_ffi_lib
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc target_ffi_lib(target: Target) returns Str
-#+end_src
-
-* target_ffi_build_hint
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.targets.target_ffi_build_hint
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc target_ffi_build_hint(target: Target) returns Str
-#+end_src
-
 * target_list_has
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.targets.target_list_has
@@ -278,47 +258,7 @@ proc target_ffi_build_hint(target: Target) returns Str
 :END:
 
 #+begin_src til
-func target_list_has(list: Str, target: Target) returns shallow Bool
-#+end_src
-
-* target_is_host
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.targets.target_is_host
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc target_is_host(target: Target) returns shallow Bool
-#+end_src
-
-* target_secp256k1_lib
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.targets.target_secp256k1_lib
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func target_secp256k1_lib(target: Target) returns Str
-#+end_src
-
-* target_secp256k1_build_hint
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.targets.target_secp256k1_build_hint
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func target_secp256k1_build_hint(target: Target) returns Str
-#+end_src
-
-* target_gui_libs
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.targets.target_gui_libs
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc target_gui_libs(target: Target) returns Str
+func target_list_has(list: Str, target: Target) returns Bool
 #+end_src
 
 * detect_current_target

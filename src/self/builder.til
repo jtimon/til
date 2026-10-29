@@ -1204,11 +1204,11 @@ priv append_doc_catalog_entry := func(mut catalog: DocCatalog, unit_path: Str, p
         deprecated = meta.deprecated.clone()))
 }
 
-priv collect_struct_doc_members := func(unit_path: Str, page: Str, type_name: Str, sdef: StructDef, mut catalog: DocCatalog, symbols: SymbolPool) {
+priv collect_struct_doc_members := func(unit_path: Str, page: Str, type_name: Str, sdef: StructDef, mut catalog: DocCatalog, scope: TypeScope, symbols: SymbolPool) {
     mut field_i : USize = 0
     for field : Declaration in sdef.fields {
         ref field_name : Str = sdef.field_name_at(field_i)
-        if field.doc.is_empty().not() {
+        if doc_member_hidden(field).not().and(field.doc.is_empty().not()) {
             qual := type_name.format(".", field_name)
             append_doc_catalog_entry(catalog, unit_path, page, qual, field.doc, format_field_info(type_name, field_name, field, symbols))
         }
@@ -1217,15 +1217,15 @@ priv collect_struct_doc_members := func(unit_path: Str, page: Str, type_name: St
     mut member_i : USize = 0
     for member : Declaration in sdef.ns_decls {
         ref member_name : Str = sdef.member_name_at(member_i)
-        if member.doc.is_empty().not() {
+        if doc_member_hidden(member).not().and(member.doc.is_empty().not()) {
             qual := type_name.format(".", member_name)
-            append_doc_catalog_entry(catalog, unit_path, page, qual, member.doc, format_member_info(type_name, member_name, member, symbols))
+            append_doc_catalog_entry(catalog, unit_path, page, qual, member.doc, format_member_info(type_name, member_name, member, scope, symbols))
         }
         member_i++
     }
 }
 
-priv collect_enum_doc_members := func(unit_path: Str, page: Str, type_name: Str, edef: EnumDef, mut catalog: DocCatalog, symbols: SymbolPool) {
+priv collect_enum_doc_members := func(unit_path: Str, page: Str, type_name: Str, edef: EnumDef, mut catalog: DocCatalog, scope: TypeScope, symbols: SymbolPool) {
     for variant : VariantDef in edef.variants {
         if variant.doc.is_empty().not() {
             qual := type_name.format(".", variant.name)
@@ -1235,9 +1235,9 @@ priv collect_enum_doc_members := func(unit_path: Str, page: Str, type_name: Str,
     mut member_i : USize = 0
     for member : Declaration in edef.ns_decls {
         ref member_name : Str = edef.member_name_at(member_i)
-        if member.doc.is_empty().not() {
+        if doc_member_hidden(member).not().and(member.doc.is_empty().not()) {
             qual := type_name.format(".", member_name)
-            append_doc_catalog_entry(catalog, unit_path, page, qual, member.doc, format_member_info(type_name, member_name, member, symbols))
+            append_doc_catalog_entry(catalog, unit_path, page, qual, member.doc, format_member_info(type_name, member_name, member, scope, symbols))
         }
         member_i++
     }
@@ -1255,8 +1255,8 @@ priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog:
                 append_doc_catalog_entry(catalog, u.path, page, dd.name, dd.doc, info)
                 if stmt.children.len() > 0 {
                     switch stmt.children[0].node_type {
-                    case .StructDef(sdef): collect_struct_doc_members(u.path, page, dd.name, sdef, catalog, ctx.symbols)
-                    case .EnumDef(edef): collect_enum_doc_members(u.path, page, dd.name, edef, catalog, ctx.symbols)
+                    case .StructDef(sdef): collect_struct_doc_members(u.path, page, dd.name, sdef, catalog, ctx.scope, ctx.symbols)
+                    case .EnumDef(edef): collect_enum_doc_members(u.path, page, dd.name, edef, catalog, ctx.scope, ctx.symbols)
                     case:
                     }
                 }

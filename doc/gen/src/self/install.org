@@ -1,5 +1,5 @@
 #+TITLE: src/self/install.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * default_install_prefix
@@ -26,7 +26,7 @@ func support_root(prefix: Str) returns Str
 :END:
 
 #+begin_src til
-proc install_file(src: Str, dst: Str, what: Str) returns shallow I32
+proc install_file(src: Str, dst: Str, what: Str) returns I32
 #+end_src
 
 * install_compiler_support
@@ -35,7 +35,7 @@ proc install_file(src: Str, dst: Str, what: Str) returns shallow I32
 :END:
 
 #+begin_src til
-proc install_compiler_support(root: Str, prefix: Str) returns shallow I32
+proc install_compiler_support(root: Str, prefix: Str) returns I32
 #+end_src
 
 * print_install_success
@@ -53,5 +53,5 @@ proc print_install_success(path: Str)
 :END:
 
 #+begin_src til
-proc install_executable(binary: Str, destination: Str, compiler_root: Str, prefix: Str) returns shallow I32
+proc install_executable(binary: Str, destination: Str, compiler_root: Str, prefix: Str) returns I32
 #+end_src

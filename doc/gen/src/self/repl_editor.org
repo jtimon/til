@@ -1,5 +1,5 @@
 #+TITLE: src/self/repl_editor.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * repl_term_is_interactive
@@ -400,18 +400,18 @@ namespace:
     Eof : I64
     Bell : I64
     ClearScreen : I64
-    core_func is(self: EditAction, other: EditAction) returns shallow Bool
-    func eq(self: EditAction, other: EditAction) returns shallow Bool
-    func delete(own self: EditAction, shallow call_free: Bool)
-    func cmp(a: EditAction, b: EditAction) returns shallow I64
+    core_func is(self: EditAction, other: EditAction) returns Bool
+    func eq(self: EditAction, other: EditAction) returns Bool
+    func delete(own self: EditAction, call_free: Bool = true)
+    func cmp(a: EditAction, b: EditAction) returns I64
     func to_str(self: EditAction) returns Str
     func clone(self: EditAction) returns EditAction
-    func size() returns shallow U64
-    func lt(a: EditAction, b: EditAction) returns shallow Bool
-    func gt(a: EditAction, b: EditAction) returns shallow Bool
-    func neq(a: EditAction, b: EditAction) returns shallow Bool
-    func lte(a: EditAction, b: EditAction) returns shallow Bool
-    func gte(a: EditAction, b: EditAction) returns shallow Bool
+    func size() returns U64
+    func lt(a: EditAction, b: EditAction) returns Bool
+    func gt(a: EditAction, b: EditAction) returns Bool
+    func neq(a: EditAction, b: EditAction) returns Bool
+    func lte(a: EditAction, b: EditAction) returns Bool
+    func gte(a: EditAction, b: EditAction) returns Bool
 }
 #+end_src
 
@@ -443,9 +443,9 @@ struct ReplEditor {
     mut saved_line : Str
     mut saved_cursor : USize
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: ReplEditor) returns ReplEditor
-    func delete(own self: ReplEditor, shallow call_free: Bool)
+    func delete(own self: ReplEditor, call_free: Bool = true)
 }
 #+end_src
 
@@ -459,18 +459,18 @@ struct AnsiDecoder {
     mut state : I64
     mut params : Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: AnsiDecoder) returns AnsiDecoder
-    func delete(own self: AnsiDecoder, shallow call_free: Bool)
-    func hash(self: AnsiDecoder, hasher: HashFn) returns shallow U64
-    func cmp(a: AnsiDecoder, b: AnsiDecoder) returns shallow I64
+    func delete(own self: AnsiDecoder, call_free: Bool = true)
+    func hash(self: AnsiDecoder, hasher: HashFn) returns U64
+    func cmp(a: AnsiDecoder, b: AnsiDecoder) returns I64
     func to_str(self: AnsiDecoder) returns Str
-    func eq(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
-    func lt(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
-    func gt(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
-    func neq(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
-    func lte(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
-    func gte(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+    func eq(a: AnsiDecoder, b: AnsiDecoder) returns Bool
+    func lt(a: AnsiDecoder, b: AnsiDecoder) returns Bool
+    func gt(a: AnsiDecoder, b: AnsiDecoder) returns Bool
+    func neq(a: AnsiDecoder, b: AnsiDecoder) returns Bool
+    func lte(a: AnsiDecoder, b: AnsiDecoder) returns Bool
+    func gte(a: AnsiDecoder, b: AnsiDecoder) returns Bool
 }
 #+end_src
 
@@ -485,7 +485,7 @@ unsupported sequence is consumed WHOLE and reported as
 REPL_KEY_UNKNOWN, so no escape byte can ever reach the source buffer.
 
 #+begin_src til
-func repl_ansi_feed(mut d: AnsiDecoder, shallow ev: I64) returns shallow I64
+func repl_ansi_feed(mut d: AnsiDecoder, ev: I64) returns I64
 #+end_src
 
 * repl_ansi_timeout
@@ -497,7 +497,7 @@ No follow-up byte arrived within the ESC timeout. A bare ESC is the
 Escape key; a truncated sequence is unknown input, never source.
 
 #+begin_src til
-func repl_ansi_timeout(mut d: AnsiDecoder) returns shallow I64
+func repl_ansi_timeout(mut d: AnsiDecoder) returns I64
 #+end_src
 
 * repl_editor_history_serialize
@@ -549,7 +549,7 @@ terminal I/O: the whole state machine is exercised by
 test/repl_editor.til without a terminal.
 
 #+begin_src til
-func repl_editor_apply_key(mut ed: ReplEditor, shallow key: I64) returns EditAction
+func repl_editor_apply_key(mut ed: ReplEditor, key: I64) returns EditAction
 #+end_src
 
 * repl_editor_viewport
@@ -563,7 +563,7 @@ renderer so the scrolling arithmetic is testable at narrow widths
 without a terminal.
 
 #+begin_src til
-func repl_editor_viewport(shallow view_start: U64, shallow cursor: U64, shallow line_len: U64, shallow avail: U64) returns shallow U64
+func repl_editor_viewport(view_start: U64, cursor: U64, line_len: U64, avail: U64) returns U64
 #+end_src
 
 * repl_editor_start

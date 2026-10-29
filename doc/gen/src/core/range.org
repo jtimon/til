@@ -1,5 +1,5 @@
 #+TITLE: src/core/range.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * Range
@@ -15,21 +15,21 @@ struct Range {
     start : U64
     end : U64
 namespace:
-    func new(shallow start: U64, shallow end: U64) returns Range
-    func len(self: Range) returns shallow U64
-    func get(self: Range, shallow i: U64) returns shallow U64
+    func new(start: U64, end: U64) returns Range
+    func len(self: Range) returns U64
+    func get(self: Range, i: U64) returns U64
     func clone(val: Range) returns Range
-    func delete(own self: Range, shallow call_free: Bool)
-    func size() returns shallow U64
-    func hash(self: Range, hasher: HashFn) returns shallow U64
-    func cmp(a: Range, b: Range) returns shallow I64
+    func delete(own self: Range, call_free: Bool = true)
+    func size() returns U64
+    func hash(self: Range, hasher: HashFn) returns U64
+    func cmp(a: Range, b: Range) returns I64
     func to_str(self: Range) returns Str
-    func eq(a: Range, b: Range) returns shallow Bool
-    func lt(a: Range, b: Range) returns shallow Bool
-    func gt(a: Range, b: Range) returns shallow Bool
-    func neq(a: Range, b: Range) returns shallow Bool
-    func lte(a: Range, b: Range) returns shallow Bool
-    func gte(a: Range, b: Range) returns shallow Bool
+    func eq(a: Range, b: Range) returns Bool
+    func lt(a: Range, b: Range) returns Bool
+    func gt(a: Range, b: Range) returns Bool
+    func neq(a: Range, b: Range) returns Bool
+    func lte(a: Range, b: Range) returns Bool
+    func gte(a: Range, b: Range) returns Bool
 }
 #+end_src
 
@@ -42,7 +42,7 @@ namespace:
 Create a Range from ~start~ (inclusive) to ~end~ (exclusive).
 
 #+begin_src til
-func Range.new(shallow start: U64, shallow end: U64) returns Range
+func Range.new(start: U64, end: U64) returns Range
 #+end_src
 
 * Range.get
@@ -54,5 +54,5 @@ func Range.new(shallow start: U64, shallow end: U64) returns Range
 The i-th value in the range (start+i or start-i for reverse).
 
 #+begin_src til
-func Range.get(self: Range, shallow i: U64) returns shallow U64
+func Range.get(self: Range, i: U64) returns U64
 #+end_src

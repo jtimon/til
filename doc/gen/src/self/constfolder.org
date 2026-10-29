@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * constfolder_eval_generator_function
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-proc constfolder_eval_generator_function(mut scope: Scope, mut function: Expr, definitions: Map__Str_Expr, mut globals: Expr, mut ctx: Context) returns shallow I32
+proc constfolder_eval_generator_function(mut scope: Scope, mut function: Expr, definitions: Map__Str_Expr, mut globals: Expr, mut ctx: Context) returns I32
 #+end_src
 
 * constfolder_clear_known
@@ -49,7 +49,7 @@ func from_source_form(s: Str) returns Str
 :END:
 
 #+begin_src til
-func is_macro_call(e: Expr, mut ctx: Context) returns shallow Bool
+func is_macro_call(e: Expr, mut ctx: Context) returns Bool
 #+end_src
 
 * constfolder_normalize_stack_decls_in_body
@@ -69,7 +69,7 @@ func constfolder_normalize_stack_decls_in_body(mut body: Expr, symbols: SymbolPo
 :END:
 
 #+begin_src til
-proc process_body(mut scope: Scope, mut body: Expr, mut ctx: Context, shallow at_global: Bool)
+proc process_body(mut scope: Scope, mut body: Expr, mut ctx: Context, at_global: Bool)
 #+end_src
 
 * constfolder_register_fold_scope
@@ -159,5 +159,5 @@ func swap__FfiState(mut a: FfiState, mut b: FfiState)
 :END:
 
 #+begin_src til
-func safe_ref__Scope(value: Scope) returns shallow Option__ref_Scope
+func safe_ref__Scope(value: Scope) returns Option__ref_Scope
 #+end_src

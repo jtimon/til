@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
+proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool
 #+end_src
 
 * garbager_validate
@@ -62,6 +62,16 @@ Vec__GcCfgBlock is a None
 Vec__GcBorrowEdge is a None
 #+end_src
 
+* Vec__GcDeposit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__GcDeposit
+:group: Compiler backend
+:END:
+
+#+begin_src til
+Vec__GcDeposit is a None
+#+end_src
+
 * Option__Sym
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.garbager.Option__Sym
@@ -103,17 +113,17 @@ struct Array__Bool {
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: U64) returns Array__Bool
-    func len(self: Array__Bool) returns shallow U64
+    func new(cap: U64) returns Array__Bool
+    func len(self: Array__Bool) returns U64
     func unsafe_get(self: Array__Bool, i: U64) returns ref Bool
-    func get(self: Array__Bool, shallow i: U64, mut _err_kind: I64) returns ref Bool
-    func unsafe_set(mut self: Array__Bool, shallow i: U64, own val: Bool)
-    func set(mut self: Array__Bool, shallow i: U64, own val: Bool, mut _err_kind: I64)
-    func delete(own self: Array__Bool, shallow call_free: Bool)
+    func get(self: Array__Bool, shallow i: U64) returns ref Bool throws OutOfBounds
+    func unsafe_set(mut self: Array__Bool, i: U64, own val: Bool)
+    func set(mut self: Array__Bool, i: U64, own val: Bool) throws OutOfBounds
+    func delete(own self: Array__Bool, call_free: Bool = true)
     func concat(self: Array__Bool, other: Array__Bool) returns Array__Bool
     func to_vec(self: Array__Bool) returns Vec__Bool
     func clone(self: Array__Bool) returns Array__Bool
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -126,7 +136,7 @@ namespace:
 Create a zero-initialized Array with the given capacity.
 
 #+begin_src til
-func Array__Bool.new(shallow cap: U64) returns Array__Bool
+func Array__Bool.new(cap: U64) returns Array__Bool
 #+end_src
 
 * Array__Bool.unsafe_get
@@ -155,7 +165,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__Bool.get(self: Array__Bool, shallow i: U64, mut _err_kind: I64) returns ref Bool
+func Array__Bool.get(self: Array__Bool, shallow i: U64) returns ref Bool throws OutOfBounds
 #+end_src
 
 * Array__Bool.unsafe_set
@@ -169,7 +179,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Array__Bool.unsafe_set(mut self: Array__Bool, shallow i: U64, own val: Bool)
+func Array__Bool.unsafe_set(mut self: Array__Bool, i: U64, own val: Bool)
 #+end_src
 
 * Array__Bool.set
@@ -183,7 +193,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Array__Bool.set(mut self: Array__Bool, shallow i: U64, own val: Bool, mut _err_kind: I64)
+func Array__Bool.set(mut self: Array__Bool, i: U64, own val: Bool) throws OutOfBounds
 #+end_src
 
 * Array__Bool.concat
@@ -232,8 +242,8 @@ struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_garbager_til__GcBorrowEdge
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
-    func len(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func len(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns U64
     func clear(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge)
     func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own val: priv___src_self_garbager_til__GcBorrowEdge)
@@ -242,17 +252,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut dest: Vec__priv___src_self_garbager_til__GcBorrowEdge)
     func move_from(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, own other: Vec__priv___src_self_garbager_til__GcBorrowEdge)
     func unsafe_get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64) returns ref priv___src_self_garbager_til__GcBorrowEdge
-    func get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+    func get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64) returns ref priv___src_self_garbager_til__GcBorrowEdge throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns priv___src_self_garbager_til__GcBorrowEdge
-    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
-    func truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge)
-    func set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -286,7 +296,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity(shallow n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.clear
@@ -428,7 +438,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.get(self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64) returns ref priv___src_self_garbager_til__GcBorrowEdge throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.pop
@@ -453,7 +463,7 @@ func Vec__priv___src_self_garbager_til__GcBorrowEdge.pop(mut self: Vec__priv___s
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.remove_at(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix
@@ -466,7 +476,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, n: U64) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate
@@ -481,7 +491,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow n: U64)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.truncate(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, n: U64)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set
@@ -495,7 +505,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.set
@@ -509,7 +519,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.set(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64, own val: priv___src_self_garbager_til__GcBorrowEdge) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take
@@ -523,7 +533,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow i: U64)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.push_take(mut self: Vec__priv___src_self_garbager_til__GcBorrowEdge, mut src: Vec__priv___src_self_garbager_til__GcBorrowEdge, i: U64)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.delete
@@ -536,7 +546,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcBorrowEdge.delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, shallow call_free: Bool)
+func Vec__priv___src_self_garbager_til__GcBorrowEdge.delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge.clone
@@ -562,17 +572,17 @@ struct Array__USize {
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: U64) returns Array__USize
-    func len(self: Array__USize) returns shallow U64
+    func new(cap: U64) returns Array__USize
+    func len(self: Array__USize) returns U64
     func unsafe_get(self: Array__USize, i: U64) returns ref U64
-    func get(self: Array__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
-    func unsafe_set(mut self: Array__USize, shallow i: U64, own val: U64)
-    func set(mut self: Array__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
-    func delete(own self: Array__USize, shallow call_free: Bool)
+    func get(self: Array__USize, shallow i: U64) returns ref U64 throws OutOfBounds
+    func unsafe_set(mut self: Array__USize, i: U64, own val: U64)
+    func set(mut self: Array__USize, i: U64, own val: U64) throws OutOfBounds
+    func delete(own self: Array__USize, call_free: Bool = true)
     func concat(self: Array__USize, other: Array__USize) returns Array__USize
     func to_vec(self: Array__USize) returns Vec__USize
     func clone(self: Array__USize) returns Array__USize
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -585,7 +595,7 @@ namespace:
 Create a zero-initialized Array with the given capacity.
 
 #+begin_src til
-func Array__USize.new(shallow cap: U64) returns Array__USize
+func Array__USize.new(cap: U64) returns Array__USize
 #+end_src
 
 * Array__USize.unsafe_get
@@ -614,7 +624,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__USize.get(self: Array__USize, shallow i: U64, mut _err_kind: I64) returns ref U64
+func Array__USize.get(self: Array__USize, shallow i: U64) returns ref U64 throws OutOfBounds
 #+end_src
 
 * Array__USize.unsafe_set
@@ -628,7 +638,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Array__USize.unsafe_set(mut self: Array__USize, shallow i: U64, own val: U64)
+func Array__USize.unsafe_set(mut self: Array__USize, i: U64, own val: U64)
 #+end_src
 
 * Array__USize.set
@@ -642,7 +652,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Array__USize.set(mut self: Array__USize, shallow i: U64, own val: U64, mut _err_kind: I64)
+func Array__USize.set(mut self: Array__USize, i: U64, own val: U64) throws OutOfBounds
 #+end_src
 
 * Array__USize.concat
@@ -689,17 +699,17 @@ struct Array__U8 {
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: U64) returns Array__U8
-    func len(self: Array__U8) returns shallow U64
+    func new(cap: U64) returns Array__U8
+    func len(self: Array__U8) returns U64
     func unsafe_get(self: Array__U8, i: U64) returns ref U8
-    func get(self: Array__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
-    func unsafe_set(mut self: Array__U8, shallow i: U64, own val: U8)
-    func set(mut self: Array__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
-    func delete(own self: Array__U8, shallow call_free: Bool)
+    func get(self: Array__U8, shallow i: U64) returns ref U8 throws OutOfBounds
+    func unsafe_set(mut self: Array__U8, i: U64, own val: U8)
+    func set(mut self: Array__U8, i: U64, own val: U8) throws OutOfBounds
+    func delete(own self: Array__U8, call_free: Bool = true)
     func concat(self: Array__U8, other: Array__U8) returns Array__U8
     func to_vec(self: Array__U8) returns Vec__U8
     func clone(self: Array__U8) returns Array__U8
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -712,7 +722,7 @@ namespace:
 Create a zero-initialized Array with the given capacity.
 
 #+begin_src til
-func Array__U8.new(shallow cap: U64) returns Array__U8
+func Array__U8.new(cap: U64) returns Array__U8
 #+end_src
 
 * Array__U8.unsafe_get
@@ -741,7 +751,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__U8.get(self: Array__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
+func Array__U8.get(self: Array__U8, shallow i: U64) returns ref U8 throws OutOfBounds
 #+end_src
 
 * Array__U8.unsafe_set
@@ -755,7 +765,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Array__U8.unsafe_set(mut self: Array__U8, shallow i: U64, own val: U8)
+func Array__U8.unsafe_set(mut self: Array__U8, i: U64, own val: U8)
 #+end_src
 
 * Array__U8.set
@@ -769,7 +779,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Array__U8.set(mut self: Array__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
+func Array__U8.set(mut self: Array__U8, i: U64, own val: U8) throws OutOfBounds
 #+end_src
 
 * Array__U8.concat
@@ -818,8 +828,8 @@ struct Vec__priv___src_self_garbager_til__LocalInfo {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_garbager_til__LocalInfo
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
-    func len(self: Vec__priv___src_self_garbager_til__LocalInfo) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func len(self: Vec__priv___src_self_garbager_til__LocalInfo) returns U64
     func clear(mut self: Vec__priv___src_self_garbager_til__LocalInfo)
     func delete_marked(mut self: Vec__priv___src_self_garbager_til__LocalInfo, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own val: priv___src_self_garbager_til__LocalInfo)
@@ -828,17 +838,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_garbager_til__LocalInfo, mut dest: Vec__priv___src_self_garbager_til__LocalInfo)
     func move_from(mut self: Vec__priv___src_self_garbager_til__LocalInfo, own other: Vec__priv___src_self_garbager_til__LocalInfo)
     func unsafe_get(self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64) returns ref priv___src_self_garbager_til__LocalInfo
-    func get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+    func get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64) returns ref priv___src_self_garbager_til__LocalInfo throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
-    func remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
-    func truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, own val: priv___src_self_garbager_til__LocalInfo)
-    func set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
+    func truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64, own val: priv___src_self_garbager_til__LocalInfo)
+    func set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64, own val: priv___src_self_garbager_til__LocalInfo) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, i: U64)
+    func delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -872,7 +882,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.with_capacity(shallow n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.clear
@@ -1014,7 +1024,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_garbager_til__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.get(self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64) returns ref priv___src_self_garbager_til__LocalInfo throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.pop
@@ -1039,7 +1049,7 @@ func Vec__priv___src_self_garbager_til__LocalInfo.pop(mut self: Vec__priv___src_
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__LocalInfo.remove_at(mut self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.take_prefix
@@ -1052,7 +1062,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
+func Vec__priv___src_self_garbager_til__LocalInfo.take_prefix(mut self: Vec__priv___src_self_garbager_til__LocalInfo, n: U64) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.truncate
@@ -1067,7 +1077,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow n: U64)
+func Vec__priv___src_self_garbager_til__LocalInfo.truncate(mut self: Vec__priv___src_self_garbager_til__LocalInfo, n: U64)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set
@@ -1081,7 +1091,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, own val: priv___src_self_garbager_til__LocalInfo)
+func Vec__priv___src_self_garbager_til__LocalInfo.unsafe_set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64, own val: priv___src_self_garbager_til__LocalInfo)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.set
@@ -1095,7 +1105,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__LocalInfo.set(mut self: Vec__priv___src_self_garbager_til__LocalInfo, i: U64, own val: priv___src_self_garbager_til__LocalInfo) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.push_take
@@ -1109,7 +1119,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, shallow i: U64)
+func Vec__priv___src_self_garbager_til__LocalInfo.push_take(mut self: Vec__priv___src_self_garbager_til__LocalInfo, mut src: Vec__priv___src_self_garbager_til__LocalInfo, i: U64)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.delete
@@ -1122,7 +1132,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__LocalInfo.delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
+func Vec__priv___src_self_garbager_til__LocalInfo.delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__LocalInfo.clone
@@ -1150,8 +1160,8 @@ struct Vec__priv___src_self_garbager_til__GcCfgBlock {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_garbager_til__GcCfgBlock
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
-    func len(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func len(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns U64
     func clear(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock)
     func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own val: priv___src_self_garbager_til__GcCfgBlock)
@@ -1160,17 +1170,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut dest: Vec__priv___src_self_garbager_til__GcCfgBlock)
     func move_from(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, own other: Vec__priv___src_self_garbager_til__GcCfgBlock)
     func unsafe_get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64) returns ref priv___src_self_garbager_til__GcCfgBlock
-    func get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+    func get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64) returns ref priv___src_self_garbager_til__GcCfgBlock throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns priv___src_self_garbager_til__GcCfgBlock
-    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
-    func truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, own val: priv___src_self_garbager_til__GcCfgBlock)
-    func set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64, own val: priv___src_self_garbager_til__GcCfgBlock)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64, own val: priv___src_self_garbager_til__GcCfgBlock) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1204,7 +1214,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity(shallow n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.clear
@@ -1346,7 +1356,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_garbager_til__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.get(self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64) returns ref priv___src_self_garbager_til__GcCfgBlock throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.pop
@@ -1371,7 +1381,7 @@ func Vec__priv___src_self_garbager_til__GcCfgBlock.pop(mut self: Vec__priv___src
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.remove_at(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix
@@ -1384,7 +1394,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
+func Vec__priv___src_self_garbager_til__GcCfgBlock.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, n: U64) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.truncate
@@ -1399,7 +1409,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow n: U64)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.truncate(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, n: U64)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set
@@ -1413,7 +1423,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, own val: priv___src_self_garbager_til__GcCfgBlock)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64, own val: priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.set
@@ -1427,7 +1437,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64, own val: priv___src_self_garbager_til__GcCfgBlock, mut _err_kind: I64)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.set(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64, own val: priv___src_self_garbager_til__GcCfgBlock) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.push_take
@@ -1441,7 +1451,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow i: U64)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.push_take(mut self: Vec__priv___src_self_garbager_til__GcCfgBlock, mut src: Vec__priv___src_self_garbager_til__GcCfgBlock, i: U64)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.delete
@@ -1454,7 +1464,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_garbager_til__GcCfgBlock.delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, shallow call_free: Bool)
+func Vec__priv___src_self_garbager_til__GcCfgBlock.delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcCfgBlock.clone
@@ -1469,6 +1479,338 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__priv___src_self_garbager_til__GcCfgBlock.clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
 #+end_src
 
+* Vec__priv___src_self_garbager_til__GcDeposit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_garbager_til__GcDeposit {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_garbager_til__GcDeposit
+    func with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__GcDeposit
+    func len(self: Vec__priv___src_self_garbager_til__GcDeposit) returns U64
+    func clear(mut self: Vec__priv___src_self_garbager_til__GcDeposit)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__GcDeposit, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__GcDeposit, own val: priv___src_self_garbager_til__GcDeposit)
+    func append(mut self: Vec__priv___src_self_garbager_til__GcDeposit, own other: Vec__priv___src_self_garbager_til__GcDeposit)
+    func take(mut self: Vec__priv___src_self_garbager_til__GcDeposit) returns Vec__priv___src_self_garbager_til__GcDeposit
+    func move_to(own self: Vec__priv___src_self_garbager_til__GcDeposit, mut dest: Vec__priv___src_self_garbager_til__GcDeposit)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__GcDeposit, own other: Vec__priv___src_self_garbager_til__GcDeposit)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64) returns ref priv___src_self_garbager_til__GcDeposit
+    func get(self: Vec__priv___src_self_garbager_til__GcDeposit, shallow i: U64) returns ref priv___src_self_garbager_til__GcDeposit throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_garbager_til__GcDeposit) returns priv___src_self_garbager_til__GcDeposit
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__GcDeposit, n: U64) returns Vec__priv___src_self_garbager_til__GcDeposit
+    func truncate(mut self: Vec__priv___src_self_garbager_til__GcDeposit, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64, own val: priv___src_self_garbager_til__GcDeposit)
+    func set(mut self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64, own val: priv___src_self_garbager_til__GcDeposit) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_garbager_til__GcDeposit, mut src: Vec__priv___src_self_garbager_til__GcDeposit, i: U64)
+    func delete(own self: Vec__priv___src_self_garbager_til__GcDeposit, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_garbager_til__GcDeposit) returns Vec__priv___src_self_garbager_til__GcDeposit
+    func size() returns U64
+}
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.new
+:group: Compiler backend
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.new() returns Vec__priv___src_self_garbager_til__GcDeposit
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.with_capacity
+:group: Compiler backend
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__GcDeposit
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.clear
+:group: Compiler backend
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.clear(mut self: Vec__priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.delete_marked
+:group: Compiler backend
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.delete_marked(mut self: Vec__priv___src_self_garbager_til__GcDeposit, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.push
+:group: Compiler backend
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.push(mut self: Vec__priv___src_self_garbager_til__GcDeposit, own val: priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.append
+:group: Compiler backend
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.append(mut self: Vec__priv___src_self_garbager_til__GcDeposit, own other: Vec__priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.take
+:group: Compiler backend
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.take(mut self: Vec__priv___src_self_garbager_til__GcDeposit) returns Vec__priv___src_self_garbager_til__GcDeposit
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.move_to
+:group: Compiler backend
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.move_to(own self: Vec__priv___src_self_garbager_til__GcDeposit, mut dest: Vec__priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.move_from
+:group: Compiler backend
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.move_from(mut self: Vec__priv___src_self_garbager_til__GcDeposit, own other: Vec__priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.unsafe_get
+:group: Compiler backend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.unsafe_get(self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64) returns ref priv___src_self_garbager_til__GcDeposit
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.get
+:group: Compiler backend
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.get(self: Vec__priv___src_self_garbager_til__GcDeposit, shallow i: U64) returns ref priv___src_self_garbager_til__GcDeposit throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.pop
+:group: Compiler backend
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.pop(mut self: Vec__priv___src_self_garbager_til__GcDeposit) returns priv___src_self_garbager_til__GcDeposit
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.remove_at
+:group: Compiler backend
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.remove_at(mut self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.take_prefix
+:group: Compiler backend
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.take_prefix(mut self: Vec__priv___src_self_garbager_til__GcDeposit, n: U64) returns Vec__priv___src_self_garbager_til__GcDeposit
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.truncate
+:group: Compiler backend
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.truncate(mut self: Vec__priv___src_self_garbager_til__GcDeposit, n: U64)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.unsafe_set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.unsafe_set(mut self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64, own val: priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.set(mut self: Vec__priv___src_self_garbager_til__GcDeposit, i: U64, own val: priv___src_self_garbager_til__GcDeposit) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.push_take
+:group: Compiler backend
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.push_take(mut self: Vec__priv___src_self_garbager_til__GcDeposit, mut src: Vec__priv___src_self_garbager_til__GcDeposit, i: U64)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.delete
+:group: Compiler backend
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.delete(own self: Vec__priv___src_self_garbager_til__GcDeposit, call_free: Bool = true)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__GcDeposit.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcDeposit.clone
+:group: Compiler backend
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__GcDeposit.clone(self: Vec__priv___src_self_garbager_til__GcDeposit) returns Vec__priv___src_self_garbager_til__GcDeposit
+#+end_src
+
 * Option__ref_FunctionDef
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.garbager.Option__ref_FunctionDef
@@ -1480,19 +1822,19 @@ enum Option__ref_FunctionDef {
     None
     Some: FunctionDef
 namespace:
-    func is_some(shallow self: Option__ref_FunctionDef) returns shallow Bool
-    func is_none(shallow self: Option__ref_FunctionDef) returns shallow Bool
+    func is_some(self: Option__ref_FunctionDef) returns Bool
+    func is_none(self: Option__ref_FunctionDef) returns Bool
     func unwrap_or(self: Option__ref_FunctionDef, default_v: FunctionDef) returns ref FunctionDef
     func unwrap(self: Option__ref_FunctionDef) returns ref FunctionDef
     func take(own self: Option__ref_FunctionDef) returns ref FunctionDef
-    ext_func None() returns shallow Option__ref_FunctionDef
-    ext_func Some(val: FunctionDef) returns shallow Option__ref_FunctionDef
-    core_func is(self: Option__ref_FunctionDef, other: Option__ref_FunctionDef) returns shallow Bool
-    func eq(shallow self: Option__ref_FunctionDef, shallow other: Option__ref_FunctionDef) returns shallow Bool
-    func delete(own self: Option__ref_FunctionDef, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_FunctionDef) returns Str
-    func clone(self: Option__ref_FunctionDef) returns shallow Option__ref_FunctionDef
-    func size() returns shallow U64
+    ext_func None() returns Option__ref_FunctionDef
+    ext_func Some(val: FunctionDef) returns Option__ref_FunctionDef
+    core_func is(self: Option__ref_FunctionDef, other: Option__ref_FunctionDef) returns Bool
+    func eq(self: Option__ref_FunctionDef, other: Option__ref_FunctionDef) returns Bool
+    func delete(own self: Option__ref_FunctionDef, call_free: Bool = true)
+    func to_str(self: Option__ref_FunctionDef) returns Str
+    func clone(self: Option__ref_FunctionDef) returns Option__ref_FunctionDef
+    func size() returns U64
 }
 #+end_src
 
@@ -1545,8 +1887,8 @@ struct Vec__U8 {
     mut cap : USize
 namespace:
     func new() returns Vec__U8
-    func with_capacity(shallow n: U64) returns Vec__U8
-    func len(self: Vec__U8) returns shallow U64
+    func with_capacity(n: U64) returns Vec__U8
+    func len(self: Vec__U8) returns U64
     func clear(mut self: Vec__U8)
     func delete_marked(mut self: Vec__U8, marks: Dynamic)
     func push(mut self: Vec__U8, own val: U8)
@@ -1555,17 +1897,17 @@ namespace:
     func move_to(own self: Vec__U8, mut dest: Vec__U8)
     func move_from(mut self: Vec__U8, own other: Vec__U8)
     func unsafe_get(self: Vec__U8, i: U64) returns ref U8
-    func get(self: Vec__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
-    func pop(mut self: Vec__U8) returns shallow U8
-    func remove_at(mut self: Vec__U8, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__U8, shallow n: U64) returns Vec__U8
-    func truncate(mut self: Vec__U8, shallow n: U64)
-    func unsafe_set(mut self: Vec__U8, shallow i: U64, own val: U8)
-    func set(mut self: Vec__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
-    func push_take(mut self: Vec__U8, mut src: Vec__U8, shallow i: U64)
-    func delete(own self: Vec__U8, shallow call_free: Bool)
+    func get(self: Vec__U8, shallow i: U64) returns ref U8 throws OutOfBounds
+    func pop(mut self: Vec__U8) returns U8
+    func remove_at(mut self: Vec__U8, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__U8, n: U64) returns Vec__U8
+    func truncate(mut self: Vec__U8, n: U64)
+    func unsafe_set(mut self: Vec__U8, i: U64, own val: U8)
+    func set(mut self: Vec__U8, i: U64, own val: U8) throws OutOfBounds
+    func push_take(mut self: Vec__U8, mut src: Vec__U8, i: U64)
+    func delete(own self: Vec__U8, call_free: Bool = true)
     func clone(self: Vec__U8) returns Vec__U8
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1599,7 +1941,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__U8.with_capacity(shallow n: U64) returns Vec__U8
+func Vec__U8.with_capacity(n: U64) returns Vec__U8
 #+end_src
 
 * Vec__U8.clear
@@ -1741,7 +2083,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__U8.get(self: Vec__U8, shallow i: U64, mut _err_kind: I64) returns ref U8
+func Vec__U8.get(self: Vec__U8, shallow i: U64) returns ref U8 throws OutOfBounds
 #+end_src
 
 * Vec__U8.pop
@@ -1754,7 +2096,7 @@ Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__U8.pop(mut self: Vec__U8) returns shallow U8
+func Vec__U8.pop(mut self: Vec__U8) returns U8
 #+end_src
 
 * Vec__U8.remove_at
@@ -1766,7 +2108,7 @@ func Vec__U8.pop(mut self: Vec__U8) returns shallow U8
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__U8.remove_at(mut self: Vec__U8, shallow i: U64, mut _err_kind: I64)
+func Vec__U8.remove_at(mut self: Vec__U8, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__U8.take_prefix
@@ -1779,7 +2121,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__U8.take_prefix(mut self: Vec__U8, shallow n: U64) returns Vec__U8
+func Vec__U8.take_prefix(mut self: Vec__U8, n: U64) returns Vec__U8
 #+end_src
 
 * Vec__U8.truncate
@@ -1794,7 +2136,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__U8.truncate(mut self: Vec__U8, shallow n: U64)
+func Vec__U8.truncate(mut self: Vec__U8, n: U64)
 #+end_src
 
 * Vec__U8.unsafe_set
@@ -1808,7 +2150,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__U8.unsafe_set(mut self: Vec__U8, shallow i: U64, own val: U8)
+func Vec__U8.unsafe_set(mut self: Vec__U8, i: U64, own val: U8)
 #+end_src
 
 * Vec__U8.set
@@ -1822,7 +2164,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__U8.set(mut self: Vec__U8, shallow i: U64, own val: U8, mut _err_kind: I64)
+func Vec__U8.set(mut self: Vec__U8, i: U64, own val: U8) throws OutOfBounds
 #+end_src
 
 * Vec__U8.push_take
@@ -1836,7 +2178,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__U8.push_take(mut self: Vec__U8, mut src: Vec__U8, shallow i: U64)
+func Vec__U8.push_take(mut self: Vec__U8, mut src: Vec__U8, i: U64)
 #+end_src
 
 * Vec__U8.delete
@@ -1849,7 +2191,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__U8.delete(own self: Vec__U8, shallow call_free: Bool)
+func Vec__U8.delete(own self: Vec__U8, call_free: Bool = true)
 #+end_src
 
 * Vec__U8.clone
@@ -1914,6 +2256,16 @@ func adopt__priv___src_self_garbager_til__LocalInfo(mut dest: Dynamic, own src: 
 func adopt__priv___src_self_garbager_til__GcCfgBlock(mut dest: Dynamic, own src: priv___src_self_garbager_til__GcCfgBlock)
 #+end_src
 
+* adopt__priv___src_self_garbager_til__GcDeposit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.adopt__priv___src_self_garbager_til__GcDeposit
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_garbager_til__GcDeposit(mut dest: Dynamic, own src: priv___src_self_garbager_til__GcDeposit)
+#+end_src
+
 * safe_ref__FunctionDef
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.garbager.safe_ref__FunctionDef
@@ -1921,5 +2273,5 @@ func adopt__priv___src_self_garbager_til__GcCfgBlock(mut dest: Dynamic, own src:
 :END:
 
 #+begin_src til
-func safe_ref__FunctionDef(value: FunctionDef) returns shallow Option__ref_FunctionDef
+func safe_ref__FunctionDef(value: FunctionDef) returns Option__ref_FunctionDef
 #+end_src

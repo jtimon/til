@@ -1,0 +1,85 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+WORK := "tmp/doc_api"
+
+fixture := func() returns Str {
+    return format(
+        "mode lib\nFirstError := struct { message := \"\" }\nSecondError := struct {}\n",
+        "/// Callable contract.\n",
+        "example := func(value: I64, count: I64 = 7, text: Str = \"line\\n\\\"quoted\\\"\", loc: Str = __LOC__) returns I64 throws FirstError, SecondError {\n",
+        "    if value < 0 { throw FirstError(message = text.clone()) }\n",
+        "    if value == 0 { throw SecondError() }\n",
+        "    assert(loc.len() > 0); return value + count\n}\n",
+        "/// Rest arguments.\nvariadic := func(values: ..I64) returns I64 { return values.len().to_i64() }\n",
+        "/// Keyword arguments.\nkeywords := func(options: ...) returns I64 { return options.len().to_i64() }\n",
+        "/// Owned argument.\nowned := func(own text: Str) returns Str { return text }\n",
+        "/// Borrowed result.\nborrowed := func(text: Str) returns ref Str { return text }\n",
+        "Options := struct { number := 0 label := \"\" }\n",
+        "/// Constructed default.\nnested := func(options: Options = Options(number = 4, label = format(\"a\", \"b\"))) returns I64 { return options.number }\n",
+        "/// Public record.\nApiRecord := struct {\n",
+        "    /// Visible field.\n    value := 1\n",
+        "    /// PRIVATE_FIELD_DOC\n    priv secret_field := 2\n",
+        "    /// #+doc: nil\n    /// MASKED_FIELD_DOC\n    masked_field := 3\nnamespace:\n",
+        "    /// Visible method.\n    read := func(self: ApiRecord) returns I64 { return self.value + self.secret_field + self.masked_field + ApiRecord.secret_method() }\n",
+        "    /// PRIVATE_METHOD_DOC\n    priv secret_method := func() returns I64 { return 0 }\n",
+        "    /// #+doc: nil\n    /// MASKED_METHOD_DOC\n    masked_method := func() returns I64 { return 0 }\n}\n",
+        "/// Public enum.\nApiChoice := enum { One, Two,\nnamespace:\n",
+        "    /// Visible enum method.\n    read := func(self: ApiChoice) returns I64 { assert(self == ApiChoice.One || self == ApiChoice.Two); return ApiChoice.secret_enum() }\n",
+        "    /// PRIVATE_ENUM_DOC\n    priv secret_enum := func() returns I64 { return 0 }\n}\n")
+}
+
+check_visible := func(output: Str) {
+    expect(output.contains("func example(value: I64, count: I64 = 7, text: Str = \"line\\n\\\"quoted\\\"\", loc: Str = __LOC__) returns I64 throws FirstError, SecondError"), output)
+    expect(output.contains("func variadic(values: ..I64) returns I64"), output)
+    expect(output.contains("func keywords(options: ...) returns I64"), output)
+    expect(output.contains("func owned(own text: Str) returns Str"), output)
+    expect(output.contains("func borrowed(text: Str) returns ref Str"), output)
+    expect(output.contains("Options(number = 4, label = format(\"a\", \"b\"))"), output)
+    expect(output.contains("ApiRecord.read"), output)
+    for hidden in vec(Str, "_err_kind", "_err_FirstError", "_err_SecondError",
+        "PRIVATE_FIELD_DOC", "PRIVATE_METHOD_DOC", "PRIVATE_ENUM_DOC",
+        "MASKED_FIELD_DOC", "MASKED_METHOD_DOC") {
+        expect(output.contains(hidden).not(), "hidden documentation leaked: ", hidden, "\n", output)
+    }
+}
+
+main := proc(compiler_path: Str) {
+    mut compiler := compiler_path.clone()
+    // Child processes run two directories below the caller, under WORK.
+    if File.is_absolute(compiler).not() { compiler = format("../../", compiler) }
+    mkdir_p(WORK)
+    File.writefile(format(WORK, "/api.til"), fixture())
+    doc := Cmd.new(compiler, "doc", "api.til")
+    doc.cwd(WORK).capture()
+    doc_status := doc.run()
+    expect(doc_status == 0, "doc failed: ", doc.out(), doc.err())
+    page := File.readfile(format(WORK, "/doc/gen/api.org"))
+    check_visible(page)
+    for hidden in vec(Str, "secret_field", "secret_method", "secret_enum", "masked_field", "masked_method") {
+        expect(page.contains(hidden).not(), "private member in page: ", hidden, "\n", page)
+    }
+    index := File.readfile(format(WORK, "/doc/gen/index.org"))
+    check_visible(index)
+    html := File.readfile(format(WORK, "/doc/gen/api.html"))
+    search := File.readfile(format(WORK, "/doc/gen/search.js"))
+    for hidden in vec(Str, "secret_field", "secret_method", "secret_enum", "masked_field", "masked_method", "_err_kind") {
+        expect(html.contains(hidden).or(search.contains(hidden)).not(), "private/lowered member in HTML/search: ", hidden)
+    }
+
+    File.writefile(format(WORK, "/input.til"), format(
+        "import(\"./api\")\nhelp(\"example\")\nhelp(\"variadic\")\nhelp(\"keywords\")\nhelp(\"owned\")\nhelp(\"borrowed\")\nhelp(\"nested\")\n",
+        "help(\"ApiRecord\")\nhelp(\"ApiRecord.read\")\nhelp(\"ApiRecord.secret_field\")\nhelp(\"ApiRecord.secret_method\")\nhelp(\"ApiRecord.masked_field\")\nhelp(\"ApiRecord.masked_method\")\nhelp(\"ApiChoice\")\nhelp(\"ApiChoice.secret_enum\")\n"))
+    repl := Cmd.new("sh", "-c", "\"$1\" < input.til", "doc-api", compiler)
+    repl.cwd(WORK).capture()
+    repl.env("HOME", "home")
+    repl_status := repl.run()
+    expect(repl_status == 0, "REPL failed: ", repl.out(), repl.err())
+    check_visible(repl.out())
+    for hidden in vec(Str, "ApiRecord.secret_field", "ApiRecord.secret_method", "ApiRecord.masked_field", "ApiRecord.masked_method", "ApiChoice.secret_enum") {
+        expect(repl.out().contains(format("undefined symbol: ", hidden)), "private help entry: ", hidden, "\n", repl.out())
+    }
+    println("doc API PASS")
+}

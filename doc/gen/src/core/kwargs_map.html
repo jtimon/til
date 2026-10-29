@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -77,6 +77,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
+<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -101,16 +102,16 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut items : Map__Str_Tuple
 namespace:
     func new() returns KwargsMap
-    func len(self: KwargsMap) returns shallow U64
-    func has(self: KwargsMap, key: Str) returns shallow Bool
-    func set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: U64, own val: Dynamic)
+    func len(self: KwargsMap) returns U64
+    func has(self: KwargsMap, key: Str) returns Bool
+    func set(mut self: KwargsMap, key: Str, elem_type: Str, _elem_size: U64, own val: Dynamic)
     func get(self: KwargsMap, key: Str) returns ref Dynamic
     func type_at(self: KwargsMap, key: Str) returns ref Str
     func size_at(self: KwargsMap, key: Str) returns ref U64
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: KwargsMap) returns KwargsMap
-    func delete(own self: KwargsMap, shallow call_free: Bool)
-    func hash(self: KwargsMap, hasher: HashFn) returns shallow U64
+    func delete(own self: KwargsMap, call_free: Bool = true)
+    func hash(self: KwargsMap, hasher: HashFn) returns U64
 }
 </code></pre>
 </article>
@@ -129,7 +130,7 @@ namespace:
 <div class="doc-body">
 <p>True if <code>key</code> exists in the map.</p>
 </div>
-<pre><code class="language-til">func (self: KwargsMap, key: Str) returns shallow Bool
+<pre><code class="language-til">func (self: KwargsMap, key: Str) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.KwargsMap.set">
@@ -138,7 +139,7 @@ namespace:
 <div class="doc-body">
 <p>Insert or overwrite <code>key</code> with typed value. The value is owned.</p>
 </div>
-<pre><code class="language-til">func (mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: U64, own val: Dynamic)
+<pre><code class="language-til">func (mut self: KwargsMap, key: Str, elem_type: Str, _elem_size: U64, own val: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.KwargsMap.get">
@@ -176,17 +177,17 @@ namespace:
     mut values : Vec__Tuple
 namespace:
     func new() returns Map__Str_Tuple
-    func with_capacity(shallow n: U64) returns Map__Str_Tuple
-    func len(self: Map__Str_Tuple) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_Tuple
+    func len(self: Map__Str_Tuple) returns U64
     func clear(mut self: Map__Str_Tuple)
-    func has(self: Map__Str_Tuple, key: Str) returns shallow Bool
-    func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64) returns ref Tuple
+    func has(self: Map__Str_Tuple, key: Str) returns Bool
+    func get(self: Map__Str_Tuple, key: Str) returns ref Tuple throws KeyNotFound
     func set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
-    func remove(mut self: Map__Str_Tuple, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
+    func remove(mut self: Map__Str_Tuple, key: Str) returns Bool
+    func delete(own self: Map__Str_Tuple, call_free: Bool = true)
     func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
-    func size() returns shallow U64
-    func hash(self: Map__Str_Tuple, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_Tuple, hasher: HashFn) returns U64
 }
 </code></pre>
 </article>
@@ -208,7 +209,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (shallow n: U64) returns Map__Str_Tuple
+<pre><code class="language-til">func (n: U64) returns Map__Str_Tuple
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Map__Str_Tuple.clear">
@@ -226,7 +227,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <div class="doc-body">
 <p>True if a value exists for the given key.</p>
 </div>
-<pre><code class="language-til">func (self: Map__Str_Tuple, key: Str) returns shallow Bool
+<pre><code class="language-til">func (self: Map__Str_Tuple, key: Str) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Map__Str_Tuple.get">
@@ -237,7 +238,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
 on a missing key.</p>
 </div>
-<pre><code class="language-til">func (self: Map__Str_Tuple, key: Str, mut _err_kind: I64) returns ref Tuple
+<pre><code class="language-til">func (self: Map__Str_Tuple, key: Str) returns ref Tuple throws KeyNotFound
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Map__Str_Tuple.set">
@@ -255,7 +256,7 @@ on a missing key.</p>
 <div class="doc-body">
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
-<pre><code class="language-til">func (mut self: Map__Str_Tuple, key: Str) returns shallow Bool
+<pre><code class="language-til">func (mut self: Map__Str_Tuple, key: Str) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple">
@@ -267,8 +268,8 @@ on a missing key.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__Tuple
-    func with_capacity(shallow n: U64) returns Vec__Tuple
-    func len(self: Vec__Tuple) returns shallow U64
+    func with_capacity(n: U64) returns Vec__Tuple
+    func len(self: Vec__Tuple) returns U64
     func clear(mut self: Vec__Tuple)
     func delete_marked(mut self: Vec__Tuple, marks: Dynamic)
     func push(mut self: Vec__Tuple, own val: Tuple)
@@ -277,17 +278,17 @@ namespace:
     func move_to(own self: Vec__Tuple, mut dest: Vec__Tuple)
     func move_from(mut self: Vec__Tuple, own other: Vec__Tuple)
     func unsafe_get(self: Vec__Tuple, i: U64) returns ref Tuple
-    func get(self: Vec__Tuple, shallow i: U64, mut _err_kind: I64) returns ref Tuple
+    func get(self: Vec__Tuple, shallow i: U64) returns ref Tuple throws OutOfBounds
     func pop(mut self: Vec__Tuple) returns Tuple
-    func remove_at(mut self: Vec__Tuple, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Tuple, shallow n: U64) returns Vec__Tuple
-    func truncate(mut self: Vec__Tuple, shallow n: U64)
-    func unsafe_set(mut self: Vec__Tuple, shallow i: U64, own val: Tuple)
-    func set(mut self: Vec__Tuple, shallow i: U64, own val: Tuple, mut _err_kind: I64)
-    func push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: U64)
-    func delete(own self: Vec__Tuple, shallow call_free: Bool)
+    func remove_at(mut self: Vec__Tuple, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__Tuple, n: U64) returns Vec__Tuple
+    func truncate(mut self: Vec__Tuple, n: U64)
+    func unsafe_set(mut self: Vec__Tuple, i: U64, own val: Tuple)
+    func set(mut self: Vec__Tuple, i: U64, own val: Tuple) throws OutOfBounds
+    func push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, i: U64)
+    func delete(own self: Vec__Tuple, call_free: Bool = true)
     func clone(self: Vec__Tuple) returns Vec__Tuple
-    func size() returns shallow U64
+    func size() returns U64
 }
 </code></pre>
 </article>
@@ -315,7 +316,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: U64) returns Vec__Tuple
+<pre><code class="language-til">func (n: U64) returns Vec__Tuple
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.clear">
@@ -428,7 +429,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Tuple, shallow i: U64, mut _err_kind: I64) returns ref Tuple
+<pre><code class="language-til">func (self: Vec__Tuple, shallow i: U64) returns ref Tuple throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.pop">
@@ -447,7 +448,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Tuple, shallow i: U64, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Tuple, i: U64) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.take_prefix">
@@ -457,7 +458,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Tuple, shallow n: U64) returns Vec__Tuple
+<pre><code class="language-til">func (mut self: Vec__Tuple, n: U64) returns Vec__Tuple
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.truncate">
@@ -469,7 +470,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Tuple, shallow n: U64)
+<pre><code class="language-til">func (mut self: Vec__Tuple, n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.unsafe_set">
@@ -480,7 +481,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Tuple, shallow i: U64, own val: Tuple)
+<pre><code class="language-til">func (mut self: Vec__Tuple, i: U64, own val: Tuple)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.set">
@@ -491,7 +492,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Tuple, shallow i: U64, own val: Tuple, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__Tuple, i: U64, own val: Tuple) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.push_take">
@@ -502,7 +503,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: U64)
+<pre><code class="language-til">func (mut self: Vec__Tuple, mut src: Vec__Tuple, i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.delete">
@@ -512,7 +513,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__Tuple, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__Tuple, call_free: Bool = true)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple.clone">

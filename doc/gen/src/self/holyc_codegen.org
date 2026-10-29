@@ -1,5 +1,5 @@
 #+TITLE: src/self/holyc_codegen.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * holyc_codegen_translate
@@ -8,7 +8,7 @@
 :END:
 
 #+begin_src til
-proc holyc_codegen_translate(mut lp: LoadedProgram, output_path: Str) returns shallow I32
+proc holyc_codegen_translate(mut lp: LoadedProgram, output_path: Str) returns I32
 #+end_src
 
 * Map__Str_call_Map_Str_Bool
@@ -22,17 +22,17 @@ struct Map__Str_call_Map_Str_Bool {
     mut values : Vec__call_Map_Str_Bool
 namespace:
     func new() returns Map__Str_call_Map_Str_Bool
-    func with_capacity(shallow n: U64) returns Map__Str_call_Map_Str_Bool
-    func len(self: Map__Str_call_Map_Str_Bool) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_call_Map_Str_Bool
+    func len(self: Map__Str_call_Map_Str_Bool) returns U64
     func clear(mut self: Map__Str_call_Map_Str_Bool)
-    func has(self: Map__Str_call_Map_Str_Bool, key: Str) returns shallow Bool
-    func get(self: Map__Str_call_Map_Str_Bool, key: Str, mut _err_kind: I64) returns ref Map__Str_Bool
+    func has(self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
+    func get(self: Map__Str_call_Map_Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
     func set(mut self: Map__Str_call_Map_Str_Bool, key: Str, own val: Map__Str_Bool)
-    func remove(mut self: Map__Str_call_Map_Str_Bool, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_call_Map_Str_Bool, shallow call_free: Bool)
+    func remove(mut self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
+    func delete(own self: Map__Str_call_Map_Str_Bool, call_free: Bool = true)
     func clone(self: Map__Str_call_Map_Str_Bool) returns Map__Str_call_Map_Str_Bool
-    func size() returns shallow U64
-    func hash(self: Map__Str_call_Map_Str_Bool, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_call_Map_Str_Bool, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -58,7 +58,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_call_Map_Str_Bool.with_capacity(shallow n: U64) returns Map__Str_call_Map_Str_Bool
+func Map__Str_call_Map_Str_Bool.with_capacity(n: U64) returns Map__Str_call_Map_Str_Bool
 #+end_src
 
 * Map__Str_call_Map_Str_Bool.clear
@@ -80,7 +80,7 @@ func Map__Str_call_Map_Str_Bool.clear(mut self: Map__Str_call_Map_Str_Bool)
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_call_Map_Str_Bool.has(self: Map__Str_call_Map_Str_Bool, key: Str) returns shallow Bool
+func Map__Str_call_Map_Str_Bool.has(self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
 #+end_src
 
 * Map__Str_call_Map_Str_Bool.get
@@ -93,7 +93,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_call_Map_Str_Bool.get(self: Map__Str_call_Map_Str_Bool, key: Str, mut _err_kind: I64) returns ref Map__Str_Bool
+func Map__Str_call_Map_Str_Bool.get(self: Map__Str_call_Map_Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
 #+end_src
 
 * Map__Str_call_Map_Str_Bool.set
@@ -115,7 +115,7 @@ func Map__Str_call_Map_Str_Bool.set(mut self: Map__Str_call_Map_Str_Bool, key: S
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_call_Map_Str_Bool.remove(mut self: Map__Str_call_Map_Str_Bool, key: Str) returns shallow Bool
+func Map__Str_call_Map_Str_Bool.remove(mut self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
 #+end_src
 
 * Map__Str_FuncSig
@@ -129,17 +129,17 @@ struct Map__Str_FuncSig {
     mut values : Vec__FuncSig
 namespace:
     func new() returns Map__Str_FuncSig
-    func with_capacity(shallow n: U64) returns Map__Str_FuncSig
-    func len(self: Map__Str_FuncSig) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_FuncSig
+    func len(self: Map__Str_FuncSig) returns U64
     func clear(mut self: Map__Str_FuncSig)
-    func has(self: Map__Str_FuncSig, key: Str) returns shallow Bool
-    func get(self: Map__Str_FuncSig, key: Str, mut _err_kind: I64) returns ref FuncSig
+    func has(self: Map__Str_FuncSig, key: Str) returns Bool
+    func get(self: Map__Str_FuncSig, key: Str) returns ref FuncSig throws KeyNotFound
     func set(mut self: Map__Str_FuncSig, key: Str, own val: FuncSig)
-    func remove(mut self: Map__Str_FuncSig, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_FuncSig, shallow call_free: Bool)
+    func remove(mut self: Map__Str_FuncSig, key: Str) returns Bool
+    func delete(own self: Map__Str_FuncSig, call_free: Bool = true)
     func clone(self: Map__Str_FuncSig) returns Map__Str_FuncSig
-    func size() returns shallow U64
-    func hash(self: Map__Str_FuncSig, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_FuncSig, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -165,7 +165,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_FuncSig.with_capacity(shallow n: U64) returns Map__Str_FuncSig
+func Map__Str_FuncSig.with_capacity(n: U64) returns Map__Str_FuncSig
 #+end_src
 
 * Map__Str_FuncSig.clear
@@ -187,7 +187,7 @@ func Map__Str_FuncSig.clear(mut self: Map__Str_FuncSig)
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_FuncSig.has(self: Map__Str_FuncSig, key: Str) returns shallow Bool
+func Map__Str_FuncSig.has(self: Map__Str_FuncSig, key: Str) returns Bool
 #+end_src
 
 * Map__Str_FuncSig.get
@@ -200,7 +200,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_FuncSig.get(self: Map__Str_FuncSig, key: Str, mut _err_kind: I64) returns ref FuncSig
+func Map__Str_FuncSig.get(self: Map__Str_FuncSig, key: Str) returns ref FuncSig throws KeyNotFound
 #+end_src
 
 * Map__Str_FuncSig.set
@@ -222,7 +222,7 @@ func Map__Str_FuncSig.set(mut self: Map__Str_FuncSig, key: Str, own val: FuncSig
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_FuncSig.remove(mut self: Map__Str_FuncSig, key: Str) returns shallow Bool
+func Map__Str_FuncSig.remove(mut self: Map__Str_FuncSig, key: Str) returns Bool
 #+end_src
 
 * Map__Str_call_Set_Str
@@ -236,17 +236,17 @@ struct Map__Str_call_Set_Str {
     mut values : Vec__call_Set_Str
 namespace:
     func new() returns Map__Str_call_Set_Str
-    func with_capacity(shallow n: U64) returns Map__Str_call_Set_Str
-    func len(self: Map__Str_call_Set_Str) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_call_Set_Str
+    func len(self: Map__Str_call_Set_Str) returns U64
     func clear(mut self: Map__Str_call_Set_Str)
-    func has(self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
-    func get(self: Map__Str_call_Set_Str, key: Str, mut _err_kind: I64) returns ref Set__Str
+    func has(self: Map__Str_call_Set_Str, key: Str) returns Bool
+    func get(self: Map__Str_call_Set_Str, key: Str) returns ref Set__Str throws KeyNotFound
     func set(mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
-    func remove(mut self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_call_Set_Str, shallow call_free: Bool)
+    func remove(mut self: Map__Str_call_Set_Str, key: Str) returns Bool
+    func delete(own self: Map__Str_call_Set_Str, call_free: Bool = true)
     func clone(self: Map__Str_call_Set_Str) returns Map__Str_call_Set_Str
-    func size() returns shallow U64
-    func hash(self: Map__Str_call_Set_Str, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_call_Set_Str, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -272,7 +272,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_call_Set_Str.with_capacity(shallow n: U64) returns Map__Str_call_Set_Str
+func Map__Str_call_Set_Str.with_capacity(n: U64) returns Map__Str_call_Set_Str
 #+end_src
 
 * Map__Str_call_Set_Str.clear
@@ -294,7 +294,7 @@ func Map__Str_call_Set_Str.clear(mut self: Map__Str_call_Set_Str)
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_call_Set_Str.has(self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
+func Map__Str_call_Set_Str.has(self: Map__Str_call_Set_Str, key: Str) returns Bool
 #+end_src
 
 * Map__Str_call_Set_Str.get
@@ -307,7 +307,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_call_Set_Str.get(self: Map__Str_call_Set_Str, key: Str, mut _err_kind: I64) returns ref Set__Str
+func Map__Str_call_Set_Str.get(self: Map__Str_call_Set_Str, key: Str) returns ref Set__Str throws KeyNotFound
 #+end_src
 
 * Map__Str_call_Set_Str.set
@@ -329,7 +329,7 @@ func Map__Str_call_Set_Str.set(mut self: Map__Str_call_Set_Str, key: Str, own va
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_call_Set_Str.remove(mut self: Map__Str_call_Set_Str, key: Str) returns shallow Bool
+func Map__Str_call_Set_Str.remove(mut self: Map__Str_call_Set_Str, key: Str) returns Bool
 #+end_src
 
 * Map__Str_call_Set_USize
@@ -343,17 +343,17 @@ struct Map__Str_call_Set_USize {
     mut values : Vec__call_Set_USize
 namespace:
     func new() returns Map__Str_call_Set_USize
-    func with_capacity(shallow n: U64) returns Map__Str_call_Set_USize
-    func len(self: Map__Str_call_Set_USize) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_call_Set_USize
+    func len(self: Map__Str_call_Set_USize) returns U64
     func clear(mut self: Map__Str_call_Set_USize)
-    func has(self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
-    func get(self: Map__Str_call_Set_USize, key: Str, mut _err_kind: I64) returns ref Set__USize
+    func has(self: Map__Str_call_Set_USize, key: Str) returns Bool
+    func get(self: Map__Str_call_Set_USize, key: Str) returns ref Set__USize throws KeyNotFound
     func set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
-    func remove(mut self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_call_Set_USize, shallow call_free: Bool)
+    func remove(mut self: Map__Str_call_Set_USize, key: Str) returns Bool
+    func delete(own self: Map__Str_call_Set_USize, call_free: Bool = true)
     func clone(self: Map__Str_call_Set_USize) returns Map__Str_call_Set_USize
-    func size() returns shallow U64
-    func hash(self: Map__Str_call_Set_USize, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_call_Set_USize, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -379,7 +379,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_call_Set_USize.with_capacity(shallow n: U64) returns Map__Str_call_Set_USize
+func Map__Str_call_Set_USize.with_capacity(n: U64) returns Map__Str_call_Set_USize
 #+end_src
 
 * Map__Str_call_Set_USize.clear
@@ -401,7 +401,7 @@ func Map__Str_call_Set_USize.clear(mut self: Map__Str_call_Set_USize)
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_call_Set_USize.has(self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
+func Map__Str_call_Set_USize.has(self: Map__Str_call_Set_USize, key: Str) returns Bool
 #+end_src
 
 * Map__Str_call_Set_USize.get
@@ -414,7 +414,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_call_Set_USize.get(self: Map__Str_call_Set_USize, key: Str, mut _err_kind: I64) returns ref Set__USize
+func Map__Str_call_Set_USize.get(self: Map__Str_call_Set_USize, key: Str) returns ref Set__USize throws KeyNotFound
 #+end_src
 
 * Map__Str_call_Set_USize.set
@@ -436,7 +436,7 @@ func Map__Str_call_Set_USize.set(mut self: Map__Str_call_Set_USize, key: Str, ow
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_call_Set_USize.remove(mut self: Map__Str_call_Set_USize, key: Str) returns shallow Bool
+func Map__Str_call_Set_USize.remove(mut self: Map__Str_call_Set_USize, key: Str) returns Bool
 #+end_src
 
 * Vec__call_Map_Str_Bool
@@ -451,8 +451,8 @@ struct Vec__call_Map_Str_Bool {
     mut cap : USize
 namespace:
     func new() returns Vec__call_Map_Str_Bool
-    func with_capacity(shallow n: U64) returns Vec__call_Map_Str_Bool
-    func len(self: Vec__call_Map_Str_Bool) returns shallow U64
+    func with_capacity(n: U64) returns Vec__call_Map_Str_Bool
+    func len(self: Vec__call_Map_Str_Bool) returns U64
     func clear(mut self: Vec__call_Map_Str_Bool)
     func delete_marked(mut self: Vec__call_Map_Str_Bool, marks: Dynamic)
     func push(mut self: Vec__call_Map_Str_Bool, own val: Map__Str_Bool)
@@ -461,17 +461,17 @@ namespace:
     func move_to(own self: Vec__call_Map_Str_Bool, mut dest: Vec__call_Map_Str_Bool)
     func move_from(mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
     func unsafe_get(self: Vec__call_Map_Str_Bool, i: U64) returns ref Map__Str_Bool
-    func get(self: Vec__call_Map_Str_Bool, shallow i: U64, mut _err_kind: I64) returns ref Map__Str_Bool
+    func get(self: Vec__call_Map_Str_Bool, shallow i: U64) returns ref Map__Str_Bool throws OutOfBounds
     func pop(mut self: Vec__call_Map_Str_Bool) returns Map__Str_Bool
-    func remove_at(mut self: Vec__call_Map_Str_Bool, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__call_Map_Str_Bool, shallow n: U64) returns Vec__call_Map_Str_Bool
-    func truncate(mut self: Vec__call_Map_Str_Bool, shallow n: U64)
-    func unsafe_set(mut self: Vec__call_Map_Str_Bool, shallow i: U64, own val: Map__Str_Bool)
-    func set(mut self: Vec__call_Map_Str_Bool, shallow i: U64, own val: Map__Str_Bool, mut _err_kind: I64)
-    func push_take(mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, shallow i: U64)
-    func delete(own self: Vec__call_Map_Str_Bool, shallow call_free: Bool)
+    func remove_at(mut self: Vec__call_Map_Str_Bool, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__call_Map_Str_Bool, n: U64) returns Vec__call_Map_Str_Bool
+    func truncate(mut self: Vec__call_Map_Str_Bool, n: U64)
+    func unsafe_set(mut self: Vec__call_Map_Str_Bool, i: U64, own val: Map__Str_Bool)
+    func set(mut self: Vec__call_Map_Str_Bool, i: U64, own val: Map__Str_Bool) throws OutOfBounds
+    func push_take(mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, i: U64)
+    func delete(own self: Vec__call_Map_Str_Bool, call_free: Bool = true)
     func clone(self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -503,7 +503,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.with_capacity(shallow n: U64) returns Vec__call_Map_Str_Bool
+func Vec__call_Map_Str_Bool.with_capacity(n: U64) returns Vec__call_Map_Str_Bool
 #+end_src
 
 * Vec__call_Map_Str_Bool.clear
@@ -636,7 +636,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.get(self: Vec__call_Map_Str_Bool, shallow i: U64, mut _err_kind: I64) returns ref Map__Str_Bool
+func Vec__call_Map_Str_Bool.get(self: Vec__call_Map_Str_Bool, shallow i: U64) returns ref Map__Str_Bool throws OutOfBounds
 #+end_src
 
 * Vec__call_Map_Str_Bool.pop
@@ -659,7 +659,7 @@ func Vec__call_Map_Str_Bool.pop(mut self: Vec__call_Map_Str_Bool) returns Map__S
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.remove_at(mut self: Vec__call_Map_Str_Bool, shallow i: U64, mut _err_kind: I64)
+func Vec__call_Map_Str_Bool.remove_at(mut self: Vec__call_Map_Str_Bool, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__call_Map_Str_Bool.take_prefix
@@ -671,7 +671,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.take_prefix(mut self: Vec__call_Map_Str_Bool, shallow n: U64) returns Vec__call_Map_Str_Bool
+func Vec__call_Map_Str_Bool.take_prefix(mut self: Vec__call_Map_Str_Bool, n: U64) returns Vec__call_Map_Str_Bool
 #+end_src
 
 * Vec__call_Map_Str_Bool.truncate
@@ -685,7 +685,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.truncate(mut self: Vec__call_Map_Str_Bool, shallow n: U64)
+func Vec__call_Map_Str_Bool.truncate(mut self: Vec__call_Map_Str_Bool, n: U64)
 #+end_src
 
 * Vec__call_Map_Str_Bool.unsafe_set
@@ -698,7 +698,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.unsafe_set(mut self: Vec__call_Map_Str_Bool, shallow i: U64, own val: Map__Str_Bool)
+func Vec__call_Map_Str_Bool.unsafe_set(mut self: Vec__call_Map_Str_Bool, i: U64, own val: Map__Str_Bool)
 #+end_src
 
 * Vec__call_Map_Str_Bool.set
@@ -711,7 +711,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.set(mut self: Vec__call_Map_Str_Bool, shallow i: U64, own val: Map__Str_Bool, mut _err_kind: I64)
+func Vec__call_Map_Str_Bool.set(mut self: Vec__call_Map_Str_Bool, i: U64, own val: Map__Str_Bool) throws OutOfBounds
 #+end_src
 
 * Vec__call_Map_Str_Bool.push_take
@@ -724,7 +724,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.push_take(mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, shallow i: U64)
+func Vec__call_Map_Str_Bool.push_take(mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, i: U64)
 #+end_src
 
 * Vec__call_Map_Str_Bool.delete
@@ -736,7 +736,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__call_Map_Str_Bool.delete(own self: Vec__call_Map_Str_Bool, shallow call_free: Bool)
+func Vec__call_Map_Str_Bool.delete(own self: Vec__call_Map_Str_Bool, call_free: Bool = true)
 #+end_src
 
 * Vec__call_Map_Str_Bool.clone
@@ -762,8 +762,8 @@ struct Vec__FuncSig {
     mut cap : USize
 namespace:
     func new() returns Vec__FuncSig
-    func with_capacity(shallow n: U64) returns Vec__FuncSig
-    func len(self: Vec__FuncSig) returns shallow U64
+    func with_capacity(n: U64) returns Vec__FuncSig
+    func len(self: Vec__FuncSig) returns U64
     func clear(mut self: Vec__FuncSig)
     func delete_marked(mut self: Vec__FuncSig, marks: Dynamic)
     func push(mut self: Vec__FuncSig, own val: FuncSig)
@@ -772,17 +772,17 @@ namespace:
     func move_to(own self: Vec__FuncSig, mut dest: Vec__FuncSig)
     func move_from(mut self: Vec__FuncSig, own other: Vec__FuncSig)
     func unsafe_get(self: Vec__FuncSig, i: U64) returns ref FuncSig
-    func get(self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64) returns ref FuncSig
+    func get(self: Vec__FuncSig, shallow i: U64) returns ref FuncSig throws OutOfBounds
     func pop(mut self: Vec__FuncSig) returns FuncSig
-    func remove_at(mut self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__FuncSig, shallow n: U64) returns Vec__FuncSig
-    func truncate(mut self: Vec__FuncSig, shallow n: U64)
-    func unsafe_set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig)
-    func set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig, mut _err_kind: I64)
-    func push_take(mut self: Vec__FuncSig, mut src: Vec__FuncSig, shallow i: U64)
-    func delete(own self: Vec__FuncSig, shallow call_free: Bool)
+    func remove_at(mut self: Vec__FuncSig, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__FuncSig, n: U64) returns Vec__FuncSig
+    func truncate(mut self: Vec__FuncSig, n: U64)
+    func unsafe_set(mut self: Vec__FuncSig, i: U64, own val: FuncSig)
+    func set(mut self: Vec__FuncSig, i: U64, own val: FuncSig) throws OutOfBounds
+    func push_take(mut self: Vec__FuncSig, mut src: Vec__FuncSig, i: U64)
+    func delete(own self: Vec__FuncSig, call_free: Bool = true)
     func clone(self: Vec__FuncSig) returns Vec__FuncSig
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -814,7 +814,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__FuncSig.with_capacity(shallow n: U64) returns Vec__FuncSig
+func Vec__FuncSig.with_capacity(n: U64) returns Vec__FuncSig
 #+end_src
 
 * Vec__FuncSig.clear
@@ -947,7 +947,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__FuncSig.get(self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64) returns ref FuncSig
+func Vec__FuncSig.get(self: Vec__FuncSig, shallow i: U64) returns ref FuncSig throws OutOfBounds
 #+end_src
 
 * Vec__FuncSig.pop
@@ -970,7 +970,7 @@ func Vec__FuncSig.pop(mut self: Vec__FuncSig) returns FuncSig
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__FuncSig.remove_at(mut self: Vec__FuncSig, shallow i: U64, mut _err_kind: I64)
+func Vec__FuncSig.remove_at(mut self: Vec__FuncSig, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__FuncSig.take_prefix
@@ -982,7 +982,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__FuncSig.take_prefix(mut self: Vec__FuncSig, shallow n: U64) returns Vec__FuncSig
+func Vec__FuncSig.take_prefix(mut self: Vec__FuncSig, n: U64) returns Vec__FuncSig
 #+end_src
 
 * Vec__FuncSig.truncate
@@ -996,7 +996,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__FuncSig.truncate(mut self: Vec__FuncSig, shallow n: U64)
+func Vec__FuncSig.truncate(mut self: Vec__FuncSig, n: U64)
 #+end_src
 
 * Vec__FuncSig.unsafe_set
@@ -1009,7 +1009,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__FuncSig.unsafe_set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig)
+func Vec__FuncSig.unsafe_set(mut self: Vec__FuncSig, i: U64, own val: FuncSig)
 #+end_src
 
 * Vec__FuncSig.set
@@ -1022,7 +1022,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__FuncSig.set(mut self: Vec__FuncSig, shallow i: U64, own val: FuncSig, mut _err_kind: I64)
+func Vec__FuncSig.set(mut self: Vec__FuncSig, i: U64, own val: FuncSig) throws OutOfBounds
 #+end_src
 
 * Vec__FuncSig.push_take
@@ -1035,7 +1035,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__FuncSig.push_take(mut self: Vec__FuncSig, mut src: Vec__FuncSig, shallow i: U64)
+func Vec__FuncSig.push_take(mut self: Vec__FuncSig, mut src: Vec__FuncSig, i: U64)
 #+end_src
 
 * Vec__FuncSig.delete
@@ -1047,7 +1047,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__FuncSig.delete(own self: Vec__FuncSig, shallow call_free: Bool)
+func Vec__FuncSig.delete(own self: Vec__FuncSig, call_free: Bool = true)
 #+end_src
 
 * Vec__FuncSig.clone
@@ -1073,8 +1073,8 @@ struct Vec__call_Set_Str {
     mut cap : USize
 namespace:
     func new() returns Vec__call_Set_Str
-    func with_capacity(shallow n: U64) returns Vec__call_Set_Str
-    func len(self: Vec__call_Set_Str) returns shallow U64
+    func with_capacity(n: U64) returns Vec__call_Set_Str
+    func len(self: Vec__call_Set_Str) returns U64
     func clear(mut self: Vec__call_Set_Str)
     func delete_marked(mut self: Vec__call_Set_Str, marks: Dynamic)
     func push(mut self: Vec__call_Set_Str, own val: Set__Str)
@@ -1083,17 +1083,17 @@ namespace:
     func move_to(own self: Vec__call_Set_Str, mut dest: Vec__call_Set_Str)
     func move_from(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
     func unsafe_get(self: Vec__call_Set_Str, i: U64) returns ref Set__Str
-    func get(self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64) returns ref Set__Str
+    func get(self: Vec__call_Set_Str, shallow i: U64) returns ref Set__Str throws OutOfBounds
     func pop(mut self: Vec__call_Set_Str) returns Set__Str
-    func remove_at(mut self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__call_Set_Str, shallow n: U64) returns Vec__call_Set_Str
-    func truncate(mut self: Vec__call_Set_Str, shallow n: U64)
-    func unsafe_set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str)
-    func set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str, mut _err_kind: I64)
-    func push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, shallow i: U64)
-    func delete(own self: Vec__call_Set_Str, shallow call_free: Bool)
+    func remove_at(mut self: Vec__call_Set_Str, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__call_Set_Str, n: U64) returns Vec__call_Set_Str
+    func truncate(mut self: Vec__call_Set_Str, n: U64)
+    func unsafe_set(mut self: Vec__call_Set_Str, i: U64, own val: Set__Str)
+    func set(mut self: Vec__call_Set_Str, i: U64, own val: Set__Str) throws OutOfBounds
+    func push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, i: U64)
+    func delete(own self: Vec__call_Set_Str, call_free: Bool = true)
     func clone(self: Vec__call_Set_Str) returns Vec__call_Set_Str
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1125,7 +1125,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__call_Set_Str.with_capacity(shallow n: U64) returns Vec__call_Set_Str
+func Vec__call_Set_Str.with_capacity(n: U64) returns Vec__call_Set_Str
 #+end_src
 
 * Vec__call_Set_Str.clear
@@ -1258,7 +1258,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__call_Set_Str.get(self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64) returns ref Set__Str
+func Vec__call_Set_Str.get(self: Vec__call_Set_Str, shallow i: U64) returns ref Set__Str throws OutOfBounds
 #+end_src
 
 * Vec__call_Set_Str.pop
@@ -1281,7 +1281,7 @@ func Vec__call_Set_Str.pop(mut self: Vec__call_Set_Str) returns Set__Str
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__call_Set_Str.remove_at(mut self: Vec__call_Set_Str, shallow i: U64, mut _err_kind: I64)
+func Vec__call_Set_Str.remove_at(mut self: Vec__call_Set_Str, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__call_Set_Str.take_prefix
@@ -1293,7 +1293,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__call_Set_Str.take_prefix(mut self: Vec__call_Set_Str, shallow n: U64) returns Vec__call_Set_Str
+func Vec__call_Set_Str.take_prefix(mut self: Vec__call_Set_Str, n: U64) returns Vec__call_Set_Str
 #+end_src
 
 * Vec__call_Set_Str.truncate
@@ -1307,7 +1307,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__call_Set_Str.truncate(mut self: Vec__call_Set_Str, shallow n: U64)
+func Vec__call_Set_Str.truncate(mut self: Vec__call_Set_Str, n: U64)
 #+end_src
 
 * Vec__call_Set_Str.unsafe_set
@@ -1320,7 +1320,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__call_Set_Str.unsafe_set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str)
+func Vec__call_Set_Str.unsafe_set(mut self: Vec__call_Set_Str, i: U64, own val: Set__Str)
 #+end_src
 
 * Vec__call_Set_Str.set
@@ -1333,7 +1333,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__call_Set_Str.set(mut self: Vec__call_Set_Str, shallow i: U64, own val: Set__Str, mut _err_kind: I64)
+func Vec__call_Set_Str.set(mut self: Vec__call_Set_Str, i: U64, own val: Set__Str) throws OutOfBounds
 #+end_src
 
 * Vec__call_Set_Str.push_take
@@ -1346,7 +1346,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__call_Set_Str.push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, shallow i: U64)
+func Vec__call_Set_Str.push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, i: U64)
 #+end_src
 
 * Vec__call_Set_Str.delete
@@ -1358,7 +1358,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__call_Set_Str.delete(own self: Vec__call_Set_Str, shallow call_free: Bool)
+func Vec__call_Set_Str.delete(own self: Vec__call_Set_Str, call_free: Bool = true)
 #+end_src
 
 * Vec__call_Set_Str.clone
@@ -1384,8 +1384,8 @@ struct Vec__call_Set_USize {
     mut cap : USize
 namespace:
     func new() returns Vec__call_Set_USize
-    func with_capacity(shallow n: U64) returns Vec__call_Set_USize
-    func len(self: Vec__call_Set_USize) returns shallow U64
+    func with_capacity(n: U64) returns Vec__call_Set_USize
+    func len(self: Vec__call_Set_USize) returns U64
     func clear(mut self: Vec__call_Set_USize)
     func delete_marked(mut self: Vec__call_Set_USize, marks: Dynamic)
     func push(mut self: Vec__call_Set_USize, own val: Set__USize)
@@ -1394,17 +1394,17 @@ namespace:
     func move_to(own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
     func move_from(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
     func unsafe_get(self: Vec__call_Set_USize, i: U64) returns ref Set__USize
-    func get(self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64) returns ref Set__USize
+    func get(self: Vec__call_Set_USize, shallow i: U64) returns ref Set__USize throws OutOfBounds
     func pop(mut self: Vec__call_Set_USize) returns Set__USize
-    func remove_at(mut self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__call_Set_USize, shallow n: U64) returns Vec__call_Set_USize
-    func truncate(mut self: Vec__call_Set_USize, shallow n: U64)
-    func unsafe_set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize)
-    func set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize, mut _err_kind: I64)
-    func push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, shallow i: U64)
-    func delete(own self: Vec__call_Set_USize, shallow call_free: Bool)
+    func remove_at(mut self: Vec__call_Set_USize, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__call_Set_USize, n: U64) returns Vec__call_Set_USize
+    func truncate(mut self: Vec__call_Set_USize, n: U64)
+    func unsafe_set(mut self: Vec__call_Set_USize, i: U64, own val: Set__USize)
+    func set(mut self: Vec__call_Set_USize, i: U64, own val: Set__USize) throws OutOfBounds
+    func push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, i: U64)
+    func delete(own self: Vec__call_Set_USize, call_free: Bool = true)
     func clone(self: Vec__call_Set_USize) returns Vec__call_Set_USize
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1436,7 +1436,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__call_Set_USize.with_capacity(shallow n: U64) returns Vec__call_Set_USize
+func Vec__call_Set_USize.with_capacity(n: U64) returns Vec__call_Set_USize
 #+end_src
 
 * Vec__call_Set_USize.clear
@@ -1569,7 +1569,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__call_Set_USize.get(self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64) returns ref Set__USize
+func Vec__call_Set_USize.get(self: Vec__call_Set_USize, shallow i: U64) returns ref Set__USize throws OutOfBounds
 #+end_src
 
 * Vec__call_Set_USize.pop
@@ -1592,7 +1592,7 @@ func Vec__call_Set_USize.pop(mut self: Vec__call_Set_USize) returns Set__USize
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__call_Set_USize.remove_at(mut self: Vec__call_Set_USize, shallow i: U64, mut _err_kind: I64)
+func Vec__call_Set_USize.remove_at(mut self: Vec__call_Set_USize, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__call_Set_USize.take_prefix
@@ -1604,7 +1604,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__call_Set_USize.take_prefix(mut self: Vec__call_Set_USize, shallow n: U64) returns Vec__call_Set_USize
+func Vec__call_Set_USize.take_prefix(mut self: Vec__call_Set_USize, n: U64) returns Vec__call_Set_USize
 #+end_src
 
 * Vec__call_Set_USize.truncate
@@ -1618,7 +1618,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__call_Set_USize.truncate(mut self: Vec__call_Set_USize, shallow n: U64)
+func Vec__call_Set_USize.truncate(mut self: Vec__call_Set_USize, n: U64)
 #+end_src
 
 * Vec__call_Set_USize.unsafe_set
@@ -1631,7 +1631,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__call_Set_USize.unsafe_set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize)
+func Vec__call_Set_USize.unsafe_set(mut self: Vec__call_Set_USize, i: U64, own val: Set__USize)
 #+end_src
 
 * Vec__call_Set_USize.set
@@ -1644,7 +1644,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__call_Set_USize.set(mut self: Vec__call_Set_USize, shallow i: U64, own val: Set__USize, mut _err_kind: I64)
+func Vec__call_Set_USize.set(mut self: Vec__call_Set_USize, i: U64, own val: Set__USize) throws OutOfBounds
 #+end_src
 
 * Vec__call_Set_USize.push_take
@@ -1657,7 +1657,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__call_Set_USize.push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, shallow i: U64)
+func Vec__call_Set_USize.push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, i: U64)
 #+end_src
 
 * Vec__call_Set_USize.delete
@@ -1669,7 +1669,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__call_Set_USize.delete(own self: Vec__call_Set_USize, shallow call_free: Bool)
+func Vec__call_Set_USize.delete(own self: Vec__call_Set_USize, call_free: Bool = true)
 #+end_src
 
 * Vec__call_Set_USize.clone

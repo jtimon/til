@@ -1,5 +1,5 @@
 #+TITLE: src/self/c_codegen.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * builder_rhs_is_definition
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-func builder_rhs_is_definition(rhs: Expr) returns shallow Bool
+func builder_rhs_is_definition(rhs: Expr) returns Bool
 #+end_src
 
 * is_exported_top_level_global
@@ -19,7 +19,7 @@ func builder_rhs_is_definition(rhs: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func is_exported_top_level_global(stmt: Expr) returns shallow Bool
+func is_exported_top_level_global(stmt: Expr) returns Bool
 #+end_src
 
 * ns_member_is_data
@@ -29,7 +29,7 @@ func is_exported_top_level_global(stmt: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func ns_member_is_data(def: Expr, shallow idx: U64) returns shallow Bool
+func ns_member_is_data(def: Expr, idx: U64) returns Bool
 #+end_src
 
 * emit_funcsig_typedefs_prog
@@ -49,7 +49,7 @@ proc emit_funcsig_typedefs_prog(f: File, prog: Expr, mut ctx: Context)
 :END:
 
 #+begin_src til
-proc build_forward_header_lp(fwd_path: Str, mut lp: LoadedProgram) returns shallow I32
+proc build_forward_header_lp(fwd_path: Str, mut lp: LoadedProgram) returns I32
 #+end_src
 
 * builder_prepare_emit
@@ -69,7 +69,7 @@ proc builder_prepare_emit(mut lp: LoadedProgram)
 :END:
 
 #+begin_src til
-proc c_codegen_translate_outputs(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, shallow do_lib: Bool) returns shallow I32
+proc c_codegen_translate_outputs(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32
 #+end_src
 
 * Map__Sym_Str
@@ -145,16 +145,16 @@ struct Set__USize {
     mut cap : USize
 namespace:
     func new() returns Set__USize
-    func with_capacity(shallow n: U64) returns Set__USize
-    func len(self: Set__USize) returns shallow U64
+    func with_capacity(n: U64) returns Set__USize
+    func len(self: Set__USize) returns U64
     func unsafe_get(self: Set__USize, i: U64) returns ref U64
     func clear(mut self: Set__USize)
-    func has(self: Set__USize, shallow val: U64) returns shallow Bool
+    func has(self: Set__USize, val: U64) returns Bool
     func add(mut self: Set__USize, own val: U64)
-    func remove(mut self: Set__USize, shallow val: U64) returns shallow Bool
-    func delete(own self: Set__USize, shallow call_free: Bool)
+    func remove(mut self: Set__USize, val: U64) returns Bool
+    func delete(own self: Set__USize, call_free: Bool = true)
     func clone(self: Set__USize) returns Set__USize
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -187,7 +187,7 @@ where the final size is known or well predicted; ~new()~ grows
 doubling. n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Set__USize.with_capacity(shallow n: U64) returns Set__USize
+func Set__USize.with_capacity(n: U64) returns Set__USize
 #+end_src
 
 * Set__USize.unsafe_get
@@ -227,7 +227,7 @@ func Set__USize.clear(mut self: Set__USize)
 True if the set contains an element equal to ~val~.
 
 #+begin_src til
-func Set__USize.has(self: Set__USize, shallow val: U64) returns shallow Bool
+func Set__USize.has(self: Set__USize, val: U64) returns Bool
 #+end_src
 
 * Set__USize.add
@@ -255,7 +255,7 @@ this is its removal half). Later elements shift left to keep the
 storage sorted and dense.
 
 #+begin_src til
-func Set__USize.remove(mut self: Set__USize, shallow val: U64) returns shallow Bool
+func Set__USize.remove(mut self: Set__USize, val: U64) returns Bool
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo
@@ -271,8 +271,8 @@ struct Vec__priv___src_self_c_codegen_til__CollectionInfo {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func len(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func len(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns U64
     func clear(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo)
     func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own val: priv___src_self_c_codegen_til__CollectionInfo)
@@ -281,17 +281,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut dest: Vec__priv___src_self_c_codegen_til__CollectionInfo)
     func move_from(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, own other: Vec__priv___src_self_c_codegen_til__CollectionInfo)
     func unsafe_get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64) returns ref priv___src_self_c_codegen_til__CollectionInfo
-    func get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+    func get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64) returns ref priv___src_self_c_codegen_til__CollectionInfo throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns priv___src_self_c_codegen_til__CollectionInfo
-    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo)
-    func set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64)
+    func delete(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -325,7 +325,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.with_capacity(n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.clear
@@ -467,7 +467,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__CollectionInfo
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.get(self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64) returns ref priv___src_self_c_codegen_til__CollectionInfo throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.pop
@@ -492,7 +492,7 @@ func Vec__priv___src_self_c_codegen_til__CollectionInfo.pop(mut self: Vec__priv_
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.remove_at(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix
@@ -505,7 +505,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.take_prefix(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, n: U64) returns Vec__priv___src_self_c_codegen_til__CollectionInfo
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate
@@ -520,7 +520,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow n: U64)
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.truncate(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, n: U64)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set
@@ -534,7 +534,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo)
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.set
@@ -548,7 +548,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo, mut _err_kind: I64)
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.set(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64, own val: priv___src_self_c_codegen_til__CollectionInfo) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take
@@ -562,7 +562,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow i: U64)
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.push_take(mut self: Vec__priv___src_self_c_codegen_til__CollectionInfo, mut src: Vec__priv___src_self_c_codegen_til__CollectionInfo, i: U64)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.delete
@@ -575,7 +575,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__CollectionInfo.delete(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, shallow call_free: Bool)
+func Vec__priv___src_self_c_codegen_til__CollectionInfo.delete(own self: Vec__priv___src_self_c_codegen_til__CollectionInfo, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__CollectionInfo.clone
@@ -603,8 +603,8 @@ struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func len(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func len(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns U64
     func clear(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo)
     func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own val: priv___src_self_c_codegen_til__DynCallInfo)
@@ -613,17 +613,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut dest: Vec__priv___src_self_c_codegen_til__DynCallInfo)
     func move_from(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, own other: Vec__priv___src_self_c_codegen_til__DynCallInfo)
     func unsafe_get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64) returns ref priv___src_self_c_codegen_til__DynCallInfo
-    func get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+    func get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64) returns ref priv___src_self_c_codegen_til__DynCallInfo throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns priv___src_self_c_codegen_til__DynCallInfo
-    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo)
-    func set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64)
+    func delete(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -657,7 +657,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.with_capacity(n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.clear
@@ -799,7 +799,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__DynCallInfo
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.get(self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64) returns ref priv___src_self_c_codegen_til__DynCallInfo throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.pop
@@ -824,7 +824,7 @@ func Vec__priv___src_self_c_codegen_til__DynCallInfo.pop(mut self: Vec__priv___s
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.remove_at(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix
@@ -837,7 +837,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.take_prefix(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, n: U64) returns Vec__priv___src_self_c_codegen_til__DynCallInfo
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate
@@ -852,7 +852,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow n: U64)
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.truncate(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, n: U64)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set
@@ -866,7 +866,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo)
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.set
@@ -880,7 +880,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo, mut _err_kind: I64)
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.set(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64, own val: priv___src_self_c_codegen_til__DynCallInfo) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take
@@ -894,7 +894,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow i: U64)
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.push_take(mut self: Vec__priv___src_self_c_codegen_til__DynCallInfo, mut src: Vec__priv___src_self_c_codegen_til__DynCallInfo, i: U64)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.delete
@@ -907,7 +907,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__DynCallInfo.delete(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, shallow call_free: Bool)
+func Vec__priv___src_self_c_codegen_til__DynCallInfo.delete(own self: Vec__priv___src_self_c_codegen_til__DynCallInfo, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__DynCallInfo.clone
@@ -934,17 +934,17 @@ struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites {
     mut values : Vec__priv___src_self_c_codegen_til__BuilderFuncSites
 namespace:
     func new() returns Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites
-    func with_capacity(shallow n: U64) returns Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites
-    func len(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites) returns shallow U64
+    func with_capacity(n: U64) returns Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites
+    func len(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites) returns U64
     func clear(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites)
-    func has(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow key: UPtr) returns shallow Bool
-    func get(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites
-    func set(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow key: UPtr, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
-    func remove(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow key: UPtr) returns shallow Bool
-    func delete(own self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow call_free: Bool)
+    func has(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr) returns Bool
+    func get(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr) returns ref priv___src_self_c_codegen_til__BuilderFuncSites throws KeyNotFound
+    func set(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
+    func remove(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr) returns Bool
+    func delete(own self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, call_free: Bool = true)
     func clone(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites) returns Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites
-    func size() returns shallow U64
-    func hash(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -972,7 +972,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.with_capacity(shallow n: U64) returns Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites
+func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.with_capacity(n: U64) returns Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites
 #+end_src
 
 * Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.clear
@@ -996,7 +996,7 @@ func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.clear(mut self: M
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.has(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow key: UPtr) returns shallow Bool
+func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.has(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr) returns Bool
 #+end_src
 
 * Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.get
@@ -1010,7 +1010,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.get(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites
+func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.get(self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr) returns ref priv___src_self_c_codegen_til__BuilderFuncSites throws KeyNotFound
 #+end_src
 
 * Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.set
@@ -1022,7 +1022,7 @@ func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.get(self: Map__UP
 Insert or overwrite the value for ~key~. The value is owned.
 
 #+begin_src til
-func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.set(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow key: UPtr, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
+func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.set(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
 #+end_src
 
 * Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.remove
@@ -1034,7 +1034,7 @@ func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.set(mut self: Map
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.remove(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, shallow key: UPtr) returns shallow Bool
+func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.remove(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr) returns Bool
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites
@@ -1050,8 +1050,8 @@ struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
-    func len(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
+    func len(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites) returns U64
     func clear(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites)
     func delete_marked(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
@@ -1060,17 +1060,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, mut dest: Vec__priv___src_self_c_codegen_til__BuilderFuncSites)
     func move_from(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, own other: Vec__priv___src_self_c_codegen_til__BuilderFuncSites)
     func unsafe_get(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites
-    func get(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites
+    func get(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites) returns priv___src_self_c_codegen_til__BuilderFuncSites
-    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
-    func truncate(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
-    func set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, mut src: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
+    func truncate(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
+    func set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, mut src: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64)
+    func delete(own self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1104,7 +1104,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.with_capacity(shallow n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.with_capacity(n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.clear
@@ -1246,7 +1246,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.get(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.get(self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64) returns ref priv___src_self_c_codegen_til__BuilderFuncSites throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.pop
@@ -1271,7 +1271,7 @@ func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.pop(mut self: Vec__pri
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.remove_at(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.remove_at(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.take_prefix
@@ -1284,7 +1284,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.take_prefix(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.take_prefix(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, n: U64) returns Vec__priv___src_self_c_codegen_til__BuilderFuncSites
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.truncate
@@ -1299,7 +1299,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.truncate(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow n: U64)
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.truncate(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, n: U64)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.unsafe_set
@@ -1313,7 +1313,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.unsafe_set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.set
@@ -1327,7 +1327,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites, mut _err_kind: I64)
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.set(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64, own val: priv___src_self_c_codegen_til__BuilderFuncSites) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.push_take
@@ -1341,7 +1341,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.push_take(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, mut src: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow i: U64)
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.push_take(mut self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, mut src: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, i: U64)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.delete
@@ -1354,7 +1354,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.delete(own self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, shallow call_free: Bool)
+func Vec__priv___src_self_c_codegen_til__BuilderFuncSites.delete(own self: Vec__priv___src_self_c_codegen_til__BuilderFuncSites, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_c_codegen_til__BuilderFuncSites.clone

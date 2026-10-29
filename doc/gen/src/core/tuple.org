@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * Tuple
@@ -19,19 +19,18 @@ struct Tuple {
     mut type_sizes : Vec__USize
 namespace:
     func new() returns Tuple
-    func len(self: Tuple) returns shallow U64
+    func len(self: Tuple) returns U64
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
     func push(mut self: Tuple, T: Type, own val: Dynamic)
     func get(self: Tuple, i: U64) returns ref Dynamic
     func push_all_dynamic(mut self: Tuple, arr: Array__Dynamic)
-    func scalar_type_name(name: Str) returns Str
-    func expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
-    func get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
+    func expect_type(self: Tuple, i: U64, want: Str, loc: Str = __LOC__)
+    func get_checked(self: Tuple, i: U64, want: Str, loc: Str = __LOC__) returns ref Dynamic
     func type_at(self: Tuple, i: U64) returns ref Str
     func size_at(self: Tuple, i: U64) returns ref U64
-    func delete(own self: Tuple, shallow call_free: Bool)
+    func delete(own self: Tuple, call_free: Bool = true)
     func clone(self: Tuple) returns Tuple
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -129,7 +128,7 @@ nothing is wrong -- and the whole point of the check is to send the
 reader to the read.
 
 #+begin_src til
-func Tuple.expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
+func Tuple.expect_type(self: Tuple, i: U64, want: Str, loc: Str = __LOC__)
 #+end_src
 
 * Tuple.get_checked
@@ -146,7 +145,7 @@ reinterpreting its bytes. ~expect_type~ decides; see it for why a
 defaulted again, so the panic names the READ, not this line.
 
 #+begin_src til
-func Tuple.get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
+func Tuple.get_checked(self: Tuple, i: U64, want: Str, loc: Str = __LOC__) returns ref Dynamic
 #+end_src
 
 * Tuple.type_at

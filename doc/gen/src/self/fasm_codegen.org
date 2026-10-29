@@ -1,0 +1,21 @@
+#+TITLE: src/self/fasm_codegen.til
+#+SUBTITLE: til 0.0.1-ee8785cb2
+#+OPTIONS: toc:t
+
+* fasm_source_declarations
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.fasm_codegen.fasm_source_declarations
+:END:
+
+#+begin_src til
+func fasm_source_declarations(lp: LoadedProgram) returns Set__Str
+#+end_src
+
+* fasm_codegen_translate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.fasm_codegen.fasm_codegen_translate
+:END:
+
+#+begin_src til
+proc fasm_codegen_translate(mut lp: LoadedProgram, path: Str, source_names: Set__Str) returns I32
+#+end_src

@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * DiagnosticPhase
@@ -25,18 +25,18 @@ namespace:
     Type : I64
     Ownership : I64
     Runtime : I64
-    core_func is(self: DiagnosticPhase, other: DiagnosticPhase) returns shallow Bool
-    func eq(self: DiagnosticPhase, other: DiagnosticPhase) returns shallow Bool
-    func delete(own self: DiagnosticPhase, shallow call_free: Bool)
-    func cmp(a: DiagnosticPhase, b: DiagnosticPhase) returns shallow I64
+    core_func is(self: DiagnosticPhase, other: DiagnosticPhase) returns Bool
+    func eq(self: DiagnosticPhase, other: DiagnosticPhase) returns Bool
+    func delete(own self: DiagnosticPhase, call_free: Bool = true)
+    func cmp(a: DiagnosticPhase, b: DiagnosticPhase) returns I64
     func to_str(self: DiagnosticPhase) returns Str
     func clone(self: DiagnosticPhase) returns DiagnosticPhase
-    func size() returns shallow U64
-    func lt(a: DiagnosticPhase, b: DiagnosticPhase) returns shallow Bool
-    func gt(a: DiagnosticPhase, b: DiagnosticPhase) returns shallow Bool
-    func neq(a: DiagnosticPhase, b: DiagnosticPhase) returns shallow Bool
-    func lte(a: DiagnosticPhase, b: DiagnosticPhase) returns shallow Bool
-    func gte(a: DiagnosticPhase, b: DiagnosticPhase) returns shallow Bool
+    func size() returns U64
+    func lt(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
+    func gt(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
+    func neq(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
+    func lte(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
+    func gte(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
 }
 #+end_src
 
@@ -55,18 +55,18 @@ namespace:
     Error : I64
     Note : I64
     Help : I64
-    core_func is(self: DiagnosticSeverity, other: DiagnosticSeverity) returns shallow Bool
-    func eq(self: DiagnosticSeverity, other: DiagnosticSeverity) returns shallow Bool
-    func delete(own self: DiagnosticSeverity, shallow call_free: Bool)
-    func cmp(a: DiagnosticSeverity, b: DiagnosticSeverity) returns shallow I64
+    core_func is(self: DiagnosticSeverity, other: DiagnosticSeverity) returns Bool
+    func eq(self: DiagnosticSeverity, other: DiagnosticSeverity) returns Bool
+    func delete(own self: DiagnosticSeverity, call_free: Bool = true)
+    func cmp(a: DiagnosticSeverity, b: DiagnosticSeverity) returns I64
     func to_str(self: DiagnosticSeverity) returns Str
     func clone(self: DiagnosticSeverity) returns DiagnosticSeverity
-    func size() returns shallow U64
-    func lt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns shallow Bool
-    func gt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns shallow Bool
-    func neq(a: DiagnosticSeverity, b: DiagnosticSeverity) returns shallow Bool
-    func lte(a: DiagnosticSeverity, b: DiagnosticSeverity) returns shallow Bool
-    func gte(a: DiagnosticSeverity, b: DiagnosticSeverity) returns shallow Bool
+    func size() returns U64
+    func lt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
+    func gt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
+    func neq(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
+    func lte(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
+    func gte(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
 }
 #+end_src
 
@@ -88,18 +88,18 @@ struct SourceDiagnostic {
 namespace:
     func render(d: SourceDiagnostic) returns Str
     proc print(d: SourceDiagnostic)
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: SourceDiagnostic) returns SourceDiagnostic
-    func delete(own self: SourceDiagnostic, shallow call_free: Bool)
-    func hash(self: SourceDiagnostic, hasher: HashFn) returns shallow U64
-    func cmp(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow I64
+    func delete(own self: SourceDiagnostic, call_free: Bool = true)
+    func hash(self: SourceDiagnostic, hasher: HashFn) returns U64
+    func cmp(a: SourceDiagnostic, b: SourceDiagnostic) returns I64
     func to_str(self: SourceDiagnostic) returns Str
-    func eq(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow Bool
-    func lt(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow Bool
-    func gt(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow Bool
-    func neq(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow Bool
-    func lte(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow Bool
-    func gte(a: SourceDiagnostic, b: SourceDiagnostic) returns shallow Bool
+    func eq(a: SourceDiagnostic, b: SourceDiagnostic) returns Bool
+    func lt(a: SourceDiagnostic, b: SourceDiagnostic) returns Bool
+    func gt(a: SourceDiagnostic, b: SourceDiagnostic) returns Bool
+    func neq(a: SourceDiagnostic, b: SourceDiagnostic) returns Bool
+    func lte(a: SourceDiagnostic, b: SourceDiagnostic) returns Bool
+    func gte(a: SourceDiagnostic, b: SourceDiagnostic) returns Bool
 }
 #+end_src
 
@@ -276,18 +276,18 @@ namespace:
     KwFalse : I64
     KwPriv : I64
     Error : I64
-    core_func is(self: TokenType, other: TokenType) returns shallow Bool
-    func eq(self: TokenType, other: TokenType) returns shallow Bool
-    func delete(own self: TokenType, shallow call_free: Bool)
-    func cmp(a: TokenType, b: TokenType) returns shallow I64
+    core_func is(self: TokenType, other: TokenType) returns Bool
+    func eq(self: TokenType, other: TokenType) returns Bool
+    func delete(own self: TokenType, call_free: Bool = true)
+    func cmp(a: TokenType, b: TokenType) returns I64
     func to_str(self: TokenType) returns Str
     func clone(self: TokenType) returns TokenType
-    func size() returns shallow U64
-    func lt(a: TokenType, b: TokenType) returns shallow Bool
-    func gt(a: TokenType, b: TokenType) returns shallow Bool
-    func neq(a: TokenType, b: TokenType) returns shallow Bool
-    func lte(a: TokenType, b: TokenType) returns shallow Bool
-    func gte(a: TokenType, b: TokenType) returns shallow Bool
+    func size() returns U64
+    func lt(a: TokenType, b: TokenType) returns Bool
+    func gt(a: TokenType, b: TokenType) returns Bool
+    func neq(a: TokenType, b: TokenType) returns Bool
+    func lte(a: TokenType, b: TokenType) returns Bool
+    func gte(a: TokenType, b: TokenType) returns Bool
 }
 #+end_src
 
@@ -305,18 +305,18 @@ struct Token {
     line : U32
     col : U32
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: Token) returns Token
-    func delete(own self: Token, shallow call_free: Bool)
-    func hash(self: Token, hasher: HashFn) returns shallow U64
-    func cmp(a: Token, b: Token) returns shallow I64
+    func delete(own self: Token, call_free: Bool = true)
+    func hash(self: Token, hasher: HashFn) returns U64
+    func cmp(a: Token, b: Token) returns I64
     func to_str(self: Token) returns Str
-    func eq(a: Token, b: Token) returns shallow Bool
-    func lt(a: Token, b: Token) returns shallow Bool
-    func gt(a: Token, b: Token) returns shallow Bool
-    func neq(a: Token, b: Token) returns shallow Bool
-    func lte(a: Token, b: Token) returns shallow Bool
-    func gte(a: Token, b: Token) returns shallow Bool
+    func eq(a: Token, b: Token) returns Bool
+    func lt(a: Token, b: Token) returns Bool
+    func gt(a: Token, b: Token) returns Bool
+    func neq(a: Token, b: Token) returns Bool
+    func lte(a: Token, b: Token) returns Bool
+    func gte(a: Token, b: Token) returns Bool
 }
 #+end_src
 
@@ -327,7 +327,7 @@ namespace:
 :END:
 
 #+begin_src til
-func is_alnum(shallow c: I8) returns shallow Bool
+func is_alnum(c: I8) returns Bool
 #+end_src
 
 * lexer_cleanup
@@ -357,7 +357,7 @@ func tok_name(type: TokenType) returns Str
 :END:
 
 #+begin_src til
-proc tokenize(src: Str, path: Str, shallow quiet: Bool, mut diagnostics: Vec__SourceDiagnostic) returns Vec__Token
+proc tokenize(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec__SourceDiagnostic = Vec__SourceDiagnostic.new()) returns Vec__Token
 #+end_src
 
 * Map__Str_TokenType
@@ -372,17 +372,17 @@ struct Map__Str_TokenType {
     mut values : Vec__TokenType
 namespace:
     func new() returns Map__Str_TokenType
-    func with_capacity(shallow n: U64) returns Map__Str_TokenType
-    func len(self: Map__Str_TokenType) returns shallow U64
+    func with_capacity(n: U64) returns Map__Str_TokenType
+    func len(self: Map__Str_TokenType) returns U64
     func clear(mut self: Map__Str_TokenType)
-    func has(self: Map__Str_TokenType, key: Str) returns shallow Bool
-    func get(self: Map__Str_TokenType, key: Str, mut _err_kind: I64) returns ref TokenType
+    func has(self: Map__Str_TokenType, key: Str) returns Bool
+    func get(self: Map__Str_TokenType, key: Str) returns ref TokenType throws KeyNotFound
     func set(mut self: Map__Str_TokenType, key: Str, own val: TokenType)
-    func remove(mut self: Map__Str_TokenType, key: Str) returns shallow Bool
-    func delete(own self: Map__Str_TokenType, shallow call_free: Bool)
+    func remove(mut self: Map__Str_TokenType, key: Str) returns Bool
+    func delete(own self: Map__Str_TokenType, call_free: Bool = true)
     func clone(self: Map__Str_TokenType) returns Map__Str_TokenType
-    func size() returns shallow U64
-    func hash(self: Map__Str_TokenType, hasher: HashFn) returns shallow U64
+    func size() returns U64
+    func hash(self: Map__Str_TokenType, hasher: HashFn) returns U64
 }
 #+end_src
 
@@ -410,7 +410,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_TokenType.with_capacity(shallow n: U64) returns Map__Str_TokenType
+func Map__Str_TokenType.with_capacity(n: U64) returns Map__Str_TokenType
 #+end_src
 
 * Map__Str_TokenType.clear
@@ -434,7 +434,7 @@ func Map__Str_TokenType.clear(mut self: Map__Str_TokenType)
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_TokenType.has(self: Map__Str_TokenType, key: Str) returns shallow Bool
+func Map__Str_TokenType.has(self: Map__Str_TokenType, key: Str) returns Bool
 #+end_src
 
 * Map__Str_TokenType.get
@@ -448,7 +448,7 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_TokenType.get(self: Map__Str_TokenType, key: Str, mut _err_kind: I64) returns ref TokenType
+func Map__Str_TokenType.get(self: Map__Str_TokenType, key: Str) returns ref TokenType throws KeyNotFound
 #+end_src
 
 * Map__Str_TokenType.set
@@ -472,7 +472,7 @@ func Map__Str_TokenType.set(mut self: Map__Str_TokenType, key: Str, own val: Tok
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_TokenType.remove(mut self: Map__Str_TokenType, key: Str) returns shallow Bool
+func Map__Str_TokenType.remove(mut self: Map__Str_TokenType, key: Str) returns Bool
 #+end_src
 
 * Vec__SourceDiagnostic
@@ -488,8 +488,8 @@ struct Vec__SourceDiagnostic {
     mut cap : USize
 namespace:
     func new() returns Vec__SourceDiagnostic
-    func with_capacity(shallow n: U64) returns Vec__SourceDiagnostic
-    func len(self: Vec__SourceDiagnostic) returns shallow U64
+    func with_capacity(n: U64) returns Vec__SourceDiagnostic
+    func len(self: Vec__SourceDiagnostic) returns U64
     func clear(mut self: Vec__SourceDiagnostic)
     func delete_marked(mut self: Vec__SourceDiagnostic, marks: Dynamic)
     func push(mut self: Vec__SourceDiagnostic, own val: SourceDiagnostic)
@@ -498,17 +498,17 @@ namespace:
     func move_to(own self: Vec__SourceDiagnostic, mut dest: Vec__SourceDiagnostic)
     func move_from(mut self: Vec__SourceDiagnostic, own other: Vec__SourceDiagnostic)
     func unsafe_get(self: Vec__SourceDiagnostic, i: U64) returns ref SourceDiagnostic
-    func get(self: Vec__SourceDiagnostic, shallow i: U64, mut _err_kind: I64) returns ref SourceDiagnostic
+    func get(self: Vec__SourceDiagnostic, shallow i: U64) returns ref SourceDiagnostic throws OutOfBounds
     func pop(mut self: Vec__SourceDiagnostic) returns SourceDiagnostic
-    func remove_at(mut self: Vec__SourceDiagnostic, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__SourceDiagnostic, shallow n: U64) returns Vec__SourceDiagnostic
-    func truncate(mut self: Vec__SourceDiagnostic, shallow n: U64)
-    func unsafe_set(mut self: Vec__SourceDiagnostic, shallow i: U64, own val: SourceDiagnostic)
-    func set(mut self: Vec__SourceDiagnostic, shallow i: U64, own val: SourceDiagnostic, mut _err_kind: I64)
-    func push_take(mut self: Vec__SourceDiagnostic, mut src: Vec__SourceDiagnostic, shallow i: U64)
-    func delete(own self: Vec__SourceDiagnostic, shallow call_free: Bool)
+    func remove_at(mut self: Vec__SourceDiagnostic, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__SourceDiagnostic, n: U64) returns Vec__SourceDiagnostic
+    func truncate(mut self: Vec__SourceDiagnostic, n: U64)
+    func unsafe_set(mut self: Vec__SourceDiagnostic, i: U64, own val: SourceDiagnostic)
+    func set(mut self: Vec__SourceDiagnostic, i: U64, own val: SourceDiagnostic) throws OutOfBounds
+    func push_take(mut self: Vec__SourceDiagnostic, mut src: Vec__SourceDiagnostic, i: U64)
+    func delete(own self: Vec__SourceDiagnostic, call_free: Bool = true)
     func clone(self: Vec__SourceDiagnostic) returns Vec__SourceDiagnostic
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -542,7 +542,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__SourceDiagnostic.with_capacity(shallow n: U64) returns Vec__SourceDiagnostic
+func Vec__SourceDiagnostic.with_capacity(n: U64) returns Vec__SourceDiagnostic
 #+end_src
 
 * Vec__SourceDiagnostic.clear
@@ -684,7 +684,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__SourceDiagnostic.get(self: Vec__SourceDiagnostic, shallow i: U64, mut _err_kind: I64) returns ref SourceDiagnostic
+func Vec__SourceDiagnostic.get(self: Vec__SourceDiagnostic, shallow i: U64) returns ref SourceDiagnostic throws OutOfBounds
 #+end_src
 
 * Vec__SourceDiagnostic.pop
@@ -709,7 +709,7 @@ func Vec__SourceDiagnostic.pop(mut self: Vec__SourceDiagnostic) returns SourceDi
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__SourceDiagnostic.remove_at(mut self: Vec__SourceDiagnostic, shallow i: U64, mut _err_kind: I64)
+func Vec__SourceDiagnostic.remove_at(mut self: Vec__SourceDiagnostic, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__SourceDiagnostic.take_prefix
@@ -722,7 +722,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__SourceDiagnostic.take_prefix(mut self: Vec__SourceDiagnostic, shallow n: U64) returns Vec__SourceDiagnostic
+func Vec__SourceDiagnostic.take_prefix(mut self: Vec__SourceDiagnostic, n: U64) returns Vec__SourceDiagnostic
 #+end_src
 
 * Vec__SourceDiagnostic.truncate
@@ -737,7 +737,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__SourceDiagnostic.truncate(mut self: Vec__SourceDiagnostic, shallow n: U64)
+func Vec__SourceDiagnostic.truncate(mut self: Vec__SourceDiagnostic, n: U64)
 #+end_src
 
 * Vec__SourceDiagnostic.unsafe_set
@@ -751,7 +751,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__SourceDiagnostic.unsafe_set(mut self: Vec__SourceDiagnostic, shallow i: U64, own val: SourceDiagnostic)
+func Vec__SourceDiagnostic.unsafe_set(mut self: Vec__SourceDiagnostic, i: U64, own val: SourceDiagnostic)
 #+end_src
 
 * Vec__SourceDiagnostic.set
@@ -765,7 +765,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__SourceDiagnostic.set(mut self: Vec__SourceDiagnostic, shallow i: U64, own val: SourceDiagnostic, mut _err_kind: I64)
+func Vec__SourceDiagnostic.set(mut self: Vec__SourceDiagnostic, i: U64, own val: SourceDiagnostic) throws OutOfBounds
 #+end_src
 
 * Vec__SourceDiagnostic.push_take
@@ -779,7 +779,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__SourceDiagnostic.push_take(mut self: Vec__SourceDiagnostic, mut src: Vec__SourceDiagnostic, shallow i: U64)
+func Vec__SourceDiagnostic.push_take(mut self: Vec__SourceDiagnostic, mut src: Vec__SourceDiagnostic, i: U64)
 #+end_src
 
 * Vec__SourceDiagnostic.delete
@@ -792,7 +792,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__SourceDiagnostic.delete(own self: Vec__SourceDiagnostic, shallow call_free: Bool)
+func Vec__SourceDiagnostic.delete(own self: Vec__SourceDiagnostic, call_free: Bool = true)
 #+end_src
 
 * Vec__SourceDiagnostic.clone
@@ -820,8 +820,8 @@ struct Vec__Token {
     mut cap : USize
 namespace:
     func new() returns Vec__Token
-    func with_capacity(shallow n: U64) returns Vec__Token
-    func len(self: Vec__Token) returns shallow U64
+    func with_capacity(n: U64) returns Vec__Token
+    func len(self: Vec__Token) returns U64
     func clear(mut self: Vec__Token)
     func delete_marked(mut self: Vec__Token, marks: Dynamic)
     func push(mut self: Vec__Token, own val: Token)
@@ -830,17 +830,17 @@ namespace:
     func move_to(own self: Vec__Token, mut dest: Vec__Token)
     func move_from(mut self: Vec__Token, own other: Vec__Token)
     func unsafe_get(self: Vec__Token, i: U64) returns ref Token
-    func get(self: Vec__Token, shallow i: U64, mut _err_kind: I64) returns ref Token
+    func get(self: Vec__Token, shallow i: U64) returns ref Token throws OutOfBounds
     func pop(mut self: Vec__Token) returns Token
-    func remove_at(mut self: Vec__Token, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Token, shallow n: U64) returns Vec__Token
-    func truncate(mut self: Vec__Token, shallow n: U64)
-    func unsafe_set(mut self: Vec__Token, shallow i: U64, own val: Token)
-    func set(mut self: Vec__Token, shallow i: U64, own val: Token, mut _err_kind: I64)
-    func push_take(mut self: Vec__Token, mut src: Vec__Token, shallow i: U64)
-    func delete(own self: Vec__Token, shallow call_free: Bool)
+    func remove_at(mut self: Vec__Token, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__Token, n: U64) returns Vec__Token
+    func truncate(mut self: Vec__Token, n: U64)
+    func unsafe_set(mut self: Vec__Token, i: U64, own val: Token)
+    func set(mut self: Vec__Token, i: U64, own val: Token) throws OutOfBounds
+    func push_take(mut self: Vec__Token, mut src: Vec__Token, i: U64)
+    func delete(own self: Vec__Token, call_free: Bool = true)
     func clone(self: Vec__Token) returns Vec__Token
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -874,7 +874,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__Token.with_capacity(shallow n: U64) returns Vec__Token
+func Vec__Token.with_capacity(n: U64) returns Vec__Token
 #+end_src
 
 * Vec__Token.clear
@@ -1016,7 +1016,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Token.get(self: Vec__Token, shallow i: U64, mut _err_kind: I64) returns ref Token
+func Vec__Token.get(self: Vec__Token, shallow i: U64) returns ref Token throws OutOfBounds
 #+end_src
 
 * Vec__Token.pop
@@ -1041,7 +1041,7 @@ func Vec__Token.pop(mut self: Vec__Token) returns Token
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__Token.remove_at(mut self: Vec__Token, shallow i: U64, mut _err_kind: I64)
+func Vec__Token.remove_at(mut self: Vec__Token, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__Token.take_prefix
@@ -1054,7 +1054,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__Token.take_prefix(mut self: Vec__Token, shallow n: U64) returns Vec__Token
+func Vec__Token.take_prefix(mut self: Vec__Token, n: U64) returns Vec__Token
 #+end_src
 
 * Vec__Token.truncate
@@ -1069,7 +1069,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__Token.truncate(mut self: Vec__Token, shallow n: U64)
+func Vec__Token.truncate(mut self: Vec__Token, n: U64)
 #+end_src
 
 * Vec__Token.unsafe_set
@@ -1083,7 +1083,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__Token.unsafe_set(mut self: Vec__Token, shallow i: U64, own val: Token)
+func Vec__Token.unsafe_set(mut self: Vec__Token, i: U64, own val: Token)
 #+end_src
 
 * Vec__Token.set
@@ -1097,7 +1097,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__Token.set(mut self: Vec__Token, shallow i: U64, own val: Token, mut _err_kind: I64)
+func Vec__Token.set(mut self: Vec__Token, i: U64, own val: Token) throws OutOfBounds
 #+end_src
 
 * Vec__Token.push_take
@@ -1111,7 +1111,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__Token.push_take(mut self: Vec__Token, mut src: Vec__Token, shallow i: U64)
+func Vec__Token.push_take(mut self: Vec__Token, mut src: Vec__Token, i: U64)
 #+end_src
 
 * Vec__Token.delete
@@ -1124,7 +1124,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__Token.delete(own self: Vec__Token, shallow call_free: Bool)
+func Vec__Token.delete(own self: Vec__Token, call_free: Bool = true)
 #+end_src
 
 * Vec__Token.clone
@@ -1152,8 +1152,8 @@ struct Vec__TokenType {
     mut cap : USize
 namespace:
     func new() returns Vec__TokenType
-    func with_capacity(shallow n: U64) returns Vec__TokenType
-    func len(self: Vec__TokenType) returns shallow U64
+    func with_capacity(n: U64) returns Vec__TokenType
+    func len(self: Vec__TokenType) returns U64
     func clear(mut self: Vec__TokenType)
     func delete_marked(mut self: Vec__TokenType, marks: Dynamic)
     func push(mut self: Vec__TokenType, own val: TokenType)
@@ -1162,17 +1162,17 @@ namespace:
     func move_to(own self: Vec__TokenType, mut dest: Vec__TokenType)
     func move_from(mut self: Vec__TokenType, own other: Vec__TokenType)
     func unsafe_get(self: Vec__TokenType, i: U64) returns ref TokenType
-    func get(self: Vec__TokenType, shallow i: U64, mut _err_kind: I64) returns ref TokenType
+    func get(self: Vec__TokenType, shallow i: U64) returns ref TokenType throws OutOfBounds
     func pop(mut self: Vec__TokenType) returns TokenType
-    func remove_at(mut self: Vec__TokenType, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__TokenType, shallow n: U64) returns Vec__TokenType
-    func truncate(mut self: Vec__TokenType, shallow n: U64)
-    func unsafe_set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType)
-    func set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType, mut _err_kind: I64)
-    func push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, shallow i: U64)
-    func delete(own self: Vec__TokenType, shallow call_free: Bool)
+    func remove_at(mut self: Vec__TokenType, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__TokenType, n: U64) returns Vec__TokenType
+    func truncate(mut self: Vec__TokenType, n: U64)
+    func unsafe_set(mut self: Vec__TokenType, i: U64, own val: TokenType)
+    func set(mut self: Vec__TokenType, i: U64, own val: TokenType) throws OutOfBounds
+    func push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, i: U64)
+    func delete(own self: Vec__TokenType, call_free: Bool = true)
     func clone(self: Vec__TokenType) returns Vec__TokenType
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1206,7 +1206,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__TokenType.with_capacity(shallow n: U64) returns Vec__TokenType
+func Vec__TokenType.with_capacity(n: U64) returns Vec__TokenType
 #+end_src
 
 * Vec__TokenType.clear
@@ -1348,7 +1348,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__TokenType.get(self: Vec__TokenType, shallow i: U64, mut _err_kind: I64) returns ref TokenType
+func Vec__TokenType.get(self: Vec__TokenType, shallow i: U64) returns ref TokenType throws OutOfBounds
 #+end_src
 
 * Vec__TokenType.pop
@@ -1373,7 +1373,7 @@ func Vec__TokenType.pop(mut self: Vec__TokenType) returns TokenType
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__TokenType.remove_at(mut self: Vec__TokenType, shallow i: U64, mut _err_kind: I64)
+func Vec__TokenType.remove_at(mut self: Vec__TokenType, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__TokenType.take_prefix
@@ -1386,7 +1386,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__TokenType.take_prefix(mut self: Vec__TokenType, shallow n: U64) returns Vec__TokenType
+func Vec__TokenType.take_prefix(mut self: Vec__TokenType, n: U64) returns Vec__TokenType
 #+end_src
 
 * Vec__TokenType.truncate
@@ -1401,7 +1401,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__TokenType.truncate(mut self: Vec__TokenType, shallow n: U64)
+func Vec__TokenType.truncate(mut self: Vec__TokenType, n: U64)
 #+end_src
 
 * Vec__TokenType.unsafe_set
@@ -1415,7 +1415,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__TokenType.unsafe_set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType)
+func Vec__TokenType.unsafe_set(mut self: Vec__TokenType, i: U64, own val: TokenType)
 #+end_src
 
 * Vec__TokenType.set
@@ -1429,7 +1429,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__TokenType.set(mut self: Vec__TokenType, shallow i: U64, own val: TokenType, mut _err_kind: I64)
+func Vec__TokenType.set(mut self: Vec__TokenType, i: U64, own val: TokenType) throws OutOfBounds
 #+end_src
 
 * Vec__TokenType.push_take
@@ -1443,7 +1443,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__TokenType.push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, shallow i: U64)
+func Vec__TokenType.push_take(mut self: Vec__TokenType, mut src: Vec__TokenType, i: U64)
 #+end_src
 
 * Vec__TokenType.delete
@@ -1456,7 +1456,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__TokenType.delete(own self: Vec__TokenType, shallow call_free: Bool)
+func Vec__TokenType.delete(own self: Vec__TokenType, call_free: Bool = true)
 #+end_src
 
 * Vec__TokenType.clone

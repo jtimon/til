@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -77,6 +77,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
+<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -118,7 +119,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.modes.mode_resolve">
 <h2>mode_resolve</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (ctx: Context, name: Str) returns shallow Option__ref_Mode
+<pre><code class="language-til">func (ctx: Context, name: Str) returns Option__ref_Mode
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.modes.Option__ref_Mode">
@@ -128,25 +129,25 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     None
     Some: Mode
 namespace:
-    func is_some(shallow self: Option__ref_Mode) returns shallow Bool
-    func is_none(shallow self: Option__ref_Mode) returns shallow Bool
+    func is_some(self: Option__ref_Mode) returns Bool
+    func is_none(self: Option__ref_Mode) returns Bool
     func unwrap_or(self: Option__ref_Mode, default_v: Mode) returns ref Mode
     func unwrap(self: Option__ref_Mode) returns ref Mode
     func take(own self: Option__ref_Mode) returns ref Mode
-    ext_func None() returns shallow Option__ref_Mode
-    ext_func Some(val: Mode) returns shallow Option__ref_Mode
-    core_func is(self: Option__ref_Mode, other: Option__ref_Mode) returns shallow Bool
-    func eq(shallow self: Option__ref_Mode, shallow other: Option__ref_Mode) returns shallow Bool
-    func delete(own self: Option__ref_Mode, shallow call_free: Bool)
-    func cmp(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow I64
-    func to_str(shallow self: Option__ref_Mode) returns Str
-    func clone(self: Option__ref_Mode) returns shallow Option__ref_Mode
-    func size() returns shallow U64
-    func lt(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
-    func gt(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
-    func neq(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
-    func lte(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
-    func gte(shallow a: Option__ref_Mode, shallow b: Option__ref_Mode) returns shallow Bool
+    ext_func None() returns Option__ref_Mode
+    ext_func Some(val: Mode) returns Option__ref_Mode
+    core_func is(self: Option__ref_Mode, other: Option__ref_Mode) returns Bool
+    func eq(self: Option__ref_Mode, other: Option__ref_Mode) returns Bool
+    func delete(own self: Option__ref_Mode, call_free: Bool = true)
+    func cmp(a: Option__ref_Mode, b: Option__ref_Mode) returns I64
+    func to_str(self: Option__ref_Mode) returns Str
+    func clone(self: Option__ref_Mode) returns Option__ref_Mode
+    func size() returns U64
+    func lt(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
+    func gt(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
+    func neq(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
+    func lte(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
+    func gte(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
 }
 </code></pre>
 </article>
@@ -183,7 +184,7 @@ a clone would copy a whole subtree and break node identity.</p>
 <article class="doc-entry" id="til.src.self.modes.safe_ref__Mode">
 <h2>safe_ref__Mode</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (value: Mode) returns shallow Option__ref_Mode
+<pre><code class="language-til">func (value: Mode) returns Option__ref_Mode
 </code></pre>
 </article>
 </main></div>

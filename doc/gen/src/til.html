@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -77,6 +77,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
+<li><a href="../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
 <li><a href="../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -142,73 +143,73 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.til.repl_typecheck">
 <h2>repl_typecheck</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc (mut lp: LoadedProgram) returns shallow I32
+<pre><code class="language-til">proc (mut lp: LoadedProgram) returns I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_capture_eval_current">
 <h2>repl_capture_eval_current</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32, mut aborted: Bool) returns Str
+<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32, mut aborted: Bool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_capture_eval_tail">
 <h2>repl_capture_eval_tail</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: U64, shallow count: U64, mut aborted: Bool) returns Str
+<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: U64, count: U64, mut aborted: Bool) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_source_line_count">
 <h2>repl_source_line_count</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (s: Str) returns shallow U32
+<pre><code class="language-til">func (s: Str) returns U32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_loader_directive">
 <h2>repl_ast_has_loader_directive</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_lazy_def">
 <h2>repl_ast_has_lazy_def</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_known_variadic_call">
 <h2>repl_ast_has_known_variadic_call</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_delta_from_source">
 <h2>repl_delta_from_source</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc (path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32) returns Expr
+<pre><code class="language-til">proc (path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_peek_needs_expr_wrap">
 <h2>repl_peek_needs_expr_wrap</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (block: Str, tokens: Vec__Token) returns shallow Bool
+<pre><code class="language-til">func (block: Str, tokens: Vec__Token) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_parse_allows_wrap">
 <h2>repl_parse_allows_wrap</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (peek_ast: Expr) returns shallow Bool
+<pre><code class="language-til">func (peek_ast: Expr) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_has_help_call">
 <h2>repl_ast_has_help_call</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_ast_updates_doc_cache">
 <h2>repl_ast_updates_doc_cache</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, symbols: SymbolPool) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_refresh_user_doc_cache">
@@ -262,9 +263,9 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: CliArgs) returns CliArgs
-    func delete(own self: CliArgs, shallow call_free: Bool)
+    func delete(own self: CliArgs, call_free: Bool = true)
 }
 </code></pre>
 </article>
@@ -277,7 +278,7 @@ namespace:
 <article class="doc-entry" id="til.src.til.collect_user_argv">
 <h2>collect_user_argv</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func (mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U64) returns Vec__Str
+<pre><code class="language-til">func (mut lp: LoadedProgram, args: Array__Str, start_idx: U64) returns Vec__Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.main">

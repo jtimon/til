@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -77,6 +77,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
+<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -94,7 +95,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.desugar_fcall_args_for_fdef">
 <h2>desugar_fcall_args_for_fdef</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (mut e: Expr, display_name: Str, fdef_data: FunctionDef, shallow implicit_arg_count: U64, mut ctx: Context) returns shallow Bool
+<pre><code class="language-til">proc (mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: U64, mut ctx: Context) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.desugar_user_func_fcall_args">
@@ -118,25 +119,25 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.subtree_references_name">
 <h2>subtree_references_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr, name: Str, symbols: SymbolPool) returns shallow Bool
+<pre><code class="language-til">func (e: Expr, name: Str, symbols: SymbolPool) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.toplevel_needs_throw_lowering">
 <h2>toplevel_needs_throw_lowering</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.subtree_has_bang">
 <h2>subtree_has_bang</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.throw_type_has_payload">
 <h2>throw_type_has_payload</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (ctx: Context, type_name: Str) returns shallow Bool
+<pre><code class="language-til">func (ctx: Context, type_name: Str) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.append_err_out_params">
@@ -148,19 +149,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.make_int_lit">
 <h2>make_int_lit</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (shallow n: I64, shallow line: U32, shallow col: U32) returns Expr
+<pre><code class="language-til">func (n: I64, line: U32, col: U32) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.make_default_value_expr">
 <h2>make_default_value_expr</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (type_name: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
+<pre><code class="language-til">func (type_name: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.make_if_kind_eq_zero_wrap">
 <h2>make_if_kind_eq_zero_wrap</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (stmt: Expr, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
+<pre><code class="language-til">func (stmt: Expr, line: U32, col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.extend_throwing_func_sigs">
@@ -172,7 +173,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.make_uncaught_throw_panic">
 <h2>make_uncaught_throw_panic</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (error_type: Str, shallow line: U32, shallow col: U32, mut symbols: SymbolPool) returns Expr
+<pre><code class="language-til">func (error_type: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.PendingRefBinding">
@@ -184,29 +185,29 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut line : U32
     mut col : U32
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: PendingRefBinding) returns PendingRefBinding
-    func delete(own self: PendingRefBinding, shallow call_free: Bool)
-    func hash(self: PendingRefBinding, hasher: HashFn) returns shallow U64
+    func delete(own self: PendingRefBinding, call_free: Bool = true)
+    func hash(self: PendingRefBinding, hasher: HashFn) returns U64
 }
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.process_throw_catch_in_func_body">
 <h2>process_throw_catch_in_func_body</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (mut scope: TypeScope, mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType, shallow validate_declared_throws: Bool)
+<pre><code class="language-til">proc (mut scope: TypeScope, mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType, validate_declared_throws: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.stmt_contains_match">
 <h2>stmt_contains_match</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (e: Expr) returns shallow Bool
+<pre><code class="language-til">func (e: Expr) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.splice_stmts_before">
 <h2>splice_stmts_before</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut body: Expr, shallow idx: U64, mut pre: Vec__Expr)
+<pre><code class="language-til">func (mut body: Expr, idx: U64, mut pre: Vec__Expr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.collect_switch_case_bindings">
@@ -218,13 +219,13 @@ namespace:
 <article class="doc-entry" id="til.src.self.desugarer.make_switch_case_condition">
 <h2>make_switch_case_condition</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32, mut symbols: SymbolPool) returns Expr
+<pre><code class="language-til">func (mut scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, sw_line: U32, sw_col: U32, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.replace_switch_stmt_with_block">
 <h2>replace_switch_stmt_with_block</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut body: Expr, shallow stmt_idx: U64, own block: Expr)
+<pre><code class="language-til">func (mut body: Expr, stmt_idx: U64, own block: Expr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.append_switch_else_if">
@@ -242,31 +243,31 @@ namespace:
 <article class="doc-entry" id="til.src.self.desugarer.switch_is_clike">
 <h2>switch_is_clike</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (stmt: Expr, sw_expr: Expr, shallow is_match: Bool, shallow enum_def_o: Option__ref_Expr, symbols: SymbolPool) returns shallow Bool
+<pre><code class="language-til">func (stmt: Expr, sw_expr: Expr, is_match: Bool, enum_def_o: Option__ref_Expr, symbols: SymbolPool) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.prepend_clike_payload_binding">
 <h2>prepend_clike_payload_binding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, mut symbols: SymbolPool, shallow binding_is_dead: Bool)
+<pre><code class="language-til">func (mut scope: TypeScope, enum_def: Expr, sw_expr: Expr, mut case_node: Expr, mut symbols: SymbolPool, binding_is_dead: Bool = false)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.replace_body_stmt_with_block">
 <h2>replace_body_stmt_with_block</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut body: Expr, shallow stmt_idx: U64, own block: Expr)
+<pre><code class="language-til">func (mut body: Expr, stmt_idx: U64, own block: Expr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.make_for_in_range_while_body">
 <h2>make_for_in_range_while_body</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool, mut symbols: SymbolPool) returns Expr
+<pre><code class="language-til">func (var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool, mut symbols: SymbolPool) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.body_pre_passes">
 <h2>body_pre_passes</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc (mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32, shallow returns_ref: I32) returns shallow Bool
+<pre><code class="language-til">proc (mut ctx: Context, mut body: Expr, mut scope: TypeScope, owns_scope: I32, returns_ref: I32) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.hoist_constfolded_stack_outer_ctors">
@@ -284,8 +285,8 @@ namespace:
     mut cap : USize
 namespace:
     func new() returns Vec__I32
-    func with_capacity(shallow n: U64) returns Vec__I32
-    func len(self: Vec__I32) returns shallow U64
+    func with_capacity(n: U64) returns Vec__I32
+    func len(self: Vec__I32) returns U64
     func clear(mut self: Vec__I32)
     func delete_marked(mut self: Vec__I32, marks: Dynamic)
     func push(mut self: Vec__I32, own val: I32)
@@ -294,17 +295,17 @@ namespace:
     func move_to(own self: Vec__I32, mut dest: Vec__I32)
     func move_from(mut self: Vec__I32, own other: Vec__I32)
     func unsafe_get(self: Vec__I32, i: U64) returns ref I32
-    func get(self: Vec__I32, shallow i: U64, mut _err_kind: I64) returns ref I32
-    func pop(mut self: Vec__I32) returns shallow I32
-    func remove_at(mut self: Vec__I32, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__I32, shallow n: U64) returns Vec__I32
-    func truncate(mut self: Vec__I32, shallow n: U64)
-    func unsafe_set(mut self: Vec__I32, shallow i: U64, own val: I32)
-    func set(mut self: Vec__I32, shallow i: U64, own val: I32, mut _err_kind: I64)
-    func push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: U64)
-    func delete(own self: Vec__I32, shallow call_free: Bool)
+    func get(self: Vec__I32, shallow i: U64) returns ref I32 throws OutOfBounds
+    func pop(mut self: Vec__I32) returns I32
+    func remove_at(mut self: Vec__I32, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__I32, n: U64) returns Vec__I32
+    func truncate(mut self: Vec__I32, n: U64)
+    func unsafe_set(mut self: Vec__I32, i: U64, own val: I32)
+    func set(mut self: Vec__I32, i: U64, own val: I32) throws OutOfBounds
+    func push_take(mut self: Vec__I32, mut src: Vec__I32, i: U64)
+    func delete(own self: Vec__I32, call_free: Bool = true)
     func clone(self: Vec__I32) returns Vec__I32
-    func size() returns shallow U64
+    func size() returns U64
 }
 </code></pre>
 </article>
@@ -332,7 +333,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: U64) returns Vec__I32
+<pre><code class="language-til">func (n: U64) returns Vec__I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.clear">
@@ -445,7 +446,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__I32, shallow i: U64, mut _err_kind: I64) returns ref I32
+<pre><code class="language-til">func (self: Vec__I32, shallow i: U64) returns ref I32 throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.pop">
@@ -455,7 +456,7 @@ next mutation.</p>
 <p>Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32) returns shallow I32
+<pre><code class="language-til">func (mut self: Vec__I32) returns I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.remove_at">
@@ -464,7 +465,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32, shallow i: U64, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__I32, i: U64) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.take_prefix">
@@ -474,7 +475,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32, shallow n: U64) returns Vec__I32
+<pre><code class="language-til">func (mut self: Vec__I32, n: U64) returns Vec__I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.truncate">
@@ -486,7 +487,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32, shallow n: U64)
+<pre><code class="language-til">func (mut self: Vec__I32, n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.unsafe_set">
@@ -497,7 +498,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32, shallow i: U64, own val: I32)
+<pre><code class="language-til">func (mut self: Vec__I32, i: U64, own val: I32)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.set">
@@ -508,7 +509,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32, shallow i: U64, own val: I32, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__I32, i: U64, own val: I32) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.push_take">
@@ -519,7 +520,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__I32, mut src: Vec__I32, shallow i: U64)
+<pre><code class="language-til">func (mut self: Vec__I32, mut src: Vec__I32, i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.delete">
@@ -529,7 +530,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__I32, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__I32, call_free: Bool = true)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__I32.clone">
@@ -550,8 +551,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__PendingRefBinding
-    func with_capacity(shallow n: U64) returns Vec__PendingRefBinding
-    func len(self: Vec__PendingRefBinding) returns shallow U64
+    func with_capacity(n: U64) returns Vec__PendingRefBinding
+    func len(self: Vec__PendingRefBinding) returns U64
     func clear(mut self: Vec__PendingRefBinding)
     func delete_marked(mut self: Vec__PendingRefBinding, marks: Dynamic)
     func push(mut self: Vec__PendingRefBinding, own val: PendingRefBinding)
@@ -560,17 +561,17 @@ namespace:
     func move_to(own self: Vec__PendingRefBinding, mut dest: Vec__PendingRefBinding)
     func move_from(mut self: Vec__PendingRefBinding, own other: Vec__PendingRefBinding)
     func unsafe_get(self: Vec__PendingRefBinding, i: U64) returns ref PendingRefBinding
-    func get(self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64) returns ref PendingRefBinding
+    func get(self: Vec__PendingRefBinding, shallow i: U64) returns ref PendingRefBinding throws OutOfBounds
     func pop(mut self: Vec__PendingRefBinding) returns PendingRefBinding
-    func remove_at(mut self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__PendingRefBinding, shallow n: U64) returns Vec__PendingRefBinding
-    func truncate(mut self: Vec__PendingRefBinding, shallow n: U64)
-    func unsafe_set(mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding)
-    func set(mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding, mut _err_kind: I64)
-    func push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, shallow i: U64)
-    func delete(own self: Vec__PendingRefBinding, shallow call_free: Bool)
+    func remove_at(mut self: Vec__PendingRefBinding, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__PendingRefBinding, n: U64) returns Vec__PendingRefBinding
+    func truncate(mut self: Vec__PendingRefBinding, n: U64)
+    func unsafe_set(mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding)
+    func set(mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding) throws OutOfBounds
+    func push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, i: U64)
+    func delete(own self: Vec__PendingRefBinding, call_free: Bool = true)
     func clone(self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
-    func size() returns shallow U64
+    func size() returns U64
 }
 </code></pre>
 </article>
@@ -598,7 +599,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (shallow n: U64) returns Vec__PendingRefBinding
+<pre><code class="language-til">func (n: U64) returns Vec__PendingRefBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.clear">
@@ -711,7 +712,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64) returns ref PendingRefBinding
+<pre><code class="language-til">func (self: Vec__PendingRefBinding, shallow i: U64) returns ref PendingRefBinding throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.pop">
@@ -730,7 +731,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, shallow i: U64, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, i: U64) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.take_prefix">
@@ -740,7 +741,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, shallow n: U64) returns Vec__PendingRefBinding
+<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, n: U64) returns Vec__PendingRefBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.truncate">
@@ -752,7 +753,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, shallow n: U64)
+<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, n: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.unsafe_set">
@@ -763,7 +764,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding)
+<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.set">
@@ -774,7 +775,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, shallow i: U64, own val: PendingRefBinding, mut _err_kind: I64)
+<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.push_take">
@@ -785,7 +786,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, shallow i: U64)
+<pre><code class="language-til">func (mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, i: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.delete">
@@ -795,7 +796,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <p>Drop each element via elem_delete, free storage, then free self
 unless <code>call_free</code> is false.</p>
 </div>
-<pre><code class="language-til">func (own self: Vec__PendingRefBinding, shallow call_free: Bool)
+<pre><code class="language-til">func (own self: Vec__PendingRefBinding, call_free: Bool = true)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.Vec__PendingRefBinding.clone">

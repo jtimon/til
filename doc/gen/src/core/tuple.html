@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9d6752f54</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -77,6 +77,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
+<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -105,19 +106,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut type_sizes : Vec__USize
 namespace:
     func new() returns Tuple
-    func len(self: Tuple) returns shallow U64
+    func len(self: Tuple) returns U64
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
     func push(mut self: Tuple, T: Type, own val: Dynamic)
     func get(self: Tuple, i: U64) returns ref Dynamic
     func push_all_dynamic(mut self: Tuple, arr: Array__Dynamic)
-    func scalar_type_name(name: Str) returns Str
-    func expect_type(self: Tuple, shallow i: U64, want: Str, loc: Str)
-    func get_checked(self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
+    func expect_type(self: Tuple, i: U64, want: Str, loc: Str = __LOC__)
+    func get_checked(self: Tuple, i: U64, want: Str, loc: Str = __LOC__) returns ref Dynamic
     func type_at(self: Tuple, i: U64) returns ref Str
     func size_at(self: Tuple, i: U64) returns ref U64
-    func delete(own self: Tuple, shallow call_free: Bool)
+    func delete(own self: Tuple, call_free: Bool = true)
     func clone(self: Tuple) returns Tuple
-    func size() returns shallow U64
+    func size() returns U64
 }
 </code></pre>
 </article>
@@ -194,7 +194,7 @@ Without it every one of these reported src/core/tuple.til, where
 nothing is wrong -- and the whole point of the check is to send the
 reader to the read.</p>
 </div>
-<pre><code class="language-til">func (self: Tuple, shallow i: U64, want: Str, loc: Str)
+<pre><code class="language-til">func (self: Tuple, i: U64, want: Str, loc: Str = __LOC__)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.tuple.Tuple.get_checked">
@@ -208,7 +208,7 @@ reinterpreting its bytes. <code>expect_type</code> decides; see it for why a
 &quot;Dynamic&quot; element is exempt. <code>loc</code> is forwarded rather than
 defaulted again, so the panic names the READ, not this line.</p>
 </div>
-<pre><code class="language-til">func (self: Tuple, i: U64, want: Str, loc: Str) returns ref Dynamic
+<pre><code class="language-til">func (self: Tuple, i: U64, want: Str, loc: Str = __LOC__) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.tuple.Tuple.type_at">

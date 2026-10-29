@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -55,13 +55,50 @@ method resolution -- the self-host --prof run flagged Array__Str_new
 func concat3(a: Str, b: Str, c: Str) returns Str
 #+end_src
 
+* Utf8Read
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Utf8Read
+:group: Core
+:END:
+
+Result of decoding one UTF-8 scalar from a Str. This is not a string type.
+~end~ is the next byte offset. Valid input sets ~valid~ and ~value~.
+Malformed input sets value to U+FFFD and consumes its maximal valid prefix.
+Non-final incomplete input consumes nothing and sets ~incomplete~.
+At end-of-input value is -1, valid is false, and incomplete is !final.
+
+#+begin_src til
+struct Utf8Read {
+    mut value : I64
+    mut end : USize
+    mut valid : Bool
+    mut incomplete : Bool
+namespace:
+    func size() returns U64
+    func clone(self: Utf8Read) returns Utf8Read
+    func delete(own self: Utf8Read, call_free: Bool = true)
+    func hash(self: Utf8Read, hasher: HashFn) returns U64
+    func cmp(a: Utf8Read, b: Utf8Read) returns I64
+    func to_str(self: Utf8Read) returns Str
+    func eq(a: Utf8Read, b: Utf8Read) returns Bool
+    func lt(a: Utf8Read, b: Utf8Read) returns Bool
+    func gt(a: Utf8Read, b: Utf8Read) returns Bool
+    func neq(a: Utf8Read, b: Utf8Read) returns Bool
+    func lte(a: Utf8Read, b: Utf8Read) returns Bool
+    func gte(a: Utf8Read, b: Utf8Read) returns Bool
+}
+#+end_src
+
 * Str
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.str.Str
 :group: Core
 :END:
 
-UTF-8 string with owned heap storage. The byte buffer is typed as
+Byte string, conventionally UTF-8, with owned or borrowed storage. UTF-8
+validity is explicit; length, indexing and slicing remain byte-oriented.
+Embedded NUL bytes are retained, but NUL-terminated C APIs stop at them.
+The byte buffer is typed as
 I8 (= C ~char~) so direct FFI bindings against ~const char *~ APIs
 can pass ~s.c_str~ without an intermediate pointer-cast helper.
 
@@ -71,52 +108,97 @@ struct Str {
     mut count : USize
     mut cap : USize
 namespace:
-    func len(self: Str) returns shallow U64
+    func len(self: Str) returns U64
+    func from_codepoint(code: I64) returns Str
+    func read_utf8(self: Str, start: U64, final: Bool = true) returns Utf8Read
+    func is_valid_utf8(self: Str) returns Bool
     func get(self: Str, i: U64) returns ref I8
     func unsafe_get(self: Str, i: U64) returns ref I8
-    func cmp(a: Str, b: Str) returns shallow I64
-    func eq(a: Str, b: Str) returns shallow Bool
-    func with_capacity(shallow n: U64) returns Str
+    func cmp(a: Str, b: Str) returns I64
+    func eq(a: Str, b: Str) returns Bool
+    func with_capacity(n: U64) returns Str
     func from_c_str(s: Dynamic) returns Str
     func push_str(mut self: Str, s: Str)
     func clone(val: Str) returns Str
     func to_str(self: Str) returns Str
-    func delete(own self: Str, shallow call_free: Bool)
+    func delete(own self: Str, call_free: Bool = true)
     func borrowed_view(s: Str) returns Str
-    func substr(s: Str, shallow start: U64, shallow n: U64) returns Str
+    func substr(s: Str, start: U64, n: U64) returns Str
     func trim_start(s: Str) returns Str
     func trim(s: Str) returns Str
-    func contains(a: Str, b: Str) returns shallow Bool
-    func starts_with(a: Str, b: Str) returns shallow Bool
-    func ends_with(a: Str, b: Str) returns shallow Bool
-    func is_empty(self: Str) returns shallow Bool
-    func find(self: Str, needle: Str) returns shallow I64
-    func rfind(self: Str, needle: Str) returns shallow I64
+    func contains(a: Str, b: Str) returns Bool
+    func starts_with(a: Str, b: Str) returns Bool
+    func ends_with(a: Str, b: Str) returns Bool
+    func is_empty(self: Str) returns Bool
+    func find(self: Str, needle: Str) returns I64
+    func rfind(self: Str, needle: Str) returns I64
     func replace(self: Str, from: Str, to: Str) returns Str
-    func get_char(self: Str, shallow i: U64) returns Str
-    func hash(self: Str, hasher: HashFn) returns shallow U64
+    func get_char(self: Str, i: U64) returns Str
+    func hash(self: Str, hasher: HashFn) returns U64
     func strip_prefix(self: Str, prefix: Str) returns Str
     func strip_suffix(self: Str, suffix: Str) returns Str
-    func from_byte(shallow byte: U8) returns Str
-    func to_i64(self: Str) returns shallow I64
-    func to_u8(self: Str) returns shallow U8
-    func to_i8(self: Str) returns shallow I8
-    func to_i16(self: Str) returns shallow I16
-    func to_u16(self: Str) returns shallow U16
-    func to_i32(self: Str) returns shallow I32
-    func to_u32(self: Str) returns shallow U32
-    func to_u64(self: Str) returns shallow U64
-    func to_usize(self: Str) returns shallow U64
-    func to_f32(self: Str) returns shallow F32
-    func to_f64(self: Str) returns shallow F64
+    func from_byte(byte: U8) returns Str
+    func to_i64(self: Str) returns I64
+    func to_u8(self: Str) returns U8
+    func to_i8(self: Str) returns I8
+    func to_i16(self: Str) returns I16
+    func to_u16(self: Str) returns U16
+    func to_i32(self: Str) returns I32
+    func to_u32(self: Str) returns U32
+    func to_u64(self: Str) returns U64
+    func to_usize(self: Str) returns U64
+    func to_f32(self: Str) returns F32
+    func to_f64(self: Str) returns F64
     func split(self: Str, delim: Str) returns Vec__Str
-    func size() returns shallow U64
-    func lt(a: Str, b: Str) returns shallow Bool
-    func gt(a: Str, b: Str) returns shallow Bool
-    func neq(a: Str, b: Str) returns shallow Bool
-    func lte(a: Str, b: Str) returns shallow Bool
-    func gte(a: Str, b: Str) returns shallow Bool
+    func size() returns U64
+    func lt(a: Str, b: Str) returns Bool
+    func gt(a: Str, b: Str) returns Bool
+    func neq(a: Str, b: Str) returns Bool
+    func lte(a: Str, b: Str) returns Bool
+    func gte(a: Str, b: Str) returns Bool
 }
+#+end_src
+
+* Str.from_codepoint
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.from_codepoint
+:group: Core
+:END:
+
+Encode a Unicode scalar as UTF-8. Panics for negatives, surrogates or
+values above U+10FFFF. U+0000 produces a one-byte Str containing NUL.
+
+#+begin_src til
+func Str.from_codepoint(code: I64) returns Str
+#+end_src
+
+* Str.read_utf8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.read_utf8
+:group: Core
+:END:
+
+Decode at a byte offset (start <= len). Reads at most four bytes and
+does not modify the input. A continuation-byte start is malformed.
+With final=false an incomplete prefix consumes nothing: retain it,
+append the next chunk and retry. With final=true it yields U+FFFD.
+Every nonempty final read makes progress, including malformed input.
+
+#+begin_src til
+func Str.read_utf8(self: Str, start: U64, final: Bool = true) returns Utf8Read
+#+end_src
+
+* Str.is_valid_utf8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str.is_valid_utf8
+:group: Core
+:END:
+
+True for well-formed UTF-8 (including empty input and embedded NUL).
+Linear in byte length; never replaces or normalizes the stored bytes.
+
+#+begin_src til
+func Str.is_valid_utf8(self: Str) returns Bool
 #+end_src
 
 * Str.get
@@ -153,7 +235,7 @@ Lexicographic comparison. Returns 0 if equal, negative if a < b,
 positive if a > b.
 
 #+begin_src til
-func Str.cmp(a: Str, b: Str) returns shallow I64
+func Str.cmp(a: Str, b: Str) returns I64
 #+end_src
 
 * Str.eq
@@ -169,7 +251,7 @@ literals whose first or last byte already distinguishes them. Only the
 unchecked interior reaches memcmp.
 
 #+begin_src til
-func Str.eq(a: Str, b: Str) returns shallow Bool
+func Str.eq(a: Str, b: Str) returns Bool
 #+end_src
 
 * Str.with_capacity
@@ -181,7 +263,7 @@ func Str.eq(a: Str, b: Str) returns shallow Bool
 Create an empty Str pre-allocated for up to ~n~ bytes.
 
 #+begin_src til
-func Str.with_capacity(shallow n: U64) returns Str
+func Str.with_capacity(n: U64) returns Str
 #+end_src
 
 * Str.from_c_str
@@ -246,7 +328,7 @@ Free the backing buffer unless it is borrowed/static. CAP_LIT names a
 static literal wrapper, so call_free does not free that wrapper either.
 
 #+begin_src til
-func Str.delete(own self: Str, shallow call_free: Bool)
+func Str.delete(own self: Str, call_free: Bool = true)
 #+end_src
 
 * Str.borrowed_view
@@ -292,7 +374,7 @@ Return a view into ~s~ from ~start~ for ~n~ bytes (no allocation).
 Clamps to valid bounds.
 
 #+begin_src til
-func Str.substr(s: Str, shallow start: U64, shallow n: U64) returns Str
+func Str.substr(s: Str, start: U64, n: U64) returns Str
 #+end_src
 
 * Str.trim_start
@@ -330,7 +412,7 @@ func Str.trim(s: Str) returns Str
 True if ~a~ contains ~b~ as a substring.
 
 #+begin_src til
-func Str.contains(a: Str, b: Str) returns shallow Bool
+func Str.contains(a: Str, b: Str) returns Bool
 #+end_src
 
 * Str.starts_with
@@ -342,7 +424,7 @@ func Str.contains(a: Str, b: Str) returns shallow Bool
 True if ~a~ starts with prefix ~b~.
 
 #+begin_src til
-func Str.starts_with(a: Str, b: Str) returns shallow Bool
+func Str.starts_with(a: Str, b: Str) returns Bool
 #+end_src
 
 * Str.ends_with
@@ -354,7 +436,7 @@ func Str.starts_with(a: Str, b: Str) returns shallow Bool
 True if ~a~ ends with suffix ~b~.
 
 #+begin_src til
-func Str.ends_with(a: Str, b: Str) returns shallow Bool
+func Str.ends_with(a: Str, b: Str) returns Bool
 #+end_src
 
 * Str.is_empty
@@ -366,7 +448,7 @@ func Str.ends_with(a: Str, b: Str) returns shallow Bool
 True if the string has zero length.
 
 #+begin_src til
-func Str.is_empty(self: Str) returns shallow Bool
+func Str.is_empty(self: Str) returns Bool
 #+end_src
 
 * Str.find
@@ -378,7 +460,7 @@ func Str.is_empty(self: Str) returns shallow Bool
 Return the byte index of the first occurrence of ~needle~, or -1.
 
 #+begin_src til
-func Str.find(self: Str, needle: Str) returns shallow I64
+func Str.find(self: Str, needle: Str) returns I64
 #+end_src
 
 * Str.rfind
@@ -390,7 +472,7 @@ func Str.find(self: Str, needle: Str) returns shallow I64
 Return the byte index of the last occurrence of ~needle~, or -1.
 
 #+begin_src til
-func Str.rfind(self: Str, needle: Str) returns shallow I64
+func Str.rfind(self: Str, needle: Str) returns I64
 #+end_src
 
 * Str.replace
@@ -414,7 +496,7 @@ func Str.replace(self: Str, from: Str, to: Str) returns Str
 View of the single byte at index ~i~ as a Str.
 
 #+begin_src til
-func Str.get_char(self: Str, shallow i: U64) returns Str
+func Str.get_char(self: Str, i: U64) returns Str
 #+end_src
 
 * Str.hash
@@ -431,7 +513,7 @@ equality. The container chooses the algorithm; this method
 chooses the right bytes for a Str.
 
 #+begin_src til
-func Str.hash(self: Str, hasher: HashFn) returns shallow U64
+func Str.hash(self: Str, hasher: HashFn) returns U64
 #+end_src
 
 * Str.strip_prefix
@@ -467,7 +549,7 @@ func Str.strip_suffix(self: Str, suffix: Str) returns Str
 Create a 1-byte Str from a U8 value.
 
 #+begin_src til
-func Str.from_byte(shallow byte: U8) returns Str
+func Str.from_byte(byte: U8) returns Str
 #+end_src
 
 * Str.to_i64
@@ -481,7 +563,7 @@ Parse the string as a signed integer. Accepts an optional leading
 Bare digit runs are base-10. Panics on invalid input.
 
 #+begin_src til
-func Str.to_i64(self: Str) returns shallow I64
+func Str.to_i64(self: Str) returns I64
 #+end_src
 
 * Str.to_u8
@@ -493,7 +575,7 @@ func Str.to_i64(self: Str) returns shallow I64
 Parse as base-10 unsigned 8-bit integer.
 
 #+begin_src til
-func Str.to_u8(self: Str) returns shallow U8
+func Str.to_u8(self: Str) returns U8
 #+end_src
 
 * Str.to_i8
@@ -505,7 +587,7 @@ func Str.to_u8(self: Str) returns shallow U8
 Parse as base-10 signed 8-bit integer.
 
 #+begin_src til
-func Str.to_i8(self: Str) returns shallow I8
+func Str.to_i8(self: Str) returns I8
 #+end_src
 
 * Str.to_i16
@@ -517,7 +599,7 @@ func Str.to_i8(self: Str) returns shallow I8
 Parse as base-10 signed 16-bit integer.
 
 #+begin_src til
-func Str.to_i16(self: Str) returns shallow I16
+func Str.to_i16(self: Str) returns I16
 #+end_src
 
 * Str.to_u16
@@ -529,7 +611,7 @@ func Str.to_i16(self: Str) returns shallow I16
 Parse as base-10 unsigned 16-bit integer.
 
 #+begin_src til
-func Str.to_u16(self: Str) returns shallow U16
+func Str.to_u16(self: Str) returns U16
 #+end_src
 
 * Str.to_i32
@@ -541,7 +623,7 @@ func Str.to_u16(self: Str) returns shallow U16
 Parse as base-10 signed 32-bit integer.
 
 #+begin_src til
-func Str.to_i32(self: Str) returns shallow I32
+func Str.to_i32(self: Str) returns I32
 #+end_src
 
 * Str.to_u32
@@ -553,7 +635,7 @@ func Str.to_i32(self: Str) returns shallow I32
 Parse as base-10 unsigned 32-bit integer.
 
 #+begin_src til
-func Str.to_u32(self: Str) returns shallow U32
+func Str.to_u32(self: Str) returns U32
 #+end_src
 
 * Str.to_u64
@@ -567,7 +649,7 @@ separator syntax as to_i64. A leading minus retains the historical
 signed-parse-then-cast behavior.
 
 #+begin_src til
-func Str.to_u64(self: Str) returns shallow U64
+func Str.to_u64(self: Str) returns U64
 #+end_src
 
 * Str.to_usize
@@ -579,7 +661,7 @@ func Str.to_u64(self: Str) returns shallow U64
 Parse as base-10 USize (collection sizes/indices).
 
 #+begin_src til
-func Str.to_usize(self: Str) returns shallow U64
+func Str.to_usize(self: Str) returns U64
 #+end_src
 
 * Str.to_f32
@@ -595,7 +677,7 @@ printed by F32.to_repr round-trips exactly back to the same F32.
 does not accept them.
 
 #+begin_src til
-func Str.to_f32(self: Str) returns shallow F32
+func Str.to_f32(self: Str) returns F32
 #+end_src
 
 * Str.to_f64
@@ -607,7 +689,7 @@ func Str.to_f32(self: Str) returns shallow F32
 F64 twin of to_f32: faithful strtod parse, '_' separators stripped.
 
 #+begin_src til
-func Str.to_f64(self: Str) returns shallow F64
+func Str.to_f64(self: Str) returns F64
 #+end_src
 
 * Str.split
@@ -639,7 +721,7 @@ func join(parts: Vec__Str, sep: Str) returns Str
 :END:
 
 #+begin_src til
-func digit_value(shallow ch: I8) returns shallow I64
+func digit_value(ch: I8) returns I64
 #+end_src
 
 * str_parse_f32
@@ -669,7 +751,7 @@ ext_func str_parse_f64(s: Str) returns shallow F64
 :END:
 
 #+begin_src til
-func c_str_len(s: Dynamic) returns shallow U64
+func c_str_len(s: Dynamic) returns U64
 #+end_src
 
 * OutOfBounds
@@ -685,18 +767,18 @@ fieldless error, avoiding an allocation on every successful accessor call.
 #+begin_src til
 struct OutOfBounds {
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(_self: OutOfBounds) returns OutOfBounds
-    func delete(own self: OutOfBounds, shallow call_free: Bool)
-    func hash(self: OutOfBounds, hasher: HashFn) returns shallow U64
-    func cmp(_a: OutOfBounds, _b: OutOfBounds) returns shallow I64
+    func delete(own self: OutOfBounds, call_free: Bool = true)
+    func hash(self: OutOfBounds, hasher: HashFn) returns U64
+    func cmp(_a: OutOfBounds, _b: OutOfBounds) returns I64
     func to_str(_self: OutOfBounds) returns Str
-    func eq(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
-    func lt(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
-    func gt(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
-    func neq(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
-    func lte(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
-    func gte(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
+    func eq(a: OutOfBounds, b: OutOfBounds) returns Bool
+    func lt(a: OutOfBounds, b: OutOfBounds) returns Bool
+    func gt(a: OutOfBounds, b: OutOfBounds) returns Bool
+    func neq(a: OutOfBounds, b: OutOfBounds) returns Bool
+    func lte(a: OutOfBounds, b: OutOfBounds) returns Bool
+    func gte(a: OutOfBounds, b: OutOfBounds) returns Bool
 }
 #+end_src
 
@@ -712,18 +794,18 @@ absent. The throw tag identifies this fieldless error.
 #+begin_src til
 struct KeyNotFound {
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(_self: KeyNotFound) returns KeyNotFound
-    func delete(own self: KeyNotFound, shallow call_free: Bool)
-    func hash(self: KeyNotFound, hasher: HashFn) returns shallow U64
-    func cmp(_a: KeyNotFound, _b: KeyNotFound) returns shallow I64
+    func delete(own self: KeyNotFound, call_free: Bool = true)
+    func hash(self: KeyNotFound, hasher: HashFn) returns U64
+    func cmp(_a: KeyNotFound, _b: KeyNotFound) returns I64
     func to_str(_self: KeyNotFound) returns Str
-    func eq(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
-    func lt(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
-    func gt(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
-    func neq(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
-    func lte(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
-    func gte(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
+    func eq(a: KeyNotFound, b: KeyNotFound) returns Bool
+    func lt(a: KeyNotFound, b: KeyNotFound) returns Bool
+    func gt(a: KeyNotFound, b: KeyNotFound) returns Bool
+    func neq(a: KeyNotFound, b: KeyNotFound) returns Bool
+    func lte(a: KeyNotFound, b: KeyNotFound) returns Bool
+    func gte(a: KeyNotFound, b: KeyNotFound) returns Bool
 }
 #+end_src
 
@@ -738,17 +820,17 @@ struct Array__Str {
     own mut data : U8
     cap : USize
 namespace:
-    func new(shallow cap: U64) returns Array__Str
-    func len(self: Array__Str) returns shallow U64
+    func new(cap: U64) returns Array__Str
+    func len(self: Array__Str) returns U64
     func unsafe_get(self: Array__Str, i: U64) returns ref Str
-    func get(self: Array__Str, shallow i: U64, mut _err_kind: I64) returns ref Str
-    func unsafe_set(mut self: Array__Str, shallow i: U64, own val: Str)
-    func set(mut self: Array__Str, shallow i: U64, own val: Str, mut _err_kind: I64)
-    func delete(own self: Array__Str, shallow call_free: Bool)
+    func get(self: Array__Str, shallow i: U64) returns ref Str throws OutOfBounds
+    func unsafe_set(mut self: Array__Str, i: U64, own val: Str)
+    func set(mut self: Array__Str, i: U64, own val: Str) throws OutOfBounds
+    func delete(own self: Array__Str, call_free: Bool = true)
     func concat(self: Array__Str, other: Array__Str) returns Array__Str
     func to_vec(self: Array__Str) returns Vec__Str
     func clone(self: Array__Str) returns Array__Str
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -761,7 +843,7 @@ namespace:
 Create a zero-initialized Array with the given capacity.
 
 #+begin_src til
-func Array__Str.new(shallow cap: U64) returns Array__Str
+func Array__Str.new(cap: U64) returns Array__Str
 #+end_src
 
 * Array__Str.unsafe_get
@@ -790,7 +872,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func Array__Str.get(self: Array__Str, shallow i: U64, mut _err_kind: I64) returns ref Str
+func Array__Str.get(self: Array__Str, shallow i: U64) returns ref Str throws OutOfBounds
 #+end_src
 
 * Array__Str.unsafe_set
@@ -804,7 +886,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Array__Str.unsafe_set(mut self: Array__Str, shallow i: U64, own val: Str)
+func Array__Str.unsafe_set(mut self: Array__Str, i: U64, own val: Str)
 #+end_src
 
 * Array__Str.set
@@ -818,7 +900,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~arr[i] = val~ (or ~arr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Array__Str.set(mut self: Array__Str, shallow i: U64, own val: Str, mut _err_kind: I64)
+func Array__Str.set(mut self: Array__Str, i: U64, own val: Str) throws OutOfBounds
 #+end_src
 
 * Array__Str.concat
@@ -867,8 +949,8 @@ struct Vec__Str {
     mut cap : USize
 namespace:
     func new() returns Vec__Str
-    func with_capacity(shallow n: U64) returns Vec__Str
-    func len(self: Vec__Str) returns shallow U64
+    func with_capacity(n: U64) returns Vec__Str
+    func len(self: Vec__Str) returns U64
     func clear(mut self: Vec__Str)
     func delete_marked(mut self: Vec__Str, marks: Dynamic)
     func push(mut self: Vec__Str, own val: Str)
@@ -877,17 +959,17 @@ namespace:
     func move_to(own self: Vec__Str, mut dest: Vec__Str)
     func move_from(mut self: Vec__Str, own other: Vec__Str)
     func unsafe_get(self: Vec__Str, i: U64) returns ref Str
-    func get(self: Vec__Str, shallow i: U64, mut _err_kind: I64) returns ref Str
+    func get(self: Vec__Str, shallow i: U64) returns ref Str throws OutOfBounds
     func pop(mut self: Vec__Str) returns Str
-    func remove_at(mut self: Vec__Str, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__Str, shallow n: U64) returns Vec__Str
-    func truncate(mut self: Vec__Str, shallow n: U64)
-    func unsafe_set(mut self: Vec__Str, shallow i: U64, own val: Str)
-    func set(mut self: Vec__Str, shallow i: U64, own val: Str, mut _err_kind: I64)
-    func push_take(mut self: Vec__Str, mut src: Vec__Str, shallow i: U64)
-    func delete(own self: Vec__Str, shallow call_free: Bool)
+    func remove_at(mut self: Vec__Str, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__Str, n: U64) returns Vec__Str
+    func truncate(mut self: Vec__Str, n: U64)
+    func unsafe_set(mut self: Vec__Str, i: U64, own val: Str)
+    func set(mut self: Vec__Str, i: U64, own val: Str) throws OutOfBounds
+    func push_take(mut self: Vec__Str, mut src: Vec__Str, i: U64)
+    func delete(own self: Vec__Str, call_free: Bool = true)
     func clone(self: Vec__Str) returns Vec__Str
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -921,7 +1003,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__Str.with_capacity(shallow n: U64) returns Vec__Str
+func Vec__Str.with_capacity(n: U64) returns Vec__Str
 #+end_src
 
 * Vec__Str.clear
@@ -1063,7 +1145,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__Str.get(self: Vec__Str, shallow i: U64, mut _err_kind: I64) returns ref Str
+func Vec__Str.get(self: Vec__Str, shallow i: U64) returns ref Str throws OutOfBounds
 #+end_src
 
 * Vec__Str.pop
@@ -1088,7 +1170,7 @@ func Vec__Str.pop(mut self: Vec__Str) returns Str
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__Str.remove_at(mut self: Vec__Str, shallow i: U64, mut _err_kind: I64)
+func Vec__Str.remove_at(mut self: Vec__Str, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__Str.take_prefix
@@ -1101,7 +1183,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__Str.take_prefix(mut self: Vec__Str, shallow n: U64) returns Vec__Str
+func Vec__Str.take_prefix(mut self: Vec__Str, n: U64) returns Vec__Str
 #+end_src
 
 * Vec__Str.truncate
@@ -1116,7 +1198,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__Str.truncate(mut self: Vec__Str, shallow n: U64)
+func Vec__Str.truncate(mut self: Vec__Str, n: U64)
 #+end_src
 
 * Vec__Str.unsafe_set
@@ -1130,7 +1212,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__Str.unsafe_set(mut self: Vec__Str, shallow i: U64, own val: Str)
+func Vec__Str.unsafe_set(mut self: Vec__Str, i: U64, own val: Str)
 #+end_src
 
 * Vec__Str.set
@@ -1144,7 +1226,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__Str.set(mut self: Vec__Str, shallow i: U64, own val: Str, mut _err_kind: I64)
+func Vec__Str.set(mut self: Vec__Str, i: U64, own val: Str) throws OutOfBounds
 #+end_src
 
 * Vec__Str.push_take
@@ -1158,7 +1240,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__Str.push_take(mut self: Vec__Str, mut src: Vec__Str, shallow i: U64)
+func Vec__Str.push_take(mut self: Vec__Str, mut src: Vec__Str, i: U64)
 #+end_src
 
 * Vec__Str.delete
@@ -1171,7 +1253,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__Str.delete(own self: Vec__Str, shallow call_free: Bool)
+func Vec__Str.delete(own self: Vec__Str, call_free: Bool = true)
 #+end_src
 
 * Vec__Str.clone

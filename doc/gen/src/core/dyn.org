@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -11,9 +11,9 @@
 #+begin_src til
 struct Dynamic {
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: Dynamic) returns Dynamic
-    func delete(own self: Dynamic, shallow call_free: Bool)
+    func delete(own self: Dynamic, call_free: Bool = true)
 }
 #+end_src
 
@@ -63,7 +63,7 @@ everywhere: ~dyn_call(tn, "delete", 2, ptr, false)~ writes through
 is written by a "delete" and only read by a "clone".
 
 #+begin_src til
-ext_func dyn_call(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic)
+ext_func dyn_call(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0)
 #+end_src
 
 * dyn_call_ret
@@ -78,7 +78,7 @@ the general interface-dispatch path (~dyn_call_ret(iface_type_name,
 "method", arity, iface_val, ...)~), so it reaches any user method.
 
 #+begin_src til
-ext_func dyn_call_ret(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic) returns Dynamic
+ext_func dyn_call_ret(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic
 #+end_src
 
 * dyn_fn
@@ -132,6 +132,37 @@ ext_func dyn_storage_kind(type_name: Str) returns shallow U64
 ext_func dyn_type_to_str(type: Type) returns Str
 #+end_src
 
+* type_arg_is_ref
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.type_arg_is_ref
+:group: Core
+:END:
+
+Whether a compile-time type argument carries ~ref~. In a generator,
+~type_arg_is_ref(T)~ observes the qualifier supplied for T, including when
+forwarded through another generator. Unqualified and ~own~ arguments
+answer false. A runtime Type value or an ordinary value is not an argument
+to this query: the compiler resolves it before runtime code is emitted.
+
+#+begin_src til
+core_func type_arg_is_ref(type: Type) returns Bool
+#+end_src
+
+* type_arg_is_interface
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.type_arg_is_interface
+:group: Core
+:END:
+
+Whether a compile-time type argument names an interface. Aliases resolve
+to their underlying type; own/ref qualifiers do not change the answer.
+Concrete structs and enums answer false even when they implement interfaces.
+Like type_arg_is_ref, this query rejects runtime Type values.
+
+#+begin_src til
+core_func type_arg_is_interface(type: Type) returns Bool
+#+end_src
+
 * is_scalar_type_name
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.dyn.is_scalar_type_name
@@ -139,7 +170,7 @@ ext_func dyn_type_to_str(type: Type) returns Str
 :END:
 
 #+begin_src til
-func is_scalar_type_name(name: Str) returns shallow Bool
+func is_scalar_type_name(name: Str) returns Bool
 #+end_src
 
 * til_type_name
@@ -159,7 +190,7 @@ func til_type_name(t: Type) returns Str
 :END:
 
 #+begin_src til
-func type_name_storage_kind(type_name: Str) returns shallow U64
+func type_name_storage_kind(type_name: Str) returns U64
 #+end_src
 
 * type_storage_kind
@@ -169,7 +200,7 @@ func type_name_storage_kind(type_name: Str) returns shallow U64
 :END:
 
 #+begin_src til
-func type_storage_kind(t: Type) returns shallow U64
+func type_storage_kind(t: Type) returns U64
 #+end_src
 
 * struct_field_count
@@ -449,7 +480,7 @@ func func_sig_of(type_name: Str) returns FuncSig
 :END:
 
 #+begin_src til
-func CloneFn(: Dynamic) returns Dynamic
+func CloneFn(Dynamic) returns Dynamic
 #+end_src
 
 * DeleteFn
@@ -459,7 +490,7 @@ func CloneFn(: Dynamic) returns Dynamic
 :END:
 
 #+begin_src til
-func DeleteFn(: Dynamic, shallow : Bool)
+func DeleteFn(Dynamic, Bool)
 #+end_src
 
 * CmpFn
@@ -469,7 +500,7 @@ func DeleteFn(: Dynamic, shallow : Bool)
 :END:
 
 #+begin_src til
-func CmpFn(: Dynamic, : Dynamic) returns shallow I64
+func CmpFn(Dynamic, Dynamic) returns I64
 #+end_src
 
 * IncFn
@@ -479,7 +510,7 @@ func CmpFn(: Dynamic, : Dynamic) returns shallow I64
 :END:
 
 #+begin_src til
-func IncFn(: Dynamic)
+func IncFn(Dynamic)
 #+end_src
 
 * DistanceFn
@@ -489,7 +520,7 @@ func IncFn(: Dynamic)
 :END:
 
 #+begin_src til
-func DistanceFn(: Dynamic, : Dynamic) returns shallow U64
+func DistanceFn(Dynamic, Dynamic) returns U64
 #+end_src
 
 * HashFn
@@ -499,7 +530,7 @@ func DistanceFn(: Dynamic, : Dynamic) returns shallow U64
 :END:
 
 #+begin_src til
-func HashFn(: Dynamic, shallow : U64) returns shallow U64
+func HashFn(Dynamic, U64) returns U64
 #+end_src
 
 * TypeHashFn
@@ -509,7 +540,7 @@ func HashFn(: Dynamic, shallow : U64) returns shallow U64
 :END:
 
 #+begin_src til
-func TypeHashFn(: Dynamic, shallow : HashFn) returns shallow U64
+func TypeHashFn(Dynamic, HashFn) returns U64
 #+end_src
 
 * default_clone
@@ -529,7 +560,7 @@ func default_clone(v: Dynamic) returns Dynamic
 :END:
 
 #+begin_src til
-func default_delete(_v: Dynamic, shallow _cf: Bool)
+func default_delete(_v: Dynamic, _cf: Bool)
 #+end_src
 
 * default_cmp
@@ -539,7 +570,7 @@ func default_delete(_v: Dynamic, shallow _cf: Bool)
 :END:
 
 #+begin_src til
-func default_cmp(_a: Dynamic, _b: Dynamic) returns shallow I64
+func default_cmp(_a: Dynamic, _b: Dynamic) returns I64
 #+end_src
 
 * default_inc
@@ -559,7 +590,7 @@ func default_inc(_v: Dynamic)
 :END:
 
 #+begin_src til
-func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U64
+func default_distance(_a: Dynamic, _b: Dynamic) returns U64
 #+end_src
 
 * default_type_hash
@@ -569,7 +600,7 @@ func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U64
 :END:
 
 #+begin_src til
-func default_type_hash(_v: Dynamic, _h: HashFn) returns shallow U64
+func default_type_hash(_v: Dynamic, _h: HashFn) returns U64
 #+end_src
 
 * dyn_has_method

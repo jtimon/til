@@ -120,6 +120,8 @@
 *** external_symbol := ""
 *** infer_call_ownership := false
 *** bounds := ""
+*** annotated := Type.Unknown
+*** auto_shallow := false
 ** FuncSig: StructDef
 *** func_type := FuncType.Func
 *** params := Vec(Declaration).new()
@@ -142,6 +144,7 @@
 *** ref_return_carried_params : U64 = 0
 *** namespace_decl := Option(ref Declaration).None
 *** deposit_matrix : U64 = 0
+*** deposit_borrow_matrix : U64 = 0
 ** FCallData: StructDef
 *** constfold_value := false
 *** does_throw := false
@@ -155,6 +158,9 @@
 *** is_subscript := false
 *** is_throw_default := false
 *** iface_box_owns_payload := false
+*** propagates_error := false
+*** panic_on_error := false
+*** is_bang_check := false
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -481,7 +487,7 @@
 *** import_support_dir := ""
 *** check_unused_imports := false
 *** import_use_edges := Set(Str).new()
-*** ... (75 more)
+*** ... (77 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -530,6 +536,7 @@
 *** link_flags := ""
 *** include_flags := ""
 *** target_links := Vec(TargetLink).new()
+*** macos_frameworks := ""
 *** link_c_paths := ""
 *** compiler_revision := ""
 *** asan_build := false
@@ -574,6 +581,7 @@
 *** carried : U64 = 0
 ** DepositAcc: StructDef
 *** m : U64 = 0
+*** borrowed : U64 = 0
 ** CoverageNode: StructDef
 *** fully_covered := false
 *** sub_names := Vec(Str).new()
@@ -584,6 +592,8 @@
 *** type := Type.Unknown
 *** decl_index : I64 = 0
 *** last_use : I64 = 0
+*** is_str_view := false
+*** str_view_base := ""
 *** own_transfer : I64 = -1
 *** has_transfer := false
 *** skip_scope_delete := false
@@ -624,6 +634,9 @@
 *** borrower := ""
 *** fixed_reach : I64 = -1
 *** created_at : I64 = -1
+** GcDeposit: StructDef
+*** sink := BorrowRoot()
+*** source := BorrowRoot()
 * scavenger
 ** DeclRef: StructDef
 *** path := ""
@@ -773,6 +786,18 @@
 * eval_heap
 ** EvalHeap: StructDef
 *** unused : U8 = 0
+* fasm_codegen
+** FasmState: StructDef
+*** text := ""
+*** slots : USize = 0
+*** labels : USize = 0
+*** values := Map(Str, Str).new()
+*** functions := Map(Str, Str).new()
+*** addresses := Set(Str).new()
+*** pointers := Set(Str).new()
+*** data := ""
+*** prefix := ""
+*** literals : USize = 0
 * holyc_codegen
 ** HolyCEmitState: StructDef
 *** user_functions := Set(Str).new()
@@ -802,7 +827,7 @@
 *** needs_str_array_clone := false
 *** needs_str_array_get := false
 *** needs_str_array_concat := false
-*** ... (23 more)
+*** ... (27 more)
 ** HolyCLocalState: StructDef
 *** ref_return_type := ""
 *** continue_label := ""
@@ -847,11 +872,23 @@
 *** tail := ""
 *** live := false
 * mlir_codegen
+** MlirBinding: StructDef
+*** value := ""
+*** type_name := ""
+*** is_mut := false
+*** is_signed := false
 ** MlirState: StructDef
 *** text := ""
+*** allocations := ""
 *** next : USize = 0
-*** values := Map(Str, Str).new()
+*** next_block : USize = 0
+*** terminated := false
+*** break_label := ""
+*** continue_label := ""
+*** has_break := false
+*** values := Map(Str, MlirBinding).new()
 *** functions := Set(Str).new()
+*** error_slots := Set(Str).new()
 *** integers := Map(Str, U64).new()
 *** booleans := Map(Str, Bool).new()
 * repl_editor

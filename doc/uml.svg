@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="8284" height="5260" viewBox="0 0 8284 5260">
+<svg xmlns="http://www.w3.org/2000/svg" width="8682" height="5368" viewBox="0 0 8682 5368">
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -9,7 +9,7 @@
       .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
     </style>
   </defs>
-  <rect class="bg" x="0" y="0" width="8284" height="5260"/>
+  <rect class="bg" x="0" y="0" width="8682" height="5368"/>
   <rect x="24" y="24" width="356" height="1284" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
   <rect x="44" y="88" width="220" height="172" rx="10" ry="10" class="box"/>
@@ -72,7 +72,7 @@
   <text x="58" y="1246" class="line">const len : USize = 0</text>
   <text x="58" y="1264" class="line">const line : U32 = 0</text>
   <text x="58" y="1282" class="line">const col : U32 = 0</text>
-  <rect x="414" y="24" width="532" height="5212" rx="14" ry="14" class="panel"/>
+  <rect x="414" y="24" width="532" height="5320" rx="14" ry="14" class="panel"/>
   <text x="434" y="62" class="panel-label">ast</text>
   <rect x="434" y="88" width="172" height="244" rx="10" ry="10" class="box"/>
   <text x="448" y="126" class="title">Primitive: EnumDef</text>
@@ -129,7 +129,7 @@
   <text x="448" y="1156" class="line">Unset</text>
   <text x="448" y="1174" class="line">Stack</text>
   <text x="448" y="1192" class="line">HeapBox }</text>
-  <rect x="434" y="1218" width="300" height="298" rx="10" ry="10" class="box"/>
+  <rect x="434" y="1218" width="300" height="334" rx="10" ry="10" class="box"/>
   <text x="448" y="1256" class="title">Declaration: StructDef</text>
   <text x="448" y="1274" class="line">name := &quot;&quot;</text>
   <text x="448" y="1292" class="line">doc := &quot;&quot;</text>
@@ -145,179 +145,185 @@
   <text x="448" y="1472" class="line">external_symbol := &quot;&quot;</text>
   <text x="448" y="1490" class="line">infer_call_ownership := false</text>
   <text x="448" y="1508" class="line">bounds := &quot;&quot;</text>
-  <rect x="434" y="1534" width="284" height="190" rx="10" ry="10" class="box"/>
-  <text x="448" y="1572" class="title">FuncSig: StructDef</text>
-  <text x="448" y="1590" class="line">func_type := FuncType.Func</text>
-  <text x="448" y="1608" class="line">params := Vec(Declaration).new()</text>
-  <text x="448" y="1626" class="line">return_type := &quot;&quot;</text>
-  <text x="448" y="1644" class="line">throw_types := Vec(Str).new()</text>
-  <text x="448" y="1662" class="line">variadic_index : I32 = -1</text>
-  <text x="448" y="1680" class="line">kwargs_index : I32 = -1</text>
-  <text x="448" y="1698" class="line">return_own_type := OwnType.Own</text>
-  <text x="448" y="1716" class="line">return_shallow_explicit := false</text>
-  <rect x="434" y="1742" width="396" height="262" rx="10" ry="10" class="box"/>
-  <text x="448" y="1780" class="title">FunctionDef: StructDef</text>
-  <text x="448" y="1798" class="line">sig := FuncSig()</text>
-  <text x="448" y="1816" class="line">auto_generated := false</text>
-  <text x="448" y="1834" class="line">typed_on_demand := false</text>
-  <text x="448" y="1852" class="line">is_enum_variant_ctor := false</text>
-  <text x="448" y="1870" class="line">noreturn := false</text>
-  <text x="448" y="1888" class="line">captures := Vec(Declaration).new()</text>
-  <text x="448" y="1906" class="line">closure_name := &quot;&quot;</text>
-  <text x="448" y="1924" class="line">ref_return_params : U64 = 0</text>
-  <text x="448" y="1942" class="line">ref_return_into_params : U64 = 0</text>
-  <text x="448" y="1960" class="line">ref_return_carried_params : U64 = 0</text>
-  <text x="448" y="1978" class="line">namespace_decl := Option(ref Declaration).None</text>
-  <text x="448" y="1996" class="line">deposit_matrix : U64 = 0</text>
-  <rect x="434" y="2022" width="276" height="262" rx="10" ry="10" class="box"/>
-  <text x="448" y="2060" class="title">FCallData: StructDef</text>
-  <text x="448" y="2078" class="line">constfold_value := false</text>
-  <text x="448" y="2096" class="line">does_throw := false</text>
-  <text x="448" y="2114" class="line">is_bang := false</text>
-  <text x="448" y="2132" class="line">own_args : U64 = 0</text>
-  <text x="448" y="2150" class="line">keep_outer_args : U64 = 0</text>
-  <text x="448" y="2168" class="line">swap_replace := false</text>
-  <text x="448" y="2186" class="line">til_type := Type.Unknown</text>
-  <text x="448" y="2204" class="line">ref_args : U64 = 0</text>
-  <text x="448" y="2222" class="line">splat_args : U64 = 0</text>
-  <text x="448" y="2240" class="line">is_subscript := false</text>
-  <text x="448" y="2258" class="line">is_throw_default := false</text>
-  <text x="448" y="2276" class="line">iface_box_owns_payload := false</text>
-  <rect x="434" y="2302" width="228" height="82" rx="10" ry="10" class="box"/>
-  <text x="448" y="2340" class="title">LiteralNumData: StructDef</text>
-  <text x="448" y="2358" class="line">text := &quot;&quot;</text>
-  <text x="448" y="2376" class="line">til_type := Type.Unknown</text>
-  <rect x="434" y="2402" width="220" height="82" rx="10" ry="10" class="box"/>
-  <text x="448" y="2440" class="title">IdentData: StructDef</text>
-  <text x="448" y="2458" class="line">name : Sym = 0</text>
-  <text x="448" y="2476" class="line">til_type := Type.Unknown</text>
-  <rect x="434" y="2502" width="236" height="82" rx="10" ry="10" class="box"/>
-  <text x="448" y="2540" class="title">FieldAccessData: StructDef</text>
-  <text x="448" y="2558" class="line">name : Sym = 0</text>
-  <text x="448" y="2576" class="line">til_type := Type.Unknown</text>
-  <rect x="434" y="2602" width="492" height="208" rx="10" ry="10" class="box"/>
-  <text x="448" y="2640" class="title">StructDef: StructDef</text>
-  <text x="448" y="2658" class="line">own fields : Vec(Declaration) = Vec(Declaration).new()</text>
-  <text x="448" y="2676" class="line">own ns_decls : Vec(Declaration) = Vec(Declaration).new()</text>
-  <text x="448" y="2694" class="line">own fields_index : Map(Str, USize) = Map(Str, USize).new()</text>
-  <text x="448" y="2712" class="line">own ns_index : Map(Str, USize) = Map(Str, USize).new()</text>
-  <text x="448" y="2730" class="line">c_tag := &quot;&quot;</text>
-  <text x="448" y="2748" class="line">is_interface := false</text>
-  <text x="448" y="2766" class="line">interface_ns_marker := false</text>
-  <text x="448" y="2784" class="line">implements_name := &quot;&quot;</text>
-  <text x="448" y="2802" class="line">simd_width : USize = 0</text>
-  <rect x="434" y="2828" width="220" height="172" rx="10" ry="10" class="box"/>
-  <text x="448" y="2866" class="title">VariantDef: StructDef</text>
-  <text x="448" y="2884" class="line">name := &quot;&quot;</text>
-  <text x="448" y="2902" class="line">doc := &quot;&quot;</text>
-  <text x="448" y="2920" class="line">payload_type := &quot;&quot;</text>
-  <text x="448" y="2938" class="line">payload_const := false</text>
-  <text x="448" y="2956" class="line">tag_value : I64 = 0</text>
-  <text x="448" y="2974" class="line">payload_ref := false</text>
-  <text x="448" y="2992" class="line">payload_funcsig := false</text>
-  <rect x="434" y="3018" width="476" height="136" rx="10" ry="10" class="box"/>
-  <text x="448" y="3056" class="title">EnumDef: StructDef</text>
-  <text x="448" y="3074" class="line">own ns_decls : Vec(Declaration) = Vec(Declaration).new()</text>
-  <text x="448" y="3092" class="line">own ns_index : Map(Str, USize) = Map(Str, USize).new()</text>
-  <text x="448" y="3110" class="line">variants := Vec(VariantDef).new()</text>
-  <text x="448" y="3128" class="line">implements_name := &quot;&quot;</text>
-  <text x="448" y="3146" class="line">tag_type := &quot;&quot;</text>
-  <rect x="434" y="3172" width="244" height="172" rx="10" ry="10" class="box"/>
-  <text x="448" y="3210" class="title">FieldLayout: StructDef</text>
-  <text x="448" y="3228" class="line">offset : USize = 0</text>
-  <text x="448" y="3246" class="line">size : USize = 0</text>
-  <text x="448" y="3264" class="line">struct_name := &quot;&quot;</text>
-  <text x="448" y="3282" class="line">own_type := OwnType.Shallow</text>
-  <text x="448" y="3300" class="line">is_str := false</text>
-  <text x="448" y="3318" class="line">is_enum := false</text>
-  <text x="448" y="3336" class="line">is_funcptr := false</text>
-  <rect x="434" y="3362" width="284" height="118" rx="10" ry="10" class="box"/>
-  <text x="448" y="3400" class="title">StructLayout: StructDef</text>
-  <text x="448" y="3418" class="line">total_size : USize = 0</text>
-  <text x="448" y="3436" class="line">align : USize = 1</text>
-  <text x="448" y="3454" class="line">fields := Vec(FieldLayout).new()</text>
-  <text x="448" y="3472" class="line">is_interface := false</text>
-  <rect x="434" y="3498" width="228" height="136" rx="10" ry="10" class="box"/>
-  <text x="448" y="3536" class="title">AssignData: StructDef</text>
-  <text x="448" y="3554" class="line">name := &quot;&quot;</text>
-  <text x="448" y="3572" class="line">save_old_delete := false</text>
-  <text x="448" y="3590" class="line">is_payload_alias := false</text>
-  <text x="448" y="3608" class="line">swap_replace := false</text>
-  <text x="448" y="3626" class="line">is_move := false</text>
-  <rect x="434" y="3652" width="236" height="118" rx="10" ry="10" class="box"/>
-  <text x="448" y="3690" class="title">FieldAssignData: StructDef</text>
-  <text x="448" y="3708" class="line">name := &quot;&quot;</text>
-  <text x="448" y="3726" class="line">save_old_delete := false</text>
-  <text x="448" y="3744" class="line">transfers_own := false</text>
-  <text x="448" y="3762" class="line">is_move := false</text>
-  <rect x="434" y="3788" width="220" height="136" rx="10" ry="10" class="box"/>
-  <text x="448" y="3826" class="title">ForInData: StructDef</text>
-  <text x="448" y="3844" class="line">name := &quot;&quot;</text>
-  <text x="448" y="3862" class="line">is_mut := false</text>
-  <text x="448" y="3880" class="line">til_type := Type.Unknown</text>
-  <text x="448" y="3898" class="line">name2 := &quot;&quot;</text>
-  <text x="448" y="3916" class="line">is_mut2 := false</text>
-  <rect x="434" y="3942" width="172" height="154" rx="10" ry="10" class="box"/>
-  <text x="448" y="3980" class="title">Literal: EnumDef</text>
-  <text x="448" y="3998" class="line">Str:Str</text>
-  <text x="448" y="4016" class="line">Num:LiteralNumData</text>
-  <text x="448" y="4034" class="line">Bool:Bool</text>
-  <text x="448" y="4052" class="line">Null</text>
-  <text x="448" y="4070" class="line">MapLit</text>
-  <text x="448" y="4088" class="line">SetLit</text>
-  <rect x="434" y="4114" width="220" height="82" rx="10" ry="10" class="box"/>
-  <text x="448" y="4152" class="title">MatchData: StructDef</text>
-  <text x="448" y="4170" class="line">til_type := Type.Unknown</text>
-  <text x="448" y="4188" class="line">result_temp := &quot;&quot;</text>
-  <rect x="434" y="4214" width="228" height="64" rx="10" ry="10" class="box"/>
-  <text x="448" y="4252" class="title">CaseData: StructDef</text>
-  <text x="448" y="4270" class="line">pattern_count : USize = 1</text>
-  <rect x="434" y="4296" width="300" height="82" rx="10" ry="10" class="box"/>
-  <text x="448" y="4334" class="title">CaptureBlockData: StructDef</text>
-  <text x="448" y="4352" class="line">captures := Vec(Declaration).new()</text>
-  <text x="448" y="4370" class="line">closure_name := &quot;&quot;</text>
-  <rect x="434" y="4396" width="300" height="118" rx="10" ry="10" class="box"/>
-  <text x="448" y="4434" class="title">PrecomputedSequenceData: StructDef</text>
-  <text x="448" y="4452" class="line">til_type := Type.Unknown</text>
-  <text x="448" y="4470" class="line">element_type := Type.Unknown</text>
-  <text x="448" y="4488" class="line">capacity : USize = 0</text>
-  <text x="448" y="4506" class="line">ordinal : USize = 0</text>
-  <rect x="434" y="4532" width="260" height="550" rx="10" ry="10" class="box"/>
-  <text x="448" y="4570" class="title">NodeType: EnumDef</text>
-  <text x="448" y="4588" class="line">Body</text>
-  <text x="448" y="4606" class="line">Literal:Literal</text>
-  <text x="448" y="4624" class="line">Ident:IdentData</text>
-  <text x="448" y="4642" class="line">Decl:Declaration</text>
-  <text x="448" y="4660" class="line">Assign:AssignData</text>
-  <text x="448" y="4678" class="line">FCall:FCallData</text>
-  <text x="448" y="4696" class="line">FuncDef:FunctionDef</text>
-  <text x="448" y="4714" class="line">StructDef:StructDef</text>
-  <text x="448" y="4732" class="line">EnumDef:EnumDef</text>
-  <text x="448" y="4750" class="line">FieldAccess:FieldAccessData</text>
-  <text x="448" y="4768" class="line">FieldAssign:FieldAssignData</text>
-  <text x="448" y="4786" class="line">Return</text>
-  <text x="448" y="4804" class="line">If</text>
-  <text x="448" y="4822" class="line">While</text>
-  <text x="448" y="4840" class="line">ForIn:ForInData</text>
-  <text x="448" y="4858" class="line">NamedArg:Str</text>
-  <text x="448" y="4876" class="line">Break</text>
-  <text x="448" y="4894" class="line">Continue</text>
-  <text x="448" y="4912" class="line">Switch</text>
-  <text x="448" y="4930" class="line">Match:MatchData</text>
-  <text x="448" y="4948" class="line">Case:CaseData</text>
-  <text x="448" y="4966" class="line">NoDefaultArg</text>
-  <text x="448" y="4984" class="line">Throw</text>
-  <text x="448" y="5002" class="line">Catch</text>
-  <text x="448" y="5020" class="line">RestPattern</text>
-  <text x="448" y="5038" class="line">CaptureBlock:CaptureBlockData</text>
-  <text x="448" y="5056" class="line">Loc</text>
-  <text x="448" y="5074" class="line">... (3 more)</text>
-  <rect x="434" y="5100" width="244" height="118" rx="10" ry="10" class="box"/>
-  <text x="448" y="5138" class="title">Expr: StructDef</text>
-  <text x="448" y="5156" class="line">node_type := NodeType.Body</text>
-  <text x="448" y="5174" class="line">children := Vec(Expr).new()</text>
-  <text x="448" y="5192" class="line">line : U32 = 0</text>
-  <text x="448" y="5210" class="line">col : U32 = 0</text>
+  <text x="448" y="1526" class="line">annotated := Type.Unknown</text>
+  <text x="448" y="1544" class="line">auto_shallow := false</text>
+  <rect x="434" y="1570" width="284" height="190" rx="10" ry="10" class="box"/>
+  <text x="448" y="1608" class="title">FuncSig: StructDef</text>
+  <text x="448" y="1626" class="line">func_type := FuncType.Func</text>
+  <text x="448" y="1644" class="line">params := Vec(Declaration).new()</text>
+  <text x="448" y="1662" class="line">return_type := &quot;&quot;</text>
+  <text x="448" y="1680" class="line">throw_types := Vec(Str).new()</text>
+  <text x="448" y="1698" class="line">variadic_index : I32 = -1</text>
+  <text x="448" y="1716" class="line">kwargs_index : I32 = -1</text>
+  <text x="448" y="1734" class="line">return_own_type := OwnType.Own</text>
+  <text x="448" y="1752" class="line">return_shallow_explicit := false</text>
+  <rect x="434" y="1778" width="396" height="280" rx="10" ry="10" class="box"/>
+  <text x="448" y="1816" class="title">FunctionDef: StructDef</text>
+  <text x="448" y="1834" class="line">sig := FuncSig()</text>
+  <text x="448" y="1852" class="line">auto_generated := false</text>
+  <text x="448" y="1870" class="line">typed_on_demand := false</text>
+  <text x="448" y="1888" class="line">is_enum_variant_ctor := false</text>
+  <text x="448" y="1906" class="line">noreturn := false</text>
+  <text x="448" y="1924" class="line">captures := Vec(Declaration).new()</text>
+  <text x="448" y="1942" class="line">closure_name := &quot;&quot;</text>
+  <text x="448" y="1960" class="line">ref_return_params : U64 = 0</text>
+  <text x="448" y="1978" class="line">ref_return_into_params : U64 = 0</text>
+  <text x="448" y="1996" class="line">ref_return_carried_params : U64 = 0</text>
+  <text x="448" y="2014" class="line">namespace_decl := Option(ref Declaration).None</text>
+  <text x="448" y="2032" class="line">deposit_matrix : U64 = 0</text>
+  <text x="448" y="2050" class="line">deposit_borrow_matrix : U64 = 0</text>
+  <rect x="434" y="2076" width="276" height="316" rx="10" ry="10" class="box"/>
+  <text x="448" y="2114" class="title">FCallData: StructDef</text>
+  <text x="448" y="2132" class="line">constfold_value := false</text>
+  <text x="448" y="2150" class="line">does_throw := false</text>
+  <text x="448" y="2168" class="line">is_bang := false</text>
+  <text x="448" y="2186" class="line">own_args : U64 = 0</text>
+  <text x="448" y="2204" class="line">keep_outer_args : U64 = 0</text>
+  <text x="448" y="2222" class="line">swap_replace := false</text>
+  <text x="448" y="2240" class="line">til_type := Type.Unknown</text>
+  <text x="448" y="2258" class="line">ref_args : U64 = 0</text>
+  <text x="448" y="2276" class="line">splat_args : U64 = 0</text>
+  <text x="448" y="2294" class="line">is_subscript := false</text>
+  <text x="448" y="2312" class="line">is_throw_default := false</text>
+  <text x="448" y="2330" class="line">iface_box_owns_payload := false</text>
+  <text x="448" y="2348" class="line">propagates_error := false</text>
+  <text x="448" y="2366" class="line">panic_on_error := false</text>
+  <text x="448" y="2384" class="line">is_bang_check := false</text>
+  <rect x="434" y="2410" width="228" height="82" rx="10" ry="10" class="box"/>
+  <text x="448" y="2448" class="title">LiteralNumData: StructDef</text>
+  <text x="448" y="2466" class="line">text := &quot;&quot;</text>
+  <text x="448" y="2484" class="line">til_type := Type.Unknown</text>
+  <rect x="434" y="2510" width="220" height="82" rx="10" ry="10" class="box"/>
+  <text x="448" y="2548" class="title">IdentData: StructDef</text>
+  <text x="448" y="2566" class="line">name : Sym = 0</text>
+  <text x="448" y="2584" class="line">til_type := Type.Unknown</text>
+  <rect x="434" y="2610" width="236" height="82" rx="10" ry="10" class="box"/>
+  <text x="448" y="2648" class="title">FieldAccessData: StructDef</text>
+  <text x="448" y="2666" class="line">name : Sym = 0</text>
+  <text x="448" y="2684" class="line">til_type := Type.Unknown</text>
+  <rect x="434" y="2710" width="492" height="208" rx="10" ry="10" class="box"/>
+  <text x="448" y="2748" class="title">StructDef: StructDef</text>
+  <text x="448" y="2766" class="line">own fields : Vec(Declaration) = Vec(Declaration).new()</text>
+  <text x="448" y="2784" class="line">own ns_decls : Vec(Declaration) = Vec(Declaration).new()</text>
+  <text x="448" y="2802" class="line">own fields_index : Map(Str, USize) = Map(Str, USize).new()</text>
+  <text x="448" y="2820" class="line">own ns_index : Map(Str, USize) = Map(Str, USize).new()</text>
+  <text x="448" y="2838" class="line">c_tag := &quot;&quot;</text>
+  <text x="448" y="2856" class="line">is_interface := false</text>
+  <text x="448" y="2874" class="line">interface_ns_marker := false</text>
+  <text x="448" y="2892" class="line">implements_name := &quot;&quot;</text>
+  <text x="448" y="2910" class="line">simd_width : USize = 0</text>
+  <rect x="434" y="2936" width="220" height="172" rx="10" ry="10" class="box"/>
+  <text x="448" y="2974" class="title">VariantDef: StructDef</text>
+  <text x="448" y="2992" class="line">name := &quot;&quot;</text>
+  <text x="448" y="3010" class="line">doc := &quot;&quot;</text>
+  <text x="448" y="3028" class="line">payload_type := &quot;&quot;</text>
+  <text x="448" y="3046" class="line">payload_const := false</text>
+  <text x="448" y="3064" class="line">tag_value : I64 = 0</text>
+  <text x="448" y="3082" class="line">payload_ref := false</text>
+  <text x="448" y="3100" class="line">payload_funcsig := false</text>
+  <rect x="434" y="3126" width="476" height="136" rx="10" ry="10" class="box"/>
+  <text x="448" y="3164" class="title">EnumDef: StructDef</text>
+  <text x="448" y="3182" class="line">own ns_decls : Vec(Declaration) = Vec(Declaration).new()</text>
+  <text x="448" y="3200" class="line">own ns_index : Map(Str, USize) = Map(Str, USize).new()</text>
+  <text x="448" y="3218" class="line">variants := Vec(VariantDef).new()</text>
+  <text x="448" y="3236" class="line">implements_name := &quot;&quot;</text>
+  <text x="448" y="3254" class="line">tag_type := &quot;&quot;</text>
+  <rect x="434" y="3280" width="244" height="172" rx="10" ry="10" class="box"/>
+  <text x="448" y="3318" class="title">FieldLayout: StructDef</text>
+  <text x="448" y="3336" class="line">offset : USize = 0</text>
+  <text x="448" y="3354" class="line">size : USize = 0</text>
+  <text x="448" y="3372" class="line">struct_name := &quot;&quot;</text>
+  <text x="448" y="3390" class="line">own_type := OwnType.Shallow</text>
+  <text x="448" y="3408" class="line">is_str := false</text>
+  <text x="448" y="3426" class="line">is_enum := false</text>
+  <text x="448" y="3444" class="line">is_funcptr := false</text>
+  <rect x="434" y="3470" width="284" height="118" rx="10" ry="10" class="box"/>
+  <text x="448" y="3508" class="title">StructLayout: StructDef</text>
+  <text x="448" y="3526" class="line">total_size : USize = 0</text>
+  <text x="448" y="3544" class="line">align : USize = 1</text>
+  <text x="448" y="3562" class="line">fields := Vec(FieldLayout).new()</text>
+  <text x="448" y="3580" class="line">is_interface := false</text>
+  <rect x="434" y="3606" width="228" height="136" rx="10" ry="10" class="box"/>
+  <text x="448" y="3644" class="title">AssignData: StructDef</text>
+  <text x="448" y="3662" class="line">name := &quot;&quot;</text>
+  <text x="448" y="3680" class="line">save_old_delete := false</text>
+  <text x="448" y="3698" class="line">is_payload_alias := false</text>
+  <text x="448" y="3716" class="line">swap_replace := false</text>
+  <text x="448" y="3734" class="line">is_move := false</text>
+  <rect x="434" y="3760" width="236" height="118" rx="10" ry="10" class="box"/>
+  <text x="448" y="3798" class="title">FieldAssignData: StructDef</text>
+  <text x="448" y="3816" class="line">name := &quot;&quot;</text>
+  <text x="448" y="3834" class="line">save_old_delete := false</text>
+  <text x="448" y="3852" class="line">transfers_own := false</text>
+  <text x="448" y="3870" class="line">is_move := false</text>
+  <rect x="434" y="3896" width="220" height="136" rx="10" ry="10" class="box"/>
+  <text x="448" y="3934" class="title">ForInData: StructDef</text>
+  <text x="448" y="3952" class="line">name := &quot;&quot;</text>
+  <text x="448" y="3970" class="line">is_mut := false</text>
+  <text x="448" y="3988" class="line">til_type := Type.Unknown</text>
+  <text x="448" y="4006" class="line">name2 := &quot;&quot;</text>
+  <text x="448" y="4024" class="line">is_mut2 := false</text>
+  <rect x="434" y="4050" width="172" height="154" rx="10" ry="10" class="box"/>
+  <text x="448" y="4088" class="title">Literal: EnumDef</text>
+  <text x="448" y="4106" class="line">Str:Str</text>
+  <text x="448" y="4124" class="line">Num:LiteralNumData</text>
+  <text x="448" y="4142" class="line">Bool:Bool</text>
+  <text x="448" y="4160" class="line">Null</text>
+  <text x="448" y="4178" class="line">MapLit</text>
+  <text x="448" y="4196" class="line">SetLit</text>
+  <rect x="434" y="4222" width="220" height="82" rx="10" ry="10" class="box"/>
+  <text x="448" y="4260" class="title">MatchData: StructDef</text>
+  <text x="448" y="4278" class="line">til_type := Type.Unknown</text>
+  <text x="448" y="4296" class="line">result_temp := &quot;&quot;</text>
+  <rect x="434" y="4322" width="228" height="64" rx="10" ry="10" class="box"/>
+  <text x="448" y="4360" class="title">CaseData: StructDef</text>
+  <text x="448" y="4378" class="line">pattern_count : USize = 1</text>
+  <rect x="434" y="4404" width="300" height="82" rx="10" ry="10" class="box"/>
+  <text x="448" y="4442" class="title">CaptureBlockData: StructDef</text>
+  <text x="448" y="4460" class="line">captures := Vec(Declaration).new()</text>
+  <text x="448" y="4478" class="line">closure_name := &quot;&quot;</text>
+  <rect x="434" y="4504" width="300" height="118" rx="10" ry="10" class="box"/>
+  <text x="448" y="4542" class="title">PrecomputedSequenceData: StructDef</text>
+  <text x="448" y="4560" class="line">til_type := Type.Unknown</text>
+  <text x="448" y="4578" class="line">element_type := Type.Unknown</text>
+  <text x="448" y="4596" class="line">capacity : USize = 0</text>
+  <text x="448" y="4614" class="line">ordinal : USize = 0</text>
+  <rect x="434" y="4640" width="260" height="550" rx="10" ry="10" class="box"/>
+  <text x="448" y="4678" class="title">NodeType: EnumDef</text>
+  <text x="448" y="4696" class="line">Body</text>
+  <text x="448" y="4714" class="line">Literal:Literal</text>
+  <text x="448" y="4732" class="line">Ident:IdentData</text>
+  <text x="448" y="4750" class="line">Decl:Declaration</text>
+  <text x="448" y="4768" class="line">Assign:AssignData</text>
+  <text x="448" y="4786" class="line">FCall:FCallData</text>
+  <text x="448" y="4804" class="line">FuncDef:FunctionDef</text>
+  <text x="448" y="4822" class="line">StructDef:StructDef</text>
+  <text x="448" y="4840" class="line">EnumDef:EnumDef</text>
+  <text x="448" y="4858" class="line">FieldAccess:FieldAccessData</text>
+  <text x="448" y="4876" class="line">FieldAssign:FieldAssignData</text>
+  <text x="448" y="4894" class="line">Return</text>
+  <text x="448" y="4912" class="line">If</text>
+  <text x="448" y="4930" class="line">While</text>
+  <text x="448" y="4948" class="line">ForIn:ForInData</text>
+  <text x="448" y="4966" class="line">NamedArg:Str</text>
+  <text x="448" y="4984" class="line">Break</text>
+  <text x="448" y="5002" class="line">Continue</text>
+  <text x="448" y="5020" class="line">Switch</text>
+  <text x="448" y="5038" class="line">Match:MatchData</text>
+  <text x="448" y="5056" class="line">Case:CaseData</text>
+  <text x="448" y="5074" class="line">NoDefaultArg</text>
+  <text x="448" y="5092" class="line">Throw</text>
+  <text x="448" y="5110" class="line">Catch</text>
+  <text x="448" y="5128" class="line">RestPattern</text>
+  <text x="448" y="5146" class="line">CaptureBlock:CaptureBlockData</text>
+  <text x="448" y="5164" class="line">Loc</text>
+  <text x="448" y="5182" class="line">... (3 more)</text>
+  <rect x="434" y="5208" width="244" height="118" rx="10" ry="10" class="box"/>
+  <text x="448" y="5246" class="title">Expr: StructDef</text>
+  <text x="448" y="5264" class="line">node_type := NodeType.Body</text>
+  <text x="448" y="5282" class="line">children := Vec(Expr).new()</text>
+  <text x="448" y="5300" class="line">line : U32 = 0</text>
+  <text x="448" y="5318" class="line">col : U32 = 0</text>
   <rect x="980" y="24" width="356" height="588" rx="14" ry="14" class="panel"/>
   <text x="1000" y="62" class="panel-label">parser</text>
   <rect x="1000" y="88" width="316" height="118" rx="10" ry="10" class="box"/>
@@ -548,7 +554,7 @@
   <text x="1404" y="4102" class="line">import_support_dir := &quot;&quot;</text>
   <text x="1404" y="4120" class="line">check_unused_imports := false</text>
   <text x="1404" y="4138" class="line">import_use_edges := Set(Str).new()</text>
-  <text x="1404" y="4156" class="line">... (75 more)</text>
+  <text x="1404" y="4156" class="line">... (77 more)</text>
   <rect x="1920" y="24" width="236" height="616" rx="14" ry="14" class="panel"/>
   <text x="1940" y="62" class="panel-label">targets</text>
   <rect x="1940" y="88" width="132" height="118" rx="10" ry="10" class="box"/>
@@ -577,7 +583,7 @@
   <text x="1954" y="578" class="line">name := &quot;baseline&quot;</text>
   <text x="1954" y="596" class="line">simd_bits : USize = 0</text>
   <text x="1954" y="614" class="line">c_flags := &quot;&quot;</text>
-  <rect x="2190" y="24" width="604" height="1050" rx="14" ry="14" class="panel"/>
+  <rect x="2190" y="24" width="604" height="1068" rx="14" ry="14" class="panel"/>
   <text x="2210" y="62" class="panel-label">loader</text>
   <rect x="2210" y="88" width="204" height="64" rx="10" ry="10" class="box"/>
   <text x="2224" y="126" class="title">ProgramUnit: StructDef</text>
@@ -588,7 +594,7 @@
   <text x="2224" y="244" class="line">include := &quot;&quot;</text>
   <text x="2224" y="262" class="line">targets := &quot;&quot;</text>
   <text x="2224" y="280" class="line">written := &quot;&quot;</text>
-  <rect x="2210" y="306" width="348" height="424" rx="10" ry="10" class="box"/>
+  <rect x="2210" y="306" width="348" height="442" rx="10" ry="10" class="box"/>
   <text x="2224" y="344" class="title">LoadedProgram: StructDef</text>
   <text x="2224" y="362" class="line">own core_units := Vec(ProgramUnit).new()</text>
   <text x="2224" y="380" class="line">own units := Vec(ProgramUnit).new()</text>
@@ -605,27 +611,28 @@
   <text x="2224" y="578" class="line">link_flags := &quot;&quot;</text>
   <text x="2224" y="596" class="line">include_flags := &quot;&quot;</text>
   <text x="2224" y="614" class="line">target_links := Vec(TargetLink).new()</text>
-  <text x="2224" y="632" class="line">link_c_paths := &quot;&quot;</text>
-  <text x="2224" y="650" class="line">compiler_revision := &quot;&quot;</text>
-  <text x="2224" y="668" class="line">asan_build := false</text>
-  <text x="2224" y="686" class="line">run_tests := false</text>
-  <text x="2224" y="704" class="line">load_errors : I32 = 0</text>
-  <text x="2224" y="722" class="line">usize_override_bits : I64 = 0</text>
-  <rect x="2210" y="748" width="172" height="136" rx="10" ry="10" class="box"/>
-  <text x="2224" y="786" class="title">DocMeta: StructDef</text>
-  <text x="2224" y="804" class="line">body := &quot;&quot;</text>
-  <text x="2224" y="822" class="line">group := &quot;&quot;</text>
-  <text x="2224" y="840" class="line">since := &quot;&quot;</text>
-  <text x="2224" y="858" class="line">deprecated := &quot;&quot;</text>
-  <text x="2224" y="876" class="line">hidden := false</text>
-  <rect x="2210" y="902" width="564" height="154" rx="10" ry="10" class="box"/>
-  <text x="2224" y="940" class="title">ImportCheckEntry: StructDef</text>
-  <text x="2224" y="958" class="line">path := &quot;&quot;       // importing unit's display path</text>
-  <text x="2224" y="976" class="line">line : U32 = 0</text>
-  <text x="2224" y="994" class="line">col : U32 = 0</text>
-  <text x="2224" y="1012" class="line">label := &quot;&quot;      // import path literal as written, for the message</text>
-  <text x="2224" y="1030" class="line">dep := &quot;&quot;        // resolved display path of the imported file</text>
-  <text x="2224" y="1048" class="line">decl_name := &quot;&quot;  // non-empty for `name := import(...)` form</text>
+  <text x="2224" y="632" class="line">macos_frameworks := &quot;&quot;</text>
+  <text x="2224" y="650" class="line">link_c_paths := &quot;&quot;</text>
+  <text x="2224" y="668" class="line">compiler_revision := &quot;&quot;</text>
+  <text x="2224" y="686" class="line">asan_build := false</text>
+  <text x="2224" y="704" class="line">run_tests := false</text>
+  <text x="2224" y="722" class="line">load_errors : I32 = 0</text>
+  <text x="2224" y="740" class="line">usize_override_bits : I64 = 0</text>
+  <rect x="2210" y="766" width="172" height="136" rx="10" ry="10" class="box"/>
+  <text x="2224" y="804" class="title">DocMeta: StructDef</text>
+  <text x="2224" y="822" class="line">body := &quot;&quot;</text>
+  <text x="2224" y="840" class="line">group := &quot;&quot;</text>
+  <text x="2224" y="858" class="line">since := &quot;&quot;</text>
+  <text x="2224" y="876" class="line">deprecated := &quot;&quot;</text>
+  <text x="2224" y="894" class="line">hidden := false</text>
+  <rect x="2210" y="920" width="564" height="154" rx="10" ry="10" class="box"/>
+  <text x="2224" y="958" class="title">ImportCheckEntry: StructDef</text>
+  <text x="2224" y="976" class="line">path := &quot;&quot;       // importing unit's display path</text>
+  <text x="2224" y="994" class="line">line : U32 = 0</text>
+  <text x="2224" y="1012" class="line">col : U32 = 0</text>
+  <text x="2224" y="1030" class="line">label := &quot;&quot;      // import path literal as written, for the message</text>
+  <text x="2224" y="1048" class="line">dep := &quot;&quot;        // resolved display path of the imported file</text>
+  <text x="2224" y="1066" class="line">decl_name := &quot;&quot;  // non-empty for `name := import(...)` form</text>
   <rect x="2828" y="24" width="420" height="182" rx="14" ry="14" class="panel"/>
   <text x="2848" y="62" class="panel-label">initer</text>
   <rect x="2848" y="88" width="380" height="100" rx="10" ry="10" class="box"/>
@@ -633,7 +640,7 @@
   <text x="2862" y="144" class="line">defs := Map(Str, Dynamic).new()</text>
   <text x="2862" y="162" class="line">sources := Map(Str, GenericFuncSource).new()</text>
   <text x="2862" y="180" class="line">late := false</text>
-  <rect x="3282" y="24" width="356" height="800" rx="14" ry="14" class="panel"/>
+  <rect x="3282" y="24" width="356" height="818" rx="14" ry="14" class="panel"/>
   <text x="3302" y="62" class="panel-label">typer</text>
   <rect x="3302" y="88" width="156" height="82" rx="10" ry="10" class="box"/>
   <text x="3316" y="126" class="title">CtorArg: EnumDef</text>
@@ -657,67 +664,74 @@
   <text x="3316" y="562" class="line">alias : U64 = 0</text>
   <text x="3316" y="580" class="line">into : U64 = 0</text>
   <text x="3316" y="598" class="line">carried : U64 = 0</text>
-  <rect x="3302" y="624" width="196" height="64" rx="10" ry="10" class="box"/>
+  <rect x="3302" y="624" width="196" height="82" rx="10" ry="10" class="box"/>
   <text x="3316" y="662" class="title">DepositAcc: StructDef</text>
   <text x="3316" y="680" class="line">m : U64 = 0</text>
-  <rect x="3302" y="706" width="316" height="100" rx="10" ry="10" class="box"/>
-  <text x="3316" y="744" class="title">CoverageNode: StructDef</text>
-  <text x="3316" y="762" class="line">fully_covered := false</text>
-  <text x="3316" y="780" class="line">sub_names := Vec(Str).new()</text>
-  <text x="3316" y="798" class="line">sub_nodes := Vec(CoverageNode).new()</text>
-  <rect x="3672" y="24" width="308" height="1150" rx="14" ry="14" class="panel"/>
+  <text x="3316" y="698" class="line">borrowed : U64 = 0</text>
+  <rect x="3302" y="724" width="316" height="100" rx="10" ry="10" class="box"/>
+  <text x="3316" y="762" class="title">CoverageNode: StructDef</text>
+  <text x="3316" y="780" class="line">fully_covered := false</text>
+  <text x="3316" y="798" class="line">sub_names := Vec(Str).new()</text>
+  <text x="3316" y="816" class="line">sub_nodes := Vec(CoverageNode).new()</text>
+  <rect x="3672" y="24" width="308" height="1286" rx="14" ry="14" class="panel"/>
   <text x="3692" y="62" class="panel-label">garbager</text>
-  <rect x="3692" y="88" width="268" height="244" rx="10" ry="10" class="box"/>
+  <rect x="3692" y="88" width="268" height="280" rx="10" ry="10" class="box"/>
   <text x="3706" y="126" class="title">LocalInfo: StructDef</text>
   <text x="3706" y="144" class="line">name := &quot;&quot;</text>
   <text x="3706" y="162" class="line">type := Type.Unknown</text>
   <text x="3706" y="180" class="line">decl_index : I64 = 0</text>
   <text x="3706" y="198" class="line">last_use : I64 = 0</text>
-  <text x="3706" y="216" class="line">own_transfer : I64 = -1</text>
-  <text x="3706" y="234" class="line">has_transfer := false</text>
-  <text x="3706" y="252" class="line">skip_scope_delete := false</text>
-  <text x="3706" y="270" class="line">is_heap := false</text>
-  <text x="3706" y="288" class="line">dtor_transfer := false</text>
-  <text x="3706" y="306" class="line">shallow_copy_transfer := false</text>
-  <text x="3706" y="324" class="line">raw_alloc := false</text>
-  <rect x="3692" y="350" width="260" height="136" rx="10" ry="10" class="box"/>
-  <text x="3706" y="388" class="title">GcCfgBlock: StructDef</text>
-  <text x="3706" y="406" class="line">body := Option(ref Expr).None</text>
-  <text x="3706" y="424" class="line">start : I32 = 0</text>
-  <text x="3706" y="442" class="line">end : I32 = 0</text>
-  <text x="3706" y="460" class="line">is_root := false</text>
-  <text x="3706" y="478" class="line">succs := Vec(I32).new()</text>
-  <rect x="3692" y="504" width="212" height="100" rx="10" ry="10" class="box"/>
-  <text x="3706" y="542" class="title">GcFlowKills: StructDef</text>
-  <text x="3706" y="560" class="line">words : USize = 0</text>
-  <text x="3706" y="578" class="line">owned := Vec(U64).new()</text>
-  <text x="3706" y="596" class="line">moved := Vec(U64).new()</text>
-  <rect x="3692" y="622" width="244" height="136" rx="10" ry="10" class="box"/>
-  <text x="3706" y="660" class="title">GcAssignVerdicts: StructDef</text>
-  <text x="3706" y="678" class="line">consumed := Set(UPtr).new()</text>
-  <text x="3706" y="696" class="line">mixed := false</text>
-  <text x="3706" y="714" class="line">mixed_key : UPtr = 0</text>
-  <text x="3706" y="732" class="line">mixed_line : U32 = 0</text>
-  <text x="3706" y="750" class="line">mixed_col : U32 = 0</text>
-  <rect x="3692" y="776" width="260" height="244" rx="10" ry="10" class="box"/>
-  <text x="3706" y="814" class="title">BodyFacts: StructDef</text>
-  <text x="3706" y="832" class="line">words : USize = 0</text>
-  <text x="3706" y="850" class="line">n_stmts : USize = 0</text>
-  <text x="3706" y="868" class="line">uses := Vec(U64).new()</text>
-  <text x="3706" y="886" class="line">decls := Vec(U64).new()</text>
-  <text x="3706" y="904" class="line">nested := Vec(U64).new()</text>
-  <text x="3706" y="922" class="line">transfers := Vec(U64).new()</text>
-  <text x="3706" y="940" class="line">reassigns := Vec(U64).new()</text>
-  <text x="3706" y="958" class="line">escapes := Vec(U64).new()</text>
-  <text x="3706" y="976" class="line">def_names := Vec(Str).new()</text>
-  <text x="3706" y="994" class="line">def_bits := Vec(I64).new()</text>
-  <text x="3706" y="1012" class="line">directives := Vec(Bool).new()</text>
-  <rect x="3692" y="1038" width="212" height="118" rx="10" ry="10" class="box"/>
-  <text x="3706" y="1076" class="title">GcBorrowEdge: StructDef</text>
-  <text x="3706" y="1094" class="line">owner := &quot;&quot;</text>
-  <text x="3706" y="1112" class="line">borrower := &quot;&quot;</text>
-  <text x="3706" y="1130" class="line">fixed_reach : I64 = -1</text>
-  <text x="3706" y="1148" class="line">created_at : I64 = -1</text>
+  <text x="3706" y="216" class="line">is_str_view := false</text>
+  <text x="3706" y="234" class="line">str_view_base := &quot;&quot;</text>
+  <text x="3706" y="252" class="line">own_transfer : I64 = -1</text>
+  <text x="3706" y="270" class="line">has_transfer := false</text>
+  <text x="3706" y="288" class="line">skip_scope_delete := false</text>
+  <text x="3706" y="306" class="line">is_heap := false</text>
+  <text x="3706" y="324" class="line">dtor_transfer := false</text>
+  <text x="3706" y="342" class="line">shallow_copy_transfer := false</text>
+  <text x="3706" y="360" class="line">raw_alloc := false</text>
+  <rect x="3692" y="386" width="260" height="136" rx="10" ry="10" class="box"/>
+  <text x="3706" y="424" class="title">GcCfgBlock: StructDef</text>
+  <text x="3706" y="442" class="line">body := Option(ref Expr).None</text>
+  <text x="3706" y="460" class="line">start : I32 = 0</text>
+  <text x="3706" y="478" class="line">end : I32 = 0</text>
+  <text x="3706" y="496" class="line">is_root := false</text>
+  <text x="3706" y="514" class="line">succs := Vec(I32).new()</text>
+  <rect x="3692" y="540" width="212" height="100" rx="10" ry="10" class="box"/>
+  <text x="3706" y="578" class="title">GcFlowKills: StructDef</text>
+  <text x="3706" y="596" class="line">words : USize = 0</text>
+  <text x="3706" y="614" class="line">owned := Vec(U64).new()</text>
+  <text x="3706" y="632" class="line">moved := Vec(U64).new()</text>
+  <rect x="3692" y="658" width="244" height="136" rx="10" ry="10" class="box"/>
+  <text x="3706" y="696" class="title">GcAssignVerdicts: StructDef</text>
+  <text x="3706" y="714" class="line">consumed := Set(UPtr).new()</text>
+  <text x="3706" y="732" class="line">mixed := false</text>
+  <text x="3706" y="750" class="line">mixed_key : UPtr = 0</text>
+  <text x="3706" y="768" class="line">mixed_line : U32 = 0</text>
+  <text x="3706" y="786" class="line">mixed_col : U32 = 0</text>
+  <rect x="3692" y="812" width="260" height="244" rx="10" ry="10" class="box"/>
+  <text x="3706" y="850" class="title">BodyFacts: StructDef</text>
+  <text x="3706" y="868" class="line">words : USize = 0</text>
+  <text x="3706" y="886" class="line">n_stmts : USize = 0</text>
+  <text x="3706" y="904" class="line">uses := Vec(U64).new()</text>
+  <text x="3706" y="922" class="line">decls := Vec(U64).new()</text>
+  <text x="3706" y="940" class="line">nested := Vec(U64).new()</text>
+  <text x="3706" y="958" class="line">transfers := Vec(U64).new()</text>
+  <text x="3706" y="976" class="line">reassigns := Vec(U64).new()</text>
+  <text x="3706" y="994" class="line">escapes := Vec(U64).new()</text>
+  <text x="3706" y="1012" class="line">def_names := Vec(Str).new()</text>
+  <text x="3706" y="1030" class="line">def_bits := Vec(I64).new()</text>
+  <text x="3706" y="1048" class="line">directives := Vec(Bool).new()</text>
+  <rect x="3692" y="1074" width="212" height="118" rx="10" ry="10" class="box"/>
+  <text x="3706" y="1112" class="title">GcBorrowEdge: StructDef</text>
+  <text x="3706" y="1130" class="line">owner := &quot;&quot;</text>
+  <text x="3706" y="1148" class="line">borrower := &quot;&quot;</text>
+  <text x="3706" y="1166" class="line">fixed_reach : I64 = -1</text>
+  <text x="3706" y="1184" class="line">created_at : I64 = -1</text>
+  <rect x="3692" y="1210" width="204" height="82" rx="10" ry="10" class="box"/>
+  <text x="3706" y="1248" class="title">GcDeposit: StructDef</text>
+  <text x="3706" y="1266" class="line">sink := BorrowRoot()</text>
+  <text x="3706" y="1284" class="line">source := BorrowRoot()</text>
   <rect x="4014" y="24" width="212" height="164" rx="14" ry="14" class="panel"/>
   <text x="4034" y="62" class="panel-label">scavenger</text>
   <rect x="4034" y="88" width="172" height="82" rx="10" ry="10" class="box"/>
@@ -901,145 +915,172 @@
   <rect x="6070" y="88" width="180" height="64" rx="10" ry="10" class="box"/>
   <text x="6084" y="126" class="title">EvalHeap: StructDef</text>
   <text x="6084" y="144" class="line">unused : U8 = 0</text>
-  <rect x="6304" y="24" width="452" height="930" rx="14" ry="14" class="panel"/>
-  <text x="6324" y="62" class="panel-label">holyc_codegen</text>
-  <rect x="6324" y="88" width="412" height="550" rx="10" ry="10" class="box"/>
-  <text x="6338" y="126" class="title">HolyCEmitState: StructDef</text>
-  <text x="6338" y="144" class="line">user_functions := Set(Str).new()</text>
-  <text x="6338" y="162" class="line">user_return_types := Map(Str, Str).new()</text>
-  <text x="6338" y="180" class="line">ref_return_functions := Set(Str).new()</text>
-  <text x="6338" y="198" class="line">user_ref_params := Map(Str, Set(USize)).new()</text>
-  <text x="6338" y="216" class="line">str_return_functions := Set(Str).new()</text>
-  <text x="6338" y="234" class="line">struct_names := Set(Str).new()</text>
-  <text x="6338" y="252" class="line">enum_types := Map(Str, Str).new()</text>
-  <text x="6338" y="270" class="line">payload_enum_names := Set(Str).new()</text>
-  <text x="6338" y="288" class="line">niche_ref_types := Map(Str, Str).new()</text>
-  <text x="6338" y="306" class="line">collection_elements := Map(Str, Str).new()</text>
-  <text x="6338" y="324" class="line">vec_names := Set(Str).new()</text>
-  <text x="6338" y="342" class="line">set_elements := Map(Str, Str).new()</text>
-  <text x="6338" y="360" class="line">map_keys := Map(Str, Str).new()</text>
-  <text x="6338" y="378" class="line">map_values := Map(Str, Str).new()</text>
-  <text x="6338" y="396" class="line">map_key_vecs := Map(Str, Str).new()</text>
-  <text x="6338" y="414" class="line">map_value_vecs := Map(Str, Str).new()</text>
-  <text x="6338" y="432" class="line">needed_methods := Map(Str, Map(Str, Bool)).new()</text>
-  <text x="6338" y="450" class="line">method_prototypes := &quot;&quot;</text>
-  <text x="6338" y="468" class="line">method_definitions := &quot;&quot;</text>
-  <text x="6338" y="486" class="line">usize_ctype := &quot;U64&quot;</text>
-  <text x="6338" y="504" class="line">switch_id : USize = 0</text>
-  <text x="6338" y="522" class="line">temp_id : USize = 0</text>
-  <text x="6338" y="540" class="line">needs_i64_div := false</text>
-  <text x="6338" y="558" class="line">needs_i64_mod := false</text>
-  <text x="6338" y="576" class="line">needs_str_array_clone := false</text>
-  <text x="6338" y="594" class="line">needs_str_array_get := false</text>
-  <text x="6338" y="612" class="line">needs_str_array_concat := false</text>
-  <text x="6338" y="630" class="line">... (23 more)</text>
-  <rect x="6324" y="656" width="372" height="280" rx="10" ry="10" class="box"/>
-  <text x="6338" y="694" class="title">HolyCLocalState: StructDef</text>
-  <text x="6338" y="712" class="line">ref_return_type := &quot;&quot;</text>
-  <text x="6338" y="730" class="line">continue_label := &quot;&quot;</text>
-  <text x="6338" y="748" class="line">param_pointer_names := Set(Str).new()</text>
-  <text x="6338" y="766" class="line">payload_names := Map(Str, Str).new()</text>
-  <text x="6338" y="784" class="line">pointer_types := Map(Str, Str).new()</text>
-  <text x="6338" y="802" class="line">str_names := Set(Str).new()</text>
-  <text x="6338" y="820" class="line">str_pointer_names := Set(Str).new()</text>
-  <text x="6338" y="838" class="line">str_array_names := Set(Str).new()</text>
-  <text x="6338" y="856" class="line">str_array_pointer_names := Set(Str).new()</text>
-  <text x="6338" y="874" class="line">struct_types := Map(Str, Str).new()</text>
-  <text x="6338" y="892" class="line">struct_pointer_types := Map(Str, Str).new()</text>
-  <text x="6338" y="910" class="line">callable_sigs := Map(Str, Str).new()</text>
-  <text x="6338" y="928" class="line">callable_slot_names := Set(Str).new()</text>
-  <rect x="6790" y="24" width="396" height="706" rx="14" ry="14" class="panel"/>
-  <text x="6810" y="62" class="panel-label">jvm_codegen</text>
-  <rect x="6810" y="88" width="356" height="334" rx="10" ry="10" class="box"/>
-  <text x="6824" y="126" class="title">JvmEmitState: StructDef</text>
-  <text x="6824" y="144" class="line">path := &quot;&quot;</text>
-  <text x="6824" y="162" class="line">errors : I32 = 0</text>
-  <text x="6824" y="180" class="line">cells := Set(Str).new()</text>
-  <text x="6824" y="198" class="line">cell_types := Map(Str, Str).new()</text>
-  <text x="6824" y="216" class="line">raw_refs := Set(Str).new()</text>
-  <text x="6824" y="234" class="line">callable_defs := Map(Str, Str).new()</text>
-  <text x="6824" y="252" class="line">return_cell := false</text>
-  <text x="6824" y="270" class="line">ns_used := Set(Str).new()</text>
-  <text x="6824" y="288" class="line">return_loads_raw := false</text>
-  <text x="6824" y="306" class="line">globals := Map(Str, Str).new()</text>
-  <text x="6824" y="324" class="line">global_scalars := Map(Str, Str).new()</text>
-  <text x="6824" y="342" class="line">global_raws := Set(Str).new()</text>
-  <text x="6824" y="360" class="line">global_raw_scalars := Map(Str, Str).new()</text>
-  <text x="6824" y="378" class="line">global_jtypes := Map(Str, Str).new()</text>
-  <text x="6824" y="396" class="line">locals := Set(Str).new()</text>
-  <text x="6824" y="414" class="line">ref_scalars := Set(Str).new()</text>
-  <rect x="6810" y="440" width="188" height="100" rx="10" ry="10" class="box"/>
-  <text x="6824" y="478" class="title">JvmMember: StructDef</text>
-  <text x="6824" y="496" class="line">name := &quot;&quot;</text>
-  <text x="6824" y="514" class="line">text := &quot;&quot;</text>
-  <text x="6824" y="532" class="line">live := false</text>
-  <rect x="6810" y="558" width="276" height="154" rx="10" ry="10" class="box"/>
-  <text x="6824" y="596" class="title">JvmClassOut: StructDef</text>
-  <text x="6824" y="614" class="line">path := &quot;&quot;</text>
-  <text x="6824" y="632" class="line">name := &quot;&quot;</text>
-  <text x="6824" y="650" class="line">head := &quot;&quot;</text>
-  <text x="6824" y="668" class="line">members := Vec(JvmMember).new()</text>
-  <text x="6824" y="686" class="line">tail := &quot;&quot;</text>
-  <text x="6824" y="704" class="line">live := false</text>
-  <rect x="7220" y="24" width="324" height="236" rx="14" ry="14" class="panel"/>
-  <text x="7240" y="62" class="panel-label">mlir_codegen</text>
-  <rect x="7240" y="88" width="284" height="154" rx="10" ry="10" class="box"/>
-  <text x="7254" y="126" class="title">MlirState: StructDef</text>
-  <text x="7254" y="144" class="line">text := &quot;&quot;</text>
-  <text x="7254" y="162" class="line">next : USize = 0</text>
-  <text x="7254" y="180" class="line">values := Map(Str, Str).new()</text>
-  <text x="7254" y="198" class="line">functions := Set(Str).new()</text>
-  <text x="7254" y="216" class="line">integers := Map(Str, U64).new()</text>
-  <text x="7254" y="234" class="line">booleans := Map(Str, Bool).new()</text>
-  <rect x="7578" y="24" width="300" height="652" rx="14" ry="14" class="panel"/>
-  <text x="7598" y="62" class="panel-label">repl_editor</text>
-  <rect x="7598" y="88" width="180" height="136" rx="10" ry="10" class="box"/>
-  <text x="7612" y="126" class="title">EditAction: EnumDef</text>
-  <text x="7612" y="144" class="line">Continue</text>
-  <text x="7612" y="162" class="line">Submit</text>
-  <text x="7612" y="180" class="line">Eof</text>
-  <text x="7612" y="198" class="line">Bell</text>
-  <text x="7612" y="216" class="line">ClearScreen }</text>
-  <rect x="7598" y="242" width="260" height="316" rx="10" ry="10" class="box"/>
-  <text x="7612" y="280" class="title">ReplEditor: StructDef</text>
-  <text x="7612" y="298" class="line">interactive := false</text>
-  <text x="7612" y="316" class="line">hist_path := &quot;&quot;</text>
-  <text x="7612" y="334" class="line">persist := false</text>
-  <text x="7612" y="352" class="line">own history := Vec(Str).new()</text>
-  <text x="7612" y="370" class="line">prompt := &quot;&quot;</text>
-  <text x="7612" y="388" class="line">line := &quot;&quot;</text>
-  <text x="7612" y="406" class="line">cursor : USize = 0</text>
-  <text x="7612" y="424" class="line">view_start : USize = 0</text>
-  <text x="7612" y="442" class="line">hist_idx : USize = 0</text>
-  <text x="7612" y="460" class="line">draft := &quot;&quot;</text>
-  <text x="7612" y="478" class="line">searching := false</text>
-  <text x="7612" y="496" class="line">search_query := &quot;&quot;</text>
-  <text x="7612" y="514" class="line">search_idx : I64 = -1</text>
-  <text x="7612" y="532" class="line">saved_line := &quot;&quot;</text>
-  <text x="7612" y="550" class="line">saved_cursor : USize = 0</text>
-  <rect x="7598" y="576" width="204" height="82" rx="10" ry="10" class="box"/>
-  <text x="7612" y="614" class="title">AnsiDecoder: StructDef</text>
-  <text x="7612" y="632" class="line">state : I64 = 0</text>
-  <text x="7612" y="650" class="line">params := &quot;&quot;</text>
-  <rect x="7912" y="24" width="348" height="462" rx="14" ry="14" class="panel"/>
-  <text x="7932" y="62" class="panel-label">theme_codegen</text>
-  <rect x="7932" y="88" width="228" height="100" rx="10" ry="10" class="box"/>
-  <text x="7946" y="126" class="title">ThemeColorSpec: StructDef</text>
-  <text x="7946" y="144" class="line">name := &quot;&quot;</text>
-  <text x="7946" y="162" class="line">value := &quot;&quot;</text>
-  <text x="7946" y="180" class="line">note := &quot;&quot;</text>
-  <rect x="7932" y="206" width="308" height="262" rx="10" ry="10" class="box"/>
-  <text x="7946" y="244" class="title">ThemeSpec: StructDef</text>
-  <text x="7946" y="262" class="line">name := &quot;&quot;</text>
-  <text x="7946" y="280" class="line">header := &quot;&quot;</text>
-  <text x="7946" y="298" class="line">description := &quot;&quot;</text>
-  <text x="7946" y="316" class="line">source_theme := &quot;&quot;</text>
-  <text x="7946" y="334" class="line">source_package := &quot;&quot;</text>
-  <text x="7946" y="352" class="line">source_url := &quot;&quot;</text>
-  <text x="7946" y="370" class="line">source_license := &quot;&quot;</text>
-  <text x="7946" y="388" class="line">palette_note := &quot;&quot;</text>
-  <text x="7946" y="406" class="line">palette_footer := &quot;&quot;</text>
-  <text x="7946" y="424" class="line">constant_face_note := &quot;&quot;</text>
-  <text x="7946" y="442" class="line">type_face_note := &quot;&quot;</text>
-  <text x="7946" y="460" class="line">colors := Vec(ThemeColorSpec).new()</text>
+  <rect x="6304" y="24" width="324" height="308" rx="14" ry="14" class="panel"/>
+  <text x="6324" y="62" class="panel-label">fasm_codegen</text>
+  <rect x="6324" y="88" width="284" height="226" rx="10" ry="10" class="box"/>
+  <text x="6338" y="126" class="title">FasmState: StructDef</text>
+  <text x="6338" y="144" class="line">text := &quot;&quot;</text>
+  <text x="6338" y="162" class="line">slots : USize = 0</text>
+  <text x="6338" y="180" class="line">labels : USize = 0</text>
+  <text x="6338" y="198" class="line">values := Map(Str, Str).new()</text>
+  <text x="6338" y="216" class="line">functions := Map(Str, Str).new()</text>
+  <text x="6338" y="234" class="line">addresses := Set(Str).new()</text>
+  <text x="6338" y="252" class="line">pointers := Set(Str).new()</text>
+  <text x="6338" y="270" class="line">data := &quot;&quot;</text>
+  <text x="6338" y="288" class="line">prefix := &quot;&quot;</text>
+  <text x="6338" y="306" class="line">literals : USize = 0</text>
+  <rect x="6662" y="24" width="452" height="930" rx="14" ry="14" class="panel"/>
+  <text x="6682" y="62" class="panel-label">holyc_codegen</text>
+  <rect x="6682" y="88" width="412" height="550" rx="10" ry="10" class="box"/>
+  <text x="6696" y="126" class="title">HolyCEmitState: StructDef</text>
+  <text x="6696" y="144" class="line">user_functions := Set(Str).new()</text>
+  <text x="6696" y="162" class="line">user_return_types := Map(Str, Str).new()</text>
+  <text x="6696" y="180" class="line">ref_return_functions := Set(Str).new()</text>
+  <text x="6696" y="198" class="line">user_ref_params := Map(Str, Set(USize)).new()</text>
+  <text x="6696" y="216" class="line">str_return_functions := Set(Str).new()</text>
+  <text x="6696" y="234" class="line">struct_names := Set(Str).new()</text>
+  <text x="6696" y="252" class="line">enum_types := Map(Str, Str).new()</text>
+  <text x="6696" y="270" class="line">payload_enum_names := Set(Str).new()</text>
+  <text x="6696" y="288" class="line">niche_ref_types := Map(Str, Str).new()</text>
+  <text x="6696" y="306" class="line">collection_elements := Map(Str, Str).new()</text>
+  <text x="6696" y="324" class="line">vec_names := Set(Str).new()</text>
+  <text x="6696" y="342" class="line">set_elements := Map(Str, Str).new()</text>
+  <text x="6696" y="360" class="line">map_keys := Map(Str, Str).new()</text>
+  <text x="6696" y="378" class="line">map_values := Map(Str, Str).new()</text>
+  <text x="6696" y="396" class="line">map_key_vecs := Map(Str, Str).new()</text>
+  <text x="6696" y="414" class="line">map_value_vecs := Map(Str, Str).new()</text>
+  <text x="6696" y="432" class="line">needed_methods := Map(Str, Map(Str, Bool)).new()</text>
+  <text x="6696" y="450" class="line">method_prototypes := &quot;&quot;</text>
+  <text x="6696" y="468" class="line">method_definitions := &quot;&quot;</text>
+  <text x="6696" y="486" class="line">usize_ctype := &quot;U64&quot;</text>
+  <text x="6696" y="504" class="line">switch_id : USize = 0</text>
+  <text x="6696" y="522" class="line">temp_id : USize = 0</text>
+  <text x="6696" y="540" class="line">needs_i64_div := false</text>
+  <text x="6696" y="558" class="line">needs_i64_mod := false</text>
+  <text x="6696" y="576" class="line">needs_str_array_clone := false</text>
+  <text x="6696" y="594" class="line">needs_str_array_get := false</text>
+  <text x="6696" y="612" class="line">needs_str_array_concat := false</text>
+  <text x="6696" y="630" class="line">... (27 more)</text>
+  <rect x="6682" y="656" width="372" height="280" rx="10" ry="10" class="box"/>
+  <text x="6696" y="694" class="title">HolyCLocalState: StructDef</text>
+  <text x="6696" y="712" class="line">ref_return_type := &quot;&quot;</text>
+  <text x="6696" y="730" class="line">continue_label := &quot;&quot;</text>
+  <text x="6696" y="748" class="line">param_pointer_names := Set(Str).new()</text>
+  <text x="6696" y="766" class="line">payload_names := Map(Str, Str).new()</text>
+  <text x="6696" y="784" class="line">pointer_types := Map(Str, Str).new()</text>
+  <text x="6696" y="802" class="line">str_names := Set(Str).new()</text>
+  <text x="6696" y="820" class="line">str_pointer_names := Set(Str).new()</text>
+  <text x="6696" y="838" class="line">str_array_names := Set(Str).new()</text>
+  <text x="6696" y="856" class="line">str_array_pointer_names := Set(Str).new()</text>
+  <text x="6696" y="874" class="line">struct_types := Map(Str, Str).new()</text>
+  <text x="6696" y="892" class="line">struct_pointer_types := Map(Str, Str).new()</text>
+  <text x="6696" y="910" class="line">callable_sigs := Map(Str, Str).new()</text>
+  <text x="6696" y="928" class="line">callable_slot_names := Set(Str).new()</text>
+  <rect x="7148" y="24" width="396" height="706" rx="14" ry="14" class="panel"/>
+  <text x="7168" y="62" class="panel-label">jvm_codegen</text>
+  <rect x="7168" y="88" width="356" height="334" rx="10" ry="10" class="box"/>
+  <text x="7182" y="126" class="title">JvmEmitState: StructDef</text>
+  <text x="7182" y="144" class="line">path := &quot;&quot;</text>
+  <text x="7182" y="162" class="line">errors : I32 = 0</text>
+  <text x="7182" y="180" class="line">cells := Set(Str).new()</text>
+  <text x="7182" y="198" class="line">cell_types := Map(Str, Str).new()</text>
+  <text x="7182" y="216" class="line">raw_refs := Set(Str).new()</text>
+  <text x="7182" y="234" class="line">callable_defs := Map(Str, Str).new()</text>
+  <text x="7182" y="252" class="line">return_cell := false</text>
+  <text x="7182" y="270" class="line">ns_used := Set(Str).new()</text>
+  <text x="7182" y="288" class="line">return_loads_raw := false</text>
+  <text x="7182" y="306" class="line">globals := Map(Str, Str).new()</text>
+  <text x="7182" y="324" class="line">global_scalars := Map(Str, Str).new()</text>
+  <text x="7182" y="342" class="line">global_raws := Set(Str).new()</text>
+  <text x="7182" y="360" class="line">global_raw_scalars := Map(Str, Str).new()</text>
+  <text x="7182" y="378" class="line">global_jtypes := Map(Str, Str).new()</text>
+  <text x="7182" y="396" class="line">locals := Set(Str).new()</text>
+  <text x="7182" y="414" class="line">ref_scalars := Set(Str).new()</text>
+  <rect x="7168" y="440" width="188" height="100" rx="10" ry="10" class="box"/>
+  <text x="7182" y="478" class="title">JvmMember: StructDef</text>
+  <text x="7182" y="496" class="line">name := &quot;&quot;</text>
+  <text x="7182" y="514" class="line">text := &quot;&quot;</text>
+  <text x="7182" y="532" class="line">live := false</text>
+  <rect x="7168" y="558" width="276" height="154" rx="10" ry="10" class="box"/>
+  <text x="7182" y="596" class="title">JvmClassOut: StructDef</text>
+  <text x="7182" y="614" class="line">path := &quot;&quot;</text>
+  <text x="7182" y="632" class="line">name := &quot;&quot;</text>
+  <text x="7182" y="650" class="line">head := &quot;&quot;</text>
+  <text x="7182" y="668" class="line">members := Vec(JvmMember).new()</text>
+  <text x="7182" y="686" class="line">tail := &quot;&quot;</text>
+  <text x="7182" y="704" class="line">live := false</text>
+  <rect x="7578" y="24" width="364" height="498" rx="14" ry="14" class="panel"/>
+  <text x="7598" y="62" class="panel-label">mlir_codegen</text>
+  <rect x="7598" y="88" width="204" height="118" rx="10" ry="10" class="box"/>
+  <text x="7612" y="126" class="title">MlirBinding: StructDef</text>
+  <text x="7612" y="144" class="line">value := &quot;&quot;</text>
+  <text x="7612" y="162" class="line">type_name := &quot;&quot;</text>
+  <text x="7612" y="180" class="line">is_mut := false</text>
+  <text x="7612" y="198" class="line">is_signed := false</text>
+  <rect x="7598" y="224" width="324" height="280" rx="10" ry="10" class="box"/>
+  <text x="7612" y="262" class="title">MlirState: StructDef</text>
+  <text x="7612" y="280" class="line">text := &quot;&quot;</text>
+  <text x="7612" y="298" class="line">allocations := &quot;&quot;</text>
+  <text x="7612" y="316" class="line">next : USize = 0</text>
+  <text x="7612" y="334" class="line">next_block : USize = 0</text>
+  <text x="7612" y="352" class="line">terminated := false</text>
+  <text x="7612" y="370" class="line">break_label := &quot;&quot;</text>
+  <text x="7612" y="388" class="line">continue_label := &quot;&quot;</text>
+  <text x="7612" y="406" class="line">has_break := false</text>
+  <text x="7612" y="424" class="line">values := Map(Str, MlirBinding).new()</text>
+  <text x="7612" y="442" class="line">functions := Set(Str).new()</text>
+  <text x="7612" y="460" class="line">error_slots := Set(Str).new()</text>
+  <text x="7612" y="478" class="line">integers := Map(Str, U64).new()</text>
+  <text x="7612" y="496" class="line">booleans := Map(Str, Bool).new()</text>
+  <rect x="7976" y="24" width="300" height="652" rx="14" ry="14" class="panel"/>
+  <text x="7996" y="62" class="panel-label">repl_editor</text>
+  <rect x="7996" y="88" width="180" height="136" rx="10" ry="10" class="box"/>
+  <text x="8010" y="126" class="title">EditAction: EnumDef</text>
+  <text x="8010" y="144" class="line">Continue</text>
+  <text x="8010" y="162" class="line">Submit</text>
+  <text x="8010" y="180" class="line">Eof</text>
+  <text x="8010" y="198" class="line">Bell</text>
+  <text x="8010" y="216" class="line">ClearScreen }</text>
+  <rect x="7996" y="242" width="260" height="316" rx="10" ry="10" class="box"/>
+  <text x="8010" y="280" class="title">ReplEditor: StructDef</text>
+  <text x="8010" y="298" class="line">interactive := false</text>
+  <text x="8010" y="316" class="line">hist_path := &quot;&quot;</text>
+  <text x="8010" y="334" class="line">persist := false</text>
+  <text x="8010" y="352" class="line">own history := Vec(Str).new()</text>
+  <text x="8010" y="370" class="line">prompt := &quot;&quot;</text>
+  <text x="8010" y="388" class="line">line := &quot;&quot;</text>
+  <text x="8010" y="406" class="line">cursor : USize = 0</text>
+  <text x="8010" y="424" class="line">view_start : USize = 0</text>
+  <text x="8010" y="442" class="line">hist_idx : USize = 0</text>
+  <text x="8010" y="460" class="line">draft := &quot;&quot;</text>
+  <text x="8010" y="478" class="line">searching := false</text>
+  <text x="8010" y="496" class="line">search_query := &quot;&quot;</text>
+  <text x="8010" y="514" class="line">search_idx : I64 = -1</text>
+  <text x="8010" y="532" class="line">saved_line := &quot;&quot;</text>
+  <text x="8010" y="550" class="line">saved_cursor : USize = 0</text>
+  <rect x="7996" y="576" width="204" height="82" rx="10" ry="10" class="box"/>
+  <text x="8010" y="614" class="title">AnsiDecoder: StructDef</text>
+  <text x="8010" y="632" class="line">state : I64 = 0</text>
+  <text x="8010" y="650" class="line">params := &quot;&quot;</text>
+  <rect x="8310" y="24" width="348" height="462" rx="14" ry="14" class="panel"/>
+  <text x="8330" y="62" class="panel-label">theme_codegen</text>
+  <rect x="8330" y="88" width="228" height="100" rx="10" ry="10" class="box"/>
+  <text x="8344" y="126" class="title">ThemeColorSpec: StructDef</text>
+  <text x="8344" y="144" class="line">name := &quot;&quot;</text>
+  <text x="8344" y="162" class="line">value := &quot;&quot;</text>
+  <text x="8344" y="180" class="line">note := &quot;&quot;</text>
+  <rect x="8330" y="206" width="308" height="262" rx="10" ry="10" class="box"/>
+  <text x="8344" y="244" class="title">ThemeSpec: StructDef</text>
+  <text x="8344" y="262" class="line">name := &quot;&quot;</text>
+  <text x="8344" y="280" class="line">header := &quot;&quot;</text>
+  <text x="8344" y="298" class="line">description := &quot;&quot;</text>
+  <text x="8344" y="316" class="line">source_theme := &quot;&quot;</text>
+  <text x="8344" y="334" class="line">source_package := &quot;&quot;</text>
+  <text x="8344" y="352" class="line">source_url := &quot;&quot;</text>
+  <text x="8344" y="370" class="line">source_license := &quot;&quot;</text>
+  <text x="8344" y="388" class="line">palette_note := &quot;&quot;</text>
+  <text x="8344" y="406" class="line">palette_footer := &quot;&quot;</text>
+  <text x="8344" y="424" class="line">constant_face_note := &quot;&quot;</text>
+  <text x="8344" y="442" class="line">type_face_note := &quot;&quot;</text>
+  <text x="8344" y="460" class="line">colors := Vec(ThemeColorSpec).new()</text>
 </svg>

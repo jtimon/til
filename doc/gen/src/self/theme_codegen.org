@@ -1,5 +1,5 @@
 #+TITLE: src/self/theme_codegen.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * theme_codegen_translate
@@ -8,7 +8,7 @@
 :END:
 
 #+begin_src til
-proc theme_codegen_translate(lp: LoadedProgram, output_path: Str) returns shallow I32
+proc theme_codegen_translate(lp: LoadedProgram, output_path: Str) returns I32
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
@@ -23,8 +23,8 @@ struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
-    func len(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func len(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns U64
     func clear(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
     func delete_marked(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
@@ -33,17 +33,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut dest: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
     func move_from(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, own other: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec)
     func unsafe_get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
-    func get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
+    func get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns priv___src_self_theme_codegen_til__ThemeColorSpec
-    func remove_at(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
-    func truncate(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
-    func set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut src: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+    func truncate(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
+    func set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut src: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64)
+    func delete(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -75,7 +75,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.with_capacity(shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.with_capacity(n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clear
@@ -208,7 +208,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.get(self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64) returns ref priv___src_self_theme_codegen_til__ThemeColorSpec throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.pop
@@ -231,7 +231,7 @@ func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.pop(mut self: Vec__p
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.remove_at(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.remove_at(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take_prefix
@@ -243,7 +243,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take_prefix(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.take_prefix(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, n: U64) returns Vec__priv___src_self_theme_codegen_til__ThemeColorSpec
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.truncate
@@ -257,7 +257,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.truncate(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow n: U64)
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.truncate(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, n: U64)
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_set
@@ -270,7 +270,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.unsafe_set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec)
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.set
@@ -283,7 +283,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec, mut _err_kind: I64)
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.set(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64, own val: priv___src_self_theme_codegen_til__ThemeColorSpec) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push_take
@@ -296,7 +296,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push_take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut src: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow i: U64)
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.push_take(mut self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, mut src: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, i: U64)
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete
@@ -308,7 +308,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, shallow call_free: Bool)
+func Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.delete(own self: Vec__priv___src_self_theme_codegen_til__ThemeColorSpec, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_theme_codegen_til__ThemeColorSpec.clone

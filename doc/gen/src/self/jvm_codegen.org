@@ -1,5 +1,5 @@
 #+TITLE: src/self/jvm_codegen.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * jvm_package_segment
@@ -17,7 +17,7 @@ func jvm_package_segment(name: Str) returns Str
 :END:
 
 #+begin_src til
-proc jvm_codegen_translate(lp: LoadedProgram, source_dir: Str, package_dir: Str, source_path: Str, args_path: Str, package_name: Str) returns shallow I32
+proc jvm_codegen_translate(lp: LoadedProgram, source_dir: Str, package_dir: Str, source_path: Str, args_path: Str, package_name: Str) returns I32
 #+end_src
 
 * Vec__JvmClassOut
@@ -41,8 +41,8 @@ struct Vec__priv___src_self_jvm_codegen_til__JvmMember {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns U64
     func clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember)
     func delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own val: priv___src_self_jvm_codegen_til__JvmMember)
@@ -51,17 +51,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmMember)
     func move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
     func unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember
-    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmMember
+    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns priv___src_self_jvm_codegen_til__JvmMember
-    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
-    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
+    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64)
+    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -93,7 +93,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.clear
@@ -226,7 +226,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmMember
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.pop
@@ -249,7 +249,7 @@ func Vec__priv___src_self_jvm_codegen_til__JvmMember.pop(mut self: Vec__priv___s
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix
@@ -261,7 +261,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate
@@ -275,7 +275,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow n: U64)
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set
@@ -288,7 +288,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.set
@@ -301,7 +301,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember, mut _err_kind: I64)
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take
@@ -314,7 +314,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64)
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.delete
@@ -326,7 +326,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow call_free: Bool)
+func Vec__priv___src_self_jvm_codegen_til__JvmMember.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmMember.clone
@@ -352,8 +352,8 @@ struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns U64
     func clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
     func delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
@@ -362,17 +362,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
     func move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
     func unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
-    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
+    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns priv___src_self_jvm_codegen_til__JvmClassOut
-    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
-    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
+    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64)
+    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -404,7 +404,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity(shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear
@@ -537,7 +537,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop
@@ -560,7 +560,7 @@ func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop(mut self: Vec__priv__
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix
@@ -572,7 +572,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate
@@ -586,7 +586,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow n: U64)
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set
@@ -599,7 +599,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set
@@ -612,7 +612,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut, mut _err_kind: I64)
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take
@@ -625,7 +625,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64)
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete
@@ -637,7 +637,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow call_free: Bool)
+func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone

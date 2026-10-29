@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * REPL_DOC_INDEX
@@ -52,18 +52,18 @@ proc resolve_link_path(base_dir: Str, root_dir: Str, path: Str) returns Str
 struct ProgramUnit {
     mut path : Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: ProgramUnit) returns ProgramUnit
-    func delete(own self: ProgramUnit, shallow call_free: Bool)
-    func hash(self: ProgramUnit, hasher: HashFn) returns shallow U64
-    func cmp(a: ProgramUnit, b: ProgramUnit) returns shallow I64
+    func delete(own self: ProgramUnit, call_free: Bool = true)
+    func hash(self: ProgramUnit, hasher: HashFn) returns U64
+    func cmp(a: ProgramUnit, b: ProgramUnit) returns I64
     func to_str(self: ProgramUnit) returns Str
-    func eq(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
-    func lt(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
-    func gt(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
-    func neq(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
-    func lte(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
-    func gte(a: ProgramUnit, b: ProgramUnit) returns shallow Bool
+    func eq(a: ProgramUnit, b: ProgramUnit) returns Bool
+    func lt(a: ProgramUnit, b: ProgramUnit) returns Bool
+    func gt(a: ProgramUnit, b: ProgramUnit) returns Bool
+    func neq(a: ProgramUnit, b: ProgramUnit) returns Bool
+    func lte(a: ProgramUnit, b: ProgramUnit) returns Bool
+    func gte(a: ProgramUnit, b: ProgramUnit) returns Bool
 }
 #+end_src
 
@@ -80,18 +80,18 @@ struct TargetLink {
     mut targets : Str
     mut written : Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: TargetLink) returns TargetLink
-    func delete(own self: TargetLink, shallow call_free: Bool)
-    func hash(self: TargetLink, hasher: HashFn) returns shallow U64
-    func cmp(a: TargetLink, b: TargetLink) returns shallow I64
+    func delete(own self: TargetLink, call_free: Bool = true)
+    func hash(self: TargetLink, hasher: HashFn) returns U64
+    func cmp(a: TargetLink, b: TargetLink) returns I64
     func to_str(self: TargetLink) returns Str
-    func eq(a: TargetLink, b: TargetLink) returns shallow Bool
-    func lt(a: TargetLink, b: TargetLink) returns shallow Bool
-    func gt(a: TargetLink, b: TargetLink) returns shallow Bool
-    func neq(a: TargetLink, b: TargetLink) returns shallow Bool
-    func lte(a: TargetLink, b: TargetLink) returns shallow Bool
-    func gte(a: TargetLink, b: TargetLink) returns shallow Bool
+    func eq(a: TargetLink, b: TargetLink) returns Bool
+    func lt(a: TargetLink, b: TargetLink) returns Bool
+    func gt(a: TargetLink, b: TargetLink) returns Bool
+    func neq(a: TargetLink, b: TargetLink) returns Bool
+    func lte(a: TargetLink, b: TargetLink) returns Bool
+    func gte(a: TargetLink, b: TargetLink) returns Bool
 }
 #+end_src
 
@@ -118,6 +118,7 @@ struct LoadedProgram {
     mut link_flags : Str
     mut include_flags : Str
     mut target_links : Vec__TargetLink
+    mut macos_frameworks : Str
     mut link_c_paths : Str
     mut compiler_revision : Str
     mut asan_build : Bool
@@ -125,7 +126,7 @@ struct LoadedProgram {
     mut load_errors : I32
     mut usize_override_bits : I64
 namespace:
-    func uses_shared_runtime(self: LoadedProgram) returns shallow Bool
+    func uses_shared_runtime(self: LoadedProgram) returns Bool
     func runtime_abi_id(self: LoadedProgram) returns Str
     func runtime_stem(self: LoadedProgram) returns Str
     func runtime_shared_basename(self: LoadedProgram) returns Str
@@ -134,8 +135,8 @@ namespace:
     func unit_paths(self: LoadedProgram) returns Vec__Str
     func link_flags_for_target(self: LoadedProgram) returns Str
     func include_flags_for_target(self: LoadedProgram) returns Str
-    func delete(own self: LoadedProgram, shallow call_free: Bool)
-    func size() returns shallow U64
+    func delete(own self: LoadedProgram, call_free: Bool = true)
+    func size() returns U64
     func clone(self: LoadedProgram) returns LoadedProgram
 }
 #+end_src
@@ -167,7 +168,7 @@ func retarget_loaded_aliases(mut lp: LoadedProgram)
 :END:
 
 #+begin_src til
-proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, import_base: Str, embedded: Bool, prelude_source: Str, prelude_name: Str, prelude_base: Str) returns LoadedProgram
+proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, import_base: Str = "", embedded: Bool = false, prelude_source: Str = "", prelude_name: Str = "", prelude_base: Str = "") returns LoadedProgram
 #+end_src
 
 * DocMeta
@@ -184,18 +185,18 @@ struct DocMeta {
     mut deprecated : Str
     mut hidden : Bool
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: DocMeta) returns DocMeta
-    func delete(own self: DocMeta, shallow call_free: Bool)
-    func hash(self: DocMeta, hasher: HashFn) returns shallow U64
-    func cmp(a: DocMeta, b: DocMeta) returns shallow I64
+    func delete(own self: DocMeta, call_free: Bool = true)
+    func hash(self: DocMeta, hasher: HashFn) returns U64
+    func cmp(a: DocMeta, b: DocMeta) returns I64
     func to_str(self: DocMeta) returns Str
-    func eq(a: DocMeta, b: DocMeta) returns shallow Bool
-    func lt(a: DocMeta, b: DocMeta) returns shallow Bool
-    func gt(a: DocMeta, b: DocMeta) returns shallow Bool
-    func neq(a: DocMeta, b: DocMeta) returns shallow Bool
-    func lte(a: DocMeta, b: DocMeta) returns shallow Bool
-    func gte(a: DocMeta, b: DocMeta) returns shallow Bool
+    func eq(a: DocMeta, b: DocMeta) returns Bool
+    func lt(a: DocMeta, b: DocMeta) returns Bool
+    func gt(a: DocMeta, b: DocMeta) returns Bool
+    func neq(a: DocMeta, b: DocMeta) returns Bool
+    func lte(a: DocMeta, b: DocMeta) returns Bool
+    func gte(a: DocMeta, b: DocMeta) returns Bool
 }
 #+end_src
 
@@ -216,7 +217,7 @@ func doc_keyword_value(line: Str, key: Str) returns Str
 :END:
 
 #+begin_src til
-func doc_false_value(value: Str) returns shallow Bool
+func doc_false_value(value: Str) returns Bool
 #+end_src
 
 * doc_meta_line
@@ -226,7 +227,7 @@ func doc_false_value(value: Str) returns shallow Bool
 :END:
 
 #+begin_src til
-func doc_meta_line(line: Str, mut meta: DocMeta) returns shallow Bool
+func doc_meta_line(line: Str, mut meta: DocMeta) returns Bool
 #+end_src
 
 * parse_doc_meta
@@ -237,6 +238,16 @@ func doc_meta_line(line: Str, mut meta: DocMeta) returns shallow Bool
 
 #+begin_src til
 func parse_doc_meta(doc: Str) returns DocMeta
+#+end_src
+
+* doc_member_hidden
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.doc_member_hidden
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func doc_member_hidden(d: Declaration) returns Bool
 #+end_src
 
 * format_doc_for_help
@@ -266,7 +277,7 @@ func format_decl_info(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns
 :END:
 
 #+begin_src til
-func format_member_info(type_name: Str, dname: Str, d: Declaration, symbols: SymbolPool) returns Str
+func format_member_info(type_name: Str, dname: Str, d: Declaration, scope: TypeScope, symbols: SymbolPool) returns Str
 #+end_src
 
 * format_field_info
@@ -326,7 +337,7 @@ func build_doc_init_line_org_files(index_path: Str, packed_user_info: Str, packe
 :END:
 
 #+begin_src til
-func lazy_recursive_variadic_def(fdef: Expr, symbols: SymbolPool) returns shallow Bool
+func lazy_recursive_variadic_def(fdef: Expr, symbols: SymbolPool) returns Bool
 #+end_src
 
 * expand_lazy_in_expr
@@ -336,7 +347,7 @@ func lazy_recursive_variadic_def(fdef: Expr, symbols: SymbolPool) returns shallo
 :END:
 
 #+begin_src til
-func expand_lazy_in_expr(mut e: Expr, scope: TypeScope, shallow depth: I32, ctx: Context)
+func expand_lazy_in_expr(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context)
 #+end_src
 
 * type_program_errors
@@ -346,7 +357,7 @@ func expand_lazy_in_expr(mut e: Expr, scope: TypeScope, shallow depth: I32, ctx:
 :END:
 
 #+begin_src til
-proc type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+proc type_program_errors(mut lp: LoadedProgram, run_tests: Bool) returns I32
 #+end_src
 
 * finish_init_and_type_program
@@ -356,7 +367,7 @@ proc type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns
 :END:
 
 #+begin_src til
-proc finish_init_and_type_program(mut lp: LoadedProgram) returns shallow I32
+proc finish_init_and_type_program(mut lp: LoadedProgram) returns I32
 #+end_src
 
 * init_and_type_program_errors
@@ -366,7 +377,7 @@ proc finish_init_and_type_program(mut lp: LoadedProgram) returns shallow I32
 :END:
 
 #+begin_src til
-proc init_and_type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+proc init_and_type_program_errors(mut lp: LoadedProgram, run_tests: Bool) returns I32
 #+end_src
 
 * init_and_type_program
@@ -376,7 +387,7 @@ proc init_and_type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool
 :END:
 
 #+begin_src til
-proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
+proc init_and_type_program(mut lp: LoadedProgram, run_tests: Bool)
 #+end_src
 
 * finish_prepare_program
@@ -406,7 +417,7 @@ proc repl_finish_prepare_program(mut lp: LoadedProgram)
 :END:
 
 #+begin_src til
-proc repl_init_cached_program(mut lp: LoadedProgram) returns shallow I32
+proc repl_init_cached_program(mut lp: LoadedProgram) returns I32
 #+end_src
 
 * repl_type_delta_program
@@ -416,7 +427,7 @@ proc repl_init_cached_program(mut lp: LoadedProgram) returns shallow I32
 :END:
 
 #+begin_src til
-proc repl_type_delta_program(mut lp: LoadedProgram, mut delta: Expr) returns shallow I32
+proc repl_type_delta_program(mut lp: LoadedProgram, mut delta: Expr) returns I32
 #+end_src
 
 * repl_prepare_delta_program
@@ -436,7 +447,7 @@ proc repl_prepare_delta_program(mut lp: LoadedProgram, mut delta: Expr)
 :END:
 
 #+begin_src til
-proc prepare_program(mut lp: LoadedProgram, shallow run_tests: Bool)
+proc prepare_program(mut lp: LoadedProgram, run_tests: Bool)
 #+end_src
 
 * cmd_ast
@@ -472,8 +483,8 @@ struct Vec__TargetLink {
     mut cap : USize
 namespace:
     func new() returns Vec__TargetLink
-    func with_capacity(shallow n: U64) returns Vec__TargetLink
-    func len(self: Vec__TargetLink) returns shallow U64
+    func with_capacity(n: U64) returns Vec__TargetLink
+    func len(self: Vec__TargetLink) returns U64
     func clear(mut self: Vec__TargetLink)
     func delete_marked(mut self: Vec__TargetLink, marks: Dynamic)
     func push(mut self: Vec__TargetLink, own val: TargetLink)
@@ -482,17 +493,17 @@ namespace:
     func move_to(own self: Vec__TargetLink, mut dest: Vec__TargetLink)
     func move_from(mut self: Vec__TargetLink, own other: Vec__TargetLink)
     func unsafe_get(self: Vec__TargetLink, i: U64) returns ref TargetLink
-    func get(self: Vec__TargetLink, shallow i: U64, mut _err_kind: I64) returns ref TargetLink
+    func get(self: Vec__TargetLink, shallow i: U64) returns ref TargetLink throws OutOfBounds
     func pop(mut self: Vec__TargetLink) returns TargetLink
-    func remove_at(mut self: Vec__TargetLink, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__TargetLink, shallow n: U64) returns Vec__TargetLink
-    func truncate(mut self: Vec__TargetLink, shallow n: U64)
-    func unsafe_set(mut self: Vec__TargetLink, shallow i: U64, own val: TargetLink)
-    func set(mut self: Vec__TargetLink, shallow i: U64, own val: TargetLink, mut _err_kind: I64)
-    func push_take(mut self: Vec__TargetLink, mut src: Vec__TargetLink, shallow i: U64)
-    func delete(own self: Vec__TargetLink, shallow call_free: Bool)
+    func remove_at(mut self: Vec__TargetLink, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__TargetLink, n: U64) returns Vec__TargetLink
+    func truncate(mut self: Vec__TargetLink, n: U64)
+    func unsafe_set(mut self: Vec__TargetLink, i: U64, own val: TargetLink)
+    func set(mut self: Vec__TargetLink, i: U64, own val: TargetLink) throws OutOfBounds
+    func push_take(mut self: Vec__TargetLink, mut src: Vec__TargetLink, i: U64)
+    func delete(own self: Vec__TargetLink, call_free: Bool = true)
     func clone(self: Vec__TargetLink) returns Vec__TargetLink
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -526,7 +537,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__TargetLink.with_capacity(shallow n: U64) returns Vec__TargetLink
+func Vec__TargetLink.with_capacity(n: U64) returns Vec__TargetLink
 #+end_src
 
 * Vec__TargetLink.clear
@@ -668,7 +679,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__TargetLink.get(self: Vec__TargetLink, shallow i: U64, mut _err_kind: I64) returns ref TargetLink
+func Vec__TargetLink.get(self: Vec__TargetLink, shallow i: U64) returns ref TargetLink throws OutOfBounds
 #+end_src
 
 * Vec__TargetLink.pop
@@ -693,7 +704,7 @@ func Vec__TargetLink.pop(mut self: Vec__TargetLink) returns TargetLink
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__TargetLink.remove_at(mut self: Vec__TargetLink, shallow i: U64, mut _err_kind: I64)
+func Vec__TargetLink.remove_at(mut self: Vec__TargetLink, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__TargetLink.take_prefix
@@ -706,7 +717,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__TargetLink.take_prefix(mut self: Vec__TargetLink, shallow n: U64) returns Vec__TargetLink
+func Vec__TargetLink.take_prefix(mut self: Vec__TargetLink, n: U64) returns Vec__TargetLink
 #+end_src
 
 * Vec__TargetLink.truncate
@@ -721,7 +732,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__TargetLink.truncate(mut self: Vec__TargetLink, shallow n: U64)
+func Vec__TargetLink.truncate(mut self: Vec__TargetLink, n: U64)
 #+end_src
 
 * Vec__TargetLink.unsafe_set
@@ -735,7 +746,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__TargetLink.unsafe_set(mut self: Vec__TargetLink, shallow i: U64, own val: TargetLink)
+func Vec__TargetLink.unsafe_set(mut self: Vec__TargetLink, i: U64, own val: TargetLink)
 #+end_src
 
 * Vec__TargetLink.set
@@ -749,7 +760,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__TargetLink.set(mut self: Vec__TargetLink, shallow i: U64, own val: TargetLink, mut _err_kind: I64)
+func Vec__TargetLink.set(mut self: Vec__TargetLink, i: U64, own val: TargetLink) throws OutOfBounds
 #+end_src
 
 * Vec__TargetLink.push_take
@@ -763,7 +774,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__TargetLink.push_take(mut self: Vec__TargetLink, mut src: Vec__TargetLink, shallow i: U64)
+func Vec__TargetLink.push_take(mut self: Vec__TargetLink, mut src: Vec__TargetLink, i: U64)
 #+end_src
 
 * Vec__TargetLink.delete
@@ -776,7 +787,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__TargetLink.delete(own self: Vec__TargetLink, shallow call_free: Bool)
+func Vec__TargetLink.delete(own self: Vec__TargetLink, call_free: Bool = true)
 #+end_src
 
 * Vec__TargetLink.clone
@@ -804,8 +815,8 @@ struct Vec__ProgramUnit {
     mut cap : USize
 namespace:
     func new() returns Vec__ProgramUnit
-    func with_capacity(shallow n: U64) returns Vec__ProgramUnit
-    func len(self: Vec__ProgramUnit) returns shallow U64
+    func with_capacity(n: U64) returns Vec__ProgramUnit
+    func len(self: Vec__ProgramUnit) returns U64
     func clear(mut self: Vec__ProgramUnit)
     func delete_marked(mut self: Vec__ProgramUnit, marks: Dynamic)
     func push(mut self: Vec__ProgramUnit, own val: ProgramUnit)
@@ -814,17 +825,17 @@ namespace:
     func move_to(own self: Vec__ProgramUnit, mut dest: Vec__ProgramUnit)
     func move_from(mut self: Vec__ProgramUnit, own other: Vec__ProgramUnit)
     func unsafe_get(self: Vec__ProgramUnit, i: U64) returns ref ProgramUnit
-    func get(self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64) returns ref ProgramUnit
+    func get(self: Vec__ProgramUnit, shallow i: U64) returns ref ProgramUnit throws OutOfBounds
     func pop(mut self: Vec__ProgramUnit) returns ProgramUnit
-    func remove_at(mut self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__ProgramUnit, shallow n: U64) returns Vec__ProgramUnit
-    func truncate(mut self: Vec__ProgramUnit, shallow n: U64)
-    func unsafe_set(mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit)
-    func set(mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit, mut _err_kind: I64)
-    func push_take(mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, shallow i: U64)
-    func delete(own self: Vec__ProgramUnit, shallow call_free: Bool)
+    func remove_at(mut self: Vec__ProgramUnit, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__ProgramUnit, n: U64) returns Vec__ProgramUnit
+    func truncate(mut self: Vec__ProgramUnit, n: U64)
+    func unsafe_set(mut self: Vec__ProgramUnit, i: U64, own val: ProgramUnit)
+    func set(mut self: Vec__ProgramUnit, i: U64, own val: ProgramUnit) throws OutOfBounds
+    func push_take(mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, i: U64)
+    func delete(own self: Vec__ProgramUnit, call_free: Bool = true)
     func clone(self: Vec__ProgramUnit) returns Vec__ProgramUnit
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -858,7 +869,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__ProgramUnit.with_capacity(shallow n: U64) returns Vec__ProgramUnit
+func Vec__ProgramUnit.with_capacity(n: U64) returns Vec__ProgramUnit
 #+end_src
 
 * Vec__ProgramUnit.clear
@@ -1000,7 +1011,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__ProgramUnit.get(self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64) returns ref ProgramUnit
+func Vec__ProgramUnit.get(self: Vec__ProgramUnit, shallow i: U64) returns ref ProgramUnit throws OutOfBounds
 #+end_src
 
 * Vec__ProgramUnit.pop
@@ -1025,7 +1036,7 @@ func Vec__ProgramUnit.pop(mut self: Vec__ProgramUnit) returns ProgramUnit
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__ProgramUnit.remove_at(mut self: Vec__ProgramUnit, shallow i: U64, mut _err_kind: I64)
+func Vec__ProgramUnit.remove_at(mut self: Vec__ProgramUnit, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__ProgramUnit.take_prefix
@@ -1038,7 +1049,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__ProgramUnit.take_prefix(mut self: Vec__ProgramUnit, shallow n: U64) returns Vec__ProgramUnit
+func Vec__ProgramUnit.take_prefix(mut self: Vec__ProgramUnit, n: U64) returns Vec__ProgramUnit
 #+end_src
 
 * Vec__ProgramUnit.truncate
@@ -1053,7 +1064,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__ProgramUnit.truncate(mut self: Vec__ProgramUnit, shallow n: U64)
+func Vec__ProgramUnit.truncate(mut self: Vec__ProgramUnit, n: U64)
 #+end_src
 
 * Vec__ProgramUnit.unsafe_set
@@ -1067,7 +1078,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__ProgramUnit.unsafe_set(mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit)
+func Vec__ProgramUnit.unsafe_set(mut self: Vec__ProgramUnit, i: U64, own val: ProgramUnit)
 #+end_src
 
 * Vec__ProgramUnit.set
@@ -1081,7 +1092,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__ProgramUnit.set(mut self: Vec__ProgramUnit, shallow i: U64, own val: ProgramUnit, mut _err_kind: I64)
+func Vec__ProgramUnit.set(mut self: Vec__ProgramUnit, i: U64, own val: ProgramUnit) throws OutOfBounds
 #+end_src
 
 * Vec__ProgramUnit.push_take
@@ -1095,7 +1106,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__ProgramUnit.push_take(mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, shallow i: U64)
+func Vec__ProgramUnit.push_take(mut self: Vec__ProgramUnit, mut src: Vec__ProgramUnit, i: U64)
 #+end_src
 
 * Vec__ProgramUnit.delete
@@ -1108,7 +1119,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__ProgramUnit.delete(own self: Vec__ProgramUnit, shallow call_free: Bool)
+func Vec__ProgramUnit.delete(own self: Vec__ProgramUnit, call_free: Bool = true)
 #+end_src
 
 * Vec__ProgramUnit.clone
@@ -1136,8 +1147,8 @@ struct Vec__priv___src_self_loader_til__ImportCheckEntry {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func with_capacity(shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func len(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns shallow U64
+    func with_capacity(n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func len(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns U64
     func clear(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry)
     func delete_marked(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own val: priv___src_self_loader_til__ImportCheckEntry)
@@ -1146,17 +1157,17 @@ namespace:
     func move_to(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut dest: Vec__priv___src_self_loader_til__ImportCheckEntry)
     func move_from(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, own other: Vec__priv___src_self_loader_til__ImportCheckEntry)
     func unsafe_get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64) returns ref priv___src_self_loader_til__ImportCheckEntry
-    func get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+    func get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64) returns ref priv___src_self_loader_til__ImportCheckEntry throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
-    func remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64)
-    func take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry)
-    func set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
-    func push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64)
-    func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
+    func remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+    func truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64, own val: priv___src_self_loader_til__ImportCheckEntry)
+    func set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64, own val: priv___src_self_loader_til__ImportCheckEntry) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64)
+    func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
-    func size() returns shallow U64
+    func size() returns U64
 }
 #+end_src
 
@@ -1190,7 +1201,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity(shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.with_capacity(n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.clear
@@ -1332,7 +1343,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64) returns ref priv___src_self_loader_til__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.get(self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64) returns ref priv___src_self_loader_til__ImportCheckEntry throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.pop
@@ -1357,7 +1368,7 @@ func Vec__priv___src_self_loader_til__ImportCheckEntry.pop(mut self: Vec__priv__
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, mut _err_kind: I64)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.remove_at(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix
@@ -1370,7 +1381,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+func Vec__priv___src_self_loader_til__ImportCheckEntry.take_prefix(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, n: U64) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.truncate
@@ -1385,7 +1396,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow n: U64)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.truncate(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, n: U64)
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set
@@ -1399,7 +1410,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.unsafe_set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64, own val: priv___src_self_loader_til__ImportCheckEntry)
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.set
@@ -1413,7 +1424,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64, own val: priv___src_self_loader_til__ImportCheckEntry, mut _err_kind: I64)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.set(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64, own val: priv___src_self_loader_til__ImportCheckEntry) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.push_take
@@ -1427,7 +1438,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow i: U64)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.push_take(mut self: Vec__priv___src_self_loader_til__ImportCheckEntry, mut src: Vec__priv___src_self_loader_til__ImportCheckEntry, i: U64)
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.delete
@@ -1440,7 +1451,7 @@ Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_loader_til__ImportCheckEntry.delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, shallow call_free: Bool)
+func Vec__priv___src_self_loader_til__ImportCheckEntry.delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, call_free: Bool = true)
 #+end_src
 
 * Vec__priv___src_self_loader_til__ImportCheckEntry.clone

@@ -1471,31 +1471,122 @@ priv append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: 
     if d.is_mut { out.push_str("mut ") }
 }
 
-// Append "(p1: T1, name: ..TN)" plus optional " returns [shallow|ref ]T".
-priv append_fn_signature := func(mut out: Str, fd: FunctionDef, symbols: SymbolPool) {
+priv doc_throw_abi_param := func(param: Declaration, fd: FunctionDef) returns Bool {
+    if fd.sig.throw_types.len() == 0 { return false }
+    if param.name == "_err_kind" { return true }
+    for name in fd.sig.throw_types {
+        if param.name == format("_err_", name) { return true }
+    }
+    return false
+}
+
+// Defaults retain their expression AST. Render it without evaluating it or
+// replacing it with a diagnostic tree dump. Calls may have typed constructor
+// slots, whose source spelling requires field names rather than positions.
+priv append_doc_default := func(mut out: Str, e: Expr, scope: TypeScope, symbols: SymbolPool) {
+    switch e.node_type {
+    case .Literal(Literal.Str(text)):
+        out.push_str("\""); out.push_str(text); out.push_str("\"")
+    case .Literal(Literal.Num(number)): out.push_str(number.literal_num_text())
+    case .Literal(Literal.Bool(value)):
+        if value { out.push_str("true") } else { out.push_str("false") }
+    case .Literal(Literal.Null): out.push_str("0")
+    case .Ident(id): out.push_str(id.ident_name(symbols.names))
+    case .Loc: out.push_str("__LOC__")
+    case .FieldAccess(field):
+        append_doc_default(out, e.children[0], scope, symbols)
+        out.push_str("."); out.push_str(field.field_access_name(symbols.names))
+    case .FCall(call):
+        mut constructor := Option(ref Expr).None
+        switch e.children[0].node_type {
+        case .Ident(id): constructor = scope.get_struct(id.ident_name(symbols.names), symbols)
+        case:
+        }
+        append_doc_default(out, e.children[0], scope, symbols)
+        out.push_str("(")
+        mut emitted : USize = 0
+        for i in 1..e.children.len() {
+            ref argument : Expr = e.children[i]
+            if constructor.is_some().and(argument.node_type.is(NodeType.NamedArg).not()) {
+                ref record : StructDef = structdef_of(constructor.unwrap())
+                if record.fields[i - 1].is_priv { continue }
+            }
+            if emitted > 0 { out.push_str(", ") }
+            emitted++
+            switch argument.node_type {
+            case .NamedArg(name):
+                out.push_str(name); out.push_str(" = ")
+                append_doc_default(out, argument.children[0], scope, symbols)
+            case:
+                if constructor.is_some() {
+                    ref record : StructDef = structdef_of(constructor.unwrap())
+                    out.push_str(record.field_name_at(i - 1)); out.push_str(" = ")
+                }
+                if get_own_arg(e, i) { out.push_str("own ") }
+                if get_ref_arg(e, i) { out.push_str("ref ") }
+                if get_splat_arg(e, i) { out.push_str("..") }
+                append_doc_default(out, argument, scope, symbols)
+            }
+        }
+        out.push_str(")")
+        if call.is_bang { out.push_str("!") }
+        else if call.does_throw { out.push_str("?") }
+    case:
+        panic("unsupported documentation default expression: ", e.node_type.head_str(symbols.names))
+    }
+}
+
+// Source-facing contract, shared by generated docs and help(). Throw ABI
+// slots can precede trailing defaults, so filter by identity, not truncation.
+priv append_fn_signature := func(mut out: Str, fd: FunctionDef, scope: TypeScope, symbols: SymbolPool) {
     out.push_str("(")
-    var_idx_i64 : I64 = fd.sig.variadic_index.cast(I64)
+    mut emitted : USize = 0
     for i in 0..fd.sig.params.len() {
-        if i > 0 { out.push_str(", ") }
         ref p : Declaration = fd.sig.params[i]
-        is_variadic := i.to_i64() == var_idx_i64
-        if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
+        if doc_throw_abi_param(p, fd) { continue }
+        if emitted > 0 { out.push_str(", ") }
+        emitted++
+        is_variadic := i.to_i32() == fd.sig.variadic_index
+        is_kwargs := i.to_i32() == fd.sig.kwargs_index
+        if is_variadic.or(is_kwargs).not() {
+            mut default_own := OwnType.Ref
+            if p.auto_shallow { default_own = OwnType.Shallow }
+            append_qualifier_prefix(out, p, default_own)
+        }
         out.push_str(p.name)
         if p.til_type.is(Type.Unknown).not() {
-            out.push_str(": ")
-            if is_variadic { out.push_str("..") }
-            out.push_str(decl_type_name_ref(p, symbols))
+            if p.name.len() > 0 { out.push_str(": ") }
+            if is_kwargs { out.push_str("...") }
+            else {
+                if is_variadic { out.push_str("..") }
+                out.push_str(decl_type_name_ref(p, symbols))
+            }
+        }
+        if p.bounds.len() > 0 {
+            out.push_str(" implements "); out.push_str(p.bounds.replace(",", ", "))
+        }
+        if p.default_value.is_some() {
+            out.push_str(" = ")
+            append_doc_default(out, p.default_expr(), scope, symbols)
         }
     }
     out.push_str(")")
     if fd.sig.return_type.len() > 0 {
         out.push_str(" returns ")
         switch fd.sig.return_own_type {
-        case .Shallow: out.push_str("shallow ")
+        case .Shallow:
+            if fd.sig.return_shallow_explicit { out.push_str("shallow ") }
         case .Ref:     out.push_str("ref ")
         case .Own:
         }
         out.push_str(fd.sig.return_type)
+    }
+    if fd.sig.throw_types.len() > 0 {
+        out.push_str(" throws ")
+        for i in 0..fd.sig.throw_types.len() {
+            if i > 0 { out.push_str(", ") }
+            out.push_str(fd.sig.throw_types[i])
+        }
     }
 }
 
@@ -1566,6 +1657,12 @@ parse_doc_meta := func(doc: Str) returns DocMeta {
     return meta
 }
 
+// Fields and namespace members use the same visibility in summaries, catalog
+// entries and runtime help, including explicit #+doc:nil metadata.
+doc_member_hidden := func(d: Declaration) returns Bool {
+    return d.is_priv.or(parse_doc_meta(d.doc).hidden)
+}
+
 format_doc_for_help := func(doc: Str) returns Str {
     meta := parse_doc_meta(doc)
     if meta.hidden { return "" }
@@ -1591,7 +1688,7 @@ priv append_field_indented := func(mut out: Str, dname: Str, d: Declaration, sym
 }
 
 // Append "    [kind ]name(sig) returns T" for a namespace method.
-priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration, symbols: SymbolPool) {
+priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration, scope: TypeScope, symbols: SymbolPool) {
     out.push_str("    ")
     mut handled := false
     if d.default_value.is_some() {
@@ -1600,7 +1697,7 @@ priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration,
             out.push_str(func_kind(fd.sig.func_type))
             out.push_str(" ")
             out.push_str(dname)
-            append_fn_signature(out, fd, symbols)
+            append_fn_signature(out, fd, scope, symbols)
             handled = true
         case:
         }
@@ -1627,7 +1724,7 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope, symbo
     return name
 }
 
-priv format_func_info := func(name: Str, fd: FunctionDef, symbols: SymbolPool) returns Str {
+priv format_func_info := func(name: Str, fd: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Str {
     mut cap : USize = name.len().add(fd.sig.return_type.len()) + 64
     for p : Declaration in fd.sig.params {
         cap = cap.add(p.name.len()).add(decl_type_name_ref(p, symbols).len()) + 48
@@ -1636,7 +1733,7 @@ priv format_func_info := func(name: Str, fd: FunctionDef, symbols: SymbolPool) r
     out.push_str(func_kind(fd.sig.func_type))
     out.push_str(" ")
     out.push_str(name)
-    append_fn_signature(out, fd, symbols)
+    append_fn_signature(out, fd, scope, symbols)
     return out
 }
 
@@ -1655,7 +1752,7 @@ priv add_ns_method_capacity := func(d: Declaration, mut cap: USize, symbols: Sym
     }
 }
 
-priv format_struct_info := func(name: Str, sdef: StructDef, symbols: SymbolPool) returns Str {
+priv format_struct_info := func(name: Str, sdef: StructDef, scope: TypeScope, symbols: SymbolPool) returns Str {
     mut cap : USize = name.len() + 128
     mut cfi : USize = 0
     for f : Declaration in sdef.fields {
@@ -1673,26 +1770,25 @@ priv format_struct_info := func(name: Str, sdef: StructDef, symbols: SymbolPool)
     out.push_str("struct ")
     out.push_str(name)
     out.push_str(" {")
-    mut ffr : USize = 0
-    for f2 : Declaration in sdef.fields {
+    for i in 0..sdef.fields.len() {
+        ref f2 : Declaration = sdef.fields[i]
+        if doc_member_hidden(f2) { continue }
         out.push_str("\n")
-        append_field_indented(out, sdef.field_name_at(ffr), f2, symbols)
-        ffr = ffr + 1
+        append_field_indented(out, sdef.field_name_at(i), f2, symbols)
     }
-    if sdef.ns_decls.len() > 0 {
-        out.push_str("\nnamespace:")
-        mut fnr : USize = 0
-        for d2 : Declaration in sdef.ns_decls {
-            out.push_str("\n")
-            append_ns_method_indented(out, sdef.member_name_at(fnr), d2, symbols)
-            fnr = fnr + 1
-        }
+    mut namespace_started := false
+    for i in 0..sdef.ns_decls.len() {
+        ref d2 : Declaration = sdef.ns_decls[i]
+        if doc_member_hidden(d2) { continue }
+        if namespace_started.not() { out.push_str("\nnamespace:"); namespace_started = true }
+        out.push_str("\n")
+        append_ns_method_indented(out, sdef.member_name_at(i), d2, scope, symbols)
     }
     out.push_str("\n}")
     return out
 }
 
-priv format_enum_info := func(name: Str, edef: EnumDef, symbols: SymbolPool) returns Str {
+priv format_enum_info := func(name: Str, edef: EnumDef, scope: TypeScope, symbols: SymbolPool) returns Str {
     mut cap : USize = name.len() + 128
     for v : VariantDef in edef.variants {
         cap = cap.add(v.name.len()).add(v.doc.len() * 2) + 96
@@ -1717,14 +1813,13 @@ priv format_enum_info := func(name: Str, edef: EnumDef, symbols: SymbolPool) ret
             out.push_str(vd.payload_type)
         }
     }
-    if edef.ns_decls.len() > 0 {
-        out.push_str("\nnamespace:")
-        mut enr : USize = 0
-        for d2 : Declaration in edef.ns_decls {
-            out.push_str("\n")
-            append_ns_method_indented(out, edef.member_name_at(enr), d2, symbols)
-            enr = enr + 1
-        }
+    mut namespace_started := false
+    for i in 0..edef.ns_decls.len() {
+        ref d2 : Declaration = edef.ns_decls[i]
+        if doc_member_hidden(d2) { continue }
+        if namespace_started.not() { out.push_str("\nnamespace:"); namespace_started = true }
+        out.push_str("\n")
+        append_ns_method_indented(out, edef.member_name_at(i), d2, scope, symbols)
     }
     out.push_str("\n}")
     return out
@@ -1739,9 +1834,9 @@ format_decl_info := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) retu
         }
         ref rhs : Expr = stmt.children[0]
         switch rhs.node_type {
-        case .StructDef(sdef): return format_struct_info(dd.name, sdef, symbols)
-        case .EnumDef(edef):   return format_enum_info(dd.name, edef, symbols)
-        case .FuncDef(fd):     return format_func_info(dd.name, fd, symbols)
+        case .StructDef(sdef): return format_struct_info(dd.name, sdef, scope, symbols)
+        case .EnumDef(edef):   return format_enum_info(dd.name, edef, scope, symbols)
+        case .FuncDef(fd):     return format_func_info(dd.name, fd, scope, symbols)
         case:                          return format_var_info(dd.name, dd, scope, symbols)
         }
     case:
@@ -1749,7 +1844,7 @@ format_decl_info := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) retu
     }
 }
 
-format_member_info := func(type_name: Str, dname: Str, d: Declaration, symbols: SymbolPool) returns Str {
+format_member_info := func(type_name: Str, dname: Str, d: Declaration, scope: TypeScope, symbols: SymbolPool) returns Str {
     qual := type_name.format(".", dname)
     mut cap := qual.len().add(decl_type_name_ref(d, symbols).len()) + 128
     add_ns_method_capacity(d, cap, symbols)
@@ -1760,7 +1855,7 @@ format_member_info := func(type_name: Str, dname: Str, d: Declaration, symbols: 
             out.push_str(func_kind(fd.sig.func_type))
             out.push_str(" ")
             out.push_str(qual)
-            append_fn_signature(out, fd, symbols)
+            append_fn_signature(out, fd, scope, symbols)
             return out
         case:
         }
@@ -1800,9 +1895,10 @@ format_variant_info := func(type_name: Str, variant: VariantDef) returns Str {
 }
 
 // Append "Type.method" qualified entry for a single namespace method.
-priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declaration, mut info: Str, mut docs: Str, symbols: SymbolPool) {
+priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declaration, scope: TypeScope, mut info: Str, mut docs: Str, symbols: SymbolPool) {
+    if doc_member_hidden(d) { return }
     qual := type_name.format(".", dname)
-    method_info := format_member_info(type_name, dname, d, symbols)
+    method_info := format_member_info(type_name, dname, d, scope, symbols)
     append_packed_entry(info, qual, method_info)
     if d.doc.is_empty().not() {
         help_doc := format_doc_for_help(d.doc)
@@ -1814,11 +1910,12 @@ priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declara
 
 // Register "Type.field" entries for each struct field, plus "Type.method"
 // entries for each namespace method.
-priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str, symbols: SymbolPool) {
+priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, scope: TypeScope, mut info: Str, mut docs: Str, symbols: SymbolPool) {
     mut pfr : USize = 0
     for f : Declaration in sdef.fields {
         ref pf_name : Str = sdef.field_name_at(pfr)
         pfr = pfr + 1
+        if doc_member_hidden(f) { continue }
         qual := type_name.format(".", pf_name)
         field_info := format_field_info(type_name, pf_name, f, symbols)
         append_packed_entry(info, qual, field_info)
@@ -1831,14 +1928,14 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
     }
     mut pnr : USize = 0
     for nd : Declaration in sdef.ns_decls {
-        collect_member_method_packed(type_name, sdef.member_name_at(pnr), nd, info, docs, symbols)
+        collect_member_method_packed(type_name, sdef.member_name_at(pnr), nd, scope, info, docs, symbols)
         pnr = pnr + 1
     }
 }
 
 // Register "Type.Variant" entries for each enum variant, plus
 // "Type.method" entries for each namespace method.
-priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str, symbols: SymbolPool) {
+priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, scope: TypeScope, mut info: Str, mut docs: Str, symbols: SymbolPool) {
     for vd : VariantDef in edef.variants {
         qual := type_name.format(".", vd.name)
         variant_info := format_variant_info(type_name, vd)
@@ -1852,7 +1949,7 @@ priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info
     }
     mut pnr2 : USize = 0
     for nd : Declaration in edef.ns_decls {
-        collect_member_method_packed(type_name, edef.member_name_at(pnr2), nd, info, docs, symbols)
+        collect_member_method_packed(type_name, edef.member_name_at(pnr2), nd, scope, info, docs, symbols)
         pnr2 = pnr2 + 1
     }
 }
@@ -1864,6 +1961,7 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
     for stmt : Expr in body.children {
         switch stmt.node_type {
         case .Decl(dd):
+            if doc_member_hidden(dd) { continue }
             entry_info := format_decl_info(stmt, scope, symbols)
             if entry_info.is_empty().not() {
                 append_packed_entry(info, dd.name, entry_info)
@@ -1877,9 +1975,9 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
             if stmt.children.len() > 0 {
                 switch stmt.children[0].node_type {
                 case .StructDef(sdef):
-                    collect_struct_members_packed(dd.name, sdef, info, docs, symbols)
+                    collect_struct_members_packed(dd.name, sdef, scope, info, docs, symbols)
                 case .EnumDef(edef):
-                    collect_enum_members_packed(dd.name, edef, info, docs, symbols)
+                    collect_enum_members_packed(dd.name, edef, scope, info, docs, symbols)
                 case:
                 }
             }

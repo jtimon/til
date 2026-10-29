@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -89,7 +89,7 @@ proc repl_read_block(mut ed: ReplEditor, mode_name: Str, mut eof: Bool) returns 
 :END:
 
 #+begin_src til
-proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
+proc repl_typecheck(mut lp: LoadedProgram) returns I32
 #+end_src
 
 * repl_capture_eval_current
@@ -99,7 +99,7 @@ proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 :END:
 
 #+begin_src til
-proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32, mut aborted: Bool) returns Str
+proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32, mut aborted: Bool) returns Str
 #+end_src
 
 * repl_capture_eval_tail
@@ -109,7 +109,7 @@ proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram
 :END:
 
 #+begin_src til
-proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: U64, shallow count: U64, mut aborted: Bool) returns Str
+proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: U64, count: U64, mut aborted: Bool) returns Str
 #+end_src
 
 * repl_source_line_count
@@ -119,7 +119,7 @@ proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, o
 :END:
 
 #+begin_src til
-func repl_source_line_count(s: Str) returns shallow U32
+func repl_source_line_count(s: Str) returns U32
 #+end_src
 
 * repl_ast_has_loader_directive
@@ -129,7 +129,7 @@ func repl_source_line_count(s: Str) returns shallow U32
 :END:
 
 #+begin_src til
-func repl_ast_has_loader_directive(e: Expr, symbols: SymbolPool) returns shallow Bool
+func repl_ast_has_loader_directive(e: Expr, symbols: SymbolPool) returns Bool
 #+end_src
 
 * repl_ast_has_lazy_def
@@ -139,7 +139,7 @@ func repl_ast_has_loader_directive(e: Expr, symbols: SymbolPool) returns shallow
 :END:
 
 #+begin_src til
-func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
+func repl_ast_has_lazy_def(e: Expr) returns Bool
 #+end_src
 
 * repl_ast_has_known_variadic_call
@@ -149,7 +149,7 @@ func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func repl_ast_has_known_variadic_call(e: Expr, symbols: SymbolPool) returns shallow Bool
+func repl_ast_has_known_variadic_call(e: Expr, symbols: SymbolPool) returns Bool
 #+end_src
 
 * repl_delta_from_source
@@ -159,7 +159,7 @@ func repl_ast_has_known_variadic_call(e: Expr, symbols: SymbolPool) returns shal
 :END:
 
 #+begin_src til
-proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32) returns Expr
+proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0) returns Expr
 #+end_src
 
 * repl_peek_needs_expr_wrap
@@ -169,7 +169,7 @@ proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, 
 :END:
 
 #+begin_src til
-func repl_peek_needs_expr_wrap(block: Str, tokens: Vec__Token) returns shallow Bool
+func repl_peek_needs_expr_wrap(block: Str, tokens: Vec__Token) returns Bool
 #+end_src
 
 * repl_parse_allows_wrap
@@ -179,7 +179,7 @@ func repl_peek_needs_expr_wrap(block: Str, tokens: Vec__Token) returns shallow B
 :END:
 
 #+begin_src til
-func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
+func repl_parse_allows_wrap(peek_ast: Expr) returns Bool
 #+end_src
 
 * repl_ast_has_help_call
@@ -189,7 +189,7 @@ func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func repl_ast_has_help_call(e: Expr, symbols: SymbolPool) returns shallow Bool
+func repl_ast_has_help_call(e: Expr, symbols: SymbolPool) returns Bool
 #+end_src
 
 * repl_ast_updates_doc_cache
@@ -199,7 +199,7 @@ func repl_ast_has_help_call(e: Expr, symbols: SymbolPool) returns shallow Bool
 :END:
 
 #+begin_src til
-func repl_ast_updates_doc_cache(e: Expr, symbols: SymbolPool) returns shallow Bool
+func repl_ast_updates_doc_cache(e: Expr, symbols: SymbolPool) returns Bool
 #+end_src
 
 * repl_refresh_user_doc_cache
@@ -273,9 +273,9 @@ struct CliArgs {
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str
 namespace:
-    func size() returns shallow U64
+    func size() returns U64
     func clone(self: CliArgs) returns CliArgs
-    func delete(own self: CliArgs, shallow call_free: Bool)
+    func delete(own self: CliArgs, call_free: Bool = true)
 }
 #+end_src
 
@@ -296,7 +296,7 @@ proc parse_args(args: Array__Str) returns CliArgs
 :END:
 
 #+begin_src til
-func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U64) returns Vec__Str
+func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, start_idx: U64) returns Vec__Str
 #+end_src
 
 * main

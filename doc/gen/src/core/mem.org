@@ -1,5 +1,5 @@
 #+TITLE: src/core/mem.til
-#+SUBTITLE: til 0.0.1-9d6752f54
+#+SUBTITLE: til 0.0.1-ee8785cb2
 #+OPTIONS: toc:t
 
 * free
@@ -308,7 +308,7 @@ untyped swap that predates monomorphization, so this stays as the
 primitive the typed swap/move below are built on.
 
 #+begin_src til
-func swap_bytes(mut a: Dynamic, mut b: Dynamic, shallow size: UPtr)
+func swap_bytes(mut a: Dynamic, mut b: Dynamic, size: UPtr)
 #+end_src
 
 * adopt_from
@@ -335,5 +335,5 @@ uninitialized and that src holds a live value; that is the unsafe
 part, and why this belongs to container internals like swap_bytes.
 
 #+begin_src til
-func adopt_from(mut dest: Dynamic, mut src: Dynamic, shallow size: UPtr)
+func adopt_from(mut dest: Dynamic, mut src: Dynamic, size: UPtr)
 #+end_src
