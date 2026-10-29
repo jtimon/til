@@ -51,6 +51,29 @@ main := proc() {
     assert(grapheme_floor("", 10) == 0 && grapheme_ceil("", 10) == 0)
     assert(grapheme_count("", 0, 0) == 0 && grapheme_offset("", 0, 0, 10) == 0)
 
+    // Cover every word/tail offset, including counted NUL and high bytes.
+    for fill : Str in array(Str, "x", Str.from_byte(0), Str.from_byte(0xff)) {
+        for n in 0..16 {
+            size := n.to_usize()
+            mut line := Str.with_capacity(size + 1)
+            for _ in 0..size { line.push_str(fill) }
+            assert(unicode_case_line_end(line, 0) == size)
+            line.push_str("\n")
+            assert(unicode_case_line_end(line, 0) == size)
+            assert(unicode_case_line_end(line, size) == size)
+            assert(unicode_case_line_end(line, size + 1) == size + 1)
+        }
+    }
+
+    // Independent GCB values at Hangul syllable/block boundaries, including
+    // the first and last blocks and code points immediately outside them.
+    hangul_codes := array(USize, 0xabff, 0xac00, 0xac01, 0xac1b, 0xac1c, 0xac1d,
+        0xb098, 0xd787, 0xd788, 0xd789, 0xd7a3, 0xd7a4)
+    hangul_properties := array(USize, 0, 12, 13, 13, 12, 13, 12, 13, 12, 13, 13, 0)
+    for i in 0..hangul_codes.len() {
+        assert(unicode_grapheme_property(hangul_codes[i].to_i64()) == hangul_properties[i].to_i64())
+    }
+
     accent := format("e", Str.from_codepoint(0x301))
     emoji := format(Str.from_codepoint(0x1f469), Str.from_codepoint(0x200d), Str.from_codepoint(0x1f4bb))
     flags := format(Str.from_codepoint(0x1f1e6), Str.from_codepoint(0x1f1e7), Str.from_codepoint(0x1f1e8))

@@ -287,6 +287,67 @@ merged run recorded 102.38 s wall and 422.25 s interpretation, so this full run
 does not establish an aggregate suite speedup; the measured gains above are
 for the codecs and isolated Unicode workload. Log: =tmp/utf8-codec-full-test.log=.
 
+*** Property-size and corpus-preparation follow-up
+
+Base =f741d935c=. The user required examining full-suite totals, not accepting
+another microbenchmark-only improvement. The retained changes are:
+
+- Replace the GCB table's 798 Hangul LV/LVT ranges with the 28-code-point
+  arithmetic cycle. Regeneration verifies every source range, contiguous
+  coverage of U+AC00..U+D7A3, property numbering, and absence of overlapping
+  other properties before emitting it. The existing generated module shrinks
+  from 8,143 to 4,958 lines; there is no additional data representation/cache.
+- Parse corpus tokens directly instead of first finding their ends and then
+  scanning hexadecimal digits again. Find line ends in eight-byte chunks
+  using a bounded memcpy and zero-byte detection, with scalar handling of the
+  possible match word and tail. This is confined to the test parser; core Str
+  and the interpreter are unchanged.
+
+Verification beyond the full suite:
+- Native property outputs were compared byte-for-byte across every code point
+  0..0x10FFFF and negative/out-of-range extremes. The GCB comparison against
+  the original table and all-four-property comparisons cover the same values.
+  Scratch program: =tmp/unicode_gcb_check.til=; outputs:
+  =tmp/unicode-gcb-{before,after}.log= and
+  =tmp/unicode-properties-{before,after}.log=.
+- Every parsed case's UTF-8 bytes and expected boundary offsets matched the
+  old parser exactly (=tmp/unicode-parser-{before,after}.log=). The official
+  corpus is unchanged and every forward/backward assertion remains.
+- The existing test adds independent Hangul boundary values and word/tail
+  scanner cases with NUL/high bytes. Both interpreted and ASAN-compiled tests
+  also pass with explicit =--usize=32=; logs are
+  =tmp/unicode-width32-{interp,native}.log=.
+
+Full =make clean && make test= passed 492/492 and regenerated boot output.
+The initial baseline recorded 411.503 s interpretation, 345.618 s compilation
+and 103.209 s wall; the final combined clean run recorded 421.005 / 364.945 /
+108.009 s. Those individual clean runs did NOT establish a timing win.
+Logs: =tmp/unicode-hangul-baseline-test.log= and
+=tmp/unicode-compact-full-test.log=. Branch-flattening/leaf-specialization
+experiments were discarded after inspecting their full totals.
+
+To compare the changes with the same built compiler/runner, ran the complete
+suite in A/B/B/A order (A = original source/tables, B = candidate), each via
+the same memory-limited foreground invocation of
+=xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan= that make
+test uses. All four passed 492/492. Baseline source/data matched HEAD;
+restored candidate source matched its saved patch byte-for-byte.
+
+| Run | Interpretation | Compilation | Wall      | mem-inte GB | mem-comp GB |
+|-----+----------------+-------------+-----------+-------------+-------------|
+| A1  |      411.899 s |   348.114 s | 101.906 s |   52.902621 |   49.096577 |
+| B1  |      407.527 s |   343.902 s | 102.744 s |   52.839547 |   48.908849 |
+| B2  |      403.104 s |   341.416 s | 102.242 s |   52.847653 |   48.903905 |
+| A2  |      417.745 s |   343.742 s | 103.945 s |   52.902363 |   49.095836 |
+
+Means: interpretation 414.822 -> 405.316 s (2.3% lower), compilation
+345.928 -> 342.659 s (0.9% lower), mem-inte 52.902 -> 52.844 GB, mem-comp
+49.096 -> 48.906 GB. Wall time 102.926 -> 102.493 s overlaps between runs:
+do not claim a clear wall-time win. This is a modest aggregate improvement,
+not a large general compiler speedup. Logs:
+=tmp/unicode-control-suite.log=, =tmp/unicode-candidate-suite.log=,
+=tmp/unicode-candidate-suite-repeat.log=, =tmp/unicode-control-suite-repeat.log=.
+
 *** Request
 
 Move the locally validated Unicode 17.0 implementation from Tiled #15 into Til.

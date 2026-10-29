@@ -4,52 +4,73 @@ import("std/unicode")
 
 UNICODE_CASE_TOTAL : USize = 766
 
-hex := func(text: Str) returns I64 {
-    mut value : I64 = 0
-    for i in 0..text.len() {
-        byte := text.get(i).cast(U8).to_i64()
-        mut digit := byte - 48
-        if byte >= 65 && byte <= 70 { digit = byte - 65 + 10 }
-        else { assert(byte >= 48 && byte <= 57) }
-        value = value * 16 + digit
+// Find LF from a valid byte offset, or return len. Skip newline-free words
+// with the standard zero-byte test after XOR with eight LF bytes. memcpy
+// permits unaligned reads; the count check keeps every read inside the Str.
+// Only zero-byte existence matters, so this works in either byte order.
+unicode_case_line_end := func(text: Str, start: USize) returns USize {
+    mut at := start
+    mut word : U64 = malloc(8)
+    while text.count - at >= 8 {
+        memcpy(word, ptr_add(text.c_str, at), 8)
+        different := word.bxor(0x0a0a0a0a0a0a0a0a)
+        matches := (different - 0x0101010101010101).band(different.bnot()).band(0x8080808080808080)
+        if matches != 0 { break }
+        at = at + 8
     }
-    return value
+    // Finish within a possible match word, or in the final partial word.
+    while at < text.count {
+        if text.unsafe_get(at) == '\n' { return at }
+        at++
+    }
+    return at
 }
+
 check_unicode_cases := proc() {
     mut cases : USize = 0
     data := File.readfile("test/unicode_grapheme_cases.txt")
-    boundary := Str.from_codepoint(0xf7)
-    joined := Str.from_codepoint(0xd7)
-    // Walk line/token views instead of splitting and cloning the whole
-    // commented corpus. Only the prefix before '#' needs token parsing.
+    // Keep line views and parse each body once, without searching for token
+    // ends and then reading the same hexadecimal digits a second time.
     mut offset : USize = 0
     while offset < data.len() {
-        remaining := data.substr(offset, data.len() - offset)
-        newline := remaining.find("\n")
-        mut length := remaining.len()
-        if newline >= 0 { length = newline.to_usize() }
-        line := data.substr(offset, length)
-        offset = offset + length
-        if newline >= 0 { offset++ }
+        line_end := unicode_case_line_end(data, offset)
+        line := data.substr(offset, line_end - offset)
+        offset = line_end
+        if offset < data.len() { offset++ }
         comment := line.find("#")
         mut body_end := line.len()
         if comment >= 0 { body_end = comment.to_usize() }
         body := line.substr(0, body_end).trim()
         if body.len() == 0 { continue }
         // The corpus's hexadecimal spelling is longer than its UTF-8 output.
-        mut text := Str.with_capacity(body.len()); mut expected := Vec(USize).new()
-        mut token_start : USize = 0
-        while token_start < body.len() {
-            rest := body.substr(token_start, body.len() - token_start)
-            space := rest.find(" ")
-            mut token_length := rest.len()
-            if space >= 0 { token_length = space.to_usize() }
-            token := body.substr(token_start, token_length)
-            token_start = token_start + token_length
-            if space >= 0 { token_start++ }
-            if token.len() == 0 || token == joined { continue }
-            if token == boundary { expected.push(own text.len()) }
-            else { text.push_str(Str.from_codepoint(hex(token))) }
+        body_length := body.len()
+        mut text := Str.with_capacity(body_length); mut expected := Vec(USize).new()
+        mut at : USize = 0
+        while at < body_length {
+            byte := body.unsafe_get(at).cast(U8)
+            if byte == 32 { at++; continue }
+            if byte == 0xc3 {
+                // U+00F7 (boundary) / U+00D7 (joined), in the unchanged UCD
+                // UTF-8 corpus. Check both bytes and the token separator.
+                assert(at + 1 < body_length)
+                marker := body.unsafe_get(at + 1).cast(U8)
+                if marker == 0xb7 { expected.push(own text.len()) }
+                else { assert(marker == 0x97) }
+                at = at + 2
+                assert(at == body_length || body.unsafe_get(at) == ' ')
+                continue
+            }
+            mut code : I64 = 0
+            while at < body_length {
+                digit_byte := body.unsafe_get(at).cast(U8)
+                if digit_byte == 32 { at++; break }
+                mut digit := digit_byte.to_i64() - 48
+                if digit_byte >= 65 && digit_byte <= 70 { digit = digit_byte.to_i64() - 65 + 10 }
+                else { assert(digit_byte >= 48 && digit_byte <= 57) }
+                code = code * 16 + digit
+                at++
+            }
+            text.push_str(Str.from_codepoint(code))
         }
         assert(expected[0] == 0)
         assert(expected[expected.len() - 1] == text.len())

@@ -63,6 +63,10 @@ The implementation, generator and conformance cases were extracted from Tiled
 installed std module rather than maintaining copied tables or decoders.
 
 =src/std/unicode/grapheme_data.til= contains generated, balanced range lookups.
+Hangul LV/LVT syllables use their 28-code-point cycle instead of 798 explicit
+ranges. The generator validates the complete UCD range pattern before emitting
+that calculation; a changed pattern fails regeneration rather than silently
+changing property values.
 =test/unicode_grapheme_cases.txt= preserves all 766 official Unicode 17.0
 grapheme cases. Preserve the corpus notices and =LICENSE/unicode.txt=.
 The Unicode corpus/license retain their original text; Til sources are ASCII.
