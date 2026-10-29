@@ -52,8 +52,9 @@ tracked in its fixed #15.
   it includes #370's fixes but does not yet include this Unicode change.
 - Performance was initially raised to understand increased suite totals. The
   user subsequently approved focused measurement/optimization with all other
-  sessions disabled. The controlled follow-up below changes corpus preparation
-  and grapheme navigation, not Str.split, codecs or the interpreter. Earlier
+  sessions disabled. The first controlled follow-up changed corpus preparation
+  and grapheme navigation; the later primitive follow-up optimizes UTF-8
+  encoding/decoding. Str.split and the interpreter are unchanged. Earlier
   concurrent-session timings remain unsuitable for performance conclusions.
 - Tests separate core UTF-8 (=test/utf8.til=) from graphemes. After the measured
   three-way split below, the user approved removing redundant work. The current
@@ -233,6 +234,58 @@ The count decreases by two because the shard wrappers were removed, not
 because any official conformance cases were dropped. The production Unicode
 implementation and corpus are unchanged. Full log:
 =tmp/unicode-focused-full-test.log=.
+
+*** UTF-8 primitive optimization
+
+On base =4859f9e8d=, measured the encoder and decoder separately before retaining
+each change. =Str.from_codepoint= now allocates one NUL-terminated buffer and
+fills its bytes, rather than allocating one Str per byte plus format's variadic
+array and final buffer. =Str.read_utf8= uses the stored byte count and checks
+the remaining view length before unchecked reads, avoiding repeated len/get
+dispatch and duplicate bounds checks. Scalar validation, maximal malformed
+prefixes, streaming behavior and the Str representation are unchanged.
+
+=test/utf8.til= adds independent expected bytes for the existing scalar boundary
+cases and checks the trailing NUL, so mutually wrong encoder/decoder results
+cannot pass by round-trip agreement. Existing streaming/truncated/view and
+malformed-input tests pass, as do all 766 grapheme cases in both backends.
+
+The temporary benchmark =tmp/utf8_perf.til= uses twelve mixed-width scalars,
+including NUL and the scalar range boundaries. Each run verifies byte counts
+and decoded checksums. All variants used the same compiler binary
+(=bin/til_asan=, revision =cc3fdd85c=); native builds used =--asan= and the default
+optimization level. Interpreted runs use 1,000 repetitions (12,000 scalars),
+native runs 1,000,000 (12,000,000 scalars). Runs are sequential and memory-limited.
+
+| Measurement                        | Original | Optimized |
+|------------------------------------+----------+-----------|
+| Interpreted encoding, two-run mean  | 29.240 s |   6.321 s |
+| Interpreted decoding, two-run mean  | 10.483 s |   9.118 s |
+| Native encoding, three-pair median |  7.856 s |   1.820 s |
+| Native decoding, three-pair median |  0.912 s |   0.542 s |
+| Full Unicode interpretation, mean  | 35.087 s |  30.153 s |
+
+Encoding alone measured 6.349 s interpreted / 1.701 s native, with the decoder
+unchanged, and 31.001 s for the Unicode test. The subsequent decoder change
+provided the additional gain above. The isolated Unicode test improvement is
+about 14%; the codec microbenchmark ratios are not whole-application speedups.
+
+Logs: =tmp/utf8-codec-baseline-interp.log= and its =-repeat= counterpart,
+=tmp/utf8-codec-decoder-interp.log=, =tmp/utf8-codec-optimized-interp-repeat.log=,
+=tmp/utf8-codec-native-pairs.log= and =tmp/utf8-codec-native-pairs-continued.log=.
+The =baseline-unicode=, =baseline-unicode-repeat=, =decoder-unicode= and
+=optimized-unicode-repeat= logs under the same =tmp/utf8-codec-= prefix record
+the full Unicode test comparisons. No benchmark code or timing probes enter
+the ordinary suite.
+
+Full verification on =4859f9e8d=: memory-limited foreground =make clean &&
+make test= passed 492/492 and regenerated bootstrap output. Unicode took
+91.49 s interpreted / 4.28 s compiled / 0.01 s native in the concurrent suite,
+below self-translation's 104.11 s. Suite wall time was 106.05 s, summed
+interpretation 428.27 s, mem-inte 52.92 GB and mem-comp 49.10 GB. The previous
+merged run recorded 102.38 s wall and 422.25 s interpretation, so this full run
+does not establish an aggregate suite speedup; the measured gains above are
+for the codecs and isolated Unicode workload. Log: =tmp/utf8-codec-full-test.log=.
 
 *** Request
 

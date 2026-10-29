@@ -292,8 +292,8 @@ static struct {
 };
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:197:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:201:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:214:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:218:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_11 = (Str){.c_str = (void *)"test/constfold.til:650:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_15 = (Str){.c_str = (void *)"test/constfold.til:655:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_19 = (Str){.c_str = (void *)"test/constfold.til:660:5", .count = 24ULL, .cap = TIL_CAP_LIT};

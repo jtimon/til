@@ -70,9 +70,23 @@ namespace:
     from_codepoint := func(code: I64) returns Str {
         assert(code >= 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff))
         if code < 128 { return Str.from_byte(code.to_u8()) }
-        if code < 2048 { return format(Str.from_byte((192 + code / 64).to_u8()), Str.from_byte((128 + code.mod(64)).to_u8())) }
-        if code < 65536 { return format(Str.from_byte((224 + code / 4096).to_u8()), Str.from_byte((128 + (code / 64).mod(64)).to_u8()), Str.from_byte((128 + code.mod(64)).to_u8())) }
-        return format(Str.from_byte((240 + code / 262144).to_u8()), Str.from_byte((128 + (code / 4096).mod(64)).to_u8()), Str.from_byte((128 + (code / 64).mod(64)).to_u8()), Str.from_byte((128 + code.mod(64)).to_u8()))
+        mut length : USize = 2; mut prefix : I64 = 192
+        if code >= 65536 { length = 4; prefix = 240 }
+        else if code >= 2048 { length = 3; prefix = 224 }
+        // Fill one owned buffer instead of allocating a Str per byte and
+        // a variadic array before format allocates the final string.
+        mut buf : I8 = malloc(length + 1)
+        mut value := code; mut index := length
+        while index > 1 {
+            index--
+            byte := (128 + value.mod(64)).to_u8()
+            memcpy(ptr_add(buf, index), byte, 1)
+            value = value / 64
+        }
+        first := (prefix + value).to_u8()
+        memcpy(buf, first, 1)
+        memset(ptr_add(buf, length), 0, 1)
+        return Str(c_str = buf, count = length, cap = length)
     }
 
     /// Decode at a byte offset (start <= len). Reads at most four bytes and
@@ -81,22 +95,25 @@ namespace:
     /// append the next chunk and retry. With final=true it yields U+FFFD.
     /// Every nonempty final read makes progress, including malformed input.
     read_utf8 := func(self: Str, start: USize, final: Bool = true) returns Utf8Read {
-        assert(start <= self.len())
-        if start == self.len() { return Utf8Read(end = start, incomplete = !final) }
-        first := self.get(start).cast(U8).to_i64()
+        assert(start <= self.count)
+        if start == self.count { return Utf8Read(end = start, incomplete = !final) }
+        // Bounds are checked here, including a borrowed view's byte length,
+        // before each unchecked read; get would repeat the same checks.
+        first := self.unsafe_get(start).cast(U8).to_i64()
         if first < 128 { return Utf8Read(value = first, end = start + 1, valid = true) }
         mut length : USize = 0; mut value : I64 = 0
         if first >= 194 && first <= 223 { length = 2; value = first - 192 }
         if first >= 224 && first <= 239 { length = 3; value = first - 224 }
         if first >= 240 && first <= 244 { length = 4; value = first - 240 }
         if length == 0 { return Utf8Read(value = 0xfffd, end = start + 1) }
+        available := self.count - start
         mut i : USize = 1
         while i < length {
-            if i >= self.len() - start {
+            if i >= available {
                 if !final { return Utf8Read(end = start, incomplete = true) }
-                return Utf8Read(value = 0xfffd, end = self.len())
+                return Utf8Read(value = 0xfffd, end = self.count)
             }
-            byte := self.get(start + i).cast(U8).to_i64()
+            byte := self.unsafe_get(start + i).cast(U8).to_i64()
             if byte < 128 || byte > 191 { return Utf8Read(value = 0xfffd, end = start + i) }
             if i == 1 && ((first == 224 && byte < 160) || (first == 237 && byte > 159) || (first == 240 && byte < 144) || (first == 244 && byte > 143)) {
                 return Utf8Read(value = 0xfffd, end = start + 1)
