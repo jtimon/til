@@ -55,11 +55,11 @@ tracked in its fixed #15.
   sessions disabled. The controlled follow-up below changes corpus preparation
   and grapheme navigation, not Str.split, codecs or the interpreter. Earlier
   concurrent-session timings remain unsuitable for performance conclusions.
-- Tests already separate core UTF-8 (=test/utf8.til=) from graphemes
-  (=test/unicode.til=). The user floated splitting the long corpus job; that
-  has not been implemented. Balanced jobs could reduce the parallel tail while
-  retaining every case/assertion, but would not reduce total interpreter work
-  and would repeat some module-loading work. Keep that decision explicit.
+- Tests separate core UTF-8 (=test/utf8.til=) from graphemes. The requested
+  balanced split now runs =test/unicode.til=, =test/unicode_second.til= and
+  =test/unicode_third.til= early, sharing =test/unicode_cases.til= and the original
+  corpus. It retains every assertion and trades repeated loading/scanning for a shorter
+  execution tail; the measured partitioning is recorded below.
 - The new base includes 3d1ac604d, which closes #370: native enum layouts and
   canonical generated-binding dependency composition. Host staging/reload,
   shared state ownership and callback lifetimes are still Tiled responsibilities.
@@ -149,6 +149,44 @@ was 164.50 s, summed interpretation 483.38 s, and the Unicode test took
 the machine with the suite. Log: =tmp/unicode-perf-full-test-final.log=.
 The preceding run's sole failure was an issue-number collision with master's
 new C identifier bug (#457); the extraction was renumbered to #458.
+
+*** Balanced conformance jobs
+
+After extraction merged as =681711b09=, the user requested that no Unicode
+job run longer than self-translation. Measured each case's preparation and
+assertions with the existing ASAN compiler and temporary =clock_ms()= probes.
+Three balanced contiguous ranges (zero-based) are [0, 323), [323, 586) and
+[586, 766), with measured case work of 27.600 s, 27.553 s and 27.578 s.
+A simple equal-count split would put too much work in the trailing cases.
+Log: =tmp/unicode-case-costs.log=; the scratch calculation is
+=tmp/unicode_balance.til=, with output =tmp/unicode-balance-thirds.log=.
+
+=test/unicode_cases.til= contains the shared parser/assertions and the single
+split/count definition. =test/unicode.til= retains scalar/malformed/empty
+checks and executes the first range; =test/unicode_second.til= and
+=test/unicode_third.til= execute the other two. Each job validates the corpus
+size and its checked count. All 766 cases and every original assertion run in
+both backends. The runner registers
+all three jobs just after self-translation, keeping separate compiled/interpreted
+result paths and the existing timing categories.
+
+The initial two-way cut at case 456 passed in isolation in 50.66 s and 49.40 s,
+but in the full suite took 117.85 s and 115.19 s, exceeding self-translation's
+107.53 s. That run passed 493/493 with 121.74 s wall time, but did not meet the
+requested per-job limit, so the final split uses thirds. Logs:
+=tmp/unicode-split-first.log=, =tmp/unicode-split-second.log= and
+=tmp/unicode-split-full-test.log=. Temporary timing probes were removed.
+
+Final three-way verification on =681711b09=: memory-limited foreground
+=make clean && make test= passed 494/494. Interpreted parts took 101.28 s,
+94.86 s and 100.12 s. Including their compilation/native execution, the jobs
+took 105.40 s, 99.16 s and 104.31 s: all below self-translation's 107.47 s.
+Suite wall time was 113.49 s, versus the merged unsplit run's 159.90 s.
+Summed interpretation was 635.02 s (the merged unsplit run recorded 466.24 s):
+the split shortens the tail but repeats loading/scanning and overlaps more
+interpreters competing for CPU; this metric sums elapsed times, not CPU time.
+Log: =tmp/unicode-thirds-full-test.log=. The corpus and production Unicode
+implementation are unchanged by this follow-up.
 
 *** Request
 

@@ -1,0 +1,85 @@
+mode lib
+import("std/file")
+import("std/unicode")
+
+UNICODE_CASE_TOTAL : USize = 766
+// Per-case ASAN interpretation measured 27.600s / 27.553s / 27.578s across
+// these cuts. Equal case counts would overload the longer trailing cases.
+UNICODE_CASE_FIRST_END : USize = 323
+UNICODE_CASE_SECOND_END : USize = 586
+
+hex := func(text: Str) returns I64 {
+    mut value : I64 = 0
+    for i in 0..text.len() {
+        byte := text.get(i).cast(U8).to_i64()
+        mut digit := byte - 48
+        if byte >= 65 && byte <= 70 { digit = byte - 65 + 10 }
+        else { assert(byte >= 48 && byte <= 57) }
+        value = value * 16 + digit
+    }
+    return value
+}
+check_unicode_cases := proc(first: USize, end: USize) {
+    assert(first < end && end <= UNICODE_CASE_TOTAL)
+    mut cases : USize = 0
+    mut checked : USize = 0
+    data := File.readfile("test/unicode_grapheme_cases.txt")
+    boundary := Str.from_codepoint(0xf7)
+    joined := Str.from_codepoint(0xd7)
+    // Walk line/token views instead of splitting and cloning the whole
+    // commented corpus. Only the prefix before '#' needs token parsing.
+    mut offset : USize = 0
+    while offset < data.len() {
+        remaining := data.substr(offset, data.len() - offset)
+        newline := remaining.find("\n")
+        mut length := remaining.len()
+        if newline >= 0 { length = newline.to_usize() }
+        line := data.substr(offset, length)
+        offset = offset + length
+        if newline >= 0 { offset++ }
+        comment := line.find("#")
+        mut body_end := line.len()
+        if comment >= 0 { body_end = comment.to_usize() }
+        body := line.substr(0, body_end).trim()
+        if body.len() == 0 { continue }
+        case_index := cases
+        cases++
+        if case_index < first || case_index >= end { continue }
+        // The corpus's hexadecimal spelling is longer than its UTF-8 output.
+        mut text := Str.with_capacity(body.len()); mut expected := Vec(USize).new()
+        mut token_start : USize = 0
+        while token_start < body.len() {
+            rest := body.substr(token_start, body.len() - token_start)
+            space := rest.find(" ")
+            mut token_length := rest.len()
+            if space >= 0 { token_length = space.to_usize() }
+            token := body.substr(token_start, token_length)
+            token_start = token_start + token_length
+            if space >= 0 { token_start++ }
+            if token.len() == 0 || token == joined { continue }
+            if token == boundary { expected.push(own text.len()) }
+            else { text.push_str(Str.from_codepoint(hex(token))) }
+        }
+        assert(expected[0] == 0)
+        for i in 1..expected.len() {
+            start := expected[i - 1].clone(); end := expected[i].clone()
+            if grapheme_next(text, start) != end || grapheme_previous(text, end) != start { panic("grapheme conformance: ", line) }
+            assert(grapheme_offset(text, 0, text.len(), i - 1) == start)
+            for byte in start..end {
+                assert(grapheme_floor(text, byte) == start)
+                mut ceil := end; if byte == start { ceil = start }
+                assert(grapheme_ceil(text, byte) == ceil)
+            }
+        }
+        assert(grapheme_count(text, 0, text.len()) == expected.len() - 1)
+        assert(grapheme_offset(text, 0, text.len(), expected.len() + 10) == text.len())
+        assert(grapheme_floor(text, text.len() + 10) == text.len())
+        assert(grapheme_ceil(text, text.len() + 10) == text.len())
+        checked++
+    }
+    // All jobs validate the corpus size; their complementary ranges and
+    // checked counts require every case to run, with no overlap or omissions.
+    assert(cases == UNICODE_CASE_TOTAL)
+    assert(checked == end - first)
+    println("PASS: ", checked, " Unicode 17.0 grapheme conformance cases [", first, ", ", end, ") of ", cases)
+}
