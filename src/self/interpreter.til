@@ -457,9 +457,9 @@ namespace:
         case .FuncDef(fd):
             matches = fd.sig.func_type.is_plain().and(def.children.len() > 0)
                 .and(fd.sig.variadic_index < 0).and(fd.sig.kwargs_index < 0)
-                .and(fd.sig.params.len() <= 63).and(fd.sig.throw_types.len() == 0)
+                .and(interp_callback_param_count(fd) <= 63).and(fd.sig.throw_types.len() <= 1)
             if signature.is(Type.None) {
-                matches = matches.and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0)
+                matches = matches.and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0).and(fd.sig.throw_types.len() == 0)
             }
         case:
         }
@@ -468,7 +468,7 @@ namespace:
             ref path : Str = lp.ctx.eval.function_paths[word_bits(to_ptr(def)).cast(UPtr)]
             mut message := format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")
             if signature.is(Type.None).not() {
-                message = format("'", name, "' requires a fixed callback signature with at most 63 scalar/Str arguments and no throws clause")
+                message = format("'", name, "' requires a fixed callback signature with at most 63 scalar/Str arguments and at most one shared error type")
             }
             err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col, message = message))
             throw err
@@ -493,7 +493,47 @@ namespace:
         contract := interp_lookup_signature(funcdef_of(def), lp.ctx).unwrap()
         // Invoke the retained callable, not its original global binding: a
         // copied handle owns independent captures, and the binding can change.
+        if contract.throw_types.len() > 0 {
+            mut err := TilVmError(phase = "call")
+            err.diagnostics.push(own TilVmDiagnostic(message = "throwing callback requires call_throwing"))
+            throw err
+        }
         result := interp_call_callable(session, lp, to_ptr(self.callable), contract, arguments)
+        if result.is_none() {
+            throw TilVmError(phase = "call", diagnostics = lp.ctx.diagnostics.clone(),
+                exit_status = lp.ctx.eval.exit_status.clone())
+        }
+        return Option(Tuple).take(own result)
+    }
+
+    /// Runtime bridge for call_throwing(E). error_payload must be empty;
+    /// a declared throw fills it with one independently owned host value.
+    invoke_throwing := proc(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError {
+        if self.session.is_none() {
+            mut err := TilVmError(phase = "call")
+            err.diagnostics.push(own TilVmDiagnostic(message = "callback has no callable; lookup must succeed before call"))
+            throw err
+        }
+        if error_payload.len() != 0 {
+            mut err := TilVmError(phase = "call")
+            err.diagnostics.push(own TilVmDiagnostic(message = "invoke_throwing requires an empty error payload"))
+            throw err
+        }
+        ref mut session : InterpSession = self.session.unwrap()
+        ref mut lp : LoadedProgram = interp_callback_program(session)
+        ref def : Expr = callable_raw_func_def(to_ptr(self.callable))
+        contract := interp_lookup_signature(funcdef_of(def), lp.ctx).unwrap()
+        if contract.throw_types.len() != 1 {
+            mut err := TilVmError(phase = "call")
+            err.diagnostics.push(own TilVmDiagnostic(message = "call_throwing requires exactly one declared guest error"))
+            throw err
+        }
+        if contract.throw_types[0] != til_type_name(error_type) {
+            mut err := TilVmError(phase = "call")
+            err.diagnostics.push(own TilVmDiagnostic(message = "guest error type does not match call_throwing type"))
+            throw err
+        }
+        result := interp_call_callable(session, lp, to_ptr(self.callable), contract, arguments, error_payload)
         if result.is_none() {
             throw TilVmError(phase = "call", diagnostics = lp.ctx.diagnostics.clone(),
                 exit_status = lp.ctx.eval.exit_status.clone())
@@ -516,6 +556,19 @@ namespace:
         TilVmCallback.close(self)
         free(own self.callable)
         if call_free { free(own self) }
+    }
+}
+
+/// Invoke a guest with one checked shared error schema. Declared errors
+/// become owned host E values; panic/exit/validation remain TilVmError.
+call_throwing := macro(E: Type) returns FuncDef {
+    return proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws E, TilVmError {
+        mut error_value := Tuple.new()
+        result := self.invoke_throwing(E, arguments, error_value)?
+        if error_value.len() > 0 {
+            throw E.clone(error_value.get(0))
+        }
+        return result
     }
 }
 
@@ -6521,9 +6574,13 @@ priv interp_lookup_type := func(name: Str, ctx: Context) returns Str {
 priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Option(FuncSig) {
     ref sig : FuncSig = fd.sig
     mut out := sig.clone()
-    // Match source signatures, using the same tail rule as reflection.
-    // Lowered throw slots are invocation ABI details, not extra parameters.
-    out.params.truncate(interp_funcsig_param_count(fd))
+    // Match source signatures. Lowered throw slots are invocation ABI details,
+    // not extra parameters; trailing defaults can follow those slots.
+    out.params.clear()
+    for param : Declaration in sig.params {
+        if param.name.starts_with("_err_") { continue }
+        out.params.push(own param.clone())
+    }
     for i in 0..out.params.len() {
         ref mut p : Declaration = out.params[i]
         mut name := interp_lookup_type(decl_type_name(p, ctx.symbols), ctx)
@@ -6607,7 +6664,53 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
             declaration.path, declaration.line, declaration.col, format("guest function signature mismatch: ", name))
         return Option(ref HeapBinding).None
     }
+    for error_type : Str in expected.throw_types {
+        if interp_callback_error_schema(error_type, lp.ctx).not() {
+            context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+                declaration.path, declaration.line, declaration.col,
+                format("unsupported or mismatched shared callback error schema: ", error_type))
+            return Option(ref HeapBinding).None
+        }
+    }
     return binding_o
+}
+
+priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns Bool {
+    if is_scalar_type_name(name).or(name == "Str") { return true }
+    guest_o := ctx.scope.get_struct(name, ctx.symbols)
+    if guest_o.is_none() { return false }
+    if guest_o.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+    ref guest : StructDef = structdef_of(guest_o.unwrap())
+    host := struct_def_of(name)
+    if host.fields.len() != guest.fields.len() { return false }
+    for i in 0..host.fields.len() {
+        ref hf : Declaration = host.fields[i]
+        ref gf : Declaration = guest.fields[i]
+        gn := interp_lookup_type(decl_type_name(gf, ctx.symbols), ctx)
+        if gn.len() == 0 { return false }
+        if hf.name != gf.name || hf.type_name() != gn || hf.is_mut != gf.is_mut { return false }
+        if hf.own_type.is(OwnType.Shallow).and(gf.own_type.is(OwnType.Shallow)).not() { return false }
+    }
+    ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
+    return layout.ptr.size.to_usize() == dyn_size_of(name)
+}
+
+priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Context) returns Dynamic {
+    t := type_from_name_init_name(name, ctx.scope, ctx.symbols)
+    if is_scalar_type_name(name).or(name == "Str") { return interp_call_copy(t, source, ctx) }
+    ref def : Expr = ctx.scope.get_struct(name, ctx.symbols).unwrap()
+    ref sd : StructDef = structdef_of(def)
+    ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
+    mut out : Dynamic = calloc(1, dyn_size_of(name))
+    for i in 0..sd.fields.len() {
+        ref field : Declaration = sd.fields[i]
+        ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
+        field_type := type_from_name_init_name(decl_type_name(field, ctx.symbols), ctx.scope, ctx.symbols)
+        copied : Dynamic = interp_call_copy(field_type, ptr_add(source, offset.to_usize()), ctx)
+        memcpy(ptr_add(out, offset.to_usize()), copied, raw_type_size(field_type, ctx))
+        EvalHeap.heap_free(own copied)
+    }
+    return out
 }
 
 priv interp_call_copy := func(t: Type, data: Dynamic, ctx: Context) returns Dynamic {
@@ -6626,6 +6729,26 @@ priv interp_call_copy := func(t: Type, data: Dynamic, ctx: Context) returns Dyna
     return out
 }
 
+// Hidden error slots precede trailing defaulted parameters, so source
+// arguments need a mapping rather than truncation at the first error slot.
+priv interp_callback_param_count := func(fd: FunctionDef) returns USize {
+    mut count : USize = 0
+    for p : Declaration in fd.sig.params {
+        if p.name.starts_with("_err_").not() { count = count + 1 }
+    }
+    return count
+}
+
+priv interp_callback_param_index := func(fd: FunctionDef, index: USize) returns USize {
+    mut source_index : USize = 0
+    for i in 0..fd.sig.params.len() {
+        if fd.sig.params[i].name.starts_with("_err_") { continue }
+        if source_index == index { return i }
+        source_index = source_index + 1
+    }
+    panic("callback source parameter index out of range")
+}
+
 // Internal call boundary using the existing typed Tuple storage. Host inputs
 // stay owned by arguments: the guest receives independent snapshots, transfers
 // those snapshots to own parameters, and writes borrowed mut snapshots back to the Tuple
@@ -6638,6 +6761,11 @@ interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedP
     interp_call_reset(lp.ctx)
     binding_o := interp_session_lookup_function(session, lp, name, expected)
     if binding_o.is_none() { return Option(Tuple).None }
+    if expected.throw_types.len() > 0 {
+        context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, "", 0, 0,
+            "throwing callback requires call_throwing")
+        return Option(Tuple).None
+    }
     return interp_call_callable(session, lp, binding_o.unwrap().ptr, expected, arguments)
 }
 
@@ -6651,7 +6779,7 @@ priv interp_call_reset := func(mut ctx: Context) {
 // Both named internal calls and public retained handles use this marshaller.
 // callable is an existing evaluator slot; never resolve it by its source name.
 priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProgram,
-    mut callable: Dynamic, expected: FuncSig, mut arguments: Tuple) returns Option(Tuple) {
+    mut callable: Dynamic, expected: FuncSig, mut arguments: Tuple, mut error_value: Tuple = Tuple.new()) returns Option(Tuple) {
     if lp.ctx.eval.embedded.not() { panic("guest invocation requires embedded evaluation policy") }
     mut retained := false
     for program in session.retained_programs { if program.p.ptr_eq(lp) { retained = true } }
@@ -6660,9 +6788,9 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     ref mut def : Expr = callable_raw_func_def(callable)
     ref fd : FunctionDef = funcdef_of(def)
     path := lp.ctx.eval.function_paths[word_bits(def).cast(UPtr)].clone()
-    if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)).or(expected.throw_types.len() > 0) {
+    if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)).or(expected.throw_types.len() > 1) {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-            "guest invocation does not yet marshal variadic, kwargs, or throwing contracts")
+            "guest invocation does not yet marshal variadic, kwargs, or multiple-error contracts")
         return Option(Tuple).None
     }
     if arguments.len() != expected.params.len() || expected.params.len() > 63 {
@@ -6703,10 +6831,24 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         // argument slots cannot shadow a user global inside a static function.
         arg_name := format("TilVm.argument.", i.to_str())
         scope_set_raw_owned(temps, arg_name, copy, interp_intern_type(t, lp.ctx), OwnType.Own, lp.ctx)
+    }
+    mut source_index : USize = 0
+    for pi in 0..fd.sig.params.len() {
+        ref param : Declaration = fd.sig.params[pi]
+        t := declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols)
+        mut arg_name := param.name.clone()
+        if param.name.starts_with("_err_") {
+            mut storage : Dynamic = EvalHeap.heap_alloc(raw_type_size(t, lp.ctx))
+            memset(storage, 0, raw_type_size(t, lp.ctx))
+            scope_set_raw_owned(temps, arg_name, storage, interp_intern_type(t, lp.ctx), OwnType.Own, lp.ctx)
+        } else {
+            arg_name = format("TilVm.argument.", source_index.to_str())
+            source_index = source_index + 1
+        }
         mut arg := Expr.new(own ident_node(lp.ctx.symbols.intern(arg_name)), def.line, def.col)
         arg.set_til_type(t)
         call.add_child(own arg)
-        if fd.sig.params[i].own_type.is(OwnType.Own) { set_own_arg(call, i + 1) }
+        if param.own_type.is(OwnType.Own) { set_own_arg(call, pi + 1) }
     }
     context_enter_file(lp.ctx, path)
     lp.ctx.eval.failure_site = SourceDiagnostic(phase = DiagnosticPhase.Runtime,
@@ -6715,7 +6857,24 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     if expected.return_type.len() > 0 { destination = EvalHeap.heap_alloc(raw_type_size(ret_type, lp.ctx)) }
     result : Dynamic = eval_callable_call(temps, call, callable, lp.ctx, destination)
     mut values := Tuple.new()
-    if lp.ctx.eval.eval_aborted.not().and(expected.return_type.len() > 0) {
+    mut declared_error := false
+    if lp.ctx.eval.eval_aborted.not().and(expected.throw_types.len() == 1) {
+        ref kind_slot : HeapBinding = scope_lookup_heap_binding(temps, "_err_kind").unwrap()
+        ref kind : I64 = to_ptr(kind_slot.ptr)
+        if kind != 0 {
+            declared_error = true
+            ref name : Str = expected.throw_types[0]
+            if throw_type_has_payload(lp.ctx, name) {
+                ref payload : HeapBinding = scope_lookup_heap_binding(temps, format("_err_", name)).unwrap()
+                copied : Dynamic = interp_callback_error_copy(name, payload.ptr, lp.ctx)
+                error_value.push_type_name(own name.clone(), own copied)
+            } else {
+                mut empty : Dynamic = calloc(1, dyn_size_of(name))
+                error_value.push_type_name(own name.clone(), own empty)
+            }
+        }
+    }
+    if lp.ctx.eval.eval_aborted.or(declared_error).not().and(expected.return_type.len() > 0) {
         copied : Dynamic = interp_call_copy(ret_type, result, lp.ctx)
         values.push_type_name(own expected.return_type.clone(), own copied)
     }
@@ -6724,7 +6883,8 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         EvalHeap.heap_free(own destination)
     }
     for i in 0..arguments.len() {
-        if fd.sig.params[i].is_mut.and(fd.sig.params[i].own_type.is(OwnType.Ref)) {
+        ref param : Declaration = fd.sig.params[interp_callback_param_index(fd, i)]
+        if param.is_mut.and(param.own_type.is(OwnType.Ref)) {
             arg_name := format("TilVm.argument.", i.to_str())
             ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
             t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
@@ -8320,6 +8480,20 @@ priv h_struct_field_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut 
     return true
 }
 
+priv h_struct_field_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    idx := eval_index_arg(s, e, ctx)
+    node_o := interp_lookup_struct(s, e, type_name, "struct_field_own_type", ctx)
+    if node_o.is_none() { return true }
+    ref sd : StructDef = structdef_of(node_o.unwrap())
+    if idx >= sd.fields.len() {
+        interp_reflect_index_out_of_range(e, "struct_field_own_type", type_name, idx, ctx)
+        return true
+    }
+    write_i64(r, own_type_to_i64(sd.field_at(idx).own_type))
+    return true
+}
+
 // Look up a registered enum type's AST node by name, erroring out if
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
@@ -9519,6 +9693,8 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("struct_field_count", h_struct_field_count, ctx)
     reg_dispatch("struct_field_name", h_struct_field_name, ctx)
     reg_dispatch("struct_field_is_mut", h_struct_field_is_mut, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("struct_def_of", ctx.symbols).unwrap().path,
+        "struct_field_own_type"), h_struct_field_own_type, ctx)
     reg_dispatch("struct_field_type", h_struct_field_type, ctx)
     reg_dispatch("enum_variant_count", h_enum_variant_count, ctx)
     reg_dispatch("enum_variant_name", h_enum_variant_name, ctx)

@@ -4656,6 +4656,12 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             f.write("struct_field_count(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(")")
+        } else if builder_is_struct_ownership_query(name.ident_name(ctx.symbols.names), ctx.scope, ctx.symbols) {
+            f.write(name.ident_name(ctx.symbols.names)).write("(")
+            emit_as_ptr(f, e.children[1], depth, false, ctx)
+            f.write(", ")
+            emit_as_ptr(f, e.children[2], depth, false, ctx)
+            f.write(")")
         } else if name.ident_name(ctx.symbols.names).eq("struct_field_name").or(name.ident_name(ctx.symbols.names).eq("struct_field_is_mut")).or(name.ident_name(ctx.symbols.names).eq("struct_field_type")) {
             f.write(name.ident_name(ctx.symbols.names))
             f.write("(")
@@ -9076,6 +9082,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if builder_needs_reflect("struct_field_is_mut", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_is_mut(Str *type_name, I64 *index);\n")
     }
+    if builder_needs_reflect("struct_field_own_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("struct_def_of", lp.ctx.symbols).unwrap().path, "struct_field_own_type"))
+            .write("(Str *type_name, I64 *index);\n")
+    }
     if builder_needs_reflect("struct_field_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index);\n")
     }
@@ -9740,7 +9750,8 @@ priv emit_reflect_not_found_tail := proc(f: File, who: Str) {
 }
 
 // Issue #56/#58: emit one struct's branch for a struct_field_* function.
-// kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type.
+// kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type,
+// 4 = ownership (private query used by struct_def_of).
 priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
@@ -9765,6 +9776,8 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
                     emit_str_lit_expr(f, sd.field_name_at(i), ctx)
                 } else if kind == 2 {
                     if fd.is_mut { f.write("1") } else { f.write("0") }
+                } else if kind == 4 {
+                    f.write(own_type_to_i64(fd.own_type).to_str())
                 } else {
                     emit_str_lit_expr(f, decl_type_name_ref(fd, ctx.symbols), ctx)
                 }
@@ -9790,8 +9803,14 @@ priv emit_struct_field_branches := proc(f: File, kind: I32, mut lp: LoadedProgra
 // primitives, mirroring rstil's emit_introspection_metadata. Each is a
 // strcmp chain over every loaded struct type.
 // Each member is gated on ITS OWN name (see the prototype block): the
-// family key says the metadata is needed, not that all four bodies are.
+// family key says the metadata is needed, not that all five bodies are.
 priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
+    if builder_needs_reflect("struct_field_own_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("struct_def_of", lp.ctx.symbols).unwrap().path, "struct_field_own_type"))
+            .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
+        emit_struct_field_branches(f, 4, lp)
+        emit_reflect_index_tails(f, "struct_field_own_type")
+    }
     if builder_needs_reflect("struct_field_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_count(Str *type_name) {\n")
         emit_struct_field_branches(f, 0, lp)
@@ -12684,9 +12703,21 @@ priv builder_record_reflect_name := func(n: Str, mut inv: Set(Str)) {
         if inv.has("func_sig_").not() { inv.add(own Str.clone("func_sig_")) }
     }
 }
-priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str), symbols: SymbolPool) {
+// The ownership query is private to core/dyn. Resolve its actual module's
+// mangled identity, including for an installed SDK at a different path.
+priv builder_is_struct_ownership_query := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if name.ends_with("__struct_field_own_type").not() { return false }
+    def_o := scope.get_binding_name("struct_def_of", symbols)
+    if def_o.is_none() { return false }
+    return name == priv_c_name(def_o.unwrap().path, "struct_field_own_type")
+}
+
+priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str), scope: TypeScope, symbols: SymbolPool) {
     switch e.node_type {
     case .Ident(rid):
+        if builder_is_struct_ownership_query(rid.ident_name(symbols.names), scope, symbols) {
+            builder_record_reflect_name("struct_field_own_type", inv)
+        }
         if builder_is_reflect_builtin_name(rid.ident_name(symbols.names)) {
             builder_record_reflect_name(rid.ident_name(symbols.names), inv)
         }
@@ -12696,11 +12727,11 @@ priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str), symbo
         ref cri_ns : Vec(Declaration) = def_ns_decls(e)
         for cri_d : Declaration in cri_ns {
             if cri_d.default_value.is_none() { continue }
-            builder_collect_reflect_inventory(cri_d.default_expr(), inv, symbols)
+            builder_collect_reflect_inventory(cri_d.default_expr(), inv, scope, symbols)
         }
     }
     for cri_c : Expr in e.children {
-        builder_collect_reflect_inventory(cri_c, inv, symbols)
+        builder_collect_reflect_inventory(cri_c, inv, scope, symbols)
     }
 }
 priv builder_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str), symbols: SymbolPool) {
@@ -12898,7 +12929,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     mut inv_dup_names := Set(Str).new()
     mut inv_coll_infos := Vec(CollectionInfo).new()
     for upath : Str in lp.unit_paths() {
-        builder_collect_reflect_inventory(lp.ctx.imported[upath].ast, lp.ctx.builder_reflect_inventory, lp.ctx.symbols)
+        builder_collect_reflect_inventory(lp.ctx.imported[upath].ast, lp.ctx.builder_reflect_inventory, lp.ctx.scope, lp.ctx.symbols)
         builder_collect_dyn_fn_targets(lp.ctx.imported[upath].ast, lp.ctx.builder_dyn_fn_targets, lp.ctx.symbols)
         collect_typed_dyn_fn_sigs(lp.ctx.imported[upath].ast, lp.ctx.builder_typed_dyn_fn_sigs, lp.ctx.builder_typed_dyn_fn_casts, lp.ctx.scope, lp.ctx.symbols)
         builder_collect_lit_guard_use(lp.ctx.imported[upath].ast, lp.ctx.builder_lit_guard_used, lp.ctx.symbols)

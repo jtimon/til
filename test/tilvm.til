@@ -470,7 +470,14 @@ typed_callback_tests := proc(root: Str) {
     expect_lookup_failure(vm, "borrowed", "signature mismatch", signature = HostText)
     expect_lookup_failure(vm, "variadic", "fixed callback signature", signature = HostVariadic)
     expect_lookup_failure(vm, "keywords", "fixed callback signature", signature = HostKeywords)
-    expect_lookup_failure(vm, "throwing", "throws clause", signature = HostThrowing)
+    mut throwing := vm.lookup("throwing", HostThrowing)!
+    mut throw_args := Tuple.new()
+    throw_args.push(I64, own -1)
+    mut caught_throw := false
+    call_throwing(HostThrow)(throwing, throw_args)?
+    catch (e: HostThrow) { caught_throw = true }
+    catch (e: TilVmError) { panic(e.to_str()) }
+    assert(caught_throw)
     expect_lookup_failure(vm, "record", "registered host types", signature = HostRecordCall)
     expect_lookup_failure(vm, "binary", "named function-signature type", signature = Str)
 
@@ -612,7 +619,115 @@ typed_callback_tests := proc(root: Str) {
     assert(failure.to_str().contains("call failed") && exit_error.exit_status.unwrap() == 0)
 }
 
+TransformError := struct { code: I32 = 0; message := "" }
+ThrowTransform := proc(mut Str, I64) returns Str throws TransformError
+WrongTransform := proc(mut Str, I64) returns Str throws HostThrow
+
+throwing_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "mut count := 0\n",
+        "message := format(\"guest \", \"view payload\")\n",
+        "read_count := proc() returns I64 { noop_proc(); return count }\n",
+        "transform := proc(mut text: Str, action: I64 = 0) returns Str throws TransformError {\n",
+        "noop_proc(); count = count + 1; text = format(text, \"!\");\n",
+        "if action == 1 { throw TransformError(code = 7, message = format(\"failure \", count.to_str())) };\n",
+        "if action == 2 { panic(\"guest panic\") }; if action == 3 { exit(0) };\n",
+        "if action == 4 { throw TransformError(code = 8, message = \"guest literal\") };\n",
+        "if action == 5 { throw TransformError(code = 9, message = message.substr(6, 12)) };\n",
+        "return text.clone() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut callback := vm.lookup("transform", ThrowTransform)!
+    expect_lookup_failure(vm, "transform", "signature mismatch", signature = WrongTransform)
+    mut read_count := vm.lookup("read_count", HostTick)!
+    mut wrong_args := Tuple.new()
+    wrong_args.push(Str, own format("unchanged", " input"))
+    wrong_args.push(I64, own 0)
+    mut wrong_error := false
+    call_throwing(HostThrow)(callback, wrong_args)?
+    catch (err: HostThrow) { panic("wrong error type executed guest code") }
+    catch (err: TilVmError) { wrong_error = err.to_str().contains("error type does not match") }
+    assert(wrong_error)
+    mut rejected_plain := false
+    callback.call(wrong_args)?
+    catch (err: TilVmError) { rejected_plain = err.to_str().contains("requires call_throwing") }
+    assert(rejected_plain)
+    mut empty := Tuple.new()
+    mut rejected_count := false
+    call_throwing(TransformError)(callback, empty)?
+    catch (err: TransformError) { panic("invalid arguments executed guest code") }
+    catch (err: TilVmError) { rejected_count = err.to_str().contains("count mismatch") }
+    assert(rejected_count)
+    mut bad_types := Tuple.new()
+    bad_types.push(Str, own format("unchanged", " input"))
+    bad_types.push(Bool, own true)
+    mut rejected_type := false
+    call_throwing(TransformError)(callback, bad_types)?
+    catch (err: TransformError) { panic("wrong argument type executed guest code") }
+    catch (err: TilVmError) { rejected_type = err.to_str().contains("type/width mismatch") }
+    assert(rejected_type)
+    count_result := read_count.call()!
+    ref initial_count : I64 = count_result.get(0)
+    assert(initial_count == 0)
+    ref unchanged : Str = wrong_args.get(0)
+    assert(unchanged == "unchanged input")
+    mut kept := Vec(TransformError).new()
+    for action in 0..6 {
+        mut args := Tuple.new()
+        args.push(Str, own format("host", " text"))
+        args.push(I64, own action.clone())
+        mut caught := false
+        result := call_throwing(TransformError)(callback, args)?
+        catch (err: TransformError) {
+            assert(action == 1 || action >= 4)
+            kept.push(own err.clone())
+            caught = true
+        }
+        catch (err: TilVmError) {
+            assert(action == 2 || action == 3)
+            if action == 2 { assert(err.to_str().contains("guest panic")) }
+            if action == 3 { assert(err.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if action == 0 { ref text : Str = result.get(0); assert(text == "host text!") }
+        else { assert(caught) }
+        ref updated : Str = args.get(0)
+        assert(updated == "host text!")
+    }
+    mut args := Tuple.new()
+    args.push(Str, own format("ag", "ain"))
+    args.push(I64, own 0)
+    result := call_throwing(TransformError)(callback, args)!
+    final_count_result := read_count.call()!
+    ref final_count : I64 = final_count_result.get(0)
+    assert(final_count == 7)
+    own read_count.delete()
+    own callback.delete()
+    own vm.delete()
+    ref text : Str = result.get(0)
+    assert(text == "again!")
+    assert(kept[0].code == 7 && kept[0].message == "failure 2")
+    assert(kept[1].code == 8 && kept[1].message == "guest literal")
+    assert(kept[2].code == 9 && kept[2].message == "view payload")
+}
+
+throwing_schema_tests := proc(root: Str) {
+    // Identical type names do not excuse differing field types or ownership.
+    for fields : Str in array(Str, "code: I64 = 0; message := \"\"",
+        "code: I32 = 0; ref message: Str = \"\"") {
+        File.writefile("guest.til", format("mode lib\nTransformError := struct { ", fields, " }\n",
+            "transform := proc(mut text: Str, action: I64) returns Str throws TransformError {\n",
+            "noop_proc(); text = \"executed\"; if action == 1 { throw TransformError() }; return text.clone() }\n"))
+        mut vm := TilVm.new(root)
+        vm.load_file("guest.til")!
+        expect_lookup_failure(vm, "transform", "shared callback error schema", signature = ThrowTransform)
+    }
+}
+
 main := proc(root: Str) returns I64 {
+    throwing_callback_tests(root)
+    throwing_schema_tests(root)
     checked_lookup(root)
     callback_tests(root)
     typed_callback_tests(root)
