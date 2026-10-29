@@ -1,0 +1,124 @@
+mode lib
+import("unicode/grapheme_data")
+
+// Unicode 17.0 extended grapheme clusters (UAX #29), extracted from Tiled.
+// Str's core UTF-8 reader preserves the original bytes. Malformed maximal
+// prefixes participate in segmentation as U+FFFD, without rewriting the input.
+
+/// Whether code is a Unicode scalar (excludes surrogates and out-of-range values).
+unicode_scalar := func(code: I64) returns Bool {
+    return code >= 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff)
+}
+
+// Decide the boundary before updating cluster state. Indic and emoji lookups
+// are needed here only for GB9c/GB11; ordinary breaks need neither table.
+priv grapheme_join := func(previous: I64, current: I64, indic: I64, code: I64, joined_emoji: Bool, ri: I64) returns Bool {
+    if previous == 1 && current == 2 { return true } // GB3: CR LF
+    if previous == 1 || previous == 2 || previous == 3 || current == 1 || current == 2 || current == 3 { return false }
+    if previous == 9 && (current == 9 || current == 10 || current == 12 || current == 13) { return true }
+    if (previous == 12 || previous == 10) && (current == 10 || current == 11) { return true }
+    if (previous == 13 || previous == 11) && current == 11 { return true }
+    if current == 4 || current == 5 || current == 8 || previous == 7 { return true }
+    if indic == 2 && unicode_incb(code) == 1 { return true } // GB9c
+    if previous == 5 && joined_emoji && unicode_pictographic(code) != 0 { return true } // GB11
+    return previous == 6 && current == 6 && ri.mod(2) == 1
+}
+
+/// Next extended grapheme boundary as a byte offset. Start must already be
+/// a boundary in the complete text (or len, which returns len).
+/// Linear in the traversed cluster, with balanced Unicode property lookups.
+// UAX #29 GB3..GB999. State stays within one extended grapheme cluster.
+grapheme_next := func(text: Str, start: USize) returns USize {
+    length := text.len()
+    assert(start <= length)
+    if start == length { return start }
+    first := text.read_utf8(start)
+    mut pos := first.end
+    if pos == length { return pos } // GB2: no properties needed at end-of-input.
+    // ASCII controls break except CR LF; two ordinary ASCII scalars also
+    // break. An ASCII base followed by non-ASCII still needs the full rules.
+    if first.value < 128 {
+        if first.value < 32 || first.value == 127 {
+            if first.value == 13 && text.get(pos) == '\n' { return pos + 1 }
+            return pos
+        }
+        if text.get(pos).cast(U8) < 128 { return pos }
+    }
+    mut previous := unicode_grapheme_property(first.value)
+    mut ri : I64 = 0; if previous == 6 { ri = 1 }
+    mut pictographic := unicode_pictographic(first.value) != 0
+    mut joined_emoji := false
+    mut indic : I64 = 0; if unicode_incb(first.value) == 1 { indic = 1 }
+    while pos < length {
+        scalar := text.read_utf8(pos)
+        current := unicode_grapheme_property(scalar.value)
+        if !grapheme_join(previous, current, indic, scalar.value, joined_emoji, ri) { break }
+        if scalar.end == length { return length }
+        incb := unicode_incb(scalar.value)
+        ep := unicode_pictographic(scalar.value) != 0
+        joined_emoji = current == 5 && pictographic
+        if ep { pictographic = true } else if current != 4 { pictographic = false }
+        if incb == 1 { indic = 1 }
+        else if incb == 3 && indic > 0 { indic = 2 }
+        else if incb != 2 { indic = 0 }
+        if current == 6 { ri = ri + 1 } else { ri = 0 }
+        previous = current; pos = scalar.end
+    }
+    return pos
+}
+// A preceding LF is a safe segmentation restart. Include a preceding CR when
+// navigating over CRLF. These scans are linear in the current logical line.
+priv grapheme_anchor := func(text: Str, position: USize) returns USize {
+    mut at := position
+    while at > 0 {
+        if text.get(at - 1) == '\n' { break }
+        at--
+    }
+    return at
+}
+/// Boundary at or before a byte position, clamped to len. Accepts positions
+/// inside UTF-8 scalars or grapheme clusters. Linear in the logical line.
+grapheme_floor := func(text: Str, position: USize) returns USize {
+    // End-of-input is already a boundary; no line scan is needed to clamp.
+    if position >= text.len() { return text.len() }
+    end := position
+    mut at := grapheme_anchor(text, end)
+    while at < end { next := grapheme_next(text, at); if next > end { return at }; at = next }
+    return at
+}
+/// Boundary strictly before a byte position (<= len), or zero at the start.
+/// Accepts interior positions. Linear in the logical line, not constant-time
+/// character indexing; forward scans should use grapheme_next.
+grapheme_previous := func(text: Str, position: USize) returns USize {
+    assert(position <= text.len())
+    if position == 0 { return 0 }
+    mut at := grapheme_anchor(text, position - 1)
+    while true { next := grapheme_next(text, at); if next >= position { return at }; at = next }
+}
+/// Boundary at or after a byte position, clamped to len. Same scan complexity
+/// as grapheme_floor; never changes or copies the input bytes.
+grapheme_ceil := func(text: Str, position: USize) returns USize {
+    if position >= text.len() { return text.len() }
+    // Keep the enclosing cluster's end rather than finding its start with
+    // floor and then decoding that same cluster again.
+    mut at := grapheme_anchor(text, position)
+    while at < position { at = grapheme_next(text, at) }
+    return at
+}
+/// Number of graphemes in [start, end). Both offsets must be boundaries in
+/// the complete text, with start <= end <= len. This is not display width.
+grapheme_count := func(text: Str, start: USize, end: USize) returns USize {
+    assert(start <= end && end <= text.len())
+    mut at := start; mut count : USize = 0
+    while at < end { at = grapheme_next(text, at); count++ }
+    return count
+}
+/// Byte offset after index graphemes in [start, end), clamped to end.
+/// Both endpoints must be boundaries. Linear in the traversed range.
+grapheme_offset := func(text: Str, start: USize, end: USize, index: USize) returns USize {
+    assert(start <= end && end <= text.len())
+    mut at := start; mut count : USize = 0
+    while at < end && count < index { at = grapheme_next(text, at); count++ }
+    if at > end { return end }
+    return at
+}

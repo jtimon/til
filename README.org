@@ -184,6 +184,8 @@ Bundled internal dependency licenses:
 - ~vendor/tinyfiledialogs/~ — [[file:LICENSE/tinyfiledialogs.txt]]
 - ~vendor/nng/~ — [[file:LICENSE/nng.txt]]
 - ~vendor/secp256k1/~ — [[file:LICENSE/secp256k1.txt]]
+- Unicode property/conformance data: [[file:LICENSE/unicode.txt]] (Unicode License v3,
+  permissive; requires retaining the notice, not copyleft).
 
 * Usage
 

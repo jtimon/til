@@ -76,6 +76,10 @@ main := proc() returns I64 {
     require(format(PREFIX, "/lib/til/src/core/core.til"))
     require(format(PREFIX, "/lib/til/src/std/file.til"))
     require(format(PREFIX, "/lib/til/src/std/tilvm.til"))
+    require(format(PREFIX, "/lib/til/src/std/unicode.til"))
+    require(format(PREFIX, "/lib/til/src/std/unicode/grapheme_data.til"))
+    require(format(PREFIX, "/lib/til/LICENSE/unicode.txt"))
+    require(format(PREFIX, "/lib/til/LICENSE/MIT.txt"))
     require(format(PREFIX, "/lib/til/src/self/interpreter.til"))
     require(format(PREFIX, "/lib/til/vendor/libffi/build-", target_to_str(detect_current_target()), "/.libs/libffi.a"))
     require(format(PREFIX, "/lib/til/vendor/bindings/raylib.til"))
@@ -119,8 +123,11 @@ main := proc() returns I64 {
     }
     File.writefile(format(WORK, "/installed_probe.til"), format(
         "mode cli\n\n",
-        "import(\"std/file\")\n\n",
+        "import(\"std/file\")\nimport(\"std/unicode\")\n\n",
         "main := proc() returns I64 {\n",
+        "    text := format(\"e\", Str.from_codepoint(0x301), Str.from_codepoint(0x1f600))\n",
+        "    assert(text.is_valid_utf8() && text.read_utf8(1).value == 0x301)\n",
+        "    assert(grapheme_count(text, 0, text.len()) == 2 && grapheme_next(text, 0) == 3)\n",
         "    File.writefile(\"probe.txt\", \"installed til works\")\n",
         "    print(File.readfile(\"probe.txt\"))\n",
         "    return 0\n",
@@ -140,6 +147,9 @@ main := proc() returns I64 {
     if run.out() != "installed til works" {
         panic("the program built by the installed til printed '", run.out(), "'")
     }
+    interpreted := Cmd.new(installed_til, "interpret", "installed_probe.til")
+    interpreted.cwd(WORK).capture()
+    assert(interpreted.run() == 0 && interpreted.out() == "installed til works")
 
     // #413: an isolated external project, a non-default install prefix,
     // nested imports and a cwd different from the entrypoint's directory.

@@ -39,7 +39,22 @@ concat3 := func(a: Str, b: Str, c: Str) returns Str {
     return out
 }
 
-/// UTF-8 string with owned heap storage. The byte buffer is typed as
+/// Result of decoding one UTF-8 scalar from a Str. This is not a string type.
+/// ~end~ is the next byte offset. Valid input sets ~valid~ and ~value~.
+/// Malformed input sets value to U+FFFD and consumes its maximal valid prefix.
+/// Non-final incomplete input consumes nothing and sets ~incomplete~.
+/// At end-of-input value is -1, valid is false, and incomplete is !final.
+Utf8Read := struct {
+    value : I64 = -1
+    end : USize = 0
+    valid := false
+    incomplete := false
+}
+
+/// Byte string, conventionally UTF-8, with owned or borrowed storage. UTF-8
+/// validity is explicit; length, indexing and slicing remain byte-oriented.
+/// Embedded NUL bytes are retained, but NUL-terminated C APIs stop at them.
+/// The byte buffer is typed as
 /// I8 (= C ~char~) so direct FFI bindings against ~const char *~ APIs
 /// can pass ~s.c_str~ without an intermediate pointer-cast helper.
 Str := struct {
@@ -49,6 +64,59 @@ Str := struct {
 
 namespace:
     len := func(self: Str) returns USize { return self.count }
+
+    /// Encode a Unicode scalar as UTF-8. Panics for negatives, surrogates or
+    /// values above U+10FFFF. U+0000 produces a one-byte Str containing NUL.
+    from_codepoint := func(code: I64) returns Str {
+        assert(code >= 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff))
+        if code < 128 { return Str.from_byte(code.to_u8()) }
+        if code < 2048 { return format(Str.from_byte((192 + code / 64).to_u8()), Str.from_byte((128 + code.mod(64)).to_u8())) }
+        if code < 65536 { return format(Str.from_byte((224 + code / 4096).to_u8()), Str.from_byte((128 + (code / 64).mod(64)).to_u8()), Str.from_byte((128 + code.mod(64)).to_u8())) }
+        return format(Str.from_byte((240 + code / 262144).to_u8()), Str.from_byte((128 + (code / 4096).mod(64)).to_u8()), Str.from_byte((128 + (code / 64).mod(64)).to_u8()), Str.from_byte((128 + code.mod(64)).to_u8()))
+    }
+
+    /// Decode at a byte offset (start <= len). Reads at most four bytes and
+    /// does not modify the input. A continuation-byte start is malformed.
+    /// With final=false an incomplete prefix consumes nothing: retain it,
+    /// append the next chunk and retry. With final=true it yields U+FFFD.
+    /// Every nonempty final read makes progress, including malformed input.
+    read_utf8 := func(self: Str, start: USize, final: Bool = true) returns Utf8Read {
+        assert(start <= self.len())
+        if start == self.len() { return Utf8Read(end = start, incomplete = !final) }
+        first := self.get(start).cast(U8).to_i64()
+        if first < 128 { return Utf8Read(value = first, end = start + 1, valid = true) }
+        mut length : USize = 0; mut value : I64 = 0
+        if first >= 194 && first <= 223 { length = 2; value = first - 192 }
+        if first >= 224 && first <= 239 { length = 3; value = first - 224 }
+        if first >= 240 && first <= 244 { length = 4; value = first - 240 }
+        if length == 0 { return Utf8Read(value = 0xfffd, end = start + 1) }
+        mut i : USize = 1
+        while i < length {
+            if i >= self.len() - start {
+                if !final { return Utf8Read(end = start, incomplete = true) }
+                return Utf8Read(value = 0xfffd, end = self.len())
+            }
+            byte := self.get(start + i).cast(U8).to_i64()
+            if byte < 128 || byte > 191 { return Utf8Read(value = 0xfffd, end = start + i) }
+            if i == 1 && ((first == 224 && byte < 160) || (first == 237 && byte > 159) || (first == 240 && byte < 144) || (first == 244 && byte > 143)) {
+                return Utf8Read(value = 0xfffd, end = start + 1)
+            }
+            value = value * 64 + byte - 128; i++
+        }
+        return Utf8Read(value = value, end = start + length, valid = true)
+    }
+
+    /// True for well-formed UTF-8 (including empty input and embedded NUL).
+    /// Linear in byte length; never replaces or normalizes the stored bytes.
+    is_valid_utf8 := func(self: Str) returns Bool {
+        mut pos : USize = 0
+        while pos < self.len() {
+            scalar := self.read_utf8(pos)
+            if !scalar.valid { return false }
+            pos = scalar.end
+        }
+        return true
+    }
 
     /// Return a ref to byte ~i~. Panics if ~i~ is out of bounds.
     get := func(self: Str, i: USize) returns ref I8 {

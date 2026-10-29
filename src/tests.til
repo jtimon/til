@@ -2319,6 +2319,8 @@ main := proc(args: ..Str) {
     add_single(tests, "fold_print_macro_error_exit", "typer", 1, "",
         format(til_bin, " interpret test/fold_print_macro_error.til"))
     add_both(tests, "test/strings.til", flags)
+    add_both(tests, "test/utf8.til", flags)
+    add_both(tests, "test/unicode.til", flags)
     add_both(tests, "test/enums.til", flags)
     add_both(tests, "test/option.til", flags)
     add_both(tests, "test/match.til", flags)

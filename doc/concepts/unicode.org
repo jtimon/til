@@ -1,0 +1,90 @@
+* Unicode and byte strings
+
+Til has one =Str= representation. Its fields, byte length, indexing, slicing
+and =c_str= interface do not change when Unicode operations are used. A Str
+can contain malformed UTF-8 or embedded NUL bytes; validation is explicit.
+Borrowed views use the same operations as owned strings. A NUL-terminated C
+API stops at the first NUL and determines its own encoding contract.
+
+** Core UTF-8 operations
+
+- =Str.from_codepoint(code: I64)= encodes one Unicode scalar. Invalid values
+  (negative, surrogate or above U+10FFFF) panic. NUL is a valid scalar.
+- =text.is_valid_utf8()= validates the complete byte sequence, in linear time.
+- =text.read_utf8(start, final = true)= decodes at a byte offset no greater
+  than =len()=, examining at most four bytes. It returns =Utf8Read=:
+  =value: I64=, =end: USize=, =valid: Bool=, =incomplete: Bool=.
+
+=Utf8Read= is a decoding result, not another string type. On valid input its
+value is the scalar and end is the next byte offset. Malformed input reports
+U+FFFD with valid=false and consumes the maximal valid prefix, leaving the
+next starter untouched. It does not rewrite the input bytes. A final read
+with bytes remaining always advances. At end-of-input, value=-1, valid=false,
+end=start and incomplete=!final.
+
+For streaming, pass final=false. An incomplete prefix returns value=-1,
+valid=false, incomplete=true and end=start: keep that prefix and append the
+next chunk before retrying. At EOF, retry with final=true to consume a
+truncated prefix as malformed input. The API does not keep hidden stream state.
+
+** Grapheme boundaries
+
+Import =std/unicode= for Unicode 17.0 extended grapheme clusters (UAX #29).
+Core UTF-8 methods do not depend on these versioned property tables.
+
+- =grapheme_next(text, start)= advances from a known boundary, or returns len
+  at end-of-input. It scans one cluster, using balanced property lookups.
+- =grapheme_previous(text, position)= finds the strictly preceding boundary,
+  or zero at the beginning. Position may be inside a cluster, but <= len.
+- =grapheme_floor(text, position)= and =grapheme_ceil(text, position)= round
+  arbitrary byte positions to boundaries, clamping out-of-range positions.
+- =grapheme_count(text, start, end)= counts clusters in a boundary-aligned range.
+- =grapheme_offset(text, start, end, index)= returns the byte offset after that
+  many clusters, clamped to end. Both range endpoints must be boundaries.
+
+Previous/floor/ceil scan from a preceding LF, so cost is linear in the logical
+line, not constant-time character indexing. Count/offset scan the traversed
+range. All returned positions are byte offsets into the original string.
+Malformed UTF-8 prefixes participate as U+FFFD without replacing stored bytes.
+Grapheme counts are not terminal-cell widths or graphical text measurements.
+Shaping, bidi layout, font fallback, normalization and case folding are separate.
+
+=unicode_scalar= checks scalar validity. The imported property functions
+=unicode_grapheme_property=, =unicode_pictographic=, =unicode_incb= and
+=unicode_ignorable= retain the extracted table encoding for consumers such as
+Tiled's renderer. The encoding is documented in the generator's ordered
+property lists; zero denotes an unlisted property. In particular GCB Extend
+is 4, and nonzero Default_Ignorable_Code_Point marks a default ignorable.
+
+** Data ownership and regeneration
+
+The implementation, generator and conformance cases were extracted from Tiled
+(Tiled #15 / Til #458). Til is the authoritative owner; consumers import the
+installed std module rather than maintaining copied tables or decoders.
+
+=src/std/unicode/grapheme_data.til= contains generated, balanced range lookups.
+=test/unicode_grapheme_cases.txt= preserves all 766 official Unicode 17.0
+grapheme cases. Preserve the corpus notices and =LICENSE/unicode.txt=.
+The Unicode corpus/license retain their original text; Til sources are ASCII.
+Unicode License v3 is permissive, not copyleft: it requires retaining the
+copyright/permission notice, not publishing a consumer's source. It covers the
+Unicode-derived data; Til's own code remains under =LICENSE/MIT.txt=.
+
+From a built checkout, regenerate with:
+
+#+begin_src sh
+bin/til run examples/unicode_tables.til
+#+end_src
+
+Only regeneration uses curl/network access, fetching pinned Unicode 17.0.0
+GraphemeBreakProperty, emoji-data, DerivedCoreProperties and GraphemeBreakTest.
+Ordinary builds and tests use the checked-in outputs offline. To update the
+Unicode version, update the pinned URLs/version assertions, regenerate, review
+the data/rule changes and run the conformance and consumer regressions together.
+
+The compiler installation copies core/std recursively, including the tables,
+and copies the central =LICENSE/= directory into the SDK root beside =src/=.
+=test/install.til= checks the notices and exercises installed compiled/interpreted
+Unicode consumers from another directory. =test/utf8.til= is a core-only
+consumer; =test/unicode.til= runs the official boundary corpus. Both are in
+the ordinary compiled/interpreted suite.

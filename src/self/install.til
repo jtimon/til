@@ -39,6 +39,8 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
     if rc != 0 { return rc }
+    rc = install_tree(format(root, "/LICENSE"), format(dst_root, "/LICENSE"), "install compiler and bundled dependency licenses")
+    if rc != 0 { return rc }
     // std/tilvm compiles the interpreter into an independent host. These are
     // private implementation sources, not a public Context/Expr ABI.
     rc = install_tree(format(root, "/src/self"), format(dst_root, "/src/self"), "install embedding implementation sources")

@@ -1,0 +1,169 @@
+# priority: medium
+# category: features
+** FIXED #458 Extract Tiled Unicode primitives into core Str and std
+
+Added core Str.from_codepoint, read_utf8 and is_valid_utf8 with the separate
+Utf8Read result. Str's fields, ownership/view rules, byte operations and c_str
+interop are unchanged. No new string representation is introduced.
+
+Moved Unicode 17.0 grapheme segmentation into std/unicode, with explicit
+grapheme_next/previous/floor/ceil/count/offset names and byte-offset/complexity
+contracts. The property data, Unicode license, generator and all 766 official
+grapheme cases now live in Til. The existing recursive SDK installation carries
+the module/data/license. The Tiled #15 migration uses the core/std API; its
+terminal UTF-8 adapters delegate to Str while cell-width policy stays in
+libterminal. That consumer migration is committed in Tiled as 94d6724 and
+tracked in its fixed #15.
+
+*** Handoff to the Til session
+
+- Worktree: =~/sync/data_common/code/jt/til_worktrees/unicode-std=.
+  Rebase base: =d78924826=. The extraction and follow-ups are squashed
+  into one commit. These are library/installer changes, not compiler emission
+  or bootstrap interface changes; ordinary single-pass regeneration applies
+  under =doc/self.org=, with no preparation/use ladder or Two-pass prefix.
+- This work originally used #443, then #448, #452 and #457. Master allocated those
+  numbers to unrelated compiler bugs while this work was isolated or unmerged.
+  It is now #458, allocated from master's counter; those compiler issues are
+  separate from this extraction.
+- The prior merge =b90909277= is absent from current master's history. The
+  installed SDK =0.0.1-547d3f94c= also lacks std/unicode. Rebased onto
+  =2d9d1c893= to restore the extraction for integration.
+- Verification on =2d9d1c893=: memory-limited foreground =make clean && make test=
+  passed 487/487, including compiled/interpreted UTF-8 and all 766 grapheme
+  cases plus installed SDK/license checks. Bootstrap output was regenerated.
+  Log: =tmp/unicode-restore-test.log=. This was not a performance benchmark.
+- Approved API: one Str representation, no new Str fields. Core owns
+  =Str.from_codepoint=, =read_utf8=, =is_valid_utf8= and the separate =Utf8Read=
+  result. =std/unicode= owns grapheme navigation/counting and Unicode 17.0 data.
+  Byte offsets, malformed-input preservation and existing C-string semantics
+  remain unchanged. =doc/concepts/unicode.org= specifies the contracts.
+- =LICENSE/unicode.txt= is the sole checked-in Unicode notice. The README
+  indexes it; the compiler installer copies LICENSE/ into the SDK root.
+  Generated tables point there. The license is permissive, not copyleft.
+- =examples/unicode_tables.til= is explicit network-based regeneration from
+  pinned UCD inputs. The checked-in table and original 766-case corpus make
+  ordinary builds/tests offline. Terminal-cell-width policy stays in Tiled's
+  libterminal; shaping, bidi, normalization and case folding are outside scope.
+- Tiled 94d6724 consumes this API and packages SDK licenses. Its recorded
+  dependency 85cce10bd is the earlier private SDK used for verification, not
+  the new rebased commit. Rebuild consumers together against the eventual
+  merged/installed SDK. Installed Til was a9d3a8fde at handoff preparation:
+  it includes #370's fixes but does not yet include this Unicode change.
+- Performance was initially raised to understand increased suite totals. The
+  user subsequently approved focused measurement/optimization with all other
+  sessions disabled. The controlled follow-up below changes corpus preparation
+  and grapheme navigation, not Str.split, codecs or the interpreter. Earlier
+  concurrent-session timings remain unsuitable for performance conclusions.
+- Tests already separate core UTF-8 (=test/utf8.til=) from graphemes
+  (=test/unicode.til=). The user floated splitting the long corpus job; that
+  has not been implemented. Balanced jobs could reduce the parallel tail while
+  retaining every case/assertion, but would not reduce total interpreter work
+  and would repeat some module-loading work. Keep that decision explicit.
+- The new base includes 3d1ac604d, which closes #370: native enum layouts and
+  canonical generated-binding dependency composition. Host staging/reload,
+  shared state ownership and callback lifetimes are still Tiled responsibilities.
+  Shared defects #443, #445 and #446 remain separate from this Unicode change.
+- Pre-rebase verification: the foreground, memory-limited
+  =make clean && make test= run on =a9d3a8fde= passed 470/470, including both
+  Unicode tests and installed SDK/license/embedding checks. Bootstrap artifacts
+  were regenerated from that base. Log: =tmp/unicode-handoff-test.log=.
+  This is correctness verification, not a controlled performance comparison.
+- Prior verification below is historical. Obtain the final squashed commit
+  identity with =git log -1= in this worktree. Do not install globally,
+  merge/cherry-pick to master, push or remove this handoff worktree unless asked.
+
+Verification:
+- After rebasing onto d2e52f609, memory-limited foreground make clean && make
+  test: 467/467 passed, including
+  ASAN compiled/interpreted test/utf8.til and test/unicode.til, plus the expanded
+  installed-consumer test/install.til. Full log: tmp/unicode-rebase-test.log.
+  The initial base also passed 466/466 before the rebase.
+- examples/unicode_tables.til regenerated property data and the official corpus
+  byte-identically (SHA-256 checked before/after).
+- Before the rebase, Tiled built both hosts against the private installed SDK.
+  ASAN unicode_editing,
+  terminal_model, terminal_input and terminal_alternate passed; interpreted
+  unicode_editing and terminal_model passed.
+- Tiled's isolated Xvfb unicode_gui, init_gui, live_buffers_gui,
+  terminal_font_gui, editor_terminal_gui and install_gui passed, including
+  relocation after removing private source/SDK inputs and guest/native edits.
+
+*** License placement follow-up
+
+The Unicode notice now follows the existing LICENSE/ layout as
+LICENSE/unicode.txt and is listed in README.org. The SDK installer copies the
+central license directory, and test/install.til checks the Unicode and MIT
+notices. The generator's data notice points to this installed location.
+
+Unicode License v3 is permissive, not copyleft. It covers the Unicode-derived
+data; Til's own code remains MIT-licensed. Preserve the notices when packaging.
+
+The extraction's UTF-8/grapheme implementations and conformance assertions are
+retained. Performance experiments were set aside rather than expanding this
+migration into Til optimization work. Adding the interpreted conformance
+workload increases suite totals; comparisons belong to a controlled merge run.
+
+The focused follow-up passed make clean && make test (467/467), including the
+installed license checks. Log: tmp/unicode-migration-test.log. No performance
+conclusion is drawn from this correctness run.
+
+*** Controlled performance follow-up
+
+Rebased the unmerged extraction onto =d78924826=. The user disabled other
+sessions for these measurements. Every isolated run used the same ASAN compiler
+(=0.0.1-d78924826=), full original corpus, all 766 cases and all boundary/offset
+assertions. Temporary =clock_ms()= probes separated input preparation from
+assertions; =/usr/bin/time= measured the whole invocation. The probes were
+removed before the final suite. Commands ran sequentially in a 64 GiB scope.
+
+| Cumulative change                   | Preparation | Assertions | Whole invocation |
+|-------------------------------------+-------------+------------+------------------|
+| Original extraction, first run      |    115.02 s |   105.23 s |         230.05 s |
+| Line views, markers, hex and append |     26.00 s |   101.65 s |         136.96 s |
+| Avoid repeated floor/ceil scans     |     25.72 s |    75.44 s |         110.27 s |
+| Lazy segmentation state and ASCII  |     26.13 s |    68.23 s |          96.82 s |
+| Token views instead of split       |     19.76 s |    68.16 s |          90.36 s |
+| Original extraction, repeat        |    113.50 s |   104.67 s |         228.05 s |
+| All changes, repeat                |     19.76 s |    68.43 s |          90.61 s |
+
+The repeated end-to-end means are 229.05 s versus 90.49 s (about 60.5% less
+time). These are isolated interpreted-conformance results, not whole-suite or
+application speedups. Logs: =tmp/unicode-perf-baseline-{1,2}.log=,
+=tmp/unicode-perf-parser-3.log=, =tmp/unicode-perf-boundaries-1.log=,
+=tmp/unicode-perf-segmentation-1.log=, =tmp/unicode-perf-token-spans-1.log=,
+and =tmp/unicode-perf-optimized-2.log=.
+
+Preparation walks borrowed line/token views, ignores comment tails, reuses the
+two marker strings, parses hexadecimal digits directly, and appends into one
+preallocated string per case. The official corpus and generated tables remain
+unchanged. Floor/ceil return the known end boundary directly; ceil retains the
+cluster end from its first scan. Segmentation decides a break before computing
+unused next-state properties and handles ASCII controls/pairs and end-of-input
+without table lookups. Full UAX #29 state still handles non-ASCII continuations.
+
+Final verification on =d78924826=: memory-limited foreground =make clean &&
+make test= passed 492/492, with bootstrap output regenerated. Suite wall time
+was 164.50 s, summed interpretation 483.38 s, and the Unicode test took
+135.88 s interpreted / 3.32 s compiled / 0.02 s native execution while sharing
+the machine with the suite. Log: =tmp/unicode-perf-full-test-final.log=.
+The preceding run's sole failure was an issue-number collision with master's
+new C identifier bug (#457); the extraction was renumbered to #458.
+
+*** Request
+
+Move the locally validated Unicode 17.0 implementation from Tiled #15 into Til.
+Keep one Str representation with its existing byte storage/layout and C-string
+interop. Add read_utf8, is_valid_utf8 and from_codepoint methods plus the separate
+Utf8Read result (value, end, valid, incomplete). Keep grapheme segmentation and
+versioned property data in std/unicode, with explicit byte-offset contracts.
+
+Move the generator, licensed property data and official conformance corpus;
+ordinary builds/tests remain offline. Consolidate Tiled/editor/terminal UTF-8
+consumers against the installed API; terminal-cell-width policy stays local.
+
+Verify malformed/truncated/chunked input, byte preservation, C-string views,
+all official grapheme cases, compiled/interpreted parity and installed use.
+Run the full Til suite and relevant Tiled/terminal integration checks.
+
+Consumer tracking: https://github.com/jtimon/tiled/blob/master/issues/fixed/15.org

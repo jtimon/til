@@ -29,6 +29,11 @@ view is NOT -- its next byte is more of the base buffer.
 Named constants ~CAP_LIT~ and ~CAP_VIEW~ are defined in str.til (globally
 available via core import).
 
+Unicode uses this same representation. Core ~Str.read_utf8~, ~is_valid_utf8~
+and ~Str.from_codepoint~ operate explicitly on UTF-8; ~Utf8Read~ is a decoding
+result, not another string type. ~std/unicode~ provides grapheme boundaries
+as byte offsets. See [[file:unicode.org][Unicode contracts, streaming and data ownership]].
+
 ** String Creation Patterns
 
 *** Literal Assignment

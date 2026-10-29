@@ -19,6 +19,7 @@ Generated declaration documentation is under
 - [[file:ownership.org][Ownership and ASAP destruction]]
 - [[file:qualifiers.org][Qualifier-to-C reference]]
 - [[file:strings.org][String design]]
+- [[file:unicode.org][UTF-8 and Unicode grapheme boundaries]]
 
 ** Derived Behavior And Implementation
 

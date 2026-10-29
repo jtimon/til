@@ -1,0 +1,53 @@
+mode cli
+
+// Core-only consumer: neither std/unicode nor its property tables are needed.
+main := proc() {
+    for code : I64 in array(I64, 0, 1, 127, 128, 255, 2047, 2048, 0xd7ff, 0xe000, 0xffff, 0x10000, 0x10ffff) {
+        text := Str.from_codepoint(code)
+        decoded : Utf8Read = text.read_utf8(0)
+        assert(decoded.valid && !decoded.incomplete && decoded.value == code && decoded.end == text.len() && text.is_valid_utf8())
+        for n in 1..text.len() {
+            chunk := text.substr(0, n)
+            partial := chunk.read_utf8(0, false)
+            assert(!partial.valid && partial.incomplete && partial.end == 0 && partial.value == -1)
+            final := chunk.read_utf8(0)
+            assert(!final.valid && !final.incomplete && final.end == n && final.value == 0xfffd)
+            completed := format(chunk, text.substr(n, text.len() - n))
+            assert(completed.read_utf8(0, false).value == code)
+        }
+    }
+    assert("".is_valid_utf8())
+    empty := "".read_utf8(0)
+    assert(empty.value == -1 && empty.end == 0 && !empty.valid && !empty.incomplete)
+    assert("".read_utf8(0, false).incomplete)
+    for first in 0..256 {
+        text := format(Str.from_byte(first.to_u8()), "A")
+        decoded := text.read_utf8(0, false)
+        assert(!decoded.incomplete && decoded.end == 1)
+        assert(decoded.valid == (first < 128))
+        assert(text.is_valid_utf8() == (first < 128))
+        if first >= 128 { assert(decoded.value == 0xfffd) }
+        assert(text.read_utf8(decoded.end).value == 65)
+    }
+    for first : I64 in array(I64, 0xe0, 0xed, 0xf0, 0xf4) {
+        mut second : U8 = 0x80
+        if first == 0xed { second = 0xa0 }
+        if first == 0xf4 { second = 0x90 }
+        text := format(Str.from_byte(first.to_u8()), Str.from_byte(second), Str.from_byte(0x80), Str.from_byte(0x80))
+        assert(!text.is_valid_utf8() && text.read_utf8(0).end == 1)
+    }
+    bad := format("a", Str.from_byte(0xe2), Str.from_byte(0x82), "A")
+    original := bad.clone()
+    decoded := bad.read_utf8(1)
+    assert(!decoded.valid && decoded.value == 0xfffd && decoded.end == 3)
+    assert(bad.read_utf8(3).value == 65 && bad == original)
+    // Borrowed C-string views use the same methods and preserve the source.
+    text := format("A", Str.from_codepoint(0x1f600))
+    view := Str.from_c_str(text.c_str)
+    assert(view == text && view.is_valid_utf8() && view.read_utf8(1).value == 0x1f600)
+    nul := format("a", Str.from_codepoint(0), "b")
+    c_view := Str.from_c_str(nul.c_str)
+    assert(nul.len() == 3 && nul.is_valid_utf8() && nul.read_utf8(1).value == 0)
+    assert(c_view == "a" && c_view.len() == 1)
+    println("PASS: core UTF-8, streaming, malformed progress, byte preservation and C-string views")
+}
