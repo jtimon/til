@@ -1233,9 +1233,12 @@ NestedSlot := macro(T: Type, N: USize) returns StructDef {
 }
 NestedVectorAlias := Vec(own Nested_Copies)
 NestedOptionAlias := Option(own Nested_Copies)
+NestedBorrowedAlias := Option(ref Nested_Copies)
 NestedSlotAlias := NestedSlot(own Nested_Copies, 2)
+NestedMapAlias := Map(Str, own Nested_Copies)
 Nested_Copies := interface {
     value := func(self: Nested_Copies) returns I64
+    required_views := func(self: Nested_Copies) returns Vec(ref Nested_Copies)
     copies := func(self: Nested_Copies) returns NestedVectorAlias {
         mut result: NestedVectorAlias = Vec(own Nested_Copies).new()
         result.push(own self.clone())
@@ -1247,11 +1250,21 @@ Nested_Copies := interface {
     nested := func(self: Nested_Copies) returns Option(NestedVectorAlias) {
         return Option(Vec(own Nested_Copies)).Some(own self.copies())
     }
-    borrowed := func(self: Nested_Copies) returns Option(ref Nested_Copies) {
-        return Option(ref Nested_Copies).Some(self)
+    borrowed := func(_self: Nested_Copies, source: NestedBorrowedAlias) returns NestedBorrowedAlias {
+        return source.clone()
+    }
+    borrowed_views := func(self: Nested_Copies) returns Vec(ref Nested_Copies) {
+        mut result := Vec(ref Nested_Copies).new()
+        result.push(self)
+        return result
     }
     slot := func(self: Nested_Copies) returns NestedSlotAlias {
-        return NestedSlot(own Nested_Copies, 2)(item = self.clone())
+        return NestedSlot(own Nested_Copies, 2)(item = self)
+    }
+    mapped := func(self: Nested_Copies) returns NestedMapAlias {
+        mut result := Map(Str, own Nested_Copies).new()
+        result.set("self", own self.clone())
+        return result
     }
     first := func(_self: Nested_Copies, items: NestedVectorAlias) returns I64 { return items[0].value() }
     type_name := func(_self: Nested_Copies) returns Str { return dyn_type_to_str(Nested_Copies) }
@@ -1264,6 +1277,11 @@ NestedRecord := struct implements Nested_Copies {
     n := 7
 namespace:
     value := func(self: NestedRecord) returns I64 { return self.n }
+    required_views := func(self: NestedRecord) returns Vec(ref Nested_Copies) {
+        mut result := Vec(ref Nested_Copies).new()
+        result.push(self)
+        return result
+    }
 }
 NestedChoice := enum implements Nested_Copies {
     Value: I64,
@@ -1271,9 +1289,17 @@ namespace:
     value := func(self: NestedChoice) returns I64 {
         switch self { case .Value(n): return n }
     }
+    required_views := func(self: NestedChoice) returns Vec(ref Nested_Copies) {
+        mut result := Vec(ref Nested_Copies).new()
+        result.push(self)
+        return result
+    }
 }
-read_nested_record := func(value: NestedRecord) returns I64 { return value.n }
-read_nested_choice := func(value: NestedChoice) returns I64 { return value.value() }
+local_nested_copies := func() returns NestedVectorAlias {
+    view: Nested_Copies = NestedRecord(n = 23)
+    return view.copies()
+}
+read_nested_value := func(value: Nested_Copies) returns I64 { return value.value() }
 bounded_nested := func(T: Type implements Nested_Copies, value: T) returns I64 {
     values := value.copies()
     return value.first(values)
@@ -1281,29 +1307,72 @@ bounded_nested := func(T: Type implements Nested_Copies, value: T) returns I64 {
 
 test_interface_nested_default_types := test() {
     record := NestedRecord()
-    records := record.copies()
-    assert_eq(I64, read_nested_record(records[0]), 7)
-    assert_eq(I64, read_nested_record(record.optional().unwrap()), 7)
+    view: Nested_Copies = record
+    offered := Option(ref Nested_Copies).Some(view)
+    mut records: NestedVectorAlias = record.copies()
+    assert_eq(I64, read_nested_value(records[0]), 7)
+    optional: NestedOptionAlias = record.optional()
+    assert_eq(I64, read_nested_value(optional.unwrap()), 7)
     nested_records := record.nested().unwrap()
-    assert_eq(I64, read_nested_record(nested_records[0]), 7)
-    assert_eq(I64, read_nested_record(record.borrowed().unwrap()), 7)
+    assert_eq(I64, read_nested_value(nested_records[0]), 7)
+    borrowed: NestedBorrowedAlias = record.borrowed(offered)
+    assert_eq(I64, read_nested_value(borrowed.unwrap()), 7)
     slot := record.slot()
-    assert_eq(I64, read_nested_record(slot.item), 7)
+    assert_eq(I64, read_nested_value(slot.item), 7)
     assert_eq(USize, slot.count, 2)
     assert_eq(I64, record.first(records), 7)
     assert_eq(Str, record.type_name(), "NestedRecord")
     choice := NestedChoice.Value(9)
-    choices := choice.copies()
-    assert_eq(I64, read_nested_choice(choices[0]), 9)
-    assert_eq(I64, read_nested_choice(choice.optional().unwrap()), 9)
-    assert_eq(I64, read_nested_choice(choice.borrowed().unwrap()), 9)
+    choice_view: Nested_Copies = choice
+    offered_choice := Option(ref Nested_Copies).Some(choice_view)
+    choices: NestedVectorAlias = choice.copies()
+    assert_eq(I64, read_nested_value(choices[0]), 9)
+    assert_eq(I64, read_nested_value(choice.optional().unwrap()), 9)
+    assert_eq(I64, read_nested_value(choice.borrowed(offered_choice).unwrap()), 9)
     assert_eq(Str, choice.type_name(), "NestedChoice")
     assert_eq(I64, bounded_nested(record), 7)
     assert_eq(I64, bounded_nested(choice), 9)
     assert_eq(I64, record.copied_value(), 7)
-    view: Nested_Copies = record
     assert_eq(I64, view.copied_value(), 7)
     assert_eq(Str, view.type_name(), "NestedRecord")
+    records.push(own choice)
+    assert_eq(I64, records[1].value(), 9)
+    boxed_copies: NestedVectorAlias = view.copies()
+    assert_eq(I64, boxed_copies[0].value(), 7)
+    assert_eq(I64, view.first(records), 7)
+    boxed_optional: NestedOptionAlias = view.optional()
+    assert_eq(I64, boxed_optional.unwrap().value(), 7)
+    boxed_borrowed: NestedBorrowedAlias = view.borrowed(offered)
+    assert_eq(I64, boxed_borrowed.unwrap().value(), 7)
+    boxed_nested := view.nested().unwrap()
+    assert_eq(I64, boxed_nested[0].value(), 7)
+    views: Vec(ref Nested_Copies) = record.borrowed_views()
+    boxed_views: Vec(ref Nested_Copies) = view.borrowed_views()
+    assert_eq(I64, views[0].value(), 7)
+    assert_eq(I64, boxed_views[0].value(), 7)
+    mapped: NestedMapAlias = view.mapped()
+    assert_eq(I64, mapped["self"].value(), 7)
+    assert_eq(I64, view.slot().item.value(), 7)
+    local_copies := local_nested_copies()
+    assert_eq(I64, local_copies[0].value(), 23)
+}
+
+test_interface_nested_borrowed_default_lifetimes := test() {
+    mut record := NestedRecord(n = 10)
+    views: Vec(ref Nested_Copies) = record.borrowed_views()
+    record.n = 12
+    assert_eq(I64, views[0].value(), 12)
+
+    ref view: Nested_Copies = record
+    boxed: Vec(ref Nested_Copies) = view.borrowed_views()
+    required: Vec(ref Nested_Copies) = view.required_views()
+    record.n = 14
+    assert_eq(I64, boxed[0].value(), 14)
+    assert_eq(I64, required[0].value(), 14)
+
+    owner: Nested_Copies = NestedChoice.Value(31)
+    required_owned: Vec(ref Nested_Copies) = owner.required_views()
+    assert_eq(I64, required_owned[0].value(), 31)
 }
 
 draw_values := func(T: Type implements Drawable, values: Vec(T)) returns Str {

@@ -49,7 +49,9 @@ main := proc(args: ..Str) {
     File.writefile(format(root, "/MyAltSet.til"), set_source)
     File.writefile(format(root, "/probe.til"), format(
         "mode cli\nimport(\"MyAltVec\")\n",
-        "Contract := interface { value := func(self: Contract) returns I64 }\n",
+        "Contract := interface { value := func(self: Contract) returns I64\n",
+        "borrowed_values := func(self: Contract) returns MyAltVec(ref Contract) { mut result := MyAltVec(ref Contract).new(); result.push(self); return result }\n",
+        "owned_values := func(self: Contract) returns MyAltVec(own Contract) { mut result := MyAltVec(own Contract).new(); result.push(own self.clone()); return result }\n}\n",
         "Record := struct implements Contract { n := 11\nnamespace:\nvalue := func(self: Record) returns I64 { return self.n } }\n",
         "Choice := enum implements Contract { One\nnamespace:\nvalue := func(self: Choice) returns I64 { switch self { case .One: return 1 } } }\n",
         "ContractAlias := Contract\n",
@@ -166,6 +168,7 @@ main := proc(args: ..Str) {
         "    mut nested_refs := MyAltVec(ref StringVec).new()\nnested_refs.push(strings)\nassert_eq(USize, nested_refs[0].len(), 1)\n",
         "    mut disposable := MyAltVec(ref Str).new()\ndisposable.push(text)\nsurviving_copy := disposable.clone()\nown disposable.delete()\nassert_eq(Str, surviving_copy[0], \"changed text\")\n",
         "    factory_refs := borrow_one(text)\ntext = format(\"after clone\")\nassert_eq(Str, factory_refs[0], \"after clone\")\nassert_eq(Str, surviving_copy[0], \"after clone\")\n",
+        "    handle: Contract = Record(n = 51)\nhandle_refs: MyAltVec(ref Contract) = handle.borrowed_values()\nmut handle_copies: MyAltVec(own Contract) = handle.owned_values()\nhandle_copies.push(own Choice.One)\nassert_eq(I64, handle_refs[0].value(), 51)\nassert_eq(I64, handle_copies[1].value(), 1)\n",
         "    println(\"qualifiers OK\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
     check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
@@ -364,6 +367,49 @@ main := proc(args: ..Str) {
         output := format(cmd.out(), cmd.err())
         expect(status != 0, declaration, ": ", output)
         expect(output.contains("error:"), declaration, ": ", output)
+    }
+    for qualifier : Str in array(Str, "own", "ref") {
+        File.writefile(format(root, "/invalid_default.til"), format(
+            "mode cli\nimport(\"MyAltVec\")\n",
+            "Contract := interface { values := func(self: Contract) returns MyAltVec(", qualifier, " Contract) }\n",
+            "Item := struct implements Contract { n := 1\nnamespace:\nvalues := func(_self: Item) returns MyAltVec(", qualifier, " Item) { return MyAltVec(", qualifier, " Item).new() } }\n",
+            "main := proc() {}\n"))
+        for action : Str in array(Str, "interpret", "translate") {
+            cmd := Cmd.new(compiler, action, format(root, "/invalid_default.til"))
+            cmd.capture()
+            status := cmd.run()
+            output := format(cmd.out(), cmd.err())
+            expect(status != 0, output)
+            expect(output.contains("does not match the signature"), output)
+        }
+    }
+    for method : Str in array(Str, "required", "defaulted") {
+        File.writefile(format(root, "/invalid_default.til"), format(
+            "mode cli\nimport(\"MyAltVec\")\n",
+            "Contract := interface { required := func(self: Contract) returns MyAltVec(ref Contract)\n",
+            "defaulted := func(self: Contract) returns MyAltVec(ref Contract) { mut result := MyAltVec(ref Contract).new(); result.push(self); return result } }\n",
+            "Item := struct implements Contract { n := 1\nnamespace:\nrequired := func(self: Item) returns MyAltVec(ref Contract) { mut result := MyAltVec(ref Contract).new(); result.push(self); return result } }\n",
+            "bad := func() returns MyAltVec(ref Contract) { owner: Contract = Item(); return owner.", method, "() }\n",
+            "main := proc() {}\n"))
+        for action : Str in array(Str, "interpret", "translate") {
+            cmd := Cmd.new(compiler, action, format(root, "/invalid_default.til"))
+            cmd.capture()
+            status := cmd.run()
+            output := format(cmd.out(), cmd.err())
+            expect(status != 0, output)
+            expect(output.contains("cannot return a borrow of local 'owner'"), output)
+        }
+    }
+    File.writefile(format(root, "/invalid_default.til"), format(
+        "mode cli\nContract := interface { borrowed := func(self: Contract) returns Option(ref Contract) { return Option(ref Contract).Some(self) } }\n",
+        "Item := struct implements Contract { n := 1 }\nmain := proc() {}\n"))
+    for action : Str in array(Str, "interpret", "translate") {
+        cmd := Cmd.new(compiler, action, format(root, "/invalid_default.til"))
+        cmd.capture()
+        status := cmd.run()
+        output := format(cmd.out(), cmd.err())
+        expect(status != 0, output)
+        expect(output.contains("has a 'ref' payload"), output)
     }
     println("type argument qualifiers passed")
 }

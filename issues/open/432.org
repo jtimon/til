@@ -242,9 +242,9 @@
    - DECIDED: reject ~Vec(Iface)~ and ~Vec(shallow Iface)~; use
      ~Vec(own Iface)~ for owning handles and ~Vec(ref Iface)~ for borrowing
      handles. Bare parameters borrow and bare returns own as before.
-     Consequently the nested-substitution draft's automatic
-     ~Vec(Iface) -> Vec(Concrete)~ rewrite is not the selected rule and must
-     be revised. The generic UFCS syntax options above remain undecided.
+      The nested-substitution draft's automatic ~Vec(Iface) -> Vec(Concrete)~
+      rewrite has now been replaced by preservation of interface-handle
+      aggregate types. The generic UFCS syntax options above remain undecided.
    - The ordinary-call probe with ~for value: T in values~ previously failed
      with "undefined type 'T'". Fixed: init_substitute_idents now substitutes
      ForInData.til_type as well as Declaration.til_type. Regression coverage:
@@ -263,14 +263,22 @@
      expands over types the reachability walk reached, but it still keeps
      those methods on every reached type, not only on the interface's
      implementors. Abstract calls no longer use it (typed dispatcher).
-   - Self substitution in a copied default (gen_substitute_self_type)
-     rewrites only direct parameter and return types equal to the interface
-     name; nested generic types (`Vec(Self)`, `Option(Self)`) and explicit
-     interface-name references inside the body are not rewritten. The
-     previous proposal to rewrite `Vec(Iface)` into `Vec(Concrete)` is
-     superseded by the explicit own/ref element decision above. Concrete
-     element types should be expressed with an explicit bounded T; qualified
-     interface elements retain their interface-handle meaning (#433).
+    - [X] Nested types in copied defaults retain their interface-handle
+      meaning. Self substitution still handles direct Self positions and
+      direct interface-name references, but protects aggregate applications
+      from both recursive substitution and mangled-name rewriting. Nested
+      applications and aliases normalize to the same retained type. This
+      also permits boxed dispatch through those signatures. Concrete element
+      types require an explicit bounded T.
+      Borrow-carrying virtual results conservatively retain borrowed inputs;
+      owning interface elements do not acquire a spurious receiver borrow.
+      Option(ref Iface) still requires an existing interface handle, so a
+      concrete-to-interface temporary cannot be parked in its ref payload.
+      Regressions: test_interface_nested_default_types and
+      test_interface_nested_borrowed_default_lifetimes in test/interfaces.til;
+      test/type_arg_qualifiers.til also exercises a renamed Vec and rejects
+      incompatible concrete-element overrides, escaping virtual borrows and
+      borrowing a temporary interface box.
    - [X] A user-declared clone/delete on an interface used to suppress the
      generated box lifecycle methods silently; it is a typer error now
      ("cannot declare 'clone': the box's lifecycle is generated",

@@ -210,6 +210,42 @@ declare ~clone~ or ~delete~: those belong to the generated box lifecycle.
 
 Outside an interface, a bodyless function signature remains a function type.
 
+** Container types in defaults
+
+Copying a default into an implementation specializes direct Self positions
+(the interface's own name, including the receiver). It does not specialize
+the elements of an aggregate application:
+
+#+begin_src til
+Copies := interface {
+    value := func(self: Copies) returns I64
+    copies := func(self: Copies) returns Vec(own Copies) {
+        mut result := Vec(own Copies).new()
+        result.push(own self.clone())
+        return result
+    }
+    views := func(self: Copies) returns Vec(ref Copies) {
+        mut result := Vec(ref Copies).new()
+        result.push(self)
+        return result
+    }
+}
+#+end_src
+
+An implementation's ~copies~ still returns ~Vec(own Copies)~, not
+~Vec(Implementation)~. The same applies to aliases, nested applications,
+borrowed elements and user-defined generators. Calls through an interface
+handle use those same container types; an override returning a concrete-element
+container does not satisfy the contract. Borrowed container results keep their
+receiver/input owners alive, including calls to bodyless requirements.
+
+~Option(ref Copies)~ borrows an existing interface handle. It does not extend
+the lifetime of a temporary handle made by converting a concrete value:
+~Some(self)~ in a copied default is rejected when it would borrow such a
+temporary. ~Vec(ref Copies)~ stores borrowing handles and supports the ~views~
+default above. Concrete-element containers should instead be expressed with
+an explicit bounded type parameter.
+
 * Generic functions
 
 A ~Type~ parameter that the rest of the signature uses as a type makes a

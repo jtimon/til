@@ -6164,18 +6164,28 @@ priv ns_member_is_concrete_default := func(am: Declaration) returns Bool {
     }
 }
 
-// Reconstruct dependent applications from their recorded source, rather than
-// splitting generated names. This preserves nested arguments, ref qualifiers,
-// aliases and value arguments, including names that themselves contain '_'.
+// Use recorded applications rather than splitting generated names. Aggregate
+// applications keep their element types; other dependent applications can
+// still contain Self. Source reconstruction also normalizes nested spellings
+// and aliases without losing qualifiers or value arguments.
 priv interface_type_contains := func(name: Str, iface: Str, ctx: Context) returns Bool {
     ref resolved : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
     if resolved == iface { return true }
+    // Aggregate applications retain their declared element types. Their
+    // recorded source may omit own after forwarding an owning type argument.
+    if ctx.scope.get_struct(resolved, ctx.symbols).is_some() { return false }
     if ctx.type_gen_binding_sources.has(resolved).not() { return false }
     return interface_application_contains(ctx.type_gen_binding_sources[resolved], iface, ctx)
 }
 
 priv interface_application_contains := func(e: Expr, iface: Str, ctx: Context) returns Bool {
-    for child : Expr in e.children {
+    for i in 0..e.children.len() {
+        // Qualified arguments describe interface handles, not a dependent Self
+        // type. Their representation is shared by every implementation.
+        if e.node_type.is(NodeType.FCall) {
+            if get_own_arg(e, i).or(get_ref_arg(e, i)) { continue }
+        }
+        ref child : Expr = e.children[i]
         switch child.node_type {
         case .Ident(id):
             if interface_type_contains(id.ident_name(ctx.symbols.names), iface, ctx) { return true }
@@ -6186,8 +6196,9 @@ priv interface_application_contains := func(e: Expr, iface: Str, ctx: Context) r
     return false
 }
 
-// A box can adapt a direct Self argument/result, but cannot reinterpret an
-// arbitrary generated container of boxes as a container of concrete values.
+// A box adapts direct Self arguments/results. Fixed aggregate signatures need
+// no adaptation; genuinely dependent non-aggregate types still require a
+// concrete receiver.
 interface_method_requires_concrete_types := func(fd: FunctionDef, iface: Str, ctx: Context) returns Bool {
     if fd.auto_generated.or(fd.sig.params.len() == 0) { return false }
     if resolve_type_alias(ctx.scope, decl_type_name_ref(fd.sig.params[0], ctx.symbols), ctx.symbols) != iface { return false }
@@ -6207,8 +6218,10 @@ interface_concrete_type_name := func(name: Str, from_name: Str, to_name: Str, mu
     if resolved == from_name { return to_name.clone() }
     if ctx.type_gen_binding_sources.has(resolved).not() { return name.clone() }
     mut application := ctx.type_gen_binding_sources[resolved].clone()
-    if interface_substitute_application(application, from_name, to_name, requests, ctx).not() { return name.clone() }
-    // Canonicalize nested applications before naming their parent. Otherwise
+    if ctx.scope.get_struct(resolved, ctx.symbols).is_none() {
+        interface_substitute_application(application, from_name, to_name, requests, ctx)
+    }
+    // Normalize retained applications too, before naming their parent. Otherwise
     // Option(Vec(T)) and Option(VecAlias) could acquire different concrete
     // names even though both arguments denote the same generated Vec type.
     mut nested := Vec(Expr).new()
@@ -6221,6 +6234,7 @@ interface_concrete_type_name := func(name: Str, from_name: Str, to_name: Str, mu
         if queued.not() { requests.add_child(own dependency.clone()) }
     }
     concrete := init_macro_inst_name_in_scope(application, Map(Str, Expr).new(), ctx.scope, ctx)
+    if concrete == resolved { return name.clone() }
     if ctx.type_gen_synths.has(concrete).not() {
         for pending : Expr in requests.children {
             if decl_of(pending).name == concrete { return concrete }
@@ -6244,8 +6258,11 @@ priv interface_substitute_application := func(mut e: Expr, from_name: Str, to_na
         }
     case:
     }
-    for mut child : Expr in e.children {
-        if interface_substitute_application(child, from_name, to_name, requests, ctx) { changed = true }
+    for i in 0..e.children.len() {
+        if e.node_type.is(NodeType.FCall) {
+            if get_own_arg(e, i).or(get_ref_arg(e, i)) { continue }
+        }
+        if interface_substitute_application(e.children[i], from_name, to_name, requests, ctx) { changed = true }
     }
     return changed
 }
@@ -6253,7 +6270,11 @@ priv interface_substitute_application := func(mut e: Expr, from_name: Str, to_na
 priv interface_record_substitution := func(name: Str, from_name: Str, to_name: Str, mut subs: Map(Str, Expr), mut requests: Expr, mut ctx: Context) {
     if subs.has(name) { return }
     concrete := interface_concrete_type_name(name, from_name, to_name, requests, ctx)
-    if concrete != name { subs.set(name, own Expr.new(own ident_node(ctx.symbols.intern(concrete)), 0, 0)) }
+    // An identity entry protects a preserved application from the generic
+    // substitution walk's mangled-name rewriting (Vec__Iface -> Vec__Concrete).
+    if concrete.neq(name).or(ctx.type_gen_binding_sources.has(resolve_type_alias(ctx.scope, name, ctx.symbols))) {
+        subs.set(name, own Expr.new(own ident_node(ctx.symbols.intern(concrete)), 0, 0))
+    }
 }
 
 priv interface_collect_substitutions := func(e: Expr, from_name: Str, to_name: Str, mut subs: Map(Str, Expr), mut requests: Expr, mut ctx: Context) {

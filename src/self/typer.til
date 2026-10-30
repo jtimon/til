@@ -5637,6 +5637,7 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
     if fdef.sig.return_own_type.is(OwnType.Ref) { return true }
     if fdef.sig.return_type.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, fdef.sig.return_type, symbols)
+    if type_name_is_interface(scope, resolved, symbols) { return false }
     rdef_o := scope.get_struct(resolved, symbols)
     if rdef_o.is_none() { return false }
     if enum_has_ref_payload(rdef_o.unwrap()) { return true }
@@ -12691,6 +12692,7 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
     case .StructDef(sdd):
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Ref) { return true }
+            if type_name_is_interface(scope, resolve_type_alias(scope, decl_type_name_ref(fd, symbols), symbols), symbols) { continue }
             if type_carries_borrow_v(scope, decl_type_name_ref(fd, symbols), visited, symbols, callables) { return true }
         }
     case .EnumDef:
@@ -12758,8 +12760,13 @@ priv carries_borrow_memo_clear := func(scope: TypeScope, ctx: Context) {
                 mut borrowed := get_ref_arg(application, i)
                 switch application.children[i].node_type {
                 case .Ident(id):
-                    mut visited := Set(Str).new()
-                    borrowed = borrowed.or(type_carries_borrow_v(scope, id.ident_name(ctx.symbols.names), visited, ctx.symbols, false))
+                    ref argument_type : Str = resolve_type_alias(scope, id.ident_name(ctx.symbols.names), ctx.symbols)
+                    // An owning interface element owns its payload. A ref
+                    // argument, in contrast, carries the payload's owner.
+                    if type_name_is_interface(scope, argument_type, ctx.symbols).not() {
+                        mut visited := Set(Str).new()
+                        borrowed = borrowed.or(type_carries_borrow_v(scope, argument_type, visited, ctx.symbols, false))
+                    }
                 case:
                 }
                 if borrowed { ref_type_arg_carriers.add(own name.clone()); changed = true; break }
@@ -14315,6 +14322,22 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
                     }
                 }
                 if roots != fd.ref_return_params { fd.ref_return_params = roots; return true }
+            }
+            else if fdef_return_carries_borrow(fd, scope, ctx.symbols) {
+                mut inputs : U64 = 0
+                for pi in 0..fd.sig.params.len() {
+                    ref p : Declaration = fd.sig.params[pi]
+                    if p.own_type.is(OwnType.Ref).and(p.name.starts_with("_err_").not()) {
+                        inputs = inputs.bor(summary_param_bit(pi))
+                    }
+                }
+                into := fd.ref_return_into_params.bor(inputs)
+                carried := fd.ref_return_carried_params.bor(inputs)
+                if into.neq(fd.ref_return_into_params).or(carried != fd.ref_return_carried_params) {
+                    fd.ref_return_into_params = into
+                    fd.ref_return_carried_params = carried
+                    return true
+                }
             }
             if fd.sig.func_type.is_ext() { return false }
         }
