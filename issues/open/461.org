@@ -1,6 +1,6 @@
 # priority: medium
 # category: optimizations
-** OPEN #461 Simplify borrow-aware last-use destruction and reduce analysis cost
+** WIP #461 Simplify borrow-aware last-use destruction and reduce analysis cost
 
 Revisit how much lifetime protection til should provide around non-owning
 references and automatic last-use destruction. The reference-rebinding work
@@ -46,6 +46,19 @@ is an additional analysis policy, not a consequence of reference ownership.
   pointers, Dynamic, explicit frees and FFI.
 
 *** Investigation and possible simplifications
+
+  Progress (2026-10-30, base ~6eed1697a~): built the parent/rebinding/current
+  compilers with matching flags and frozen inputs. Other active builds made
+  elapsed times noisy; see [[../../doc/optimizations.org][Optimization measurements]] for all samples
+  and the allocation profile. Self-translation performs 3,040,750 loan-walk
+  visits and 207,795 scope-map clones. A semantics-preserving first reduction
+  removes redundant ~owner -> [owner]~ source entries: four allocation helpers
+  alone save 2,856,097 allocations (about 126 MiB cumulative traffic).
+  Emitted C/headers are identical for frozen self-translation, maps, reference
+  rebinding and GC-audit fixtures. Scope cloning and repeated traversal remain;
+  the lifetime-policy decision and broader inventory below are still open.
+  Verification: clean full suite 487/487; ASAN ~fasm_native~ and ~fasm_runtime~
+  drivers pass against ~bin/til_asan~.
 
   - [ ] Measure the regression against the parent of ~7a7ce5a51~, using the
     same builds, inputs and compiler settings. Record time, peak memory and

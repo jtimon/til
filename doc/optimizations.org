@@ -5,6 +5,56 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Sparse reference-loan sources (2026-10-30, #461)
+
+Base: ~6eed1697a~. Ordinary locals were stored in ~ReferenceLoans.sources~
+as ~key -> [key]~, although ~reference_storage_sources~ already returns the
+key for a missing entry. Store only reference source lists, including empty
+lists; an empty reference list must not become an ordinary-storage lookup.
+The name map, shadow identities, edges and reach propagation are unchanged.
+
+Measured on Linux x86_64, Ryzen 9 9950X3D, GCC 13.3.0, native ~-O0~ builds.
+Both current compilers were built from C emitted by the same baseline
+compiler, with identical flags and support sources. Their executables ran
+from the same frozen ~6eed1697a~ source tree, translating ~src/til.til~ with
+~translate --usize=32 -c tmp/bench.c~. Separate instrumented builds used
+~-finstrument-functions -DTIL_PROF_ALLOC~ and the malloc/calloc/realloc
+linker wrappers described in [[./profiling.org][Profiling]].
+
+Self-translation allocation counts (not elapsed-time estimates):
+
+| Allocating function                | Before     | After      | KiB before | KiB after |
+|------------------------------------+------------+------------+------------+-----------|
+| Str_clone                          | 31,849,480 | 30,114,035 |  544,513.1 | 501,168.1 |
+| Vec(Str).push                      |  1,747,424 |    952,375 |  100,693.1 |  88,270.5 |
+| Vec(Str).clone                     |    484,368 |    435,919 |  178,306.5 | 177,549.5 |
+| Map(Str, Vec(Str)).open_slot        |    346,672 |     69,518 |   77,188.9 |   4,754.5 |
+
+These four helpers alone save 2,856,097 allocations and about 126 MiB of
+cumulative allocation traffic. Peak RSS stays near 421 MiB; cumulative
+allocation traffic is not peak live memory. The baseline still visits
+~collect_reference_loans~ 3,040,750 times and clones the scope-name map
+207,795 times; this change does not eliminate those traversals or clones.
+
+Historical binaries built from checked-in boot C with matching GCC flags:
+~ebc641fb4~ (parent), ~7a7ce5a51~ (rebinding), and the current baseline.
+Warm wall times on frozen inputs were respectively 12.36, 13.45 and 13.51s.
+Three rotated-order repetitions gave parent 27.36/12.53/12.54s,
+rebinding 33.80/13.92/13.85s, baseline 15.00/14.20/13.76s.
+Peak RSS across these repetitions was 430,040-432,500 KiB.
+
+Candidate paired wall times (before/after) were 28.63/32.43,
+22.70/32.29 (after ran first), and 14.72/13.69s; peak RSS was
+430,728-432,072 KiB. Other worktrees were running builds/tests, so these
+measurements do not establish a controlled regression or speedup percentage.
+The allocation reduction, rather than noisy timing, justifies this change.
+
+Before/after emitted C and forward headers compare byte-for-byte on the
+frozen compiler source and ~test/maps.til~, ~test/reference_rebinding.til~,
+and ~test/gc_audit.til~. No destruction-timing policy change is involved.
+The clean full suite passes 487/487; the optional ~fasm_native~ and
+~fasm_runtime~ drivers also pass with ASAN drivers and the ASAN compiler.
+
 ** Split installed TilVm coverage into three jobs (2026-10-28)
 
 Base: ~201db1ef2~. The latest master result captures contained 475 test rows

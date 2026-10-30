@@ -2119,8 +2119,12 @@ priv collect_reference_loans := func(e: Expr, scope: TypeScope, root_level: Bool
             roots = reference_storage_sources(rhs, names, loans, symbols)
             loans.references.add(own key.clone())
             for owner : Str in roots { gc_add_borrow_edge(edges, owner, key, step) }
-        } else { roots.push(own key.clone()) }
-        loans.sources.set(key, own roots)
+            loans.sources.set(key, own roots)
+        } else {
+            // Ordinary storage resolves to its own key without a source entry.
+            // Remove an earlier entry if this declaration reuses a root key.
+            loans.sources.remove(key)
+        }
         names.set(dd.name, own key)
         return
     case .Assign(ad):
