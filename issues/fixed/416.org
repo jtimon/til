@@ -25,7 +25,7 @@ Regression: test/jvm_stage_e.til (~retitle_jvm_note~ for a Str payload,
 test_jvm~, against test/jvm_stage_e.expected for C, and pinned in
 src/tests.til (~TilRuntime.assignStr(~, ~.assignFrom(assignNew)~).
 
-Found while burning down the [[./375.org][#375]] JVM corpus. A payload
+Found while burning down the [[../cancelled/375.org][#375]] JVM corpus. A payload
 binding (~case .Text(t):~) is a ~ref~ into the enum: assigning to it must
 replace the enum's payload, as the interpreter and the C backend do. The JVM
 backend assigns the Java local instead. The old payload is deleted through

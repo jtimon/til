@@ -1,6 +1,18 @@
 # priority: low
 # category: backends
-** OPEN #374 BEAM backend alongside the C backend
+** CANCELLED #374 BEAM backend alongside the C backend
+
+*** Cancelled (2026-10-30)
+
+Cancelled together with the JVM backend ([[./375.org][#375]]), for the same
+reason, more strongly: BEAM data is immutable and has no mutable arrays
+beyond workarounds, while til's containers and Str are mutable bytes, so
+the backend would need an even heavier virtual heap than the JVM's. What
+BEAM uniquely offers is its process, supervision and distribution model,
+which til code can join from outside as a native library called through
+NIFs, like Python through ctypes: [[../open/463.org][#463]]. Running til
+programs AS BEAM processes would be a language-design question, not a
+backend. No code was written for this issue.
 
 Add a backend that runs til programs on the BEAM virtual machine. The
 backend may emit BEAM directly, feed an Erlang representation to the OTP
@@ -97,7 +109,7 @@ The route to BEAM does not settle the harder runtime questions:
      runtime packaging, and ~Lang~/~Target~/CLI behavior. Keep existing build
      entry points unless a separately approved surface is necessary.
   3. Backend plumbing and emitter skeleton behind the same builder boundary
-     used by the C-family emitter and proposed MLIR backend in [[./317.org][#317]].
+     used by the C-family emitter and proposed MLIR backend in [[../open/317.org][#317]].
      Unsupported nodes fail at translation with their til source location.
   4. Minimal value subset: module entry point, Bool and fixed-width numeric
      values, scalar locals, inline ~core_func~ lowering, direct calls, string

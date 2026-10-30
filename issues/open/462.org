@@ -1,0 +1,59 @@
+# priority: low
+# category: backends
+** OPEN #462 Android through the C backend and the NDK
+
+Run til programs on Android by compiling the C backend's output with the
+Android NDK, instead of translating til to a managed language (the JVM
+backend, #375, is cancelled). Android has supported native code for years:
+the NDK's clang builds C for the device CPUs, an app packages the result as
+a ~.so~, and ~NativeActivity~ (with the NDK's ~android_native_app_glue~)
+lets an app be written entirely in C -- Android supplies the small Java
+shell that loads the library and forwards window, input and lifecycle
+events. Many games ship this way.
+
+*** What C can and cannot reach
+
+- Directly, through NDK headers: OpenGL ES / Vulkan, audio (AAudio), input,
+  sensors, assets, logging, and libc/POSIX through bionic.
+- Only through JNI: standard UI widgets, permission dialogs, intents,
+  notifications and most of the Android SDK, which are Java APIs.
+- An app still needs a manifest and an APK built and signed by the Android
+  tools.
+
+So the natural first apps draw their own UI (raylib-style, GL), and anything
+needing the Java SDK goes through generated JNI calls later
+([[./463.org][#463]], [[./454.org][#454]]).
+
+*** Staged plan
+
+  1. Command-line programs on a device or emulator: an NDK cross target
+     (aarch64-linux-android first; armv7 and x86_64 after) builds a til
+     program as an executable, pushed and run with ~adb shell~. This proves
+     ~src/c/ext.c~ and core against bionic and gives a conformance check
+     comparing stdout with the interpreter, like the other cross targets.
+  2. A ~NativeActivity~ app: a til program built as a shared library plus a
+     manifest, packaged into a signed APK. The vendored raylib supports this
+     route on Android; check how much of its Android build the vendoring
+     keeps.
+  3. Calling Java-only SDK services from til through JNI, sharing the bridge
+     work with #463.
+
+*** Decisions needing approval before implementation
+
+  - The target spelling(s) in ~src/self/targets.til~, the ABIs covered, and
+    the minimum API level.
+  - How the NDK is located (environment variable, install path) and that it
+    is never required by a default build or ~make test~.
+  - The APK packaging route (the SDK's ~aapt2~ / ~zipalign~ / ~apksigner~
+    directly, or Gradle) and where generated manifests and APKs live.
+  - Whether an emulator-based check runs anywhere automated (CI only, or
+    opt-in locally).
+
+*** Acceptance
+
+  - [ ] A til CLI program cross-compiled with the NDK runs on an arm64
+    device or emulator with output matching the interpreter.
+  - [ ] A ~NativeActivity~ til program packages into an installable APK
+    and runs (window, input, exit).
+  - [ ] A default build and ~make test~ need neither the NDK nor the
+    Android SDK.

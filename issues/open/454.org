@@ -4,8 +4,8 @@
 
 Generate Kotlin bindings for ~mode lib~ libraries by default, alongside the
 existing Python bindings. The goal is to expose native til libraries through
-a Kotlin-friendly interface for JVM and Android callers, independently of
-the Java/JVM code-generation backend (#375).
+a Kotlin-friendly interface for JVM and Android callers, without a
+Java/JVM code-generation backend (#375, cancelled).
 
 *** Scope
 
@@ -50,5 +50,6 @@ the Java/JVM code-generation backend (#375).
 
 *** Related
 
-  #375 provides managed JVM code generation. This issue instead provides
-  Kotlin access to native til libraries; it does not require that backend.
+  The managed JVM backend (#375) is cancelled; this issue is the JVM and
+  Android side of [[./463.org][#463]], calling native til libraries through
+  generated bindings instead of translating til to Java.

@@ -1,6 +1,34 @@
 # priority: low
 # category: backends
-** WIP #375 JVM backend alongside the C backend
+** CANCELLED #375 JVM backend alongside the C backend
+
+*** Cancelled (2026-10-30)
+
+Decided against a managed JVM backend. Til's model -- raw memory, explicit
+sizes, ~ptr_add~, compile-time ownership -- maps down to machine-level
+targets and fights managed ones: here it became a virtual heap emulating
+bytes inside the JVM's object world, the bulk of the backend's complexity
+and never fast. What remained (~dyn_fn~ and reflection, closure-slot
+runtime functions, host I/O, ~mode lib~ names, source mapping) duplicated
+the C runtime piece by piece, and the corpus was outside ~make test~, so
+master changes broke it unnoticed twice. Android, the strongest practical
+reason for it, is better served natively: the C backend through the NDK
+([[../open/462.org][#462]]).
+
+JVM (and Kotlin/Android) callers reach til the way Python does: a native
+library plus generated bindings, without translating til to Java
+([[../open/463.org][#463]], [[../open/454.org][#454]] for the Kotlin/JNI
+part). Backend independence stays exercised by the interpreter and the
+HolyC, assembly and MLIR efforts.
+
+State when cancelled: 17 programs of the JVM corpus passed at both USize
+widths (~make test_jvm~). The burn-down found shared ownership bugs fixed in
+common code, which stay: [[../fixed/416.org][#416]], the owned-niche enum
+clone double free, and [[../fixed/415.org][#415]]'s earlier-statement and
+field shapes. The code (~src/self/jvm_codegen.til~, ~src/jvm/~, the
+~--target=jvm~ plumbing, ~make test_jvm~, ~test/jvm*~) is still in the tree;
+removing it is a separate commit, whose parent is the restore point for
+reviving this backend.
 
 Add a backend that runs til programs on the Java Virtual Machine. The C
 backend remains the default and the only bootstrap path; a normal build and
@@ -13,7 +41,7 @@ backend remains the default and the only bootstrap path; a normal build and
 - JVM primitive arithmetic, mutable objects, arrays, methods, exceptions,
   and interfaces offer a closer fit to much of til than BEAM's immutable term
   model, while still forcing the backend contract to stand independently of C.
-- Like [[./317.org][#317]] and [[./374.org][#374]], it exercises the
+- Like [[../open/317.org][#317]] and [[./374.org][#374]], it exercises the
   [[../fixed/288.org][#288]] split: ~core_func~ is lowered natively and
   ~ext_func~ is supplied by a backend-specific runtime.
 
@@ -680,6 +708,16 @@ Master's #370 tests broke three corpus programs nobody re-ran on the
 JVM: jvm_stage_f and closures pass again; fn_ptr moved to the exclusion
 list (~dyn_fn~, callbacks looked up by type and method name, is a
 runtime reflection feature still to build).
+
+Arrays 2026-10-27: arrays passes at both widths. A ~ref~ scalar struct
+field (~AccessorIndexView.data~, a ~ref data : T~) is an address like a
+~ref~ scalar binding: as ptr_add's base or a Dynamic argument it is
+~slotAddress~ of its slot, not the value read through it. A scalar
+argument whose Java carrier differs from its parameter's (an I64 index
+into a 32-bit USize) gets C's call-boundary conversion
+(~jvm_emit_conversion~). script_struct_runtime's exclusion is no longer
+about struct fields: it now needs ~dyn_fn~, the struct_field_* /
+func_sig_* reflection and the til_closure_slot_* callables.
 
 **** Stage H: source mapping and optional direct bytecode
 

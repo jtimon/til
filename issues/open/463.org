@@ -1,0 +1,58 @@
+# priority: low
+# category: features
+** OPEN #463 Call til from the JVM and BEAM through generated bindings
+
+Make til libraries usable from the JVM (Java, Kotlin, Android) and from BEAM
+(Erlang, Elixir) the way Python already uses them: a native ~mode lib~
+library plus generated bindings, without translating til to those VMs. The
+managed backends are cancelled (JVM #375, BEAM #374): til's raw-memory and
+ownership model maps down to machine targets and fights managed VMs, while a
+binding keeps til native and lets each VM keep what it is good at.
+
+*** The bridge each VM needs
+
+Python's bindings use ~ctypes~: plain source that loads the library at run
+time, nothing compiled. Neither VM has a portable equivalent:
+
+- JVM: JNI is the bridge that works on desktop JVMs and Android alike (the
+  JDK's FFM, ~java.lang.foreign~, is desktop-only; ART has none). JNI needs a
+  small C bridge compiled against ~jni.h~, which only a JDK or the Android
+  NDK provides. The Kotlin-facing part is [[./454.org][#454]]; Java callers
+  use the same JNI classes, and Kotlin calls Java directly.
+- BEAM: NIFs (native implemented functions), a C bridge compiled against
+  ERTS's ~erl_nif.h~ and loaded by an Erlang module. NIFs run on scheduler
+  threads, so long calls must be marked dirty or yield, and a crash takes
+  the VM down -- the bindings must say which calls are safe to call
+  directly.
+
+Til already emits C, so the bridge itself can be generated C compiled into
+the library (or beside it). Generating its sources needs no JDK or OTP;
+compiling it does.
+
+*** Scope
+
+  - Reuse the library's exported interface and native ABI as the single
+    source of truth, as the Python bindings do; no hand-maintained
+    declarations per language.
+  - Specify, per VM: numeric widths (unsigned types included), strings,
+    aggregates, enums, borrowed and mutable references, owned results and
+    explicit release, callbacks, and throws. Reject unsupported signatures
+    with diagnostics rather than changing their semantics.
+  - Keep generating binding sources separate from compiling the bridge, so a
+    default build never needs a JDK, the NDK or OTP.
+
+*** Decisions needing approval before implementation
+
+  Generated file names and layout, package/module naming, which builds
+  generate which bindings by default, how the bridge is compiled and where
+  the result is installed, and the tools each step requires.
+
+*** Acceptance
+
+  - [ ] A JVM caller (desktop) loads a til ~mode lib~ library through the
+    generated JNI bridge and exercises values, ownership/release and errors
+    against the same interface the Python bindings test.
+  - [ ] An Erlang caller does the same through a generated NIF module,
+    including a long-running call that does not block a scheduler.
+  - [ ] Unsupported signatures produce actionable diagnostics; existing
+    Python/C/til bindings keep working.

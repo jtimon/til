@@ -1,6 +1,15 @@
 # priority: low
 # category: backends
-** OPEN #386 Lua backend alongside the C backend
+** CANCELLED #386 Lua backend alongside the C backend
+
+*** Cancelled (2026-10-30)
+
+Til keeps to machine-level backends (C, HolyC, assembly, MLIR); higher-level
+hosts reach til through generated bindings instead of a translation of whole
+programs (see [[./375.org][#375]] and [[./374.org][#374]], cancelled for the
+same reason, and [[../open/463.org][#463]]). The Lua til will generate is
+the Neovim theme output of [[../open/84.org][#84]] -- editor theme data, not
+general programs -- and not much more.
 
 Add a backend that runs til programs in a Lua host by emitting Lua source.
 The C backend remains the default and the only bootstrap path; normal builds

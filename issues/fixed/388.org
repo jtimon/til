@@ -94,5 +94,5 @@ enums non-compositional.
 - Interpreter, generated C, ASAN, and USize32/USize64 execution.
 
 Issue #70 remains fixed for its terminal-value scope. JVM-specific
-precomputed-sequence parity remains part of [[./375.org][#375]], and Set
+precomputed-sequence parity remains part of [[../cancelled/375.org][#375]], and Set
 folding is a separate optional extension.

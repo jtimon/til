@@ -13,7 +13,10 @@ artifacts from it:
 Theme designers edit til data, not Elisp, Lua, Vimscript, or JSON. The mode is
 the editor-independent source/artifact contract; each output format owns a
 serializer behind the builder boundary. It is not a general-purpose Elisp or
-Lua backend and does not add an editor platform target.
+Lua backend and does not add an editor platform target. Those general
+backends are cancelled ([[../cancelled/385.org][#385]] Elisp,
+[[../cancelled/386.org][#386]] Lua): theme generation is the extent of the
+Elisp and Lua til emits.
 
 *** Approved first slice: Emacs
 
@@ -24,7 +27,7 @@ The first slice generates only Emacs Lisp and uses the existing
 - ~src/modes/theme.til~ is the auto-imported typed schema for ~mode theme~.
 - A dedicated serializer under ~src/self/~ reads the prepared root theme value
   and writes Elisp. Theme syntax and state do not enter the parser, typer,
-  generic ~Context~, C emitter, or the general Elisp backend in [[./385.org][#385]].
+  generic ~Context~, or the C emitter.
 - ~editor/themes/til-dark-theme.el~ remains committed so Emacs can load it
   without til installed, but it is generated and must not be edited directly.
 - Regenerate it with:

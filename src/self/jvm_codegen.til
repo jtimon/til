@@ -1638,19 +1638,13 @@ priv jvm_emit_typed_args := proc(e: Expr, fd: FunctionDef,
                     }
                 case:
                 }
-                mut darg_ref_scalar := false
-                switch darg.node_type {
-                case .Ident(rsid): darg_ref_scalar = state.ref_scalars.has(rsid.ident_name(lp.ctx.symbols.names))
-                case:
-                }
+                darg_ref_scalar := jvm_expr_is_ref_scalar(darg, state, lp)
                 if darg_is_raw {
                     // A raw ref handed to a Dynamic parameter (`adopt`'s
                     // `dest`, Vec.unsafe_set's slot) is the address itself.
                     arg = jvm_emit_expr(darg, state, lp)
-                } else if darg_ref_scalar.and(jvm_is_scalar(dt, lp)) {
-                    // A scalar `ref` binding IS an address (C's `T *`): the
-                    // storage it borrows, which must be a heap address here.
-                    arg = format("TilRuntime.slotAddress(", jvm_emit_cell_ref(darg, state, lp), ")")
+                } else if darg_ref_scalar {
+                    arg = jvm_emit_slot_address(darg, state, lp)
                 } else if jvm_is_scalar(dt, lp) {
                     // A value where a Dynamic is expected: C passes the
                     // address of a slot holding it; box it into one.
@@ -1664,7 +1658,18 @@ priv jvm_emit_typed_args := proc(e: Expr, fd: FunctionDef,
             } else {
                 // A value parameter takes the value: a raw ref (a for-in
                 // binding into an Array) is loaded first.
-                arg = jvm_emit_compared(e.children[i], state, lp)
+                ref varg : Expr = e.children[i]
+                arg = jvm_emit_compared(varg, state, lp)
+                // C converts a scalar argument to its parameter's type at the
+                // call boundary (an I64 index into a 32-bit USize); Java needs
+                // the conversion spelled when the carriers differ.
+                if pi.lt(fd.sig.params.len()) {
+                    ref vpt : Type = fd.sig.params[pi].til_type
+                    if jvm_is_scalar(vpt, lp).and(jvm_is_scalar(varg.til_type(), lp))
+                        .and(jvm_type_lp(vpt, lp).eq(jvm_type_lp(varg.til_type(), lp)).not()) {
+                        arg = jvm_emit_conversion(vpt, jvm_scalar_name(varg.til_type(), lp), arg, lp)
+                    }
+                }
             }
             out = format(out, arg)
         }
@@ -2074,8 +2079,13 @@ priv jvm_emit_named_call := proc(e: Expr, name: Str, mut state: JvmEmitState,
             return format("TilRuntime.releaseBox(", value, ")")
         }
         if name == "ptr_add" {
-            return format("TilRuntime.ptrAdd(", jvm_emit_expr(e.children[1], state, lp), ", ",
-                jvm_emit_expr(e.children[2], state, lp), ")")
+            mut base := ""
+            if jvm_expr_is_ref_scalar(e.children[1], state, lp) {
+                base = jvm_emit_slot_address(e.children[1], state, lp)
+            } else {
+                base = jvm_emit_expr(e.children[1], state, lp)
+            }
+            return format("TilRuntime.ptrAdd(", base, ", ", jvm_emit_expr(e.children[2], state, lp), ")")
         }
         if name.eq("memcpy").or(name.eq("memmove")) {
             method := name.clone()
@@ -3007,9 +3017,31 @@ priv jvm_delete_value := func(t: Type, value: Str, lp: LoadedProgram) returns St
     return format(value, ".delete()")
 }
 
-// An `own` scalar field is a raw heap block (C's `I8 *c_str`): reading
-// it yields the block's ADDRESS, a TilRuntime.Ptr.
-priv jvm_field_is_raw := func(owner_type_in: Type, field_name: Str,
+// A scalar `ref` -- a binding, or a struct field (`ref data : T`) -- IS an
+// address in C (`T *`): where a Dynamic is expected (ptr_add's base, a
+// Dynamic parameter) it stands for the storage it borrows, not the value.
+priv jvm_expr_is_ref_scalar := func(e: Expr, state: JvmEmitState, lp: LoadedProgram) returns Bool {
+    if jvm_is_scalar(e.til_type(), lp).not() { return false }
+    switch e.node_type {
+    case .Ident(rsid): return state.ref_scalars.has(rsid.ident_name(lp.ctx.symbols.names))
+    case .FieldAccess(rsfa):
+        if e.children.len() == 1 {
+            return jvm_field_is_ref_scalar(e.children[0].til_type(), rsfa.field_access_name(lp.ctx.symbols.names), lp)
+        }
+    case:
+    }
+    return false
+}
+
+// The heap address a scalar `ref` borrows: its slot, which must be a heap
+// block (TilRuntime.slotAddress fails loudly on a plain cell).
+priv jvm_emit_slot_address := proc(e: Expr, mut state: JvmEmitState, lp: LoadedProgram) returns Str {
+    return format("TilRuntime.slotAddress(", jvm_emit_cell_ref(e, state, lp), ")")
+}
+
+// Whether `field_name` of struct `owner_type_in` is a scalar field
+// declared with ownership `want`.
+priv jvm_scalar_field_has := func(owner_type_in: Type, field_name: Str, want: OwnType,
     lp: LoadedProgram) returns Bool {
         owner_type := jvm_concrete(owner_type_in, lp)
         if is_struct_type(owner_type).not() { return false }
@@ -3020,7 +3052,19 @@ priv jvm_field_is_raw := func(owner_type_in: Type, field_name: Str,
         ref sd : StructDef = structdef_of(def_expr)
         if sd.fields_index.has(field_name).not() { return false }
         ref field : Declaration = sd.field_at(sd.fields_index[field_name])
-        return jvm_is_scalar(field.til_type, lp).and(field.own_type.is(OwnType.Own))
+        return jvm_is_scalar(field.til_type, lp).and(field.own_type.is(want))
+}
+
+priv jvm_field_is_ref_scalar := func(owner_type_in: Type, field_name: Str,
+    lp: LoadedProgram) returns Bool {
+        return jvm_scalar_field_has(owner_type_in, field_name, OwnType.Ref, lp)
+}
+
+// An `own` scalar field is a raw heap block (C's `I8 *c_str`): reading
+// it yields the block's ADDRESS, a TilRuntime.Ptr.
+priv jvm_field_is_raw := func(owner_type_in: Type, field_name: Str,
+    lp: LoadedProgram) returns Bool {
+        return jvm_scalar_field_has(owner_type_in, field_name, OwnType.Own, lp)
 }
 
 priv jvm_field_is_cell := func(owner_type_in: Type, field_name: Str,

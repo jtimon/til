@@ -23,9 +23,7 @@ reimplementing compiler semantics independently:
 
   - C: ~ext.c~ / ~ext.h~, exercised by GCC and Clang.
   - TempleOS HolyC: ~ext.HC~.
-  - JVM: ~ext.java~.
   - Native assembly: ~ext.fasm~ or the selected assembler's native extension.
-  - BEAM: ~ext.beam~ or the selected source/runtime boundary format.
 
 The filenames describe a role, not byte-identical APIs: platform primitives
 will differ, but allocation, memory, strings, output, panic, files, timing,
@@ -40,7 +38,9 @@ explicitly rather than acquire silent substitutes.
   - [ ] Pin the common semantic contract implemented by ~ext.c~ and identify
     which operations each native ~ext.<target>~ boundary can provide.
   - [ ] Decide the repository layout and native filename for every active
-    backend, including HolyC, JVM, assembly, and BEAM.
+    backend, including HolyC, assembly and MLIR. (The JVM and BEAM
+    backends, #375 and #374, are cancelled: those VMs call til through
+    bindings, #463.)
   - [ ] Decide how each backend selects progressively larger sets of existing
     tests without introducing a second test registry or copied test bodies.
   - [ ] Decide where genuinely backend-specific and temporary frontier
