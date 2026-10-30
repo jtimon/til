@@ -25,7 +25,7 @@ Bool raw_alloc_local()
 
 I64 TilMain()
 {
-    U32 n_4 = 4;
+    U64 n_4 = 4;
     U8 *buf_5 = TilMAlloc(n_4);
     I32 hoisted__I32_g16_6 = 0;
     TilMemSet(buf_5, hoisted__I32_g16_6, n_4);

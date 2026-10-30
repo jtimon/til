@@ -1261,7 +1261,7 @@ I64 language_sum(I64 base, Array__I64 *parts)
     I64 total_160 = base;
     {
         Array__I64 *ref_value_162 = parts;
-        U32 _fi_USize_0_163 = 0;
+        U64 _fi_USize_0_163 = 0;
         while (TRUE) {
             U64 hoisted__U64_2_165 = (ref_value_162)->cap;
             Bool _wcond_Bool_1_166 = (_fi_USize_0_163 < hoisted__U64_2_165);

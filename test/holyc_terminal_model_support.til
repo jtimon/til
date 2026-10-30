@@ -1,0 +1,97 @@
+mode script
+
+// The canonical TerminalScreen uses aggregate replacement, UTF-8 helpers,
+// integer casts, scalar/range switches and target-sized byte indices.
+Style := struct { fg : I64 = 7; bg : I64 = 0 }
+Styled := struct { style := Style(); text := "old" }
+Owned := struct { own values := Vec(Str).new(); label := "old" }
+Holder := struct { item := Owned() }
+
+replace_style := func(mut value: Styled, style: Style) { value.style = style.clone() }
+replace_item := func(mut value: Holder, own item: Owned) { value.item = item }
+repeat_item := func(mut value: Holder) { value.item = value.item.clone() }
+replace_label := func(mut value: Holder, label: Str) {
+    value.item.label = label.clone()
+}
+
+mut styled := Styled()
+replace_style(styled, Style(fg = 1, bg = 4))
+if styled.style.fg != 1 || styled.style.bg != 4 { panic("aggregate field replacement") }
+
+mut holder := Holder()
+holder.item.values.push(own "before")
+mut replacement := Owned(label = "new")
+replacement.values.push(own "after")
+replace_item(holder, own replacement)
+replace_label(holder, holder.item.values[0])
+repeat_item(holder)
+if holder.item.values[0] != "after" || holder.item.label != "after" { panic("owned aggregate replacement") }
+
+// Narrow source references must be read at their original width before a cast.
+mut byte : I8 = -1
+borrow_byte := func(value: I8) returns ref I8 { return value }
+ref byte_ref : I8 = borrow_byte(byte)
+unsigned_byte := byte_ref.cast(U8)
+if unsigned_byte.to_i64() != 255 { panic("reference integer cast") }
+mut wide : I64 = 511
+if wide.to_u8().to_i64() != 255 { panic("byte conversion") }
+if unsigned_byte.cast(I8).cast(I64) != -1 { panic("signed integer cast") }
+
+mut text := Str.with_capacity(9)
+text.push_str(Str.from_codepoint(0))
+text.push_str(Str.from_byte(255))
+text.push_str(Str.from_codepoint(0x20ac))
+text.push_str(Str.from_codepoint(0x1f642))
+if text.len() != 9 { panic("counted UTF-8 construction") }
+if text.unsafe_get(0).cast(U8).to_i64() != 0 { panic("embedded NUL") }
+if text.unsafe_get(1).cast(U8).to_i64() != 255 { panic("high byte") }
+euro := text.read_utf8(2)
+if euro.value != 0x20ac || euro.end != 5 || euro.valid.not() { panic("UTF-8 three-byte decode") }
+smile := text.read_utf8(euro.end)
+if smile.value != 0x1f642 || smile.end != 9 || smile.valid.not() { panic("UTF-8 four-byte decode") }
+partial_text := text.substr(5, 2)
+incomplete := partial_text.read_utf8(0, false)
+if incomplete.incomplete.not() || incomplete.end != 0 { panic("partial UTF-8 decode") }
+
+// Reference writes through unsafe_get must update the original string.
+mut editable := Str.with_capacity(3)
+editable.push_str("abc")
+ref mut first : I8 = editable.unsafe_get(0)
+first = 'Z'
+if editable != "Zbc" { panic("Str byte reference write") }
+
+IndexBox := struct { index : USize = 0 }
+advance := func(mut box: IndexBox) returns USize {
+    box.index++
+    return box.index
+}
+mut box := IndexBox()
+mut mask : USize = 0
+mask.dec()
+box.index = mask
+if box.index != mask { panic("target-sized field storage") }
+box.index = 0
+mut sum : I64 = 0
+for _ in 0..6 {
+    switch advance(box) {
+    case 1, 2: sum = sum + 1
+    case 3..4: sum = sum + 10
+    case 5: continue
+    case: sum = sum + 100
+    }
+    sum = sum + 1000
+}
+if box.index != 6 || sum != 5122 { panic("scalar switch evaluation or control flow") }
+mut max : U64 = 0
+max.dec()
+read_max := func(value: U64) returns U64 { return value }
+switch max {
+case 0..2: panic("unsigned switch range")
+case read_max(max): sum++
+case: panic("full-width scalar switch")
+}
+switch sum == 5123 {
+case true:
+case: panic("Boolean switch")
+}
+println("Terminal model support passed")

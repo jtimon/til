@@ -47,10 +47,10 @@ class Type {
 
 class DynVec {
   U8 * data;
-  U32 count;
-  U32 cap;
-  U32 elem_size;
-  U32 elem_kind;
+  U64 count;
+  U64 cap;
+  U64 elem_size;
+  U64 elem_kind;
   TilClosure * elem_clone;
   TilClosure * elem_delete;
 };
@@ -8923,7 +8923,7 @@ U0 DynVec_new_type_name_kind(DynVec *return_out, TilStr *elem_type, U64 elem_kin
             return;
         }
     }
-    U32 sz_82 = TilDynSize(elem_type);
+    U64 sz_82 = TilDynSize(elem_type);
     Bool hoisted__Bool_5_83 = (elem_kind == ELEM_POD);
     if (hoisted__Bool_5_83) {
         U8 *hoisted__v_2_84 = TilMAlloc(((sz_82) + 0));
@@ -9218,10 +9218,10 @@ I64 Str_find(TilStr *self, TilStr *needle)
         return hoisted__I64_1_165;
     }
     I8 *ref_value_167 = needle->c_str;
-    U32 last_start_168 = (self->count - needle->count);
+    U64 last_start_168 = (self->count - needle->count);
     U64 hoisted__U64_19_169 = 1;
-    U32 rest_170 = (needle->count - hoisted__U64_19_169);
-    U32 i_171 = 0;
+    U64 rest_170 = (needle->count - hoisted__U64_19_169);
+    U64 i_171 = 0;
     while (TRUE) {
         Bool _wcond_Bool_2_173 = (i_171 <= last_start_168);
         if (_wcond_Bool_2_173) {

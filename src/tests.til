@@ -1340,6 +1340,18 @@ main := proc(args: ..Str) {
         format(til_bin, " interpret test/holyc_i32_divmod.til"))
     add_count(tests, "holyc_i32_divmod_compile", "build", "I32 divmod passed", 1,
         format(til_bin, " run --asan -o bin/c/holyc_i32_divmod -c gen/c/holyc_i32_divmod.c test/holyc_i32_divmod.til"))
+    // Interpreter aggregates use the compiler host layout. Check its matching
+    // width here; compiled C and HolyC exercise both target layouts below.
+    add_count(tests, "holyc_terminal_model_support_interp", "build", "Terminal model support passed", 1,
+        format(til_bin, " interpret --usize=32 test/holyc_terminal_model_support.til"))
+    for bits : Str in array(Str, "32", "64") {
+        add_count(tests, format("holyc_terminal_model_support_compile_", bits), "build", "Terminal model support passed", 1,
+            format(til_bin, " run --asan --usize=", bits, " -o bin/c/holyc_terminal_model_support_", bits,
+                " -c gen/c/holyc_terminal_model_support_", bits, ".c test/holyc_terminal_model_support.til"))
+        add_single(tests, format("holyc_terminal_model_support_translate_", bits), "build", 0, "",
+            format(til_bin, " translate --target=templeos --usize=", bits,
+                " -c gen/c/holyc_terminal_model_support_", bits, ".HC test/holyc_terminal_model_support.til"))
+    }
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),
         CountCheck(needle = "TilGuiGetKeyPressed(", expected_count = 2),

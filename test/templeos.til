@@ -444,6 +444,9 @@ main := proc() {
             run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
         }
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), "test/holyc_terminal_model_support.til").run_checked()
+        run_guest(identity, format("terminal_model_support_", bits), "Terminal model support passed\n", "pass")
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/globals_cli.til").run_checked()
         File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
         cli_globals := captured(Cmd.new("bin/til", "interpret", format("--usize=", bits), "test/globals_cli.til"))

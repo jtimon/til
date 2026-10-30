@@ -1097,6 +1097,124 @@
   middle-button cases plus the existing wheel, mouse, arithmetic/formatting and
   keyboard-focus checks. The full guest matrix was not rerun for this sprint.
 
+**** Canonical TerminalScreen rendering acceptance
+
+  Tested the actual ~tiled/lib/libterminal/model.til~ and ~text.til~ at Tiled
+  revision ~44b1af8~, importing them directly from the separate checkout. No
+  parser/model copy is maintained in til. A headless probe feeds ASCII plus
+  SGR/cursor escapes and checks cell contents, styles and cursor coordinates.
+  A GUI probe uses those same model cells with the existing DrawRectangle,
+  DrawText and screen-readback calls. Both native USize widths pass, as does
+  the hosted raylib GUI run under Xvfb.
+
+  The GUI input splits a CSI command across feed calls, sets red-on-blue
+  text, resets SGR, moves the cursor, saves it, writes on another row and
+  restores it. Pixel checks cover outside background, parsed blue paper,
+  reset black paper, red glyph ink and the model-positioned white cursor.
+  The acceptance renderer deliberately uses four exact native-palette colors
+  and printable ASCII. It is not Tiled's Font/DrawTextCodepoint-based GPU view;
+  full font/style/Unicode rendering, ordered input and native session/shell
+  integration remain later work.
+
+  Compiling the canonical model exposed missing HolyC lowering for aggregate
+  field replacement, Str byte references/raw constructors, integer casts,
+  to_u8 and scalar/range switches. Source-method discovery now registers
+  aggregate types in method signatures and bodies, including Utf8Read.
+  USize aliases now resolve through the selected target width rather than a
+  hardcoded U32, which had made the first USize64 native probe fail Str.get's
+  bounds check. The shared frontend/ownership plan remains authoritative.
+
+  ~test/holyc_terminal_model_support.til~ permanently checks these language
+  paths without requiring another checkout: owned nested-field replacement,
+  byte-reference reads/writes, signedness casts, embedded NUL/high bytes,
+  multibyte/incomplete UTF-8, target-sized fields, single-evaluation switches,
+  ranges/defaults, Boolean/full-width unsigned cases and loop continuation.
+  Hosted C/ASAN and native checks cover USize32/64. The interpreter check uses
+  USize32 to match this compiler's host aggregate layout; interpreted aggregate
+  fields retain that host layout even with a different target USize.
+
+  Verification on master ~9bc23073e~: clean hosted build followed by the full
+  ASAN suite passes 500/500, including clang validation. Eight focused native
+  cases pass: the support regression, existing struct/collection corpus,
+  canonical headless model and pixel-checked GUI, each at USize32/64. Three
+  existing HolyC goldens now expect U64 for target-USize64 locals/fields.
+  The full guest matrix was not rerun for this sprint.
+
+  To reproduce the optional cross-project GUI proof, save the following as
+  ~tmp/terminal_model_gui.til~ and replace its import with the absolute path
+  to the canonical Tiled checkout. Run ~xvfb-run -a bin/til run
+  tmp/terminal_model_gui.til~ on the host. For the existing manual VM workflow
+  below, substitute this source for ~examples/gui_mouse.til~ in the translate
+  command; test with both ~--usize=32~ and ~--usize=64~. Expected final output:
+  ~TerminalScreen GUI passed~. The normal til test suite does not depend on a
+  sibling checkout or on a machine-specific import path.
+
+  #+begin_src til
+  mode gui
+  import("/absolute/path/to/tiled/lib/libterminal/model")
+
+  paper_color := func(index: I64) returns Color {
+      switch index {
+      case 0: return Color(r=0, g=0, b=0, a=255)
+      case 1: return Color(r=170, g=0, b=0, a=255)
+      case 4: return Color(r=0, g=0, b=170, a=255)
+      case 7: return Color(r=255, g=255, b=255, a=255)
+      case: panic("unexpected fixture palette entry")
+      }
+  }
+  same_color := func(a: Color, b: Color) returns Bool {
+      return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a
+  }
+  check_pixel := func(image: Image, x: I32, y: I32, expected: Color) {
+      if same_color(GetImageColor(image, x, y), expected).not() { panic("terminal model pixel") }
+  }
+  main := proc() {
+      mut screen := TerminalScreen.new(12, 4)
+      screen.feed("READY>\r\n\x1b[31;", false)
+      screen.feed("44mRED\x1b[0m\x1b[3;2HX\x1b[s\x1b[4;1HQ\x1b[u", true)
+      ref red : TerminalCell = screen.cell_at(0, 1)
+      if red.text != "R" || red.style.fg != 1 || red.style.bg != 4 { panic("terminal model SGR") }
+      if screen.x != 2 || screen.y != 2 { panic("terminal model cursor") }
+      InitWindow(640, 480, "canonical TerminalScreen".c_str)
+      SetTargetFPS(30)
+      for frame in 0..10 {
+          BeginDrawing()
+          ClearBackground(paper_color(0))
+          for y in 0..screen.rows {
+              for x in 0..screen.columns {
+                  ref cell : TerminalCell = screen.cell_at(x, y)
+                  DrawRectangle((40 + x * 20).to_i32(), (40 + y * 24).to_i32(), 20, 24, paper_color(cell.style.bg))
+              }
+          }
+          for y in 0..screen.rows {
+              for x in 0..screen.columns {
+                  ref cell : TerminalCell = screen.cell_at(x, y)
+                  DrawText(cell.text.c_str, (42 + x * 20).to_i32(), (44 + y * 24).to_i32(), 16, paper_color(cell.style.fg))
+              }
+          }
+          DrawRectangle((40 + screen.x * 20).to_i32(), (61 + screen.y * 24).to_i32(), 20, 3, paper_color(7))
+          EndDrawing()
+          if frame == 0 {
+              image := LoadImageFromScreen()
+              check_pixel(image, 20, 20, paper_color(0))
+              check_pixel(image, 98, 65, paper_color(4))
+              check_pixel(image, 118, 65, paper_color(0))
+              check_pixel(image, 90, 110, paper_color(7))
+              mut ink : I64 = 0
+              for y in 68..84 {
+                  for x in 42..58 {
+                      if same_color(GetImageColor(image, x.to_i32(), y.to_i32()), paper_color(1)) { ink++ }
+                  }
+              }
+              if ink == 0 || ink == 256 { panic("terminal model glyph") }
+              UnloadImage(image)
+          }
+      }
+      CloseWindow()
+      println("TerminalScreen GUI passed")
+  }
+  #+end_src
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,
