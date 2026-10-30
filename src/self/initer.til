@@ -5234,11 +5234,68 @@ priv init_expand_member_generators := proc(mut definition: Expr, macros: Map(Str
     }
 }
 
+// call_throwing's error-type form remains an ordinary macro. A named FuncSig
+// instead supplies a variable-length throws list: materialize one concrete
+// adapter with a typed throw arm for each declared error, before throw lowering.
+// Like the SIMD generator, this produces ordinary AST, not runtime source or
+// an additional persistent representation of the signature.
+priv init_expand_throwing_adapter := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context) returns Bool {
+    ref call : Expr = stmt.children[0]
+    if call.children.len() != 2 { return false }
+    adapter_o := scope.get_binding_name("call_throwing", ctx.symbols)
+    callback_o := scope.get_binding_name("TilVmCallback", ctx.symbols)
+    // A user macro with the same spelling is not the installed adapter.
+    if adapter_o.is_none().or(callback_o.is_none()) { return false }
+    if adapter_o.unwrap().path != callback_o.unwrap().path { return false }
+    mut signature_name := ""
+    switch call.children[1].node_type {
+    case .Ident(id): signature_name = init_type_arg_name(scope, id.ident_name(ctx.symbols.names), ctx.symbols)
+    case: return false
+    }
+    signature_o := scope.lookup_func_name(signature_name, ctx.symbols)
+    if signature_o.is_none() { return false }
+    ref signature_def : Expr = signature_o.unwrap()
+    if signature_def.children.len() != 0 { return false }
+    ref signature : FuncSig = funcdef_of(signature_def).sig
+    if signature.throw_types.len() == 0 {
+        stmt.type_error("call_throwing signature must declare at least one error", ctx)
+        return false
+    }
+    mut source := "generated := proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws "
+    for error_type : Str in signature.throw_types {
+        if error_type == "TilVmError" {
+            stmt.type_error("TilVmError is reserved for VM failures, not declared guest errors", ctx)
+            return false
+        }
+        source = format(source, error_type, ", ")
+    }
+    source = format(source, "TilVmError { mut error_value := Tuple.new(); result := self.invoke_throwing(",
+        signature_name, ", arguments, error_value)?; if error_value.len() > 0 { ")
+    for error_type : Str in signature.throw_types {
+        source = format(source, "if error_value.type_at(0) == til_type_name(", error_type, ") { throw ",
+            error_type, ".clone(error_value.get(0)) }; ")
+    }
+    source = format(source, "panic(\"throwing adapter received an undeclared error type\") }; return result }")
+    mut mode := ""
+    tokens := tokenize(source, ctx.path)
+    mut anon : I64 = 0
+    mut errors : I32 = 0
+    generated := parse(tokens, source, ctx.path, mode, anon, ctx.symbols, errors)
+    if errors != 0 { panic("invalid generated throwing adapter: ", source) }
+    stmt.children[0] = generated.children[0].children[0].clone()
+    note_cross_file_type_use(scope, ctx, signature_name)
+    return true
+}
+
 priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context, mark_ctx: Bool, mut nested_synthesized: Vec(Expr)) returns Bool {
     ref rhs : Expr = stmt.children[0]
     switch rhs.children[0].node_type {
     case .Ident(callee):
         if callee.ident_name(ctx.symbols.names) == "Simd" { return init_expand_simd(stmt, scope, ctx, nested_synthesized) }
+        if callee.ident_name(ctx.symbols.names) == "call_throwing" {
+            if init_expand_throwing_adapter(stmt, scope, ctx) { return true }
+            if ctx.errors > 0 { return false }
+        }
     case:
     }
     if macro_fdef.children.len() == 0 { return false }

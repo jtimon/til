@@ -97,7 +97,7 @@ instead converts an error into a host panic. Guest output uses host stdio.
 
 The fixed call boundary supports core scalars and Str, with at most 63
 arguments. Variadic, kwargs and arbitrary record arguments/results are
-unsupported. A single declared guest error is supported through the typed
+unsupported. Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
 reference route described below.
@@ -105,32 +105,44 @@ reference route described below.
 **** Declared errors on retained callbacks
 
 This extension follows the completed #370 contract. A host and guest may share
-one declared error schema: a scalar/Str, or a struct with inline scalar/Str
+declared error schemas: scalars/Str, or structs with inline scalar/Str
 fields (including an empty marker struct). Checked lookup compares the signature
 and, for error structs, field names/order, types, mutability and ownership, plus
-host layout size. Pointer/reference fields, nested records, enums and multiple
-declared error types are outside this slice. The shared type name and validated
+host layout size. Pointer/reference fields, nested records and enums remain
+outside this slice. The shared type name and validated
 schema identify the error; a guest's numeric throw tag is never exposed as a
 host type identity.
 
 #+begin_src til
 TransformError := struct { code: I32 = 0; message := "" }
-Transform := proc(mut Str, I64) returns Str throws TransformError
+TransformFailed := struct { code: I32 = 0; message := "" }
+Transform := proc(mut Str, I64) returns Str throws TransformError, TransformFailed
 mut callback := vm.lookup("transform", Transform)!
-result := call_throwing(TransformError)(callback, arguments)?
+result := call_throwing(Transform)(callback, arguments)?
 catch (error: TransformError) { println(error.message) }
+catch (error: TransformFailed) { println(error.message) }
 catch (error: TilVmError) { println(error.to_str()) }
 #+end_src
 
-~call_throwing(E)~ is a function-generating macro. Its generated proc declares
-~throws E, TilVmError~ and uses ordinary host throw lowering: the host catches
-an actual owned ~E~, not a diagnostic wrapper or an erased list of fields.
+~call_throwing(Signature)~ specializes the adapter to a named function signature.
+The compiler generates a concrete proc declaring every error in that signature,
+plus ~TilVmError~, and a typed throw arm for each error. There is no fixed
+two-error or three-error limit. Errors with identical field layouts remain
+distinct types. The full signature, including its ordered throws list, must
+match the retained callback before invocation. Named signature aliases and
+binding the generated adapter to a name are supported.
+
+~call_throwing(E)~ remains supported for a callback declaring exactly one error
+type ~E~. Both forms use ordinary host throw lowering: the host catches an
+actual owned error, not a diagnostic wrapper or an erased list of fields.
 Use ~callback.call(arguments)~ for nonthrowing signatures; it rejects a throwing
 callback before invocation. The error type supplied to the adapter must match
-the checked callback contract.
+the checked callback contract. ~TilVmError~ remains reserved for VM failures;
+it cannot be included as a guest error in a signature-based adapter.
 
 ~TilVmCallback.invoke_throwing(error_type, arguments, error_payload)~ is the
-runtime bridge used by that adapter. It requires an initially empty error
+runtime bridge used by that adapter. Its first argument accepts the error type
+or the complete signature Type. It requires an initially empty error
 Tuple. Success returns the usual result Tuple and leaves the error Tuple empty;
 a declared throw returns no result and fills the error Tuple with one owned
 host error value. Validation, panic, exit and evaluator failures throw
@@ -144,6 +156,9 @@ the callback and VM usable; earlier guest/native effects are not rolled back.
 Signature/schema, adapter-type and argument rejection execute no guest code.
 The installed ASAN host in ~test/tilvm.til~ exercises these distinctions with
 empty PATH, repeated calls, schema rejection and post-teardown payload reads.
+Its multi-error case covers three declared errors, including two same-layout
+payload types and an empty marker, mismatched adapter signatures, and trailing
+defaulted parameters after hidden error slots.
 
 A ~TilVmCallback~ owns its retained callable/captures and borrows the VM's
 code/session. Cloning the handle clones captures independently while sharing
@@ -359,8 +374,8 @@ possible extensions:
 
 - ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments
   or arbitrary record arguments/results. The ~call_throwing(E)~ adapter supports
-  one shared scalar/Str-field error schema; multiple declared errors remain an
-  extension. Extending
+  shared scalar/Str-field error schemas, including multiple declared errors
+  through its signature-based form. Extending
   it requires checked marshalling and ownership/error-path coverage in the
   installed host tests. Native-library record references and native throws
   already work; they do not provide these guest-callback contracts.

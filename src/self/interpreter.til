@@ -457,7 +457,7 @@ namespace:
         case .FuncDef(fd):
             matches = fd.sig.func_type.is_plain().and(def.children.len() > 0)
                 .and(fd.sig.variadic_index < 0).and(fd.sig.kwargs_index < 0)
-                .and(interp_callback_param_count(fd) <= 63).and(fd.sig.throw_types.len() <= 1)
+                .and(interp_callback_param_count(fd) <= 63)
             if signature.is(Type.None) {
                 matches = matches.and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0).and(fd.sig.throw_types.len() == 0)
             }
@@ -468,7 +468,7 @@ namespace:
             ref path : Str = lp.ctx.eval.function_paths[word_bits(to_ptr(def)).cast(UPtr)]
             mut message := format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")
             if signature.is(Type.None).not() {
-                message = format("'", name, "' requires a fixed callback signature with at most 63 scalar/Str arguments and at most one shared error type")
+                message = format("'", name, "' requires a fixed callback signature with at most 63 scalar/Str arguments")
             }
             err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col, message = message))
             throw err
@@ -506,7 +506,7 @@ namespace:
         return Option(Tuple).take(own result)
     }
 
-    /// Runtime bridge for call_throwing(E). error_payload must be empty;
+    /// Runtime bridge for call_throwing(E or Signature). error_payload must be empty;
     /// a declared throw fills it with one independently owned host value.
     invoke_throwing := proc(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError {
         if self.session.is_none() {
@@ -523,15 +523,24 @@ namespace:
         ref mut lp : LoadedProgram = interp_callback_program(session)
         ref def : Expr = callable_raw_func_def(to_ptr(self.callable))
         contract := interp_lookup_signature(funcdef_of(def), lp.ctx).unwrap()
-        if contract.throw_types.len() != 1 {
-            mut err := TilVmError(phase = "call")
-            err.diagnostics.push(own TilVmDiagnostic(message = "call_throwing requires exactly one declared guest error"))
-            throw err
-        }
-        if contract.throw_types[0] != til_type_name(error_type) {
-            mut err := TilVmError(phase = "call")
-            err.diagnostics.push(own TilVmDiagnostic(message = "guest error type does not match call_throwing type"))
-            throw err
+        if error_type.is(Type.FuncPtrSig) {
+            expected := func_sig_of(til_type_name(error_type))
+            if contract.eq(expected).not().or(expected.throw_types.len() == 0) {
+                mut err := TilVmError(phase = "call")
+                err.diagnostics.push(own TilVmDiagnostic(message = "guest signature does not match throwing adapter signature"))
+                throw err
+            }
+        } else {
+            if contract.throw_types.len() != 1 {
+                mut err := TilVmError(phase = "call")
+                err.diagnostics.push(own TilVmDiagnostic(message = "call_throwing requires exactly one declared guest error"))
+                throw err
+            }
+            if contract.throw_types[0] != til_type_name(error_type) {
+                mut err := TilVmError(phase = "call")
+                err.diagnostics.push(own TilVmDiagnostic(message = "guest error type does not match call_throwing type"))
+                throw err
+            }
         }
         result := interp_call_callable(session, lp, to_ptr(self.callable), contract, arguments, error_payload)
         if result.is_none() {
@@ -559,8 +568,9 @@ namespace:
     }
 }
 
-/// Invoke a guest with one checked shared error schema. Declared errors
-/// become owned host E values; panic/exit/validation remain TilVmError.
+/// Invoke a guest with checked shared error schemas. E is either one error
+/// type or a named FuncSig; init specializes the signature form into typed
+/// throw arms. Panic/exit/validation remain TilVmError in both forms.
 call_throwing := macro(E: Type) returns FuncDef {
     return proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws E, TilVmError {
         mut error_value := Tuple.new()
@@ -6788,9 +6798,9 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     ref mut def : Expr = callable_raw_func_def(callable)
     ref fd : FunctionDef = funcdef_of(def)
     path := lp.ctx.eval.function_paths[word_bits(def).cast(UPtr)].clone()
-    if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)).or(expected.throw_types.len() > 1) {
+    if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)) {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-            "guest invocation does not yet marshal variadic, kwargs, or multiple-error contracts")
+            "guest invocation does not yet marshal variadic or kwargs contracts")
         return Option(Tuple).None
     }
     if arguments.len() != expected.params.len() || expected.params.len() > 63 {
@@ -6858,20 +6868,26 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     result : Dynamic = eval_callable_call(temps, call, callable, lp.ctx, destination)
     mut values := Tuple.new()
     mut declared_error := false
-    if lp.ctx.eval.eval_aborted.not().and(expected.throw_types.len() == 1) {
+    if lp.ctx.eval.eval_aborted.not().and(expected.throw_types.len() > 0) {
         ref kind_slot : HeapBinding = scope_lookup_heap_binding(temps, "_err_kind").unwrap()
         ref kind : I64 = to_ptr(kind_slot.ptr)
         if kind != 0 {
             declared_error = true
-            ref name : Str = expected.throw_types[0]
-            if throw_type_has_payload(lp.ctx, name) {
-                ref payload : HeapBinding = scope_lookup_heap_binding(temps, format("_err_", name)).unwrap()
-                copied : Dynamic = interp_callback_error_copy(name, payload.ptr, lp.ctx)
-                error_value.push_type_name(own name.clone(), own copied)
-            } else {
-                mut empty : Dynamic = calloc(1, dyn_size_of(name))
-                error_value.push_type_name(own name.clone(), own empty)
+            mut matched := false
+            for name : Str in expected.throw_types {
+                if throw_type_tag(name) != kind { continue }
+                matched = true
+                if throw_type_has_payload(lp.ctx, name) {
+                    ref payload : HeapBinding = scope_lookup_heap_binding(temps, format("_err_", name)).unwrap()
+                    copied : Dynamic = interp_callback_error_copy(name, payload.ptr, lp.ctx)
+                    error_value.push_type_name(own name.clone(), own copied)
+                } else {
+                    mut empty : Dynamic = calloc(1, dyn_size_of(name))
+                    error_value.push_type_name(own name.clone(), own empty)
+                }
+                break
             }
+            if matched.not() { panic("guest returned an undeclared error tag") }
         }
     }
     if lp.ctx.eval.eval_aborted.or(declared_error).not().and(expected.return_type.len() > 0) {

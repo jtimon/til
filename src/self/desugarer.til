@@ -1050,7 +1050,7 @@ priv tag_for_type := func(ctx: Context, type_name: Str, _type_to_tag_names: Vec(
 // registration index only agrees within one program. Preserve the core ABI
 // tags used by native collection helpers; other nominal names use fixed-width
 // FNV-1a, independent of import order, target USize, and the chosen hasher.
-priv throw_type_tag := func(name: Str) returns I64 {
+throw_type_tag := func(name: Str) returns I64 {
     switch name {
     case "OutOfBounds": return 1
     case "IntegerOverflow": return 2
@@ -1611,6 +1611,14 @@ priv find_callee_throws_key := func(mut scope: TypeScope, mut ctx: Context, fcal
         ref name : Str = n.ident_name(ctx.symbols.names)
         direct := registry_exact_key(ctx, name)
         if direct.len() > 0 { return direct }
+        // A named function-generator result aliases its canonical concrete
+        // declaration. Its throws belong to that declaration, not to a new
+        // bodyless signature under the alias spelling.
+        ref target : Str = resolve_type_alias(scope, name, ctx.symbols)
+        if target != name {
+            aliased := registry_exact_key(ctx, target)
+            if aliased.len() > 0 { return aliased }
+        }
         // Callable variables carry the throw contract of their FuncSig,
         // not a free-function registry entry under the variable's name.
         sig_name := guess_local_type(scope, body, name, ctx.symbols)

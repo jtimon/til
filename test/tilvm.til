@@ -725,7 +725,90 @@ throwing_schema_tests := proc(root: Str) {
     }
 }
 
+TransformFailed := struct { code: I32 = 0; message := "" }
+MultiTransform := proc(mut Str, I64) returns Str throws TransformError, TransformFailed, HostThrow
+MultiAlias := MultiTransform
+WrongOrder := proc(mut Str, I64) returns Str throws TransformFailed, TransformError, HostThrow
+invoke_multi := call_throwing(MultiTransform)
+
+multiple_error_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "TransformFailed := struct { code: I32 = 0; message := \"\" }\nHostThrow := struct {}\n",
+        "mut count := 0\nmessage := format(\"guest \", \"payload\")\n",
+        "read_count := proc() returns I64 { noop_proc(); return count }\n",
+        "transform := proc(mut text: Str, action: I64 = 0) returns Str throws TransformError, TransformFailed, HostThrow {\n",
+        "noop_proc(); count = count + 1; text = format(text, \"!\");\n",
+        "if action == 1 { throw TransformError(code = 11, message = \"first error\") };\n",
+        "if action == 2 { throw TransformFailed(code = 22, message = message.substr(6, 7)) };\n",
+        "if action == 3 { throw HostThrow() }; if action == 4 { panic(\"multi panic\") };\n",
+        "if action == 5 { exit(0) }; return text.clone() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut callback := vm.lookup("transform", MultiTransform)!
+    expect_lookup_failure(vm, "transform", "signature mismatch", signature = WrongOrder)
+    expect_lookup_failure(vm, "transform", "signature mismatch", signature = ThrowTransform)
+    mut args := Tuple.new()
+    args.push(Str, own format("host", " input"))
+    args.push(I64, own 0)
+    mut rejected := false
+    call_throwing(WrongOrder)(callback, args)?
+    catch (err: TransformError) { panic("unexpected guest error") }
+    catch (err: TransformFailed) { panic("unexpected guest error") }
+    catch (err: HostThrow) { panic("unexpected guest error") }
+    catch (err: TilVmError) { rejected = err.to_str().contains("adapter signature") }
+    assert(rejected)
+    mut reader := vm.lookup("read_count", HostTick)!
+    before := reader.call()!
+    ref before_count : I64 = before.get(0)
+    assert(before_count == 0)
+    mut first := TransformError()
+    mut second := TransformFailed()
+    for action in 0..6 {
+        mut input := Tuple.new()
+        input.push(Str, own format("host", " input"))
+        input.push(I64, own action.clone())
+        mut caught := false
+        output := invoke_multi(callback, input)?
+        catch (err: TransformError) { assert(action == 1); first = err; caught = true }
+        catch (err: TransformFailed) { assert(action == 2); second = err; caught = true }
+        catch (err: HostThrow) { assert(action == 3); caught = true }
+        catch (err: TilVmError) {
+            assert(action == 4 || action == 5)
+            if action == 4 { assert(err.to_str().contains("multi panic")) }
+            if action == 5 { assert(err.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if action == 0 { ref text : Str = output.get(0); assert(text == "host input!") }
+        else { assert(caught) }
+        ref updated : Str = input.get(0)
+        assert(updated == "host input!")
+    }
+    output := call_throwing(MultiAlias)(callback, args)!
+    after := reader.call()!
+    ref after_count : I64 = after.get(0)
+    assert(after_count == 7)
+    own reader.delete()
+    own callback.delete()
+    own vm.delete()
+    ref text : Str = output.get(0)
+    assert(text == "host input!")
+    assert(first.code == 11 && first.message == "first error")
+    assert(second.code == 22 && second.message == "payload")
+    // Validate every declared schema, including an error after a valid one.
+    File.writefile("guest.til", format(
+        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "TransformFailed := struct { code: I64 = 0; message := \"\" }\nHostThrow := struct {}\n",
+        "transform := proc(mut text: Str, action: I64) returns Str throws TransformError, TransformFailed, HostThrow {\n",
+        "noop_proc(); text = \"executed\"; if action == 1 { throw TransformError() };\n",
+        "if action == 2 { throw TransformFailed() }; if action == 3 { throw HostThrow() }; return text.clone() }\n"))
+    mut bad_schema := TilVm.new(root)
+    bad_schema.load_file("guest.til")!
+    expect_lookup_failure(bad_schema, "transform", "shared callback error schema", signature = MultiTransform)
+}
+
 main := proc(root: Str) returns I64 {
+    multiple_error_callback_tests(root)
     throwing_callback_tests(root)
     throwing_schema_tests(root)
     checked_lookup(root)
