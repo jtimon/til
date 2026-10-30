@@ -176,8 +176,8 @@
   scalar comparisons, Boolean logic, cloning, literals, same-file direct
   calls and returns. Integer division, shifts and other unsupported
   operations still produce diagnostics. SIMD ~new~,
-  ~splat~, ~zero~, fixed-order ~reduce_add~ and statically in-range lane
-  access (~v[2]~ or ~v.get(2)!~) are supported. Unsupported arithmetic,
+  ~splat~, ~zero~, fixed-order ~reduce_add~ and checked lane
+  access/update (~v[i]~, ~v.get(i)?~, ~v.set(i,own x)!~) are supported. Unsupported arithmetic,
   ownership, globals, runtime calls and types produce
   source-located errors. Generated compile-time core helpers are not treated
   as exported source functions. A runnable program needs a no-argument,
@@ -213,7 +213,7 @@
   comparisons are false for NaNs; inequality is true for unordered operands,
   matching the interpreter/C backend. Masks use ~vector<4xi1>~ internally and
   four normalized Bool bytes at the public ABI (one SysV INTEGER/i32 chunk),
-  not packed predicate bits. They support construction, splat, zero, constant
+  not packed predicate bits. They support construction, splat, zero, checked
   lane reads, equality/inequality, band/bor/bxor/bnot and all/any reductions.
   ~select~ accepts masks and either F32x4 or Boolx4 values and preserves the
   selected lane's bits, including signed zero and NaN payloads. Mask operands
@@ -221,15 +221,16 @@
   masked memory access. Mutable mask locals and same-file calls retain the
   same representation conversions as exported functions.
 
-  Lane access is lowered only after proving the index is in 0..3. The
-  backend tracks compile-time integer/boolean bookkeeping to prove the
-  prepared AST's bounds-error branch unreachable; it leaves the error
-  argument untouched on success. It rejects unknown/out-of-range indices
-  rather than emitting an unchecked extract or discarding a live catch.
-  This does not implement general exception handling or dynamic lane access.
-  Compile-time facts are not inferred from ordinary mutable locals. Only the
-  unchanged error slots of these proven in-range reads retain that knowledge.
-  Both USize32 and USize64 index bookkeeping are tested.
+  F32x4 and Boolx4 lane reads and local updates accept runtime indices.
+  Unsigned USize comparison against 4 precedes extraction/insertion, with no
+  truncation that could turn an invalid wide index into a valid one. Failure
+  writes OutOfBounds tag 1 and leaves the vector unchanged; preceding writes
+  remain visible. The shared lowered guards handle propagation, catch and !.
+  Successful access leaves the error slot untouched. Proven in-range constant
+  indices omit the check and preserve error-state knowledge; ordinary mutable
+  locals are not treated as constants. Mutable vector parameters remain outside
+  the supported ABI. Both USize widths are tested at O0/O2/O3, including all
+  four lanes, out-of-range/maximal indices, raw F32 bits and all 16 masks.
 
   Borrowed buffers retain the existing C Array ABI: a pointer to a descriptor
   containing a data pointer followed by a USize capacity. The capacity field

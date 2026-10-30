@@ -150,6 +150,60 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_lanes := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/lanes.til"), format(
+        "mode pure\nF4:=Simd(F32,4)\nM4:=Simd(Bool,4)\n",
+        "make_float:=func() returns F4 { return F4.new(1,2,3,4) }\nmake_mask:=func() returns M4 { return M4.new(true,false,true,false) }\n",
+        "read_float:=func(a:F4,i:USize) returns F32 throws OutOfBounds { return a.get(i)? }\n",
+        "read_mask:=func(a:M4,i:USize) returns Bool throws OutOfBounds { return a.get(i)? }\n",
+        "write_float:=func(a:F4,i:USize,x:F32) returns F4 { mut v:=a.clone(); v.set(0,own 17)!; v.set(i,own x)? catch(err:OutOfBounds){}; return v }\n",
+        "write_mask:=func(a:M4,i:USize,x:Bool) returns M4 { mut v:=a.clone(); v.set(0,own true)!; v.set(i,own x)? catch(err:OutOfBounds){}; return v }\n",
+        "bang_float:=func(a:F4,i:USize) returns F32 { return a.get(i)! }\n",
+        "bang_mask:=func(a:M4,i:USize) returns Bool { return a.get(i)! }\n",
+        "bang_set_float:=func(a:F4,i:USize) returns F4 { mut v:=a.clone(); v.set(i,own 9)!; return v }\n",
+        "bang_set_mask:=func(a:M4,i:USize) returns M4 { mut v:=a.clone(); v.set(i,own true)!; return v }\n",
+        "repeated:=func(a:F4) returns USize { mut errors:USize=0; mut i:USize=0; while i<8 { a.get(i)? catch(err:OutOfBounds){errors++}; i++ }; return errors }\n"))
+    File.writefile(format(work, "/lane_reference.til"), format(
+        "mode cli\nimport(\"lanes\")\nmain:=proc(){a:=make_float(); m:=make_mask(); assert_eq(USize,repeated(a),4);\n",
+        "for i in 0..4 { index:=i.to_usize(); assert_eq(F32,read_float(a,index)!,a.get(index)!); assert_eq(Bool,read_mask(m,index)!,m.get(index)!); v:=write_float(a,index,9); assert_eq(F32,v.get(index)!,9); n:=write_mask(m,index,false); assert(n.get(index)!.not()) };\n",
+        "v:=write_float(a,USize.MAX,9); assert_eq(F32,v[0],17); assert_eq(F32,v[3],4); n:=write_mask(m,USize.MAX,false); assert(n[0]); assert(n[3].not()); println(\"lanes PASS\") }\n"))
+    File.writefile(format(work, "/lane_panic.til"), "mode cli\nimport(\"lanes\")\nmain:=proc(which:I64,index:USize){a:=make_float();m:=make_mask();if which==0 {bang_float(a,index)} else if which==1 {bang_mask(m,index)} else if which==2 {bang_set_float(a,index)} else {bang_set_mask(m,index)} }\n")
+    File.writefile(format(work, "/lane_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#include <stdlib.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct{float v[4];}F4;typedef struct{uint8_t v[4];}M4;extern float read_float(F4,Count,int64_t*),bang_float(F4,Count);extern uint8_t read_mask(M4,Count,int64_t*),bang_mask(M4,Count);extern F4 write_float(F4,Count,float),bang_set_float(F4,Count);extern M4 write_mask(M4,Count,uint8_t),bang_set_mask(M4,Count);extern Count repeated(F4);\n",
+        "int main(int argc,char **argv){const uint32_t bits[]={0x7f800001,0xffc12345,0x80000000,1};F4 a;memcpy(&a,bits,16);M4 m={{1,0,1,0}};if(argc>1){switch(atoi(argv[1])){case 0:bang_float(a,4);break;case 1:bang_mask(m,4);break;case 2:bang_set_float(a,4);break;default:bang_set_mask(m,4);}return 99;}assert(repeated(a)==4);\n",
+        "const Count indices[]={0,1,2,3,4,7,(Count)-1};for(unsigned q=0;q<7;q++){Count i=indices[q];int64_t error=0;float f=read_float(a,i,&error);assert(error==(i>=4));if(i<4){uint32_t got;memcpy(&got,&f,4);assert(got==bits[i]);}F4 out=write_float(a,i,a.v[1]);uint32_t got[4],seventeen;float value=17;memcpy(&seventeen,&value,4);memcpy(got,&out,16);for(unsigned k=0;k<4;k++)assert(got[k]==(i==k?bits[1]:(k==0?seventeen:bits[k])));\n",
+        "for(unsigned pattern=0;pattern<16;pattern++){for(unsigned k=0;k<4;k++)m.v[k]=(pattern>>k)&1;error=0;uint8_t b=read_mask(m,i,&error);assert(error==(i>=4));if(i<4)assert(b==m.v[i]);for(unsigned x=0;x<2;x++){M4 n=write_mask(m,i,x);for(unsigned k=0;k<4;k++)assert(n.v[k]==(i==k?x:(k==0?1:m.v[k])));}}}return 0;}\n"))
+    for width in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        for command in array(Str, "interpret", "run") {
+            reference := Cmd.new(compiler, command, flag, "lane_reference.til")
+            checked(reference, work)
+        }
+        mut messages := Vec(Str).new()
+        for i in 0..4 {
+            reference := Cmd.new(compiler, "run", flag, "lane_panic.til", i.to_str(), "4")
+            message := panic_output(reference, work)
+            interpreted := Cmd.new(compiler, "interpret", flag, "lane_panic.til", i.to_str(), "4")
+            assert_eq(Str, panic_output(interpreted, work), message)
+            messages.push(own message)
+        }
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "./lanes.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "lane_caller.c", "gen/lib/liblanes.a", "-o", "lane_caller")
+            if width=="32" { cc.arg("-DCOUNT32") }
+            checked(cc, work)
+            native := Cmd.new("./lane_caller")
+            checked(native, work)
+            for i in 0..4 {
+                failure := Cmd.new("./lane_caller", i.to_str())
+                assert_eq(Str, panic_output(failure, work), messages[i.to_usize()])
+            }
+        }
+    }
+}
+
 priv check_masks := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/masks.til"), format(
         "mode pure\nF4:=Simd(F32,4)\nM4:=Simd(Bool,4)\n",
@@ -360,5 +414,6 @@ main := proc(compiler_arg: Str) {
     check_buffers(compiler, work)
     check_exceptions(compiler, work)
     check_masks(compiler, work)
+    check_lanes(compiler, work)
     println("mlir PASS")
 }

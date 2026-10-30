@@ -159,6 +159,21 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Dynamic SIMD lane access (base 9bc23073e)
+
+F32x4 and Boolx4 get/set now accept runtime indices. Unsigned USize bounds
+checks precede LLVM extraction/insertion, preserving wide-index rejection and
+avoiding poison from out-of-range accesses. Failed local updates preserve the
+vector, including earlier successful writes. Shared lowered error guards
+provide propagation, local catch/reset and bang panics. Proven in-range
+constant accesses retain the existing no-error-write proof. Mutable vector
+parameters and borrowed vector returns remain outside this ABI subset.
+
+Integration coverage includes all four lanes, invalid/maximal indices, all
+16 masks, raw NaN/negative-zero F32 bits, repeated catches, propagation, and
+exact panic diagnostics/status for both reads and writes. Interpreter/C
+references and C callers of MLIR run with both USize widths and O0/O2/O3.
+
 *** SIMD comparisons, masks and selection (base 1ec7e4ba0)
 
 F32x4 now supports all six elementwise comparisons, with ordered predicates

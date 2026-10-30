@@ -398,6 +398,61 @@ priv mlir_checked_memory := proc(e: Expr, vector: Bool, store: Bool, mut state: 
         mlir_alignment(result_type), " : i64} : !llvm.ptr -> ", result_type))
 }
 
+priv mlir_checked_lane := proc(e: Expr, t: Str, store: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    mut scalar := "f32"
+    if t == "vector<4xi1>" { scalar = "i1" }
+    known := mlir_integer(e.children[2], state, lp)
+    receiver := mlir_expr(e.children[1], state, lp, store)
+    index := mlir_expr(e.children[2], state, lp)
+    mut replacement := ""
+    if store { replacement = mlir_expr(e.children[3], state, lp) }
+    count_type := mlir_count_type(lp)
+    checked := known.is_none().or(known.unwrap() >= 4)
+    mut failure := ""
+    mut done := ""
+    mut result_slot := ""
+    mut error := ""
+    if checked {
+        error = mlir_expr(e.children[e.children.len() - 1], state, lp, true)
+        mlir_error_write(state)
+        success := mlir_label(state)
+        failure = mlir_label(state)
+        done = mlir_label(state)
+        if store.not() { result_slot = mlir_slot(scalar, state) }
+        width := mlir_value(state, format("arith.constant 4 : ", count_type))
+        fits := mlir_value(state, format("arith.cmpi ult, ", index, ", ", width, " : ", count_type))
+        state.text = format(state.text, "    llvm.cond_br ", fits, ", ^", success, ", ^", failure, "\n")
+        mlir_block(success, state)
+    }
+    mut value := receiver.clone()
+    if store {
+        value = mlir_value(state, format("llvm.load ", receiver, " {alignment = ", mlir_alignment(t), " : i64} : !llvm.ptr -> ", t))
+        updated := mlir_value(state, format("llvm.insertelement ", replacement, ", ", value, "[", index, " : ", count_type, "] : ", t))
+        mlir_store(receiver, updated, t, state)
+    } else {
+        value = mlir_value(state, format("llvm.extractelement ", value, "[", index, " : ", count_type, "] : ", t))
+        if checked { mlir_store(result_slot, value, scalar, state) }
+    }
+    if checked {
+        mlir_branch(done, state)
+        mlir_block(failure, state)
+        kind := mlir_value(state, "arith.constant 1 : i64")
+        mlir_store(error, kind, "i64", state)
+        if store.not() {
+            mut literal := "0.0"
+            if scalar == "i1" { literal = "0" }
+            // An unused ABI placeholder; lowered error guards skip consumers.
+            zero := mlir_value(state, format("arith.constant ", literal, " : ", scalar))
+            mlir_store(result_slot, zero, scalar, state)
+        }
+        mlir_branch(done, state)
+        mlir_block(done, state)
+        if store.not() { value = mlir_value(state, format("llvm.load ", result_slot, " {alignment = ", mlir_alignment(scalar), " : i64} : !llvm.ptr -> ", scalar)) }
+    }
+    if store { return "" }
+    return value
+}
+
 priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, borrow: Bool = false) returns Str {
     switch e.node_type {
     case .Ident(id):
@@ -526,6 +581,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     }
                 }
                 if t == "vector<4xi1>" || t == "vector<4xf32>" {
+                    if op == "get" && e.children.len() == 4 { return mlir_checked_lane(e, t, false, state, lp) }
+                    if op == "set" && e.children.len() == 5 { return mlir_checked_lane(e, t, true, state, lp) }
                     if op == "select" && e.children.len() == 4 {
                         mask := mlir_expr(e.children[1], state, lp)
                         a := mlir_expr(e.children[2], state, lp)
@@ -559,13 +616,6 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                         if op == "any" { operation = "or" }
                         return mlir_value(state, format("vector.reduction <", operation, ">, ", value, " : vector<4xi1> into i1"))
                     }
-                    if op == "get" && e.children.len() == 4 {
-                        index := mlir_integer(e.children[2], state, lp)
-                        if index.is_none() { return mlir_error(e, "SIMD lane index must be statically known and in 0..3", lp) }
-                        if index.unwrap() >= 4 { return mlir_error(e, "SIMD lane index must be statically known and in 0..3", lp) }
-                        value := mlir_expr(e.children[1], state, lp)
-                        return mlir_value(state, format("vector.extract ", value, "[", index.unwrap().to_str(), "] : i1 from vector<4xi1>"))
-                    }
                 }
                 if t == "vector<4xf32>" {
                     if op == "load" && e.children.len() == 4 { return mlir_checked_memory(e, true, false, state, lp) }
@@ -587,15 +637,6 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                         even := mlir_value(state, format("arith.addf ", a, ", ", c, " : f32"))
                         odd := mlir_value(state, format("arith.addf ", b, ", ", d, " : f32"))
                         return mlir_value(state, format("arith.addf ", even, ", ", odd, " : f32"))
-                    }
-                    if op == "get" && e.children.len() == 4 {
-                        index := mlir_integer(e.children[2], state, lp)
-                        if index.is_none() { return mlir_error(e, "SIMD lane index must be statically known and in 0..3", lp) }
-                        if index.unwrap() >= 4 { return mlir_error(e, "SIMD lane index must be statically known and in 0..3", lp) }
-                        value := mlir_expr(e.children[1], state, lp)
-                        // An in-range get cannot throw and leaves its error
-                        // argument untouched, exactly like the C/interpreter path.
-                        return mlir_lane(value, index.unwrap(), state)
                     }
                 }
                 if op == "clone" && e.children.len() == 2 {
