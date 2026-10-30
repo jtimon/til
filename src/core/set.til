@@ -4,10 +4,98 @@ import("ast")
 import("bool")
 import("dyn")
 import("numbers")
-import("str")
+
+priv set_ref_store := macro(Element: Type) returns FuncDef {
+    if type_arg_is_interface(Element) {
+        return func(mut self: Set(Element), i: USize, val: Element) {
+            memcpy(self.slot(i), val, Element.size().to_uptr())
+        }
+    } else {
+        return func(mut self: Set(Element), i: USize, val: Element) { write_ptr(self.slot(i), val) }
+    }
+}
 
 /// Unordered collection of unique typed elements.
-Set := struct<T: Type> {
+Set := macro(T: Type) returns StructDef {
+    if type_arg_is_ref(T) {
+        return struct {
+            own data: U8 = 0
+            count: USize = 0
+            cap: USize = 0
+        namespace:
+            priv slot_size := func() returns USize {
+                if type_arg_is_interface(T) { return T.size() }
+                return UPtr.size()
+            }
+            priv slot := func(self: Set(T), i: USize) returns ref Dynamic {
+                return ptr_add(self.data, i.to_uptr().mul(Set(T).slot_size().to_uptr()))
+            }
+            priv store := set_ref_store(T)
+            new := func() returns Set(T) { return Set(T)() }
+            with_capacity := func(n: USize) returns Set(T) {
+                if n == 0 { return Set(T)() }
+                return Set(T)(data = malloc(n.to_uptr().mul(Set(T).slot_size().to_uptr())), cap = n)
+            }
+            len := func(self: Set(T)) returns USize { return self.count }
+            unsafe_get := func(self: Set(T), i: USize) returns ref T {
+                if type_arg_is_interface(T) { return self.slot(i) }
+                return deref(self.slot(i))
+            }
+            clear := func(mut self: Set(T)) { self.count = 0 }
+            priv position := func(self: Set(T), val: T) returns USize {
+                mut lo: USize = 0
+                mut hi := self.count
+                while lo < hi {
+                    mid := lo + (hi - lo) / 2
+                    if T.cmp(self.unsafe_get(mid), val) < 0 { lo = mid + 1 }
+                    else { hi = mid }
+                }
+                return lo
+            }
+            has := func(self: Set(T), val: T) returns Bool {
+                i := self.position(val)
+                if i < self.count { return T.cmp(self.unsafe_get(i), val) == 0 }
+                return false
+            }
+            add := func(mut self: Set(T), val: T) {
+                i := self.position(val)
+                if i < self.count {
+                    if T.cmp(self.unsafe_get(i), val) == 0 { return }
+                }
+                if self.count == self.cap {
+                    mut capacity := self.cap * 2
+                    if capacity == 0 { capacity = 1 }
+                    self.data = realloc(own self.data, capacity.to_uptr().mul(Set(T).slot_size().to_uptr()))
+                    self.cap = capacity
+                }
+                memmove(self.slot(i + 1), self.slot(i), (self.count - i).to_uptr().mul(Set(T).slot_size().to_uptr()))
+                self.store(i, val)
+                self.count++
+            }
+            remove := func(mut self: Set(T), val: T) returns Bool {
+                i := self.position(val)
+                if i >= self.count { return false }
+                if T.cmp(self.unsafe_get(i), val) == 0 {
+                    remaining := self.count - i - 1
+                    if remaining > 0 { memmove(self.slot(i), self.slot(i + 1), remaining.to_uptr().mul(Set(T).slot_size().to_uptr())) }
+                    self.count--
+                    return true
+                }
+                return false
+            }
+            clone := func(self: Set(T)) returns Set(T) {
+                mut out := Set(T).with_capacity(self.cap)
+                if self.count > 0 { memcpy(out.data, self.data, self.count.to_uptr().mul(Set(T).slot_size().to_uptr())) }
+                out.count = self.count
+                return out
+            }
+            delete := func(own self: Set(T), call_free: Bool = true) {
+                free(own self.data)
+                if call_free { free(own self) }
+            }
+        }
+    } else {
+    return struct {
     own data : U8 = 0
     count : USize = 0
     cap : USize = 0
@@ -157,5 +245,7 @@ namespace:
             adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
         }
         return Set(T)(data = new_data, count = self.count, cap = self.cap)
+    }
+}
     }
 }

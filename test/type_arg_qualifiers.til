@@ -32,6 +32,21 @@ main := proc(args: ..Str) {
         .replace("import(\"", "import(\"core/")
         .replace("namespace:", "namespace:\n    query_ref := func() returns Bool { return type_arg_is_ref(T) }\n")
     File.writefile(format(root, "/MyAltVec.til"), renamed)
+    array_source := File.readfile("src/core/array.til")
+        .replace("Array", "MyAltArray").replace("array", "my_alt_array")
+        .replace("Vec", "MyAltVec")
+        .replace("import(\"", "import(\"core/")
+        .replace("import(\"core/vec\")", "import(\"MyAltVec\")")
+    File.writefile(format(root, "/MyAltArray.til"), array_source)
+    map_source := File.readfile("src/core/map.til")
+        .replace("Map", "MyAltMap").replace("map_", "my_alt_map_")
+        .replace("Vec", "MyAltVec").replace("import(\"", "import(\"core/")
+        .replace("mode lib", "mode lib\nimport(\"MyAltVec\")")
+    File.writefile(format(root, "/MyAltMap.til"), map_source)
+    set_source := File.readfile("src/core/set.til")
+        .replace("Set", "MyAltSet").replace("set_ref_store", "my_alt_set_ref_store")
+        .replace("import(\"", "import(\"core/")
+    File.writefile(format(root, "/MyAltSet.til"), set_source)
     File.writefile(format(root, "/probe.til"), format(
         "mode cli\nimport(\"MyAltVec\")\n",
         "Contract := interface { value := func(self: Contract) returns I64 }\n",
@@ -155,6 +170,102 @@ main := proc(args: ..Str) {
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
     check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
         "-c", format(root, "/probe.c"), format(root, "/probe.til")), "qualifiers OK\n")
+    family_imports := "import(\"MyAltArray\")\nimport(\"MyAltMap\")\nimport(\"MyAltSet\")\n"
+    family_types := format(
+        "Ordered := interface { value := func(self: Ordered) returns I64\ncmp := func(self: Ordered, other: Ordered) returns I64 }\n",
+        "Item := struct implements Ordered { n: I64\nnamespace:\n",
+        "value := func(self: Item) returns I64 { return self.n }\n",
+        "cmp := func(self: Item, other: Item) returns I64 { return I64.cmp(self.n, other.n) } }\n",
+        "Entry := enum implements Ordered { Number: I64\nnamespace:\n",
+        "value := func(self: Entry) returns I64 { switch self { case .Number(n): return n } }\n",
+        "cmp := func(self: Entry, other: Entry) returns I64 { return I64.cmp(self.value(), other.value()) } }\n",
+        "RefKey := struct implements Ordered { ref label: Str\nnamespace:\nvalue := func(self: RefKey) returns I64 { return self.label.len().to_i64() }\ncmp := func(self: RefKey, other: RefKey) returns I64 { return Str.cmp(self.label, other.label) } }\n")
+    File.writefile(format(root, "/families.til"), format("mode cli\n", family_imports, family_types,
+        "concat_local := func(left: MyAltArray(ref Str)) returns USize { local := format(\"local\"); mut right := MyAltArray(ref Str).new(1); right.set(0, local)!; joined := left.concat(right); return joined[left.len()].len() }\n",
+        "check_concat := proc(prefix: Str) { noop_proc(); first := prefix.clone(); second := format(prefix, \"second\"); mut left := MyAltArray(ref Str).new(1); mut right := MyAltArray(ref Str).new(1); left.set(0, first)!; right.set(0, second)!; joined := left.concat(right); own left.delete(); own right.delete(); assert_eq(Str, joined[0], prefix); assert_eq(Str, joined[1], format(prefix, \"second\")) }\n",
+        "main := proc() {\n",
+        "check_concat(\"owner\")\n",
+        "mut a := format(\"alpha\")\nb := format(\"beta\")\nc := format(\"charlie\")\n",
+        "mut arr := MyAltArray(ref Str).new(2)\narr.set(0, a)!\narr.unsafe_set(1, b)\n",
+        "arr_copy := arr.clone()\njoined := arr.concat(arr_copy)\nvector := arr.to_vec()\nown arr.delete()\n",
+        "a = format(\"ALPHA\")\nassert_eq(Str, arr_copy[0], a)\nassert_eq(Str, joined[2], a)\nassert_eq(Str, vector[0], a)\n",
+        "assert_eq(USize, concat_local(arr_copy), 5)\n",
+        "mut nums := MyAltArray(ref I64).new(1)\nmut number := 1\nnums.set(0, number)!\nnumber = 9\nassert_eq(I64, nums[0], 9)\n",
+        "mut set := MyAltSet(ref Str).with_capacity(1)\nset.add(c)\nset.add(a)\nset.add(b)\nset.add(b)\nassert_eq(USize, set.len(), 3)\n",
+        "assert(set.has(b))\nassert(set.remove(b))\nassert(set.remove(b).not())\nset_copy := set.clone()\nown set.delete()\n",
+        "mut joined_keys := format(\"\")\nfor key in set_copy { joined_keys = format(joined_keys, key) }\nassert_eq(Str, joined_keys, \"ALPHAcharlie\")\n",
+        "mut borrowed_values := MyAltMap(Str, ref Str).new()\nborrowed_values.set(\"z\", a)\nborrowed_values.set(\"a\", b)\nborrowed_values.set(\"m\", c)\n",
+        "borrowed_values.set(\"z\", b)\nassert_eq(Str, borrowed_values[\"z\"], b)\nassert(borrowed_values.remove(\"m\"))\nassert(borrowed_values.remove(\"missing\").not())\n",
+        "values_copy := borrowed_values.clone()\nown borrowed_values.delete()\nassert_eq(Str, values_copy[\"a\"], b)\n",
+        "mut pairs := format(\"\")\nfor key, value in values_copy { pairs = format(pairs, key, value) }\nassert_eq(Str, pairs, \"abetazbeta\")\n",
+        "mut borrowed_keys := MyAltMap(ref Str, Str).new()\nborrowed_keys.set(c, own format(\"third\"))\nborrowed_keys.set(a, own format(\"first\"))\nborrowed_keys.set(b, own format(\"second\"))\n",
+        "borrowed_keys.set(b, own format(\"replacement\"))\nkeys_copy := borrowed_keys.clone()\nborrowed_keys.clear()\nassert_eq(Str, keys_copy[b], \"replacement\")\n",
+        "mut both := MyAltMap(ref Str, ref Str).new()\nboth.set(c, a)\nboth.set(a, b)\nboth.set(b, c)\nboth_copy := both.clone()\nown both.delete()\nassert_eq(Str, both_copy[c], a)\n",
+        "mut pair_count := 0\nfor key, value in both_copy { assert(both_copy.has(key)); assert(value.len() > 0); pair_count++ }\nassert_eq(I64, pair_count, 3)\n",
+        "first := Item(n = 1)\nsecond := Item(n = 2)\nmut payload := Item(n = 3)\nchoice := Entry.Number(4)\n",
+        "mut iface_array := MyAltArray(ref Ordered).new(2)\niface_array.set(0, payload)!\niface_array.set(1, choice)!\niface_vec := iface_array.to_vec()\nown iface_array.delete()\n",
+        "mut iface_values := MyAltMap(Str, ref Ordered).new()\niface_values.set(\"item\", payload)\niface_values.set(\"enum\", choice)\n",
+        "payload.n = 8\nassert_eq(I64, iface_vec[0].value(), 8)\nassert_eq(I64, iface_values[\"item\"].value(), 8)\nassert_eq(I64, iface_values[\"enum\"].value(), 4)\n",
+        "mut total := 0\nfor key, value in iface_values { assert(key.len() > 0); total = total + value.value() }\nassert_eq(I64, total, 12)\n",
+        "mut objects := MyAltMap(ref Item, ref Item).new()\nobjects.set(second, payload)\nobjects.set(first, second)\nassert_eq(I64, objects[second].value(), 8)\n",
+        "mut iface_keys := MyAltMap(ref Ordered, Str).new()\niface_keys.set(second, own format(\"two\"))\niface_keys.set(first, own format(\"one\"))\nassert_eq(Str, iface_keys[first], \"one\")\n",
+        "mut iface_set := MyAltSet(ref Ordered).new()\niface_set.add(second)\niface_set.add(first)\nassert(iface_set.has(first))\nassert(iface_set.remove(second))\nassert_eq(I64, iface_set.unsafe_get(0).value(), 1)\n",
+        "enum_a := Entry.Number(5)\nenum_b := Entry.Number(6)\nmut enum_set := MyAltSet(ref Entry).new()\nenum_set.add(enum_b)\nenum_set.add(enum_a)\nassert_eq(I64, enum_set.unsafe_get(0).value(), 5)\n",
+        "one := 1\ntwo := 2\nmut scalar_set := MyAltSet(ref I64).new()\nscalar_set.add(two)\nscalar_set.add(one)\nassert_eq(I64, scalar_set.unsafe_get(0), 1)\nassert(scalar_set.remove(2))\n",
+        "mut item_set := MyAltSet(ref Item).new()\nitem_set.add(second)\nitem_set.add(first)\nassert_eq(I64, item_set.unsafe_get(0).n, 1)\n",
+        "mut interface_enums := MyAltSet(ref Ordered).new()\ninterface_enums.add(enum_b)\ninterface_enums.add(enum_a)\nassert_eq(I64, interface_enums.unsafe_get(0).value(), 5)\n",
+        "mut owned_key := Item(n = 10)\nmut owning_keys := MyAltMap(own Ordered, ref Str).new()\nowning_keys.set(owned_key, c)\nowned_key.n = 11\nquery := Item(n = 10)\nassert_eq(Str, owning_keys[query], c)\n",
+        "holder := RefKey(label = b)\nmut mixed := MyAltMap(RefKey, ref RefKey).new()\nmixed.set(RefKey(label = a), holder)\nassert_eq(Str, mixed[RefKey(label = a)].label, b)\n",
+        "mut owned_array := MyAltArray(own Str).new(1)\nowned_array.set(0, own format(\"owned\"))!\nassert_eq(Str, owned_array[0], \"owned\")\n",
+        "mut owned_set := MyAltSet(own Str).new()\nowned_set.add(own format(\"owned\"))\nassert(owned_set.has(\"owned\"))\n",
+        "println(\"container families OK\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/families.til")), "container families OK\n")
+    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/families"),
+        "-c", format(root, "/families.c"), format(root, "/families.til")), "container families OK\n")
+    native_families := File.readfile(format(root, "/families.til"))
+        .replace(family_imports, "")
+        .replace("MyAltArray", "Array").replace("MyAltMap", "Map").replace("MyAltSet", "Set")
+    File.writefile(format(root, "/native_families.til"), native_families)
+    check(Cmd.new(compiler, "interpret", format(root, "/native_families.til")), "container families OK\n")
+    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/native_families"),
+        "-c", format(root, "/native_families.c"), format(root, "/native_families.til")), "container families OK\n")
+    for body : Str in array(Str,
+        "import(\"MyAltArray\")\nbad := func() returns MyAltArray(ref Str) { value := format(\"local\"); mut a := MyAltArray(ref Str).new(1); a.set(0, value)!; return a.clone() }\nmain := proc() {}",
+        "import(\"MyAltArray\")\nbad := func() returns MyAltVec(ref Str) { value := format(\"local\"); mut a := MyAltArray(ref Str).new(1); a.set(0, value)!; return a.to_vec() }\nmain := proc() {}",
+        "import(\"MyAltArray\")\nbad := func(left: MyAltArray(ref Str)) returns MyAltArray(ref Str) { value := format(\"local\"); mut right := MyAltArray(ref Str).new(1); right.set(0, value)!; return left.concat(right) }\nmain := proc() {}",
+        "import(\"MyAltArray\")\nmain := proc() { mut a := MyAltArray(ref Str).new(1); if true { value := format(\"local\"); a.set(0, value)! } }",
+        "import(\"MyAltArray\")\nmain := proc() { mut a := MyAltArray(ref I64).new(1); a.set(0, 7)! }",
+        "import(\"MyAltMap\")\nbad := func() returns MyAltMap(ref Str, Str) { key := format(\"local\"); mut m := MyAltMap(ref Str, Str).new(); m.set(key, own format(\"value\")); return m }\nmain := proc() {}",
+        "import(\"MyAltMap\")\nbad := func() returns MyAltMap(Str, ref Str) { value := format(\"local\"); mut m := MyAltMap(Str, ref Str).new(); m.set(\"key\", value); return m.clone() }\nmain := proc() {}",
+        "import(\"MyAltMap\")\nbad := proc(mut m: MyAltMap(ref Str, I64)) { key := format(\"local\"); m.set(key, own 3) }\nmain := proc() {}",
+        "import(\"MyAltMap\")\nmain := proc() { mut m := MyAltMap(Str, ref Str).new(); m.set(\"key\", format(\"temporary\")) }",
+        "import(\"MyAltMap\")\nmain := proc() { mut m := MyAltMap(ref Str, I64).new(); m.set(\"temporary\", own 3) }",
+        "import(\"MyAltSet\")\nbad := func() returns MyAltSet(ref Str) { value := format(\"local\"); mut s := MyAltSet(ref Str).new(); s.add(value); return s.clone() }\nmain := proc() {}",
+        "import(\"MyAltSet\")\nmain := proc() { mut s := MyAltSet(ref Str).new(); if true { value := format(\"local\"); s.add(value) } }",
+        "import(\"MyAltSet\")\nmain := proc() { mut s := MyAltSet(ref I64).new(); s.add(7) }",
+        "import(\"MyAltSet\")\nmain := proc() { label := format(\"live\"); mut s := MyAltSet(ref RefKey).new(); s.add(RefKey(label = label)) }",
+        "import(\"MyAltArray\")\nmain := proc() { label := format(\"live\"); mut a := MyAltArray(ref RefKey).new(1); a.set(0, RefKey(label = label))! }",
+        "import(\"MyAltMap\")\nmain := proc() { label := format(\"live\"); mut m := MyAltMap(ref RefKey, I64).new(); m.set(RefKey(label = label), own 7) }",
+        "import(\"MyAltMap\")\nmain := proc() { label := format(\"live\"); mut m := MyAltMap(Str, ref Ordered).new(); m.set(\"key\", RefKey(label = label)) }") {
+        File.writefile(format(root, "/invalid_family.til"), format("mode cli\n", family_types, body, "\n"))
+        for action : Str in array(Str, "interpret", "translate") {
+            cmd := Cmd.new(compiler, action, format(root, "/invalid_family.til"))
+            cmd.capture()
+            status := cmd.run()
+            output := format(cmd.out(), cmd.err())
+            expect(status != 0, body, ": ", output)
+            expect(output.contains("cannot store a borrow").or(output.contains("cannot return a borrow")), body, ": ", output)
+        }
+    }
+    File.writefile(format(root, "/unset_array.til"), "mode cli\nimport(\"MyAltArray\")\nmain := proc() { a := MyAltArray(ref Str).new(1); println(a[0]) }\n")
+    for action : Str in array(Str, "interpret", "run") {
+        cmd := Cmd.new(compiler, action, format(root, "/unset_array.til"))
+        cmd.capture()
+        status := cmd.run()
+        output := format(cmd.out(), cmd.err())
+        expect(status != 0, output)
+        expect(output.contains("Array.get: uninitialized borrowed element"), output)
+    }
     File.writefile(format(root, "/invalid.til"), format(
         "mode cli\nbad := func(value: Type) returns Bool { return type_arg_is_ref(value) }\n",
         "main := proc() { println(type_arg_is_ref(1)); println(type_arg_is_ref()) }\n"))

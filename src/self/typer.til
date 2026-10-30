@@ -1869,7 +1869,9 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     if sink_o.is_none() { continue }
                     src_o := summary_fcall_arg_for_param(e, fdef_data, dsrc, scope, ctx.symbols)
                     if src_o.is_none() { continue }
-                    apply_call_deposit(scope, sink_o.unwrap(), src_o.unwrap(), e, ctx)
+                    source_borrowed := fdef_data.sig.params[dsrc].own_type.is(OwnType.Own).not()
+                    address_borrow := fdef_data.deposit_borrow_matrix.band(deposit_bit(dsink, dsrc)) != 0
+                    apply_call_deposit(scope, sink_o.unwrap(), src_o.unwrap(), e, source_borrowed, address_borrow, ctx)
                 }
             }
         }
@@ -1881,7 +1883,8 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
                     if fdef_data.ref_return_into_params.band(bit) == 0 { continue }
                     source_o := summary_fcall_arg_for_param(e, fdef_data, pi, scope, ctx.symbols)
                     if source_o.is_none() { continue }
-                    if expr_borrow_roots(scope, source_o.unwrap(), ctx.symbols).len() == 0 {
+                    if ref_container_source_stable(source_o.unwrap(), scope, ctx.symbols).not()
+                        .or(expr_borrow_roots(scope, source_o.unwrap(), ctx.symbols).len() == 0) {
                         e.type_error("cannot return a borrow of a temporary through a ref-qualified container", ctx)
                     }
                 }
@@ -7161,7 +7164,8 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // borrows in the base binding's storage -- the direct-assign form of
     // the deposit a call performs through its pairs.
     if type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols) {
-        apply_call_deposit(scope, obj, rhs, stmt, ctx)
+        field_borrow := stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref)
+        apply_call_deposit(scope, obj, rhs, stmt, field_borrow, field_borrow, ctx)
     }
     obj_sname_o := expr_type_name_ref(obj, ctx.symbols)
     if obj_sname_o.is_some() {
@@ -13113,6 +13117,24 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
         // the value carries no matter which field the pointer came from.
         rso := raw_borrow_source(obj, symbols)
         if rso.is_some() { return lvalue_write_roots(scope, rso.unwrap(), symbols) }
+        // A raw accessor that aliases parameter storage has the same write
+        // roots as ptr_add: writing a buffer slot does not write the values
+        // whose references are already stored elsewhere in the container.
+        def_o := fcall_callee_fdef(obj, scope, symbols)
+        if def_o.is_some() {
+            ref fd : FunctionDef = funcdef_of(def_o.unwrap())
+            if fd.sig.return_type.eq("Dynamic").and(fd.sig.return_own_type.is(OwnType.Ref))
+                .and(fd.ref_return_into_params.eq(0)).and(fd.ref_return_carried_params == 0) {
+                for pi in 0..fd.sig.params.len() {
+                    if fd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
+                    arg_o := fcall_arg_for_param(obj, pi, scope, symbols)
+                    if arg_o.is_some() {
+                        for root : BorrowRoot in lvalue_write_roots(scope, arg_o.unwrap(), symbols) { push_root_unique(out, root) }
+                    }
+                }
+                return out
+            }
+        }
         return expr_borrow_roots(scope, obj, symbols)
     case:
     }
@@ -13384,17 +13406,57 @@ priv check_interface_deposit_lifetimes := proc(scope: TypeScope, sink: TypeBindi
     }
 }
 
-priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, mut ctx: Context) {
+// Carried references do not make a temporary aggregate's own storage stable.
+// A borrowing interface constructor can be temporary because the handle is
+// copied; its payload still needs stable storage. Ref-returning accessors must
+// likewise name stable owners for the parameter storage they return.
+priv ref_container_source_stable := func(source: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if expr_is_borrowed_iface_box_ctor(source, scope, symbols) {
+        definition_o := scope.get_struct(type_name_ref(source.til_type(), symbols), symbols)
+        if definition_o.is_none() { return false }
+        for i in 1..source.children.len() {
+            ref arg : Expr = source.children[i]
+            if ctor_arg_field_name(definition_o.unwrap(), arg, i - 1) == "iface_val" {
+                return ref_container_source_stable(ctor_arg_value(arg), scope, symbols)
+            }
+        }
+        return false
+    }
+    if source.node_type.is(NodeType.FCall) {
+        raw_source := raw_borrow_source(source, symbols)
+        if raw_source.is_some() { return ref_container_source_stable(raw_source.unwrap(), scope, symbols) }
+        if fcall_returns_ref(source, scope, symbols) == 0 { return false }
+        def_o := fcall_callee_fdef(source, scope, symbols)
+        if def_o.is_some() {
+            ref fd : FunctionDef = funcdef_of(def_o.unwrap())
+            direct := fd.ref_return_params.bor(fd.ref_return_into_params)
+            for pi in 0..fd.sig.params.len() {
+                if direct.band(summary_param_bit(pi)) == 0 { continue }
+                arg_o := fcall_arg_for_param(source, pi, scope, symbols)
+                if arg_o.is_some() {
+                    if ref_container_source_stable(arg_o.unwrap(), scope, symbols).not() { return false }
+                }
+            }
+        }
+        return true
+    }
+    return expr_is_stable_field_base(source, scope, symbols)
+}
+
+priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, source_borrowed: Bool, address_borrow: Bool, mut ctx: Context) {
     mut bo := deposit_sink_binding(scope, sink, ctx.symbols)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
     source_type := resolved_type_name(src.til_type(), ctx.symbols)
-    retains_source := aggregate_borrows_type(scope, sink.til_type(), source_type, ctx)
-        .or(aggregate_borrows_type(scope, b.type, source_type, ctx))
+    // A mixed container can own one occurrence of a type and borrow another.
+    // The callee's effect and parameter ownership decide which source is lent.
+    retains_source := source_borrowed.and(address_borrow.or(type_is_interface(src.til_type(), scope, ctx.symbols)))
+        .and(aggregate_borrows_type(scope, sink.til_type(), source_type, ctx)
+            .or(aggregate_borrows_type(scope, b.type, source_type, ctx)))
     mut deposited := deposit_src_roots(scope, src, ctx.symbols)
     if retains_source {
         deposited = expr_borrow_roots(scope, src, ctx.symbols)
-        if deposited.len() == 0 {
+        if ref_container_source_stable(src, scope, ctx.symbols).not().or(deposited.len() == 0) {
             site.type_error("cannot store a borrow of a temporary in a ref-qualified container", ctx)
             return
         }
@@ -13979,13 +14041,38 @@ priv summary_note_local_deposit := func(name: Str, src_bits: RootBits, mut roots
     roots.set(name, own nb.clone())
 }
 
+// A local buffer can be reached through an accessor as well as ptr_add.
+// Follow the accessor's alias summary so every copy into a newly constructed
+// result contributes its owners, including later copies in concatenation.
+priv summary_note_deposit_target := func(target: Expr, src_bits: RootBits, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, receivers: Vec(Declaration), symbols: SymbolPool) {
+    name := summary_deposit_base_name(target, symbols)
+    if name.len() > 0 { summary_note_local_deposit(name, src_bits, roots); return }
+    if target.node_type.is(NodeType.FieldAccess) {
+        summary_note_deposit_target(target.children[0], src_bits, roots, scope, self_type, receivers, symbols)
+        return
+    }
+    if target.node_type.is(NodeType.FCall).not() { return }
+    mut def_o := fcall_callee_fdef(target, scope, symbols)
+    if def_o.is_none() { def_o = summary_self_method(target, scope, self_type, receivers, symbols) }
+    if def_o.is_none() { def_o = summary_param_method(target, scope, receivers, symbols) }
+    if def_o.is_none() { return }
+    ref fd : FunctionDef = funcdef_of(def_o.unwrap())
+    if fd.sig.return_own_type.is(OwnType.Ref).not() { return }
+    direct := fd.ref_return_params.bor(fd.ref_return_into_params)
+    for pi in 0..fd.sig.params.len() {
+        if direct.band(summary_param_bit(pi)) == 0 { continue }
+        arg_o := fcall_arg_for_param(target, pi, scope, symbols)
+        if arg_o.is_some() { summary_note_deposit_target(arg_o.unwrap(), src_bits, roots, scope, self_type, receivers, symbols) }
+    }
+}
+
 // #393: record the deposits one call performs, in the enclosing
 // function's parameter bits. adopt / adopt_from are the raw boundary
 // deposits -- dest takes src's bytes, smuggled pointers included; their
 // bodies bottom out in memcpy, which no walk can see through. Any other
 // callee contributes through its own deposit_matrix, mapped onto the
 // arguments -- which is what carries Vec.push's pair up through Map.set.
-priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool, ctx: Context) {
+priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) {
     if e.node_type.is(NodeType.FCall).not() { return }
     if e.children.len() < 2 { return }
     switch e.children[0].node_type {
@@ -14022,7 +14109,7 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
             }
             acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
             if hn == "write_ptr" { acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias)) }
-            summary_note_local_deposit(summary_deposit_base_name(e.children[dest_i], symbols), src_bits, roots)
+            summary_note_deposit_target(e.children[dest_i], src_bits, roots, scope, self_type, receivers, symbols)
             return
         }
     case:
@@ -14047,7 +14134,7 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
                 if cfd.deposit_borrow_matrix.band(deposit_bit(dsink, dsrc)) != 0 {
                     acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias))
                 }
-                summary_note_local_deposit(summary_deposit_base_name(sink_arg_o.unwrap(), symbols), src_bits, roots)
+                summary_note_deposit_target(sink_arg_o.unwrap(), src_bits, roots, scope, self_type, receivers, symbols)
             }
         }
     case:
@@ -14062,7 +14149,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         return RootBits()
     case .Return:
         if e.children.len() == 0 { return RootBits() }
-        summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
+        summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, receivers, symbols, ctx)
         return summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
     case .Decl(d):
         // A BORROW forwards its roots whole: the binding IS a window onto
@@ -14072,7 +14159,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         // same pointers, so parking a borrow in a local and returning it
         // no longer drops the provenance on the floor.
         if e.children.len() > 0 {
-            summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
+            summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, receivers, symbols, ctx)
             if d.own_type.is(OwnType.Ref) {
                 // The Case pattern already says whether this payload is
                 // inline or borrowed. Its synthesized get_payload binding
@@ -14135,7 +14222,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
             }
         }
     case .FCall:
-        summary_fcall_deposits(e, roots, acc, scope, self_type, params, symbols, ctx)
+        summary_fcall_deposits(e, roots, acc, scope, self_type, params, receivers, symbols, ctx)
     case:
     }
     mut bits := RootBits()
@@ -14252,12 +14339,21 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         receiver_declarations := summary_receiver_declarations(fd_expr.children[0], fd.sig.params, scope, ctx.symbols)
         rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, receiver_declarations, ctx.symbols, ctx)
         mut changed := false
-        merged_borrowed := fd.deposit_borrow_matrix.bor(acc.borrowed)
+        // Deposits describe writes visible to the caller. A readonly input
+        // cannot become a destination merely because a local result carries
+        // references originally copied from it.
+        mut writable : U64 = 0
+        for sink in 0..fd.sig.params.len() {
+            if fd.sig.params[sink].is_mut {
+                for source in 0..DEPOSIT_PARAMS { writable = writable.bor(deposit_bit(sink, source)) }
+            }
+        }
+        merged_borrowed := fd.deposit_borrow_matrix.bor(acc.borrowed.band(writable))
         if merged_borrowed != fd.deposit_borrow_matrix {
             fd.deposit_borrow_matrix = merged_borrowed
             changed = true
         }
-        merged_d := fd.deposit_matrix.bor(acc.m)
+        merged_d := fd.deposit_matrix.bor(acc.m.band(writable))
         if merged_d != fd.deposit_matrix {
             fd.deposit_matrix = merged_d
             changed = true

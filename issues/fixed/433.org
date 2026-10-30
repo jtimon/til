@@ -1,6 +1,43 @@
 # priority: medium
 # category: features
-** OPEN #433 Qualifiers in template/macro type arguments: Vec(ref T) / Vec(own T)
+** FIXED #433 Qualifiers in template/macro type arguments: Vec(ref T) / Vec(own T)
+
+*** Post-mortem
+
+    Ref arguments already reached generated fields and enum payloads, but raw
+    containers still used owning element strides, insertion signatures and
+    destructors. Their hidden buffers also needed borrow provenance beyond
+    the physical U8 allocation field.
+
+    The preparation and Vec commits added compile-time qualifier/interface
+    queries, generic factory forwarding, address-deposit summaries and owner
+    lifetime retention. This completion extends the same machinery to typed
+    Array, Map and Set. Borrowed ordinary elements use pointer slots;
+    interfaces use borrowing dispatch handles. Clone/concat copy references,
+    removal and destruction leave referents alive, and Map independently
+    selects ownership for keys and values. Reading an unset borrowed Array
+    slot is an explicit error.
+
+    Mixed maps exposed the need to distinguish owning copies from address
+    deposits even when key and value have the same type. Concatenation exposed
+    missing provenance through local buffer accessors. Those summaries now
+    retain every copied owner without inventing writes into readonly inputs.
+    Borrowed destinations also reject temporary aggregate storage even when
+    the temporary itself carries references to longer-lived values.
+
+    Regression: test/type_arg_qualifiers.til exercises the actual core sources
+    and renamed copies of Vec, Array, Map and Set, in interpretation and ASAN
+    compilation. It covers scalars, structs, enums, interface dispatch, mixed
+    owning/borrowing maps, iteration, clone/delete independence, array
+    concatenation/conversion, temporary and escaping-owner rejection, and
+    uninitialized Array reads. The existing owning-container suite remains
+    part of the full verification. Ownership is static; no runtime ownership
+    flag or container-name special case was introduced.
+
+    The historical discussion below records the original design questions;
+    qualifiers now travel as compile-time argument metadata. Erased-container
+    design remains a separate concern of #243, not an alternate ownership
+    representation for these typed core containers.
 
    Let a template (macro) type argument carry an ownership qualifier, so a
    container can say how it holds its elements: `Vec(own T)` owns each

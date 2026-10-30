@@ -443,6 +443,37 @@ Interfaces require ~Vec(own Iface)~ or ~Vec(ref Iface)~; bare and shallow
 interface element arguments are rejected. These are generic template rules,
 not special handling of the name ~Vec~.
 
+** Borrowed Array, Map and Set elements
+
+The same qualifiers apply to the other typed core containers:
+
+- ~Array(ref T)~ borrows each element. ~new(cap)~ creates uninitialized
+  slots; fill them with ~set(i, value)!~ before reading them. Reading an
+  uninitialized slot fails loudly, including through ~unsafe_get~ (which
+  skips only the bounds check). ~clone~ and ~concat~ copy the references and
+  preserve any uninitialized slots. ~to_vec~ requires initialized elements
+  and produces an independent ~Vec(ref T)~ buffer borrowing the same owners.
+- ~Map(K, ref V)~ borrows values: use ~set(key, value)~. ~Map(ref K, V)~
+  borrows keys and owns values: use ~set(key, own value)~. Both qualifiers
+  may be ~ref~. Non-ref keys are cloned on insertion; replacing an existing
+  entry keeps its original key. Cloning a mixed map copies owned entries
+  and preserves borrowed references independently for keys and values.
+- ~Set(ref T)~ borrows elements through ~add(value)~. Adding a duplicate,
+  removing an element, clearing or deleting the set never destroys a
+  referent. Cloning creates an independent buffer of references.
+
+Map keys and Set elements must implement ~cmp~, as for owning containers.
+Comparison-relevant data must remain unchanged while stored; remove an entry
+before changing its ordering and reinsert it afterwards. Other fields of a
+borrowed value can still reflect changes made through its owner.
+
+All of these containers enforce owner lifetimes, including aliases, returns,
+clones and conversions. An owned temporary that itself contains references
+is still not stable storage for a borrowed element. Interface element, key
+and value arguments require an explicit ~own~ or ~ref~; ~shallow~ and bare
+interface arguments are rejected. Qualifiers are forwarded through the
+ordinary template machinery, including Map's backing Vecs.
+
 ** Manual free / delete: legitimate vs smell
 
 Because the garbager inserts every destructor automatically, a HAND-WRITTEN

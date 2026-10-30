@@ -2,8 +2,60 @@ mode lib
 
 import("ast")
 import("bool")
+import("dyn")
 import("numbers")
 import("str")
+
+priv map_store_key := macro(K: Type, V: Type) returns FuncDef {
+    if type_arg_is_ref(K) {
+        return func(mut self: Map(K, V), i: USize, key: K) { self.keys.unsafe_set(i, key) }
+    } else {
+        return func(mut self: Map(K, V), i: USize, key: K) {
+            mut copy: K = K.clone(key)
+            adopt(K, self.key_slot(i), own copy)
+        }
+    }
+}
+
+priv map_set := macro(K: Type, V: Type) returns FuncDef {
+    if type_arg_is_ref(V) {
+        return func(mut self: Map(K, V), key: K, val: V) {
+            mut lo: USize = 0
+            mut hi := self.keys.count
+            mut found := false
+            while lo < hi {
+                mid := lo + (hi - lo) / 2
+                c := K.cmp(self.keys.unsafe_get(mid), key)
+                if c < 0 { lo = mid + 1 }
+                else { if c > 0 { hi = mid } else { found = true; lo = mid; hi = mid } }
+            }
+            if found { self.values.unsafe_set(lo, val) }
+            else {
+                self.open_slot(lo)
+                self.store_key(lo, key)
+                self.values.unsafe_set(lo, val)
+            }
+        }
+    } else {
+        return func(mut self: Map(K, V), key: K, own val: V) {
+            mut lo: USize = 0
+            mut hi := self.keys.count
+            mut found := false
+            while lo < hi {
+                mid := lo + (hi - lo) / 2
+                c := K.cmp(self.keys.unsafe_get(mid), key)
+                if c < 0 { lo = mid + 1 }
+                else { if c > 0 { hi = mid } else { found = true; lo = mid; hi = mid } }
+            }
+            if found { self.values.unsafe_set(lo, own val) }
+            else {
+                self.open_slot(lo)
+                self.store_key(lo, key)
+                adopt(V, self.value_slot(lo), own val)
+            }
+        }
+    }
+}
 
 /// Ordered map from typed keys to typed values.
 Map := struct<K: Type, V: Type> {
@@ -67,48 +119,42 @@ namespace:
         throw KeyNotFound()
     }
 
-    /// Insert or overwrite the value for ~key~. The value is owned.
-    set := func(mut self: Map(K, V), key: K, own val: V) {
-        mut lo : USize = 0
-        mut hi : USize = self.keys.count
-        mut found := false
-        while lo < hi {
-            mid : USize = lo.add(hi.sub(lo) / 2)
-            c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
-            if c < 0 { lo = mid + 1 }
-            else {
-                if c > 0 { hi = mid }
-                else { found = true; lo = mid; hi = mid }
-            }
-        }
-        if found {
-            // Overwrite the value at index lo (drops the old). The stored
-            // key is unchanged; lo came from the search, so it is in bounds.
-            self.values.unsafe_set(lo, own val)
-        } else {
-            if self.keys.count == self.keys.cap {
-                // Lazy-empty vecs (cap 0) seed to 1 on the first insert;
-                // realloc(NULL, n) behaves as malloc(n).
-                mut new_cap : USize = self.keys.cap * 2
-                if self.keys.cap == 0 { new_cap = 1 }
-                self.keys.data = realloc(own self.keys.data, new_cap.to_uptr().mul(K.size().to_uptr()))
-                self.values.data = realloc(own self.values.data, new_cap.to_uptr().mul(V.size().to_uptr()))
-                self.keys.cap = new_cap
-                self.values.cap = new_cap
-            }
-            memmove(ptr_add(self.keys.data, lo.add(1).to_uptr().mul(K.size().to_uptr())),
-                    ptr_add(self.keys.data, lo.to_uptr().mul(K.size().to_uptr())),
-                    self.keys.count.sub(lo).to_uptr().mul(K.size().to_uptr()))
-            memmove(ptr_add(self.values.data, lo.add(1).to_uptr().mul(V.size().to_uptr())),
-                    ptr_add(self.values.data, lo.to_uptr().mul(V.size().to_uptr())),
-                    self.values.count.sub(lo).to_uptr().mul(V.size().to_uptr()))
-            mut cloned_key : K = K.clone(key)
-            adopt(K, ptr_add(self.keys.data, lo.to_uptr().mul(K.size().to_uptr())), own cloned_key)
-            adopt(V, ptr_add(self.values.data, lo.to_uptr().mul(V.size().to_uptr())), own val)
-            self.keys.count = self.keys.count + 1
-            self.values.count = self.values.count + 1
-        }
+    priv key_size := func() returns USize {
+        if type_arg_is_ref(K).and(type_arg_is_interface(K).not()) { return UPtr.size() }
+        return K.size()
     }
+    priv value_size := func() returns USize {
+        if type_arg_is_ref(V).and(type_arg_is_interface(V).not()) { return UPtr.size() }
+        return V.size()
+    }
+    priv key_slot := func(self: Map(K, V), i: USize) returns ref Dynamic {
+        return ptr_add(self.keys.data, i.to_uptr().mul(Map(K, V).key_size().to_uptr()))
+    }
+    priv value_slot := func(self: Map(K, V), i: USize) returns ref Dynamic {
+        return ptr_add(self.values.data, i.to_uptr().mul(Map(K, V).value_size().to_uptr()))
+    }
+    priv store_key := map_store_key(K, V)
+    // Make an uninitialized hole. Do not delete the duplicated bytes at lo:
+    // their ownership, if any, now belongs to the shifted slot at lo + 1.
+    priv open_slot := func(mut self: Map(K, V), lo: USize) {
+        key_bytes := Map(K, V).key_size().to_uptr()
+        value_bytes := Map(K, V).value_size().to_uptr()
+        if self.keys.count == self.keys.cap {
+            mut capacity := self.keys.cap * 2
+            if capacity == 0 { capacity = 1 }
+            self.keys.data = realloc(own self.keys.data, capacity.to_uptr().mul(key_bytes))
+            self.values.data = realloc(own self.values.data, capacity.to_uptr().mul(value_bytes))
+            self.keys.cap = capacity
+            self.values.cap = capacity
+        }
+        memmove(self.key_slot(lo + 1), self.key_slot(lo), (self.keys.count - lo).to_uptr().mul(key_bytes))
+        memmove(self.value_slot(lo + 1), self.value_slot(lo), (self.values.count - lo).to_uptr().mul(value_bytes))
+        self.keys.count++
+        self.values.count++
+    }
+    /// Insert or overwrite. Ref-qualified keys/values borrow their sources;
+    /// other keys are cloned and other values are taken by ownership.
+    set := map_set(K, V)
 
     /// Remove ~key~, dropping its key and value. Returns false if absent.
     remove := func(mut self: Map(K, V), key: K) returns Bool {

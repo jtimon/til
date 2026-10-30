@@ -9,8 +9,77 @@ import("vec")
 
 array := ext_func(T: Type, elements: ..Dynamic) returns Array {}
 
+priv array_ref_store := macro(Element: Type) returns FuncDef {
+    if type_arg_is_interface(Element) {
+        return func(mut self: Array(Element), i: USize, val: Element) {
+            memcpy(self.slot(i), val, Element.size().to_uptr())
+        }
+    } else {
+        return func(mut self: Array(Element), i: USize, val: Element) { write_ptr(self.slot(i), val) }
+    }
+}
+
 /// Fixed-capacity array of typed elements.
-Array := struct<T: Type> {
+Array := macro(T: Type) returns StructDef {
+    if type_arg_is_ref(T) {
+        return struct {
+            own data: U8 = 0
+            const cap: USize = 0
+        namespace:
+            priv slot_size := func() returns USize {
+                if type_arg_is_interface(T) { return T.size() }
+                return UPtr.size()
+            }
+            priv slot := func(self: Array(T), i: USize) returns ref Dynamic {
+                return ptr_add(self.data, i.to_uptr().mul(Array(T).slot_size().to_uptr()))
+            }
+            priv store := array_ref_store(T)
+            new := func(cap: USize) returns Array(T) {
+                if cap == 0 { return Array(T)() }
+                return Array(T)(data = calloc(cap.to_uptr(), Array(T).slot_size().to_uptr()), cap = cap)
+            }
+            len := func(self: Array(T)) returns USize { return self.cap }
+            unsafe_get := func(self: Array(T), i: USize) returns ref T {
+                // new() leaves slots uninitialized; neither an ordinary null
+                // reference nor an empty interface handle is a valid element.
+                if deref(self.slot(i)).is_null() { panic("Array.get: uninitialized borrowed element") }
+                if type_arg_is_interface(T) { return self.slot(i) }
+                return deref(self.slot(i))
+            }
+            get := func(self: Array(T), shallow i: USize) returns ref T throws OutOfBounds {
+                if i < self.cap { return self.unsafe_get(i) }
+                throw OutOfBounds()
+            }
+            unsafe_set := func(mut self: Array(T), i: USize, val: T) { self.store(i, val) }
+            set := func(mut self: Array(T), i: USize, val: T) throws OutOfBounds {
+                if i < self.cap { self.unsafe_set(i, val); return }
+                throw OutOfBounds()
+            }
+            clone := func(self: Array(T)) returns Array(T) {
+                mut out := Array(T).new(self.cap)
+                if self.cap > 0 { memcpy(out.data, self.data, self.cap.to_uptr().mul(Array(T).slot_size().to_uptr())) }
+                return out
+            }
+            concat := func(self: Array(T), other: Array(T)) returns Array(T) {
+                mut out := Array(T).new(self.cap + other.cap)
+                if self.cap > 0 { memcpy(out.data, self.data, self.cap.to_uptr().mul(Array(T).slot_size().to_uptr())) }
+                if other.cap > 0 { memcpy(out.slot(self.cap), other.data, other.cap.to_uptr().mul(Array(T).slot_size().to_uptr())) }
+                return out
+            }
+            to_vec := func(self: Array(T)) returns Vec(T) {
+                for i in 0..self.cap { self.unsafe_get(i) }
+                mut out := Vec(T).with_capacity(self.cap)
+                if self.cap > 0 { memcpy(out.data, self.data, self.cap.to_uptr().mul(Array(T).slot_size().to_uptr())) }
+                out.count = self.cap
+                return out
+            }
+            delete := func(own self: Array(T), call_free: Bool = true) {
+                free(own self.data)
+                if call_free { free(own self) }
+            }
+        }
+    } else {
+    return struct {
     own data : U8 = 0
     const cap : USize = 0
 
@@ -113,5 +182,7 @@ namespace:
             adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
         }
         return Array(T)(data = new_data, cap = self.cap)
+    }
+}
     }
 }
