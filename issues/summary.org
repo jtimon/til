@@ -36,6 +36,7 @@
 *** [[./open/439.org][#439]] Evaluate and coordinate the user-defined mode promise against real downstream applications
 *** [[./open/451.org][#451]] T() on a primitive type parameter: "cannot instantiate builtin type"
 *** [[./open/454.org][#454]] Generate Kotlin bindings by default for mode lib
+*** [[./open/460.org][#460]] Add enum template sugar consistent with struct and function generators
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods

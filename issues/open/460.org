@@ -1,0 +1,60 @@
+# priority: medium
+# category: features
+** OPEN #460 Add enum template sugar consistent with struct and function generators
+
+   Structs and functions/procs accept angle-bracket generic parameters and
+   desugar to definition-generating macros. Enums are missing that sugar,
+   despite comments in src/self/parser.til saying parse_generic_params is
+   shared by struct<T>, enum<T> and func<T>.
+
+*** Current gap
+
+   parse_enum_def parses an optional discriminant type, an implements list
+   and the enum body. It never calls parse_generic_params and does not wrap
+   the definition in an EnumDef-returning macro. Generic enums such as core
+   Option therefore use an explicit macro today.
+
+   The intended shorthand is:
+
+   #+begin_src til
+   Maybe := enum<T: Type> {
+       None
+       Some: T
+   }
+   #+end_src
+
+   It should mean the same thing as:
+
+   #+begin_src til
+   Maybe := macro(T: Type) returns EnumDef {
+       return enum {
+           None
+           Some: T
+       }
+   }
+   #+end_src
+
+*** Implementation and acceptance
+
+   - Reuse the shared generic-parameter parser, including the existing
+     default T: Type when written as <T> and typed compile-time parameters.
+   - Track active type parameters while parsing payload types and namespace
+     methods, as struct templates do.
+   - Wrap the parsed enum literal in a macro returning EnumDef and use the
+     existing instantiation, qualifier forwarding and deduplication path.
+     Do not introduce a separate enum-generic mechanism.
+   - Keep ordinary enum syntax, explicit macro-generated enums, discriminant
+     types and implements clauses working. Define and test their combination
+     with the new parameter list consistently with the other declarations.
+   - Test explicit and abbreviated parameter declarations, multiple types,
+     owned/ref payload instantiations, namespace methods, aliases and
+     interpretation/C compilation. Include parity with the explicit macro.
+   - Correct parser comments and document the supported spelling. Shared
+     generic-bound syntax should remain consistent with struct/func/proc;
+     this issue does not select a separate bounds syntax for enums.
+
+*** Relations
+
+   #57 (enum-generating macros), #58 (function generators), #267 (struct
+   template sugar), #432 (bounded-generic syntax and UFCS discussion),
+   #433 (qualified template arguments).
