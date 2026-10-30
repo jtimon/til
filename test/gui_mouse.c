@@ -20,3 +20,12 @@ void gui_mouse_button(int button, int action)
     glfwSetMouseButtonCallback(window, callback);
     callback(window, button, action, 0);
 }
+
+void gui_mouse_scroll(float x, float y)
+{
+    GLFWwindow *window = glfwGetCurrentContext();
+    GLFWscrollfun callback = glfwSetScrollCallback(window, NULL);
+    if (!callback) abort();
+    glfwSetScrollCallback(window, callback);
+    callback(window, (double)x, (double)y);
+}

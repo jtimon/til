@@ -3,8 +3,16 @@ mode gui
 link_c("gui_mouse.c")
 gui_mouse_move := ext_proc(shallow x: I32, shallow y: I32) {}
 gui_mouse_button := ext_proc(shallow button: I32, shallow action: I32) {}
+gui_mouse_scroll := ext_proc(shallow x: F32, shallow y: F32) {}
 
 priv next_frame := proc() { BeginDrawing(); EndDrawing() }
+
+priv check_wheel := proc(x: F32, y: F32, scalar: F32) {
+    wheel := GetMouseWheelMoveV()
+    if wheel.x != x || wheel.y != y || GetMouseWheelMove() != scalar { panic("wheel snapshot") }
+    again := GetMouseWheelMoveV()
+    if again.x != x || again.y != y || GetMouseWheelMove() != scalar { panic("wheel query consumed input") }
+}
 
 main := proc() {
     InitWindow(640, 480, "til mouse acceptance".c_str)
@@ -37,6 +45,32 @@ main := proc() {
     outside := GetMousePosition()
     if GetMouseX() != -8 || GetMouseY() != 500 || outside.x != -8.0 || outside.y != 500.0 { panic("mouse coordinates were clamped") }
     if IsMouseButtonDown(-1) || IsMouseButtonUp(8) { panic("invalid mouse button") }
+    check_wheel(0, 0, 0)
+    gui_mouse_scroll(0, 1)
+    check_wheel(0, 1, 1)
+    gui_mouse_scroll(0, 2)
+    check_wheel(0, 2, 2)
+    gui_mouse_scroll(0, -1)
+    check_wheel(0, -1, -1)
+    next_frame()
+    check_wheel(0, 0, 0)
+    gui_mouse_scroll(4, -2)
+    check_wheel(4, -2, 4)
+    gui_mouse_scroll(-4, 2)
+    check_wheel(-4, 2, -4)
+    gui_mouse_scroll(0, 0.25)
+    gui_mouse_scroll(0, 0.25)
+    gui_mouse_scroll(0, 0.25)
+    gui_mouse_scroll(0, 0.25)
+    check_wheel(0, 0.25, 0.25)
+    gui_mouse_scroll(0, 0)
+    check_wheel(0, 0, 0)
+    next_frame()
+    check_wheel(0, 0, 0)
+    gui_mouse_scroll(-2, 2)
+    check_wheel(-2, 2, 2)
+    next_frame()
+    check_wheel(0, 0, 0)
     CloseWindow()
     println("GUI mouse acceptance passed")
 }

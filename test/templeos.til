@@ -310,6 +310,50 @@ gui_mouse_checks := proc(identity: Str, bits: Str) {
     run_guest(identity, format("gui_mouse_unsupported_", bits), "GUI mouse POC supports left/right buttons\n", "panic")
 }
 
+gui_wheel_checks := proc(identity: Str, bits: Str) {
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "examples/gui_mouse.til").run_checked()
+    program := File.readfile(format(WORK, "/TILTEST.HC"))
+    File.appendfile(format(WORK, "/TILTEST.HC"),
+        "\nBool wheel_old_ac=AutoComplete(OFF); MsSet(0,0,0); TilMain; AutoComplete(wheel_old_ac);\n")
+    input := format("after 4000\n",
+        "foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
+        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 200\n}\n",
+        "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\n")
+    run_guest(identity, format("gui_wheel_", bits),
+        "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\nGUI wheel: left=2 right=1\n", "pass", input)
+
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program,
+        "\nBool WheelPeerReady=FALSE;\n",
+        "U0 WheelFocusPeer() { Fs->win_inhibit=WIG_USER_TASK_DFT; LBts(&Fs->display_flags,DISPLAYf_SHOW); WinHorz(0,79); WinVert(0,59); WheelPeerReady=TRUE; while (TRUE) { FlushMsgs; Sleep(10); } }\n",
+        "U0 WheelBoundaryChecks() {\n",
+        "CTask *owner=Fs,*peer=Spawn(&WheelFocusPeer,NULL,\"wheel peer\"); CCtrl *old_head=Fs->next_ctrl; I64 old_inhibit=Fs->win_inhibit,row=5,i; F32 fraction=0; TilGuiVector2 move;\n",
+        "while (!WheelPeerReady) Yield; TilGuiInitWindow(640,480,\"wheel boundaries\");\n",
+        "if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"initial wheel delta\\n\");\n",
+        "for (i=0;i<3;i++) mouse_scroll(TilF32Round(0.25),&row,&fraction); if (row!=5) TilPanicZ(\"fractional scroll moved early\\n\");\n",
+        "mouse_scroll(TilF32Round(0.25),&row,&fraction); if (row!=4 || TilF32Load(fraction)!=0.0) TilPanicZ(\"fractional scroll accumulation\\n\");\n",
+        "mouse_scroll(TilF32Round(-200.0),&row,&fraction); if (row!=97) TilPanicZ(\"scroll bottom clamp\\n\"); mouse_scroll(TilF32Round(200.0),&row,&fraction); if (row!=0) TilPanicZ(\"scroll top clamp\\n\");\n",
+        "(*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,-1); (*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,-2); TilGuiPollInput;\n",
+        "TilGuiGetMouseWheelMoveV(&move);\n",
+        "if (sizeof(move)!=8 || TilF32Load(move.x)!=0.0 || TilF32Load(move.y)!=2.0 || TilF32Load(TilGuiGetMouseWheelMove)!=2.0 || TilF32Load(TilGuiGetMouseWheelMove)!=2.0) TilPanicZ(\"last wheel snapshot or ABI\\n\");\n",
+        "TilGuiPollInput; if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"wheel frame expiry\\n\");\n",
+        "(*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,5); (*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,-5); TilGuiPollInput;\n",
+        "if (TilF32Load(TilGuiGetMouseWheelMove)!=5.0) TilPanicZ(\"opposite wheel event replacement\\n\");\n",
+        "(*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,0); TilGuiPollInput; if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"zero wheel event replacement\\n\");\n",
+        "(*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,-4); WinFocus(peer); TilGuiPollInput;\n",
+        "if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"wheel retained across blur\\n\");\n",
+        "WinFocus(owner); TilGuiPollInput; if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"wheel replayed on refocus\\n\");\n",
+        "(*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,2); TilGuiPollInput;\n",
+        "if (TilF32Load(TilGuiGetMouseWheelMove)!=-2.0) TilPanicZ(\"fresh wheel after refocus\\n\");\n",
+        "TilGuiPollInput; WinFocus(peer); MsSet(200,200,ms.pos.z+3); Sleep(100); WinFocus(owner); TilGuiPollInput;\n",
+        "if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"background wheel replayed between polls\\n\");\n",
+        "(*TilGuiWheelControl->wheel_chg)(TilGuiWheelControl,-9); TilGuiCloseWindow;\n",
+        "if (Fs->next_ctrl!=old_head || Fs->win_inhibit!=old_inhibit) TilPanicZ(\"wheel control lifetime\\n\");\n",
+        "TilGuiInitWindow(640,480,\"wheel reopened\"); if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"wheel reopen delta\\n\");\n",
+        "TilGuiCloseWindow; Kill(peer); TilRawWrite(\"GUI wheel boundaries passed\\n\",28); }\nWheelBoundaryChecks;\n"))
+    run_guest(identity, format("gui_wheel_boundaries_", bits), "GUI wheel boundaries passed\n", "pass")
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -379,6 +423,7 @@ main := proc() {
         gui_keyboard_checks(identity, bits)
         gui_keyboard_focus_checks(identity, bits)
         gui_mouse_checks(identity, bits)
+        gui_wheel_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))

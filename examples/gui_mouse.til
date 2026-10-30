@@ -1,6 +1,6 @@
 mode gui
 
-// Click either pane, drag across its cells, and right-click to reset.
+// Click/drag cells, wheel over either pane to scroll rows, right-click to reset.
 // Enter or Escape returns to the caller so the same loaded module can run again.
 MouseDemo := struct {
     pane: I32 = 0
@@ -8,6 +8,12 @@ MouseDemo := struct {
     head: I32 = 0
     dragging: Bool = false
     resets: I64 = 0
+    left_row: I64 = 0
+    right_row: I64 = 0
+    left_fraction: F32 = 0
+    right_fraction: F32 = 0
+    scrolled: Bool = false
+    done: Bool = false
 }
 
 mouse_left := func(pane: I32) returns I32 {
@@ -32,16 +38,49 @@ mouse_last := func(state: MouseDemo) returns I32 {
     return state.head.clone()
 }
 
+mouse_scroll := func(wheel: F32, mut row: I64, mut fraction: F32) {
+    fraction = fraction + wheel
+    steps := fraction.to_i64()
+    fraction = fraction - steps.to_f32()
+    row = row - steps
+    if row < 0 { row = 0; fraction = 0 }
+    if row > 97 { row = 97; fraction = 0 }
+}
+
 mouse_step := proc(mut state: MouseDemo) {
+    // Use queued presses: native bitmap rendering can outlast a short key tap.
+    mut key := GetKeyPressed()
+    while key != 0 {
+        if key == KEY_ENTER { state.done = true }
+        key = GetKeyPressed()
+    }
     x := GetMouseX()
     y := GetMouseY()
     position := GetMousePosition()
     if position.x != x.to_f32() || position.y != y.to_f32() { panic("inconsistent mouse position") }
+    wheel := GetMouseWheelMoveV()
+    scalar := GetMouseWheelMove()
+    if wheel.x == 0.0 && scalar != wheel.y { panic("inconsistent vertical wheel input") }
+    if scalar != GetMouseWheelMove() { panic("wheel query consumed input") }
     if IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) {
         state.anchor = 0
         state.head = 0
         state.dragging = false
         state.resets++
+        state.left_row = 0
+        state.right_row = 0
+        state.left_fraction = 0
+        state.right_fraction = 0
+    }
+    if wheel.y != 0.0 && y >= 40 && y < 220 {
+        if x >= 40 && x < 280 {
+            mouse_scroll(wheel.y, state.left_row, state.left_fraction)
+            state.scrolled = true
+        }
+        if x >= 320 && x < 560 {
+            mouse_scroll(wheel.y, state.right_row, state.right_fraction)
+            state.scrolled = true
+        }
     }
     if IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && y >= 40 && y < 220 {
         if (x >= 40 && x < 280) || (x >= 320 && x < 560) {
@@ -66,7 +105,7 @@ mouse_draw := proc(state: MouseDemo) {
     white := Color(r=255, g=255, b=255, a=255)
     BeginDrawing()
     ClearBackground(black)
-    DrawText("CLICK / DRAG / RIGHT RESET / ENTER TO CLOSE".c_str, 40, 16, 16, white)
+    DrawText("DRAG / WHEEL / RIGHT RESET / ENTER TO CLOSE".c_str, 40, 16, 16, white)
     for pane in 0..2 {
         left := mouse_left(pane.to_i32())
         mut paper := blue.clone()
@@ -81,6 +120,13 @@ mouse_draw := proc(state: MouseDemo) {
             label := column.to_str()
             DrawText(label.c_str, left + column.to_i32() * 20, 124, 16, white)
         }
+        mut first_row := state.left_row.clone()
+        if pane == 1 { first_row = state.right_row.clone() }
+        for visible in 0..3 {
+            label := format("ROW ", (first_row + visible).to_str())
+            DrawText(label.c_str, left + 8, (152 + visible * 16).to_i32(), 16, white)
+        }
+        DrawRectangle(left + 228, (first_row / 2).to_i32() + 148, 8, 6, white)
         EndScissorMode()
     }
     EndDrawing()
@@ -120,7 +166,7 @@ main := proc() {
     InitWindow(640, 480, "til mouse panes".c_str)
     SetTargetFPS(30)
     mut state := MouseDemo()
-    while WindowShouldClose().or(IsKeyPressed(KEY_ENTER)).not() {
+    while WindowShouldClose().or(state.done).not() {
         mouse_step(state)
         mouse_draw(state)
     }
@@ -128,4 +174,7 @@ main := proc() {
     CloseWindow()
     println("GUI mouse: pane=", state.pane.to_str(), " selection=", mouse_first(state).to_str(),
         "..", mouse_last(state).to_str(), " resets=", state.resets.to_str(), " dragging=", state.dragging.to_str())
+    if state.scrolled {
+        println("GUI wheel: left=", state.left_row.to_str(), " right=", state.right_row.to_str())
+    }
 }

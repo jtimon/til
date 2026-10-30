@@ -999,7 +999,7 @@
   of moving the console cursor or generating a double-click Escape.
 
   This sprint supports left/right buttons. Middle/auxiliary button queries fail
-  explicitly on the native target; wheel input and pointer warp/scale/cursor
+  explicitly on the native target; pointer warp/scale/cursor
   APIs remain later work. Invalid button indices retain the facade's false
   result. Key/text queues remain separate from mouse frame state.
 
@@ -1023,6 +1023,48 @@
   and formatting, mouse interaction/reuse, mouse boundaries, unsupported-button
   rejection and the existing keyboard focus regression. The full guest matrix
   was not rerun for this sprint.
+
+**** Wheel scrolling with the existing raylib semantics
+
+  GetMouseWheelMove/GetMouseWheelMoveV now have native implementations. The
+  current raylib behavior is preserved: the last delivered event replaces
+  earlier events in the same frame, queries do not consume it, and the next
+  frame with no event reports zero. For example, events +1 then +2 report +2,
+  not +3. There is no sensitivity multiplier or change to the vendored raylib.
+  The scalar getter keeps raylib's largest-magnitude-axis rule; native PS/2
+  input is vertical, so its vector has x=0 and y equal to the scalar value.
+
+  TempleOS delivers wheel changes through native controls rather than mouse
+  messages. A temporary invisible control is installed first in the task's
+  control list, so wheel input reaches the GUI instead of panning the underlying
+  console. The original control list and window policy are restored on close.
+  The window-manager callback records the latest event; EndDrawing transfers
+  and clears it atomically for the application frame. Up is positive and down
+  negative, matching the facade. TempleOS may coalesce physical ticks into one
+  delivered event; the port preserves that event's amount without rescaling it.
+
+  Pending input is discarded across observed focus loss/refocus. Task-routed
+  callbacks also prevent replay of scrolling delivered to another task between
+  application polls. Opening/reopening a window starts with zero wheel delta.
+
+  examples/gui_mouse.til now scrolls three visible row labels over either pane,
+  keeps each pane's row offset, and clamps to the 100-row example's bounds.
+  Its fractional-row carry is application state across frames, not accumulation
+  of multiple callbacks in one frame. Enter uses queued key presses so slower
+  native bitmap frames do not miss a short tap. The existing manual repeat
+  prompt works with the extended example.
+
+  Hosted callback checks cover event replacement, fractional values, both axes,
+  the scalar axis-selection rule, repeated queries and frame expiry. Native
+  checks cover the same snapshot/ABI rules, direction, focus changes, control
+  cleanup/reopen, fractional row movement and viewport bounds. Real QEMU wheel
+  injection scrolls the left pane down/up and the right pane independently.
+
+  Verification on master ee8785cb2: clean hosted ASAN suite 492/492, including
+  the existing raylib callback behavior and clang validation. All 14 focused
+  native cases pass at USize 32/64: four wheel cases plus the existing mouse,
+  arithmetic/formatting and keyboard-focus checks. The full guest matrix was
+  not rerun for this sprint.
 
 **** Manual GUI testing in one VM
 
@@ -1079,7 +1121,8 @@ HC
   ExeFile("TILTEST.HC");
   #+end_src
 
-  Wait for the window, then click/drag and right-click. Enter/Escape closes the
+  Wait for the window, then click/drag, wheel over either pane, and right-click
+  to reset. Enter/Escape closes the
   example; ~y~ at the repeat prompt starts a fresh run in the same VM, and ~n~
   returns to the console. Type ~quit~ at the host terminal's ~(qemu)~ monitor to
   stop the VM. For a new host build, quit, regenerate/re-stage and boot again;

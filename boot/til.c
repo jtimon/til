@@ -16975,8 +16975,8 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-dbe8f7c3e", .count = 15ULL, .cap = TIL_CAP_LIT};
-static Str COMPILER_REVISION = {.c_str = (I8 *)"dbe8f7c3e574de7d1a2eda018d7b41ae8c029e7c", .count = 40ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-24c539d82", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str COMPILER_REVISION = {.c_str = (I8 *)"24c539d823fe52de75e694d77790e06945f6b73e", .count = 40ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -284701,10 +284701,10 @@ static Str priv___src_self_holyc_codegen_til__holyc_inline_target(Str * name, Fu
             }
         }
     }
-    U32 hoisted__U32_138 = (cleanup.count);
-    U32 hoisted__U32_139 = 0;
-    Bool hoisted__Bool_140 = ((Bool)(hoisted__U32_138 == hoisted__U32_139));
-    if (hoisted__Bool_140) {
+    U32 hoisted__U32_144 = (cleanup.count);
+    U32 hoisted__U32_145 = 0;
+    Bool hoisted__Bool_146 = ((Bool)(hoisted__U32_144 == hoisted__U32_145));
+    if (hoisted__Bool_146) {
         if (indirect) {
             U32 hoisted__U32_38 = 2;
             Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_38);
@@ -284806,8 +284806,14 @@ static Str priv___src_self_holyc_codegen_til__holyc_inline_target(Str * name, Fu
                 static Str hoisted__Str_self_holyc_codegen_holyc_inline_target_132 = (Str){.c_str = (void *)"IsMouseButtonReleased", .count = 21ULL, .cap = TIL_CAP_LIT};
                 Bool hoisted__Bool_133 = ((Bool)((hoisted__Bool_130) || (hoisted__Bool_131)));
                 Bool hoisted__Bool_134 = Str_eq(name, &hoisted__Str_self_holyc_codegen_holyc_inline_target_132);
-                Bool hoisted__Bool_135 = ((Bool)((hoisted__Bool_133) || (hoisted__Bool_134)));
-                if (hoisted__Bool_135) {
+                static Str hoisted__Str_self_holyc_codegen_holyc_inline_target_135 = (Str){.c_str = (void *)"GetMouseWheelMove", .count = 17ULL, .cap = TIL_CAP_LIT};
+                Bool hoisted__Bool_136 = ((Bool)((hoisted__Bool_133) || (hoisted__Bool_134)));
+                Bool hoisted__Bool_137 = Str_eq(name, &hoisted__Str_self_holyc_codegen_holyc_inline_target_135);
+                static Str hoisted__Str_self_holyc_codegen_holyc_inline_target_138 = (Str){.c_str = (void *)"GetMouseWheelMoveV", .count = 18ULL, .cap = TIL_CAP_LIT};
+                Bool hoisted__Bool_139 = ((Bool)((hoisted__Bool_136) || (hoisted__Bool_137)));
+                Bool hoisted__Bool_140 = Str_eq(name, &hoisted__Str_self_holyc_codegen_holyc_inline_target_138);
+                Bool hoisted__Bool_141 = ((Bool)((hoisted__Bool_139) || (hoisted__Bool_140)));
+                if (hoisted__Bool_141) {
                     U32 hoisted__U32_44 = 2;
                     Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_44);
                     I64 _va_Array_5_ek = 0;
@@ -284825,40 +284831,40 @@ static Str priv___src_self_holyc_codegen_til__holyc_inline_target(Str * name, Fu
                 }
             }
         }
-        Str hoisted__Str_self_holyc_codegen_holyc_inline_target_136 = Str_clone(name);
+        Str hoisted__Str_self_holyc_codegen_holyc_inline_target_142 = Str_clone(name);
         Set__USize_delete(&cleanup, 0);
         Str_delete(&mask, 0);
-        { Str _ret = hoisted__Str_self_holyc_codegen_holyc_inline_target_136; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
-    }
-    U32 hoisted__U32_141 = 2;
-    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_141);
-    I64 _va_Array_6_ek = 0;
-    U32 hoisted__U32_142 = 0;
-    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_143 = Str_clone(name);
-    Array__Str_set(&_va_Array_6, hoisted__U32_142, &hoisted__Str_self_holyc_codegen_holyc_inline_target_143, &_va_Array_6_ek);
-    U32 hoisted__U32_144 = 1;
-    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_145 = Str_clone(&mask);
-    Array__Str_set(&_va_Array_6, hoisted__U32_144, &hoisted__Str_self_holyc_codegen_holyc_inline_target_145, &_va_Array_6_ek);
-    Str key = format(&_va_Array_6);
-    Str_delete(&mask, 0);
-    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_146 = Str_clone(name);
-    Map__Str_Str_set(&state->inline_call_sigs, &key, &hoisted__Str_self_holyc_codegen_holyc_inline_target_146);
-    Map__Str_call_Set_USize_set(&state->inline_cleanup, &key, &cleanup);
-    if (indirect) {
-        Str hoisted__Str_self_holyc_codegen_holyc_inline_target_137 = Str_clone(&key);
-        Set__Str_add(&state->inline_indirect, &hoisted__Str_self_holyc_codegen_holyc_inline_target_137);
+        { Str _ret = hoisted__Str_self_holyc_codegen_holyc_inline_target_142; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     U32 hoisted__U32_147 = 2;
-    Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_147);
-    I64 _va_Array_7_ek = 0;
+    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_147);
+    I64 _va_Array_6_ek = 0;
     U32 hoisted__U32_148 = 0;
-    Array__Str_set(&_va_Array_7, hoisted__U32_148, &_til_str_lits.hd20ff7c63a2c, &_va_Array_7_ek);
+    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_149 = Str_clone(name);
+    Array__Str_set(&_va_Array_6, hoisted__U32_148, &hoisted__Str_self_holyc_codegen_holyc_inline_target_149, &_va_Array_6_ek);
     U32 hoisted__U32_150 = 1;
-    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_151 = Str_clone(&key);
-    Array__Str_set(&_va_Array_7, hoisted__U32_150, &hoisted__Str_self_holyc_codegen_holyc_inline_target_151, &_va_Array_7_ek);
-    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_152 = format(&_va_Array_7);
+    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_151 = Str_clone(&mask);
+    Array__Str_set(&_va_Array_6, hoisted__U32_150, &hoisted__Str_self_holyc_codegen_holyc_inline_target_151, &_va_Array_6_ek);
+    Str key = format(&_va_Array_6);
+    Str_delete(&mask, 0);
+    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_152 = Str_clone(name);
+    Map__Str_Str_set(&state->inline_call_sigs, &key, &hoisted__Str_self_holyc_codegen_holyc_inline_target_152);
+    Map__Str_call_Set_USize_set(&state->inline_cleanup, &key, &cleanup);
+    if (indirect) {
+        Str hoisted__Str_self_holyc_codegen_holyc_inline_target_143 = Str_clone(&key);
+        Set__Str_add(&state->inline_indirect, &hoisted__Str_self_holyc_codegen_holyc_inline_target_143);
+    }
+    U32 hoisted__U32_153 = 2;
+    Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_153);
+    I64 _va_Array_7_ek = 0;
+    U32 hoisted__U32_154 = 0;
+    Array__Str_set(&_va_Array_7, hoisted__U32_154, &_til_str_lits.hd20ff7c63a2c, &_va_Array_7_ek);
+    U32 hoisted__U32_156 = 1;
+    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_157 = Str_clone(&key);
+    Array__Str_set(&_va_Array_7, hoisted__U32_156, &hoisted__Str_self_holyc_codegen_holyc_inline_target_157, &_va_Array_7_ek);
+    Str hoisted__Str_self_holyc_codegen_holyc_inline_target_158 = format(&_va_Array_7);
     Str_delete(&key, 0);
-    { Str _ret = hoisted__Str_self_holyc_codegen_holyc_inline_target_152; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    { Str _ret = hoisted__Str_self_holyc_codegen_holyc_inline_target_158; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
 static Str priv___src_self_holyc_codegen_til__holyc_callable_adapters(Context * ctx, priv___src_self_holyc_codegen_til__HolyCEmitState * state, Str * error) {

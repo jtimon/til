@@ -1655,6 +1655,10 @@ class TilGuiVector2 { F32 x,y; };
 CDC *TilGuiFront=NULL,*TilGuiBack=NULL;
 I64 TilGuiFrameMs=0,TilGuiOldLeft,TilGuiOldRight,TilGuiOldTop,TilGuiOldBottom;
 I64 TilGuiOldInhibit,TilGuiMouseX=0,TilGuiMouseY=0;
+CCtrl *TilGuiWheelControl=NULL;
+I64 TilGuiWheelPending=0;
+F32 TilGuiWheelMove=0;
+Bool TilGuiWheelFocused=FALSE;
 Bool TilGuiDrawing=FALSE,TilGuiOldBorder;
 U8 TilGuiOldTitle[STR_LEN];
 U0 (*TilGuiOldDraw)(CTask *task,CDC *dc);
@@ -1739,7 +1743,8 @@ I64 TilGuiKeyCode(I64 scan)
 
 U0 TilGuiPollInput()
 {
-  I64 message,ch,scan,key,raw;
+  I64 message,ch,scan,key,raw,wheel_delta;
+  Bool focused,was_focused;
   U8 physical_keys[512];
   MemCpy(TilGuiPreviousKeys,TilGuiKeys,sizeof(TilGuiKeys));
   MemCpy(TilGuiPreviousMouseButtons,TilGuiMouseButtons,sizeof(TilGuiMouseButtons));
@@ -1785,7 +1790,20 @@ U0 TilGuiPollInput()
   // carried by MSG_MS_MOVE. Position is sampled once for consistent X/Y/Vector2.
   TilGuiMouseX=ms.pos.x-Fs->pix_left;
   TilGuiMouseY=ms.pos.y-Fs->pix_top;
-  if (sys_focus_task!=Fs) {
+  // Wheel callbacks run in the window manager. Publish one non-consuming
+  // snapshot per application frame, discarding input across observed blur.
+  PUSHFD
+  CLI
+  wheel_delta=TilGuiWheelPending;
+  TilGuiWheelPending=0;
+  focused=sys_focus_task==Fs;
+  was_focused=TilGuiWheelFocused;
+  TilGuiWheelFocused=focused;
+  POPFD
+  TilGuiWheelMove=0;
+  if (focused && was_focused)
+    TilGuiWheelMove=TilF32FromI64(wheel_delta);
+  if (!focused) {
     // TempleOS delivers releases to the task focused when the release occurs,
     // not necessarily the one that received the press. Blur releases our held
     // keys once, without inventing key/text queue entries.
@@ -1851,6 +1869,28 @@ public U0 TilGuiGetMousePosition(U8 *out)
   TilGuiVector2 *position=out(TilGuiVector2 *);
   position->x=TilF32FromI64(TilGuiMouseX);
   position->y=TilF32FromI64(TilGuiMouseY);
+}
+
+U0 TilGuiWheelChanged(CCtrl *,I64 delta)
+{
+  // TempleOS's vertical axis increases downward; the facade is positive up.
+  // Match raylib's last-event snapshot, without adding events or scaling ticks.
+  PUSHFD
+  CLI
+  TilGuiWheelPending=-delta;
+  POPFD
+}
+
+public F32 TilGuiGetMouseWheelMove()
+{
+  return TilGuiWheelMove;
+}
+
+public U0 TilGuiGetMouseWheelMoveV(U8 *out)
+{
+  TilGuiVector2 *move=out(TilGuiVector2 *);
+  move->x=0;
+  move->y=TilGuiWheelMove;
 }
 
 public Bool TilGuiIsKeyDown(I64 key)
@@ -1929,6 +1969,16 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   // double-click-to-Escape or Ctrl-drag panning of the native task window.
   Fs->win_inhibit|=WIF_SELF_MS_L|WIF_SELF_MS_R|WIF_SELF_GRAB_SCROLL|
     WIF_FOCUS_TASK_MS_L_D|WIF_FOCUS_TASK_MS_R_D;
+  Fs->win_inhibit&=~(WIF_SELF_CTRLS|WIF_FOCUS_TASK_CTRLS);
+  // The first wheel control receives task-routed wheel events and consumes
+  // them before the console scrollbar can pan our drawing surface. It is
+  // invisible and does not intercept pointer clicks.
+  TilGuiWheelPending=0; TilGuiWheelMove=0; TilGuiWheelFocused=TRUE;
+  TilGuiWheelControl=CAlloc(sizeof(CCtrl));
+  TilGuiWheelControl->win_task=Fs;
+  TilGuiWheelControl->type=CTRLT_GENERIC;
+  TilGuiWheelControl->wheel_chg=&TilGuiWheelChanged;
+  QueIns(TilGuiWheelControl,&Fs->next_ctrl);
   TilGuiFront=DCNew(width,height);
   TilGuiBack=DCNew(width,height);
   TilGuiOldBorder=WinBorder(OFF);
@@ -1936,6 +1986,9 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   WinVert(0,TEXT_ROWS-1);
   Fs->draw_it=&TilGuiDraw;
   WinFocus;
+  // Let WinMgr baseline its cumulative wheel axis before accepting GUI input.
+  Refresh(2);
+  TilGuiWheelPending=0;
   TilGuiMouseX=ms.pos.x-Fs->pix_left;
   TilGuiMouseY=ms.pos.y-Fs->pix_top;
 }
@@ -2092,6 +2145,9 @@ public U0 TilGuiUnloadImage(U8 *opaque)
 
 public U0 TilGuiCloseWindow()
 {
+  QueRem(TilGuiWheelControl);
+  Free(TilGuiWheelControl);
+  TilGuiWheelControl=NULL;
   Fs->draw_it=TilGuiOldDraw;
   Fs->win_inhibit=TilGuiOldInhibit;
   DCDel(TilGuiFront); DCDel(TilGuiBack);

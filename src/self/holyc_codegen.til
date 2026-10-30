@@ -2289,7 +2289,7 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
                 "GetKeyPressed", "GetCharPressed", "IsKeyDown", "IsKeyUp", "IsKeyPressed", "IsKeyReleased",
                 "IsKeyPressedRepeat", "WindowShouldClose", "SetExitKey", "BeginScissorMode", "EndScissorMode",
                 "GetMouseX", "GetMouseY", "GetMousePosition", "IsMouseButtonDown", "IsMouseButtonUp",
-                "IsMouseButtonPressed", "IsMouseButtonReleased":
+                "IsMouseButtonPressed", "IsMouseButtonReleased", "GetMouseWheelMove", "GetMouseWheelMoveV":
                 return format("TilGui", name)
             case:
             }
