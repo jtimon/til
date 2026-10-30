@@ -2730,6 +2730,13 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         emit_deref(f, scrut, depth, ctx)
         if sw_is_niche { f.write(").data != NULL)") }
         else { f.write(").tag") }
+    } else if type_is_primitive(scrut.til_type(), Primitive.Bool) {
+        // `switch flag { case true: ... }`: the same -Wswitch-bool clang
+        // trips on the niche test above, for a scrutinee that IS a Bool.
+        // The case labels emit as 0/1 either way; the (int) keeps them valid.
+        f.write("(int)(")
+        emit_deref(f, scrut, depth, ctx)
+        f.write(")")
     } else {
         emit_deref(f, scrut, depth, ctx)
     }

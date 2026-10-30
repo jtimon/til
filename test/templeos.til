@@ -176,7 +176,7 @@ gui_keyboard_checks := proc(identity: Str, bits: Str) {
     File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
     input := format("after 4000\n",
         "foreach key {a shift-b backspace shift-4 shift-spc shift-1 ctrl-a c right right left ret} {\n",
-        "send \"sendkey $key 80\\r\"\nexpect \"(qemu)\"\nafter 300\n}\n")
+        "send \"sendkey $key 80\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n")
     run_guest(identity, format("gui_keyboard_", bits), "GUI keyboard: a$ !c cursor=1\n", "pass", input)
 }
 
@@ -255,10 +255,16 @@ gui_scissor_checks := proc(identity: Str, bits: Str) {
     run_guest(identity, format("gui_scissor_negative_", bits), "GUI scissor requires nonnegative extents\n", "panic")
 }
 
+// Injected input is paced at 500ms per monitor command. The facade samples
+// mouse buttons per frame (TilGuiPollInput reconciles them with ms.lb/ms.rb),
+// so a press, move and release that all land inside one guest frame are
+// never seen as a drag; under QEMU TCG a frame of this demo can run well
+// past 150ms. Runs 2843-2847 lost drags, wheel clicks and a cursor key at
+// 150-300ms pacing.
 gui_mouse_input := func() returns Str {
     return format("after 4000\nfor {set run 0} {$run<2} {incr run} {\n",
         "foreach command {\"mouse_move 160 160\" \"mouse_button 1\" \"mouse_move 80 0\" \"mouse_button 0\" \"mouse_button 2\" \"mouse_button 0\" \"mouse_move 600 0\" \"mouse_button 1\" \"mouse_move -120 0\" \"mouse_button 0\" \"mouse_move 8 24\"} {\n",
-        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 150\n}\n",
+        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n",
         "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\nafter 600\n}\n")
 }
 
@@ -318,7 +324,7 @@ gui_wheel_checks := proc(identity: Str, bits: Str) {
         "\nBool wheel_old_ac=AutoComplete(OFF); MsSet(0,0,0); TilMain; AutoComplete(wheel_old_ac);\n")
     input := format("after 4000\n",
         "foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
-        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 200\n}\n",
+        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n",
         "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\n")
     run_guest(identity, format("gui_wheel_", bits),
         "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\nGUI wheel: left=2 right=1\n", "pass", input)
@@ -362,11 +368,11 @@ gui_middle_checks := proc(identity: Str, bits: Str) {
         "\nBool middle_old_ac=AutoComplete(OFF); MsSet(0,0,0); TilMain; MsSet(0,0,0); TilMain; AutoComplete(middle_old_ac);\n")
     input := format("after 4000\nfor {set run 0} {$run<2} {incr run} {\n",
         "foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
-        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 200\n}\n",
-        "if {$run==0} {send \"mouse_move -640 0\\r\"\nexpect \"(qemu)\"\nafter 200}\n",
-        "send \"mouse_button 4\\r\"\nexpect \"(qemu)\"\nafter 300\n",
-        "if {$run==0} {send \"mouse_move 640 0\\r\"} else {send \"mouse_move -640 0\\r\"}\nexpect \"(qemu)\"\nafter 300\n",
-        "send \"mouse_button 0\\r\"\nexpect \"(qemu)\"\nafter 200\n",
+        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n",
+        "if {$run==0} {send \"mouse_move -640 0\\r\"\nexpect \"(qemu)\"\nafter 500}\n",
+        "send \"mouse_button 4\\r\"\nexpect \"(qemu)\"\nafter 500\n",
+        "if {$run==0} {send \"mouse_move 640 0\\r\"} else {send \"mouse_move -640 0\\r\"}\nexpect \"(qemu)\"\nafter 500\n",
+        "send \"mouse_button 0\\r\"\nexpect \"(qemu)\"\nafter 500\n",
         "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\nafter 600\n}\n")
     mouse_line := "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\n"
     run_guest(identity, format("gui_middle_", bits), format(mouse_line,
