@@ -1458,17 +1458,31 @@ priv append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(Str.from_byte(2))
 }
 
+// Formatting buffers are owned and writable. Defaults can contain arbitrary
+// expressions and bodies, so grow the buffer instead of estimating a maximum.
+priv doc_push_str := func(mut out: Str, text: Str) {
+    required := out.len() + text.len()
+    if required > out.cap {
+        mut capacity := out.cap * 2
+        if capacity < required { capacity = required }
+        mut grown := Str.with_capacity(capacity)
+        grown.push_str(out)
+        swap(Str, out, grown)
+    }
+    out.push_str(text)
+}
+
 // Append "[own |ref |shallow ][mut ]" prefix for d, omitting whichever
 // ownership the surrounding context already implies.
 priv append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: OwnType) {
     if d.own_type.is(default_own).not() {
         switch d.own_type {
-        case .Own:     out.push_str("own ")
-        case .Ref:     out.push_str("ref ")
-        case .Shallow: out.push_str("shallow ")
+        case .Own:     out.doc_push_str("own ")
+        case .Ref:     out.doc_push_str("ref ")
+        case .Shallow: out.doc_push_str("shallow ")
         }
     }
-    if d.is_mut { out.push_str("mut ") }
+    if d.is_mut { out.doc_push_str("mut ") }
 }
 
 priv doc_throw_abi_param := func(param: Declaration, fd: FunctionDef) returns Bool {
@@ -1480,30 +1494,121 @@ priv doc_throw_abi_param := func(param: Declaration, fd: FunctionDef) returns Bo
     return false
 }
 
+priv append_doc_captures := func(mut out: Str, captures: Vec(Declaration)) {
+    out.doc_push_str("[")
+    for i in 0..captures.len() {
+        if i > 0 { out.doc_push_str(", ") }
+        ref capture : Declaration = captures[i]
+        append_qualifier_prefix(out, capture, OwnType.Ref)
+        out.doc_push_str(capture.name)
+    }
+    out.doc_push_str("] ")
+}
+
+priv append_doc_selection := func(mut out: Str, e: Expr, scope: TypeScope, symbols: SymbolPool) {
+    out.doc_push_str("match ")
+    append_doc_default(out, e.children[0], scope, symbols)
+    out.doc_push_str(" { ")
+    for i in 1..e.children.len() {
+        ref arm : Expr = e.children[i]
+        ref shape : CaseData = case_of(arm)
+        out.doc_push_str("case")
+        for j in 0..shape.pattern_count {
+            if j == 0 { out.doc_push_str(" ") } else { out.doc_push_str(", ") }
+            append_doc_default(out, arm.children[j], scope, symbols)
+        }
+        if arm.children.len() > shape.pattern_count + 1 {
+            out.doc_push_str(" if ")
+            append_doc_default(out, arm.children[shape.pattern_count], scope, symbols)
+        }
+        out.doc_push_str(": ")
+        ref body : Expr = arm.children[arm.children.len() - 1]
+        append_doc_default(out, body.children[0], scope, symbols)
+        out.doc_push_str(" ")
+    }
+    out.doc_push_str("}")
+}
+
+priv append_doc_collection := func(mut out: Str, e: Expr, is_map: Bool, scope: TypeScope, symbols: SymbolPool) {
+    out.doc_push_str("{")
+    mut i : USize = 0
+    while i < e.children.len() {
+        if i > 0 { out.doc_push_str(", ") }
+        append_doc_default(out, e.children[i], scope, symbols)
+        i++
+        if is_map {
+            out.doc_push_str(": "); append_doc_default(out, e.children[i], scope, symbols)
+            i++
+        }
+    }
+    out.doc_push_str("}")
+}
+
+// These primaries return before the parser's postfix chain. Preserve the
+// grouping when they are used as a field receiver or a call's callee.
+priv doc_default_needs_group := func(e: Expr, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .Ident(id): return id.ident_name(symbols.names).starts_with("_lambda_")
+    case:
+    }
+    return e.node_type.is(NodeType.Match).or(e.node_type.is(NodeType.FuncDef))
+        .or(e.node_type.is(NodeType.BodyValue)).or(e.node_type.is(NodeType.StructDef))
+        .or(e.node_type.is(NodeType.EnumDef))
+}
+
 // Defaults retain their expression AST. Render it without evaluating it or
 // replacing it with a diagnostic tree dump. Calls may have typed constructor
 // slots, whose source spelling requires field names rather than positions.
+// Callable/body defaults show their contracts and captures with an explicit
+// { ... } implementation marker, like ordinary docs omit function bodies.
 priv append_doc_default := func(mut out: Str, e: Expr, scope: TypeScope, symbols: SymbolPool) {
     switch e.node_type {
     case .Literal(Literal.Str(text)):
-        out.push_str("\""); out.push_str(text); out.push_str("\"")
-    case .Literal(Literal.Num(number)): out.push_str(number.literal_num_text())
+        out.doc_push_str("\""); out.doc_push_str(text); out.doc_push_str("\"")
+    case .Literal(Literal.Num(number)): out.doc_push_str(number.literal_num_text())
     case .Literal(Literal.Bool(value)):
-        if value { out.push_str("true") } else { out.push_str("false") }
-    case .Literal(Literal.Null): out.push_str("0")
-    case .Ident(id): out.push_str(id.ident_name(symbols.names))
-    case .Loc: out.push_str("__LOC__")
+        if value { out.doc_push_str("true") } else { out.doc_push_str("false") }
+    case .Literal(Literal.Null): out.doc_push_str("0")
+    case .Literal(Literal.MapLit): append_doc_collection(out, e, true, scope, symbols)
+    case .Literal(Literal.SetLit): append_doc_collection(out, e, false, scope, symbols)
+    case .Ident(id):
+        ref name : Str = id.ident_name(symbols.names)
+        // The lambda lifter replaces a default with its implementation-only
+        // name. Its live FuncDef is still the authoritative default value.
+        if name.starts_with("_lambda_") {
+            append_doc_default(out, scope.lookup_func_name(name, symbols).unwrap(), scope, symbols)
+        } else { out.doc_push_str(name) }
+    case .Loc: out.doc_push_str("__LOC__")
+    case .Match: append_doc_selection(out, e, scope, symbols)
+    case .FuncDef(fd):
+        out.doc_push_str(func_kind(fd.sig.func_type))
+        append_fn_signature(out, fd, scope, symbols)
+        out.doc_push_str(" ")
+        if fd.captures.len() > 0 { append_doc_captures(out, fd.captures) }
+        if e.children.len() > 0 { out.doc_push_str("{ ... }") }
+    case .BodyValue(d):
+        append_doc_captures(out, d.captures)
+        out.doc_push_str("{ ... }")
+    case .StructDef(d): out.doc_push_str(format_struct_info("", d, scope, symbols))
+    case .EnumDef(d): out.doc_push_str(format_enum_info("", d, scope, symbols))
+    case .RestPattern: out.doc_push_str("..")
     case .FieldAccess(field):
+        grouped := doc_default_needs_group(e.children[0], symbols)
+        if grouped { out.doc_push_str("(") }
         append_doc_default(out, e.children[0], scope, symbols)
-        out.push_str("."); out.push_str(field.field_access_name(symbols.names))
+        if grouped { out.doc_push_str(")") }
+        out.doc_push_str("."); out.doc_push_str(field.field_access_name(symbols.names))
     case .FCall(call):
         mut constructor := Option(ref Expr).None
         switch e.children[0].node_type {
         case .Ident(id): constructor = scope.get_struct(id.ident_name(symbols.names), symbols)
         case:
         }
+        grouped := doc_default_needs_group(e.children[0], symbols)
+        if grouped { out.doc_push_str("(") }
         append_doc_default(out, e.children[0], scope, symbols)
-        out.push_str("(")
+        if grouped { out.doc_push_str(")") }
+        out.doc_push_str("(")
         mut emitted : USize = 0
         for i in 1..e.children.len() {
             ref argument : Expr = e.children[i]
@@ -1511,26 +1616,26 @@ priv append_doc_default := func(mut out: Str, e: Expr, scope: TypeScope, symbols
                 ref record : StructDef = structdef_of(constructor.unwrap())
                 if record.fields[i - 1].is_priv { continue }
             }
-            if emitted > 0 { out.push_str(", ") }
+            if emitted > 0 { out.doc_push_str(", ") }
             emitted++
             switch argument.node_type {
             case .NamedArg(name):
-                out.push_str(name); out.push_str(" = ")
+                out.doc_push_str(name); out.doc_push_str(" = ")
                 append_doc_default(out, argument.children[0], scope, symbols)
             case:
                 if constructor.is_some() {
                     ref record : StructDef = structdef_of(constructor.unwrap())
-                    out.push_str(record.field_name_at(i - 1)); out.push_str(" = ")
+                    out.doc_push_str(record.field_name_at(i - 1)); out.doc_push_str(" = ")
                 }
-                if get_own_arg(e, i) { out.push_str("own ") }
-                if get_ref_arg(e, i) { out.push_str("ref ") }
-                if get_splat_arg(e, i) { out.push_str("..") }
+                if get_own_arg(e, i) { out.doc_push_str("own ") }
+                if get_ref_arg(e, i) { out.doc_push_str("ref ") }
+                if get_splat_arg(e, i) { out.doc_push_str("..") }
                 append_doc_default(out, argument, scope, symbols)
             }
         }
-        out.push_str(")")
-        if call.is_bang { out.push_str("!") }
-        else if call.does_throw { out.push_str("?") }
+        out.doc_push_str(")")
+        if call.is_bang { out.doc_push_str("!") }
+        else if call.does_throw { out.doc_push_str("?") }
     case:
         panic("unsupported documentation default expression: ", e.node_type.head_str(symbols.names))
     }
@@ -1539,12 +1644,12 @@ priv append_doc_default := func(mut out: Str, e: Expr, scope: TypeScope, symbols
 // Source-facing contract, shared by generated docs and help(). Throw ABI
 // slots can precede trailing defaults, so filter by identity, not truncation.
 priv append_fn_signature := func(mut out: Str, fd: FunctionDef, scope: TypeScope, symbols: SymbolPool) {
-    out.push_str("(")
+    out.doc_push_str("(")
     mut emitted : USize = 0
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         if doc_throw_abi_param(p, fd) { continue }
-        if emitted > 0 { out.push_str(", ") }
+        if emitted > 0 { out.doc_push_str(", ") }
         emitted++
         is_variadic := i.to_i32() == fd.sig.variadic_index
         is_kwargs := i.to_i32() == fd.sig.kwargs_index
@@ -1553,39 +1658,39 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef, scope: TypeScope
             if p.auto_shallow { default_own = OwnType.Shallow }
             append_qualifier_prefix(out, p, default_own)
         }
-        out.push_str(p.name)
+        out.doc_push_str(p.name)
         if p.til_type.is(Type.Unknown).not() {
-            if p.name.len() > 0 { out.push_str(": ") }
-            if is_kwargs { out.push_str("...") }
+            if p.name.len() > 0 { out.doc_push_str(": ") }
+            if is_kwargs { out.doc_push_str("...") }
             else {
-                if is_variadic { out.push_str("..") }
-                out.push_str(decl_type_name_ref(p, symbols))
+                if is_variadic { out.doc_push_str("..") }
+                out.doc_push_str(decl_type_name_ref(p, symbols))
             }
         }
         if p.bounds.len() > 0 {
-            out.push_str(" implements "); out.push_str(p.bounds.replace(",", ", "))
+            out.doc_push_str(" implements "); out.doc_push_str(p.bounds.replace(",", ", "))
         }
         if p.default_value.is_some() {
-            out.push_str(" = ")
+            out.doc_push_str(" = ")
             append_doc_default(out, p.default_expr(), scope, symbols)
         }
     }
-    out.push_str(")")
+    out.doc_push_str(")")
     if fd.sig.return_type.len() > 0 {
-        out.push_str(" returns ")
+        out.doc_push_str(" returns ")
         switch fd.sig.return_own_type {
         case .Shallow:
-            if fd.sig.return_shallow_explicit { out.push_str("shallow ") }
-        case .Ref:     out.push_str("ref ")
+            if fd.sig.return_shallow_explicit { out.doc_push_str("shallow ") }
+        case .Ref:     out.doc_push_str("ref ")
         case .Own:
         }
-        out.push_str(fd.sig.return_type)
+        out.doc_push_str(fd.sig.return_type)
     }
     if fd.sig.throw_types.len() > 0 {
-        out.push_str(" throws ")
+        out.doc_push_str(" throws ")
         for i in 0..fd.sig.throw_types.len() {
-            if i > 0 { out.push_str(", ") }
-            out.push_str(fd.sig.throw_types[i])
+            if i > 0 { out.doc_push_str(", ") }
+            out.doc_push_str(fd.sig.throw_types[i])
         }
     }
 }
@@ -1678,35 +1783,35 @@ format_doc_for_help := func(doc: Str) returns Str {
 
 // Append "    [own |ref |shallow ][mut ]name : Type" for a struct field.
 priv append_field_indented := func(mut out: Str, dname: Str, d: Declaration, symbols: SymbolPool) {
-    out.push_str("    ")
+    out.doc_push_str("    ")
     append_qualifier_prefix(out, d, OwnType.Shallow)
-    out.push_str(dname)
+    out.doc_push_str(dname)
     if d.til_type.is(Type.Unknown).not() {
-        out.push_str(" : ")
-        out.push_str(decl_type_name_ref(d, symbols))
+        out.doc_push_str(" : ")
+        out.doc_push_str(decl_type_name_ref(d, symbols))
     }
 }
 
 // Append "    [kind ]name(sig) returns T" for a namespace method.
 priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration, scope: TypeScope, symbols: SymbolPool) {
-    out.push_str("    ")
+    out.doc_push_str("    ")
     mut handled := false
     if d.default_value.is_some() {
         switch d.default_expr().node_type {
         case .FuncDef(fd):
-            out.push_str(func_kind(fd.sig.func_type))
-            out.push_str(" ")
-            out.push_str(dname)
+            out.doc_push_str(func_kind(fd.sig.func_type))
+            out.doc_push_str(" ")
+            out.doc_push_str(dname)
             append_fn_signature(out, fd, scope, symbols)
             handled = true
         case:
         }
     }
     if handled.not() {
-        out.push_str(dname)
+        out.doc_push_str(dname)
         if d.til_type.is(Type.Unknown).not() {
-            out.push_str(" : ")
-            out.push_str(decl_type_name_ref(d, symbols))
+            out.doc_push_str(" : ")
+            out.doc_push_str(decl_type_name_ref(d, symbols))
         }
     }
 }
@@ -1730,9 +1835,9 @@ priv format_func_info := func(name: Str, fd: FunctionDef, scope: TypeScope, symb
         cap = cap.add(p.name.len()).add(decl_type_name_ref(p, symbols).len()) + 48
     }
     mut out := Str.with_capacity(cap)
-    out.push_str(func_kind(fd.sig.func_type))
-    out.push_str(" ")
-    out.push_str(name)
+    out.doc_push_str(func_kind(fd.sig.func_type))
+    out.doc_push_str(" ")
+    out.doc_push_str(name)
     append_fn_signature(out, fd, scope, symbols)
     return out
 }
@@ -1767,24 +1872,24 @@ priv format_struct_info := func(name: Str, sdef: StructDef, scope: TypeScope, sy
     }
     cap = cap * 2
     mut out := Str.with_capacity(cap)
-    out.push_str("struct ")
-    out.push_str(name)
-    out.push_str(" {")
+    out.doc_push_str("struct ")
+    out.doc_push_str(name)
+    out.doc_push_str(" {")
     for i in 0..sdef.fields.len() {
         ref f2 : Declaration = sdef.fields[i]
         if doc_member_hidden(f2) { continue }
-        out.push_str("\n")
+        out.doc_push_str("\n")
         append_field_indented(out, sdef.field_name_at(i), f2, symbols)
     }
     mut namespace_started := false
     for i in 0..sdef.ns_decls.len() {
         ref d2 : Declaration = sdef.ns_decls[i]
         if doc_member_hidden(d2) { continue }
-        if namespace_started.not() { out.push_str("\nnamespace:"); namespace_started = true }
-        out.push_str("\n")
+        if namespace_started.not() { out.doc_push_str("\nnamespace:"); namespace_started = true }
+        out.doc_push_str("\n")
         append_ns_method_indented(out, sdef.member_name_at(i), d2, scope, symbols)
     }
-    out.push_str("\n}")
+    out.doc_push_str("\n}")
     return out
 }
 
@@ -1801,27 +1906,27 @@ priv format_enum_info := func(name: Str, edef: EnumDef, scope: TypeScope, symbol
     }
     cap = cap * 2
     mut out := Str.with_capacity(cap)
-    out.push_str("enum ")
-    out.push_str(name)
-    out.push_str(" {")
+    out.doc_push_str("enum ")
+    out.doc_push_str(name)
+    out.doc_push_str(" {")
     for vd : VariantDef in edef.variants {
-        out.push_str("\n")
-        out.push_str("    ")
-        out.push_str(vd.name)
+        out.doc_push_str("\n")
+        out.doc_push_str("    ")
+        out.doc_push_str(vd.name)
         if vd.payload_type.len() > 0 {
-            out.push_str(": ")
-            out.push_str(vd.payload_type)
+            out.doc_push_str(": ")
+            out.doc_push_str(vd.payload_type)
         }
     }
     mut namespace_started := false
     for i in 0..edef.ns_decls.len() {
         ref d2 : Declaration = edef.ns_decls[i]
         if doc_member_hidden(d2) { continue }
-        if namespace_started.not() { out.push_str("\nnamespace:"); namespace_started = true }
-        out.push_str("\n")
+        if namespace_started.not() { out.doc_push_str("\nnamespace:"); namespace_started = true }
+        out.doc_push_str("\n")
         append_ns_method_indented(out, edef.member_name_at(i), d2, scope, symbols)
     }
-    out.push_str("\n}")
+    out.doc_push_str("\n}")
     return out
 }
 
@@ -1852,19 +1957,19 @@ format_member_info := func(type_name: Str, dname: Str, d: Declaration, scope: Ty
     if d.default_value.is_some() {
         switch d.default_expr().node_type {
         case .FuncDef(fd):
-            out.push_str(func_kind(fd.sig.func_type))
-            out.push_str(" ")
-            out.push_str(qual)
+            out.doc_push_str(func_kind(fd.sig.func_type))
+            out.doc_push_str(" ")
+            out.doc_push_str(qual)
             append_fn_signature(out, fd, scope, symbols)
             return out
         case:
         }
     }
-    out.push_str("member ")
-    out.push_str(qual)
+    out.doc_push_str("member ")
+    out.doc_push_str(qual)
     if d.til_type.is(Type.Unknown).not() {
-        out.push_str(" : ")
-        out.push_str(decl_type_name_ref(d, symbols))
+        out.doc_push_str(" : ")
+        out.doc_push_str(decl_type_name_ref(d, symbols))
     }
     return out
 }
@@ -1872,12 +1977,12 @@ format_member_info := func(type_name: Str, dname: Str, d: Declaration, scope: Ty
 format_field_info := func(type_name: Str, field_name: Str, field: Declaration, symbols: SymbolPool) returns Str {
     qual := type_name.format(".", field_name)
     mut out := Str.with_capacity(qual.len().add(decl_type_name_ref(field, symbols).len()) + 64)
-    out.push_str("field ")
+    out.doc_push_str("field ")
     append_qualifier_prefix(out, field, OwnType.Shallow)
-    out.push_str(qual)
+    out.doc_push_str(qual)
     if field.til_type.is(Type.Unknown).not() {
-        out.push_str(" : ")
-        out.push_str(decl_type_name_ref(field, symbols))
+        out.doc_push_str(" : ")
+        out.doc_push_str(decl_type_name_ref(field, symbols))
     }
     return out
 }

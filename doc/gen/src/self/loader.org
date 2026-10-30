@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-ee8785cb2
+#+SUBTITLE: til 0.0.1-9e5acb222
 #+OPTIONS: toc:t
 
 * REPL_DOC_INDEX
@@ -1464,6 +1464,16 @@ Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
 func Vec__priv___src_self_loader_til__ImportCheckEntry.clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
+#+end_src
+
+* swap__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.swap__Str
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func swap__Str(mut a: Str, mut b: Str)
 #+end_src
 
 * adopt__TargetLink

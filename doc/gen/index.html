@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9e5acb222</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -78,6 +78,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
 <li><a href="src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
+<li><a href="src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -12172,6 +12173,10 @@ namespace:
 <pre><code class="language-til">func (self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 </code></pre>
 </li>
+<li><a href="src/self/loader.html#til.src.self.loader.swap__Str">swap__Str</a>
+<pre><code class="language-til">func (mut a: Str, mut b: Str)
+</code></pre>
+</li>
 <li><a href="src/self/loader.html#til.src.self.loader.adopt__TargetLink">adopt__TargetLink</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: TargetLink)
 </code></pre>
@@ -14343,6 +14348,7 @@ namespace:
 namespace:
     proc lookup(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
     proc call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+    proc invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
     func size() returns U64
@@ -14351,6 +14357,14 @@ namespace:
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.TilVmCallback.call">TilVmCallback.call</a>
 <pre><code class="language-til">proc (mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.TilVmCallback.invoke_throwing">TilVmCallback.invoke_throwing</a>
+<pre><code class="language-til">proc (mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.call_throwing">call_throwing</a>
+<pre><code class="language-til">macro (E: Type) returns FuncDef
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.InterpRunResult">InterpRunResult</a>
@@ -16489,6 +16503,173 @@ namespace:
 </li>
 <li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.fasm_codegen_translate">fasm_codegen_translate</a>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, path: Str, source_names: Set__Str) returns I32
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type">Map__Str_Type</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__Type
+namespace:
+    func new() returns Map__Str_Type
+    func with_capacity(n: U64) returns Map__Str_Type
+    func len(self: Map__Str_Type) returns U64
+    func clear(mut self: Map__Str_Type)
+    func has(self: Map__Str_Type, key: Str) returns Bool
+    func get(self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+    func set(mut self: Map__Str_Type, key: Str, own val: Type)
+    func remove(mut self: Map__Str_Type, key: Str) returns Bool
+    func delete(own self: Map__Str_Type, call_free: Bool = true)
+    func clone(self: Map__Str_Type) returns Map__Str_Type
+    func size() returns U64
+    func hash(self: Map__Str_Type, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.new">Map__Str_Type.new</a>
+<pre><code class="language-til">func () returns Map__Str_Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.with_capacity">Map__Str_Type.with_capacity</a>
+<pre><code class="language-til">func (n: U64) returns Map__Str_Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.clear">Map__Str_Type.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.has">Map__Str_Type.has</a>
+<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.get">Map__Str_Type.get</a>
+<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.set">Map__Str_Type.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str, own val: Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.remove">Map__Str_Type.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type">Vec__Type</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__Type
+    func with_capacity(n: U64) returns Vec__Type
+    func len(self: Vec__Type) returns U64
+    func clear(mut self: Vec__Type)
+    func delete_marked(mut self: Vec__Type, marks: Dynamic)
+    func push(mut self: Vec__Type, own val: Type)
+    func append(mut self: Vec__Type, own other: Vec__Type)
+    func take(mut self: Vec__Type) returns Vec__Type
+    func move_to(own self: Vec__Type, mut dest: Vec__Type)
+    func move_from(mut self: Vec__Type, own other: Vec__Type)
+    func unsafe_get(self: Vec__Type, i: U64) returns ref Type
+    func get(self: Vec__Type, shallow i: U64) returns ref Type throws OutOfBounds
+    func pop(mut self: Vec__Type) returns Type
+    func remove_at(mut self: Vec__Type, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__Type, n: U64) returns Vec__Type
+    func truncate(mut self: Vec__Type, n: U64)
+    func unsafe_set(mut self: Vec__Type, i: U64, own val: Type)
+    func set(mut self: Vec__Type, i: U64, own val: Type) throws OutOfBounds
+    func push_take(mut self: Vec__Type, mut src: Vec__Type, i: U64)
+    func delete(own self: Vec__Type, call_free: Bool = true)
+    func clone(self: Vec__Type) returns Vec__Type
+    func size() returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.new">Vec__Type.new</a>
+<pre><code class="language-til">func () returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.with_capacity">Vec__Type.with_capacity</a>
+<pre><code class="language-til">func (n: U64) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.clear">Vec__Type.clear</a>
+<pre><code class="language-til">func (mut self: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.delete_marked">Vec__Type.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__Type, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.push">Vec__Type.push</a>
+<pre><code class="language-til">func (mut self: Vec__Type, own val: Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.append">Vec__Type.append</a>
+<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.take">Vec__Type.take</a>
+<pre><code class="language-til">func (mut self: Vec__Type) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.move_to">Vec__Type.move_to</a>
+<pre><code class="language-til">func (own self: Vec__Type, mut dest: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.move_from">Vec__Type.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.unsafe_get">Vec__Type.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__Type, i: U64) returns ref Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.get">Vec__Type.get</a>
+<pre><code class="language-til">func (self: Vec__Type, shallow i: U64) returns ref Type throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.pop">Vec__Type.pop</a>
+<pre><code class="language-til">func (mut self: Vec__Type) returns Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.remove_at">Vec__Type.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__Type, i: U64) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.take_prefix">Vec__Type.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__Type, n: U64) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.truncate">Vec__Type.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__Type, n: U64)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.unsafe_set">Vec__Type.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__Type, i: U64, own val: Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.set">Vec__Type.set</a>
+<pre><code class="language-til">func (mut self: Vec__Type, i: U64, own val: Type) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.push_take">Vec__Type.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__Type, mut src: Vec__Type, i: U64)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.delete">Vec__Type.delete</a>
+<pre><code class="language-til">func (own self: Vec__Type, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.clone">Vec__Type.clone</a>
+<pre><code class="language-til">func (self: Vec__Type) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.adopt__Type">adopt__Type</a>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Type)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_build.html#til.src.self.fasm_build.fasm_prepare">fasm_prepare</a>
+<pre><code class="language-til">proc (root: Str, required: Bool) returns I32
 </code></pre>
 </li>
 <li><a href="src/self/holyc_codegen.html#til.src.self.holyc_codegen.holyc_codegen_translate">holyc_codegen_translate</a>

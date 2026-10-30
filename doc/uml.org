@@ -792,12 +792,15 @@
 *** slots : USize = 0
 *** labels : USize = 0
 *** values := Map(Str, Str).new()
+*** value_types := Map(Str, Type).new()
 *** functions := Map(Str, Str).new()
 *** addresses := Set(Str).new()
 *** pointers := Set(Str).new()
 *** data := ""
 *** prefix := ""
 *** literals : USize = 0
+*** break_label := ""
+*** continue_label := ""
 * holyc_codegen
 ** HolyCEmitState: StructDef
 *** user_functions := Set(Str).new()
@@ -877,6 +880,7 @@
 *** type_name := ""
 *** is_mut := false
 *** is_signed := false
+*** is_ref := false
 ** MlirState: StructDef
 *** text := ""
 *** allocations := ""
@@ -889,6 +893,10 @@
 *** values := Map(Str, MlirBinding).new()
 *** functions := Set(Str).new()
 *** error_slots := Set(Str).new()
+*** error_parameter := ""
+*** error_known_clear := false
+*** error_version : USize = 0
+*** clear_conditions := Set(Str).new()
 *** integers := Map(Str, U64).new()
 *** booleans := Map(Str, Bool).new()
 * repl_editor

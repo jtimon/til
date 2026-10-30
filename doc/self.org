@@ -683,6 +683,11 @@
     so ~boot/til.c~ reflects the new compiler self-applied. Use for
     "Two-pass: "-prefixed commits.
   - ~make test_two_pass~ ~two_pass~ + run the full test suite.
+  - ~make doc~ regenerates the API pages, index/search and UML. Signatures
+    render retained default expressions, including map/set literals and match
+    expressions. Callable/body defaults show their signatures/captures with
+    an explicit ~{ ... }~ marker for the omitted implementation; the reference
+    is not a source-code serialization. The same formatting is used by help().
   - ~make test_asan~ and ~make test_asan_full~ are aliases for ~make test~.
   - ~make test_nogui~ skips GUI build tests (no xvfb needed).
   - ~make test_regen~ rewrites the ~test/*.expected~ goldens from what the

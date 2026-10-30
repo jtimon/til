@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ee8785cb2</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9e5acb222</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -77,7 +77,8 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
-<li><a class="current" href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a><ul><li><a href="#til.src.self.fasm_codegen.fasm_source_declarations">fasm_source_declarations</a></li><li><a href="#til.src.self.fasm_codegen.fasm_codegen_translate">fasm_codegen_translate</a></li></ul></li>
+<li><a class="current" href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a><ul><li><a href="#til.src.self.fasm_codegen.fasm_source_declarations">fasm_source_declarations</a></li><li><a href="#til.src.self.fasm_codegen.fasm_codegen_translate">fasm_codegen_translate</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type">Map__Str_Type</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.new">Map__Str_Type.new</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.with_capacity">Map__Str_Type.with_capacity</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.clear">Map__Str_Type.clear</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.has">Map__Str_Type.has</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.get">Map__Str_Type.get</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.set">Map__Str_Type.set</a></li><li><a href="#til.src.self.fasm_codegen.Map__Str_Type.remove">Map__Str_Type.remove</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type">Vec__Type</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.new">Vec__Type.new</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.with_capacity">Vec__Type.with_capacity</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.clear">Vec__Type.clear</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.delete_marked">Vec__Type.delete_marked</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.push">Vec__Type.push</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.append">Vec__Type.append</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.take">Vec__Type.take</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.move_to">Vec__Type.move_to</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.move_from">Vec__Type.move_from</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.unsafe_get">Vec__Type.unsafe_get</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.get">Vec__Type.get</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.pop">Vec__Type.pop</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.remove_at">Vec__Type.remove_at</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.take_prefix">Vec__Type.take_prefix</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.truncate">Vec__Type.truncate</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.unsafe_set">Vec__Type.unsafe_set</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.set">Vec__Type.set</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.push_take">Vec__Type.push_take</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.delete">Vec__Type.delete</a></li><li><a href="#til.src.self.fasm_codegen.Vec__Type.clone">Vec__Type.clone</a></li><li><a href="#til.src.self.fasm_codegen.adopt__Type">adopt__Type</a></li></ul></li>
+<li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
 <li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
@@ -100,6 +101,338 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.fasm_codegen.fasm_codegen_translate">
 <h2>fasm_codegen_translate</h2>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, path: Str, source_names: Set__Str) returns I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type">
+<h2>Map__Str_Type</h2>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__Type
+namespace:
+    func new() returns Map__Str_Type
+    func with_capacity(n: U64) returns Map__Str_Type
+    func len(self: Map__Str_Type) returns U64
+    func clear(mut self: Map__Str_Type)
+    func has(self: Map__Str_Type, key: Str) returns Bool
+    func get(self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+    func set(mut self: Map__Str_Type, key: Str, own val: Type)
+    func remove(mut self: Map__Str_Type, key: Str) returns Bool
+    func delete(own self: Map__Str_Type, call_free: Bool = true)
+    func clone(self: Map__Str_Type) returns Map__Str_Type
+    func size() returns U64
+    func hash(self: Map__Str_Type, hasher: HashFn) returns U64
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.new">
+<h2>Map__Str_Type.new</h2>
+<div class="doc-body">
+<p>Create an empty Map of the types provided for the key and values respectively.
+The key type must implement <code>cmp</code>.</p>
+</div>
+<pre><code class="language-til">func () returns Map__Str_Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.with_capacity">
+<h2>Map__Str_Type.with_capacity</h2>
+<div class="doc-body">
+<p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
+<code>n</code> reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
+</div>
+<pre><code class="language-til">func (n: U64) returns Map__Str_Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.clear">
+<h2>Map__Str_Type.clear</h2>
+<div class="doc-body">
+<p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__Str_Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.has">
+<h2>Map__Str_Type.has</h2>
+<div class="doc-body">
+<p>True if a value exists for the given key.</p>
+</div>
+<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.get">
+<h2>Map__Str_Type.get</h2>
+<div class="doc-body">
+<p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
+<code>key</code> is absent; call as <code>map.get(k)!</code> (or <code>map[k]</code>) to panic
+on a missing key.</p>
+</div>
+<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.set">
+<h2>Map__Str_Type.set</h2>
+<div class="doc-body">
+<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str, own val: Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Map__Str_Type.remove">
+<h2>Map__Str_Type.remove</h2>
+<div class="doc-body">
+<p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
+</div>
+<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type">
+<h2>Vec__Type</h2>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__Type
+    func with_capacity(n: U64) returns Vec__Type
+    func len(self: Vec__Type) returns U64
+    func clear(mut self: Vec__Type)
+    func delete_marked(mut self: Vec__Type, marks: Dynamic)
+    func push(mut self: Vec__Type, own val: Type)
+    func append(mut self: Vec__Type, own other: Vec__Type)
+    func take(mut self: Vec__Type) returns Vec__Type
+    func move_to(own self: Vec__Type, mut dest: Vec__Type)
+    func move_from(mut self: Vec__Type, own other: Vec__Type)
+    func unsafe_get(self: Vec__Type, i: U64) returns ref Type
+    func get(self: Vec__Type, shallow i: U64) returns ref Type throws OutOfBounds
+    func pop(mut self: Vec__Type) returns Type
+    func remove_at(mut self: Vec__Type, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__Type, n: U64) returns Vec__Type
+    func truncate(mut self: Vec__Type, n: U64)
+    func unsafe_set(mut self: Vec__Type, i: U64, own val: Type)
+    func set(mut self: Vec__Type, i: U64, own val: Type) throws OutOfBounds
+    func push_take(mut self: Vec__Type, mut src: Vec__Type, i: U64)
+    func delete(own self: Vec__Type, call_free: Bool = true)
+    func clone(self: Vec__Type) returns Vec__Type
+    func size() returns U64
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.new">
+<h2>Vec__Type.new</h2>
+<div class="doc-body">
+<p>Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data<code>NULL, count</code>0, cap=0),
+and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
+</div>
+<pre><code class="language-til">func () returns Vec__Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.with_capacity">
+<h2>Vec__Type.with_capacity</h2>
+<div class="doc-body">
+<p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+<code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
+</div>
+<pre><code class="language-til">func (n: U64) returns Vec__Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.clear">
+<h2>Vec__Type.clear</h2>
+<div class="doc-body">
+<p>Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.delete_marked">
+<h2>Vec__Type.delete_marked</h2>
+<div class="doc-body">
+<p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, marks: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.push">
+<h2>Vec__Type.push</h2>
+<div class="doc-body">
+<p>Append an element to the end. <code>val</code> is owned: after this call the
+caller must not use the value passed -- clone it first if needed.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, own val: Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.append">
+<h2>Vec__Type.append</h2>
+<div class="doc-body">
+<p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
+<code>other</code> is taken by ownership and will be empty after the call.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.take">
+<h2>Vec__Type.take</h2>
+<div class="doc-body">
+<p>Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.</p>
+<p>This is how a struct FIELD hands its contents over
+(<code>mut old := body.children.take()</code>): a field cannot be an <code>own</code>
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+pointer&quot; compiling itself. Everything the caller can give away
+uses the two move forms below instead.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type) returns Vec__Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.move_to">
+<h2>Vec__Type.move_to</h2>
+<div class="doc-body">
+<p>Give self's contents to <code>dest</code>, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: <code>Vec(T).move_to(own src, dest)</code>.</p>
+<p>The three fields move as BYTES on purpose:
+<code>dest.data = self.data</code> drops dest's old pointer (right) and then
+<code>self.data = 0</code> drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Type, mut dest: Vec__Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.move_from">
+<h2>Vec__Type.move_from</h2>
+<div class="doc-body">
+<p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: <code>dest.move_from(own src)</code>.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.unsafe_get">
+<h2>Vec__Type.unsafe_get</h2>
+<div class="doc-body">
+<p>Unchecked element access: return a reference to the element at
+index <code>i</code> with NO bounds check. The caller must prove <code>i &lt; len()</code>.
+This is the unchecked core that <code>get</code> wraps; for-in uses it
+directly because its <code>_fi &lt; len()</code> termination test already
+proves the index in bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Type, i: U64) returns ref Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.get">
+<h2>Vec__Type.get</h2>
+<div class="doc-body">
+<p>Return a reference to the element at index <code>i</code>. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
+to panic on a bad index. The reference is valid until the
+next mutation.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Type, shallow i: U64) returns ref Type throws OutOfBounds
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.pop">
+<h2>Vec__Type.pop</h2>
+<div class="doc-body">
+<p>Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type) returns Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.remove_at">
+<h2>Vec__Type.remove_at</h2>
+<div class="doc-body">
+<p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, i: U64) throws OutOfBounds
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.take_prefix">
+<h2>Vec__Type.take_prefix</h2>
+<div class="doc-body">
+<p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
+exceeds self.len(). The remaining elements shift to the front.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, n: U64) returns Vec__Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.truncate">
+<h2>Vec__Type.truncate</h2>
+<div class="doc-body">
+<p>Drop the elements from index <code>n</code> to the end, freeing each via
+elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
+untouched). Panics if <code>n</code> exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, n: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.unsafe_set">
+<h2>Vec__Type.unsafe_set</h2>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, i: U64, own val: Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.set">
+<h2>Vec__Type.set</h2>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
+OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
+(or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, i: U64, own val: Type) throws OutOfBounds
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.push_take">
+<h2>Vec__Type.push_take</h2>
+<div class="doc-body">
+<p>Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
+</div>
+<pre><code class="language-til">func (mut self: Vec__Type, mut src: Vec__Type, i: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.delete">
+<h2>Vec__Type.delete</h2>
+<div class="doc-body">
+<p>Drop each element via elem_delete, free storage, then free self
+unless <code>call_free</code> is false.</p>
+</div>
+<pre><code class="language-til">func (own self: Vec__Type, call_free: Bool = true)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.Vec__Type.clone">
+<h2>Vec__Type.clone</h2>
+<div class="doc-body">
+<p>Deep-copy the Vec and all its elements via elem_clone.</p>
+</div>
+<pre><code class="language-til">func (self: Vec__Type) returns Vec__Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.fasm_codegen.adopt__Type">
+<h2>adopt__Type</h2>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Type)
 </code></pre>
 </article>
 </main></div>

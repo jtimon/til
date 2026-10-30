@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="8682" height="5368" viewBox="0 0 8682 5368">
+<svg xmlns="http://www.w3.org/2000/svg" width="8706" height="5368" viewBox="0 0 8706 5368">
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -9,7 +9,7 @@
       .line { font: 13px 'Courier New', monospace; fill: #1f2937; }
     </style>
   </defs>
-  <rect class="bg" x="0" y="0" width="8682" height="5368"/>
+  <rect class="bg" x="0" y="0" width="8706" height="5368"/>
   <rect x="24" y="24" width="356" height="1284" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
   <rect x="44" y="88" width="220" height="172" rx="10" ry="10" class="box"/>
@@ -915,172 +915,180 @@
   <rect x="6070" y="88" width="180" height="64" rx="10" ry="10" class="box"/>
   <text x="6084" y="126" class="title">EvalHeap: StructDef</text>
   <text x="6084" y="144" class="line">unused : U8 = 0</text>
-  <rect x="6304" y="24" width="324" height="308" rx="14" ry="14" class="panel"/>
+  <rect x="6304" y="24" width="348" height="362" rx="14" ry="14" class="panel"/>
   <text x="6324" y="62" class="panel-label">fasm_codegen</text>
-  <rect x="6324" y="88" width="284" height="226" rx="10" ry="10" class="box"/>
+  <rect x="6324" y="88" width="308" height="280" rx="10" ry="10" class="box"/>
   <text x="6338" y="126" class="title">FasmState: StructDef</text>
   <text x="6338" y="144" class="line">text := &quot;&quot;</text>
   <text x="6338" y="162" class="line">slots : USize = 0</text>
   <text x="6338" y="180" class="line">labels : USize = 0</text>
   <text x="6338" y="198" class="line">values := Map(Str, Str).new()</text>
-  <text x="6338" y="216" class="line">functions := Map(Str, Str).new()</text>
-  <text x="6338" y="234" class="line">addresses := Set(Str).new()</text>
-  <text x="6338" y="252" class="line">pointers := Set(Str).new()</text>
-  <text x="6338" y="270" class="line">data := &quot;&quot;</text>
-  <text x="6338" y="288" class="line">prefix := &quot;&quot;</text>
-  <text x="6338" y="306" class="line">literals : USize = 0</text>
-  <rect x="6662" y="24" width="452" height="930" rx="14" ry="14" class="panel"/>
-  <text x="6682" y="62" class="panel-label">holyc_codegen</text>
-  <rect x="6682" y="88" width="412" height="550" rx="10" ry="10" class="box"/>
-  <text x="6696" y="126" class="title">HolyCEmitState: StructDef</text>
-  <text x="6696" y="144" class="line">user_functions := Set(Str).new()</text>
-  <text x="6696" y="162" class="line">user_return_types := Map(Str, Str).new()</text>
-  <text x="6696" y="180" class="line">ref_return_functions := Set(Str).new()</text>
-  <text x="6696" y="198" class="line">user_ref_params := Map(Str, Set(USize)).new()</text>
-  <text x="6696" y="216" class="line">str_return_functions := Set(Str).new()</text>
-  <text x="6696" y="234" class="line">struct_names := Set(Str).new()</text>
-  <text x="6696" y="252" class="line">enum_types := Map(Str, Str).new()</text>
-  <text x="6696" y="270" class="line">payload_enum_names := Set(Str).new()</text>
-  <text x="6696" y="288" class="line">niche_ref_types := Map(Str, Str).new()</text>
-  <text x="6696" y="306" class="line">collection_elements := Map(Str, Str).new()</text>
-  <text x="6696" y="324" class="line">vec_names := Set(Str).new()</text>
-  <text x="6696" y="342" class="line">set_elements := Map(Str, Str).new()</text>
-  <text x="6696" y="360" class="line">map_keys := Map(Str, Str).new()</text>
-  <text x="6696" y="378" class="line">map_values := Map(Str, Str).new()</text>
-  <text x="6696" y="396" class="line">map_key_vecs := Map(Str, Str).new()</text>
-  <text x="6696" y="414" class="line">map_value_vecs := Map(Str, Str).new()</text>
-  <text x="6696" y="432" class="line">needed_methods := Map(Str, Map(Str, Bool)).new()</text>
-  <text x="6696" y="450" class="line">method_prototypes := &quot;&quot;</text>
-  <text x="6696" y="468" class="line">method_definitions := &quot;&quot;</text>
-  <text x="6696" y="486" class="line">usize_ctype := &quot;U64&quot;</text>
-  <text x="6696" y="504" class="line">switch_id : USize = 0</text>
-  <text x="6696" y="522" class="line">temp_id : USize = 0</text>
-  <text x="6696" y="540" class="line">needs_i64_div := false</text>
-  <text x="6696" y="558" class="line">needs_i64_mod := false</text>
-  <text x="6696" y="576" class="line">needs_str_array_clone := false</text>
-  <text x="6696" y="594" class="line">needs_str_array_get := false</text>
-  <text x="6696" y="612" class="line">needs_str_array_concat := false</text>
-  <text x="6696" y="630" class="line">... (27 more)</text>
-  <rect x="6682" y="656" width="372" height="280" rx="10" ry="10" class="box"/>
-  <text x="6696" y="694" class="title">HolyCLocalState: StructDef</text>
-  <text x="6696" y="712" class="line">ref_return_type := &quot;&quot;</text>
-  <text x="6696" y="730" class="line">continue_label := &quot;&quot;</text>
-  <text x="6696" y="748" class="line">param_pointer_names := Set(Str).new()</text>
-  <text x="6696" y="766" class="line">payload_names := Map(Str, Str).new()</text>
-  <text x="6696" y="784" class="line">pointer_types := Map(Str, Str).new()</text>
-  <text x="6696" y="802" class="line">str_names := Set(Str).new()</text>
-  <text x="6696" y="820" class="line">str_pointer_names := Set(Str).new()</text>
-  <text x="6696" y="838" class="line">str_array_names := Set(Str).new()</text>
-  <text x="6696" y="856" class="line">str_array_pointer_names := Set(Str).new()</text>
-  <text x="6696" y="874" class="line">struct_types := Map(Str, Str).new()</text>
-  <text x="6696" y="892" class="line">struct_pointer_types := Map(Str, Str).new()</text>
-  <text x="6696" y="910" class="line">callable_sigs := Map(Str, Str).new()</text>
-  <text x="6696" y="928" class="line">callable_slot_names := Set(Str).new()</text>
-  <rect x="7148" y="24" width="396" height="706" rx="14" ry="14" class="panel"/>
-  <text x="7168" y="62" class="panel-label">jvm_codegen</text>
-  <rect x="7168" y="88" width="356" height="334" rx="10" ry="10" class="box"/>
-  <text x="7182" y="126" class="title">JvmEmitState: StructDef</text>
-  <text x="7182" y="144" class="line">path := &quot;&quot;</text>
-  <text x="7182" y="162" class="line">errors : I32 = 0</text>
-  <text x="7182" y="180" class="line">cells := Set(Str).new()</text>
-  <text x="7182" y="198" class="line">cell_types := Map(Str, Str).new()</text>
-  <text x="7182" y="216" class="line">raw_refs := Set(Str).new()</text>
-  <text x="7182" y="234" class="line">callable_defs := Map(Str, Str).new()</text>
-  <text x="7182" y="252" class="line">return_cell := false</text>
-  <text x="7182" y="270" class="line">ns_used := Set(Str).new()</text>
-  <text x="7182" y="288" class="line">return_loads_raw := false</text>
-  <text x="7182" y="306" class="line">globals := Map(Str, Str).new()</text>
-  <text x="7182" y="324" class="line">global_scalars := Map(Str, Str).new()</text>
-  <text x="7182" y="342" class="line">global_raws := Set(Str).new()</text>
-  <text x="7182" y="360" class="line">global_raw_scalars := Map(Str, Str).new()</text>
-  <text x="7182" y="378" class="line">global_jtypes := Map(Str, Str).new()</text>
-  <text x="7182" y="396" class="line">locals := Set(Str).new()</text>
-  <text x="7182" y="414" class="line">ref_scalars := Set(Str).new()</text>
-  <rect x="7168" y="440" width="188" height="100" rx="10" ry="10" class="box"/>
-  <text x="7182" y="478" class="title">JvmMember: StructDef</text>
-  <text x="7182" y="496" class="line">name := &quot;&quot;</text>
-  <text x="7182" y="514" class="line">text := &quot;&quot;</text>
-  <text x="7182" y="532" class="line">live := false</text>
-  <rect x="7168" y="558" width="276" height="154" rx="10" ry="10" class="box"/>
-  <text x="7182" y="596" class="title">JvmClassOut: StructDef</text>
-  <text x="7182" y="614" class="line">path := &quot;&quot;</text>
-  <text x="7182" y="632" class="line">name := &quot;&quot;</text>
-  <text x="7182" y="650" class="line">head := &quot;&quot;</text>
-  <text x="7182" y="668" class="line">members := Vec(JvmMember).new()</text>
-  <text x="7182" y="686" class="line">tail := &quot;&quot;</text>
-  <text x="7182" y="704" class="line">live := false</text>
-  <rect x="7578" y="24" width="364" height="498" rx="14" ry="14" class="panel"/>
-  <text x="7598" y="62" class="panel-label">mlir_codegen</text>
-  <rect x="7598" y="88" width="204" height="118" rx="10" ry="10" class="box"/>
-  <text x="7612" y="126" class="title">MlirBinding: StructDef</text>
-  <text x="7612" y="144" class="line">value := &quot;&quot;</text>
-  <text x="7612" y="162" class="line">type_name := &quot;&quot;</text>
-  <text x="7612" y="180" class="line">is_mut := false</text>
-  <text x="7612" y="198" class="line">is_signed := false</text>
-  <rect x="7598" y="224" width="324" height="280" rx="10" ry="10" class="box"/>
-  <text x="7612" y="262" class="title">MlirState: StructDef</text>
-  <text x="7612" y="280" class="line">text := &quot;&quot;</text>
-  <text x="7612" y="298" class="line">allocations := &quot;&quot;</text>
-  <text x="7612" y="316" class="line">next : USize = 0</text>
-  <text x="7612" y="334" class="line">next_block : USize = 0</text>
-  <text x="7612" y="352" class="line">terminated := false</text>
-  <text x="7612" y="370" class="line">break_label := &quot;&quot;</text>
-  <text x="7612" y="388" class="line">continue_label := &quot;&quot;</text>
-  <text x="7612" y="406" class="line">has_break := false</text>
-  <text x="7612" y="424" class="line">values := Map(Str, MlirBinding).new()</text>
-  <text x="7612" y="442" class="line">functions := Set(Str).new()</text>
-  <text x="7612" y="460" class="line">error_slots := Set(Str).new()</text>
-  <text x="7612" y="478" class="line">integers := Map(Str, U64).new()</text>
-  <text x="7612" y="496" class="line">booleans := Map(Str, Bool).new()</text>
-  <rect x="7976" y="24" width="300" height="652" rx="14" ry="14" class="panel"/>
-  <text x="7996" y="62" class="panel-label">repl_editor</text>
-  <rect x="7996" y="88" width="180" height="136" rx="10" ry="10" class="box"/>
-  <text x="8010" y="126" class="title">EditAction: EnumDef</text>
-  <text x="8010" y="144" class="line">Continue</text>
-  <text x="8010" y="162" class="line">Submit</text>
-  <text x="8010" y="180" class="line">Eof</text>
-  <text x="8010" y="198" class="line">Bell</text>
-  <text x="8010" y="216" class="line">ClearScreen }</text>
-  <rect x="7996" y="242" width="260" height="316" rx="10" ry="10" class="box"/>
-  <text x="8010" y="280" class="title">ReplEditor: StructDef</text>
-  <text x="8010" y="298" class="line">interactive := false</text>
-  <text x="8010" y="316" class="line">hist_path := &quot;&quot;</text>
-  <text x="8010" y="334" class="line">persist := false</text>
-  <text x="8010" y="352" class="line">own history := Vec(Str).new()</text>
-  <text x="8010" y="370" class="line">prompt := &quot;&quot;</text>
-  <text x="8010" y="388" class="line">line := &quot;&quot;</text>
-  <text x="8010" y="406" class="line">cursor : USize = 0</text>
-  <text x="8010" y="424" class="line">view_start : USize = 0</text>
-  <text x="8010" y="442" class="line">hist_idx : USize = 0</text>
-  <text x="8010" y="460" class="line">draft := &quot;&quot;</text>
-  <text x="8010" y="478" class="line">searching := false</text>
-  <text x="8010" y="496" class="line">search_query := &quot;&quot;</text>
-  <text x="8010" y="514" class="line">search_idx : I64 = -1</text>
-  <text x="8010" y="532" class="line">saved_line := &quot;&quot;</text>
-  <text x="8010" y="550" class="line">saved_cursor : USize = 0</text>
-  <rect x="7996" y="576" width="204" height="82" rx="10" ry="10" class="box"/>
-  <text x="8010" y="614" class="title">AnsiDecoder: StructDef</text>
-  <text x="8010" y="632" class="line">state : I64 = 0</text>
-  <text x="8010" y="650" class="line">params := &quot;&quot;</text>
-  <rect x="8310" y="24" width="348" height="462" rx="14" ry="14" class="panel"/>
-  <text x="8330" y="62" class="panel-label">theme_codegen</text>
-  <rect x="8330" y="88" width="228" height="100" rx="10" ry="10" class="box"/>
-  <text x="8344" y="126" class="title">ThemeColorSpec: StructDef</text>
-  <text x="8344" y="144" class="line">name := &quot;&quot;</text>
-  <text x="8344" y="162" class="line">value := &quot;&quot;</text>
-  <text x="8344" y="180" class="line">note := &quot;&quot;</text>
-  <rect x="8330" y="206" width="308" height="262" rx="10" ry="10" class="box"/>
-  <text x="8344" y="244" class="title">ThemeSpec: StructDef</text>
-  <text x="8344" y="262" class="line">name := &quot;&quot;</text>
-  <text x="8344" y="280" class="line">header := &quot;&quot;</text>
-  <text x="8344" y="298" class="line">description := &quot;&quot;</text>
-  <text x="8344" y="316" class="line">source_theme := &quot;&quot;</text>
-  <text x="8344" y="334" class="line">source_package := &quot;&quot;</text>
-  <text x="8344" y="352" class="line">source_url := &quot;&quot;</text>
-  <text x="8344" y="370" class="line">source_license := &quot;&quot;</text>
-  <text x="8344" y="388" class="line">palette_note := &quot;&quot;</text>
-  <text x="8344" y="406" class="line">palette_footer := &quot;&quot;</text>
-  <text x="8344" y="424" class="line">constant_face_note := &quot;&quot;</text>
-  <text x="8344" y="442" class="line">type_face_note := &quot;&quot;</text>
-  <text x="8344" y="460" class="line">colors := Vec(ThemeColorSpec).new()</text>
+  <text x="6338" y="216" class="line">value_types := Map(Str, Type).new()</text>
+  <text x="6338" y="234" class="line">functions := Map(Str, Str).new()</text>
+  <text x="6338" y="252" class="line">addresses := Set(Str).new()</text>
+  <text x="6338" y="270" class="line">pointers := Set(Str).new()</text>
+  <text x="6338" y="288" class="line">data := &quot;&quot;</text>
+  <text x="6338" y="306" class="line">prefix := &quot;&quot;</text>
+  <text x="6338" y="324" class="line">literals : USize = 0</text>
+  <text x="6338" y="342" class="line">break_label := &quot;&quot;</text>
+  <text x="6338" y="360" class="line">continue_label := &quot;&quot;</text>
+  <rect x="6686" y="24" width="452" height="930" rx="14" ry="14" class="panel"/>
+  <text x="6706" y="62" class="panel-label">holyc_codegen</text>
+  <rect x="6706" y="88" width="412" height="550" rx="10" ry="10" class="box"/>
+  <text x="6720" y="126" class="title">HolyCEmitState: StructDef</text>
+  <text x="6720" y="144" class="line">user_functions := Set(Str).new()</text>
+  <text x="6720" y="162" class="line">user_return_types := Map(Str, Str).new()</text>
+  <text x="6720" y="180" class="line">ref_return_functions := Set(Str).new()</text>
+  <text x="6720" y="198" class="line">user_ref_params := Map(Str, Set(USize)).new()</text>
+  <text x="6720" y="216" class="line">str_return_functions := Set(Str).new()</text>
+  <text x="6720" y="234" class="line">struct_names := Set(Str).new()</text>
+  <text x="6720" y="252" class="line">enum_types := Map(Str, Str).new()</text>
+  <text x="6720" y="270" class="line">payload_enum_names := Set(Str).new()</text>
+  <text x="6720" y="288" class="line">niche_ref_types := Map(Str, Str).new()</text>
+  <text x="6720" y="306" class="line">collection_elements := Map(Str, Str).new()</text>
+  <text x="6720" y="324" class="line">vec_names := Set(Str).new()</text>
+  <text x="6720" y="342" class="line">set_elements := Map(Str, Str).new()</text>
+  <text x="6720" y="360" class="line">map_keys := Map(Str, Str).new()</text>
+  <text x="6720" y="378" class="line">map_values := Map(Str, Str).new()</text>
+  <text x="6720" y="396" class="line">map_key_vecs := Map(Str, Str).new()</text>
+  <text x="6720" y="414" class="line">map_value_vecs := Map(Str, Str).new()</text>
+  <text x="6720" y="432" class="line">needed_methods := Map(Str, Map(Str, Bool)).new()</text>
+  <text x="6720" y="450" class="line">method_prototypes := &quot;&quot;</text>
+  <text x="6720" y="468" class="line">method_definitions := &quot;&quot;</text>
+  <text x="6720" y="486" class="line">usize_ctype := &quot;U64&quot;</text>
+  <text x="6720" y="504" class="line">switch_id : USize = 0</text>
+  <text x="6720" y="522" class="line">temp_id : USize = 0</text>
+  <text x="6720" y="540" class="line">needs_i64_div := false</text>
+  <text x="6720" y="558" class="line">needs_i64_mod := false</text>
+  <text x="6720" y="576" class="line">needs_str_array_clone := false</text>
+  <text x="6720" y="594" class="line">needs_str_array_get := false</text>
+  <text x="6720" y="612" class="line">needs_str_array_concat := false</text>
+  <text x="6720" y="630" class="line">... (27 more)</text>
+  <rect x="6706" y="656" width="372" height="280" rx="10" ry="10" class="box"/>
+  <text x="6720" y="694" class="title">HolyCLocalState: StructDef</text>
+  <text x="6720" y="712" class="line">ref_return_type := &quot;&quot;</text>
+  <text x="6720" y="730" class="line">continue_label := &quot;&quot;</text>
+  <text x="6720" y="748" class="line">param_pointer_names := Set(Str).new()</text>
+  <text x="6720" y="766" class="line">payload_names := Map(Str, Str).new()</text>
+  <text x="6720" y="784" class="line">pointer_types := Map(Str, Str).new()</text>
+  <text x="6720" y="802" class="line">str_names := Set(Str).new()</text>
+  <text x="6720" y="820" class="line">str_pointer_names := Set(Str).new()</text>
+  <text x="6720" y="838" class="line">str_array_names := Set(Str).new()</text>
+  <text x="6720" y="856" class="line">str_array_pointer_names := Set(Str).new()</text>
+  <text x="6720" y="874" class="line">struct_types := Map(Str, Str).new()</text>
+  <text x="6720" y="892" class="line">struct_pointer_types := Map(Str, Str).new()</text>
+  <text x="6720" y="910" class="line">callable_sigs := Map(Str, Str).new()</text>
+  <text x="6720" y="928" class="line">callable_slot_names := Set(Str).new()</text>
+  <rect x="7172" y="24" width="396" height="706" rx="14" ry="14" class="panel"/>
+  <text x="7192" y="62" class="panel-label">jvm_codegen</text>
+  <rect x="7192" y="88" width="356" height="334" rx="10" ry="10" class="box"/>
+  <text x="7206" y="126" class="title">JvmEmitState: StructDef</text>
+  <text x="7206" y="144" class="line">path := &quot;&quot;</text>
+  <text x="7206" y="162" class="line">errors : I32 = 0</text>
+  <text x="7206" y="180" class="line">cells := Set(Str).new()</text>
+  <text x="7206" y="198" class="line">cell_types := Map(Str, Str).new()</text>
+  <text x="7206" y="216" class="line">raw_refs := Set(Str).new()</text>
+  <text x="7206" y="234" class="line">callable_defs := Map(Str, Str).new()</text>
+  <text x="7206" y="252" class="line">return_cell := false</text>
+  <text x="7206" y="270" class="line">ns_used := Set(Str).new()</text>
+  <text x="7206" y="288" class="line">return_loads_raw := false</text>
+  <text x="7206" y="306" class="line">globals := Map(Str, Str).new()</text>
+  <text x="7206" y="324" class="line">global_scalars := Map(Str, Str).new()</text>
+  <text x="7206" y="342" class="line">global_raws := Set(Str).new()</text>
+  <text x="7206" y="360" class="line">global_raw_scalars := Map(Str, Str).new()</text>
+  <text x="7206" y="378" class="line">global_jtypes := Map(Str, Str).new()</text>
+  <text x="7206" y="396" class="line">locals := Set(Str).new()</text>
+  <text x="7206" y="414" class="line">ref_scalars := Set(Str).new()</text>
+  <rect x="7192" y="440" width="188" height="100" rx="10" ry="10" class="box"/>
+  <text x="7206" y="478" class="title">JvmMember: StructDef</text>
+  <text x="7206" y="496" class="line">name := &quot;&quot;</text>
+  <text x="7206" y="514" class="line">text := &quot;&quot;</text>
+  <text x="7206" y="532" class="line">live := false</text>
+  <rect x="7192" y="558" width="276" height="154" rx="10" ry="10" class="box"/>
+  <text x="7206" y="596" class="title">JvmClassOut: StructDef</text>
+  <text x="7206" y="614" class="line">path := &quot;&quot;</text>
+  <text x="7206" y="632" class="line">name := &quot;&quot;</text>
+  <text x="7206" y="650" class="line">head := &quot;&quot;</text>
+  <text x="7206" y="668" class="line">members := Vec(JvmMember).new()</text>
+  <text x="7206" y="686" class="line">tail := &quot;&quot;</text>
+  <text x="7206" y="704" class="line">live := false</text>
+  <rect x="7602" y="24" width="364" height="588" rx="14" ry="14" class="panel"/>
+  <text x="7622" y="62" class="panel-label">mlir_codegen</text>
+  <rect x="7622" y="88" width="204" height="136" rx="10" ry="10" class="box"/>
+  <text x="7636" y="126" class="title">MlirBinding: StructDef</text>
+  <text x="7636" y="144" class="line">value := &quot;&quot;</text>
+  <text x="7636" y="162" class="line">type_name := &quot;&quot;</text>
+  <text x="7636" y="180" class="line">is_mut := false</text>
+  <text x="7636" y="198" class="line">is_signed := false</text>
+  <text x="7636" y="216" class="line">is_ref := false</text>
+  <rect x="7622" y="242" width="324" height="352" rx="10" ry="10" class="box"/>
+  <text x="7636" y="280" class="title">MlirState: StructDef</text>
+  <text x="7636" y="298" class="line">text := &quot;&quot;</text>
+  <text x="7636" y="316" class="line">allocations := &quot;&quot;</text>
+  <text x="7636" y="334" class="line">next : USize = 0</text>
+  <text x="7636" y="352" class="line">next_block : USize = 0</text>
+  <text x="7636" y="370" class="line">terminated := false</text>
+  <text x="7636" y="388" class="line">break_label := &quot;&quot;</text>
+  <text x="7636" y="406" class="line">continue_label := &quot;&quot;</text>
+  <text x="7636" y="424" class="line">has_break := false</text>
+  <text x="7636" y="442" class="line">values := Map(Str, MlirBinding).new()</text>
+  <text x="7636" y="460" class="line">functions := Set(Str).new()</text>
+  <text x="7636" y="478" class="line">error_slots := Set(Str).new()</text>
+  <text x="7636" y="496" class="line">error_parameter := &quot;&quot;</text>
+  <text x="7636" y="514" class="line">error_known_clear := false</text>
+  <text x="7636" y="532" class="line">error_version : USize = 0</text>
+  <text x="7636" y="550" class="line">clear_conditions := Set(Str).new()</text>
+  <text x="7636" y="568" class="line">integers := Map(Str, U64).new()</text>
+  <text x="7636" y="586" class="line">booleans := Map(Str, Bool).new()</text>
+  <rect x="8000" y="24" width="300" height="652" rx="14" ry="14" class="panel"/>
+  <text x="8020" y="62" class="panel-label">repl_editor</text>
+  <rect x="8020" y="88" width="180" height="136" rx="10" ry="10" class="box"/>
+  <text x="8034" y="126" class="title">EditAction: EnumDef</text>
+  <text x="8034" y="144" class="line">Continue</text>
+  <text x="8034" y="162" class="line">Submit</text>
+  <text x="8034" y="180" class="line">Eof</text>
+  <text x="8034" y="198" class="line">Bell</text>
+  <text x="8034" y="216" class="line">ClearScreen }</text>
+  <rect x="8020" y="242" width="260" height="316" rx="10" ry="10" class="box"/>
+  <text x="8034" y="280" class="title">ReplEditor: StructDef</text>
+  <text x="8034" y="298" class="line">interactive := false</text>
+  <text x="8034" y="316" class="line">hist_path := &quot;&quot;</text>
+  <text x="8034" y="334" class="line">persist := false</text>
+  <text x="8034" y="352" class="line">own history := Vec(Str).new()</text>
+  <text x="8034" y="370" class="line">prompt := &quot;&quot;</text>
+  <text x="8034" y="388" class="line">line := &quot;&quot;</text>
+  <text x="8034" y="406" class="line">cursor : USize = 0</text>
+  <text x="8034" y="424" class="line">view_start : USize = 0</text>
+  <text x="8034" y="442" class="line">hist_idx : USize = 0</text>
+  <text x="8034" y="460" class="line">draft := &quot;&quot;</text>
+  <text x="8034" y="478" class="line">searching := false</text>
+  <text x="8034" y="496" class="line">search_query := &quot;&quot;</text>
+  <text x="8034" y="514" class="line">search_idx : I64 = -1</text>
+  <text x="8034" y="532" class="line">saved_line := &quot;&quot;</text>
+  <text x="8034" y="550" class="line">saved_cursor : USize = 0</text>
+  <rect x="8020" y="576" width="204" height="82" rx="10" ry="10" class="box"/>
+  <text x="8034" y="614" class="title">AnsiDecoder: StructDef</text>
+  <text x="8034" y="632" class="line">state : I64 = 0</text>
+  <text x="8034" y="650" class="line">params := &quot;&quot;</text>
+  <rect x="8334" y="24" width="348" height="462" rx="14" ry="14" class="panel"/>
+  <text x="8354" y="62" class="panel-label">theme_codegen</text>
+  <rect x="8354" y="88" width="228" height="100" rx="10" ry="10" class="box"/>
+  <text x="8368" y="126" class="title">ThemeColorSpec: StructDef</text>
+  <text x="8368" y="144" class="line">name := &quot;&quot;</text>
+  <text x="8368" y="162" class="line">value := &quot;&quot;</text>
+  <text x="8368" y="180" class="line">note := &quot;&quot;</text>
+  <rect x="8354" y="206" width="308" height="262" rx="10" ry="10" class="box"/>
+  <text x="8368" y="244" class="title">ThemeSpec: StructDef</text>
+  <text x="8368" y="262" class="line">name := &quot;&quot;</text>
+  <text x="8368" y="280" class="line">header := &quot;&quot;</text>
+  <text x="8368" y="298" class="line">description := &quot;&quot;</text>
+  <text x="8368" y="316" class="line">source_theme := &quot;&quot;</text>
+  <text x="8368" y="334" class="line">source_package := &quot;&quot;</text>
+  <text x="8368" y="352" class="line">source_url := &quot;&quot;</text>
+  <text x="8368" y="370" class="line">source_license := &quot;&quot;</text>
+  <text x="8368" y="388" class="line">palette_note := &quot;&quot;</text>
+  <text x="8368" y="406" class="line">palette_footer := &quot;&quot;</text>
+  <text x="8368" y="424" class="line">constant_face_note := &quot;&quot;</text>
+  <text x="8368" y="442" class="line">type_face_note := &quot;&quot;</text>
+  <text x="8368" y="460" class="line">colors := Vec(ThemeColorSpec).new()</text>
 </svg>

@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-ee8785cb2
+#+SUBTITLE: til 0.0.1-9e5acb222
 #+OPTIONS: toc:t
 
 * Core
@@ -14106,6 +14106,11 @@ func Vec__priv___src_self_loader_til__ImportCheckEntry.delete(own self: Vec__pri
 func Vec__priv___src_self_loader_til__ImportCheckEntry.clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
 #+end_src
 
+** [[file:src/self/loader.org::#til.src.self.loader.swap__Str][swap__Str]]
+#+begin_src til
+func swap__Str(mut a: Str, mut b: Str)
+#+end_src
+
 ** [[file:src/self/loader.org::#til.src.self.loader.adopt__TargetLink][adopt__TargetLink]]
 #+begin_src til
 func adopt__TargetLink(mut dest: Dynamic, own src: TargetLink)
@@ -16661,6 +16666,7 @@ struct TilVmCallback {
 namespace:
     proc lookup(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
     proc call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+    proc invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
     func size() returns U64
@@ -16670,6 +16676,16 @@ namespace:
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.TilVmCallback.call][TilVmCallback.call]]
 #+begin_src til
 proc TilVmCallback.call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.TilVmCallback.invoke_throwing][TilVmCallback.invoke_throwing]]
+#+begin_src til
+proc TilVmCallback.invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.call_throwing][call_throwing]]
+#+begin_src til
+macro call_throwing(E: Type) returns FuncDef
 #+end_src
 
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.InterpRunResult][InterpRunResult]]
@@ -19188,6 +19204,204 @@ func fasm_source_declarations(lp: LoadedProgram) returns Set__Str
 ** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.fasm_codegen_translate][fasm_codegen_translate]]
 #+begin_src til
 proc fasm_codegen_translate(mut lp: LoadedProgram, path: Str, source_names: Set__Str) returns I32
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type][Map__Str_Type]]
+#+begin_src til
+struct Map__Str_Type {
+    mut keys : Vec__Str
+    mut values : Vec__Type
+namespace:
+    func new() returns Map__Str_Type
+    func with_capacity(n: U64) returns Map__Str_Type
+    func len(self: Map__Str_Type) returns U64
+    func clear(mut self: Map__Str_Type)
+    func has(self: Map__Str_Type, key: Str) returns Bool
+    func get(self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+    func set(mut self: Map__Str_Type, key: Str, own val: Type)
+    func remove(mut self: Map__Str_Type, key: Str) returns Bool
+    func delete(own self: Map__Str_Type, call_free: Bool = true)
+    func clone(self: Map__Str_Type) returns Map__Str_Type
+    func size() returns U64
+    func hash(self: Map__Str_Type, hasher: HashFn) returns U64
+}
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.new][Map__Str_Type.new]]
+#+begin_src til
+func Map__Str_Type.new() returns Map__Str_Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.with_capacity][Map__Str_Type.with_capacity]]
+#+begin_src til
+func Map__Str_Type.with_capacity(n: U64) returns Map__Str_Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.clear][Map__Str_Type.clear]]
+#+begin_src til
+func Map__Str_Type.clear(mut self: Map__Str_Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.has][Map__Str_Type.has]]
+#+begin_src til
+func Map__Str_Type.has(self: Map__Str_Type, key: Str) returns Bool
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.get][Map__Str_Type.get]]
+#+begin_src til
+func Map__Str_Type.get(self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.set][Map__Str_Type.set]]
+#+begin_src til
+func Map__Str_Type.set(mut self: Map__Str_Type, key: Str, own val: Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Map__Str_Type.remove][Map__Str_Type.remove]]
+#+begin_src til
+func Map__Str_Type.remove(mut self: Map__Str_Type, key: Str) returns Bool
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type][Vec__Type]]
+#+begin_src til
+struct Vec__Type {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__Type
+    func with_capacity(n: U64) returns Vec__Type
+    func len(self: Vec__Type) returns U64
+    func clear(mut self: Vec__Type)
+    func delete_marked(mut self: Vec__Type, marks: Dynamic)
+    func push(mut self: Vec__Type, own val: Type)
+    func append(mut self: Vec__Type, own other: Vec__Type)
+    func take(mut self: Vec__Type) returns Vec__Type
+    func move_to(own self: Vec__Type, mut dest: Vec__Type)
+    func move_from(mut self: Vec__Type, own other: Vec__Type)
+    func unsafe_get(self: Vec__Type, i: U64) returns ref Type
+    func get(self: Vec__Type, shallow i: U64) returns ref Type throws OutOfBounds
+    func pop(mut self: Vec__Type) returns Type
+    func remove_at(mut self: Vec__Type, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__Type, n: U64) returns Vec__Type
+    func truncate(mut self: Vec__Type, n: U64)
+    func unsafe_set(mut self: Vec__Type, i: U64, own val: Type)
+    func set(mut self: Vec__Type, i: U64, own val: Type) throws OutOfBounds
+    func push_take(mut self: Vec__Type, mut src: Vec__Type, i: U64)
+    func delete(own self: Vec__Type, call_free: Bool = true)
+    func clone(self: Vec__Type) returns Vec__Type
+    func size() returns U64
+}
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.new][Vec__Type.new]]
+#+begin_src til
+func Vec__Type.new() returns Vec__Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.with_capacity][Vec__Type.with_capacity]]
+#+begin_src til
+func Vec__Type.with_capacity(n: U64) returns Vec__Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.clear][Vec__Type.clear]]
+#+begin_src til
+func Vec__Type.clear(mut self: Vec__Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.delete_marked][Vec__Type.delete_marked]]
+#+begin_src til
+func Vec__Type.delete_marked(mut self: Vec__Type, marks: Dynamic)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.push][Vec__Type.push]]
+#+begin_src til
+func Vec__Type.push(mut self: Vec__Type, own val: Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.append][Vec__Type.append]]
+#+begin_src til
+func Vec__Type.append(mut self: Vec__Type, own other: Vec__Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.take][Vec__Type.take]]
+#+begin_src til
+func Vec__Type.take(mut self: Vec__Type) returns Vec__Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.move_to][Vec__Type.move_to]]
+#+begin_src til
+func Vec__Type.move_to(own self: Vec__Type, mut dest: Vec__Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.move_from][Vec__Type.move_from]]
+#+begin_src til
+func Vec__Type.move_from(mut self: Vec__Type, own other: Vec__Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.unsafe_get][Vec__Type.unsafe_get]]
+#+begin_src til
+func Vec__Type.unsafe_get(self: Vec__Type, i: U64) returns ref Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.get][Vec__Type.get]]
+#+begin_src til
+func Vec__Type.get(self: Vec__Type, shallow i: U64) returns ref Type throws OutOfBounds
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.pop][Vec__Type.pop]]
+#+begin_src til
+func Vec__Type.pop(mut self: Vec__Type) returns Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.remove_at][Vec__Type.remove_at]]
+#+begin_src til
+func Vec__Type.remove_at(mut self: Vec__Type, i: U64) throws OutOfBounds
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.take_prefix][Vec__Type.take_prefix]]
+#+begin_src til
+func Vec__Type.take_prefix(mut self: Vec__Type, n: U64) returns Vec__Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.truncate][Vec__Type.truncate]]
+#+begin_src til
+func Vec__Type.truncate(mut self: Vec__Type, n: U64)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.unsafe_set][Vec__Type.unsafe_set]]
+#+begin_src til
+func Vec__Type.unsafe_set(mut self: Vec__Type, i: U64, own val: Type)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.set][Vec__Type.set]]
+#+begin_src til
+func Vec__Type.set(mut self: Vec__Type, i: U64, own val: Type) throws OutOfBounds
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.push_take][Vec__Type.push_take]]
+#+begin_src til
+func Vec__Type.push_take(mut self: Vec__Type, mut src: Vec__Type, i: U64)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.delete][Vec__Type.delete]]
+#+begin_src til
+func Vec__Type.delete(own self: Vec__Type, call_free: Bool = true)
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.Vec__Type.clone][Vec__Type.clone]]
+#+begin_src til
+func Vec__Type.clone(self: Vec__Type) returns Vec__Type
+#+end_src
+
+** [[file:src/self/fasm_codegen.org::#til.src.self.fasm_codegen.adopt__Type][adopt__Type]]
+#+begin_src til
+func adopt__Type(mut dest: Dynamic, own src: Type)
+#+end_src
+
+** [[file:src/self/fasm_build.org::#til.src.self.fasm_build.fasm_prepare][fasm_prepare]]
+#+begin_src til
+proc fasm_prepare(root: Str, required: Bool) returns I32
 #+end_src
 
 ** [[file:src/self/holyc_codegen.org::#til.src.self.holyc_codegen.holyc_codegen_translate][holyc_codegen_translate]]

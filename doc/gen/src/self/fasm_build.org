@@ -1,0 +1,12 @@
+#+TITLE: src/self/fasm_build.til
+#+SUBTITLE: til 0.0.1-9e5acb222
+#+OPTIONS: toc:t
+
+* fasm_prepare
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.fasm_build.fasm_prepare
+:END:
+
+#+begin_src til
+proc fasm_prepare(root: Str, required: Bool) returns I32
+#+end_src

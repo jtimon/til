@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-ee8785cb2
+#+SUBTITLE: til 0.0.1-9e5acb222
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -157,6 +157,7 @@ struct TilVmCallback {
 namespace:
     proc lookup(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
     proc call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+    proc invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
     func size() returns U64
@@ -175,6 +176,32 @@ Panic/exit preserve this handle and session; earlier effects remain.
 
 #+begin_src til
 proc TilVmCallback.call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+#+end_src
+
+* TilVmCallback.invoke_throwing
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.TilVmCallback.invoke_throwing
+:group: Compiler tools
+:END:
+
+Runtime bridge for call_throwing(E). error_payload must be empty;
+a declared throw fills it with one independently owned host value.
+
+#+begin_src til
+proc TilVmCallback.invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
+#+end_src
+
+* call_throwing
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.call_throwing
+:group: Compiler tools
+:END:
+
+Invoke a guest with one checked shared error schema. Declared errors
+become owned host E values; panic/exit/validation remain TilVmError.
+
+#+begin_src til
+macro call_throwing(E: Type) returns FuncDef
 #+end_src
 
 * InterpRunResult

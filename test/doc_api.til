@@ -5,6 +5,12 @@ import("../src/std/file")
 
 WORK := "tmp/doc_api"
 
+long_default := func() returns Str {
+    mut text := Str.with_capacity(1024)
+    for _ in 0..128 { text.push_str("01234567") }
+    return text
+}
+
 fixture := func() returns Str {
     return format(
         "mode lib\nFirstError := struct { message := \"\" }\nSecondError := struct {}\n",
@@ -19,11 +25,23 @@ fixture := func() returns Str {
         "/// Borrowed result.\nborrowed := func(text: Str) returns ref Str { return text }\n",
         "Options := struct { number := 0 label := \"\" }\n",
         "/// Constructed default.\nnested := func(options: Options = Options(number = 4, label = format(\"a\", \"b\"))) returns I64 { return options.number }\n",
+        "/// Map default.\nmap_default := func(values: Map(Str, I64) = {\"one\": 1, \"two\": 2}) returns I64 { return values.len().to_i64() }\n",
+        "/// Set default.\nset_default := func(values: Set(I64) = {1, 2}) returns I64 { return values.len().to_i64() }\n",
+        "/// Selection default.\nmatch_default := func(value: I64 = match 2 { case 1, 2 if true: 4 case: 9 }) returns I64 { return value }\n",
+        "/// Grouped selection default.\npostfix_default := func(value: I64 = (match 2 { case 1: 3 case: 4 }).add(1)) returns I64 { return value }\n",
+        "DefaultCallback := func(I64) returns I64\n",
+        "/// Callable default.\ncallback_default := func(callback: DefaultCallback = func(value: I64) returns I64 { return value + 1 }) returns I64 { return callback(2) }\n",
+        "/// Callable expression default.\nimmediate_default := func(value: I64 = (func() returns I64 { return 3 })()) returns I64 { return value }\n",
+        "/// Body default.\nbody_default := proc(action: Body = [] { panic(\"DEFAULT_BODY_MUST_NOT_RUN\") }) { action() }\n",
+        "ThrowingDefault := func(I64) returns I64 throws FirstError\n",
+        "/// Throwing callable default.\nthrowing_default := func(callback: ThrowingDefault = func(value: I64) returns I64 throws FirstError { if value < 0 { throw FirstError(message = \"default error\") }; return value }) returns I64 throws FirstError { return callback(2)? }\n",
+        "/// Long default.\nlong_text := func(text: Str = \"", long_default(), "\") returns I64 { return text.len().to_i64() }\n",
         "/// Public record.\nApiRecord := struct {\n",
         "    /// Visible field.\n    value := 1\n",
         "    /// PRIVATE_FIELD_DOC\n    priv secret_field := 2\n",
         "    /// #+doc: nil\n    /// MASKED_FIELD_DOC\n    masked_field := 3\nnamespace:\n",
         "    /// Visible method.\n    read := func(self: ApiRecord) returns I64 { return self.value + self.secret_field + self.masked_field + ApiRecord.secret_method() }\n",
+        "    /// Long method default.\n    describe := func(self: ApiRecord, text: Str = \"", long_default(), "\") returns I64 { return self.value + text.len().to_i64() }\n",
         "    /// PRIVATE_METHOD_DOC\n    priv secret_method := func() returns I64 { return 0 }\n",
         "    /// #+doc: nil\n    /// MASKED_METHOD_DOC\n    masked_method := func() returns I64 { return 0 }\n}\n",
         "/// Public enum.\nApiChoice := enum { One, Two,\nnamespace:\n",
@@ -38,6 +56,15 @@ check_visible := func(output: Str) {
     expect(output.contains("func owned(own text: Str) returns Str"), output)
     expect(output.contains("func borrowed(text: Str) returns ref Str"), output)
     expect(output.contains("Options(number = 4, label = format(\"a\", \"b\"))"), output)
+    expect(output.contains(" = {\"one\": 1, \"two\": 2}"), output)
+    expect(output.contains(" = {1, 2}"), output)
+    expect(output.contains(" = match 2 { case 1, 2 if true: 4 case: 9 }"), output)
+    expect(output.contains(" = (match 2 { case 1: 3 case: 4 }).add(1)"), output)
+    expect(output.contains(" = func(value: I64) returns I64 { ... }"), output)
+    expect(output.contains(" = (func() returns I64 { ... })()"), output)
+    expect(output.contains(" = [] { ... }"), output)
+    expect(output.contains(" = func(value: I64) returns I64 throws FirstError { ... }"), output)
+    expect(output.contains(format("text: Str = \"", long_default(), "\") returns I64")), output)
     expect(output.contains("ApiRecord.read"), output)
     for hidden in vec(Str, "_err_kind", "_err_FirstError", "_err_SecondError",
         "PRIVATE_FIELD_DOC", "PRIVATE_METHOD_DOC", "PRIVATE_ENUM_DOC",
@@ -71,6 +98,7 @@ main := proc(compiler_path: Str) {
 
     File.writefile(format(WORK, "/input.til"), format(
         "import(\"./api\")\nhelp(\"example\")\nhelp(\"variadic\")\nhelp(\"keywords\")\nhelp(\"owned\")\nhelp(\"borrowed\")\nhelp(\"nested\")\n",
+        "help(\"map_default\")\nhelp(\"set_default\")\nhelp(\"match_default\")\nhelp(\"postfix_default\")\nhelp(\"callback_default\")\nhelp(\"immediate_default\")\nhelp(\"body_default\")\nhelp(\"throwing_default\")\nhelp(\"long_text\")\n",
         "help(\"ApiRecord\")\nhelp(\"ApiRecord.read\")\nhelp(\"ApiRecord.secret_field\")\nhelp(\"ApiRecord.secret_method\")\nhelp(\"ApiRecord.masked_field\")\nhelp(\"ApiRecord.masked_method\")\nhelp(\"ApiChoice\")\nhelp(\"ApiChoice.secret_enum\")\n"))
     repl := Cmd.new("sh", "-c", "\"$1\" < input.til", "doc-api", compiler)
     repl.cwd(WORK).capture()
