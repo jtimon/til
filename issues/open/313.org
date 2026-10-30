@@ -88,16 +88,203 @@ index), which #309 already halved for free. The remaining 64-bit fields are
 genuine pointers (data buffers, GC links); compressing THOSE is the hard,
 high-cost ~20%. Worth weighing before investing.
 
-*** Dependency / when to revisit
+*** What the code actually does today (premises to correct before planning)
 
-Depends on #314 (pluggable custom allocators). Option B's cage is just a custom
-arena allocator that owns one contiguous region -- there is nowhere for the
-cage to live until til has a pluggable allocator interface, so #314 must land
-first.
+Surveyed 2026-10-30; the design space above is kept, but several of its
+assumptions do not match the compiler:
 
-Also blocked on til gaining a lower-level backend where we control pointer
-representation (direct machine code, LLVM, or the custom arena of #314 owning
-the cage). While we emit C with real machine pointers, neither option is
-reachable. Revisit when both #314 and such a backend exist; at that point
-prototype Option B (cage + offset) first, since Option A's ILP32 runtime is
-unavailable in practice.
+1. UPtr is NOT the pointer representation. In emitted C, UPtr is only a
+   byte-count integer: malloc/calloc/realloc sizes, memcpy/memmove/memset
+   lengths, ptr_add offsets (src/core/mem.til:16-43) and one constant in
+   src/std/crypto.til. No core/std struct stores an address in a UPtr field.
+   The real pointers are the C ~T *~ / ~void *~ fields that c_codegen emits
+   for every non-shallow (~own~ / ~ref~) struct field
+   (src/self/c_codegen.til ~6090-6101: ~sname *field;~), for Dynamic
+   (~void *~) and for closures (~TilClosure *~). So "narrow UPtr" is the
+   wrong lever: UPtr stays U64 (FFI byte counts and the ~(UPtr)p~ casts in
+   the is_null lowering and TIL_LIT_GUARD need the full address width). What
+   gets narrowed is the STORAGE of own fields. The title is kept for history;
+   read "UPtr" there as "owned-pointer fields".
+
+2. There is no tracing GC and no "GC links". Memory is freed by the
+   garbager's asap destruction (src/self/garbager.til inserts delete/free at
+   the last use, at compile time). No collector ever has to find, walk or
+   decode a compressed pointer; a compressed field is only read/written by
+   generated code and by src/c/ext.c. That removes the hardest part of the
+   V8/JVM work.
+
+3. The ownership annotations already give the "two pointer kinds" split the
+   issue said would need a type-system change. An ~own~ field points, by
+   construction, at memory obtained from til's allocator (mem.til's
+   malloc/calloc/realloc, or ext.c's own allocations) -- never at the stack,
+   a global, a closure or a C library's buffer; the one exception is string
+   literals (point 6). ~ref~ fields, Dynamic values, params, locals and
+   everything crossing an ext_func may legitimately address any of those,
+   so they stay native 64-bit. Compress exactly the own-field STORAGE:
+   decode to a native ~T *~ at every field load, encode at every field
+   store. Density lives in fields; locals and registers cost nothing in
+   width. This is V8's model (compressed in the heap, full-width in
+   registers) and needs no new type.
+
+4. The 32-bit targets already give the "32-bit pointers on a 64-bit host"
+   shape: ~--target=wasm32~ (runs under node since #424) and linux-x86. They
+   are Option A done right (a real ILP32 ABI the toolchain supports, not
+   x32), capped at 4GB -- which rules them out for the compiler itself.
+
+5. Reach: 4GB is not enough. doc/totals.csv shows self_mem ~4.3GB for the
+   self-host build and a suite peak ~22GB. A 1:1 offset cage cannot hold the
+   compiler's own working set, so the alignment shift is not a later knob
+   but part of the design: every cage allocation is 16-byte aligned (what
+   malloc guarantees anyway), fields store ~offset >> 4~, decode is
+   ~base + (off << 4)~: 64GB of reach from a 32-bit field at zero extra
+   waste. Still a per-process cap; exhaustion panics loudly, it never falls
+   back to native malloc (that would hand out an unencodable pointer).
+
+6. What must live in the cage, and what does not today:
+   - everything til allocates: mem.til's malloc/calloc/realloc/free (bound
+     straight to libc today) and ext.c's 62 malloc/calloc/realloc call sites
+     (Str_new, substr, format, ...) that fill own fields.
+   - string literals: ~static Str x = (Str){.c_str = (void *)"...", .cap =
+     TIL_CAP_LIT}~ (c_codegen.til ~1874, 2259, 2481, 2915) points into
+     .rodata, and a static initializer cannot hold a runtime offset. Plan:
+     keep the pool as emitted; in the generated main's existing global-init
+     block (c_codegen.til ~2361) copy ~_til_str_lits~ into a region at the
+     bottom of the cage and patch each hoisted literal's c_str with its cage
+     offset. TIL_LIT_GUARD then compares offsets against that region. Cost:
+     one memcpy of the literal pool per process.
+   - foreign buffers stored into own fields (an ext_func result handed to
+     ~own data~): the encode panics. Step 1 below finds every such site
+     before any layout changes.
+
+7. The compile-time interpreter/constfolder lays own fields out at the host
+   width (src/self/initer.til ~2044-2046: fsz = UPtr.size()) and its heap is
+   host malloc, so it cannot hold compressed fields and must not try. This
+   is the host/target divergence #309 already solved: ~size_intrinsics_use_
+   sizeof~ (src/self/context.til:2260) makes X.size() / dyn_size_of emit C
+   sizeof when host and target widths differ; its predicate gains "or
+   compressed target" and constant folding keeps the host layout. Nothing
+   folded is emitted as raw bytes (hoisted values are emitted field by
+   field), so host-layout folding stays safe -- verify with the
+   test/usize64_comptime.til pattern.
+
+8. ext.c is the bulk of the mechanical work: 121 ~c_str~ and 34 ~data~
+   accesses touch own fields directly and must go through the load/store
+   macros. c_codegen's own-field emission sites are few (struct emit, field
+   access, assignment, struct literals, the garbager's free/delete calls).
+
+9. Out of scope: ~Vec(ref T)~ slots hold native pointers (slot_size =
+   UPtr.size(), src/core/vec.til:33) and stay 8 bytes; Dynamic fields stay
+   8 bytes (DynVec's payload etc.); closures stay ~TilClosure *~.
+
+*** Detailed plan
+
+**** Step 0 -- decisions that need the human's explicit yes (new surfaces)
+
+- Flag spelling. Proposed ~--cptr=32|64~ (default 64 = today's native
+  storage), accepted only on 64-bit targets; 32-bit targets reject it with
+  an error (their pointers are already 32-bit). Plumbing mirrors --usize:
+  CliArgs -> ~lp.cptr_override_bits~ (src/self/loader.til ~366/502) ->
+  Context -> builder -D threading (src/self/builder.til:83/362) -> an ext.h
+  macro ~TIL_CPTR32~ next to the TIL_USIZE32 split. Per doc/self.org "USize
+  defaults and source-level configuration direction", a source-level
+  directive may later replace the flag; the flag is the smaller step.
+- Allocator. Either a hand-written size-class allocator in ext.c (no
+  dependency, a few hundred lines, and the natural backing for #314's
+  default allocator later) or vendoring dlmalloc's mspace API
+  (~create_mspace_with_base~ gives a region-confined malloc for free, at
+  the cost of a new vendored dependency). Recommendation: hand-written in
+  ext.c.
+- No new files: the cage lives in src/c/ext.c + ext.h under
+  ~#ifdef TIL_CPTR32~, like the USize split does.
+
+**** Step 1 -- cage allocator, native pointers still (width-neutral)
+
+- ext.c: ~til_cage_init~ reserves 64GB (mmap PROT_NONE + MAP_NORESERVE on
+  Linux/macOS, VirtualAlloc MEM_RESERVE on Windows; not built for wasm32 /
+  32-bit targets) and commits on demand; ~til_malloc~ / ~til_calloc~ /
+  ~til_realloc~ / ~til_free~ allocate inside it, 16-byte aligned. Offset 0
+  is never handed out (it is the compressed null). ASAN builds poison freed
+  blocks (ASAN_POISON_MEMORY_REGION) so use-after-free inside the cage is
+  still caught, since ASAN does not instrument a custom allocator.
+- mem.til's malloc/calloc/realloc/free bind to the til_* entry points
+  instead of libc; all 62 ext.c allocation sites are renamed to them.
+- ~til_free~ of a pointer outside the cage panics ("free of non-cage
+  pointer"). With native pointers everywhere, this step alone run under
+  -DTIL_CPTR32 is the audit that finds every foreign buffer reaching an own
+  field or a til free (crypto's KEYPAIR bytes, closures, FFI tests). Fix
+  each at its source (allocate through til's allocator); no guards, no
+  fallbacks.
+- Exit: full suite green with and without the macro. New make.til target
+  ~check_cptr32~ modelled on ~check_usize64~ (make.til:704) plus the
+  matching CI job in .github/workflows/tests.yml:61.
+
+**** Step 2 -- flag plumbing and the layout authority (default unchanged)
+
+- The flag, LoadedProgram/Context field, builder -D threading, and in
+  ext.h ~typedef U32 TilCPtr;~ with ~TIL_CPTR_LOAD(T, f)~ (decode
+  ~base + ((UPtr)f << 4)~, 0 stays NULL) and ~TIL_CPTR_STORE(f, p)~ (encode
+  ~((UPtr)p - base) >> 4~, panicking if p is outside the cage or not 16-byte
+  aligned).
+- initer/context: the TARGET layout of an own field becomes 4 bytes / 4
+  align under cptr32 (initer.til ~2044-2046 and the Dynamic/own cases
+  ~2120-2154) while the interpreter's host layout stays 8;
+  ~size_intrinsics_use_sizeof~ returns true under cptr32.
+- Exit: boot artifacts byte-identical by default (the macro is off);
+  test/cptr32_sizes.til asserts Str 12, Vec 12 (and the DynVec / Map / Set
+  values) under the flag, built the way check_usize64 builds
+  test/usize64_sizes.til.
+
+**** Step 3 -- codegen and ext.c on compressed storage
+
+- c_codegen: the struct emitter (~6093-6101) writes ~TilCPtr f;~ for own
+  fields; own-field loads wrap in TIL_CPTR_LOAD at the field-access
+  emitters (the ~->~ sites), stores in TIL_CPTR_STORE at assignment,
+  struct-literal/ctor initializers (~1874, 2259, 2481, 2915) and the
+  garbager-inserted ~free(own self.f)~ / delete args; byte-wise helpers
+  (swap_bytes, adopt_from, memcpy of whole structs) are unchanged; is_null
+  on an own field lowers to ~off == 0~; TIL_LIT_GUARD compares offsets; the
+  literal pool is copied into the cage in the generated main's init block.
+- ext.c: the 121 c_str / 34 data accesses go through the macros; helpers
+  keep native pointers in their locals (decode once per call, not per byte).
+- Other backends (fasm, mlir, jvm, holyc): reject --cptr=32 loudly, no
+  other change.
+- Exit: ~make check_cptr32~ runs the full suite with --cptr=32 (compiler
+  built natively), ASAN clean.
+
+**** Step 4 -- measure, then decide the default
+
+- Build the compiler itself with --cptr=32 (make.til's self build, next to
+  its existing --usize=32 choice) and compare totals self_ms / self_mem /
+  mem_total against master. The bar is #309's result (-6% memory, -7%
+  self-host time). Expected order: Str/Vec headers 16 -> 12 (-25%) and every
+  own struct link 8 -> 4, minus one shift+add per field load.
+- If it wins: flip the default (ext.h defaults to TIL_CPTR32 with
+  ~-DTIL_CPTR64~ as the opt-out, initer/context defaults) as a "Two-pass: "
+  commit exactly like #309's step 3 (boot/til.c changes), update the size
+  assertions (test/aggregate_control.til:99, test/dyn_vecs.til:132-134,
+  the gc_audit golden, ...), and keep a check_cptr64 job for the native
+  path. If it does not: keep the opt-in flag and close #313 with the
+  numbers.
+
+**** Step 5 -- later, not needed for the win
+
+- #314 turns the cage allocator into an arena behind a pluggable interface
+  (the cage is then "the default allocator's region").
+- A shift knob (<<3 when 32GB is enough) only if measurements show the
+  16-byte granularity wastes memory on small allocations.
+
+*** Dependency (revised)
+
+Not blocked on #314: the cage needs ONE central allocation entry point
+(step 1), not a pluggable interface; #314 can wrap it afterwards. Not
+blocked on a lower-level backend: compression is a storage representation
+of own fields, which the C backend fully controls through its own emit
+sites plus ext.c. Step 1 is independently useful (foreign-pointer audit,
+single allocation authority, in line with #272) even if step 4 decides
+against the default flip.
+
+Remaining real risks: the 64GB per-process cap; the literal-pool copy and
+its interaction with TIL_LIT_GUARD; any Dynamic-typed field that in practice
+only ever holds til-heap pointers and would need to become ~own~ to shrink;
+and the decode cost on hot field-access paths, which only step 4's numbers
+can settle.
