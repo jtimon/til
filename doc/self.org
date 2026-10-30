@@ -227,14 +227,18 @@
   array returns and descriptor replacement stay in the host; passing an array
   as ~own~ or ~shallow~ is rejected rather than changing its ABI.
 
-  Checked memory operations use ~?~ in a function declaring ~throws
-  OutOfBounds~. They implement the existing trailing ~I64 *~ error-kind ABI:
+  Checked memory operations support ~?~ propagation, local ~OutOfBounds~
+  catches and ~!~ panic handling. Propagation uses the existing trailing
+  ~I64 *~ error-kind ABI for functions declaring ~throws OutOfBounds~:
   the caller initializes the slot to zero; success leaves it unchanged and
   failure writes tag 1. Failure results are unused ABI placeholders, not
   substitute data. The shared lowered success guards and loop exits control
-  propagation. Ordinary til/C callers can use ~catch~ or ~!~. MLIR-side buffer
-  ~!~, other exception types and general panic/runtime support remain outside
-  this increment. A proven-clear error branch also permits existing constant
+  propagation. Local catches reset the error slot before recovery, including
+  repeated loop failures and rethrowing. Generated ~!~ failures preserve the
+  source location, stdout diagnostic and exit status 1 through libc ~fwrite~
+  and ~exit~. Only the compiler-generated OutOfBounds panic shape is supported;
+  user panic calls, other exception types and general runtime support remain
+  outside this increment. A proven-clear error branch also permits existing constant
   SIMD lane reads after a successful load; possibly throwing calls invalidate
   that proof, including at loop exits.
 
@@ -319,6 +323,11 @@
   scalar-aligned vector starts, short inputs/outputs, maximum indices, error
   forwarding, partial writes, in-place/overlapping buffers, cancellation,
   reference writes and bit-preserving loads/stores of NaN payloads.
+
+  Exception checks cover local recovery, repeated catches, rethrowing, nested
+  ~?~ inside ~!~, partial writes and scalar/vector bang success. Failure
+  subprocesses compare stdout byte-for-byte with interpreter/C diagnostics,
+  require empty stderr and exit status 1, at both widths and O0/O2/O3.
 
 ** Experimental FASM backend
 

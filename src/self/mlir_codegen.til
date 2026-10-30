@@ -15,6 +15,9 @@ priv MlirBinding := struct {
 priv MlirState := struct {
     text := ""
     allocations := ""
+    globals := ""
+    symbol_prefix := ""
+    needs_panic := false
     next : USize = 0
     next_block : USize = 0
     terminated := false
@@ -23,11 +26,12 @@ priv MlirState := struct {
     has_break := false
     values := Map(Str, MlirBinding).new()
     functions := Set(Str).new()
-    error_slots := Set(Str).new()
     error_parameter := ""
     error_known_clear := false
     error_version : USize = 0
     clear_conditions := Set(Str).new()
+    set_conditions := Set(Str).new()
+    bang_conditions := Set(Str).new()
     // Compile-time values used by lane indices and lowered bounds-error checks.
     integers := Map(Str, U64).new()
     booleans := Map(Str, Bool).new()
@@ -186,12 +190,15 @@ priv mlir_error_write := func(mut state: MlirState) {
     state.error_known_clear = false
     state.error_version++
     state.clear_conditions.clear()
+    state.set_conditions.clear()
 }
 
-priv mlir_tests_clear_error := func(e: Expr, state: MlirState, lp: LoadedProgram) returns Bool {
+priv mlir_tests_error_value := func(e: Expr, expected: U64, state: MlirState, lp: LoadedProgram) returns Bool {
     if state.error_parameter.len() == 0 { return false }
     switch e.node_type {
-    case .Ident(id): return state.clear_conditions.has(id.ident_name(lp.ctx.symbols.names))
+    case .Ident(id):
+        if expected == 0 { return state.clear_conditions.has(id.ident_name(lp.ctx.symbols.names)) }
+        return state.set_conditions.has(id.ident_name(lp.ctx.symbols.names))
     case .FCall:
         if e.children.len() != 3 { return false }
         switch e.children[0].node_type {
@@ -201,7 +208,7 @@ priv mlir_tests_clear_error := func(e: Expr, state: MlirState, lp: LoadedProgram
             case .Ident(id):
                 if id.ident_name(lp.ctx.symbols.names) != state.error_parameter { return false }
                 zero := mlir_integer(e.children[2], state, lp)
-                return zero.is_some().and(zero.unwrap() == 0)
+                return zero.is_some().and(zero.unwrap() == expected)
             case: return false
             }
         case: return false
@@ -302,8 +309,8 @@ priv mlir_buffer_length := func(buffer: Str, mut state: MlirState, lp: LoadedPro
 }
 
 priv mlir_checked_memory := proc(e: Expr, vector: Bool, store: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
-    if state.error_parameter.len() == 0 || fcall_of(e).panic_on_error {
-        return mlir_error(e, "checked buffers require ? in a function declaring throws OutOfBounds; handle ! or catch in the host caller", lp)
+    if state.error_parameter.len() == 0 {
+        return mlir_error(e, "checked buffer operation has no lowered error slot", lp)
     }
     mut arguments := Vec(Str).new()
     for i in 1..e.children.len() - 1 { arguments.push(own mlir_expr(e.children[i], state, lp)) }
@@ -589,8 +596,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             found := mlir_find_function(name, lp)
             if found.is_none() { return mlir_error(e, format("unsupported call '", name, "'"), lp) }
             ref fd : FunctionDef = funcdef_of(found.unwrap())
-            if fd.sig.throw_types.len() > 0 && (state.error_parameter.len() == 0 || fcall_of(e).panic_on_error) {
-                return mlir_error(e, "throwing MLIR calls require ? in a function declaring throws OutOfBounds; handle ! or catch in the host caller", lp)
+            if fd.sig.throw_types.len() > 0 && state.error_parameter.len() == 0 {
+                return mlir_error(e, "throwing call has no lowered error slot", lp)
             }
             mut call_name := name.clone()
             if name == "main" { call_name = "til.mlir.main" }
@@ -647,31 +654,156 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
     }
 }
 
-// The only accepted throwing operation is an in-range constant SIMD get.
-// It cannot write its error slot. Retain that proof for the lowered bang
-// check, rather than treating arbitrary mutable locals as constants.
-priv mlir_collect_error_slots := func(e: Expr, mut names: Set(Str), lp: LoadedProgram) {
-    if e.node_type.is(NodeType.FCall) && e.children.len() == 4 {
-        ref callee : Expr = e.children[0]
-        switch callee.node_type {
-        case .FieldAccess(field):
-            if field.field_access_name(lp.ctx.symbols.names) == "get" && callee.children.len() == 1 {
-                switch callee.children[0].node_type {
-                case .Ident(id):
-                    owner := type_from_name_init_name(id.ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
-                    if mlir_type(owner, lp) == "vector<4xf32>" {
-                        switch e.children[3].node_type {
-                        case .Ident(error_id): names.add(own error_id.ident_name(lp.ctx.symbols.names).clone())
-                        case:
-                        }
+priv mlir_literal_text := func(e: Expr, texts: Map(Str, Str), lp: LoadedProgram) returns Option(Str) {
+    switch e.node_type {
+    case .Literal(Literal.Str(text)): return Option(Str).Some(text.clone())
+    case .Ident(id):
+        ref name : Str = id.ident_name(lp.ctx.symbols.names)
+        if texts.has(name) { return Option(Str).Some(texts[name].clone()) }
+    case:
+    }
+    return Option(Str).None
+}
+
+priv mlir_literal_number := func(e: Expr, numbers: Map(Str, U64), lp: LoadedProgram) returns Option(U64) {
+    switch e.node_type {
+    case .Literal(Literal.Num(n)): return Option(U64).Some(n.to_u64())
+    case .Ident(id):
+        ref name : Str = id.ident_name(lp.ctx.symbols.names)
+        if numbers.has(name) { return Option(U64).Some(numbers[name]) }
+    case:
+    }
+    return Option(U64).None
+}
+
+// Recognize only the compiler's one-part OutOfBounds bang diagnostic. General
+// strings, user panic calls and heap cleanup are not silently discarded here.
+priv mlir_bang_text := func(body: Expr, lp: LoadedProgram) returns Option(Str) {
+    mut texts := Map(Str, Str).new()
+    mut numbers := Map(Str, U64).new()
+    mut parts := Map(Str, Str).new()
+    for stmt : Expr in body.children {
+        switch stmt.node_type {
+        case .Decl(dd):
+            if stmt.children.len() != 1 { return Option(Str).None }
+            ref value : Expr = stmt.children[0]
+            switch value.node_type {
+            case .Literal(Literal.Str(text)): texts.set(dd.name, own text.clone())
+            case .Literal(Literal.Num(n)): numbers.set(dd.name, own n.to_u64())
+            case .FCall:
+                if value.children.len() != 2 { return Option(Str).None }
+                switch value.children[0].node_type {
+                case .FieldAccess(method):
+                    if method.field_access_name(lp.ctx.symbols.names) != "new" { return Option(Str).None }
+                    if value.children[0].children.len() != 1 { return Option(Str).None }
+                    switch value.children[0].children[0].node_type {
+                    case .Ident(owner): if owner.ident_name(lp.ctx.symbols.names) != "Array__Str" { return Option(Str).None }
+                    case: return Option(Str).None
                     }
-                case:
+                    switch value.children[1].node_type {
+                    case .Ident(size):
+                        ref name : Str = size.ident_name(lp.ctx.symbols.names)
+                        if numbers.has(name).not() { return Option(Str).None }
+                        if numbers[name] != 1 { return Option(Str).None }
+                    case .Literal(Literal.Num(n)): if n.to_u64() != 1 { return Option(Str).None }
+                    case: return Option(Str).None
+                    }
+                    parts.set(dd.name, own "")
+                case: return Option(Str).None
                 }
+            case: return Option(Str).None
             }
-        case:
+        case .Assign(ad):
+            if ad.name != "_err_kind" { return Option(Str).None }
+            value := mlir_literal_number(stmt.children[0], numbers, lp)
+            if value.is_none() { return Option(Str).None }
+            if value.unwrap() != 0 { return Option(Str).None }
+        case .FCall:
+            switch stmt.children[0].node_type {
+            case .FieldAccess(method):
+                if method.field_access_name(lp.ctx.symbols.names) != "set" || stmt.children.len() != 5 { return Option(Str).None }
+                if stmt.children[0].children.len() != 1 { return Option(Str).None }
+                switch stmt.children[0].children[0].node_type {
+                case .Ident(owner): if owner.ident_name(lp.ctx.symbols.names) != "Array__Str" { return Option(Str).None }
+                case: return Option(Str).None
+                }
+                index := mlir_literal_number(stmt.children[2], numbers, lp)
+                if index.is_none() { return Option(Str).None }
+                if index.unwrap() != 0 { return Option(Str).None }
+                switch stmt.children[1].node_type {
+                case .Ident(array_id):
+                    ref name : Str = array_id.ident_name(lp.ctx.symbols.names)
+                    if parts.has(name).not() { return Option(Str).None }
+                    text := mlir_literal_text(stmt.children[3], texts, lp)
+                    if text.is_none() { return Option(Str).None }
+                    parts.set(name, own text.unwrap().clone())
+                case: return Option(Str).None
+                }
+            case .Ident(callee):
+                if callee.ident_name(lp.ctx.symbols.names) != "panic" || stmt.children.len() != 3 { return Option(Str).None }
+                location := mlir_literal_text(stmt.children[2], texts, lp)
+                if location.is_none() { return Option(Str).None }
+                switch stmt.children[1].node_type {
+                case .Ident(array_id):
+                    ref name : Str = array_id.ident_name(lp.ctx.symbols.names)
+                    if parts.has(name).not() { return Option(Str).None }
+                    if parts[name] != "uncaught throw 'OutOfBounds'" { return Option(Str).None }
+                    return Option(Str).Some(format(location.unwrap(), ": panic: ", parts[name]))
+                case: return Option(Str).None
+                }
+            case: return Option(Str).None
+            }
+        case: return Option(Str).None
         }
     }
-    for child : Expr in e.children { mlir_collect_error_slots(child, names, lp) }
+    return Option(Str).None
+}
+
+priv mlir_emit_bang := proc(body: Expr, mut state: MlirState, mut lp: LoadedProgram) {
+    diagnostic := mlir_bang_text(body, lp)
+    if diagnostic.is_none() { mlir_error(body, "unsupported generated panic shape", lp); return }
+    text := format(diagnostic.unwrap(), "\n")
+    mut escaped := ""
+    digits := "0123456789ABCDEF"
+    for i in 0..text.len() {
+        byte := text.unsafe_get(i).cast(U8).cast(U32)
+        escaped = format(escaped, "\\", digits.substr(byte.shr(4).to_usize(), 1), digits.substr(byte.band(15).to_usize(), 1))
+    }
+    symbol := format("til.mlir.panic.", state.symbol_prefix, ".", state.next.to_str())
+    state.globals = format(state.globals, "  llvm.mlir.global private constant @\"", symbol,
+        "\"(\"", escaped, "\") : !llvm.array<", text.len().to_str(), " x i8>\n")
+    state.needs_panic = true
+    zero := mlir_value(state, "arith.constant 0 : i64")
+    mlir_store(state.values[state.error_parameter].value, zero, "i64", state)
+    mlir_error_write(state)
+    state.error_known_clear = true
+    address := mlir_value(state, format("llvm.mlir.addressof @\"", symbol, "\" : !llvm.ptr"))
+    stream_slot := mlir_value(state, "llvm.mlir.addressof @stdout : !llvm.ptr")
+    stream := mlir_value(state, format("llvm.load ", stream_slot, " : !llvm.ptr -> !llvm.ptr"))
+    one := mlir_value(state, "arith.constant 1 : i64")
+    count := mlir_value(state, format("arith.constant ", text.len().to_str(), " : i64"))
+    mlir_value(state, format("llvm.call @fwrite(", address, ", ", one, ", ", count, ", ", stream, ") : (!llvm.ptr, i64, i64, !llvm.ptr) -> i64"))
+    status := mlir_value(state, "arith.constant 1 : i32")
+    state.text = format(state.text, "    llvm.call @exit(", status, ") : (i32) -> ()\n    llvm.unreachable\n")
+    state.terminated = true
+}
+
+priv mlir_is_bang_condition := func(e: Expr, state: MlirState, lp: LoadedProgram) returns Bool {
+    switch e.node_type {
+    case .FCall(fcd): return fcd.is_bang_check
+    case .Ident(id): return state.bang_conditions.has(id.ident_name(lp.ctx.symbols.names))
+    case: return false
+    }
+}
+
+priv mlir_has_local_error := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .Decl(dd): if dd.name == "_err_kind" { return true }
+    case .FuncDef, .StructDef, .EnumDef: return false
+    case:
+    }
+    for child : Expr in e.children { if mlir_has_local_error(child) { return true } }
+    return false
 }
 
 priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: LoadedProgram) {
@@ -681,6 +813,8 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
     saved_integers := state.integers.clone()
     saved_booleans := state.booleans.clone()
     saved_conditions := state.clear_conditions.clone()
+    saved_set_conditions := state.set_conditions.clone()
+    saved_bangs := state.bang_conditions.clone()
     saved_error_version := state.error_version
     for stmt : Expr in body.children {
         if state.terminated { break }
@@ -705,12 +839,23 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             boolean := mlir_boolean(stmt.children[0], state, lp)
             raw_value := mlir_expr(stmt.children[0], state, lp)
             value := mlir_coerce(raw_value, stmt.children[0], t, state, lp)
-            clear_test := mlir_tests_clear_error(stmt.children[0], state, lp)
+            clear_test := mlir_tests_error_value(stmt.children[0], 0, state, lp)
+            set_test := mlir_tests_error_value(stmt.children[0], 1, state, lp)
+            bang_test := mlir_is_bang_condition(stmt.children[0], state, lp)
             state.clear_conditions.remove(local.name)
+            state.set_conditions.remove(local.name)
+            state.bang_conditions.remove(local.name)
             if clear_test && local.is_mut.not() { state.clear_conditions.add(own local.name.clone()) }
+            if set_test && local.is_mut.not() { state.set_conditions.add(own local.name.clone()) }
+            if bang_test && local.is_mut.not() { state.bang_conditions.add(own local.name.clone()) }
+            if local.name == state.error_parameter {
+                if integer.is_none() { mlir_error(stmt, "error slot must start at zero", lp); break }
+                if integer.unwrap() != 0 { mlir_error(stmt, "error slot must start at zero", lp); break }
+                state.error_known_clear = true
+            }
             state.integers.remove(local.name)
             state.booleans.remove(local.name)
-            if local.is_mut.not() || state.error_slots.has(local.name) {
+            if local.is_mut.not() {
                 if integer.is_some() { state.integers.set(local.name, own integer.unwrap().clone()) }
                 if boolean.is_some() { state.booleans.set(local.name, own boolean.unwrap().clone()) }
             }
@@ -723,16 +868,13 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             if state.values.has(assignment.name).not() { mlir_error(stmt, "assignment requires a local", lp); break }
             ref binding : MlirBinding = state.values[assignment.name]
             if binding.is_mut.not() { mlir_error(stmt, "assignment requires mutable storage", lp); break }
-            if state.error_slots.has(assignment.name) {
-                constant := mlir_integer(stmt.children[0], state, lp)
-                if constant.is_none() { mlir_error(stmt, "runtime exception state is not supported", lp); break }
-                if constant.unwrap() != 0 { mlir_error(stmt, "runtime exception state is not supported", lp); break }
-            }
             raw_value := mlir_expr(stmt.children[0], state, lp)
             value := mlir_coerce(raw_value, stmt.children[0], binding.type_name, state, lp)
             mlir_store(binding.value, value, binding.type_name, state)
             if assignment.name == state.error_parameter {
                 zero := mlir_integer(stmt.children[0], state, lp)
+                if zero.is_none() { mlir_error(stmt, "only OutOfBounds error tags are supported", lp); break }
+                if zero.unwrap() > 1 { mlir_error(stmt, "only OutOfBounds error tags are supported", lp); break }
                 mlir_error_write(state)
                 state.error_known_clear = zero.is_some().and(zero.unwrap() == 0)
             }
@@ -751,30 +893,37 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
         case .Body: mlir_body(stmt, ret, state, lp)
         case .If:
             known := mlir_boolean(stmt.children[0], state, lp)
-            clear_test := mlir_tests_clear_error(stmt.children[0], state, lp)
+            clear_test := mlir_tests_error_value(stmt.children[0], 0, state, lp)
+            set_test := mlir_tests_error_value(stmt.children[0], 1, state, lp)
+            bang_test := mlir_is_bang_condition(stmt.children[0], state, lp)
             if known.is_some() {
                 if known.unwrap() {
                     if clear_test { state.error_known_clear = true }
-                    mlir_body(stmt.children[1], ret, state, lp)
+                    if bang_test { mlir_emit_bang(stmt.children[1], state, lp) }
+                    else { mlir_body(stmt.children[1], ret, state, lp) }
                 }
                 else if stmt.children.len() == 3 { mlir_body(stmt.children[2], ret, state, lp) }
             } else {
                 condition := mlir_expr(stmt.children[0], state, lp)
                 before_clear := state.error_known_clear
                 before_conditions := state.clear_conditions.clone()
+                before_set_conditions := state.set_conditions.clone()
                 yes := mlir_label(state)
                 no := mlir_label(state)
                 merge := mlir_label(state)
                 state.text = format(state.text, "    llvm.cond_br ", condition, ", ^", yes, ", ^", no, "\n")
                 mlir_block(yes, state)
                 if clear_test { state.error_known_clear = true }
-                mlir_body(stmt.children[1], ret, state, lp)
+                if bang_test { mlir_emit_bang(stmt.children[1], state, lp) }
+                else { mlir_body(stmt.children[1], ret, state, lp) }
                 yes_ends := state.terminated
                 yes_clear := state.error_known_clear
                 if yes_ends.not() { mlir_branch(merge, state) }
                 mlir_block(no, state)
                 state.error_known_clear = before_clear
+                if set_test { state.error_known_clear = true }
                 state.clear_conditions = before_conditions
+                state.set_conditions = before_set_conditions
                 if stmt.children.len() == 3 { mlir_body(stmt.children[2], ret, state, lp) }
                 no_ends := state.terminated
                 no_clear := state.error_known_clear
@@ -782,6 +931,7 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
                 mlir_block(merge, state)
                 state.error_known_clear = yes_ends.or(yes_clear).and(no_ends.or(no_clear))
                 state.clear_conditions.clear()
+                state.set_conditions.clear()
                 if yes_ends && no_ends { state.text = format(state.text, "    llvm.unreachable\n"); state.terminated = true }
             }
         case .While:
@@ -828,11 +978,14 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
     state.values = saved_values
     state.integers = saved_integers
     state.booleans = saved_booleans
-    if state.error_version == saved_error_version { state.clear_conditions = saved_conditions }
-    else { state.clear_conditions.clear() }
+    state.bang_conditions = saved_bangs
+    if state.error_version == saved_error_version {
+        state.clear_conditions = saved_conditions
+        state.set_conditions = saved_set_conditions
+    } else { state.clear_conditions.clear(); state.set_conditions.clear() }
 }
 
-priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgram) returns Str {
+priv mlir_function := proc(decl: Expr, functions: Set(Str), mut needs_panic: Bool, mut lp: LoadedProgram) returns Str {
     ref dd : Declaration = decl_of(decl)
     ref fexpr : Expr = decl.children[0]
     ref fd : FunctionDef = funcdef_of(fexpr)
@@ -847,6 +1000,7 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgra
     if fd.sig.return_own_type.is(OwnType.Ref) { return mlir_error(decl, "borrowed returns are not supported", lp) }
     mut state := MlirState()
     state.functions = functions.clone()
+    state.symbol_prefix = dd.name.clone()
     if fd.sig.throw_types.len() > 0 {
         state.error_parameter = "_err_kind"
         // The existing caller ABI starts each error-out transaction at zero.
@@ -904,7 +1058,7 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgra
     if dd.name == "main" && (ret != "void" || fd.sig.params.len() > 0) {
         return mlir_error(decl, "main must take no arguments and return no value", lp)
     }
-    if state.error_parameter.len() == 0 { mlir_collect_error_slots(fexpr.children[0], state.error_slots, lp) }
+    if state.error_parameter.len() == 0 && mlir_has_local_error(fexpr.children[0]) { state.error_parameter = "_err_kind" }
     mlir_body(fexpr.children[0], ret, state, lp)
     if state.terminated.not() {
         if ret != "void" { return mlir_error(decl, "missing value return", lp) }
@@ -920,13 +1074,15 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut lp: LoadedProgra
     else if ret != "void" { result = format(result, " -> ", ret) }
     mut entry := ""
     if state.allocations.len() > 0 { entry = format("    %alloc_count = llvm.mlir.constant(1 : i64) : i64\n", state.allocations) }
-    return format(result, " {\n", entry, state.text, "  }\n")
+    if state.needs_panic { needs_panic = true }
+    return format(state.globals, result, " {\n", entry, state.text, "  }\n")
 }
 
 mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_functions: Set(Str)) returns I32 {
     mut text := "module attributes {llvm.target_triple = \"x86_64-pc-linux-gnu\"} {\n"
     context_enter_file(lp.ctx, lp.units[lp.units.len() - 1].path)
     mut has_main := false
+    mut needs_panic := false
     mut functions := Set(Str).new()
     for stmt : Expr in mlir_root(lp).children {
         if stmt.node_type.is(NodeType.Decl) {
@@ -944,7 +1100,7 @@ mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_function
                 if stmt.children[0].node_type.is(NodeType.FuncDef) {
                     if functions.has(dd.name).not() { continue }
                     if funcdef_of(stmt.children[0]).auto_generated || funcdef_of(stmt.children[0]).sig.func_type.is(FuncType.Macro) { continue }
-                    text = format(text, mlir_function(stmt, functions, lp))
+                    text = format(text, mlir_function(stmt, functions, needs_panic, lp))
                     if dd.name == "main" { has_main = true }
                 } else {
                     alias_type := mlir_type(type_from_name_init_name(dd.name, lp.ctx.scope, lp.ctx.symbols), lp)
@@ -959,6 +1115,12 @@ mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_function
     if lp.cur_mode.is_library.not() {
         if has_main.not() { println("error: MLIR backend requires a no-argument main"); return 1 }
         text = format(text, "  llvm.func @main() -> i32 {\n    llvm.call @\"til.mlir.main\"() : () -> ()\n    %zero = llvm.mlir.constant(0 : i32) : i32\n    llvm.return %zero : i32\n  }\n")
+    }
+    if needs_panic {
+        if mlir_find_function("fwrite", lp).is_some() || mlir_find_function("exit", lp).is_some() || mlir_find_function("stdout", lp).is_some() {
+            mlir_error(mlir_root(lp), "generated panic conflicts with a user fwrite/exit/stdout symbol", lp)
+        }
+        text = format(text, "  llvm.mlir.global external @stdout() : !llvm.ptr\n  llvm.func @fwrite(!llvm.ptr, i64, i64, !llvm.ptr) -> i64\n  llvm.func @exit(i32)\n")
     }
     if lp.ctx.errors > 0 { return 1 }
     File.writefile(path, format(text, "}\n"))

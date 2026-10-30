@@ -150,6 +150,79 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv panic_output := proc(command: Cmd, work: Str) returns Str {
+    command.cwd(work).capture()
+    status := command.run()
+    expect(status == 1, command.render(), command.out(), command.err())
+    expect(command.out().contains(": panic: uncaught throw 'OutOfBounds'"), command.out(), command.err())
+    expect(command.err().len() == 0, command.err())
+    return command.out()
+}
+
+priv check_exceptions := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/exceptions.til"), format(
+        "mode pure\nF4:=Simd(F32,4)\n",
+        "read_bang := func(a: Array(F32),i: USize) returns F32 { return a.get(i)!.clone() }\n",
+        "load_bang := func(a: Array(F32),i: USize) returns F4 { return F4.load(a,i)! }\n",
+        "read_or := func(a: Array(F32),i: USize,fallback: F32) returns F32 { ref value: F32=a.get(i)? catch(err:OutOfBounds){return fallback}; return value.clone() }\n",
+        "recover_lane := func(a: Array(F32),i: USize) returns F32 { mut v:=F4.zero(); v=F4.load(a,i)? catch(err:OutOfBounds){v=F4.splat(7)}; return v[2] }\n",
+        "count_failures := func(a: Array(F32),limit: USize) returns USize { mut failures: USize=0; mut i: USize=0; while i<limit { a.get(i)? catch(err:OutOfBounds){failures++}; i++ }; return failures }\n",
+        "recover_add := func(a: Array(F32),b: Array(F32),mut out: Array(F32)) returns USize { mut i: USize=0; while i<a.len() { out.set(i,own (a.get(i)?+b.get(i)?))? catch(err:OutOfBounds){return i}; i++ }; return i }\n",
+        "rethrow_read := func(a: Array(F32),i: USize) returns F32 throws OutOfBounds { ref value: F32=a.get(i)? catch(err:OutOfBounds){throw OutOfBounds()}; return value.clone() }\n",
+        "recover_forward := func(a: Array(F32),i: USize) returns F32 { mut value: F32=0; value=rethrow_read(a,i)? catch(err:OutOfBounds){value=17}; return value }\n",
+        "nested_bang := func(a: Array(F32),mut out: Array(F32)) returns F32 { out.set(0,own a.get(0)?.clone())! catch(err:OutOfBounds){return 23}; return 0 }\n"))
+    source := realpath_str(format(work, "/exceptions.til"))
+    quoted_source := source.strip_suffix(".til").replace("\\", "\\\\").replace("\"", "\\\"")
+    File.writefile(format(work, "/exception_reference.til"), format(
+        "mode cli\nimport(\"", quoted_source, "\")\nmain := proc() { a:=array(F32,1,2,3,4); empty:=Array(F32).new(0); mut out:=Array(F32).new(4);\n",
+        "assert_eq(F32,read_or(a,1,99),2); assert_eq(F32,read_or(empty,0,99),99); assert_eq(F32,recover_lane(a,0),3); assert_eq(F32,recover_lane(a,1),7);\n",
+        "assert_eq(USize,count_failures(a,7),3); assert_eq(USize,count_failures(empty,3),3); assert_eq(USize,recover_add(a,empty,out),0);\n",
+        "assert_eq(USize,recover_add(a,a,out),4); assert_eq(F32,out[3],8); assert_eq(F32,recover_forward(empty,0),17); assert_eq(F32,recover_forward(a,0),1);\n",
+        "assert_eq(F32,nested_bang(empty,out),23); assert_eq(F32,nested_bang(a,out),0); assert_eq(F32,read_bang(a,2),3); v:=load_bang(a,0); assert_eq(F32,v[3],4); println(\"exceptions PASS\") }\n"))
+    File.writefile(format(work, "/exception_panic.til"), format(
+        "mode cli\nimport(\"", quoted_source, "\")\nmain := proc(which: I64) { a:=array(F32,1,2,3,4); if which==0 { read_bang(a,4) } else { load_bang(a,1) }; println(\"UNREACHED\") }\n"))
+    File.writefile(format(work, "/exception_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n",
+        "#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct {float *data;Count cap;} Buffer;typedef struct {float x,y,z,w;} F4;\n",
+        "extern float read_bang(const Buffer*,Count),read_or(const Buffer*,Count,float),recover_lane(const Buffer*,Count),recover_forward(const Buffer*,Count),rethrow_read(const Buffer*,Count,int64_t*);\n",
+        "extern F4 load_bang(const Buffer*,Count);extern Count count_failures(const Buffer*,Count),recover_add(const Buffer*,const Buffer*,Buffer*);extern float nested_bang(const Buffer*,Buffer*);\n",
+        "int main(int argc,char **argv){float values[4]={1,2,3,4},output[6]={-99,-99,-99,-99,-99,-99};Buffer a={values,4},empty={0,0},out={output+1,4},short_b={values,2};\n",
+        "if(argc>1){if(atoi(argv[1])==0)read_bang(&a,4);else load_bang(&a,1);return 99;}\n",
+        "assert(read_or(&a,1,99)==2 && read_or(&empty,0,99)==99);assert(recover_lane(&a,0)==3 && recover_lane(&a,1)==7);\n",
+        "assert(count_failures(&a,7)==3 && count_failures(&empty,3)==3);assert(recover_add(&a,&short_b,&out)==2);assert(output[0]==-99 && output[1]==2 && output[2]==4 && output[3]==-99 && output[5]==-99);\n",
+        "assert(recover_add(&a,&a,&out)==4 && output[4]==8);assert(recover_forward(&empty,0)==17 && recover_forward(&a,0)==1);int64_t error=0;rethrow_read(&empty,0,&error);assert(error==1);\n",
+        "assert(nested_bang(&empty,&out)==23 && output[1]==2);assert(nested_bang(&a,&out)==0 && output[1]==1);assert(read_bang(&a,2)==3);F4 v=load_bang(&a,0);assert(v.x==1 && v.w==4);return 0;}\n"))
+    for width in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        for command in array(Str, "interpret", "run") {
+            reference := Cmd.new(compiler, command, flag, "exception_reference.til")
+            checked(reference, work)
+        }
+        mut messages := Vec(Str).new()
+        for argument in array(Str, "0", "1") {
+            reference := Cmd.new(compiler, "run", flag, "exception_panic.til", argument)
+            message := panic_output(reference, work)
+            interpreted := Cmd.new(compiler, "interpret", flag, "exception_panic.til", argument)
+            assert_eq(Str, panic_output(interpreted, work), message)
+            messages.push(own message)
+        }
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "./exceptions.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "exception_caller.c", "gen/lib/libexceptions.a", "-o", "exception_caller")
+            if width=="32" { cc.arg("-DCOUNT32") }
+            checked(cc, work)
+            native := Cmd.new("./exception_caller")
+            checked(native, work)
+            for i in 0..2 {
+                failure := Cmd.new("./exception_caller", i.to_str())
+                assert_eq(Str, panic_output(failure, work), messages[i.to_usize()])
+            }
+        }
+    }
+}
+
 main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
@@ -219,5 +292,6 @@ main := proc(compiler_arg: Str) {
     }
     check_control_flow(compiler, work)
     check_buffers(compiler, work)
+    check_exceptions(compiler, work)
     println("mlir PASS")
 }
