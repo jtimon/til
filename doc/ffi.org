@@ -95,13 +95,48 @@ Lookup/call errors carry owned diagnostics, phase and optional exit status in
 ~TilVmError~. Hosts can catch them with ~?~ and ~catch~; the example's ~!~
 instead converts an error into a host panic. Guest output uses host stdio.
 
-The fixed call boundary supports core scalars, Str, and nested shared records
-and enums, with at most 63 arguments. Variadic and kwargs calls and
+The call boundary supports core scalars, Str, and nested shared records
+and enums, with at most 63 declared parameters. Variadic calls are supported;
+the variadic element count is not limited to 63. Kwargs calls and
 pointer/reference-bearing record fields remain
 unsupported. Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
 reference route described below.
+
+**** Variadic callbacks
+
+~call(Tuple)~ and ~call_throwing(Signature)~ use the same flat positional Tuple
+for variadic signatures. Fixed parameters before the variadic parameter come
+first, followed by zero or more tail elements. Fixed parameters after it occupy
+the final positions. Supply all fixed parameters explicitly, including those
+with source defaults; this boundary does not evaluate omitted default arguments.
+
+For ~proc(mut prefix: Str, parts: ..Str, mut suffix: Str = "!")~, a Tuple
+containing ~prefix, part1, part2, suffix~ supplies two tail elements; a Tuple
+containing only ~prefix, suffix~ supplies an empty tail. Mutable fixed parameters
+on either side copy back to their corresponding Tuple elements on success,
+declared throw, panic and exit.
+
+A typed ~..T~ tail requires every element to have type ~T~ and its validated
+host width/schema. The bridge packs independent snapshots into the guest's
+ordinary ~Array(T)~. A ~..Dynamic~ tail accepts heterogeneous typed Tuple
+elements and uses the normal Tuple carrier, validating each concrete element
+schema before invocation. Untyped Dynamic/raw-pointer entries and types not
+shared with the guest are rejected. Both forms support the same scalar, Str,
+nested-record and enum values as fixed arguments.
+
+The guest owns the carrier and its snapshots; the host's tail values remain
+owned by the input Tuple and are not copied back. Results and declared errors
+retain their independent ownership after carrier/callback/VM destruction.
+All count, element type/width and schema checks finish before carrier creation
+or guest execution. Kwargs calls remain unsupported.
+
+~test/tilvm.til::variadic_callback_tests~ covers empty and long tails, typed and
+heterogeneous values, nested records, narrow enums, fixed mutable parameters
+before/after the tail, failure recovery and teardown in the installed ASAN
+host with empty PATH. Function-signature reflection retains defaulted source
+parameters even when lowering inserts hidden error slots before them.
 
 **** Shared record arguments and results
 
@@ -453,8 +488,9 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments
-  or records with pointer/reference fields. Nested shared records/enums are
+- ~TilVmCallback.call(Tuple)~ does not marshal kwargs arguments
+  or records with pointer/reference fields. Typed and heterogeneous variadic
+  calls and nested shared records/enums are
   supported; borrowed and callable enum payloads remain outside this boundary.
   The ~call_throwing(E)~ adapter supports the same nested error schemas,
   including multiple declared errors

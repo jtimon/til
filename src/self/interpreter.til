@@ -460,7 +460,7 @@ namespace:
         switch def.node_type {
         case .FuncDef(fd):
             matches = fd.sig.func_type.is_plain().and(def.children.len() > 0)
-                .and(fd.sig.variadic_index < 0).and(fd.sig.kwargs_index < 0)
+                .and(fd.sig.kwargs_index < 0)
                 .and(interp_callback_param_count(fd) <= 63)
             if signature.is(Type.None) {
                 matches = matches.and(fd.sig.params.len() == 0).and(fd.sig.return_type.len() == 0).and(fd.sig.throw_types.len() == 0)
@@ -472,7 +472,7 @@ namespace:
             ref path : Str = lp.ctx.eval.function_paths[word_bits(to_ptr(def)).cast(UPtr)]
             mut message := format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")
             if signature.is(Type.None).not() {
-                message = format("'", name, "' requires a fixed callback signature with at most 63 supported arguments")
+                message = format("'", name, "' requires a callback signature without kwargs and with at most 63 supported parameters")
             }
             err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col, message = message))
             throw err
@@ -6668,6 +6668,9 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
     for i in 0..out.params.len() {
         ref mut p : Declaration = out.params[i]
         mut name := interp_lookup_type(decl_type_name(p, ctx.symbols), ctx, true)
+        if i.to_i32() == sig.variadic_index && decl_type_name(p, ctx.symbols) == "Dynamic" {
+            name = "Dynamic"
+        }
         // The language inserts this core-owned slot for kwargs contracts.
         // Recognize it only at the signature's kwargs index, not as an
         // arbitrary record parameter or a supported native value argument.
@@ -6784,9 +6787,10 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
         }
     }
     for i in 0..expected.params.len() {
-        // Variadic/kwargs contracts are rejected by invocation/retained lookup;
-        // their compiler-created carriers are not user record arguments.
-        if i.to_i32() == expected.variadic_index || i.to_i32() == expected.kwargs_index { continue }
+        // A Dynamic tail validates each concrete Tuple element at invocation.
+        // Kwargs still have no supported callback marshalling contract.
+        if i.to_i32() == expected.kwargs_index { continue }
+        if i.to_i32() == expected.variadic_index && expected.params[i].type_name() == "Dynamic" { continue }
         if interp_callback_error_schema(expected.params[i].type_name(), lp.ctx).not() {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
                 declaration.path, declaration.line, declaration.col,
@@ -6947,6 +6951,56 @@ priv interp_callback_param_index := func(fd: FunctionDef, index: USize) returns 
     panic("callback source parameter index out of range")
 }
 
+// Map a flattened Tuple position to its formal parameter. Fixed parameters
+// after the variadic formal occupy the final Tuple positions.
+priv interp_callback_argument_param := func(sig: FuncSig, count: USize, index: USize) returns USize {
+    if sig.variadic_index < 0 { return index }
+    start := sig.variadic_index.to_usize()
+    tail_count := count - (sig.params.len() - 1)
+    if index < start { return index }
+    if index < start + tail_count { return start }
+    return index - tail_count + 1
+}
+
+priv interp_callback_param_argument := func(sig: FuncSig, count: USize, index: USize) returns USize {
+    if sig.variadic_index >= 0 {
+        if index > sig.variadic_index.to_usize() { return index - 1 + (count - (sig.params.len() - 1)) }
+    }
+    return index
+}
+
+priv interp_callback_pack_variadic := proc(elem: Str, arguments: Tuple, start: USize, count: USize, mut ctx: Context) returns Dynamic {
+    carrier := variadic_carrier_type_name(ctx.scope, elem, ctx.symbols)
+    carrier_type := type_from_name_init_name(carrier, ctx.scope, ctx.symbols)
+    mut storage : Dynamic = EvalHeap.heap_alloc(raw_type_size(carrier_type, ctx))
+    if elem == "Dynamic" {
+        mut packed := Tuple.new()
+        for i in start..start.add(count) {
+            name := arguments.type_at(i).clone()
+            copied : Dynamic = interp_callback_error_copy(name, arguments.get(i), ctx, true)
+            packed.push_type_name(own name, own copied)
+        }
+        adopt(Tuple, storage, own packed)
+        return storage
+    }
+    elem_type := type_from_name_init_name(elem, ctx.scope, ctx.symbols)
+    stride := interp_callback_native_size(elem_type, ctx)
+    mut data : Dynamic = 0
+    if count > 0 { data = calloc(count, stride) }
+    for i in 0..count {
+        copied : Dynamic = interp_callback_error_copy(elem, arguments.get(start + i), ctx, true)
+        memcpy(ptr_add(data, i.mul(stride)), copied, stride)
+        EvalHeap.heap_free(own copied)
+    }
+    memset(storage, 0, raw_type_size(carrier_type, ctx))
+    ref data_field : FieldLayout = ctx_field_layout(carrier, "data", ctx)
+    ref cap_field : FieldLayout = ctx_field_layout(carrier, "cap", ctx)
+    write_ptr(ptr_add(storage, data_field.offset), data)
+    if cap_field.size == 4 { write_u32(ptr_add(storage, cap_field.offset), count.to_u32()) }
+    else { write_u64(ptr_add(storage, cap_field.offset), count.to_u64()) }
+    return storage
+}
+
 // Internal call boundary using the existing typed Tuple storage. Host inputs
 // stay owned by arguments: the guest receives independent snapshots, transfers
 // those snapshots to own parameters, and writes borrowed mut snapshots back to the Tuple
@@ -6986,22 +7040,33 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     ref mut def : Expr = callable_raw_func_def(callable)
     ref fd : FunctionDef = funcdef_of(def)
     path := lp.ctx.eval.function_paths[word_bits(def).cast(UPtr)].clone()
-    if expected.variadic_index.gte(0).or(expected.kwargs_index.gte(0)) {
+    if expected.kwargs_index.gte(0) {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-            "guest invocation does not yet marshal variadic or kwargs contracts")
+            "guest invocation does not yet marshal kwargs contracts")
         return Option(Tuple).None
     }
-    if arguments.len() != expected.params.len() || expected.params.len() > 63 {
+    mut fixed_count := expected.params.len()
+    if expected.variadic_index >= 0 { fixed_count = fixed_count - 1 }
+    if arguments.len() < fixed_count || (expected.variadic_index < 0 && arguments.len() != fixed_count) || expected.params.len() > 63 {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-            format("guest argument count mismatch: callable expects ", expected.params.len().to_str(),
-                ", received ", arguments.len().to_str(), " (at most 63 supported)"))
+            format("guest argument count mismatch: callable expects ", fixed_count.to_str(),
+                " fixed arguments, received ", arguments.len().to_str(), " (at most 63 parameters supported)"))
         return Option(Tuple).None
     }
     // Validate all inputs before cloning, transferring ownership or running
     // any guest code. Dynamic's unchecked Tuple reinterpretation is not used.
     for i in 0..arguments.len() {
-        want := expected.params[i].type_name()
+        param_index := interp_callback_argument_param(expected, arguments.len(), i)
+        mut want := expected.params[param_index].type_name()
         got := arguments.type_at(i).clone()
+        if param_index.to_i32() == expected.variadic_index && want == "Dynamic" {
+            if got == "Dynamic" || interp_callback_error_schema(got, lp.ctx).not() {
+                context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+                    format("unsupported variadic element schema: ", got))
+                return Option(Tuple).None
+            }
+            want = got
+        }
         t := type_from_name_init_name(want, lp.ctx.scope, lp.ctx.symbols)
         if got != want || arguments.size_at(i) != interp_callback_native_size(t, lp.ctx) {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
@@ -7022,9 +7087,17 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     }
     call.set_til_type(ret_type)
     mut temps := scope_new(safe_ref(session_global(session)))
-    for i in 0..arguments.len() {
-        t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
-        copy : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), arguments.get(i), lp.ctx, true)
+    for i in 0..expected.params.len() {
+        mut name := expected.params[i].type_name()
+        mut copy : Dynamic = 0
+        if i.to_i32() == expected.variadic_index {
+            copy = interp_callback_pack_variadic(name, arguments, i, arguments.len() - fixed_count, lp.ctx)
+            name = variadic_carrier_type_name(lp.ctx.scope, name, lp.ctx.symbols)
+        } else {
+            input_index := interp_callback_param_argument(expected, arguments.len(), i)
+            copy = interp_callback_error_copy(name, arguments.get(input_index), lp.ctx, true)
+        }
+        t := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
         // Dots cannot occur in a source identifier, so these evaluator-only
         // argument slots cannot shadow a user global inside a static function.
         arg_name := format("TilVm.argument.", i.to_str())
@@ -7033,7 +7106,10 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     mut source_index : USize = 0
     for pi in 0..fd.sig.params.len() {
         ref param : Declaration = fd.sig.params[pi]
-        t := declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols)
+        mut t := declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols)
+        if pi.to_i32() == fd.sig.variadic_index {
+            t = type_from_name_init_name(variadic_carrier_type_name(lp.ctx.scope, decl_type_name(param, lp.ctx.symbols), lp.ctx.symbols), lp.ctx.scope, lp.ctx.symbols)
+        }
         mut arg_name := param.name.clone()
         if param.name.starts_with("_err_") {
             mut storage : Dynamic = EvalHeap.heap_alloc(raw_type_size(t, lp.ctx))
@@ -7086,15 +7162,17 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         heap_drop_by_type(ret_type, destination, lp.ctx)
         EvalHeap.heap_free(own destination)
     }
-    for i in 0..arguments.len() {
+    for i in 0..expected.params.len() {
+        if i.to_i32() == expected.variadic_index { continue }
         ref param : Declaration = fd.sig.params[interp_callback_param_index(fd, i)]
         if param.is_mut.and(param.own_type.is(OwnType.Ref)) {
             arg_name := format("TilVm.argument.", i.to_str())
             ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
             copied : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), source.ptr, lp.ctx)
-            ref mut slot : Dynamic = arguments.get(i)
-            dyn_call(arguments.type_at(i), "delete", 2, slot, false)
-            memcpy(slot, copied, arguments.size_at(i).to_uptr())
+            input_index := interp_callback_param_argument(expected, arguments.len(), i)
+            ref mut slot : Dynamic = arguments.get(input_index)
+            dyn_call(arguments.type_at(input_index), "delete", 2, slot, false)
+            memcpy(slot, copied, arguments.size_at(input_index).to_uptr())
             EvalHeap.heap_free(own copied)
         }
     }
@@ -8876,13 +8954,10 @@ priv interp_lookup_funcsig := proc(mut s: Scope, e: Expr, type_name: Str, who: S
     return node_o
 }
 
-// Throw lowering appends ABI-only `_err_kind` / payload parameters. Reflection
-// exposes the source callable contract, not that synthetic tail.
+// Throw lowering inserts ABI-only `_err_kind` / payload parameters before
+// trailing defaults. Reflection retains the source parameters on BOTH sides.
 priv interp_funcsig_param_count := func(fd: FunctionDef) returns USize {
-    for i in 0..fd.sig.params.len() {
-        if fd.sig.params[i].name == "_err_kind" { return i }
-    }
-    return fd.sig.params.len()
+    return interp_callback_param_count(fd)
 }
 
 priv h_func_sig_func_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
@@ -8916,7 +8991,7 @@ priv h_func_sig_param_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mu
         interp_reflect_index_out_of_range(e, "func_sig_param_type", type_name, idx, ctx)
         return true
     }
-    ref pd : Declaration = fd.sig.params[idx]
+    ref pd : Declaration = fd.sig.params[interp_callback_param_index(fd, idx)]
     str_copy_into(r, decl_type_name_ref(pd, ctx.symbols), ctx)
     return true
 }
@@ -8932,7 +9007,7 @@ priv h_func_sig_param_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic
         interp_reflect_index_out_of_range(e, "func_sig_param_own_type", type_name, idx, ctx)
         return true
     }
-    write_i64(r, own_type_to_i64(fd.sig.params[idx].own_type))
+    write_i64(r, own_type_to_i64(fd.sig.params[interp_callback_param_index(fd, idx)].own_type))
     return true
 }
 
@@ -8947,7 +9022,7 @@ priv h_func_sig_param_is_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
         interp_reflect_index_out_of_range(e, "func_sig_param_is_mut", type_name, idx, ctx)
         return true
     }
-    if fd.sig.params[idx].is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
+    if fd.sig.params[interp_callback_param_index(fd, idx)].is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 

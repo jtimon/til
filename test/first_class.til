@@ -1510,6 +1510,19 @@ ReflectContract58 := func(own taken: Str, borrowed: Str, mut changed: Str,
 ReflectRefReturn58 := func(value: FuncSigPayload58) returns ref FuncSigPayload58
 ReflectProc58 := proc(mut value: Str)
 
+ReflectVariadicDefaults := proc(mut prefix: Str, values: ..I64,
+    mut suffix: Str = "end") returns Str throws FuncSigError58
+
+test_reflect_variadic_defaults_after_error_slots := test() {
+    sig := func_sig_of("ReflectVariadicDefaults")
+    assert_eq(USize, sig.params.len(), 3)
+    assert_eq(I32, sig.variadic_index, 1)
+    assert_eq(Str, sig.params[2].type_name(), "Str")
+    assert(sig.params[2].is_mut)
+    assert(sig.params[2].own_type.is(OwnType.Ref))
+    assert(sig.params[1].own_type.is(OwnType.Own))
+}
+
 CompactFieldTag58 := enum { A, B }
 CompactFieldTail58 := struct { tag := CompactFieldTag58.A }
 CompactFieldLayout58 := struct {

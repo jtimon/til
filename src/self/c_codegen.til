@@ -9971,10 +9971,11 @@ priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
 // 9 = variadic_index, 10 = kwargs_index, 11 = return_own_type,
 // 12 = return_shallow_explicit.
 priv funcsig_reflect_param_count := func(fd: FunctionDef) returns USize {
-    for i in 0..fd.sig.params.len() {
-        if fd.sig.params[i].name == "_err_kind" { return i }
+    mut count : USize = 0
+    for param : Declaration in fd.sig.params {
+        if param.name.starts_with("_err_").not() { count = count + 1 }
     }
-    return fd.sig.params.len()
+    return count
 }
 
 priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
@@ -10009,22 +10010,28 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
             if fd.sig.return_shallow_explicit { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind == 1 {
             emit_reflect_found_mark(f)
-            for i in 0..funcsig_reflect_param_count(fd) {
+            mut i : USize = 0
+            for param : Declaration in fd.sig.params {
+                if param.name.starts_with("_err_") { continue }
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
-                emit_str_lit_expr(f, decl_type_name_ref(fd.sig.params[i], ctx.symbols), ctx)
+                emit_str_lit_expr(f, decl_type_name_ref(param, ctx.symbols), ctx)
                 f.write(";\n")
+                i = i + 1
             }
         } else if kind.eq(7).or(kind.eq(8)) {
             emit_reflect_found_mark(f)
-            for i in 0..funcsig_reflect_param_count(fd) {
+            mut i : USize = 0
+            for param : Declaration in fd.sig.params {
+                if param.name.starts_with("_err_") { continue }
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind == 7 {
-                    f.write(own_type_to_i64(fd.sig.params[i].own_type).to_str()).write("LL;\n")
-                } else if fd.sig.params[i].is_mut {
+                    f.write(own_type_to_i64(param.own_type).to_str()).write("LL;\n")
+                } else if param.is_mut {
                     f.write("1LL;\n")
                 } else {
                     f.write("0LL;\n")
                 }
+                i = i + 1
             }
         } else if kind == 3 {
             emit_reflect_found_mark(f)

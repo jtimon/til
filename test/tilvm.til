@@ -261,7 +261,7 @@ checked_lookup := proc(root: Str) {
     rejected_type := interp_session_call_function(session, program, "binary", binary, wrong_type)
     assert(rejected_type.is_none() && program.ctx.eval.eval_aborted.not())
     assert(program.ctx.diagnostics[0].message.contains("type/width mismatch"))
-    unsupported := interp_session_call_function(session, program, "variadic", lookup_contract(HostVariadic), no_arguments)
+    unsupported := interp_session_call_function(session, program, "keywords", lookup_contract(HostKeywords), no_arguments)
     assert(unsupported.is_none() && program.ctx.eval.eval_aborted.not())
     assert(program.ctx.diagnostics[0].message.contains("does not yet marshal"))
 
@@ -434,13 +434,13 @@ callback_tests := proc(root: Str) {
     check.call()!
 }
 
-expect_call_failure := proc(mut callback: TilVmCallback, mut arguments: Tuple, detail: Str) returns TilVmError {
+expect_call_failure := proc(mut callback: TilVmCallback, mut arguments: Tuple, detail: Str, path: Str = "lookup_guest.til") returns TilVmError {
     result := callback.call(arguments)?
     catch (err: TilVmError) {
         assert(err.phase == "call")
         expect(err.to_str().contains(detail), err.to_str())
         assert(err.diagnostics.len() > 0)
-        expect(err.diagnostics[0].path.ends_with("lookup_guest.til"), err.to_str())
+        expect(err.diagnostics[0].path.ends_with(path), err.to_str())
         assert(err.diagnostics[0].line > 0)
         return err
     }
@@ -468,8 +468,11 @@ typed_callback_tests := proc(root: Str) {
     expect_lookup_failure(vm, "owned", "signature mismatch", signature = HostText)
     expect_lookup_failure(vm, "changed", "signature mismatch", signature = HostRead)
     expect_lookup_failure(vm, "borrowed", "signature mismatch", signature = HostText)
-    expect_lookup_failure(vm, "variadic", "fixed callback signature", signature = HostVariadic)
-    expect_lookup_failure(vm, "keywords", "fixed callback signature", signature = HostKeywords)
+    mut variadic := vm.lookup("variadic", HostVariadic)!
+    empty_tail := variadic.call()!
+    ref empty_count : I64 = empty_tail.get(0)
+    assert(empty_count == 0)
+    expect_lookup_failure(vm, "keywords", "without kwargs", signature = HostKeywords)
     mut throwing := vm.lookup("throwing", HostThrowing)!
     mut throw_args := Tuple.new()
     throw_args.push(I64, own -1)
@@ -1139,7 +1142,139 @@ nested_callback_tests := proc(root: Str) {
     }
 }
 
+VariadicSum := func(I64, values: ..I64) returns I64
+VariadicJoin := proc(mut Str, parts: ..Str, mut suffix: Str = "!") returns Str throws TransformError
+VariadicInner := struct { text := ""; state := CallbackState.Idle }
+VariadicOuter := struct { inner := VariadicInner() }
+VariadicRecords := func(values: ..VariadicOuter) returns VariadicOuter
+VariadicStates := func(values: ..CallbackState) returns I64
+VariadicDynamic := proc(values: ..Dynamic) returns Str
+
+variadic_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\n",
+        "VariadicInner := struct { text := \"\"; state := CallbackState.Idle }\nVariadicOuter := struct { inner := VariadicInner() }\n",
+        "mut calls := 0\nread_calls := proc() returns I64 { noop_proc(); return calls }\n",
+        "sum := func(base: I64, values: ..I64) returns I64 { mut total := base; for value: I64 in values { total = total + value }; return total }\n",
+        "join_values := proc(mut prefix: Str, parts: ..Str, mut suffix: Str = \"!\") returns Str throws TransformError {\n",
+        "noop_proc(); calls = calls + 1; prefix = format(prefix, \"+\"); action := suffix.clone(); suffix = format(suffix, \"?\"); mut out := prefix.clone(); for part: Str in parts { out = format(out, part) };\n",
+        "if action == \"error\" { throw TransformError(code = 17, message = out.clone()) }; if action == \"panic\" { panic(\"variadic panic\") }; if action == \"exit\" { exit(0) }; return format(out, suffix) }\n",
+        "records := func(values: ..VariadicOuter) returns VariadicOuter { if values.len() == 0 { return VariadicOuter() }; return values[0].clone() }\n",
+        "states := func(values: ..CallbackState) returns I64 { mut total: I64 = 0; for value: CallbackState in values { if value == CallbackState.Busy { total = total + 1 } }; return total }\n",
+        "dynamic := proc(values: ..Dynamic) returns Str { noop_proc(); calls = calls + 1; if values.len() == 0 { return \"empty\" }; ref n: I64 = values.get(0); ref text: Str = values.get(1); ref record: VariadicOuter = values.get(2); ref state: CallbackState = values.get(3); assert(state == CallbackState.Busy); return format(n.to_str(), text, record.inner.text) }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut sum := vm.lookup("sum", VariadicSum)!
+    mut numbers := Tuple.new()
+    numbers.push(I64, own 3)
+    zero := sum.call(numbers)!
+    ref zero_value : I64 = zero.get(0)
+    assert(zero_value == 3)
+    for i in 0..70 { numbers.push(I64, own i.clone()) }
+    total := sum.call(numbers)!
+    ref total_value : I64 = total.get(0)
+    assert(total_value == 2418)
+    mut missing := Tuple.new()
+    missing_error := expect_call_failure(sum, missing, "count mismatch", path = "guest.til")
+    assert(missing_error.exit_status.is_none())
+    mut join := vm.lookup("join_values", VariadicJoin)?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut wrong := Tuple.new()
+    wrong.push(Str, own format("pre", "fix"))
+    wrong.push(I64, own 9)
+    wrong.push(Str, own "!")
+    mut rejected := false
+    call_throwing(VariadicJoin)(join, wrong)?
+    catch (error: TransformError) { panic("bad tail executed the guest") }
+    catch (error: TilVmError) { rejected = error.to_str().contains("type/width mismatch") }
+    assert(rejected)
+    mut reader := vm.lookup("read_calls", HostTick)!
+    before := reader.call()!
+    ref count : I64 = before.get(0)
+    assert(count == 0)
+    mut saved_error := TransformError()
+    mut saved := Tuple.new()
+    for suffix: Str in array(Str, "!", "error", "panic", "exit") {
+        mut args := Tuple.new()
+        args.push(Str, own format("pre", "fix"))
+        args.push(Str, own format("tail", "1"))
+        args.push(Str, own format("tail", "2"))
+        args.push(Str, own suffix.clone())
+        mut caught := false
+        result := call_throwing(VariadicJoin)(join, args)?
+        catch (error: TransformError) { assert(suffix == "error"); saved_error = error; caught = true }
+        catch (error: TilVmError) {
+            assert(suffix == "panic" || suffix == "exit")
+            if suffix == "panic" { assert(error.to_str().contains("variadic panic")) }
+            if suffix == "exit" { assert(error.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if suffix == "!" { saved = result } else { assert(caught) }
+        ref prefix: Str = args.get(0)
+        ref tail: Str = args.get(1)
+        ref ending: Str = args.get(3)
+        assert(prefix == "prefix+" && tail == "tail1")
+        assert(ending == format(suffix, "?"))
+    }
+    mut no_tail := Tuple.new()
+    no_tail.push(Str, own "prefix")
+    no_tail.push(Str, own "!")
+    recovered := call_throwing(VariadicJoin)(join, no_tail)!
+    mut records := vm.lookup("records", VariadicRecords)!
+    mut record_args := Tuple.new()
+    record_args.push(VariadicOuter, own VariadicOuter(inner = VariadicInner(text = format("nested ", "tail"))))
+    record_result := records.call(record_args)!
+    mut states := vm.lookup("states", VariadicStates)!
+    mut state_args := Tuple.new()
+    state_args.push(CallbackState, own CallbackState.Idle)
+    state_args.push(CallbackState, own CallbackState.Busy)
+    state_args.push(CallbackState, own CallbackState.Idle)
+    state_result := states.call(state_args)!
+    ref state_count: I64 = state_result.get(0)
+    assert(state_count == 1)
+    mut dynamic := vm.lookup("dynamic", VariadicDynamic)!
+    empty_dynamic := dynamic.call()!
+    ref empty_text: Str = empty_dynamic.get(0)
+    assert(empty_text == "empty")
+    mut mixed := Tuple.new()
+    mixed.push(I64, own 7)
+    mixed.push(Str, own " mixed ")
+    mixed.push(VariadicOuter, own VariadicOuter(inner = VariadicInner(text = format("nested ", "dynamic"))))
+    mixed.push(CallbackState, own CallbackState.Busy)
+    mixed_result := dynamic.call(mixed)!
+    before_bad := reader.call()!
+    mut raw_tail := Tuple.new()
+    raw_tail.push(Dynamic, own 0)
+    raw_error := expect_call_failure(dynamic, raw_tail, "unsupported variadic element schema", path = "guest.til")
+    assert(raw_error.exit_status.is_none())
+    mut unknown_tail := Tuple.new()
+    unknown_tail.push(HostRecord, own HostRecord(value = 123))
+    unknown_error := expect_call_failure(dynamic, unknown_tail, "unsupported variadic element schema", path = "guest.til")
+    assert(unknown_error.exit_status.is_none())
+    after_bad := reader.call()!
+    ref before_count: I64 = before_bad.get(0)
+    ref after_count: I64 = after_bad.get(0)
+    assert(before_count == after_count)
+    own dynamic.delete()
+    own states.delete()
+    own records.delete()
+    own reader.delete()
+    own join.delete()
+    own sum.delete()
+    own vm.delete()
+    ref text: Str = saved.get(0)
+    ref again: Str = recovered.get(0)
+    ref record: VariadicOuter = record_result.get(0)
+    ref dynamic_text: Str = mixed_result.get(0)
+    assert(text == "prefix+tail1tail2!?" && again == "prefix+!?")
+    assert(saved_error.code == 17 && saved_error.message == "prefix+tail1tail2")
+    assert(record.inner.text == "nested tail" && dynamic_text == "7 mixed nested dynamic")
+}
+
 main := proc(root: Str) returns I64 {
+    variadic_callback_tests(root)
     nested_callback_tests(root)
     enum_callback_tests(root)
     record_callback_tests(root)
