@@ -62,6 +62,14 @@ explicitly rather than acquire silent substitutes.
   copied conformance suite or second test registry. The ordinary test suite
   checks runtime-related translation without requiring an assembler.
 
+  FASM's aggregate follow-up emits reachable core/std method bodies instead of
+  growing assembly copies of Array/Vec and File semantics. Target layout comes
+  from the shared target query; the host interpreter layout cache is not native
+  layout. test/aggregate_control.til is a shared interpreter/C/FASM regression,
+  alongside unchanged imported-call and bang-panic sources. A ref-rebinding
+  discrepancy between the interpreter and C is documented in #453 and tested
+  separately against C rather than hidden by different source fixtures.
+
   The TempleOS backend now uses ~src/holyc/ext.HC~ as its native boundary and
   documents the concrete ABI in #151. Its generated source includes the fixed
   guest path ~/Home/Ext.HC~; the runtime source remains separate support

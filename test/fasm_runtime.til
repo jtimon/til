@@ -76,6 +76,9 @@ main := proc(compiler_arg: Str) {
     check(compiler, work, "proc", "mode cli\nimport(\"std/file\")\nmain := proc() { ref h : Dynamic = cfile_open(\"/proc/version\",false); s := cfile_read_all(h); print_single(s); cfile_close(h) }\n", File.readfile("/proc/version"))
     failure(compiler, work, "missing", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"not-created\"); ref h : Dynamic = cfile_open(path,false); cfile_close(h) }\n")
     failure(compiler, work, "full", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"/dev/full\"); ref h : Dynamic = cfile_open(path,true); cfile_write_str(h,\"not lost silently\"); cfile_close(h) }\n")
+    mkdir_p(format(work, "/directory"))
+    failure(compiler, work, "remove_directory", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"directory\"); File.remove(path) }\n")
+    expect(File.is_dir(format(work, "/directory")), "File.remove removed a directory")
     // realloc's old block survives failure. Check this at the native ABI:
     // til's `own old` transfer deliberately prevents subsequent source uses.
     root := compiler.substr(0, compiler.rfind("/bin/").to_usize())

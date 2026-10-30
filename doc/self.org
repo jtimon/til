@@ -346,9 +346,9 @@
 
   ~--backend=fasm~ selects native assembly for ~translate~, ~build~ and ~run~
   on Linux x86-64 hosts and targets. The subset accepts ~mode script~ and
-  ~mode cli~ with a no-argument, void ~main~, ordinary non-throwing functions,
-  up to six scalar or borrowed Str parameters (including mut/ref scalar
-  parameters), value locals, local assignments, calls, returns, if/else and
+  ~mode cli~ with a no-argument, void ~main~, ordinary functions with supported
+  lowered bodies, up to six runtime arguments (including lowered error slots),
+  scalar/struct parameters, value locals, local assignments, calls, returns, if/else and
   while loops. Range for loops use the shared frontend lowering; nested
   break/continue and lexical blocks preserve their normal control flow.
   Bool and/or, including &&/|| and their n-ary forms, short-circuit.
@@ -395,6 +395,36 @@
   contents into value slots and frees only the wrapper. Borrowed references
   retain pointer identity; cleanup calls distinguish buffers from wrappers.
 
+  User structs, nested inline/own/ref fields, arrays of supported values,
+  aggregate returns and reassignment use the prepared declarations and
+  ownership decisions. Field offsets and sizes come from the shared
+  target-size/alignment query, NOT ctx.struct_layouts: that cache describes
+  host interpreter storage and can differ from the generated program's USize.
+  No second persistent layout cache is introduced.
+
+  The internal aggregate calling convention passes addresses in the integer
+  registers. Shallow value parameters get independent outer slots; borrowed
+  and mut parameters preserve their addresses. Owned aggregate returns use
+  allocated wrappers in RAX, while ref returns retain the borrowed address.
+  Callers move values into stack slots or retain heap boxes according to
+  GcStorage, releasing only the wrappers they own. This is an internal til
+  convention, not a public C aggregate ABI.
+
+  The emitter indexes canonical imported AST definitions and emits reachable
+  methods, including generated and user-defined clone/delete functions.
+  Array/Vec operations and File wrappers backed by the implemented cfile_*
+  primitives therefore use the existing core/std bodies. Shared lowered
+  bounds-error paths, catches and bang panics carry their existing error slots.
+  save_old_delete, move and swap_replace decisions retain their frontend
+  meanings: evaluate the new value before destroying the old, consume moved
+  storage, and run custom cleanup once. Discarded owned results are destroyed.
+
+  PrecomputedSequence values become read-only templates in the existing
+  assembly output. The ordinary til clone method creates each runtime value,
+  so nested owned buffers are not shared with the template. Imported module
+  initializer statements execute before main; persistent runtime globals are
+  still rejected rather than placed in an initializer's temporary frame.
+
   Implemented services:
 
   - Counted-byte stdout/stderr writes, including embedded NULs; print_flush
@@ -418,11 +448,13 @@
     primitives follow ext.c. Handles encode fd+1, reserving zero for closed.
     read_n clamps negative counts and handles EOF; read_all attempts rewind,
     then grows to EOF, including streams and /proc files with no useful size.
+    Removal follows ext.c's unlink contract: a missing path is harmless, but
+    directories and other failures are errors.
 
-  This is not general aggregate/container or File-wrapper lowering. User
-  arrays, aggregate reassignment/returns, indirect calls and general
-  throws remain unsupported. Variadic Array(Str).set is accepted only for the
-  compiler's construction sequence with its known in-range indices.
+  Payload enums, interfaces, indirect calls/closures, floating-point operations,
+  unsupported external runtime services and mode test remain outside this
+  subset. Array methods are no longer restricted to compiler-generated
+  variadic collectors.
 
 *** Verification
 
@@ -437,6 +469,18 @@
   after a failed rebuild. It requires the bootstrapped executable and runs
   separately. ~test/install.til~ exercises an installed FASM when bootstrapped,
   from an external working directory with read-only assembler/runtime files.
+
+  The shared ~test/aggregate_control.til~ corpus runs through interpretation,
+  C and FASM at both USize widths. It exercises nested and owned fields,
+  custom clone/delete, returned borrows, reassignment, mut-parameter replacement,
+  discarded results, precomputed arrays, checked indexing and ordinary File
+  wrappers. The existing imported-call and bang-panic fixtures run unchanged.
+  Aggregate translation also runs in the assembler-free options test.
+
+  An existing interpreter discrepancy remains for local ref-to-ref rebinding:
+  it copies through the left reference where C rebinds it. FASM follows C,
+  with a separate C/FASM regression for that case rather than pretending the
+  interpreter agrees. Mutation through a returned borrow is in the shared corpus.
 
   ~test/fasm_runtime.til~ compares identical runtime programs through the
   interpreter, C and FASM at USize32 and USize64. It reuses the existing

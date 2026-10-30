@@ -11207,7 +11207,7 @@ priv vec_instance_elem_type_name := func(container_name: Str) returns Str {
 // which describes live HOST interpreter buffers. These word-fit queries do
 // not cache another layout. Pointer fields stop recursion; inline recursive
 // types are rejected during initialization.
-priv target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
+target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
     ref name : Str = resolve_type_alias(scope, type_name, ctx.symbols)
     word := unsigned_prim_width_for_name(ctx.target_uptr_pname)
     if name == "Dynamic" { sz = word; al = word; return }

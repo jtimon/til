@@ -439,8 +439,12 @@ enum {
 };
 typedef struct Option__Str Option__Str;
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding Vec__priv___src_self_mlir_codegen_til__MlirBinding;
+typedef struct priv___src_self_fasm_codegen_til__FasmDefinition priv___src_self_fasm_codegen_til__FasmDefinition;
+typedef struct priv___src_self_fasm_codegen_til__FasmProgram priv___src_self_fasm_codegen_til__FasmProgram;
 typedef struct priv___src_self_fasm_codegen_til__FasmState priv___src_self_fasm_codegen_til__FasmState;
+typedef struct Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition;
 typedef struct Map__Str_Type Map__Str_Type;
+typedef struct Vec__priv___src_self_fasm_codegen_til__FasmDefinition Vec__priv___src_self_fasm_codegen_til__FasmDefinition;
 typedef struct Vec__Type Vec__Type;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
@@ -1563,6 +1567,20 @@ typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
 } Vec__priv___src_self_mlir_codegen_til__MlirBinding;
 
 
+typedef struct priv___src_self_fasm_codegen_til__FasmDefinition {
+    Str path;
+    USize declaration;
+    I64 member;
+} priv___src_self_fasm_codegen_til__FasmDefinition;
+
+
+typedef struct Vec__priv___src_self_fasm_codegen_til__FasmDefinition {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_fasm_codegen_til__FasmDefinition;
+
+
 typedef struct Vec__Type {
     U8 *data;
     USize count;
@@ -2261,6 +2279,12 @@ typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding {
 } Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
 
 
+typedef struct Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition {
+    Vec__Str keys;
+    Vec__priv___src_self_fasm_codegen_til__FasmDefinition values;
+} Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition;
+
+
 typedef struct Map__Str_Type {
     Vec__Str keys;
     Vec__Type values;
@@ -2582,15 +2606,29 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
 } priv___src_self_mlir_codegen_til__MlirState;
 
 
+typedef struct priv___src_self_fasm_codegen_til__FasmProgram {
+    Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition definitions;
+    Map__Str_Str labels;
+    Vec__Str pending;
+    Set__Str source_names;
+} priv___src_self_fasm_codegen_til__FasmProgram;
+
+
 typedef struct priv___src_self_fasm_codegen_til__FasmState {
+    priv___src_self_fasm_codegen_til__FasmProgram *program;
     Str text;
     USize slots;
     USize labels;
     Map__Str_Str values;
     Map__Str_Type value_types;
-    Map__Str_Str functions;
     Set__Str addresses;
     Set__Str pointers;
+    Set__Str boxes;
+    Set__Str no_free;
+    Set__Str references;
+    Set__Str parameters;
+    Type return_type;
+    Bool return_ref;
     Str data;
     Str prefix;
     USize literals;

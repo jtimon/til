@@ -6,13 +6,13 @@ realpath_str := ext_proc(path: Str) returns Str {}
 
 // Optional native integration: bootstrap vendor/fasm/fasm first, then:
 // bin/til run test/fasm_native.til bin/til
-check_shared := proc(compiler: Str, work: Str, source: Str) {
+check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 = 0) {
     input := realpath_str(source)
     for width in array(Str, "32", "64") {
         interpreted := Cmd.new("timeout", "30s", compiler, "interpret", format("--usize=", width), input)
         interpreted.cwd(work).capture()
         interpreted_status := interpreted.run()
-        expect(interpreted_status == 0, source, width, interpreted.out(), interpreted.err())
+        expect(interpreted_status == expected_exit, source, width, interpreted.out(), interpreted.err())
         for backend in array(Str, "c", "fasm") {
             output := format("bin/shared-", backend, "-", width)
             build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", output, input)
@@ -22,7 +22,7 @@ check_shared := proc(compiler: Str, work: Str, source: Str) {
             run := Cmd.new("timeout", "30s", format("./", output))
             run.cwd(work).capture()
             result := run.run()
-            expect(result == 0, source, backend, width, result, run.out(), run.err())
+            expect(result == expected_exit, source, backend, width, result, run.out(), run.err())
             expect(run.out() == interpreted.out(), source, backend, width, "stdout mismatch", run.out())
             expect(run.err() == interpreted.err(), source, backend, width, "stderr mismatch", run.err())
         }
@@ -62,10 +62,33 @@ check_rebuild := proc(compiler: Str, work: Str) {
     survivor.run_checked()
 }
 
+check_reference_rebinding := proc(compiler: Str, work: Str) {
+    // Existing interpreter gap: ref-to-ref assignment currently copies
+    // through the left reference there. Check the established C lowering
+    // against FASM separately; the shared aggregate corpus tests mutation
+    // through a returned borrow without relying on that disagreement.
+    File.writefile(format(work, "/rebind.til"), "mode cli\nP := struct { n: I64 = 0; s: Str = \"\" }\nborrow := func(p: P) returns ref P { return p }\nmain := proc() { mut a := P(n=1,s=\"one\"); mut b := P(s=\"two\"); b.n = 2; ref mut alias : P = borrow(a); ref rhs : P = borrow(b); alias = rhs; alias.n = 9; println(a.n.to_str(),\":\",b.n.to_str(),\":\",a.s,\":\",b.s) }\n")
+    for width in array(Str, "32", "64") {
+        for backend in array(Str, "c", "fasm") {
+            artifact := format("bin/rebind-", backend, "-", width)
+            build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", artifact, "rebind.til")
+            build.cwd(work).capture()
+            status := build.run()
+            expect(status == 0, build.out(), build.err())
+            run := Cmd.new(format("./", artifact))
+            run.cwd(work).capture()
+            result := run.run()
+            expect(result == 0, backend, run.out(), run.err())
+            expect(run.out() == "1:9:one:two\n", backend, "reference rebinding mismatch", run.out())
+        }
+    }
+}
+
 main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/fasm_native"
     mkdir_p(work)
+    mkdir_p(format(work, "/tmp"))
     // Mutable input prevents compile-time evaluation of the arithmetic/calls.
     File.writefile(format(work, "/main.til"), "mode cli\ncalc := func(a: I64, b: I64) returns I64 { return (a + b) * (a - b) }\nchoose := func(a: I64, b: I64) returns I64 { if a < b { return calc(a,b) } else { return calc(b,a) } }\nmain := proc() { mut x : I64 = 8; x = x + 1; exit(choose(x,5) + choose(2,x-1)) }\n")
     // Independent execution paths must agree on the actual process result.
@@ -105,9 +128,12 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
-    for source in array(Str, "test/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til") {
+    for source in array(Str, "test/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til") {
         check_shared(compiler, work, source)
     }
+    check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)
+    check_shared(compiler, work, "test/script_bang_store_panic_msg.til", 1)
+    check_reference_rebinding(compiler, work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

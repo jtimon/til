@@ -777,15 +777,16 @@ rt_cfile_remove:
     mov rdi, rax
     mov eax, 87
     syscall
-    cmp rax, -21
-    jne .done
-    mov rdi, [rbp-8]
-    mov eax, 84
-    syscall
-.done:
-    ; ext.c's remove wrapper deliberately ignores remove's result.
+    mov [rbp-16], rax
     mov rdi, [rbp-8]
     call rt_free
+    ; Match ext.c's unlink contract: only ENOENT is an expected miss.
+    mov rax, [rbp-16]
+    cmp rax, -2
+    je .done
+    test rax, rax
+    js rt_file_fail
+.done:
     leave
     ret
 rt_cfile_read_n:

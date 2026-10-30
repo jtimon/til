@@ -1,0 +1,137 @@
+mode script
+import("std/file")
+
+Record := struct { mark: U8 = 0; number: I64 = 0; text: Str = "" }
+Plain := struct { number: I64 = 0 }
+Envelope := struct { prefix: U8 = 0; record: Record = Record(); tail: USize = 0 }
+Owned := struct {
+    own record: Record = Record()
+namespace:
+    clone := func(self: Owned) returns Owned { return Owned(record=self.record.clone()) }
+}
+Counts := struct { drops: I64 = 0 }
+Tracked := struct {
+    ref counts: Counts
+    active := false
+    text := ""
+namespace:
+    clone := func(self: Tracked) returns Tracked {
+        return Tracked(counts=self.counts, active=self.active, text=self.text.clone())
+    }
+    delete := func(own self: Tracked, call_free: Bool = true) {
+        // Array.new zeroes unused slots: only initialized resources count.
+        if self.active { self.counts.drops++ }
+        Str.delete(own self.text, false)
+        if call_free { free(own self) }
+    }
+}
+make_record := func(n: I64, text: Str) returns Record {
+    return Record(mark=3, number=n, text=text.clone())
+}
+make_plain := proc(n: I64) returns Plain { println("plain"); return Plain(number=n) }
+replace := func(mut value: Record, n: I64, text: Str) {
+    value = make_record(n, text)
+}
+borrow := func(value: Record) returns ref Record { return value }
+consume := func(own value: Tracked) { assert(value.text.len() > 0) }
+make_tracked := func(counts: Counts, text: Str) returns Tracked {
+    return Tracked(counts=counts, active=true, text=text.clone())
+}
+replace_tracked := func(mut value: Tracked, text: Str) {
+    value = make_tracked(value.counts, text)
+}
+constants := func() returns Array(Record) {
+    return array(Record, Record(number=1, text="constant"), Record(number=2, text="second"))
+}
+show_constants := proc(values: Array(Record)) { println(values[0].text) }
+check_bounds := proc(values: Array(Record), index: USize) {
+    ref value : Record = values.get(index)?
+    catch (e: OutOfBounds) { println("bounds"); return }
+    println(value.text)
+}
+track_lifetimes := func(mut counts: Counts, source: Str) {
+    mut tracked := Tracked(counts=counts, active=true, text=source.clone())
+    tracked_copy := tracked.clone()
+    tracked = Tracked(counts=counts, active=true, text="again")
+    assert(counts.drops == 1)
+    consume(own tracked_copy)
+    assert(counts.drops == 2)
+    replace_tracked(tracked, "again")
+    assert(counts.drops == 3)
+    mut tracked_array := Array(Tracked).new(2)
+    tracked_array[0] = tracked.clone()
+    tracked_array[1] = tracked.clone()
+    tracked_array[0] = tracked.clone()
+    expect(counts.drops == 4, "drops after array replacement: ", counts.drops.to_str())
+    // Keep both owners live through that observation: cleanup is last-use.
+    assert(tracked.active)
+    assert(tracked_array[0].active)
+}
+
+mut seed : I64 = 6
+seed++
+make_plain(seed)
+mut source := Str.with_capacity(16)
+source.push_str("alpha")
+mut first := make_record(seed, source)
+copy := first.clone()
+first.text = first.text.substr(0, 2).clone()
+assert(copy.text.eq("alpha"))
+assert(first.text.eq("al"))
+replace(first, seed + 1, "beta")
+assert(first.number == 8)
+assert(first.text.eq("beta"))
+mut other := make_record(seed, "reference")
+mut ref_owner := make_record(seed, "old reference")
+ref mut alias : Record = borrow(ref_owner)
+alias.number = 99
+assert(ref_owner.number == 99)
+assert(other.number == seed)
+other.text = "changed elsewhere"
+assert(ref_owner.text.eq("old reference"))
+assert(first.number == 8)
+mut nested := Envelope(prefix=9, record=first.clone(), tail=17)
+nested.record.number = nested.record.number + 10
+assert(nested.record.number == 18)
+assert(first.number == 8)
+assert(nested.prefix == 9)
+assert(nested.tail == 17)
+assert(Record.size() == Str.size() + 16)
+mut boxed := Owned(record=make_record(seed, "owned"))
+boxed_copy := boxed.clone()
+boxed.record.text = "replacement"
+assert(boxed.record.text.eq("replacement"))
+assert(boxed_copy.record.text.eq("owned"))
+boxed = Owned(record=make_record(seed + 1, "new box"))
+assert(boxed.record.number == 8)
+
+mut records := Array(Record).new(2)
+records[0] = copy.clone()
+records[1] = nested.record.clone()
+records_copy := records.clone()
+ref mut changed_record : Record = records[0]
+changed_record.text = "array replacement"
+assert(records_copy[0].text.eq("alpha"))
+mut sum := 0
+for value in records_copy { sum = sum + value.number }
+assert(sum == 25)
+check_bounds(records_copy, records_copy.len())
+mut folded := constants()
+original := constants()
+ref mut changed_constant : Record = folded[0]
+changed_constant.text = "changed"
+show_constants(original)
+
+mut counts := Counts()
+track_lifetimes(counts, source)
+expect(counts.drops == 7, "drops after scope: ", counts.drops.to_str())
+make_tracked(counts, source)
+expect(counts.drops == 8, "discarded aggregate was not destroyed: ", counts.drops.to_str())
+
+File.writefile("tmp/aggregate_control_file", source)
+File.appendfile("tmp/aggregate_control_file", "!")
+contents := File.readfile("tmp/aggregate_control_file")
+assert(contents.eq("alpha!"))
+File.remove("tmp/aggregate_control_file")
+assert(File.exists("tmp/aggregate_control_file").not())
+println("aggregate control passed")

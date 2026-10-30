@@ -76,8 +76,8 @@ existing C and MLIR backends.
 
   The emitter now also accepts script bodies, integer widths needed by the
   runtime ABI, typed scalar pointer locals and borrowed Str parameters.
-  General aggregates, user arrays, aggregate returns/reassignment,
-  indirect calls and general exception propagation are still outstanding.
+  At that stage general aggregates, user arrays, aggregate returns/reassignment,
+  indirect calls and general exception propagation were still outstanding.
 
   ~test/fasm_runtime.til~ compares identical source programs through the
   interpreter, C and FASM at both USize widths, reusing the existing hello
@@ -125,6 +125,46 @@ existing C and MLIR backends.
   486/486, including the installed-compiler probe and the shared scalar test.
   ~test/fasm_native.til~ and ~test/fasm_runtime.til~ also passed with the ASAN
   compiler/test driver; native comparisons exercised both USize widths.
+
+**** Aggregate and ownership follow-up
+
+  The emitter now lowers ordinary structs and nested inline/own/ref fields,
+  aggregate parameters/returns, heap and stack outer storage, assignments and
+  custom cleanup. It indexes the canonical imported definitions and emits
+  reachable core/std methods, including Array/Vec clone/delete/indexing and
+  the ordinary File wrappers. Imported initializer statements are emitted too;
+  persistent runtime globals still fail explicitly.
+
+  Layout uses the shared target_value_size_align query. ctx.struct_layouts is
+  host-interpreter layout (e.g. a USize32 compiler's Str is 16 bytes even when
+  the target's Str is 24), so using that cache in native code corrupts nested
+  fields. FASM now derives target offsets without a second persistent cache.
+
+  Aggregate values have an internal address/boxed-return ABI; shallow, ref,
+  own and GcStorage decisions follow the shared lowering. save_old_delete and
+  swap_replace preserve evaluation/cleanup order, and discarded results release
+  their owned wrappers. Precomputed sequences are immutable assembly templates
+  cloned through the actual til methods, not a second implementation of array
+  ownership semantics. Lowered bounds catches and bang panics now run normally.
+
+  test/aggregate_control.til is shared by the ordinary interpreter/C suite and
+  the FASM native driver at both USize widths. It checks layout, owned nested
+  fields, clone independence, custom destructor counts, mut-parameter
+  replacement, discarded values, returned borrows, arrays and File wrappers.
+  Existing imported-call and bang-panic sources are reused unchanged. Removal
+  now follows ext.c's current unlink/ENOENT contract, including directory errors.
+
+  The tests exposed a pre-existing interpreter/C discrepancy for ref-to-ref
+  rebinding: the interpreter copies through the left reference, while C rebinds
+  it. FASM follows C, and the native driver records that comparison separately;
+  the shared corpus covers mutation through returned borrows. Enums, interfaces,
+  indirect calls and broader runtime/test-mode coverage remain unfinished.
+
+  Verification on master base ~1ec7e4ba0~: ~make clean && make test~ passed
+  495/495. Both FASM native drivers passed with the ASAN compiler/test driver,
+  exercising the shared sources at USize32 and USize64, including bounds
+  failures and custom destructor counts. Native emitted code is not ASAN
+  instrumented; the compiler, driver and ordinary C suite are.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
