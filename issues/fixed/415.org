@@ -378,10 +378,7 @@ throwing callee in ~h.f = f(own h.f)~ leaves the field moved on the
 error path). Rejection is a local check (gc_reject_field_moves, at each
 function and program root): an ~own~ argument bit on a field whose type's
 delete does something is an error, unless the field belongs to a
-parameter of a namespace ~delete~ or a compiler-generated member, or the
-call is the field's own destructor keeping its storage (~own
-s.f.delete(false)~ before the raw memset of interp_session_free and
-scope_free -- destruction in place, like ~free(own self.data)~). A
+parameter of a namespace ~delete~ or a compiler-generated member. A
 consuming constructor or enum variant field is an ~own~ parameter the
 source need not spell, so ~H(name = a.name)~ and ~Option(Str).Some(a.name)~
 are the same error, worded for the constructor. An ~own~ field is no
@@ -394,3 +391,19 @@ interpreter's inline-field box move are gone. Regressions:
 ~own415_field_clone_or_swap~ and ~own415_field_swap_counted~
 (test/ownership_shapes.til); test/field_transfer_error.til for the six
 rejected shapes.
+
+2026-10-30, follow-ups. The keep-storage exemption (~own s.f.delete(false)~
+followed by a raw ~memset~ back to empty, in scope_free and
+interp_session_free) is gone: those sites assign a fresh container
+(~s.heap_aliases = Map(Str, Str).new()~), whose assignment deletes the old
+one, so the rule has no special case left. Throw paths, checked rather
+than assumed: a throw lowers to an ordinary return plus the caller's
+err-kind branch before the garbager runs, so the CFG sees the error path;
+a callee consumes its ~own~ argument on both paths and returns a
+zero-initialized result on the error one, which the caller owns and
+deletes. The claim above that throw edges were unmodelled was wrong.
+Regression: ~own415_throwing_callee~ (test/ownership_shapes.til; heap
+Str under ASAN, counted deletes for propagate, catch-and-refill and
+earlier-statement shapes). The probe found a separate leak, fixed with
+#399's hoist: ~return c.n~ on a plain local skipped c's delete
+(~test_return_field_of_local~, test/ref.til).

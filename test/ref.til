@@ -601,3 +601,36 @@ test_return_field_through_ref_binding := test() {
     assert_eq(I64, bp399_via_ref(), 8)
     assert_eq(Str, bp399_agg_clone(), "hello")
 }
+
+# The same exclusion skipped a plain LOCAL's delete: `return c.n` left the
+# read in return position, the garbager saw the return mention c and kept
+# c out of exit cleanup -- its destructor never ran, and a holder of heap
+# leaked. The read is hoisted like the borrowed cases above.
+Bp399Counted := struct {
+    n := 0
+    namespace:
+    mut deletes := 0
+    delete := func(own self: Bp399Counted, call_free: Bool = true) {
+        Bp399Counted.deletes = Bp399Counted.deletes.add(1)
+        if call_free { free(own self) }
+    }
+}
+
+bp399_local_field := func(v: I64) returns I64 {
+    c := Bp399Counted(n = v)
+    return c.n
+}
+
+Bp399Holder := struct { t := "x"; n := 0 }
+
+bp399_local_heap_field := func(v: I64) returns I64 {
+    h := Bp399Holder(t = format("he", "llo"), n = v)
+    return h.n
+}
+
+test_return_field_of_local := test() {
+    Bp399Counted.deletes = 0
+    assert_eq(I64, bp399_local_field(Bp399Counted.deletes.add(5)), 5)
+    assert_eq(I64, Bp399Counted.deletes, 1)
+    assert_eq(I64, bp399_local_heap_field(Bp399Counted.deletes.add(2)), 3)
+}

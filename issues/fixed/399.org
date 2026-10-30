@@ -77,3 +77,10 @@ the end of a nested chain (`return ps[0].inner.v`), and in the arm of
 an if in return position. The hoist covers the FieldAccess operand
 wherever it sits under the return; the aggregate rejection covers the
 direct form.
+
+2026-10-30, follow-up: the hoist covered an ~own~ parameter and a ~ref~
+local but not a plain local, so ~c := Counted(...); return c.n~ still left
+the read in return position and the garbager kept c out of exit cleanup:
+its destructor never ran, and a holder of heap leaked. Every local now
+takes the hoist (hoist_return_expr); borrowed parameters stay exempt.
+Regression: ~test_return_field_of_local~ in test/ref.til.

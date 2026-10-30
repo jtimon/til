@@ -5748,11 +5748,11 @@ scope_free := func(own s: Scope) {
         }
         EvalHeap.heap_free(own slot)
     }
-    own s.heap_aliases.delete(false)
-    memset(s.heap_aliases, 0, Map(Str, Str).size().to_uptr())
+    // A fresh (lazy-empty, allocation-free) container: the assignment
+    // deletes the old one.
+    s.heap_aliases = Map(Str, Str).new()
     // The binding map owns metadata and keys, not nested program payloads.
-    own s.heap_bindings.delete(false)
-    memset(s.heap_bindings, 0, Map(Str, HeapBinding).size())
+    s.heap_bindings = Map(Str, HeapBinding).new()
     // Recycle the box through the pool instead of freeing: zero the whole
     // struct (parent, is_call_scope and the already-emptied containers) so
     // the pooled box is a valid empty scope for the next scope_new.
@@ -7131,8 +7131,7 @@ interp_session_free := func(mut session: InterpSession) {
     }
     free(own session.retained_programs.data)
     memset(session.retained_programs, 0, Vec(DynPtrBox).size())
-    own session.evaluated_units.delete(false)
-    memset(session.evaluated_units, 0, Set(Str).size())
+    session.evaluated_units = Set(Str).new()
     session.core_evaluated = false
     session.user_argc = 0
     // All scopes are dead by now (global freed above, eval scopes freed

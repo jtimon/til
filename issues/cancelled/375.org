@@ -27,12 +27,13 @@ common code, which stay: [[../fixed/416.org][#416]], the owned-niche enum
 clone double free, and [[../fixed/415.org][#415]]'s earlier-statement and
 field shapes.
 
-Removed 2026-10-30: ~src/self/jvm_codegen.til~, ~src/jvm/TilRuntime.java~,
-the ~--target=jvm~ / ~Lang.Java~ plumbing in builder, targets, loader,
-install and the CLI, ~make test_jvm~, the ~test/jvm*~ fixtures and their
-src/tests.til pins. Master ~7d40494~ is the last commit with the complete
-backend: reviving it starts from there (revert the removal commit, then
-rebase onto current master).
+Removed 2026-10-30 by master commit ~6084e80~ ("Remove the JVM target"):
+~src/self/jvm_codegen.til~, ~src/jvm/TilRuntime.java~, the ~--target=jvm~ /
+~Lang.Java~ plumbing in builder, targets, loader, install and the CLI,
+~make test_jvm~, the ~test/jvm*~ fixtures and their src/tests.til pins. Its
+parent, master ~88d9937~, is the last commit with the complete backend.
+Reviving it starts with ~git revert 6084e80~ on current master, resolving
+whatever the pipeline changed since.
 
 Add a backend that runs til programs on the Java Virtual Machine. The C
 backend remains the default and the only bootstrap path; a normal build and

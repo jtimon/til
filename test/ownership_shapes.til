@@ -1050,3 +1050,78 @@ view_base_reassign_after_last_use := test() {
     assert_eq(USize, n, 5)
     assert_eq(USize, base.len(), 11)
 }
+
+// --- #415 follow-up: own transfers into a callee that throws ------------
+//
+// A throw lowers to an ordinary return plus the caller's err-kind branch
+// before the garbager runs, so the ownership dataflow sees the error path
+// like any other. The callee consumes its `own` argument on both paths; on
+// the error path it returns a zero-initialized result, which the caller
+// owns and deletes. Every value is deleted exactly once.
+
+Boom415 := struct {
+    code := 0
+}
+
+eat_counted415 := func(own c: Counted415, fail: Bool) returns Counted415 throws Boom415 {
+    if fail { throw Boom415(code = c.id) }
+    return Counted415(id = c.id.add(1))
+}
+
+eat_str415 := proc(own s: Str, fail: Bool) returns Str throws Boom415 {
+    assert_eq(USize, s.len(), 4)
+    if fail { throw Boom415(code = 1) }
+    return heap415("next")
+}
+
+throw415_propagate := func(fail: Bool) returns I64 throws Boom415 {
+    mut c := Counted415(id = 1)
+    c = eat_counted415(own c, fail)?
+    return c.id
+}
+
+throw415_catch_refill := func(fail: Bool) returns I64 {
+    mut c := Counted415(id = 1)
+    c = eat_counted415(own c, fail)?
+    catch (err: Boom415) { c = Counted415(id = 9) }
+    return c.id
+}
+
+throw415_earlier := func(fail: Bool) returns I64 throws Boom415 {
+    c := Counted415(id = 1)
+    d := eat_counted415(own c, fail)?
+    return d.id
+}
+
+throw415_str := proc(fail: Bool) returns USize throws Boom415 {
+    mut x := heap415("head")
+    x = eat_str415(own x, fail)?
+    return x.len()
+}
+
+own415_throwing_callee := test() {
+    for fail in array(Bool, false, true) {
+        mut caught := false
+        Counted415.deletes = 0
+        throw415_propagate(fail)?
+        catch (err: Boom415) { caught = true }
+        assert_eq(Bool, caught, fail)
+        // The consumed value, plus the result (or the error path's default).
+        assert_eq(I64, Counted415.deletes, 2)
+        Counted415.deletes = 0
+        n := throw415_catch_refill(fail)
+        if fail { assert_eq(I64, n, 9) } else { assert_eq(I64, n, 2) }
+        // On the error path the refill also deletes the default it replaces.
+        if fail { assert_eq(I64, Counted415.deletes, 3) } else { assert_eq(I64, Counted415.deletes, 2) }
+        caught = false
+        Counted415.deletes = 0
+        throw415_earlier(fail)?
+        catch (err: Boom415) { caught = true }
+        assert_eq(Bool, caught, fail)
+        assert_eq(I64, Counted415.deletes, 2)
+        caught = false
+        throw415_str(fail)?
+        catch (err: Boom415) { caught = true }
+        assert_eq(Bool, caught, fail)
+    }
+}

@@ -5883,6 +5883,8 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     // ADDRESS, which a value temp would destroy.
     if returns_ref != 0 { return }
     if rhs.node_type.is(NodeType.FieldAccess).not() { return }
+    // `return Signal.Red`: a type's namespace member, no local's field.
+    if fa_is_ns(rhs, scope, ctx.symbols) { return }
     // An aggregate whose delete is a no-op is a plain bit-copy: hoisting
     // it detaches it from the dying container just like a primitive. One
     // that owns heap cannot be saved by a copy (the pointers come along,
@@ -5914,7 +5916,10 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
         // An owning parameter also needs its destructor before returning a
         // scalar field. Leaving `return self.n` in place made the garbager
         // exclude self from exit cleanup just because the return reads it.
-        if rb.own_type.is(OwnType.Own).or(rb.own_type.is(OwnType.Ref).and(rb.is_param.not())) {
+        // So does every local: `c := Counted(...); return c.id` skipped
+        // c's delete for the same reason (a leak, and a destructor that
+        // never ran).
+        if rb.own_type.is(OwnType.Own).or(rb.is_param.not()) {
             stmt.children[0] = hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
         }
     case:

@@ -4285,11 +4285,11 @@ priv gc_settle_global_reassigns := proc(mut ctx: Context, body: Expr, locals: Ve
 // typer sets the bit), so `H(name = a.name)` -- which shared a.name's buffer
 // -- is the same error. Allowed: a destructor (a namespace `delete`) and a
 // compiler-generated member, for their parameters' fields (taking those
-// apart, or byte-copying a POD one, is their job), a field's own
-// destructor that keeps its storage (`own s.f.delete(false)` before a raw
-// memset or free of the holder), and any field whose delete is a no-op
-// (init_delete_is_noop): moving a raw pointer field (`free(own
-// self.data)`) or a plain value deletes nothing twice.
+// apart, or byte-copying a POD one, is their job), and any field whose
+// delete is a no-op (init_delete_is_noop): moving a raw pointer field
+// (`free(own self.data)`) or a plain value deletes nothing twice. To empty
+// a field in place, assign it a fresh value (`s.f = Map(K, V).new()`): the
+// assignment deletes the old one.
 
 // "h.f.g" for a field chain rooted at a name, "" for anything else (a call
 // result, an index).
@@ -4351,11 +4351,6 @@ priv gc_reject_field_moves := proc(mut ctx: Context, e: Expr, scope: TypeScope, 
     if e.node_type.is(NodeType.FCall) {
         for i in 1..e.children.len() {
             if get_own_arg(e, i).not() { continue }
-            // `own h.f.delete(false)`: the field's own destructor, keeping its
-            // storage for the caller's raw protocol (a memset back to the
-            // lazy-empty value, or the holder's raw free) -- destruction in
-            // place, like `free(own self.data)`, not a hand-off.
-            if get_keep_outer_arg(e, i) { continue }
             ref arg : Expr = e.children[i]
             if arg.node_type.is(NodeType.FieldAccess).not() { continue }
             mut at := arg.til_type().clone()
