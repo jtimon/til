@@ -159,6 +159,21 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Floating division and explicit FMA (base 6eed1697a)
+
+F32 and F32x4 division lower to arith.divf with the existing IEEE semantics;
+integer division remains unsupported. Explicit fma lowers to llvm.intr.fma,
+preserving single rounding without contracting ordinary multiply/add pairs.
+Operands retain source evaluation order. Executable/shared-library linking
+includes the existing system libm for baseline CPU fmaf lowering; static
+archive consumers link libm themselves.
+
+Tests cover zero divisors, signed zeros, infinities, NaNs, subnormal/overflow
+inputs, cancellation distinguishing fused from separate rounding, and
+once-only ordered operand evaluation with error propagation. Interpreter/C
+references, native C callers and ASAN til/C callers run at O0/O2/O3 with both
+USize widths. A baseline-CPU executable also exercises the libm link path.
+
 *** Dynamic SIMD lane access (base 9bc23073e)
 
 F32x4 and Boolx4 get/set now accept runtime indices. Unsigned USize bounds

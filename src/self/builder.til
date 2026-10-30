@@ -756,7 +756,8 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         return 1
     }
     mut destination := paths.bin_path.clone()
-    mut flags := ""
+    // LLVM may lower explicit FMA to fmaf on CPUs without a hardware FMA.
+    mut flags := " -lm"
     if paths.do_lib {
         destination = format("gen/lib/", paths.name, ".o")
         flags = " -c -fPIC"
@@ -779,7 +780,7 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         shared := format("gen/lib/lib", paths.name, ".so")
         archive := format("gen/lib/lib", paths.name, ".a")
         linker := Cmd.new()
-        linker.args("clang-18", "-shared", destination, "-o", shared)
+        linker.args("clang-18", "-shared", destination, "-o", shared, "-lm")
         if linker.run() != 0 { return 1 }
         File.remove(archive)
         archiver := Cmd.new()

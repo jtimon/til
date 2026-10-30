@@ -201,6 +201,15 @@
   Mutable scalar parameters and ownership-transferring parameters remain
   outside the subset; borrowed buffers and the error-out parameter are
   described below.
+
+  F32 and F32x4 division use IEEE floating-point semantics, including zero
+  divisors, signed zeros, infinities and NaNs, through ~arith.divf~. Explicit
+  ~a.fma(b,c)~ uses ~llvm.intr.fma~ with one fused rounding; ordinary ~a*b+c~
+  remains separate. Operands are evaluated once in source order. Executables
+  and shared libraries link libm so baseline CPUs can use LLVM's ~fmaf~
+  lowering; native callers of static archives must also link ~-lm~ when needed.
+  Integration tests compare finite/zero results bit-for-bit and NaNs by
+  classification against C division/~fmaf~, at O0/O2/O3 and both USize widths.
   Integer parameters/results use their resolved bit width. Bool uses i1
   internally and normalized byte values at the C ABI boundary. Integer
   arguments do not consume the SSE argument budget. Native-width USize

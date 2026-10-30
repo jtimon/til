@@ -150,6 +150,55 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_float_arithmetic := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/float_arithmetic.til"), format(
+        "mode pure\nF4:=Simd(F32,4)\n",
+        "divide:=func(a:F32,b:F32) returns F32 { return a/b }\n",
+        "divide4:=func(a:F4,b:F4) returns F4 { return a/b }\n",
+        "fused:=func(a:F32,b:F32,c:F32) returns F32 { return a.fma(b,c) }\n",
+        "fused4:=func(a:F4,b:F4,c:F4) returns F4 { return a.fma(b,c) }\n",
+        "separate:=func(a:F32,b:F32,c:F32) returns F32 { return a*b+c }\n",
+        "separate4:=func(a:F4,b:F4,c:F4) returns F4 { return a*b+c }\n",
+        "broadcast:=func(a:F32) returns F4 { return F4.splat(a) }\n",
+        "priv step:=func(mut trace:Array(F32),value:F32,digit:F32) returns F32 throws OutOfBounds { ref old:F32=trace.get(0)?; trace.set(0,own (old*10+digit))?; return value }\n",
+        "ordered_fma:=func(mut trace:Array(F32)) returns F32 throws OutOfBounds { return step(trace,4097,1)?.fma(step(trace,4097,2)?,step(trace,-16785408,3)?) }\n",
+        "ordered_div:=func(mut trace:Array(F32)) returns F32 throws OutOfBounds { return step(trace,6,1)?/step(trace,2,2)? }\n"))
+    File.writefile(format(work, "/float_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#include <math.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct{float v[4];}F4;typedef struct{float *data;Count cap;}Buffer;extern float divide(float,float),fused(float,float,float),separate(float,float,float),ordered_fma(Buffer*,int64_t*),ordered_div(Buffer*,int64_t*);extern F4 divide4(F4,F4),fused4(F4,F4,F4),separate4(F4,F4,F4);\n",
+        "static void same(float a,float b){if(isnan(b))assert(isnan(a));else assert(memcmp(&a,&b,4)==0);}\n",
+        "int main(void){const float v[]={0.0f,-0.0f,1,-1,INFINITY,-INFINITY,NAN,0x1p-149f,0x1p-126f,0x1.fffffep127f,4097,-16785408};\n",
+        "for(unsigned i=0;i<12;i++)for(unsigned j=0;j<12;j++){same(divide(v[i],v[j]),v[i]/v[j]);F4 a,b;for(unsigned n=0;n<4;n++){a.v[n]=v[(i+n)%12];b.v[n]=v[(j+n*2)%12];}F4 q=divide4(a,b);for(unsigned n=0;n<4;n++)same(q.v[n],a.v[n]/b.v[n]);for(unsigned k=0;k<12;k++){same(fused(v[i],v[j],v[k]),fmaf(v[i],v[j],v[k]));float product=v[i]*v[j];same(separate(v[i],v[j],v[k]),product+v[k]);F4 c;for(unsigned n=0;n<4;n++)c.v[n]=v[(k+n)%12];F4 f=fused4(a,b,c),s=separate4(a,b,c);for(unsigned n=0;n<4;n++){same(f.v[n],fmaf(a.v[n],b.v[n],c.v[n]));float p=a.v[n]*b.v[n];same(s.v[n],p+c.v[n]);}}}\n",
+        "same(fused(4097,4097,-16785408),1);same(separate(4097,4097,-16785408),0);float trace=0;Buffer b={&trace,1},empty={0,0};int64_t error=0;same(ordered_fma(&b,&error),1);assert(error==0 && trace==123);trace=0;same(ordered_div(&b,&error),3);assert(error==0 && trace==12);ordered_fma(&empty,&error);assert(error==1);return 0;}\n"))
+    checks := "main:=proc(){mut seed:F32=4097;seed=seed+0;assert_eq(F32,fused(seed,seed,-16785408),1);assert_eq(F32,separate(seed,seed,-16785408),0);a:=broadcast(seed);c:=broadcast(-16785408);f:=fused4(a,a,c);s:=separate4(a,a,c);assert_eq(F32,f[2],1);assert_eq(F32,s[2],0);q:=divide4(broadcast(6),broadcast(2));assert_eq(F32,q[3],3);positive:=divide(1,0);negative:=divide(1,-0.0);nan:=divide(0,0);assert(positive>1e30);assert(negative< -1e30);assert(nan!=nan);println(\"float arithmetic PASS\") }\n"
+    File.writefile(format(work, "/float_reference.til"), format("mode cli\nimport(\"float_arithmetic\")\n", checks))
+    File.writefile(format(work, "/float_consumer.til"), format(
+        "mode cli\nlink(\"gen/lib/libfloat_arithmetic.so\")\nF4:=Simd(F32,4)\n",
+        "divide:=ext_func(shallow a:F32,shallow b:F32) returns shallow F32 {}\nfused:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32) returns shallow F32 {}\nseparate:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32) returns shallow F32 {}\n",
+        "divide4:=ext_func(shallow a:F4,shallow b:F4) returns shallow F4 {}\nfused4:=ext_func(shallow a:F4,shallow b:F4,shallow c:F4) returns shallow F4 {}\nseparate4:=ext_func(shallow a:F4,shallow b:F4,shallow c:F4) returns shallow F4 {}\nbroadcast:=ext_func(shallow a:F32) returns shallow F4 {}\n", checks))
+    File.writefile(format(work, "/float_main.til"), "mode cli\nF4:=Simd(F32,4)\nmain:=proc(){mut a:F32=4097;a=a+0;if a.fma(a,-16785408)!=1 { F4.zero().get(4)! }}\n")
+    for width in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        for command in array(Str, "interpret", "run") {
+            reference := Cmd.new(compiler, command, flag, "float_reference.til")
+            checked(reference, work)
+        }
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", "--cpu=baseline", flag, format("--opt=", level), "float_arithmetic.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "float_caller.c", "gen/lib/libfloat_arithmetic.a", "-lm", "-o", "float_caller")
+            if width=="32" { cc.arg("-DCOUNT32") }
+            checked(cc, work)
+            native := Cmd.new("./float_caller")
+            checked(native, work)
+            consumer := Cmd.new(compiler, "run", "--asan", flag, "float_consumer.til")
+            checked(consumer, work)
+            executable := Cmd.new(compiler, "run", "--backend=mlir", "--cpu=baseline", flag, format("--opt=", level), "float_main.til")
+            checked(executable, work)
+        }
+    }
+}
+
 priv check_lanes := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/lanes.til"), format(
         "mode pure\nF4:=Simd(F32,4)\nM4:=Simd(Bool,4)\n",
@@ -415,5 +464,6 @@ main := proc(compiler_arg: Str) {
     check_exceptions(compiler, work)
     check_masks(compiler, work)
     check_lanes(compiler, work)
+    check_float_arithmetic(compiler, work)
     println("mlir PASS")
 }

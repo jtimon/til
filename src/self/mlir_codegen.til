@@ -536,7 +536,14 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     case: return mlir_error(e, "increment requires a local identifier", lp)
                     }
                 }
-                if op.eq("add").or(op.eq("mul")).or(op.eq("sub")) && e.children.len() == 3 {
+                if op == "fma" && e.children.len() == 4 && t.eq("f32").or(t.eq("vector<4xf32>")) {
+                    a := mlir_expr(e.children[1], state, lp)
+                    b := mlir_expr(e.children[2], state, lp)
+                    c := mlir_expr(e.children[3], state, lp)
+                    return mlir_value(state, format("llvm.intr.fma(", a, ", ", b, ", ", c, ") : (", t, ", ", t, ", ", t, ") -> ", t))
+                }
+                floating_div := op.eq("div").and(t.eq("f32").or(t.eq("vector<4xf32>")))
+                if op.eq("add").or(op.eq("mul")).or(op.eq("sub")).or(floating_div) && e.children.len() == 3 {
                     a_value := mlir_expr(e.children[1], state, lp)
                     a := mlir_coerce(a_value, e.children[1], t, state, lp)
                     b_value := mlir_expr(e.children[2], state, lp)
