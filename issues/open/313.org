@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** WIP #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time
@@ -175,6 +175,62 @@ assumptions do not match the compiler:
 9. Out of scope: ~Vec(ref T)~ slots hold native pointers (slot_size =
    UPtr.size(), src/core/vec.til:33) and stay 8 bytes; Dynamic fields stay
    8 bytes (DynVec's payload etc.); closures stay ~TilClosure *~.
+
+*** Progress
+
+  - Step 0: the plan's proposals were taken as approved ("follow the plan"):
+    ~--cptr=32|64~, a hand-written allocator in ext.c, ~TIL_CPTR32~,
+    ~make check_cptr32~ + its CI job.
+  - Step 1 DONE. The cage (64GB reserve, 64KB pages, 44 size classes up to
+    32KB, coalescing page spans above, ASAN poisoning) lives in ext.c under
+    ~TIL_CPTR32~. The binding is by ext.h macros (~malloc(n)~ ->
+    ~til_malloc(n)~ ...) rather than renaming mem.til's ext_funcs: the
+    compiler names malloc/free in typer, desugarer, garbager and many emitted
+    C strings, so a rename would be a bootstrap ladder for no benefit. The
+    ~--cptr~ flag landed here too (step 2's plumbing), selecting only the
+    allocator for now. The plan's "exhaustion panics" is kept: the cage
+    functions are ~returns_nonnull~ (which also keeps ext.c -Werror clean at
+    -O2, where gcc otherwise sees dup_n's NULL path reach ~fprintf("%s")~).
+  - Step 1 audit result (full ASAN suite through a --cptr=32 compiler, 3
+    failures, all fixed): the interpreter resolved malloc/free with dlsym,
+    which finds libc's -- also through the user .so's handle, since that
+    searches the .so's dependencies. ~ffi_user_symbol~/~ffi_global_symbol~
+    now hand out the cage functions, and the FFI .so is compiled with
+    ~-DTIL_CPTR32~ when the interpreter is. ~realpath_str~ frees libc's
+    buffer with ~(free)~. Nothing else (crypto, closures) reached a foreign
+    free.
+  - Measured with -O0 builds, self-translate of src/til.til: cage 25.8s /
+    458MB RSS vs native 27.7s / 425MB (+8% RSS: size-class rounding above
+    256 bytes and small pages never returned; tune in step 4).
+
+  Found while doing step 1, to settle before step 3:
+
+  - The ~offset >> 4~ encoding cannot store Str views. ~substr~/~trim~
+    return ~Str(c_str = ptr_add(s.c_str, st), ...)~: an own field holding a
+    pointer into the MIDDLE of a block, at any byte. Only unshifted byte
+    offsets can hold it, which caps the cage at 4GB. Point 5's reason for
+    rejecting 4GB does not hold: doc/totals.csv's self_mem (~4.3GB) is the
+    self-translate under bin/til_asan (shadow, redzones, quarantine). The
+    native compiler's peak RSS for the same self-translate is ~425MB.
+    Proposed: 32-bit byte offsets, a 4GB cage, no shift.
+  - Own Str fields can point at the static literal WRAPPERS in
+    ~_til_str_lits~ (hence TIL_CAP_LIT's ~if (v->cap != TIL_CAP_LIT)
+    free(v)~ guards), not only at literal bytes. Those also have to move
+    into the cage, and static initializers cannot hold a runtime offset.
+  - Str views break premise 3. ~own c_str~ also holds CAP_VIEW pointers to
+    memory nobody in til owns: ~Str.from_c_str~ (argv, getenv, C library
+    strings), substr/trim views (inside a cage block, so encodable unless
+    the view is of a literal), and ext.c's ~(Str){.c_str = buf, .cap =
+    CAP_VIEW}~ compound literals over stack buffers passed to Str_clone.
+    Encoding those panics. Options: compress only views into the cage
+    (from_c_str copies under cptr32), and keep ext.c's stack views as
+    native-pointer temporaries that never become a stored Str.
+  - Step 4 builds the compiler itself with --cptr=32. Its interpreter then
+    calls ext.c and compiled core functions with interpreter-built values,
+    so the interpreter's HOST layout must be the compressed one (4-byte own
+    fields, encode/decode at its own field loads/stores), mirroring
+    host_usize_pname. The plan's point 7 ("host layout stays 8") holds only
+    for a natively built compiler; step 4 needs that interpreter work too.
 
 *** Detailed plan
 

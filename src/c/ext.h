@@ -55,6 +55,31 @@ typedef U64 UPtr;
 #endif
 typedef struct Str Str;
 
+// Issue #313: TIL_CPTR32 confines every til allocation to one reserved
+// region (the cage), so a pointer into it can later be stored as a 32-bit
+// offset. Generated code and ext.c call malloc/calloc/realloc/free by name;
+// these macros route those calls to the cage allocator in ext.c. stdlib.h
+// comes first so the libc prototypes are seen before the names are taken
+// over (ext.c includes this header ahead of its own system includes).
+// Memory that libc allocates internally (realpath(p, NULL), ...) is still
+// libc's: release it with (free)(p), which the macro does not expand. The
+// cage never returns NULL (exhaustion panics), and says so to the compiler.
+#ifdef TIL_CPTR32
+#if UINTPTR_MAX == 0xffffffff
+#error "TIL_CPTR32 compresses 64-bit pointers; a 32-bit target already stores 32-bit pointers"
+#endif
+#include <stddef.h>
+#include <stdlib.h>
+void *til_malloc(size_t size) __attribute__((malloc, returns_nonnull));
+void *til_calloc(size_t nmemb, size_t size) __attribute__((malloc, returns_nonnull));
+void *til_realloc(void *ptr, size_t size) __attribute__((returns_nonnull));
+void til_free(void *ptr);
+#define malloc(size) til_malloc(size)
+#define calloc(nmemb, size) til_calloc(nmemb, size)
+#define realloc(ptr, size) til_realloc(ptr, size)
+#define free(ptr) til_free(ptr)
+#endif
+
 // Generated code boxes size arguments through the alias-facing ABI rather than
 // the source expression's numeric type, so USize follows the target typedef.
 #define USIZE_REF(x) ((void *)&(USize){(USize)(x)})

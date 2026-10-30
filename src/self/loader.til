@@ -366,6 +366,10 @@ LoadedProgram := struct {
     // never affected. Set from the CLI in src/til.til before prepare_program
     // stamps the alias widths.
     usize_override_bits : I64 = 0
+    // --cptr=32 (issue #313): allocate every til block from the 32-bit
+    // offset cage in ext.c (-DTIL_CPTR32). A separate C ABI, so it is part
+    // of the shared runtime/core identity below.
+    cptr32 := false
 namespace:
     uses_shared_runtime := func(self: LoadedProgram) returns Bool {
         return self.cur_mode.is_library.or(self.mlir_runtime).and(self.target.is(Target.Wasm32).not())
@@ -391,6 +395,7 @@ namespace:
         // ISA variants must not replace a baseline runtime/core used by
         // already-built libraries. Optimization alone does not change the ABI.
         if self.cpu.name != "baseline" { out = format(out, "-", self.cpu.name) }
+        if self.cptr32 { out = format(out, "-cptr32") }
         if self.asan_build { out = format(out, "-asan") }
         return out
     }

@@ -37,6 +37,7 @@ BOOT := "bin/til_boot"
 TIL := "bin/til"
 ASAN := "bin/til_asan"
 DEBUG := "bin/til_debug"
+CPTR32 := "bin/til_cptr32"
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -715,6 +716,28 @@ check_usize64 := proc(mut b: Build) {
     run("tmp/usize64_comptime")
     run(TIL, "build", "--asan", "--usize=32", "-o", "tmp/til_usize32_asan", "src/til.til")
     run("tmp/til_usize32_asan", "translate", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
+}
+
+/// The pointer-compression cage (issue #313): --cptr=32 programs, with
+/// link_c code and optimized, then the whole suite through a compiler
+/// built with --cptr=32, under ASAN, so every allocation its interpreter,
+/// constfolder and code generator make comes from the cage and every free
+/// of a buffer the cage did not hand out panics. Not part of `test`: it is
+/// a second full suite run.
+check_cptr32 := proc(mut b: Build) {
+    if b.begin("check_cptr32").not() { return }
+    build_til(b)
+    build_test_runner(b)
+    build_plot(b)
+    build_tests(b)
+    mkdir_p("tmp")
+    run(TIL, "build", "--cptr=32", "--asan", "-o", "tmp/cptr32_ffi", "examples/ffi/ext_module.til")
+    run("tmp/cptr32_ffi")
+    run(TIL, "build", "--cptr=32", "--opt=2", "-o", "tmp/cptr32_strings", "test/strings.til")
+    run("tmp/cptr32_strings")
+    run(TIL, "build", "--usize=32", "--cptr=32", "--asan", "-o", CPTR32, "src/til.til")
+    c := suite_cmd(b, "--til-bin", CPTR32, "--asan")
+    c.run_checked()
 }
 
 /// The emitted C must compile clean under gcc AND clang: the local
@@ -2168,6 +2191,8 @@ commands := func() returns Vec(Command) {
         about = "Run the TempleOS guest corpus at both USize widths (Docker)"))
     out.push(own Command(name = "check_usize64", go = check_usize64,
         about = "Run the explicit --usize=64 regression"))
+    out.push(own Command(name = "check_cptr32", go = check_cptr32,
+        about = "Run the full suite through a --cptr=32 (cage) compiler"))
     out.push(own Command(name = "check_clang", go = check_clang,
         about = "Check the emitted C compiles clean under clang"))
     out.push(own Command(name = "build_win", go = build_win,

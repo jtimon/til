@@ -77,6 +77,22 @@ jobs:
           ./bin/til_u64 build -o bin/hello_via_u64 examples/hello_script.til
           ./bin/hello_via_u64 | grep -q "Hello World"
 
+  # Issue #313: the pointer-compression cage. Runs the whole suite through
+  # a compiler built with --cptr=32 (under ASAN), so everything the compiler
+  # and its interpreter allocate comes from the cage and any free of a buffer
+  # the cage did not hand out panics; also builds and runs --cptr=32 programs.
+  linux-x64-cptr32:
+    name: linux-x64 (--cptr=32)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Suite through the cage compiler
+        run: make check_cptr32
+
   # Issue #25: aarch64-linux as a native HOST (GitHub's free arm64
   # runners), running the full suite. Blocking like every other linux
   # job: its bring-up failures (plain-char signedness) were fixed by

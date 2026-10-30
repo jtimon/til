@@ -177,6 +177,349 @@ static HMODULE ffi_handle;
 static void *ffi_handle;
 #endif
 
+#ifdef TIL_CPTR32
+// ---------------------------------------------------------------------------
+// Issue #313: the pointer-compression cage (ext.h routes malloc, calloc,
+// realloc and free here).
+//
+// One reservation of 2^36 bytes (64GB) holds every til allocation. Every
+// block is 16-byte aligned, so a pointer into the cage is fully described by
+// a 32-bit offset counted in 16-byte units: base + (offset << 4). Page 0 is
+// never handed out, so offset 0 can stand for NULL.
+//
+// The reservation is inaccessible until the allocator reaches it, then it is
+// committed in TIL_CAGE_COMMIT_STEP steps. Memory is carved into 64KB pages.
+// A page holds blocks of one small size class (<= 32KB), carved by a
+// per-class bump cursor and recycled through a per-class free list; small
+// pages are never returned. A larger request takes a run of whole pages (a
+// span). A freed span gives its memory back to the OS, is coalesced with its
+// free neighbours (or with the unused top) and is reused first-fit. The
+// page map is the only metadata: no header precedes a block.
+//
+// A request the cage cannot satisfy panics: falling back to libc would hand
+// out a pointer that cannot be compressed, so the cap is a hard per-process
+// limit and these functions never return NULL. free of a pointer the cage
+// did not hand out panics too: that is the audit that finds foreign buffers
+// reaching til's ownership. til
+// programs are single-threaded, so there is no lock. ASAN cannot see a
+// custom allocator, so the cage poisons every byte it has not handed out:
+// overflows past a block, use after free and reads of uncarved memory still
+// fault.
+// ---------------------------------------------------------------------------
+#ifndef _WIN32
+#include <sys/mman.h>
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+#define TIL_CAGE_ASAN 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define TIL_CAGE_ASAN 1
+#endif
+#endif
+#ifdef TIL_CAGE_ASAN
+#include <sanitizer/asan_interface.h>
+#define TIL_CAGE_POISON(p, n) ASAN_POISON_MEMORY_REGION((p), (n))
+#define TIL_CAGE_UNPOISON(p, n) ASAN_UNPOISON_MEMORY_REGION((p), (n))
+#else
+#define TIL_CAGE_POISON(p, n) ((void)(p), (void)(n))
+#define TIL_CAGE_UNPOISON(p, n) ((void)(p), (void)(n))
+#endif
+
+#define TIL_CAGE_SHIFT 4
+#define TIL_CAGE_BYTES ((UPtr)1 << (32 + TIL_CAGE_SHIFT))
+#define TIL_CAGE_PAGE_SHIFT 16
+#define TIL_CAGE_PAGE ((UPtr)1 << TIL_CAGE_PAGE_SHIFT)
+#define TIL_CAGE_PAGES (TIL_CAGE_BYTES >> TIL_CAGE_PAGE_SHIFT)
+#define TIL_CAGE_COMMIT_STEP ((UPtr)1 << 21)
+#define TIL_CAGE_SMALL_MAX 32768
+#define TIL_CAGE_CLASSES 44
+// Page kinds. 1..TIL_CAGE_CLASSES: a small page of class (kind - 1).
+#define TIL_CAGE_UNUSED 0     // at or above the top: never handed out
+#define TIL_CAGE_SPAN 0xFF    // first page of an allocated span
+#define TIL_CAGE_FREE 0xFE    // first or last page of a free span
+#define TIL_CAGE_INNER 0xFD   // any other page of a span, allocated or free
+
+typedef struct TilCageSpan {
+    struct TilCageSpan *prev;
+    struct TilCageSpan *next;
+} TilCageSpan;
+
+static const U32 til_cage_class_size[TIL_CAGE_CLASSES] = {
+    16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256,
+    320, 384, 448, 512, 640, 768, 896, 1024, 1280, 1536, 1792, 2048,
+    2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192,
+    10240, 12288, 14336, 16384, 20480, 24576, 28672, 32768,
+};
+
+static U8 *til_cage_base;
+static UPtr til_cage_top;        // first page that was never handed out
+static UPtr til_cage_committed;  // bytes from base that are read/write
+static U8 til_cage_kind[TIL_CAGE_PAGES];
+static U32 til_cage_span_len[TIL_CAGE_PAGES];  // pages, at span head (and free-span tail)
+static TilCageSpan *til_cage_free_spans;
+static void *til_cage_free_list[TIL_CAGE_CLASSES];
+static U8 *til_cage_cursor[TIL_CAGE_CLASSES];
+static U8 *til_cage_cursor_end[TIL_CAGE_CLASSES];
+
+static void til_cage_die(const char *what, const void *ptr) __attribute__((noreturn));
+static void til_cage_die(const char *what, const void *ptr) {
+    fflush(stdout);
+    fprintf(stderr, "til: allocation cage: %s (%p)\n", what, ptr);
+    exit(1);
+}
+
+static void til_cage_init(void) {
+#ifdef _WIN32
+    til_cage_base = VirtualAlloc(NULL, TIL_CAGE_BYTES, MEM_RESERVE, PAGE_NOACCESS);
+    if (!til_cage_base) til_cage_die("cannot reserve 64GB of address space", NULL);
+#else
+    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+#ifdef MAP_NORESERVE
+    flags |= MAP_NORESERVE;
+#endif
+    void *m = mmap(NULL, TIL_CAGE_BYTES, PROT_NONE, flags, -1, 0);
+    if (m == MAP_FAILED) til_cage_die("cannot reserve 64GB of address space", NULL);
+    til_cage_base = m;
+#endif
+    // Page 0 is never handed out: offset 0 is the compressed NULL.
+    til_cage_top = 1;
+}
+
+static U8 *til_cage_page_addr(UPtr page) {
+    return til_cage_base + (page << TIL_CAGE_PAGE_SHIFT);
+}
+
+static UPtr til_cage_page_of(const void *p) {
+    return (UPtr)((const U8 *)p - til_cage_base) >> TIL_CAGE_PAGE_SHIFT;
+}
+
+static void til_cage_commit_to(UPtr end_page) {
+    UPtr need = end_page << TIL_CAGE_PAGE_SHIFT;
+    if (need <= til_cage_committed) return;
+    UPtr target = (need + TIL_CAGE_COMMIT_STEP - 1) & ~(TIL_CAGE_COMMIT_STEP - 1);
+    U8 *from = til_cage_base + til_cage_committed;
+    UPtr len = target - til_cage_committed;
+#ifdef _WIN32
+    if (!VirtualAlloc(from, len, MEM_COMMIT, PAGE_READWRITE)) til_cage_die("cannot commit memory", from);
+#else
+    if (mprotect(from, len, PROT_READ | PROT_WRITE) != 0) til_cage_die("cannot commit memory", from);
+#endif
+    TIL_CAGE_POISON(from, len);
+    til_cage_committed = target;
+}
+
+// Give a free span's pages back to the OS; the reservation stays committed.
+static void til_cage_discard(UPtr page, UPtr len) {
+    U8 *p = til_cage_page_addr(page);
+    UPtr bytes = len << TIL_CAGE_PAGE_SHIFT;
+#ifdef _WIN32
+    VirtualAlloc(p, bytes, MEM_RESET, PAGE_READWRITE);
+#else
+    madvise(p, bytes, MADV_DONTNEED);
+#endif
+    TIL_CAGE_POISON(p, bytes);
+}
+
+static void til_cage_span_link(UPtr head, UPtr len) {
+    TilCageSpan *s = (TilCageSpan *)til_cage_page_addr(head);
+    TIL_CAGE_UNPOISON(s, sizeof(*s));
+    s->prev = NULL;
+    s->next = til_cage_free_spans;
+    if (til_cage_free_spans) til_cage_free_spans->prev = s;
+    til_cage_free_spans = s;
+    til_cage_kind[head] = TIL_CAGE_FREE;
+    til_cage_kind[head + len - 1] = TIL_CAGE_FREE;
+    til_cage_span_len[head] = (U32)len;
+    til_cage_span_len[head + len - 1] = (U32)len;
+}
+
+static void til_cage_span_unlink(UPtr head) {
+    TilCageSpan *s = (TilCageSpan *)til_cage_page_addr(head);
+    UPtr len = til_cage_span_len[head];
+    if (s->prev) s->prev->next = s->next; else til_cage_free_spans = s->next;
+    if (s->next) s->next->prev = s->prev;
+    TIL_CAGE_POISON(s, sizeof(*s));
+    til_cage_kind[head] = TIL_CAGE_INNER;
+    til_cage_kind[head + len - 1] = TIL_CAGE_INNER;
+}
+
+// Release pages [page, page + len): merge with free neighbours, lower the
+// top when the run reaches it, otherwise keep it as a free span.
+static void til_cage_release(UPtr page, UPtr len) {
+    til_cage_discard(page, len);
+    if (page > 1 && til_cage_kind[page - 1] == TIL_CAGE_FREE) {
+        UPtr left_len = til_cage_span_len[page - 1];
+        UPtr left = page - left_len;
+        til_cage_span_unlink(left);
+        page = left;
+        len += left_len;
+    }
+    UPtr end = page + len;
+    if (end == til_cage_top) {
+        for (UPtr i = page; i < end; i++) til_cage_kind[i] = TIL_CAGE_UNUSED;
+        til_cage_top = page;
+        return;
+    }
+    if (til_cage_kind[end] == TIL_CAGE_FREE) {
+        UPtr right_len = til_cage_span_len[end];
+        til_cage_span_unlink(end);
+        len += right_len;
+    }
+    for (UPtr i = page; i < page + len; i++) til_cage_kind[i] = TIL_CAGE_INNER;
+    til_cage_span_link(page, len);
+}
+
+// A run of n pages: the first free span that fits, else fresh pages at the
+// top.
+static UPtr til_cage_take_pages(UPtr n) {
+    for (TilCageSpan *s = til_cage_free_spans; s; s = s->next) {
+        UPtr head = til_cage_page_of(s);
+        UPtr len = til_cage_span_len[head];
+        if (len < n) continue;
+        til_cage_span_unlink(head);
+        if (len > n) til_cage_span_link(head + n, len - n);
+        return head;
+    }
+    if (n > TIL_CAGE_PAGES - til_cage_top) til_cage_die("cage exhausted (64GB)", NULL);
+    UPtr head = til_cage_top;
+    til_cage_top += n;
+    til_cage_commit_to(til_cage_top);
+    return head;
+}
+
+static unsigned til_cage_class_of(size_t n) {
+    if (n <= 256) return n == 0 ? 0 : (unsigned)((n - 1) >> 4);
+    size_t m = n - 1;
+    unsigned p = 63u - (unsigned)__builtin_clzll((unsigned long long)m);
+    return 16u + (p - 8u) * 4u + (unsigned)((m >> (p - 2u)) - 4u);
+}
+
+static void *til_cage_small(unsigned c) {
+    U8 *p = til_cage_free_list[c];
+    if (p) {
+        TIL_CAGE_UNPOISON(p, sizeof(void *));
+        til_cage_free_list[c] = *(void **)p;
+        TIL_CAGE_POISON(p, sizeof(void *));
+        return p;
+    }
+    UPtr size = til_cage_class_size[c];
+    p = til_cage_cursor[c];
+    if (p == NULL || p + size > til_cage_cursor_end[c]) {
+        UPtr page = til_cage_take_pages(1);
+        til_cage_kind[page] = (U8)(c + 1);
+        p = til_cage_page_addr(page);
+        til_cage_cursor_end[c] = p + TIL_CAGE_PAGE;
+    }
+    til_cage_cursor[c] = p + size;
+    return p;
+}
+
+static void *til_cage_large(size_t n) {
+    UPtr pages = ((UPtr)n + TIL_CAGE_PAGE - 1) >> TIL_CAGE_PAGE_SHIFT;
+    UPtr head = til_cage_take_pages(pages);
+    til_cage_kind[head] = TIL_CAGE_SPAN;
+    for (UPtr i = 1; i < pages; i++) til_cage_kind[head + i] = TIL_CAGE_INNER;
+    til_cage_span_len[head] = (U32)pages;
+    return til_cage_page_addr(head);
+}
+
+// The usable size of a block the cage handed out; panics on anything else.
+static UPtr til_cage_block_size(const void *ptr, const char *op) {
+    const U8 *p = ptr;
+    if (til_cage_base == NULL || p < til_cage_base || p >= til_cage_base + TIL_CAGE_BYTES) {
+        til_cage_die(op, ptr);
+    }
+    UPtr page = til_cage_page_of(p);
+    U8 kind = til_cage_kind[page];
+    UPtr in_page = (UPtr)(p - til_cage_page_addr(page));
+    if (kind >= 1 && kind <= TIL_CAGE_CLASSES) {
+        UPtr size = til_cage_class_size[kind - 1];
+        if (in_page % size != 0) til_cage_die(op, ptr);
+        return size;
+    }
+    if (kind == TIL_CAGE_SPAN && in_page == 0) {
+        return (UPtr)til_cage_span_len[page] << TIL_CAGE_PAGE_SHIFT;
+    }
+    til_cage_die(op, ptr);
+}
+
+void *til_malloc(size_t n) {
+    if (til_cage_base == NULL) til_cage_init();
+    if ((UPtr)n > TIL_CAGE_BYTES) til_cage_die("allocation larger than the cage (64GB)", NULL);
+    void *p = n <= TIL_CAGE_SMALL_MAX ? til_cage_small(til_cage_class_of(n)) : til_cage_large(n);
+    TIL_CAGE_UNPOISON(p, n);
+    return p;
+}
+
+void *til_calloc(size_t nmemb, size_t size) {
+    if (size != 0 && nmemb > (size_t)-1 / size) til_cage_die("calloc size overflows", NULL);
+    void *p = til_malloc(nmemb * size);
+    memset(p, 0, nmemb * size);
+    return p;
+}
+
+void til_free(void *ptr) {
+    // free(NULL) is a no-op by contract, not a guard.
+    if (ptr == NULL) return;
+    UPtr size = til_cage_block_size(ptr, "free of a pointer the cage did not allocate");
+    UPtr page = til_cage_page_of(ptr);
+    U8 kind = til_cage_kind[page];
+    if (kind == TIL_CAGE_SPAN) {
+        til_cage_release(page, size >> TIL_CAGE_PAGE_SHIFT);
+        return;
+    }
+    unsigned c = (unsigned)kind - 1u;
+    TIL_CAGE_POISON(ptr, size);
+    TIL_CAGE_UNPOISON(ptr, sizeof(void *));
+    *(void **)ptr = til_cage_free_list[c];
+    TIL_CAGE_POISON(ptr, sizeof(void *));
+    til_cage_free_list[c] = ptr;
+}
+
+void *til_realloc(void *ptr, size_t n) {
+    if (ptr == NULL) return til_malloc(n);
+    UPtr old = til_cage_block_size(ptr, "realloc of a pointer the cage did not allocate");
+    UPtr page = til_cage_page_of(ptr);
+    if ((UPtr)n <= old && ((UPtr)n > old / 2 || old <= 16)) {
+        // Shrinking by less than half: keep the block.
+        TIL_CAGE_POISON(ptr, old);
+        TIL_CAGE_UNPOISON(ptr, n);
+        return ptr;
+    }
+    if (til_cage_kind[page] == TIL_CAGE_SPAN && (UPtr)n > old && (UPtr)n <= TIL_CAGE_BYTES) {
+        // A growing span extends in place into the top or a free neighbour.
+        UPtr len = old >> TIL_CAGE_PAGE_SHIFT;
+        UPtr want = ((UPtr)n + TIL_CAGE_PAGE - 1) >> TIL_CAGE_PAGE_SHIFT;
+        UPtr end = page + len;
+        UPtr extra = want - len;
+        Bool grown = false;
+        if (end == til_cage_top && extra <= TIL_CAGE_PAGES - til_cage_top) {
+            til_cage_top += extra;
+            til_cage_commit_to(til_cage_top);
+            grown = true;
+        } else if (end < til_cage_top && til_cage_kind[end] == TIL_CAGE_FREE && til_cage_span_len[end] >= extra) {
+            UPtr right_len = til_cage_span_len[end];
+            til_cage_span_unlink(end);
+            if (right_len > extra) til_cage_span_link(end + extra, right_len - extra);
+            grown = true;
+        }
+        if (grown) {
+            for (UPtr i = end; i < page + want; i++) til_cage_kind[i] = TIL_CAGE_INNER;
+            til_cage_span_len[page] = (U32)want;
+            TIL_CAGE_UNPOISON(ptr, n);
+            return ptr;
+        }
+    }
+    void *q = til_malloc(n);
+    // Under ASAN only the bytes last requested are unpoisoned; the old block
+    // is going away, so read all of it.
+    TIL_CAGE_UNPOISON(ptr, old);
+    memcpy(q, ptr, (UPtr)n < old ? (size_t)n : (size_t)old);
+    til_free(ptr);
+    return q;
+}
+#endif // TIL_CPTR32
+
 // Portable strndup replacement -- MSVC toolchains don't ship one and mingw's
 // availability varies by _GNU_SOURCE. This is tiny, so inline it.
 static char *dup_n(const char *s, size_t n) {
@@ -2330,7 +2673,7 @@ Str *realpath_str(const Str *path) {
     // "no such file" (e.g. the builder's libffi absence gate, which
     // otherwise links a nonexistent archive on a windows host), so
     // enforce the POSIX contract with an explicit existence check.
-    if (abs && _access(abs, 0) != 0) { free(abs); abs = NULL; }
+    if (abs && _access(abs, 0) != 0) { (free)(abs); abs = NULL; }
     if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
     // Normalize backslashes to forward slashes so path comparisons stay
     // consistent across Unix and Windows codepaths.
@@ -2341,7 +2684,9 @@ Str *realpath_str(const Str *path) {
     if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
 #endif
     Str *s = Str_clone(&(Str){.c_str = (I8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
-    free(abs);
+    // libc allocated abs (realpath / _fullpath with a NULL buffer), so libc
+    // frees it: (free) bypasses ext.h's TIL_CPTR32 cage macro.
+    (free)(abs);
     return s;
 }
 
@@ -3692,6 +4037,23 @@ U64 current_rss_bytes(I64 pid) {
 #endif
 }
 
+#ifdef TIL_CPTR32
+// Interpreted code reaches the allocator through these names, and what it
+// allocates is freed by compiled code (and vice versa): both sides must use
+// the cage. A symbol search would find the C library's instead, through the
+// user .so's handle too, since that searches the .so's own dependencies.
+static U8 *ffi_cage_symbol(const Str *name) {
+    if (name->count == 6 && memcmp(name->c_str, "malloc", 6) == 0) return (U8 *)til_malloc;
+    if (name->count == 6 && memcmp(name->c_str, "calloc", 6) == 0) return (U8 *)til_calloc;
+    if (name->count == 7 && memcmp(name->c_str, "realloc", 7) == 0) return (U8 *)til_realloc;
+    if (name->count == 4 && memcmp(name->c_str, "free", 4) == 0) return (U8 *)til_free;
+    return NULL;
+}
+#define TIL_FFI_CAGE_SYMBOL(name) do { U8 *cage_sym = ffi_cage_symbol(name); if (cage_sym) return cage_sym; } while (0)
+#else
+#define TIL_FFI_CAGE_SYMBOL(name) ((void)0)
+#endif
+
 #ifdef _WIN32
 // dup_n on every Str reaching a C string API here: only owned til Strs
 // carry a NUL past count, views (substr/trim/from_c_str) do not.
@@ -3718,6 +4080,7 @@ void ffi_close_user_so(void) {
 
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
+    TIL_FFI_CAGE_SYMBOL(name);
     char *n = dup_n((const char *)name->c_str, name->count);
     U8 *sym = (U8 *)GetProcAddress(ffi_handle, n);
     free(n);
@@ -3725,6 +4088,7 @@ U8 *ffi_user_symbol(const Str *name) {
 }
 
 U8 *ffi_global_symbol(const Str *name) {
+    TIL_FFI_CAGE_SYMBOL(name);
     // Walk loaded modules looking for the symbol. Mirrors RTLD_DEFAULT
     // semantics well enough for the built-in libs til links against.
     HMODULE mods[256];
@@ -3812,6 +4176,7 @@ void ffi_close_user_so(void) {
 
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
+    TIL_FFI_CAGE_SYMBOL(name);
     char *n = dup_n((const char *)name->c_str, name->count);
     U8 *sym = dlsym(ffi_handle, n);
     free(n);
@@ -3819,6 +4184,7 @@ U8 *ffi_user_symbol(const Str *name) {
 }
 
 U8 *ffi_global_symbol(const Str *name) {
+    TIL_FFI_CAGE_SYMBOL(name);
     char *n = dup_n((const char *)name->c_str, name->count);
     U8 *sym = dlsym(RTLD_DEFAULT, n);
     free(n);
@@ -3871,6 +4237,17 @@ I32 process_id(void) {
  * ASAN allocator, otherwise an interpreter-side malloc/calloc that libffi
  * routes to the (non-ASAN) user .so's libc allocator gets freed by the
  * interpreter's ASAN free() -- a spurious bad-free. */
+/* Issue #313: whether this binary allocates from the TIL_CPTR32 cage. A
+ * cage-built interpreter compiles the user's FFI .so with the same define,
+ * for the same reason as the sanitizer above. */
+Bool til_built_with_cptr32(void) {
+#ifdef TIL_CPTR32
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 Bool til_built_with_asan(void) {
 #if defined(__SANITIZE_ADDRESS__)
     return 1;

@@ -1899,6 +1899,7 @@ typedef struct CliArgs {
     Bool asan;
     Bool prof;
     I64 usize_bits;
+    I64 cptr_bits;
     Bool check_unused_imports;
     Vec__Str *extra_modes;
 } CliArgs;
@@ -2541,6 +2542,7 @@ typedef struct LoadedProgram {
     Bool run_tests;
     I32 load_errors;
     I64 usize_override_bits;
+    Bool cptr32;
 } LoadedProgram;
 
 

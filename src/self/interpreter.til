@@ -8048,6 +8048,8 @@ ffi_last_error := ext_proc() returns Str {}
 // folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold
 // bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
 til_built_with_asan := ext_proc() returns shallow Bool {}
+// #313: true when this compiler's own C was built with -DTIL_CPTR32.
+til_built_with_cptr32 := ext_proc() returns shallow Bool {}
 
 // `link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")` puts a
 // PATH in link_flags. A COMPILED program links that archive and stays
@@ -8165,6 +8167,9 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // til compile (see ext.h's I8 note; issue #25).
     mut usize_define := " -DTIL_USIZE64"
     if host_usize_pname() == "U32" { usize_define = " -DTIL_USIZE32" }
+    // #313: a cage-built interpreter frees what the user .so allocates (and
+    // vice versa), so the .so must allocate from the same cage.
+    if til_built_with_cptr32() { usize_define = format(usize_define, " -DTIL_CPTR32") }
     cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, usize_define, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,

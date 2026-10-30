@@ -767,6 +767,8 @@ usage := proc() {
     println("              CPU/optimization selections override --cc's -march/-O options.")
     println("  --usize=32|64  Override the target-native USize container width;")
     println("              UPtr always follows pointer width.")
+    println("  --cptr=32|64  64-bit targets only: 32 confines allocation to a 64GB")
+    println("              cage for compressed pointers (default 64, native).")
     println("  --force-rebuild  Accepted for compatibility; translate/build/run")
     println("              always regenerate their outputs.")
     println("")
@@ -818,6 +820,9 @@ CliArgs := struct {
     // #309: --usize overrides the target-native USize alias. 0 follows the
     // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
+    // #313: --cptr selects how owned pointers are stored. 0/64 = native
+    // pointers; 32 = allocate from the compression cage (-DTIL_CPTR32).
+    cptr_bits : I64 = 0
     // #154: unused-import type errors, on by default;
     // --check-unused-imports=false disables for one invocation.
     check_unused_imports := true
@@ -974,6 +979,17 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
                 exit(1)
             }
             cli.path_idx++
+        } else if flag.starts_with("--cptr=") {
+            cval := flag.strip_prefix("--cptr=")
+            if cval == "32" {
+                cli.cptr_bits = 32
+            } else if cval == "64" {
+                cli.cptr_bits = 64
+            } else {
+                println(format("error: --cptr expects 32 or 64, got '", cval, "'"))
+                exit(1)
+            }
+            cli.path_idx++
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
             ref pval : Str = args[cli.path_idx + 1]
             cli.install_prefix = pval.clone()
@@ -1058,6 +1074,10 @@ priv validate_theme_cli := proc(cli: CliArgs, lp: LoadedProgram) {
     }
     if cli.usize_bits != 0 {
         println("error: --usize is not supported with mode theme")
+        exit(1)
+    }
+    if cli.cptr_bits != 0 {
+        println("error: --cptr is not supported with mode theme")
         exit(1)
     }
     if cli.command.eq("ast").or(cli.command.eq("doc")) { return }
@@ -1158,6 +1178,18 @@ main := proc(args: ..Str) {
         }
     }
     cpu := resolve_target_cpu(target, cli.cpu_profile)
+    // #313: compression shrinks 64-bit pointers; a 32-bit target's pointers
+    // already are 32 bits, and only the C backend implements the cage.
+    if cli.cptr_bits != 0 {
+        if target_uptr_name(target) != "U64" {
+            println("error: --cptr applies to 64-bit targets only; this target's pointers are already 32-bit")
+            exit(1)
+        }
+        if cli.backend_set && cli.backend != "c" {
+            println("error: --cptr is supported by the C backend only")
+            exit(1)
+        }
+    }
 
     if cli.backend == "fasm" {
         if target.is(Target.LinuxX64).not() || detect_current_target().is(Target.LinuxX64).not() {
@@ -1195,6 +1227,7 @@ main := proc(args: ..Str) {
     // #309: --usize override must be set before prepare_program stamps the
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
     lp.usize_override_bits = cli.usize_bits
+    lp.cptr32 = cli.cptr_bits == 32
     // #154 prototype: unused-import type errors, opt-in per invocation.
     lp.ctx.check_unused_imports = cli.check_unused_imports
     user_argv := collect_user_argv(lp, args, cli.path_idx + 1)

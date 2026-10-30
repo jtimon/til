@@ -106,6 +106,24 @@
   overrides, need to be specified before implementing the directives.
   Native-width defaults should remain usable without configuration calls.
 
+** Pointer-compression cage (~--cptr~)
+
+  ~--cptr=32~ (issue #313, 64-bit C targets only; default ~--cptr=64~ is
+  native) builds with ~-DTIL_CPTR32~. ext.h then routes ~malloc~,
+  ~calloc~, ~realloc~ and ~free~ -- the names generated code, ext.c and
+  link_c code call -- to the cage allocator in ext.c: one 64GB reservation,
+  16-byte aligned blocks, so any til pointer is ~base + (offset << 4)~ for a
+  32-bit offset, with offset 0 never handed out. Exhausting the cage panics,
+  and so does freeing a pointer the cage did not allocate; memory libc
+  allocates for itself (~realpath(p, NULL)~) is released with ~(free)(p)~.
+  An interpreter built this way resolves the allocator names to the cage and
+  compiles the user's FFI .so with the same define. Libraries carry
+  ~-cptr32~ in their runtime/core identity.
+
+  This is step 1 of #313: only the allocator changes, storage is still
+  native pointers. ~make check_cptr32~ builds and runs ~--cptr=32~ programs,
+  then runs the whole suite through a ~--cptr=32~ ASAN compiler.
+
 ** CPU profiles and C optimization
 
   ~--cpu=baseline|x86-64-v3|x86-64-v4~ selects a target CPU profile,
