@@ -325,10 +325,20 @@
   ~--backend=fasm~ selects native assembly for ~translate~, ~build~ and ~run~
   on Linux x86-64 hosts and targets. The subset accepts ~mode script~ and
   ~mode cli~ with a no-argument, void ~main~, ordinary non-throwing functions,
-  up to six scalar or borrowed Str parameters, value locals, local assignments,
-  calls, returns and if/else. Integer add/subtract/multiply wrap at the declared
-  width; signed/unsigned comparisons, equality, casts and Bool negation are
-  supported. Unsupported constructs receive source-located errors.
+  up to six scalar or borrowed Str parameters (including mut/ref scalar
+  parameters), value locals, local assignments, calls, returns, if/else and
+  while loops. Range for loops use the shared frontend lowering; nested
+  break/continue and lexical blocks preserve their normal control flow.
+  Bool and/or, including &&/|| and their n-ary forms, short-circuit.
+
+  Integer add/subtract/multiply/inc/dec wrap at the declared width. Division
+  and remainder use the existing zero-divisor result of zero and native C
+  integer promotions; bitwise operations, shifts, signed/unsigned comparisons,
+  cmp, casts and Bool negation are supported. This does not define new behavior
+  for C's undefined signed division overflow or out-of-range shift counts.
+  Narrow cells are reloaded at their declared width after mut/ref writes.
+  Arithmetic retains its method width before any caller-parameter widening.
+  Unsupported constructs receive source-located errors.
 
   Til writes ~gen/fasm/<source>.fasm~, preserving the normal source hierarchy.
   The vendored FASM writes a standalone ELF64 executable to ~bin/<source>~
@@ -337,6 +347,14 @@
   this does not yet expose a library ABI. Libraries, program arguments,
   other modes, ~-c~, ~--cc~, ~--asan~, ~--prof~, ~--cpu~, ~--opt~, ~link_c~
   and link flags are rejected. See README for the assembler bootstrap.
+
+  After bootstrap, the vendor build and FASM build/run paths refresh a stale
+  ~vendor/fasm/fasm~ from its assembly/includes, using the existing executable.
+  The replacement is built in checkout-local ~tmp/~ and renamed into place
+  after success. Installed compilers carry the prebuilt assembler/license at
+  ~<prefix>/lib/til/vendor/fasm/~ and the runtime at ~<prefix>/lib/til/src/fasm/~.
+  The install phase is copy-only; it never rebuilds under sudo. If FASM has
+  not been bootstrapped, installation reports runtime-sources-only support.
 
 *** Native runtime and ABI
 
@@ -380,7 +398,7 @@
     then grows to EOF, including streams and /proc files with no useful size.
 
   This is not general aggregate/container or File-wrapper lowering. User
-  arrays, aggregate reassignment/returns, indirect calls, loops and general
+  arrays, aggregate reassignment/returns, indirect calls and general
   throws remain unsupported. Variadic Array(Str).set is accepted only for the
   compiler's construction sequence with its known in-range indices.
 
@@ -388,8 +406,15 @@
 
   ~test/fasm_options.til~ checks emission and diagnostics in the normal suite.
   ~test/fasm_native.til~ explicitly exercises the assembler and compares
-  native exit results with interpretation and C execution. It requires the
-  bootstrapped vendored executable and is run separately.
+  native exit results with interpretation and C execution. It runs the original
+  ~examples/fizzbuzz.til~, ~examples/templeos_scalars.til~,
+  ~test/holyc_continue.til~ and ~test/scalar_control.til~ sources at both USize
+  widths, with bounded execution time for loop regressions. The scalar control
+  file also runs in the ordinary interpreter/C suite. The same driver checks
+  source/include freshness, no-op rebuilds and preserving a working assembler
+  after a failed rebuild. It requires the bootstrapped executable and runs
+  separately. ~test/install.til~ exercises an installed FASM when bootstrapped,
+  from an external working directory with read-only assembler/runtime files.
 
   ~test/fasm_runtime.til~ compares identical runtime programs through the
   interpreter, C and FASM at USize32 and USize64. It reuses the existing

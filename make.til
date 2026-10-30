@@ -25,6 +25,7 @@ mode cli
 import("src/std/sys")
 import("src/std/file")
 import("src/self/install")
+import("src/self/fasm_build")
 
 // The working directory, for the absolute paths some vendored build
 // systems insist on. Same bridge src/til.til binds; not in std/sys
@@ -564,6 +565,7 @@ secp256k1_cmake_configure := func(build_dir: Str) returns Vec(Str) {
 /// why the Makefile's bootstrap does not build these.
 build_vendor := proc(mut b: Build) {
     if b.begin("vendor").not() { return }
+    if fasm_prepare(get_cwd_str(), false) != 0 { exit(1) }
     build_gui_pair(b, b.host.target_name())
     build_ffi_twins(b)
     build_nng(b)
@@ -998,6 +1000,8 @@ run_clean := proc(mut b: Build) {
 /// install outputs are ignored and therefore removed by the same command.
 run_clean_vendor := proc(mut b: Build) {
     if b.begin("clean_vendor").not() { return }
+    // FASM's executable is also its bootstrap seed; retain it so changed
+    // assembly can rebuild itself without another external bootstrap.
     run("git", "clean", "-fdx", "vendor/raylib", "vendor/tinyfiledialogs",
         "vendor/nng", "vendor/secp256k1", "vendor/libffi", EMSDK_DIR)
 }

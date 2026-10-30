@@ -11,12 +11,15 @@ priv FasmState := struct {
     slots : USize = 0
     labels : USize = 0
     values := Map(Str, Str).new()
+    value_types := Map(Str, Type).new()
     functions := Map(Str, Str).new()
     addresses := Set(Str).new()
     pointers := Set(Str).new()
     data := ""
     prefix := ""
     literals : USize = 0
+    break_label := ""
+    continue_label := ""
 }
 
 priv fasm_scalar := func(shallow t: Type) returns Bool {
@@ -33,6 +36,13 @@ priv fasm_scalar := func(shallow t: Type) returns Bool {
 
 priv fasm_is_str := func(shallow t: Type, lp: LoadedProgram) returns Bool { return type_name_ref(t, lp.ctx.symbols) == "Str" }
 priv fasm_is_parts := func(shallow t: Type, lp: LoadedProgram) returns Bool { return type_name_ref(t, lp.ctx.symbols) == "Array__Str" }
+
+priv fasm_unsigned := func(shallow t: Type) returns Bool {
+    switch t {
+    case .Primitive(p): return p.is(Primitive.U8).or(p.is(Primitive.U16)).or(p.is(Primitive.U32)).or(p.is(Primitive.U64))
+    case: return false
+    }
+}
 
 priv fasm_narrow := func(shallow t: Type, mut state: FasmState) {
     switch t {
@@ -81,9 +91,134 @@ priv fasm_pointer := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) 
             fasm_emit(state, "mov rax, [rax]")
             return
         }
+    case .Literal:
+        if fasm_scalar(e.til_type()) && e.til_type().is(Type.Dynamic).not() {
+            fasm_expr(e, state, lp)
+            slot := fasm_slot(state)
+            fasm_emit(state, format("mov ", slot, ", rax\n    lea rax, ", slot.strip_prefix("qword ")))
+            return
+        }
     case:
     }
     fasm_expr(e, state, lp)
+}
+
+priv fasm_store_scalar := func(shallow t: Type, mut state: FasmState) {
+    switch t {
+    case .Primitive(p):
+        switch p {
+        case .I8, .U8, .Bool: fasm_emit(state, "mov [rcx], al")
+        case .I16, .U16: fasm_emit(state, "mov [rcx], ax")
+        case .I32, .U32: fasm_emit(state, "mov [rcx], eax")
+        case .I64, .U64: fasm_emit(state, "mov [rcx], rax")
+        case: panic("invalid FASM scalar store")
+        }
+    case: panic("invalid FASM scalar store")
+    }
+}
+
+priv fasm_conversion := func(op: Str, lp: LoadedProgram) returns Type {
+    switch op {
+    case "to_i8": return Type.Primitive(Primitive.I8)
+    case "to_u8": return Type.Primitive(Primitive.U8)
+    case "to_i16": return Type.Primitive(Primitive.I16)
+    case "to_u16": return Type.Primitive(Primitive.U16)
+    case "to_i32": return Type.Primitive(Primitive.I32)
+    case "to_u32": return Type.Primitive(Primitive.U32)
+    case "to_i64": return Type.Primitive(Primitive.I64)
+    case "to_u64": return Type.Primitive(Primitive.U64)
+    case "to_usize": return type_from_name_init_name("USize", lp.ctx.scope, lp.ctx.symbols)
+    case "to_uptr": return type_from_name_init_name("UPtr", lp.ctx.scope, lp.ctx.symbols)
+    case: return Type.Unknown
+    }
+}
+
+priv fasm_binary := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
+    switch op {
+    case "add", "sub", "mul", "div", "mod", "band", "bor", "bxor", "shl", "shr", "eq", "neq", "lt", "gt", "lte", "gte", "cmp":
+    case: return false
+    }
+    if e.children.len() != 3 { fasm_error(e, "binary operation requires two arguments", lp); return true }
+    fasm_expr(e.children[1], state, lp)
+    saved := fasm_slot(state)
+    fasm_emit(state, format("mov ", saved, ", rax"))
+    fasm_expr(e.children[2], state, lp)
+    fasm_emit(state, "mov rcx, rax")
+    fasm_emit(state, format("mov rax, ", saved))
+    is_unsigned := fasm_unsigned(owner)
+    wide := owner == Type.Primitive(Primitive.I64) || owner == Type.Primitive(Primitive.U64)
+    switch op {
+    case "add": fasm_emit(state, "add rax, rcx")
+    case "sub": fasm_emit(state, "sub rax, rcx")
+    case "mul": fasm_emit(state, "imul rax, rcx")
+    case "band": fasm_emit(state, "and rax, rcx")
+    case "bor": fasm_emit(state, "or rax, rcx")
+    case "bxor": fasm_emit(state, "xor rax, rcx")
+    case "shl", "shr":
+        mut instruction := "shl"
+        if op == "shr" {
+            instruction = "sar"
+            if is_unsigned { instruction = "shr" }
+        }
+        // Match the C integer promotions: sub-32-bit operands shift as ints.
+        mut value_register := "eax"
+        if wide { value_register = "rax" }
+        fasm_emit(state, format(instruction, " ", value_register, ", cl"))
+    case "div", "mod":
+        label := state.labels.to_str()
+        state.labels++
+        fasm_emit(state, format("test rcx, rcx\n    jz .divzero", label))
+        if is_unsigned {
+            fasm_emit(state, "xor edx, edx")
+            if wide { fasm_emit(state, "div rcx") }
+            else { fasm_emit(state, "div ecx") }
+        } else {
+            if wide { fasm_emit(state, "cqo\n    idiv rcx") }
+            else { fasm_emit(state, "cdq\n    idiv ecx") }
+        }
+        if op == "mod" { fasm_emit(state, "mov rax, rdx") }
+        fasm_emit(state, format("jmp .divend", label, "\n.divzero", label, ":\n    xor eax, eax\n.divend", label, ":"))
+    case:
+        fasm_emit(state, "cmp rax, rcx")
+        mut less := "l"
+        mut greater := "g"
+        if is_unsigned { less = "b"; greater = "a" }
+        if op == "cmp" {
+            fasm_emit(state, format("set", less, " dl\n    set", greater, " al\n    movzx eax, al\n    movzx edx, dl\n    sub rax, rdx"))
+            return true
+        }
+        mut condition := "e"
+        switch op {
+        case "neq": condition = "ne"
+        case "lt": condition = less.clone()
+        case "gt": condition = greater.clone()
+        case "lte": condition = format(less, "e")
+        case "gte": condition = format(greater, "e")
+        case:
+        }
+        fasm_emit(state, format("set", condition, " al\n    movzx eax, al"))
+        return true
+    }
+    // The method owns the arithmetic width. An argument-position coercion
+    // may have restamped e.til_type with a wider caller parameter type.
+    fasm_narrow(owner, state)
+    return true
+}
+
+priv fasm_call_refs := func(name: Str, lp: LoadedProgram) returns U64 {
+    for stmt : Expr in fasm_root(lp).children {
+        if stmt.node_type.is(NodeType.Decl) && decl_of(stmt).name == name {
+            ref fd : FunctionDef = funcdef_of(stmt.children[0])
+            mut mask : U64 = 0
+            one : U64 = 1
+            for i in 0..fd.sig.params.len() {
+                ref p : Declaration = fd.sig.params[i]
+                if p.is_mut || p.own_type.is(OwnType.Ref) { mask = mask.bor(one.shl(i.to_u64())) }
+            }
+            return mask
+        }
+    }
+    panic("FASM function missing from its declaration table: ", name)
 }
 
 priv fasm_runtime_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: LoadedProgram) {
@@ -162,7 +297,14 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
         if state.values.has(name).not() { fasm_error(e, format("unsupported value '", name, "'"), lp); return }
         if state.addresses.has(name) { fasm_emit(state, format("lea rax, ", state.values[name].strip_prefix("qword "))) }
         else { fasm_emit(state, format("mov rax, ", state.values[name])) }
-        if state.pointers.has(name) && e.til_type().is(Type.Dynamic).not() { fasm_load_scalar(e.til_type(), state) }
+        if state.pointers.has(name) {
+            if e.til_type().is(Type.Dynamic).not() { fasm_load_scalar(state.value_types[name], state) }
+        } else if state.addresses.has(name).not() {
+            // A mut/ref call may have written only the declared byte width.
+            // Read that width, not stale high bytes in the eight-byte slot or
+            // an argument-position widening stamped on this identifier.
+            fasm_narrow(state.value_types[name], state)
+        }
     case .Literal(Literal.Num(n)):
         if fasm_scalar(e.til_type()).not() { fasm_error(e, "only integer numeric values are supported", lp); return }
         fasm_emit(state, format("mov rax, ", n.to_u64().to_str()))
@@ -242,14 +384,31 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
                 if fasm_scalar(owner).not() { fasm_error(e, format("unsupported operation ", type_name_ref(owner, lp.ctx.symbols), ".", op), lp); return }
                 if op == "to_str" && owner.is(Type.Dynamic).not() && owner != Type.Primitive(Primitive.Bool) {
                     mut runtime := "rt_i64_to_str"
-                    if type_name_ref(owner, lp.ctx.symbols).starts_with("U") { runtime = "rt_u64_to_str" }
+                    if fasm_unsigned(owner) { runtime = "rt_u64_to_str" }
                     fasm_runtime_call(e, runtime, state, lp)
                     return
                 }
-                if op == "to_i8" || op == "to_u8" || op == "to_i16" || op == "to_u16" || op == "to_i32" || op == "to_u32" || op == "to_i64" || op == "to_u64" || op == "to_usize" || op == "to_uptr" {
-                    if fasm_scalar(e.til_type()).not() { fasm_error(e, "unsupported cast", lp); return }
+                conversion := fasm_conversion(op, lp)
+                if conversion.is(Type.Unknown).not() {
                     fasm_expr(e.children[1], state, lp)
-                    fasm_narrow(e.til_type(), state)
+                    fasm_narrow(conversion, state)
+                    return
+                }
+                if (op == "inc" || op == "dec") && e.children.len() == 2 {
+                    fasm_pointer(e.children[1], state, lp)
+                    address := fasm_slot(state)
+                    fasm_emit(state, format("mov ", address, ", rax"))
+                    fasm_load_scalar(owner, state)
+                    fasm_emit(state, format(op, " rax"))
+                    fasm_narrow(owner, state)
+                    fasm_emit(state, format("mov rcx, ", address))
+                    fasm_store_scalar(owner, state)
+                    return
+                }
+                if op == "bnot" && e.children.len() == 2 {
+                    fasm_expr(e.children[1], state, lp)
+                    fasm_emit(state, "not rax")
+                    fasm_narrow(owner, state)
                     return
                 }
                 if op == "clone" && e.children.len() == 2 { fasm_expr(e.children[1], state, lp); return }
@@ -258,30 +417,7 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
                     fasm_emit(state, "xor eax, 1")
                     return
                 }
-                if e.children.len() == 3 && (op == "eq" || op == "add" || op == "sub" || op == "mul" || op == "lt" || op == "gt") {
-                    fasm_expr(e.children[1], state, lp)
-                    saved := fasm_slot(state)
-                    fasm_emit(state, format("mov ", saved, ", rax"))
-                    fasm_expr(e.children[2], state, lp)
-                    fasm_emit(state, "mov rcx, rax")
-                    fasm_emit(state, format("mov rax, ", saved))
-                    switch op {
-                    case "add": fasm_emit(state, "add rax, rcx")
-                    case "sub": fasm_emit(state, "sub rax, rcx")
-                    case "mul": fasm_emit(state, "imul rax, rcx")
-                    case:
-                        fasm_emit(state, "cmp rax, rcx")
-                        if op == "eq" { fasm_emit(state, "sete al") }
-                        else if type_name_ref(owner, lp.ctx.symbols).starts_with("U") {
-                            if op == "lt" { fasm_emit(state, "setb al") }
-                            else { fasm_emit(state, "seta al") }
-                        } else if op == "lt" { fasm_emit(state, "setl al") }
-                        else { fasm_emit(state, "setg al") }
-                        fasm_emit(state, "movzx eax, al")
-                    }
-                    fasm_narrow(e.til_type(), state)
-                    return
-                }
+                if fasm_binary(e, owner, op, state, lp) { return }
                 fasm_error(e, format("unsupported operation '", op, "'"), lp)
             case: fasm_error(e, "unsupported method receiver", lp)
             }
@@ -293,6 +429,17 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
                 return
             }
             if state.functions.has(name).not() {
+                if (name == "and" || name == "or") && e.children.len() == 3 {
+                    label := state.labels.to_str()
+                    state.labels++
+                    fasm_expr(e.children[1], state, lp)
+                    mut jump := "jz"
+                    if name == "or" { jump = "jnz" }
+                    fasm_emit(state, format("test rax, rax\n    ", jump, " .lazy", label))
+                    fasm_expr(e.children[2], state, lp)
+                    fasm_emit(state, format(".lazy", label, ":"))
+                    return
+                }
                 if name == "cast" && e.children.len() == 3 {
                     switch e.children[2].node_type {
                     case .Ident(target_id):
@@ -320,9 +467,12 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
             }
             if state.functions.has(name).not() { fasm_error(e, format("unsupported call '", name, "'"), lp); return }
             if e.children.len() > 7 { fasm_error(e, "at most six arguments are supported", lp); return }
+            refs := fasm_call_refs(name, lp)
+            one : U64 = 1
             mut args := Vec(Str).new()
             for i in 1..e.children.len() {
-                fasm_expr(e.children[i], state, lp)
+                if refs.band(one.shl((i - 1).to_u64())) != 0 { fasm_pointer(e.children[i], state, lp) }
+                else { fasm_expr(e.children[i], state, lp) }
                 slot := fasm_slot(state)
                 fasm_emit(state, format("mov ", slot, ", rax"))
                 args.push(own slot)
@@ -337,6 +487,7 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
 
 priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) {
     saved_values := state.values.clone()
+    saved_types := state.value_types.clone()
     saved_addresses := state.addresses.clone()
     saved_pointers := state.pointers.clone()
     for stmt : Expr in body.children {
@@ -371,12 +522,14 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) 
                     fasm_emit(state, format("mov rdi, ", outer, "\n    call rt_free"))
                 }
                 state.values.set(dd.name, own slot)
+                state.value_types.set(dd.name, own t.clone())
                 state.addresses.add(own dd.name.clone())
                 continue
             }
             slot := fasm_slot(state)
             fasm_emit(state, format("mov ", slot, ", rax"))
             state.values.set(dd.name, own slot)
+            state.value_types.set(dd.name, own t.clone())
             if pointer { state.pointers.add(own dd.name.clone()) }
         case .Assign(dd):
             if state.values.has(dd.name).not() { fasm_error(stmt, "only local assignments are supported", lp); continue }
@@ -384,21 +537,31 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) 
             fasm_expr(stmt.children[0], state, lp)
             if state.pointers.has(dd.name) {
                 fasm_emit(state, format("mov rcx, ", state.values[dd.name]))
-                switch stmt.til_type() {
-                case .Primitive(p):
-                    switch p {
-                    case .I8, .U8, .Bool: fasm_emit(state, "mov [rcx], al")
-                    case .I16, .U16: fasm_emit(state, "mov [rcx], ax")
-                    case .I32, .U32: fasm_emit(state, "mov [rcx], eax")
-                    case: fasm_emit(state, "mov [rcx], rax")
-                    }
-                case: fasm_error(stmt, "unsupported pointer assignment", lp)
-                }
+                fasm_store_scalar(stmt.til_type(), state)
             } else { fasm_emit(state, format("mov ", state.values[dd.name], ", rax")) }
         case .Return:
             if stmt.children.len() > 0 { fasm_expr(stmt.children[0], state, lp) }
             fasm_emit(state, "leave\n    ret")
         case .FCall: fasm_expr(stmt, state, lp)
+        case .Body: fasm_body(stmt, state, lp)
+        case .While:
+            label := state.labels.to_str()
+            state.labels++
+            saved_break := state.break_label.clone()
+            saved_continue := state.continue_label.clone()
+            state.break_label = format(".done", label)
+            state.continue_label = format(".loop", label)
+            fasm_emit(state, format(state.continue_label, ":"))
+            fasm_expr(stmt.children[0], state, lp)
+            fasm_emit(state, format("test rax, rax\n    jz ", state.break_label))
+            fasm_body(stmt.children[1], state, lp)
+            fasm_emit(state, format("jmp ", state.continue_label, "\n", state.break_label, ":"))
+            state.break_label = saved_break.clone()
+            state.continue_label = saved_continue.clone()
+        case .Break, .Continue:
+            if state.break_label.len() == 0 { fasm_error(stmt, "loop transfer outside a loop", lp); continue }
+            if stmt.node_type.is(NodeType.Break) { fasm_emit(state, format("jmp ", state.break_label)) }
+            else { fasm_emit(state, format("jmp ", state.continue_label)) }
         case .If:
             label := state.labels.to_str()
             state.labels++
@@ -408,10 +571,11 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) 
             fasm_emit(state, format("jmp .end", label, "\n.else", label, ":"))
             if stmt.children.len() > 2 { fasm_body(stmt.children[2], state, lp) }
             fasm_emit(state, format(".end", label, ":"))
-        case: fasm_error(stmt, "only declarations, calls, returns and if statements are supported", lp)
+        case: fasm_error(stmt, "unsupported statement", lp)
         }
     }
     state.values = saved_values.clone()
+    state.value_types = saved_types.clone()
     state.addresses = saved_addresses.clone()
     state.pointers = saved_pointers.clone()
 }
@@ -440,13 +604,17 @@ priv fasm_function := proc(decl: Expr, functions: Map(Str, Str), mut lp: LoadedP
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         t := declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols)
-        if p.own_type.is(OwnType.Own) || (fasm_is_str(t, lp).not() && (p.is_mut || p.own_type.is(OwnType.Ref) || fasm_scalar(t).not())) {
+        if p.own_type.is(OwnType.Own) || fasm_is_str(t, lp).or(fasm_scalar(t)).not() || (t.is(Type.Dynamic) && (p.is_mut || p.own_type.is(OwnType.Ref))) {
             fasm_error(decl, "parameters must be scalar values or borrowed Str values", lp)
             return ""
         }
         slot := fasm_slot(state)
         fasm_emit(state, format("mov ", slot, ", ", fasm_register(i)))
         state.values.set(p.name, own slot)
+        state.value_types.set(p.name, own t.clone())
+        if (p.is_mut || p.own_type.is(OwnType.Ref)) && fasm_is_str(t, lp).not() && t.is(Type.Dynamic).not() {
+            state.pointers.add(own p.name.clone())
+        }
     }
     fasm_body(expr.children[0], state, lp)
     // A non-void fallthrough is a compiler invariant violation, not a value.

@@ -76,6 +76,19 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/holyc"), format(dst_root, "/src/holyc"), "install compiler HolyC sources")
     if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/fasm"), format(dst_root, "/src/fasm"), "install compiler FASM runtime")
+    if rc != 0 { return rc }
+    rc = install_file(format(root, "/vendor/fasm/LICENSE.TXT"), format(dst_root, "/vendor/fasm/LICENSE.TXT"), "install FASM license")
+    if rc != 0 { return rc }
+    if detect_current_target().is(Target.LinuxX64) {
+        assembler := format(root, "/vendor/fasm/fasm")
+        if File.is_file(assembler) {
+            rc = install_file(assembler, format(dst_root, "/vendor/fasm/fasm"), "install FASM assembler")
+            if rc != 0 { return rc }
+        } else {
+            println("FASM assembler not bootstrapped; installing its runtime sources only")
+        }
+    }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc != 0 { return rc }
     // Native support for mode gui (issue #348) and std/crypto.

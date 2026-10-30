@@ -91,6 +91,8 @@ main := proc() returns I64 {
     require(format(PREFIX, "/lib/til/src/modes/gui.til"))
     require(format(PREFIX, "/lib/til/src/c/ext.c"))
     require(format(PREFIX, "/lib/til/src/holyc/ext.HC"))
+    require(format(PREFIX, "/lib/til/src/fasm/ext.fasm"))
+    require(format(PREFIX, "/lib/til/vendor/fasm/LICENSE.TXT"))
     require(format(PREFIX, "/lib/til/boot/til.c"))
     require(format(PREFIX, "/lib/til/doc/concepts/index.org"))
     require(format(PREFIX, "/lib/til/doc/concepts/ownership.org"))
@@ -102,6 +104,25 @@ main := proc() returns I64 {
     // installed til is found through its own location, not through this
     // repository's working directory.
     installed_til := "../install_test/bin/til"
+    if detect_current_target().is(Target.LinuxX64) && File.is_file("vendor/fasm/fasm") {
+        assembler := format(PREFIX, "/lib/til/vendor/fasm/fasm")
+        runtime := format(PREFIX, "/lib/til/src/fasm/ext.fasm")
+        require(assembler)
+        assembler_time := file_mtime(assembler)
+        read_only := Cmd.new("chmod", "a-w", assembler, runtime)
+        read_only.run_checked()
+        File.writefile(format(WORK, "/fasm_probe.til"), "mode script\nprintln(\"installed FASM works\")\n")
+        native_build := Cmd.new(installed_til, "build", "--backend=fasm", "fasm_probe.til")
+        native_build.cwd(WORK)
+        native_build.run_checked()
+        native_run := Cmd.new("./bin/fasm_probe")
+        native_run.cwd(WORK).capture()
+        native_status := native_run.run()
+        expect(native_status == 0, native_run.out(), native_run.err())
+        assert_eq(Str, native_run.out(), "installed FASM works\n")
+        expect(file_mtime(assembler) == assembler_time, "installed assembler was rebuilt")
+        expect(File.exists(format(PREFIX, "/lib/til/tmp")).not(), "installed support tree used as scratch space")
+    }
     // Qualifier queries in core templates must not start an interpreter that
     // recursively prepares the still-uninitialized core AST. Exercise the real
     // installed core, isolated from the checkout and other test processes.

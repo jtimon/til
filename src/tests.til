@@ -2355,6 +2355,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/directives.til", flags)
     add_both(tests, "test/variadic.til", flags)
     add_both(tests, "test/loops.til", flags)
+    add_both(tests, "test/scalar_control.til", flags)
     add_both(tests, "test/aliases.til", flags)
     add_both(tests, "test/fn_ptr.til", flags)
     add_both(tests, "test/comparisons.til", flags)

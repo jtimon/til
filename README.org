@@ -138,9 +138,19 @@ bin/til run test/fasm_runtime.til bin/til
 #+end_src
 
 The generated ~vendor/fasm/fasm~ is a native x86-64 executable, ignored by
-git. Rebuild it after updating the vendored source. This first backend is
-checkout-only; no installed assembler layout is provided yet. Ordinary C
-builds and ~make test~ do not require FASM; the suite checks translation and
+git. After this initial bootstrap, ordinary ~make~ / ~make vendor~ and FASM
+build/run commands rebuild it automatically when its assembly sources or
+includes change. A failed rebuild leaves the previous executable intact.
+
+On Linux x86-64, compiler installation copies a bootstrapped assembler and
+its license to ~<prefix>/lib/til/vendor/fasm/~, and the runtime to
+~<prefix>/lib/til/src/fasm/~. Installed compilers use these read-only payloads;
+they do not rebuild the assembler or write temporary files into the installation.
+Without a bootstrap, installation explicitly reports that it is installing
+only the FASM runtime sources. Bootstrap and reinstall to enable native FASM
+execution in that installation.
+
+Ordinary C builds and ~make test~ do not require FASM; the suite checks translation and
 diagnostics, while ~test/fasm_native.til~ and ~test/fasm_runtime.til~ check native
 execution and the ~src/fasm/ext.fasm~ runtime explicitly.
 See [[file:doc/self.org::*Experimental FASM backend][Experimental FASM backend]] for the supported subset.

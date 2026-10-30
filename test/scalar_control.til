@@ -1,0 +1,110 @@
+mode script
+
+// Shared scalar/control-flow coverage: no backend-specific source variants.
+bump := func(mut count: I64) returns Bool {
+    count++
+    return true
+}
+byte_bump := func(mut value: I8) { value.inc() }
+pointer_width := func(value: UPtr) returns UPtr { return value }
+find := func(limit: I64) returns I64 {
+    mut i := 0
+    while i < limit {
+        i++
+        if i == 3 { return i }
+    }
+    return -1
+}
+
+mut count := 0
+mut gate := false
+gate = gate.not()
+assert((gate.not() && bump(count)).not())
+assert(gate || bump(count))
+assert(count == 0)
+assert(gate && bump(count))
+assert(gate.not() || bump(count))
+assert(count == 2)
+assert(and(gate, false, bump(count)).not())
+assert(or(gate.not(), true, bump(count)))
+assert(count == 2)
+
+mut i := 0
+mut sum := 0
+while i < 10 {
+    i++
+    if i.mod(2) == 0 { continue }
+    sum = sum + i
+    if i == 7 { break }
+}
+assert(sum == 16)
+sum = 0
+for n in 0..6 {
+    if n == 2 { continue }
+    if n == 5 { break }
+    sum = sum + n
+}
+assert(sum == 8)
+sum = 0
+for n in 5..0 { sum = sum + n }
+assert(sum == 15)
+for _ in 3..3 { panic("empty range ran") }
+sum = 0
+for outer in 0..3 {
+    if outer == 1 { continue }
+    for inner in 0..5 {
+        if inner == 3 { break }
+        if inner == 1 { continue }
+        sum++
+    }
+}
+assert(sum == 4)
+assert(find(i) == 3)
+
+mut byte_value : I8 = -1
+byte_bump(byte_value)
+assert(byte_value == 0)
+byte_value = 127
+byte_bump(byte_value)
+assert(byte_value == -128)
+mut dividend : I64 = -17
+dividend = dividend - 0
+assert(dividend.div(5) == -3)
+assert(dividend.mod(5) == -2)
+assert(dividend.div(0) == 0)
+assert(dividend.mod(0) == 0)
+assert(dividend.shr(3) == -3)
+assert(dividend.cmp(-16) == -1)
+assert(dividend.cmp(-17) == 0)
+assert(dividend.cmp(-18) == 1)
+mut small : I8 = -128
+small = small + 0
+assert(small.div(-1) == -128)
+assert(small.mod(-1) == 0)
+mut signed_word : I32 = -17
+signed_word = signed_word - 0
+assert(signed_word.div(5) == -3)
+assert(signed_word.mod(5) == -2)
+assert(signed_word.shr(3) == -3)
+mut large : U64 = 18446744073709551615
+large = large - 0
+assert(large.div(2) == 9223372036854775807)
+assert(large.mod(2) == 1)
+assert(large.shr(63) == 1)
+assert(large.gte(9223372036854775808))
+assert(large.cmp(0) == 1)
+assert(large.to_str().eq("18446744073709551615"))
+mut bits : U32 = 1
+bits = bits.shl(31)
+assert(bits == 2147483648)
+assert(bits.shr(31) == 1)
+assert(bits.bnot() == 2147483647)
+assert(bits.bor(3).band(7).bxor(1) == 2)
+assert(bits.lte(2147483648))
+assert(bits.cmp(4294967295) == -1)
+bits = bits - 1
+assert(bits.div(2) == 1073741823)
+mut size : USize = 0
+size = size - 1
+assert(pointer_width(size.add(1)) == 0)
+println("scalar control passed")

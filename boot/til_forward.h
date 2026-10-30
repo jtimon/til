@@ -149,6 +149,7 @@ typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__USize Vec__USize;
 typedef struct File File;
+typedef struct Dir Dir;
 typedef struct Cmd Cmd;
 enum {
     DiagnosticPhase_TAG_Unknown,
@@ -434,6 +435,8 @@ enum {
 typedef struct Option__Bool Option__Bool;
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding Vec__priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_fasm_codegen_til__FasmState priv___src_self_fasm_codegen_til__FasmState;
+typedef struct Map__Str_Type Map__Str_Type;
+typedef struct Vec__Type Vec__Type;
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
@@ -767,6 +770,11 @@ typedef struct File {
     Bool is_write;
     Bool is_update;
 } File;
+
+
+typedef struct Dir {
+    U8 *handle;
+} Dir;
 
 
 typedef struct Cmd {
@@ -1542,18 +1550,11 @@ typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
 } Vec__priv___src_self_mlir_codegen_til__MlirBinding;
 
 
-typedef struct priv___src_self_fasm_codegen_til__FasmState {
-    Str text;
-    USize slots;
-    USize labels;
-    Map__Str_Str values;
-    Map__Str_Str functions;
-    Set__Str addresses;
-    Set__Str pointers;
-    Str data;
-    Str prefix;
-    USize literals;
-} priv___src_self_fasm_codegen_til__FasmState;
+typedef struct Vec__Type {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__Type;
 
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
@@ -2247,6 +2248,12 @@ typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding {
 } Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
 
 
+typedef struct Map__Str_Type {
+    Vec__Str keys;
+    Vec__Type values;
+} Map__Str_Type;
+
+
 typedef struct Map__Str_call_Map_Str_Bool {
     Vec__Str keys;
     Vec__call_Map_Str_Bool values;
@@ -2556,6 +2563,23 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
     Map__Str_U64 integers;
     Map__Str_Bool booleans;
 } priv___src_self_mlir_codegen_til__MlirState;
+
+
+typedef struct priv___src_self_fasm_codegen_til__FasmState {
+    Str text;
+    USize slots;
+    USize labels;
+    Map__Str_Str values;
+    Map__Str_Type value_types;
+    Map__Str_Str functions;
+    Set__Str addresses;
+    Set__Str pointers;
+    Str data;
+    Str prefix;
+    USize literals;
+    Str break_label;
+    Str continue_label;
+} priv___src_self_fasm_codegen_til__FasmState;
 
 
 typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {

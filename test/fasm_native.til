@@ -1,10 +1,67 @@
 mode cli
 import("../src/std/sys")
 import("../src/std/file")
+import("../src/self/fasm_build")
 realpath_str := ext_proc(path: Str) returns Str {}
 
 // Optional native integration: bootstrap vendor/fasm/fasm first, then:
 // bin/til run test/fasm_native.til bin/til
+check_shared := proc(compiler: Str, work: Str, source: Str) {
+    input := realpath_str(source)
+    for width in array(Str, "32", "64") {
+        interpreted := Cmd.new("timeout", "30s", compiler, "interpret", format("--usize=", width), input)
+        interpreted.cwd(work).capture()
+        interpreted_status := interpreted.run()
+        expect(interpreted_status == 0, source, width, interpreted.out(), interpreted.err())
+        for backend in array(Str, "c", "fasm") {
+            output := format("bin/shared-", backend, "-", width)
+            build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", output, input)
+            build.cwd(work).capture()
+            status := build.run()
+            expect(status == 0, source, backend, width, build.out(), build.err())
+            run := Cmd.new("timeout", "30s", format("./", output))
+            run.cwd(work).capture()
+            result := run.run()
+            expect(result == 0, source, backend, width, result, run.out(), run.err())
+            expect(run.out() == interpreted.out(), source, backend, width, "stdout mismatch", run.out())
+            expect(run.err() == interpreted.err(), source, backend, width, "stderr mismatch", run.err())
+        }
+    }
+}
+
+check_rebuild := proc(compiler: Str, work: Str) {
+    root := compiler.substr(0, compiler.rfind("/bin/").to_usize())
+    stage := format(work, "/rebuild tools")
+    File.remove_tree(stage)
+    mkdir_p(format(stage, "/vendor/fasm"))
+    expect(copy_tree(format(root, "/vendor/fasm/source"), format(stage, "/vendor/fasm/source")) == 0, "copy FASM sources")
+    tool := format(stage, "/vendor/fasm/fasm")
+    expect(copy_file(format(root, "/vendor/fasm/fasm"), tool) == 0, "copy FASM bootstrap")
+    stage_root := realpath_str(stage)
+    old := Cmd.new("touch", "-d", "2000-01-01", tool)
+    old.run_checked()
+    old_time := file_mtime(tool)
+    expect(fasm_prepare(stage_root, true) == 0, "vendored FASM rebuild failed")
+    expect(file_mtime(tool) > old_time, "stale assembler was not rebuilt")
+    future := Cmd.new("touch", "-d", "2100-01-01", tool)
+    future.run_checked()
+    fresh_time := file_mtime(tool)
+    expect(fasm_prepare(stage_root, true) == 0, "fresh assembler check failed")
+    expect(file_mtime(tool) == fresh_time, "fresh assembler was unnecessarily rebuilt")
+    changed_include := Cmd.new("touch", "-d", "2101-01-01", format(stage, "/vendor/fasm/source/version.inc"))
+    changed_include.run_checked()
+    expect(fasm_prepare(stage_root, true) == 0, "changed assembler include did not rebuild")
+    expect(file_mtime(tool) != fresh_time, "assembler include was not tracked")
+    original := File.readfile(tool)
+    File.appendfile(format(stage, "/vendor/fasm/source/linux/x64/fasm.asm"), "\ninvalid_fasm_instruction\n")
+    old_again := Cmd.new("touch", "-d", "2000-01-01", tool)
+    old_again.run_checked()
+    expect(fasm_prepare(stage_root, true) != 0, "invalid assembler source accepted")
+    expect(File.readfile(tool) == original, "failed rebuild replaced the working assembler")
+    survivor := Cmd.new(realpath_str(tool), format(work, "/gen/fasm/empty.fasm"), format(work, "/rebuild-survivor"))
+    survivor.run_checked()
+}
+
 main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/fasm_native"
@@ -48,5 +105,9 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
+    for source in array(Str, "test/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til") {
+        check_shared(compiler, work, source)
+    }
+    check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

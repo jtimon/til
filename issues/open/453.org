@@ -44,8 +44,8 @@ existing C and MLIR backends.
   The first slice selects ~--backend=fasm~, emits ~gen/fasm/<source>.fasm~
   and builds standalone Linux ELF64 executables in the existing ~bin/~ paths.
   Internal calls use SysV integer registers and 16-byte stack alignment.
-  FASM is bootstrapped manually from its vendored source; no new installation
-  layout is established. See ~doc/self.org~ for the implemented subset and
+  FASM's first bootstrap is manual; subsequent rebuilds and installation are
+  integrated as described below. See ~doc/self.org~ for the implemented subset and
   ~test/fasm_options.til~ / ~test/fasm_native.til~ for initial checks.
 
   The first subset supports I64/Bool parameters and value locals, local
@@ -76,7 +76,7 @@ existing C and MLIR backends.
 
   The emitter now also accepts script bodies, integer widths needed by the
   runtime ABI, typed scalar pointer locals and borrowed Str parameters.
-  General aggregates, user arrays, aggregate returns/reassignment, loops,
+  General aggregates, user arrays, aggregate returns/reassignment,
   indirect calls and general exception propagation are still outstanding.
 
   ~test/fasm_runtime.til~ compares identical source programs through the
@@ -90,6 +90,41 @@ existing C and MLIR backends.
   481/481; ~test/fasm_runtime.til~ and ~test/fasm_native.til~ both passed with
   the ASAN compiler and test driver. ASAN instruments the compiler/driver,
   not the generated native assembly runtime.
+
+**** Build/install and scalar-control follow-up
+
+  The normal vendor phase and FASM build/run commands now refresh a
+  bootstrapped assembler from changed assembly/includes. Builds use a
+  process-specific checkout tmp file and rename only after successful assembly,
+  preserving the working tool on failure. The bootstrap seed remains optional
+  for C builds and survives clean/clean_vendor.
+
+  Linux x86-64 installation copies the available assembler/license at
+  ~lib/til/vendor/fasm/~ and the runtime at ~lib/til/src/fasm/~. The installed
+  compiler uses those read-only payloads, with no assembler build sources or
+  temporary writes under the installation. Without a bootstrap, installation
+  reports that only runtime sources are being installed.
+
+  The emitter now handles while/range loops, nested break/continue, lexical
+  blocks, mut/ref scalar arguments, short-circuit Bool operations, division,
+  remainder, shifts, bitwise operations and all scalar comparisons. Primitive
+  signedness is taken from Primitive tags, not type_name_ref (which has no
+  primitive name payload). Narrow cells are normalized after reference writes,
+  and arithmetic uses the method's width before caller-argument widening.
+
+  Shared-source execution now includes FizzBuzz, the existing TempleOS scalar
+  checks and continue fixture, plus ~test/scalar_control.til~ in the normal
+  interpreter/C suite. The latter exposed missing interpreter dispatch for
+  U32_cmp: ext.h keeps it always-inline, so there is no exported FFI symbol.
+  A handler calls that existing inline comparison, preserving the C hot path.
+  Both USize widths are checked. Native integration also covers assembler
+  rebuilds and failure preservation; the install test runs a real installed
+  FASM program outside the checkout.
+
+  Verification on master base ~2d9d1c893~: ~make clean && make test~ passed
+  486/486, including the installed-compiler probe and the shared scalar test.
+  ~test/fasm_native.til~ and ~test/fasm_runtime.til~ also passed with the ASAN
+  compiler/test driver; native comparisons exercised both USize widths.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or

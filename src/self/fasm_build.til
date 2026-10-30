@@ -1,0 +1,60 @@
+mode lib
+import("../std/sys")
+import("../std/file")
+import("targets")
+
+// The initial assembler is bootstrapped explicitly. Once present, the
+// vendored executable rebuilds itself from source like the other vendors.
+// Installed support trees contain the executable/license, not build sources.
+fasm_prepare := proc(root: Str, required: Bool) returns I32 {
+    if detect_current_target().is(Target.LinuxX64).not() { return 0 }
+    binary := format(root, "/vendor/fasm/fasm")
+    if File.is_file(binary).not() {
+        if required {
+            println("error: bootstrap vendor/fasm/fasm first; see README.org's FASM bootstrap instructions")
+            return 1
+        }
+        return 0
+    }
+    source := format(root, "/vendor/fasm/source")
+    if File.is_dir(source).not() {
+        if File.is_file(format(root, "/src/til.til")) {
+            println("error: vendored FASM source is missing from compiler checkout: ", source)
+            return 1
+        }
+        // An installed compiler uses its prebuilt, read-only support payload.
+        return 0
+    }
+    entry := format(source, "/linux/x64/fasm.asm")
+    if File.is_file(entry).not() { println("error: missing FASM build input: ", entry); return 1 }
+    built := file_mtime(binary)
+    mut stale := false
+    for directory in array(Str, source, format(source, "/linux/x64")) {
+        // Deleting or adding an include changes the directory mtime too.
+        if file_mtime(directory) > built { stale = true }
+        for name : Str in Dir.list(directory) {
+            if name.ends_with(".inc").or(name.ends_with(".asm")) {
+                path := format(directory, "/", name)
+                changed := file_mtime(path)
+                if changed < 0 { println("error: cannot stat FASM input: ", path); return 1 }
+                if changed > built { stale = true }
+            }
+        }
+    }
+    if stale.not() { return 0 }
+    scratch := format(root, "/tmp")
+    if mkdir_p(scratch) != 0 { println("error: cannot create FASM build directory: ", scratch); return 1 }
+    temporary := format(scratch, "/fasm-", process_id().to_str())
+    assemble := Cmd.new(binary, entry, temporary)
+    if assemble.run() != 0 {
+        File.remove(temporary)
+        println("error: rebuilding vendored FASM failed")
+        return 1
+    }
+    permissions := Cmd.new("chmod", "+x", temporary)
+    if permissions.run() != 0 { File.remove(temporary); return 1 }
+    // Same-filesystem rename keeps the old executable usable until the new
+    // build succeeds, including when another compiler is using it.
+    File.rename(temporary, binary)
+    return 0
+}

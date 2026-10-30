@@ -5,6 +5,7 @@ import("loader")
 import("c_codegen")
 import("mlir_codegen")
 import("fasm_codegen")
+import("fasm_build")
 import("holyc_codegen")
 import("jvm_codegen")
 import("theme_codegen")
@@ -911,10 +912,7 @@ cmd_fasm := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
     if result != 0 { return result }
     if command == "translate" { println("Generated: ", paths.c_path); return 0 }
     assembler := format(lp.ctx.import_support_dir, "/vendor/fasm/fasm")
-    if File.exists(assembler).not() {
-        println("error: build vendor/fasm/fasm first; see README.org's FASM bootstrap instructions")
-        return 1
-    }
+    if fasm_prepare(lp.ctx.import_support_dir, true) != 0 { return 1 }
     assemble := Cmd.new(assembler, paths.c_path, paths.bin_path)
     if assemble.run() != 0 { File.remove(paths.bin_path); return 1 }
     permissions := Cmd.new("chmod", "+x", paths.bin_path)
@@ -1021,6 +1019,7 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
     mut compiler_root := ""
     if is_compiler_install(lp, paths) {
         compiler_root = builder_compiler_root(lp)
+        if fasm_prepare(compiler_root, false) != 0 { return 1 }
     }
     return install_executable(paths.bin_path, bin_dst, compiler_root, install_prefix)
 }

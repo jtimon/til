@@ -8069,6 +8069,16 @@ priv h_U32_from_i64 := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: 
     return true
 }
 
+// U32_cmp is always-inline in ext.h, so it has no exported FFI symbol.
+// Use that same comparison in the compiled handler rather than losing the
+// interpreter path or changing the C hot path to an out-of-line call.
+priv h_U32_cmp := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    a := eval_u64_arg(s, e.children[1], ctx).to_u32()
+    b := eval_u64_arg(s, e.children[2], ctx).to_u32()
+    write_i64(r, a.cmp(b))
+    return true
+}
+
 // Issue #212: integer reinterpret or same-signedness widening cast. The
 // typer set this FCall's til_type to the target type T; read the operand's
 // raw bits and write them at the target width.
@@ -9672,6 +9682,7 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("F32_from_i64_ext", h_F32_from_i64, ctx)
     reg_dispatch("U32_from_i64", h_U32_from_i64, ctx)
     reg_dispatch("U32_from_i64_ext", h_U32_from_i64, ctx)
+    reg_dispatch("U32_cmp", h_U32_cmp, ctx)
     reg_dispatch("cast", h_cast, ctx)
     reg_dispatch("exit", h_exit, ctx)
     reg_dispatch("free", h_free, ctx)

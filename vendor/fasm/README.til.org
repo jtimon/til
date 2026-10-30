@@ -19,5 +19,14 @@ chmod +x vendor/fasm/fasm
 #+end_src
 
 Run these commands from the til root. The resulting ignored executable is
-used by til's FASM backend and must be rebuilt when this snapshot changes.
-No binary bootstrap or network download is part of til's normal build.
+the bootstrap seed for subsequent rebuilds. make's vendor phase and the FASM
+build/run path compare it with the common and Linux x64 assembly/includes.
+Stale sources are assembled to tmp/ and replace the old executable by rename
+only after success. No binary download, manifest or cache is involved.
+
+clean and clean_vendor retain this bootstrap seed. Linux x86-64 installation
+ships an available assembler and LICENSE.TXT under lib/til/vendor/fasm/;
+assembler sources are not installed. The runtime is installed separately at
+lib/til/src/fasm/ext.fasm. An unbootstrapped compiler installation reports
+that it is shipping runtime sources only; bootstrap and reinstall to add
+the executable. Ordinary C builds remain independent of the optional tool.
