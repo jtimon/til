@@ -4656,7 +4656,12 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             f.write("struct_field_count(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(")")
-        } else if builder_is_struct_ownership_query(name.ident_name(ctx.symbols.names), ctx.scope, ctx.symbols) {
+        } else if builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_decl_tag_type", "enum_def_of", ctx.scope, ctx.symbols) {
+            f.write(name.ident_name(ctx.symbols.names)).write("(")
+            emit_as_ptr(f, e.children[1], depth, false, ctx)
+            f.write(")")
+        } else if builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "struct_field_own_type", "struct_def_of", ctx.scope, ctx.symbols)
+            .or(builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_variant_payload_is_funcsig", "enum_def_of", ctx.scope, ctx.symbols)) {
             f.write(name.ident_name(ctx.symbols.names)).write("(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(", ")
@@ -9089,6 +9094,14 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if builder_needs_reflect("struct_field_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index);\n")
     }
+    if builder_needs_reflect("enum_decl_tag_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("Str *").write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_decl_tag_type"))
+            .write("(Str *type_name);\n")
+    }
+    if builder_needs_reflect("enum_variant_payload_is_funcsig", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_variant_payload_is_funcsig"))
+            .write("(Str *type_name, I64 *index);\n")
+    }
     if builder_needs_reflect("enum_variant_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_count(Str *type_name);\n")
     }
@@ -9835,7 +9848,8 @@ priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
 
 // Issue #57/#58: emit one enum's branch for an enum_variant_* function.
 // kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type,
-// 4 = tag_value, 5 = payload_is_const, 6 = payload_is_ref (#307).
+// 4 = tag_value, 5 = payload_is_const, 6 = payload_is_ref (#307),
+// 7 = tag_type, 8 = payload_is_funcsig (private checked-schema queries).
 priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
@@ -9851,6 +9865,10 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(ename).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
         if kind == 0 {
             f.write("        return "); emit_usize(f, ed.variants.len()); f.write("LL;\n")
+        } else if kind == 7 {
+            f.write("        return ")
+            emit_str_lit_expr(f, enum_tag_type(stmt.children[0]), ctx)
+            f.write(";\n")
         } else {
             emit_reflect_found_mark(f)
             for i in 0..ed.variants.len() {
@@ -9867,6 +9885,8 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
                     if vd.payload_const { f.write("1") } else { f.write("0") }
                 } else if kind == 6 {
                     if vd.payload_ref { f.write("1") } else { f.write("0") }
+                } else if kind == 8 {
+                    if vd.payload_funcsig { f.write("1") } else { f.write("0") }
                 } else {
                     emit_str_lit_expr(f, vd.payload_type, ctx)
                 }
@@ -9890,6 +9910,18 @@ priv emit_enum_variant_branches := proc(f: File, kind: I32, mut lp: LoadedProgra
 // Issue #57/#58: emit the C bodies for the enum_variant_* introspection
 // primitives. Each is a strcmp chain over every loaded enum type.
 priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
+    if builder_needs_reflect("enum_decl_tag_type", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("Str *").write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_decl_tag_type"))
+            .write("(Str *type_name) {\n")
+        emit_enum_variant_branches(f, 7, lp)
+        emit_reflect_not_found_tail(f, "enum_decl_tag_type")
+    }
+    if builder_needs_reflect("enum_variant_payload_is_funcsig", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_variant_payload_is_funcsig"))
+            .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
+        emit_enum_variant_branches(f, 8, lp)
+        emit_reflect_index_tails(f, "enum_variant_payload_is_funcsig")
+    }
     if builder_needs_reflect("enum_variant_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_count(Str *type_name) {\n")
         emit_enum_variant_branches(f, 0, lp)
@@ -12703,20 +12735,27 @@ priv builder_record_reflect_name := func(n: Str, mut inv: Set(Str)) {
         if inv.has("func_sig_").not() { inv.add(own Str.clone("func_sig_")) }
     }
 }
-// The ownership query is private to core/dyn. Resolve its actual module's
+// These reflection queries are private to core/dyn. Resolve the owning module's
 // mangled identity, including for an installed SDK at a different path.
-priv builder_is_struct_ownership_query := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
-    if name.ends_with("__struct_field_own_type").not() { return false }
-    def_o := scope.get_binding_name("struct_def_of", symbols)
+priv builder_is_private_reflect_query := func(name: Str, query: Str, owner: Str, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if name.ends_with(query).not() { return false }
+    def_o := scope.get_binding_name(owner, symbols)
     if def_o.is_none() { return false }
-    return name == priv_c_name(def_o.unwrap().path, "struct_field_own_type")
+    return name == priv_c_name(def_o.unwrap().path, query)
 }
 
 priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str), scope: TypeScope, symbols: SymbolPool) {
     switch e.node_type {
     case .Ident(rid):
-        if builder_is_struct_ownership_query(rid.ident_name(symbols.names), scope, symbols) {
+        if builder_is_private_reflect_query(rid.ident_name(symbols.names), "struct_field_own_type", "struct_def_of", scope, symbols) {
             builder_record_reflect_name("struct_field_own_type", inv)
+        }
+        if builder_is_private_reflect_query(rid.ident_name(symbols.names), "enum_decl_tag_type", "enum_def_of", scope, symbols) {
+            builder_record_reflect_name("enum_decl_tag_type", inv)
+            inv.add(own "enum_variant_")
+        }
+        if builder_is_private_reflect_query(rid.ident_name(symbols.names), "enum_variant_payload_is_funcsig", "enum_def_of", scope, symbols) {
+            builder_record_reflect_name("enum_variant_payload_is_funcsig", inv)
         }
         if builder_is_reflect_builtin_name(rid.ident_name(symbols.names)) {
             builder_record_reflect_name(rid.ident_name(symbols.names), inv)

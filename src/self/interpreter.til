@@ -524,7 +524,7 @@ namespace:
         ref def : Expr = callable_raw_func_def(to_ptr(self.callable))
         contract := interp_lookup_signature(funcdef_of(def), lp.ctx).unwrap()
         if error_type.is(Type.FuncPtrSig) {
-            expected := func_sig_of(til_type_name(error_type))
+            expected := interp_callback_contract(func_sig_of(til_type_name(error_type)), lp.ctx)
             if contract.eq(expected).not().or(expected.throw_types.len() == 0) {
                 mut err := TilVmError(phase = "call")
                 err.diagnostics.push(own TilVmDiagnostic(message = "guest signature does not match throwing adapter signature"))
@@ -6582,7 +6582,7 @@ priv interp_lookup_type := func(name: Str, ctx: Context, allow_record: Bool = fa
     if allow_record {
         definition := ctx.scope.get_struct(resolved, ctx.symbols)
         if definition.is_some() {
-            if definition.unwrap().node_type.is(NodeType.StructDef) { return resolved.clone() }
+            if definition.unwrap().node_type.is(NodeType.StructDef).or(definition.unwrap().node_type.is(NodeType.EnumDef)) { return resolved.clone() }
         }
     }
     return ""
@@ -6615,7 +6615,34 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
         if name.len() == 0 { return Option(FuncSig).None }
         out.return_type = name
     }
-    return Option(FuncSig).Some(own out)
+    return Option(FuncSig).Some(own interp_callback_contract(out, ctx))
+}
+
+// Owned-box niche enums are passed/returned by value after body inference.
+// Host bodyless FuncSig reflection can still carry the source ref/own form.
+// Compare those equivalent value representations without erasing mut or own
+// input transfer, or a genuinely borrowed result.
+priv interp_callback_contract := func(sig: FuncSig, ctx: Context) returns FuncSig {
+    mut out := sig.clone()
+    returns_borrow := sig.return_own_type.is(OwnType.Ref)
+    if out.return_own_type.is(OwnType.Own).and(out.return_type.len() > 0) {
+        def := ctx.scope.get_struct(out.return_type, ctx.symbols)
+        if def.is_some() {
+            if def.unwrap().node_type.is(NodeType.EnumDef) {
+                if enum_is_niche(def.unwrap()) { out.return_own_type = OwnType.Shallow }
+            }
+        }
+    }
+    for mut param : Declaration in out.params {
+        if returns_borrow.or(param.is_mut).or(param.own_type.is(OwnType.Ref).not()) { continue }
+        def := ctx.scope.get_struct(param.type_name(), ctx.symbols)
+        if def.is_some() {
+            if def.unwrap().node_type.is(NodeType.EnumDef) {
+                if enum_is_niche(def.unwrap()) { param.own_type = OwnType.Shallow }
+            }
+        }
+    }
+    return out
 }
 
 // Checked evaluator lookup, not a native function pointer. The returned
@@ -6676,7 +6703,7 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
         return Option(ref HeapBinding).None
     }
     actual := actual_o.unwrap()
-    if actual.eq(expected).not() {
+    if actual.eq(interp_callback_contract(expected, lp.ctx)).not() {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
             declaration.path, declaration.line, declaration.col, format("guest function signature mismatch: ", name))
         return Option(ref HeapBinding).None
@@ -6718,6 +6745,30 @@ priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns B
     if is_scalar_type_name(name).or(name == "Str") { return true }
     guest_o := ctx.scope.get_struct(name, ctx.symbols)
     if guest_o.is_none() { return false }
+    if guest_o.unwrap().node_type.is(NodeType.EnumDef) {
+        ref def : Expr = guest_o.unwrap()
+        ref guest : EnumDef = enumdef_of(def)
+        host := enum_def_of(name)
+        if host.tag_type != enum_tag_type(def) || host.variants.len() != guest.variants.len() { return false }
+        for i in 0..guest.variants.len() {
+            ref gv : VariantDef = guest.variants[i]
+            ref hv : VariantDef = host.variants[i]
+            if gv.name != hv.name || gv.tag_value != hv.tag_value || gv.payload_type != hv.payload_type { return false }
+            if gv.payload_const != hv.payload_const { return false }
+            if gv.payload_ref.or(hv.payload_ref).or(gv.payload_funcsig).or(hv.payload_funcsig) { return false }
+            if gv.payload_type.len() == 0 { continue }
+            if interp_lookup_type(gv.payload_type, ctx).len() == 0 {
+                payload := ctx.scope.get_struct(gv.payload_type, ctx.symbols)
+                if payload.is_none() { return false }
+                if payload.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+                if interp_callback_error_schema(gv.payload_type, ctx).not() { return false }
+            }
+            pt := type_from_name_init_name(gv.payload_type, ctx.scope, ctx.symbols)
+            if raw_type_size(pt, ctx) != dyn_size_of(hv.payload_type) { return false }
+        }
+        ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
+        return layout.ptr.size.to_usize() == dyn_size_of(name)
+    }
     if guest_o.unwrap().node_type.is(NodeType.StructDef).not() { return false }
     ref guest : StructDef = structdef_of(guest_o.unwrap())
     host := struct_def_of(name)
@@ -6734,15 +6785,43 @@ priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns B
     return layout.ptr.size.to_usize() == dyn_size_of(name)
 }
 
-priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Context) returns Dynamic {
+priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Context, to_guest: Bool = false) returns Dynamic {
     // The validated inline-field layout is shared by host and interpreter.
     // Reuse this deep boundary copy for arguments, results and error payloads.
     t := type_from_name_init_name(name, ctx.scope, ctx.symbols)
     if is_scalar_type_name(name).or(name == "Str") { return interp_call_copy(t, source, ctx) }
+    mut allocation_size := dyn_size_of(name)
+    // Raw interpreter enum slots are at least a word, even for a native U8
+    // or U16 tag-only enum. Only the declared tag bytes cross the boundary.
+    if to_guest { allocation_size = raw_type_size(t, ctx) }
     ref def : Expr = ctx.scope.get_struct(name, ctx.symbols).unwrap()
+    if def.node_type.is(NodeType.EnumDef) {
+        ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
+        mut out : Dynamic = calloc(1, allocation_size)
+        if enum_is_niche(def) {
+            ref box : Dynamic = deref(source)
+            if box.is_null() { return out }
+            ref variant : VariantDef = enumdef_of(def).variants[enum_niche_some_index(def).to_usize()]
+            copied : Dynamic = interp_callback_error_copy(variant.payload_type, box, ctx, to_guest)
+            write_ptr(out, copied)
+            return out
+        }
+        tag := enum_data_tag_key(source, def)
+        index := enum_variant_index_for_tag(def, tag)
+        if index < 0 { panic("callback enum value has an invalid tag: ", name) }
+        memcpy(out, source, enum_tag_size(def))
+        ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
+        if variant.payload_type.len() > 0 {
+            ref offset : U64 = ptr_add(layout.offsets, 8)
+            copied : Dynamic = interp_callback_error_copy(variant.payload_type, ptr_add(source, offset.to_usize()), ctx)
+            memcpy(ptr_add(out, offset.to_usize()), copied, dyn_size_of(variant.payload_type))
+            EvalHeap.heap_free(own copied)
+        }
+        return out
+    }
     ref sd : StructDef = structdef_of(def)
     ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
-    mut out : Dynamic = calloc(1, dyn_size_of(name))
+    mut out : Dynamic = calloc(1, allocation_size)
     for i in 0..sd.fields.len() {
         ref field : Declaration = sd.fields[i]
         ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
@@ -6768,6 +6847,11 @@ priv interp_call_copy := func(t: Type, data: Dynamic, ctx: Context) returns Dyna
         str_copy_into(out, view, ctx)
     }
     return out
+}
+
+priv interp_callback_native_size := func(t: Type, ctx: Context) returns USize {
+    if is_enum_type(t) { return ctx_total_size(resolved_type_name(t, ctx.symbols), ctx) }
+    return raw_type_size(t, ctx)
 }
 
 // Hidden error slots precede trailing defaulted parameters, so source
@@ -6846,7 +6930,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         want := expected.params[i].type_name()
         got := arguments.type_at(i).clone()
         t := type_from_name_init_name(want, lp.ctx.scope, lp.ctx.symbols)
-        if got != want || arguments.size_at(i) != raw_type_size(t, lp.ctx) {
+        if got != want || arguments.size_at(i) != interp_callback_native_size(t, lp.ctx) {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
                 format("guest argument ", (i + 1).to_str(), " type/width mismatch: expected ", want, ", received ", got))
             return Option(Tuple).None
@@ -6857,7 +6941,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     mut ret_type := Type.None
     if expected.return_type.len() > 0 {
         ret_type = type_from_name_init_name(expected.return_type, lp.ctx.scope, lp.ctx.symbols)
-        if raw_type_size(ret_type, lp.ctx) != dyn_size_of(expected.return_type) {
+        if interp_callback_native_size(ret_type, lp.ctx) != dyn_size_of(expected.return_type) {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
                 "guest result width differs from the host layout")
             return Option(Tuple).None
@@ -6867,7 +6951,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     mut temps := scope_new(safe_ref(session_global(session)))
     for i in 0..arguments.len() {
         t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
-        copy : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), arguments.get(i), lp.ctx)
+        copy : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), arguments.get(i), lp.ctx, true)
         // Dots cannot occur in a source identifier, so these evaluator-only
         // argument slots cannot shadow a user global inside a static function.
         arg_name := format("TilVm.argument.", i.to_str())
@@ -8550,6 +8634,27 @@ priv h_struct_field_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
     return true
 }
 
+priv h_enum_decl_tag_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    name := eval_str_owned(s, e.children[1], ctx)
+    def := interp_lookup_enum(s, e, name, "enum_decl_tag_type", ctx)
+    if def.is_some() { str_copy_into(r, enum_tag_type(def.unwrap()), ctx) }
+    return true
+}
+
+priv h_enum_variant_payload_is_funcsig := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    name := eval_str_owned(s, e.children[1], ctx)
+    index := eval_index_arg(s, e, ctx)
+    def := interp_lookup_enum(s, e, name, "enum_variant_payload_is_funcsig", ctx)
+    if def.is_none() { return true }
+    ref ed : EnumDef = enumdef_of(def.unwrap())
+    if index >= ed.variants.len() {
+        interp_reflect_index_out_of_range(e, "enum_variant_payload_is_funcsig", name, index, ctx)
+        return true
+    }
+    if ed.variants[index].payload_funcsig { write_i64(r, 1) } else { write_i64(r, 0) }
+    return true
+}
+
 // Look up a registered enum type's AST node by name, erroring out if
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
@@ -9754,6 +9859,10 @@ priv dispatch_init := func(mut ctx: Context) {
         "struct_field_own_type"), h_struct_field_own_type, ctx)
     reg_dispatch("struct_field_type", h_struct_field_type, ctx)
     reg_dispatch("enum_variant_count", h_enum_variant_count, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("enum_def_of", ctx.symbols).unwrap().path,
+        "enum_decl_tag_type"), h_enum_decl_tag_type, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("enum_def_of", ctx.symbols).unwrap().path,
+        "enum_variant_payload_is_funcsig"), h_enum_variant_payload_is_funcsig, ctx)
     reg_dispatch("enum_variant_name", h_enum_variant_name, ctx)
     reg_dispatch("enum_variant_has_payload", h_enum_variant_has_payload, ctx)
     reg_dispatch("enum_variant_payload_type", h_enum_variant_payload_type, ctx)

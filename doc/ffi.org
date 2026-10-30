@@ -95,9 +95,10 @@ Lookup/call errors carry owned diagnostics, phase and optional exit status in
 ~TilVmError~. Hosts can catch them with ~?~ and ~catch~; the example's ~!~
 instead converts an error into a host panic. Guest output uses host stdio.
 
-The fixed call boundary supports core scalars, Str and shared records with
-inline scalar/Str fields, with at most 63 arguments. Variadic and kwargs calls,
-nested records, enums and pointer/reference-bearing record fields remain
+The fixed call boundary supports core scalars, Str, shared records with
+inline scalar/Str fields, and the shared enums described below, with at most
+63 arguments. Variadic and kwargs calls, nested records and
+pointer/reference-bearing record fields remain
 unsupported. Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
@@ -136,13 +137,38 @@ ASAN host with empty PATH, as well as argument/result schema rejection and
 recovery after failure. Throwing record callbacks use the same
 ~call_throwing(ErrorType or Signature)~ adapters as scalar/Str callbacks.
 
+**** Shared enum arguments, results and errors
+
+Shared enums can cross as arguments, results or declared errors. Supported
+variants are payload-free, scalar/Str-bearing, or carry a shared record with
+inline scalar/Str fields. Both tagged unions and owned-box niche enums (such
+as an optional record) retain their normal representation. Borrowed-reference
+and callable payloads, and enums nested inside enum payloads, are rejected.
+
+Checked lookup compares tag type/width, ordered variant names, discriminant
+values, payload types and qualifiers, and each record payload's schema. A
+matching total size is insufficient: two enums can have the same union size
+and different tag widths. Existing enum reflection now preserves tag type and
+callable-payload metadata for this check.
+
+Copying reads only the active variant. String bytes, record fields and owned
+niche boxes are independently copied, so host results/errors cannot retain
+guest literals, views or heap boxes. Mutable enum arguments copy back after
+success, declared throw, panic or exit, including changes of active variant.
+Borrowed enum results become owned snapshots, as with records.
+
+~test/tilvm.til::enum_callback_tests~ exercises explicit-width/discriminant
+enums, scalar/Str/record variants, optional records, borrowed results, enum
+errors, variant replacement, teardown and incompatible-schema rejection in
+the installed ASAN host with empty PATH.
+
 **** Declared errors on retained callbacks
 
 This extension follows the completed #370 contract. A host and guest may share
-declared error schemas: scalars/Str, or structs with inline scalar/Str
+declared error schemas: scalars/Str, the shared enums above, or structs with inline scalar/Str
 fields (including an empty marker struct). Checked lookup compares the signature
 and, for error structs, field names/order, types, mutability and ownership, plus
-host layout size. Pointer/reference fields, nested records and enums remain
+host layout size. Pointer/reference fields and nested records remain
 outside this slice. The shared type name and validated
 schema identify the error; a guest's numeric throw tag is never exposed as a
 host type identity.
@@ -407,7 +433,9 @@ The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
 - ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments,
-  nested records, enums, or records with pointer/reference fields. Shared
+  nested records or records with pointer/reference fields. Shared enums with
+  scalar/Str or plain-record payloads are supported; borrowed, callable and
+  nested-enum payloads remain outside this boundary. Shared
   scalar/Str-field record arguments/results are supported. The ~call_throwing(E)~ adapter supports
   shared scalar/Str-field error schemas, including multiple declared errors
   through its signature-based form. Extending

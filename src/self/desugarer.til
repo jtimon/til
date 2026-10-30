@@ -1034,7 +1034,9 @@ make_default_value_expr := func(type_name: Str, line: U32, col: U32, mut symbols
         if type_name == prim_name { return Expr.new(own literal_num_node("0"), line, col) }
     }
     mut tident := Expr.new(own ident_node(symbols.intern(type_name)), line, col)
-    mut call := Expr.new(own NodeType.FCall(FCallData()), line, col)
+    // Error payload slots, as well as failed-result placeholders, need raw
+    // zero storage. An enum has no ordinary T() constructor.
+    mut call := Expr.new(own NodeType.FCall(FCallData(is_throw_default = true)), line, col)
     call.add_child(own tident)
     return call
 }

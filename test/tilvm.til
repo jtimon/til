@@ -904,7 +904,127 @@ record_callback_tests := proc(root: Str) {
     }
 }
 
+CallbackEnum := enum(U8) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }
+CallbackMaybe := enum { None, Some: CallbackRecord }
+CallbackState := enum(U16) { Idle = 400, Busy = 900 }
+CallbackAction := func() returns I64
+CallbackCallable := enum { None, Some: CallbackAction }
+EnumRoundtrip := func(CallbackEnum) returns CallbackEnum
+EnumTransform := proc(mut CallbackEnum, I64) returns CallbackEnum throws CallbackEnum
+EnumBorrowed := func() returns ref CallbackEnum
+EnumOwned := proc(own mut CallbackEnum) returns CallbackEnum
+MaybeRoundtrip := func(CallbackMaybe) returns CallbackMaybe
+StateRoundtrip := func(CallbackState) returns CallbackState
+CallableRoundtrip := func(CallbackCallable) returns CallbackCallable
+
+enum_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
+        "CallbackEnum := enum(U8) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }\n",
+        "CallbackMaybe := enum { None, Some: CallbackRecord }\n",
+        "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\nstate := func(value: CallbackState) returns CallbackState { return value }\n",
+        "CallbackAction := func() returns I64\nCallbackCallable := enum { None, Some: CallbackAction }\n",
+        "callable := func(value: CallbackCallable) returns CallbackCallable { return value.clone() }\n",
+        "message := format(\"guest \", \"payload\")\nstored := CallbackEnum.Text(\"guest literal\")\n",
+        "roundtrip := func(value: CallbackEnum) returns CallbackEnum { return value.clone() }\n",
+        "borrowed := func() returns ref CallbackEnum { return stored }\n",
+        "consume := proc(own mut value: CallbackEnum) returns CallbackEnum { noop_proc(); value = CallbackEnum.Text(\"owned result\"); return value.clone() }\n",
+        "maybe := func(value: CallbackMaybe) returns CallbackMaybe { return value.clone() }\n",
+        "transform := proc(mut value: CallbackEnum, action: I64) returns CallbackEnum throws CallbackEnum {\n",
+        "noop_proc(); value = CallbackEnum.Text(\"updated\");\n",
+        "if action == 1 { throw CallbackEnum.Text(message.substr(6, 7)) };\n",
+        "if action == 2 { panic(\"enum panic\") }; if action == 3 { exit(0) }; return value.clone() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut roundtrip := vm.lookup("roundtrip", EnumRoundtrip)!
+    expect_lookup_failure(vm, "callable", "argument schema", signature = CallableRoundtrip)
+    mut state := vm.lookup("state", StateRoundtrip)!
+    mut state_args := Tuple.new()
+    state_args.push(CallbackState, own CallbackState.Busy)
+    state_result := state.call(state_args)?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut saved := Vec(Tuple).new()
+    for value : CallbackEnum in array(CallbackEnum, CallbackEnum.Empty, CallbackEnum.Number(73),
+        CallbackEnum.Text(format("host ", "text")), CallbackEnum.Record(CallbackRecord(number = 8, text = format("record ", "text")))) {
+        mut args := Tuple.new()
+        args.push(CallbackEnum, own value.clone())
+        result := roundtrip.call(args)!
+        ref actual : CallbackEnum = result.get(0)
+        assert(actual == value)
+        saved.push(own result)
+    }
+    mut transform := vm.lookup("transform", EnumTransform)!
+    mut kept_error := CallbackEnum.Empty
+    for action in 0..4 {
+        mut args := Tuple.new()
+        args.push(CallbackEnum, own CallbackEnum.Record(CallbackRecord(text = format("old ", "payload"))))
+        args.push(I64, own action.clone())
+        mut caught := false
+        result := call_throwing(EnumTransform)(transform, args)?
+        catch (error: CallbackEnum) { assert(action == 1); kept_error = error; caught = true }
+        catch (error: TilVmError) {
+            assert(action == 2 || action == 3)
+            if action == 2 { assert(error.to_str().contains("enum panic")) }
+            if action == 3 { assert(error.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if action == 0 { saved.push(own result) } else { assert(caught) }
+        ref updated : CallbackEnum = args.get(0)
+        assert(updated == CallbackEnum.Text("updated"))
+    }
+    mut borrow := vm.lookup("borrowed", EnumBorrowed)!
+    literal := borrow.call()!
+    mut consume := vm.lookup("consume", EnumOwned)!
+    mut own_args := Tuple.new()
+    own_args.push(CallbackEnum, own CallbackEnum.Text(format("host ", "owned")))
+    consumed := consume.call(own_args)!
+    ref unchanged : CallbackEnum = own_args.get(0)
+    assert(unchanged == CallbackEnum.Text("host owned"))
+    mut maybe := vm.lookup("maybe", MaybeRoundtrip)?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut some_args := Tuple.new()
+    some_args.push(CallbackMaybe, own CallbackMaybe.Some(CallbackRecord(number = 91, text = format("boxed ", "text"))))
+    some := maybe.call(some_args)!
+    mut none_args := Tuple.new()
+    none_args.push(CallbackMaybe, own CallbackMaybe.None)
+    none := maybe.call(none_args)!
+    own maybe.delete()
+    own consume.delete()
+    own state.delete()
+    own borrow.delete()
+    own transform.delete()
+    own roundtrip.delete()
+    own vm.delete()
+    ref text : CallbackEnum = saved[2].get(0)
+    ref record : CallbackEnum = saved[3].get(0)
+    ref lit : CallbackEnum = literal.get(0)
+    ref owned_result : CallbackEnum = consumed.get(0)
+    ref boxed : CallbackMaybe = some.get(0)
+    ref absent : CallbackMaybe = none.get(0)
+    ref state_value : CallbackState = state_result.get(0)
+    assert(state_value == CallbackState.Busy)
+    assert(text == CallbackEnum.Text("host text"))
+    assert(record == CallbackEnum.Record(CallbackRecord(number = 8, text = "record text")))
+    assert(lit == CallbackEnum.Text("guest literal"))
+    assert(owned_result == CallbackEnum.Text("owned result"))
+    assert(kept_error == CallbackEnum.Text("payload"))
+    assert(boxed == CallbackMaybe.Some(CallbackRecord(number = 91, text = "boxed text")))
+    assert(absent.is(CallbackMaybe.None))
+    // A different tag width can have the SAME overall union size.
+    for declaration : Str in array(Str,
+        "enum(U32) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }",
+        "enum(U8) { Empty = 6, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }",
+        "enum(U8) { Empty = 5, Number: I64 = 7, Text: ref Str = 9, Record: CallbackRecord = 11 }") {
+        File.writefile("guest.til", format("mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
+            "CallbackEnum := ", declaration, "\nroundtrip := func(value: CallbackEnum) returns CallbackEnum { return value.clone() }\n"))
+        mut invalid := TilVm.new(root)
+        invalid.load_file("guest.til")!
+        expect_lookup_failure(invalid, "roundtrip", "argument schema", signature = EnumRoundtrip)
+    }
+}
+
 main := proc(root: Str) returns I64 {
+    enum_callback_tests(root)
     record_callback_tests(root)
     multiple_error_callback_tests(root)
     throwing_callback_tests(root)
