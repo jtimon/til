@@ -95,12 +95,46 @@ Lookup/call errors carry owned diagnostics, phase and optional exit status in
 ~TilVmError~. Hosts can catch them with ~?~ and ~catch~; the example's ~!~
 instead converts an error into a host panic. Guest output uses host stdio.
 
-The fixed call boundary supports core scalars and Str, with at most 63
-arguments. Variadic, kwargs and arbitrary record arguments/results are
+The fixed call boundary supports core scalars, Str and shared records with
+inline scalar/Str fields, with at most 63 arguments. Variadic and kwargs calls,
+nested records, enums and pointer/reference-bearing record fields remain
 unsupported. Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
 reference route described below.
+
+**** Shared record arguments and results
+
+The host and guest declare the same named record schema. Checked lookup compares
+field names/order, scalar/Str types, mutability, ownership and host layout size
+for each argument and result, using the same validation as declared errors.
+Matching type names alone are not enough. Record names are preserved in Tuple
+elements, so passing another record type is rejected before the guest runs.
+
+#+begin_src til
+Request := struct { number: I32 = 0; enabled := false; text := "" }
+TransformRecord := proc(mut Request) returns Request
+mut callback := vm.lookup("transform_record", TransformRecord)!
+mut arguments := Tuple.new()
+arguments.push(Request, own Request(number = 3, text = format("host", " input")))
+result := callback.call(arguments)!
+ref updated : Request = arguments.get(0)
+ref returned : Request = result.get(0)
+#+end_src
+
+Records use field-wise snapshots in both directions. Each Str field gets
+independent storage, including guest literals and views. A borrowed mutable
+record copies back after success, declared throw, panic or exit. An owned
+record parameter consumes its guest snapshot; even ~own mut~ leaves the host
+input unchanged. Record results, including borrowed results, are owned copies
+that survive input, callback and VM destruction. This is copy-in/copy-out, not
+an alias to a native host record; the native-reference route below remains
+available when shared identity is required.
+
+~test/tilvm.til::record_callback_tests~ covers these cases through the installed
+ASAN host with empty PATH, as well as argument/result schema rejection and
+recovery after failure. Throwing record callbacks use the same
+~call_throwing(ErrorType or Signature)~ adapters as scalar/Str callbacks.
 
 **** Declared errors on retained callbacks
 
@@ -372,8 +406,9 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments
-  or arbitrary record arguments/results. The ~call_throwing(E)~ adapter supports
+- ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments,
+  nested records, enums, or records with pointer/reference fields. Shared
+  scalar/Str-field record arguments/results are supported. The ~call_throwing(E)~ adapter supports
   shared scalar/Str-field error schemas, including multiple declared errors
   through its signature-based form. Extending
   it requires checked marshalling and ownership/error-path coverage in the

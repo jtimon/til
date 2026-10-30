@@ -172,7 +172,7 @@ checked_lookup := proc(root: Str) {
     lookup_failure(session, program, "print_single", lookup_contract(HostRead), "not exported")
     lookup_failure(session, program, "number", binary, "not a function")
     lookup_failure(session, program, "GuestSig", binary, "no function implementation")
-    lookup_failure(session, program, "record", binary, "registered host types")
+    lookup_failure(session, program, "record", binary, "signature mismatch")
     lookup_failure(session, program, "text", lookup_contract(HostOwned), "signature mismatch")
     lookup_failure(session, program, "changed", lookup_contract(HostRead), "signature mismatch")
     lookup_failure(session, program, "variadic", binary, "signature mismatch")
@@ -478,7 +478,7 @@ typed_callback_tests := proc(root: Str) {
     catch (e: HostThrow) { caught_throw = true }
     catch (e: TilVmError) { panic(e.to_str()) }
     assert(caught_throw)
-    expect_lookup_failure(vm, "record", "registered host types", signature = HostRecordCall)
+    expect_lookup_failure(vm, "record", "signature mismatch", signature = HostRecordCall)
     expect_lookup_failure(vm, "binary", "named function-signature type", signature = Str)
 
     mut numbers := Tuple.new()
@@ -807,7 +807,105 @@ multiple_error_callback_tests := proc(root: Str) {
     expect_lookup_failure(bad_schema, "transform", "shared callback error schema", signature = MultiTransform)
 }
 
+CallbackRecord := struct { number: I32 = 0; enabled := false; text := "" }
+RecordTransform := proc(mut CallbackRecord, I64) returns CallbackRecord throws TransformError
+RecordOwned := proc(own mut CallbackRecord) returns CallbackRecord
+RecordBorrowed := func() returns ref CallbackRecord
+RecordReader := func() returns CallbackRecord
+
+record_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
+        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "stored := CallbackRecord(number = 42, enabled = true, text = \"guest literal\")\n",
+        "mut calls := 0\nread_calls := proc() returns I64 { noop_proc(); return calls }\n",
+        "borrowed := func() returns ref CallbackRecord { return stored }\n",
+        "reader := func() returns CallbackRecord { return CallbackRecord(number = 43, enabled = true, text = stored.text.substr(6, 7)) }\n",
+        "transform := proc(mut value: CallbackRecord, action: I64) returns CallbackRecord throws TransformError {\n",
+        "noop_proc(); calls = calls + 1; value.number = value.number + 1; value.enabled = true; value.text = format(value.text, \"!\");\n",
+        "if action == 1 { throw TransformError(code = 7, message = \"record failure\") };\n",
+        "if action == 2 { panic(\"record panic\") }; if action == 3 { exit(0) }; return value.clone() }\n",
+        "consume := proc(own mut value: CallbackRecord) returns CallbackRecord { noop_proc(); value.number = 99; value.text = format(value.text, \" owned\"); return value.clone() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut transform := vm.lookup("transform", RecordTransform)!
+    mut bad_arguments := Tuple.new()
+    bad_arguments.push(HostRecord, own HostRecord(value = 123))
+    bad_arguments.push(I64, own 0)
+    mut rejected := false
+    call_throwing(RecordTransform)(transform, bad_arguments)?
+    catch (err: TransformError) { panic("invalid record input executed guest code") }
+    catch (err: TilVmError) { rejected = err.to_str().contains("type/width mismatch") }
+    assert(rejected)
+    mut read_calls := vm.lookup("read_calls", HostTick)!
+    before := read_calls.call()!
+    ref count : I64 = before.get(0)
+    assert(count == 0)
+    own read_calls.delete()
+    mut kept := Tuple.new()
+    for action in 0..4 {
+        mut arguments := Tuple.new()
+        arguments.push(CallbackRecord, own CallbackRecord(number = 10, text = format("host", " text")))
+        arguments.push(I64, own action.clone())
+        mut caught := false
+        result := call_throwing(TransformError)(transform, arguments)?
+        catch (err: TransformError) { assert(action == 1); assert(err.message == "record failure"); caught = true }
+        catch (err: TilVmError) {
+            assert(action == 2 || action == 3)
+            if action == 2 { assert(err.to_str().contains("record panic")) }
+            if action == 3 { assert(err.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if action == 0 { kept = result }
+        else { assert(caught) }
+        ref updated : CallbackRecord = arguments.get(0)
+        assert(updated.number == 11 && updated.enabled && updated.text == "host text!")
+    }
+    mut owned := vm.lookup("consume", RecordOwned)!
+    mut inputs := Tuple.new()
+    inputs.push(CallbackRecord, own CallbackRecord(number = 5, text = format("host", " owned")))
+    consumed := owned.call(inputs)!
+    ref unchanged : CallbackRecord = inputs.get(0)
+    assert(unchanged.number == 5 && unchanged.text == "host owned")
+    inputs.push(I64, own 0)
+    recovered := call_throwing(RecordTransform)(transform, inputs)!
+    mut borrow := vm.lookup("borrowed", RecordBorrowed)!
+    borrowed := borrow.call()!
+    mut reader := vm.lookup("reader", RecordReader)!
+    viewed := reader.call()!
+    own reader.delete()
+    own borrow.delete()
+    own owned.delete()
+    own transform.delete()
+    own vm.delete()
+    ref success : CallbackRecord = kept.get(0)
+    ref moved : CallbackRecord = consumed.get(0)
+    ref literal : CallbackRecord = borrowed.get(0)
+    ref view : CallbackRecord = viewed.get(0)
+    ref again : CallbackRecord = recovered.get(0)
+    assert(success.number == 11 && success.text == "host text!")
+    assert(moved.number == 99 && moved.text == "host owned owned")
+    assert(literal.number == 42 && literal.text == "guest literal")
+    assert(view.number == 43 && view.text == "literal")
+    assert(again.number == 6 && again.text == "host owned!")
+
+    for fields : Str in array(Str,
+        "number: I64 = 0; enabled := false; text := \"\"",
+        "number: I32 = 0; enabled := false; ref text: Str = \"\"",
+        "number: I32 = 0; enabled := false; text := Nested()") {
+        File.writefile("guest.til", format(
+            "mode lib\nNested := struct { text := \"\" }\nCallbackRecord := struct { ", fields, " }\n",
+            "consume := proc(own mut value: CallbackRecord) returns CallbackRecord { noop_proc(); value.number = 99; return value.clone() }\n",
+            "reader := func() returns CallbackRecord { return CallbackRecord() }\n"))
+        mut invalid := TilVm.new(root)
+        invalid.load_file("guest.til")!
+        expect_lookup_failure(invalid, "consume", "argument schema", signature = RecordOwned)
+        expect_lookup_failure(invalid, "reader", "result schema", signature = RecordReader)
+    }
+}
+
 main := proc(root: Str) returns I64 {
+    record_callback_tests(root)
     multiple_error_callback_tests(root)
     throwing_callback_tests(root)
     throwing_schema_tests(root)

@@ -468,7 +468,7 @@ namespace:
             ref path : Str = lp.ctx.eval.function_paths[word_bits(to_ptr(def)).cast(UPtr)]
             mut message := format("'", name, "' must be a guest func/proc with no arguments, result or throws clause")
             if signature.is(Type.None).not() {
-                message = format("'", name, "' requires a fixed callback signature with at most 63 scalar/Str arguments")
+                message = format("'", name, "' requires a fixed callback signature with at most 63 supported arguments")
             }
             err.diagnostics.push(own TilVmDiagnostic(path = path.clone(), line = def.line, col = def.col, message = message))
             throw err
@@ -6574,10 +6574,17 @@ priv session_global := func(session: InterpSession) returns ref Scope {
 // Compare contracts from independently compiled host and guest programs.
 // Host reflection has no guest SymbolPool: resolve guest aliases, then turn
 // the pool's symbols back into the same core Type spelling reflection uses.
-// User-layout types need host registration before they can cross this boundary.
-priv interp_lookup_type := func(name: Str, ctx: Context) returns Str {
+// Records keep their nominal name here; checked lookup validates their shared
+// field schema after comparing it with the host's signature.
+priv interp_lookup_type := func(name: Str, ctx: Context, allow_record: Bool = false) returns Str {
     ref resolved : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
     if is_scalar_type_name(resolved).or(resolved.eq("Str")) { return resolved.clone() }
+    if allow_record {
+        definition := ctx.scope.get_struct(resolved, ctx.symbols)
+        if definition.is_some() {
+            if definition.unwrap().node_type.is(NodeType.StructDef) { return resolved.clone() }
+        }
+    }
     return ""
 }
 
@@ -6593,7 +6600,7 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
     }
     for i in 0..out.params.len() {
         ref mut p : Declaration = out.params[i]
-        mut name := interp_lookup_type(decl_type_name(p, ctx.symbols), ctx)
+        mut name := interp_lookup_type(decl_type_name(p, ctx.symbols), ctx, true)
         // The language inserts this core-owned slot for kwargs contracts.
         // Recognize it only at the signature's kwargs index, not as an
         // arbitrary record parameter or a supported native value argument.
@@ -6604,7 +6611,7 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
         p.til_type = declaration_type_from_name(name)
     }
     if sig.return_type.len() > 0 {
-        name := interp_lookup_type(sig.return_type, ctx)
+        name := interp_lookup_type(sig.return_type, ctx, true)
         if name.len() == 0 { return Option(FuncSig).None }
         out.return_type = name
     }
@@ -6682,9 +6689,31 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
             return Option(ref HeapBinding).None
         }
     }
+    for i in 0..expected.params.len() {
+        // Variadic/kwargs contracts are rejected by invocation/retained lookup;
+        // their compiler-created carriers are not user record arguments.
+        if i.to_i32() == expected.variadic_index || i.to_i32() == expected.kwargs_index { continue }
+        if interp_callback_error_schema(expected.params[i].type_name(), lp.ctx).not() {
+            context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+                declaration.path, declaration.line, declaration.col,
+                format("unsupported or mismatched shared callback argument schema: ", expected.params[i].type_name()))
+            return Option(ref HeapBinding).None
+        }
+    }
+    if expected.return_type.len() > 0 {
+        if interp_callback_error_schema(expected.return_type, lp.ctx).not() {
+            context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+                declaration.path, declaration.line, declaration.col,
+                format("unsupported or mismatched shared callback result schema: ", expected.return_type))
+            return Option(ref HeapBinding).None
+        }
+    }
     return binding_o
 }
 
+// Shared boundary schema for error payloads, ordinary arguments and results.
+// Record fields are deliberately limited to inline scalars/Str, not recursive
+// records or pointer-bearing ownership forms.
 priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns Bool {
     if is_scalar_type_name(name).or(name == "Str") { return true }
     guest_o := ctx.scope.get_struct(name, ctx.symbols)
@@ -6706,6 +6735,8 @@ priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns B
 }
 
 priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Context) returns Dynamic {
+    // The validated inline-field layout is shared by host and interpreter.
+    // Reuse this deep boundary copy for arguments, results and error payloads.
     t := type_from_name_init_name(name, ctx.scope, ctx.symbols)
     if is_scalar_type_name(name).or(name == "Str") { return interp_call_copy(t, source, ctx) }
     ref def : Expr = ctx.scope.get_struct(name, ctx.symbols).unwrap()
@@ -6836,7 +6867,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     mut temps := scope_new(safe_ref(session_global(session)))
     for i in 0..arguments.len() {
         t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
-        copy : Dynamic = interp_call_copy(t, arguments.get(i), lp.ctx)
+        copy : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), arguments.get(i), lp.ctx)
         // Dots cannot occur in a source identifier, so these evaluator-only
         // argument slots cannot shadow a user global inside a static function.
         arg_name := format("TilVm.argument.", i.to_str())
@@ -6891,7 +6922,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         }
     }
     if lp.ctx.eval.eval_aborted.or(declared_error).not().and(expected.return_type.len() > 0) {
-        copied : Dynamic = interp_call_copy(ret_type, result, lp.ctx)
+        copied : Dynamic = interp_callback_error_copy(expected.return_type, result, lp.ctx)
         values.push_type_name(own expected.return_type.clone(), own copied)
     }
     if destination.is_null().not() {
@@ -6903,8 +6934,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         if param.is_mut.and(param.own_type.is(OwnType.Ref)) {
             arg_name := format("TilVm.argument.", i.to_str())
             ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
-            t := type_from_name_init_name(expected.params[i].type_name(), lp.ctx.scope, lp.ctx.symbols)
-            copied : Dynamic = interp_call_copy(t, source.ptr, lp.ctx)
+            copied : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), source.ptr, lp.ctx)
             ref mut slot : Dynamic = arguments.get(i)
             dyn_call(arguments.type_at(i), "delete", 2, slot, false)
             memcpy(slot, copied, arguments.size_at(i).to_uptr())
