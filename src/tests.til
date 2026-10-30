@@ -2188,6 +2188,17 @@ main := proc(args: ..Str) {
     add_counts(tests, "minimal_reach_codegen", "build",
         format(til_bin, " translate -c gen/c/minimal_reach.c test/minimal_reach.til '&&' cat gen/c/minimal_reach.c"),
         ..minimal_reach_checks)
+    // #432: an interface handle's generated clone/delete dispatch on the
+    // handle's type name, which names an IMPLEMENTER of that interface. The
+    // scavenger keeps those two methods on the reached implementers only, not
+    // on every reached type: DefaultNumberCell implements nothing and nobody
+    // clones it, so its clone must not survive; Circle implements Drawable
+    // and is a dispatch target, so its clone must.
+    add_counts(tests, "interface_dispatch_reach_codegen", "build",
+        format(til_bin, " translate -c gen/c/interface_dispatch_reach.c test/interfaces.til '&&' cat gen/c/interface_dispatch_reach.c"),
+        CountCheck(needle = "DefaultNumberCell_clone", expected_count = 0),
+        CountCheck(needle = "DefaultNumberCell_delete", expected_count = 0),
+        CountCheck(needle = "static Circle Circle_clone(", expected_count = 2))
     add_counts(tests, "cli_args_codegen", "build",
         format(til_bin, " translate -c gen/c/cli_args_roots.c examples/cli_args.til '&&' cat gen/c/cli_args_roots.c"),
         ..cli_args_checks)

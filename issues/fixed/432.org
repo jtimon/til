@@ -1,6 +1,38 @@
 # priority: medium
 # category: features
-** OPEN #432 Dynamic interface values: explicit own/ref vs provenance-inferred boxing, and the remaining dispatch gaps
+** FIXED #432 Dynamic interface values: explicit own/ref vs provenance-inferred boxing, and the remaining dispatch gaps
+
+*** Post-mortem
+
+   Filed to settle how a dynamic interface value owns its payload after the
+   #251 follow-ups had implemented it with a runtime flag and a provenance
+   rule. Settled, in order: the qualifier owns, like every other aggregate
+   (bare local = copy, elided for immutable locals; `ref` = alias); the
+   handle is `{iface_type_name, iface_val}` with NO runtime ownership bit --
+   method selection is the only runtime part, payload ownership is static,
+   a borrowing handle is never deleted; an interface cannot be instantiated
+   and cannot declare clone/delete; `shallow` interface parameters and
+   returns are rejected; the dynamic `d: Iface` parameter and the static
+   `T: Type implements Iface` bound coexist; interface element types need
+   `own` or `ref` (#433); nested interface types in copied defaults keep
+   their handle meaning; bounded generics get `proc<T: Type implements
+   Iface>(...)` sugar and inferred UFCS. The last gap, closed by this
+   commit, is reachability: the handle's generated clone/delete dispatch on
+   the handle's type name, and the scavenger now keeps the two methods on
+   the interface's reached implementers only (`Iface*.clone` markers,
+   dyn_call_iface_scope / scavenge_type_implements) instead of on every
+   reached type.
+
+   Regression tests: test/interfaces.til (test_interface_named_local_copy,
+   test_interface_ref_local_aliases, test_interface_elided_copy*,
+   test_interface_bound_*, test_interface_multiple_implements,
+   test_interface_nested_default_types, test_bounded_generator_ufcs, ...),
+   the terr_iface_* / terr_bound_* / TErrInterfaceLifecycle rejections in
+   test/typer_errors.til, test/type_arg_qualifiers.til, and the
+   interface_dispatch_reach_codegen count check in src/tests.til.
+   Documentation: doc/concepts/ownership.org "Interface-typed locals",
+   doc/concepts/functions.org "Interface method contracts" and "Bounded type
+   parameters".
 
    Re-scopes the dynamic-dispatch half of the interface work after the #251
    follow-ups that landed on master in 2026-10 (b444d722, 377ed500,
@@ -271,12 +303,16 @@
 
 *** Remaining gaps
 
-   - The generated box clone/delete still dispatch by runtime tag through
-     dyn_call(iface_type_name, "clone"/"delete"), so collect_refs records
-     the `*.clone` / `*.delete` wildcards. Since #326 the wildcard only
-     expands over types the reachability walk reached, but it still keeps
-     those methods on every reached type, not only on the interface's
-     implementors. Abstract calls no longer use it (typed dispatcher).
+   - [X] The generated box clone/delete dispatch by runtime tag through
+     dyn_call(iface_type_name, "clone"/"delete"); collect_refs used to record
+     the bare `*.clone` / `*.delete` wildcards, keeping those methods on
+     every reached type. It now records `Iface*.clone` / `Iface*.delete`
+     (dyn_call_iface_scope reads the interface off the `self.iface_type_name`
+     operand) and the BFS expands the marker over the reached IMPLEMENTERS
+     of that interface only (scavenge_type_implements). test/interfaces.til
+     translated: 140 -> 72 clone definitions, 9030 -> 8336 lines of C;
+     interface_dispatch_reach_codegen pins it. The bare wildcard remains for
+     the dyn_* containers and Tuple, whose element type is any name.
     - [X] Nested types in copied defaults retain their interface-handle
       meaning. Self substitution still handles direct Self positions and
       direct interface-name references, but protects aggregate applications
@@ -307,9 +343,15 @@
    - [X] `Iface()` rejected; `shallow` interface parameters and returns
      rejected (terr_iface_instantiate, terr_iface_shallow_param,
      terr_iface_shallow_return).
-   - [ ] Each remaining gap has either a fix with a regression test or an
-     explicit diagnostic.
-   - make test green on both backends under ASAN.
+   - [X] Each remaining gap has either a fix with a regression test or an
+     explicit diagnostic (nested types in copied defaults keep their
+     interface-handle meaning; the handle's clone/delete reach their
+     implementers only).
+   - [X] make test green on both backends under ASAN.
+   - [X] The bounded-generic UFCS decision above is recorded as decided and
+     implemented (master 0455ef9: `proc<T: Type implements Drawable>(...)`
+     sugar with the direct spelling kept, inferred UFCS through ordinary
+     generic inference for both).
 
 *** Relations
 

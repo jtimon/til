@@ -134,6 +134,29 @@ priv scav_seed_reflect_roots := func(e: Expr, hoisted: Map(Str, Str), mut workli
     }
 }
 
+// #432: the interface an interface handle's dyn_call dispatches for. The
+// handle's generated clone/delete pass `self.iface_type_name`; the base of
+// that field access is the handle, whose type is the interface. "" for any
+// other runtime type-name expression (a dyn_* container's elem_type, a
+// Tuple element's stored name), which keeps the bare wildcard.
+priv dyn_call_iface_scope := func(tn_expr: Expr, symbols: SymbolPool) returns Str {
+    switch tn_expr.node_type {
+    case .FieldAccess(fad):
+        if fad.field_access_name(symbols.names) != "iface_type_name" { return "" }
+        if tn_expr.children.len() == 0 { return "" }
+        return Str.clone(type_name_ref(tn_expr.children[0].til_type(), symbols))
+    case: return ""
+    }
+}
+
+// #432: does the reached type `name` implement `iface`? Only such a type can
+// be the target of an interface handle's clone/delete dispatch.
+priv scavenge_type_implements := func(lp: LoadedProgram, name: Str, iface: Str) returns Bool {
+    def_o := lp.ctx.scope.get_struct(name, lp.ctx.symbols)
+    if def_o.is_none() { return false }
+    return type_def_implements_iface(def_o.unwrap(), iface, lp.ctx.scope, lp.ctx.symbols)
+}
+
 collect_refs := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool) {
     locals := Set(Str).new()
     collect_refs_walk(e, refs, symbols, locals, true)
@@ -413,7 +436,19 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
                                 vec_push_str(refs, dyn_tname)
                                 push_qn(refs, dyn_tname, dyn_mname)
                             case:
-                                vec_push_str(refs, format("*.", dyn_mname))
+                                // #432: the interface handle's generated
+                                // clone/delete read the type name off
+                                // `self.iface_type_name`, so the target is
+                                // some IMPLEMENTER of that interface. Record
+                                // "Iface*.m" and let the BFS expand it over
+                                // the reached implementers only, instead of
+                                // keeping m on every reached type.
+                                iface_scope := dyn_call_iface_scope(e.children[1], symbols)
+                                if iface_scope.len() > 0 {
+                                    vec_push_str(refs, format(iface_scope, "*.", dyn_mname))
+                                } else {
+                                    vec_push_str(refs, format("*.", dyn_mname))
+                                }
                             }
                         case:
                             // A runtime method name selects compatible
@@ -2089,7 +2124,7 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
             for ref_name : Str in deps[name] {
                 if ref_name.starts_with("?") { continue }
                 if shared_core_type(ref_name, lp.ctx) { continue }
-                if ref_name.starts_with("*.") { accepted.remove(name) changed = true break }
+                if ref_name.starts_with("*.").or(ref_name.find("*.") > 0) { accepted.remove(name) changed = true break }
                 if user_top.has(ref_name) { accepted.remove(name) changed = true break }
                 if external.has(ref_name) {
                     // These ext_func families are emitted from the PROGRAM's
@@ -2334,6 +2369,8 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
     // #269 wildcard methods ("*.m"), in arrival order, plus the set that keeps
     // the list unique. Both halves of the expansion below read them.
     mut wildcards := Vec(Str).new()
+    // #432: "Iface*.m" markers, expanded over Iface's implementers only.
+    mut iface_wildcards := Vec(Str).new()
     mut wc_seen := Set(Str).new()
     mut cursor : USize = 0
     while cursor < worklist.len() {
@@ -2380,6 +2417,25 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
             }
             continue
         }
+        // #432: "Iface*.m" -- the interface handle's generated clone/delete
+        // dispatch on the handle's type name, which names an implementer of
+        // that interface. Same two-way incremental expansion as the bare
+        // wildcard, over the reached IMPLEMENTERS of Iface only.
+        iface_sep := name.find("*.")
+        if iface_sep > 0 {
+            if wc_seen.has(name) { continue }
+            wc_seen.add(own name.clone())
+            vec_push_str(iface_wildcards, name)
+            wc_iface := name.substr(0, iface_sep.to_usize())
+            wc_imethod := name.substr(iface_sep.to_usize() + 2, name.len() - iface_sep.to_usize() - 2)
+            for wk3, _ in top {
+                if visited.has(wk3).and(scavenge_type_implements(lp, wk3, wc_iface)) { push_qn(worklist, wk3, wc_imethod) }
+            }
+            for wk4, _ in core_top {
+                if visited.has(wk4).and(scavenge_type_implements(lp, wk4, wc_iface)) { push_qn(worklist, wk4, wc_imethod) }
+            }
+            continue
+        }
         // "?text" candidate from collect_refs: a Str literal is a
         // reachability edge exactly when it spells a type, which is the one
         // thing a runtime by-name dispatch can be handed.
@@ -2394,6 +2450,13 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
         if top.has(name).or(core_top.has(name)) {
             for wc_m : Str in wildcards {
                 push_qn(worklist, name, wc_m)
+            }
+            for iwc : Str in iface_wildcards {
+                isep := iwc.find("*.")
+                iwc_iface := iwc.substr(0, isep.to_usize())
+                if scavenge_type_implements(lp, name, iwc_iface) {
+                    push_qn(worklist, name, iwc.substr(isep.to_usize() + 2, iwc.len() - isep.to_usize() - 2))
+                }
             }
         }
 
