@@ -1,6 +1,6 @@
 mode gui
 
-// Click/drag cells, wheel over either pane to scroll rows, right-click to reset.
+// Drag cells, wheel to scroll, middle-click to reset one pane, right-click for all.
 // Enter or Escape returns to the caller so the same loaded module can run again.
 MouseDemo := struct {
     pane: I32 = 0
@@ -14,6 +14,7 @@ MouseDemo := struct {
     right_fraction: F32 = 0
     scrolled: Bool = false
     done: Bool = false
+    middle_resets: I64 = 0
 }
 
 mouse_left := func(pane: I32) returns I32 {
@@ -82,6 +83,18 @@ mouse_step := proc(mut state: MouseDemo) {
             state.scrolled = true
         }
     }
+    if IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && y >= 40 && y < 220 {
+        if x >= 40 && x < 280 {
+            state.left_row = 0
+            state.left_fraction = 0
+            state.middle_resets++
+        }
+        if x >= 320 && x < 560 {
+            state.right_row = 0
+            state.right_fraction = 0
+            state.middle_resets++
+        }
+    }
     if IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && y >= 40 && y < 220 {
         if (x >= 40 && x < 280) || (x >= 320 && x < 560) {
             state.pane = 0
@@ -105,7 +118,7 @@ mouse_draw := proc(state: MouseDemo) {
     white := Color(r=255, g=255, b=255, a=255)
     BeginDrawing()
     ClearBackground(black)
-    DrawText("DRAG / WHEEL / RIGHT RESET / ENTER TO CLOSE".c_str, 40, 16, 16, white)
+    DrawText("DRAG WHEEL MID: PANE R: ALL ENTER".c_str, 40, 16, 16, white)
     for pane in 0..2 {
         left := mouse_left(pane.to_i32())
         mut paper := blue.clone()
@@ -129,6 +142,7 @@ mouse_draw := proc(state: MouseDemo) {
         DrawRectangle(left + 228, (first_row / 2).to_i32() + 148, 8, 6, white)
         EndScissorMode()
     }
+    if IsMouseButtonDown(MOUSE_BUTTON_MIDDLE) { DrawRectangle(40, 236, 520, 4, white) }
     EndDrawing()
 }
 
@@ -177,4 +191,5 @@ main := proc() {
     if state.scrolled {
         println("GUI wheel: left=", state.left_row.to_str(), " right=", state.right_row.to_str())
     }
+    if state.middle_resets > 0 { println("GUI middle: resets=", state.middle_resets.to_str()) }
 }

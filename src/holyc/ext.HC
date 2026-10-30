@@ -1668,7 +1668,8 @@ TilGuiOldDraw=NULL;
 // These are not a unified ordered event stream. ScanMsg supplies both key
 // directions; ScanChar/ScanKey would discard releases (and ScanChar can block).
 U8 TilGuiKeys[512],TilGuiPreviousKeys[512],TilGuiRepeatKeys[512];
-U8 TilGuiMouseButtons[2],TilGuiPreviousMouseButtons[2];
+U8 TilGuiMouseButtons[3],TilGuiPreviousMouseButtons[3];
+Bool TilGuiMiddlePhysical=FALSE,TilGuiMiddleOwned=FALSE;
 I32 TilGuiKeyQueue[32],TilGuiCharQueue[32];
 I64 TilGuiKeyCount=0,TilGuiKeyRead=0,TilGuiCharCount=0,TilGuiCharRead=0;
 I64 TilGuiExitKey=256;
@@ -1744,7 +1745,7 @@ I64 TilGuiKeyCode(I64 scan)
 U0 TilGuiPollInput()
 {
   I64 message,ch,scan,key,raw,wheel_delta;
-  Bool focused,was_focused;
+  Bool focused,was_focused,middle_down;
   U8 physical_keys[512];
   MemCpy(TilGuiPreviousKeys,TilGuiKeys,sizeof(TilGuiKeys));
   MemCpy(TilGuiPreviousMouseButtons,TilGuiMouseButtons,sizeof(TilGuiMouseButtons));
@@ -1799,6 +1800,12 @@ U0 TilGuiPollInput()
   focused=sys_focus_task==Fs;
   was_focused=TilGuiWheelFocused;
   TilGuiWheelFocused=focused;
+  middle_down=ms_hard.bttns[2];
+  if (!middle_down) {
+    TilGuiMiddleOwned=FALSE;
+    TilGuiMiddlePhysical=FALSE;
+  } else if (!focused) TilGuiMiddleOwned=FALSE;
+  TilGuiMouseButtons[2]=TilGuiMiddleOwned;
   POPFD
   TilGuiWheelMove=0;
   if (focused && was_focused)
@@ -1830,7 +1837,7 @@ U0 TilGuiPollInput()
 Bool TilGuiMouseButtonValid(I64 button)
 {
   if (button<0 || button>=8) return FALSE;
-  if (button>1) TilPanicZ("GUI mouse POC supports left/right buttons\n");
+  if (button>2) TilPanicZ("GUI mouse POC supports left/right/middle buttons\n");
   return TRUE;
 }
 
@@ -1869,6 +1876,21 @@ public U0 TilGuiGetMousePosition(U8 *out)
   TilGuiVector2 *position=out(TilGuiVector2 *);
   position->x=TilF32FromI64(TilGuiMouseX);
   position->y=TilF32FromI64(TilGuiMouseY);
+}
+
+U0 TilGuiUpdateMiddle(CCtrl *control)
+{
+  Bool physical,focused;
+  // Middle has no task message. The existing control hook runs on every
+  // WinMgr task-derived update, even when our GUI is covered or not polling.
+  PUSHFD
+  CLI
+  physical=ms_hard.bttns[2];
+  focused=sys_focus_task==control->win_task;
+  if (!(physical && focused)) TilGuiMiddleOwned=FALSE;
+  else if (!TilGuiMiddlePhysical) TilGuiMiddleOwned=TRUE;
+  TilGuiMiddlePhysical=physical;
+  POPFD
 }
 
 U0 TilGuiWheelChanged(CCtrl *,I64 delta)
@@ -1974,10 +1996,13 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   // them before the console scrollbar can pan our drawing surface. It is
   // invisible and does not intercept pointer clicks.
   TilGuiWheelPending=0; TilGuiWheelMove=0; TilGuiWheelFocused=TRUE;
+  TilGuiMiddlePhysical=ms_hard.bttns[2];
+  TilGuiMiddleOwned=FALSE;
   TilGuiWheelControl=CAlloc(sizeof(CCtrl));
   TilGuiWheelControl->win_task=Fs;
   TilGuiWheelControl->type=CTRLT_GENERIC;
   TilGuiWheelControl->wheel_chg=&TilGuiWheelChanged;
+  TilGuiWheelControl->update_derived_vals=&TilGuiUpdateMiddle;
   QueIns(TilGuiWheelControl,&Fs->next_ctrl);
   TilGuiFront=DCNew(width,height);
   TilGuiBack=DCNew(width,height);

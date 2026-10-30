@@ -998,7 +998,7 @@
   previous policy. This gives the application immediate button events instead
   of moving the console cursor or generating a double-click Escape.
 
-  This sprint supports left/right buttons. Middle/auxiliary button queries fail
+  This initial sprint supports left/right buttons. Auxiliary button queries fail
   explicitly on the native target; pointer warp/scale/cursor
   APIs remain later work. Invalid button indices retain the facade's false
   result. Key/text queues remain separate from mouse frame state.
@@ -1066,6 +1066,37 @@
   arithmetic/formatting and keyboard-focus checks. The full guest matrix was
   not rerun for this sprint.
 
+**** Middle-button input and focus ownership
+
+  The existing IsMouseButtonDown/Up/Pressed/Released queries now accept
+  MOUSE_BUTTON_MIDDLE on TempleOS. Native PS/2 state already contains this
+  button, but TempleOS publishes no middle-button task messages. The existing
+  invisible input control therefore samples it through update_derived_vals.
+  WinMgr runs that hook for every task, including covered/unfocused GUIs, so
+  ownership changes are observed while the application is not polling.
+
+  A new physical press is owned only when its GUI task is focused. Blur and
+  physical release clear ownership; a button held before opening or pressed
+  in another task does not become a new press on refocus. EndDrawing publishes
+  the owned state using the same frame snapshots as left/right buttons. Repeated
+  queries do not consume edges, and a press/release within one frame coalesces
+  like raylib. Opening/reopening starts released. The sampler shares the wheel
+  control's lifetime and is removed on close; auxiliary buttons still fail
+  explicitly rather than pretending to be available.
+
+  In examples/gui_mouse.til, middle-click resets only the hovered pane's scroll
+  position. A white strip below the panes shows a held middle button, and the
+  final output reports the number of middle resets. Real QEMU injection tests
+  both panes, holds/moves the pointer across panes without another reset, and
+  reruns the loaded module in the same VM. Native boundary checks cover holds,
+  releases, chords, coalesced taps, pre-open holds, focus changes/background
+  presses between application polls, fresh presses after refocus and reopen.
+
+  Verification on master 1ec7e4ba0: clean hosted ASAN suite 494/494, including
+  clang validation. All 18 focused native cases pass at USize 32/64: four new
+  middle-button cases plus the existing wheel, mouse, arithmetic/formatting and
+  keyboard-focus checks. The full guest matrix was not rerun for this sprint.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,
@@ -1121,8 +1152,8 @@ HC
   ExeFile("TILTEST.HC");
   #+end_src
 
-  Wait for the window, then click/drag, wheel over either pane, and right-click
-  to reset. Enter/Escape closes the
+  Wait for the window, then click/drag and wheel over either pane. Middle-click
+  resets that pane's scroll position; right-click resets both. Enter/Escape closes the
   example; ~y~ at the repeat prompt starts a fresh run in the same VM, and ~n~
   returns to the console. Type ~quit~ at the host terminal's ~(qemu)~ monitor to
   stop the VM. For a new host build, quit, regenerate/re-stage and boot again;

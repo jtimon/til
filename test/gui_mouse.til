@@ -19,6 +19,7 @@ main := proc() {
     SetTargetFPS(30)
     if IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonReleased(MOUSE_BUTTON_LEFT) { panic("initial mouse state") }
     if IsMouseButtonUp(MOUSE_BUTTON_LEFT).not() { panic("initial mouse up") }
+    if IsMouseButtonDown(MOUSE_BUTTON_MIDDLE) || IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) || IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE) || IsMouseButtonUp(MOUSE_BUTTON_MIDDLE).not() { panic("initial middle state") }
     gui_mouse_move(80, 90)
     position := GetMousePosition()
     if GetMouseX() != 80 || GetMouseY() != 90 || position.x != 80.0 || position.y != 90.0 { panic("mouse position ABI") }
@@ -45,6 +46,20 @@ main := proc() {
     outside := GetMousePosition()
     if GetMouseX() != -8 || GetMouseY() != 500 || outside.x != -8.0 || outside.y != 500.0 { panic("mouse coordinates were clamped") }
     if IsMouseButtonDown(-1) || IsMouseButtonUp(8) { panic("invalid mouse button") }
+    gui_mouse_button(MOUSE_BUTTON_MIDDLE, 1)
+    if IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE).not() || IsMouseButtonDown(MOUSE_BUTTON_MIDDLE).not() || IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE).not() { panic("middle press") }
+    next_frame()
+    if IsMouseButtonDown(MOUSE_BUTTON_MIDDLE).not() || IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) { panic("held middle") }
+    gui_mouse_button(MOUSE_BUTTON_LEFT, 1)
+    if IsMouseButtonDown(MOUSE_BUTTON_MIDDLE).not() || IsMouseButtonDown(MOUSE_BUTTON_LEFT).not() { panic("middle chord") }
+    gui_mouse_button(MOUSE_BUTTON_MIDDLE, 0)
+    if IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE).not() || IsMouseButtonUp(MOUSE_BUTTON_MIDDLE).not() || IsMouseButtonDown(MOUSE_BUTTON_LEFT).not() { panic("middle release") }
+    gui_mouse_button(MOUSE_BUTTON_LEFT, 0)
+    next_frame()
+    if IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE) { panic("middle release persisted") }
+    gui_mouse_button(MOUSE_BUTTON_MIDDLE, 1)
+    gui_mouse_button(MOUSE_BUTTON_MIDDLE, 0)
+    if IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) || IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE) { panic("same-frame middle tap") }
     check_wheel(0, 0, 0)
     gui_mouse_scroll(0, 1)
     check_wheel(0, 1, 1)

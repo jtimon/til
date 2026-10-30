@@ -306,8 +306,8 @@ gui_mouse_checks := proc(identity: Str, bits: Str) {
         "TilGuiInitWindow(640,480,\"mouse reopened\"); if (TilGuiIsMouseButtonDown(0) || TilGuiIsMouseButtonReleased(0)) TilPanicZ(\"mouse reopen state\\n\");\n",
         "TilGuiCloseWindow; Kill(peer); TilRawWrite(\"GUI mouse boundaries passed\\n\",28); }\nMouseBoundaryChecks;\n"))
     run_guest(identity, format("gui_mouse_boundaries_", bits), "GUI mouse boundaries passed\n", "pass")
-    File.writefile(format(WORK, "/TILTEST.HC"), format(program, "\nTilGuiIsMouseButtonDown(2);\n"))
-    run_guest(identity, format("gui_mouse_unsupported_", bits), "GUI mouse POC supports left/right buttons\n", "panic")
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program, "\nTilGuiIsMouseButtonDown(3);\n"))
+    run_guest(identity, format("gui_mouse_unsupported_", bits), "GUI mouse POC supports left/right/middle buttons\n", "panic")
 }
 
 gui_wheel_checks := proc(identity: Str, bits: Str) {
@@ -352,6 +352,60 @@ gui_wheel_checks := proc(identity: Str, bits: Str) {
         "TilGuiInitWindow(640,480,\"wheel reopened\"); if (TilF32Load(TilGuiGetMouseWheelMove)!=0.0) TilPanicZ(\"wheel reopen delta\\n\");\n",
         "TilGuiCloseWindow; Kill(peer); TilRawWrite(\"GUI wheel boundaries passed\\n\",28); }\nWheelBoundaryChecks;\n"))
     run_guest(identity, format("gui_wheel_boundaries_", bits), "GUI wheel boundaries passed\n", "pass")
+}
+
+gui_middle_checks := proc(identity: Str, bits: Str) {
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "examples/gui_mouse.til").run_checked()
+    program := File.readfile(format(WORK, "/TILTEST.HC"))
+    File.appendfile(format(WORK, "/TILTEST.HC"),
+        "\nBool middle_old_ac=AutoComplete(OFF); MsSet(0,0,0); TilMain; MsSet(0,0,0); TilMain; AutoComplete(middle_old_ac);\n")
+    input := format("after 4000\nfor {set run 0} {$run<2} {incr run} {\n",
+        "foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
+        "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 200\n}\n",
+        "if {$run==0} {send \"mouse_move -640 0\\r\"\nexpect \"(qemu)\"\nafter 200}\n",
+        "send \"mouse_button 4\\r\"\nexpect \"(qemu)\"\nafter 300\n",
+        "if {$run==0} {send \"mouse_move 640 0\\r\"} else {send \"mouse_move -640 0\\r\"}\nexpect \"(qemu)\"\nafter 300\n",
+        "send \"mouse_button 0\\r\"\nexpect \"(qemu)\"\nafter 200\n",
+        "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\nafter 600\n}\n")
+    mouse_line := "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\n"
+    run_guest(identity, format("gui_middle_", bits), format(mouse_line,
+        "GUI wheel: left=0 right=1\nGUI middle: resets=1\n", mouse_line,
+        "GUI wheel: left=2 right=0\nGUI middle: resets=1\n"), "pass", input)
+
+    File.writefile(format(WORK, "/TILTEST.HC"), format(program,
+        "\nBool MiddlePeerReady=FALSE;\n",
+        "U0 MiddleFocusPeer() { Fs->win_inhibit=WIG_USER_TASK_DFT; LBts(&Fs->display_flags,DISPLAYf_SHOW); WinHorz(0,79); WinVert(0,59); MiddlePeerReady=TRUE; while (TRUE) { FlushMsgs; Sleep(10); } }\n",
+        "U0 MiddleBoundaryChecks() {\n",
+        "CTask *owner=Fs,*peer=Spawn(&MiddleFocusPeer,NULL,\"middle peer\"); CCtrl *old_head=Fs->next_ctrl; Bool old_middle=ms_hard.bttns[2]; I64 old_inhibit=Fs->win_inhibit;\n",
+        "while (!MiddlePeerReady) Yield; ms_hard.bttns[2]=TRUE; TilGuiInitWindow(640,480,\"middle boundaries\"); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonDown(2) || !TilGuiIsMouseButtonUp(2) || TilGuiIsMouseButtonPressed(2) || TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"pre-open middle hold became press\\n\");\n",
+        "ms_hard.bttns[2]=FALSE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput; if (TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"unowned middle release\\n\");\n",
+        "ms_hard.bttns[2]=TRUE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput;\n",
+        "if (!TilGuiIsMouseButtonPressed(2) || !TilGuiIsMouseButtonDown(2) || !TilGuiIsMouseButtonPressed(2) || TilGuiIsMouseButtonUp(2)) TilPanicZ(\"middle press snapshot\\n\");\n",
+        "TilGuiPollInput; if (!TilGuiIsMouseButtonDown(2) || TilGuiIsMouseButtonPressed(2)) TilPanicZ(\"held middle snapshot\\n\");\n",
+        "MsSet(120,90,0,TRUE,TRUE); Msg(MSG_MS_L_DOWN,120,90); Msg(MSG_MS_R_DOWN,120,90); TilGuiPollInput;\n",
+        "if (!TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonDown(1) || !TilGuiIsMouseButtonDown(2)) TilPanicZ(\"middle chord\\n\");\n",
+        "ms_hard.bttns[2]=FALSE; TilGuiPollInput;\n",
+        "if (!TilGuiIsMouseButtonReleased(2) || !TilGuiIsMouseButtonUp(2) || !TilGuiIsMouseButtonDown(0) || !TilGuiIsMouseButtonDown(1)) TilPanicZ(\"middle physical release\\n\");\n",
+        "MsSet(120,90,0,FALSE,FALSE); Msg(MSG_MS_L_UP,120,90); Msg(MSG_MS_R_UP,120,90); TilGuiPollInput; if (TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"middle release persisted\\n\");\n",
+        "ms_hard.bttns[2]=TRUE; TaskDerivedValsUpdate(owner,FALSE); ms_hard.bttns[2]=FALSE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonPressed(2) || TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"same-frame middle tap\\n\");\n",
+        "ms_hard.bttns[2]=TRUE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput; WinFocus(peer); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonDown(2) || !TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"middle stuck on blur\\n\");\n",
+        "WinFocus(owner); TilGuiPollInput; if (TilGuiIsMouseButtonDown(2) || TilGuiIsMouseButtonPressed(2) || TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"middle hold resurrected on refocus\\n\");\n",
+        "ms_hard.bttns[2]=FALSE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput; ms_hard.bttns[2]=TRUE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput;\n",
+        "if (!TilGuiIsMouseButtonPressed(2)) TilPanicZ(\"fresh middle after refocus\\n\");\n",
+        "WinFocus(peer); ms_hard.bttns[2]=FALSE; Sleep(100); ms_hard.bttns[2]=TRUE; Sleep(100); WinFocus(owner); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonDown(2) || TilGuiIsMouseButtonPressed(2) || !TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"background middle replayed between polls\\n\");\n",
+        "TilGuiPollInput; if (TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"background middle release persisted\\n\");\n",
+        "ms_hard.bttns[2]=FALSE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput; ms_hard.bttns[2]=TRUE; TaskDerivedValsUpdate(owner,FALSE); TilGuiPollInput;\n",
+        "WinFocus(peer); ms_hard.bttns[2]=FALSE; Sleep(100); WinFocus(owner); TilGuiPollInput; if (TilGuiIsMouseButtonDown(2) || !TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"between-frame middle release lost\\n\");\n",
+        "TilGuiCloseWindow; if (Fs->next_ctrl!=old_head || Fs->win_inhibit!=old_inhibit) TilPanicZ(\"middle sampler lifetime\\n\");\n",
+        "ms_hard.bttns[2]=TRUE; TilGuiInitWindow(640,480,\"middle reopened\"); TilGuiPollInput;\n",
+        "if (TilGuiIsMouseButtonDown(2) || TilGuiIsMouseButtonPressed(2) || TilGuiIsMouseButtonReleased(2)) TilPanicZ(\"middle reopen state\\n\");\n",
+        "TilGuiCloseWindow; ms_hard.bttns[2]=old_middle; Kill(peer); TilRawWrite(\"GUI middle boundaries passed\\n\",29); }\nMiddleBoundaryChecks;\n"))
+    run_guest(identity, format("gui_middle_boundaries_", bits), "GUI middle boundaries passed\n", "pass")
 }
 
 main := proc() {
@@ -424,6 +478,7 @@ main := proc() {
         gui_keyboard_focus_checks(identity, bits)
         gui_mouse_checks(identity, bits)
         gui_wheel_checks(identity, bits)
+        gui_middle_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))
