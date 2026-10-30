@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9e5acb222</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9bc23073e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -45,6 +45,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
 <li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
 <li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
+<li><a href="../../src/std/crypto.html">src/std/crypto.til</a></li>
+<li><a href="../../src/std/doc.html">src/std/doc.til</a></li>
+<li><a href="../../src/std/dyn_vec.html">src/std/dyn_vec.til</a></li>
+<li><a href="../../src/std/dyn_array.html">src/std/dyn_array.til</a></li>
+<li><a href="../../src/std/dyn_hashmap.html">src/std/dyn_hashmap.til</a></li>
+<li><a href="../../src/std/dyn_hashset.html">src/std/dyn_hashset.til</a></li>
+<li><a href="../../src/std/dyn_map.html">src/std/dyn_map.til</a></li>
+<li><a href="../../src/std/dyn_set.html">src/std/dyn_set.til</a></li>
+<li><a href="../../src/std/hashset.html">src/std/hashset.til</a></li>
+<li><a href="../../src/std/tilvm.html">src/std/tilvm.til</a></li>
+<li><a href="../../src/std/unicode/grapheme_data.html">src/std/unicode/grapheme_data.til</a></li>
+<li><a href="../../src/std/unicode.html">src/std/unicode.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -74,9 +86,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Vendor bindings</h2><ul>
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+<li><a href="../../vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
-<li><a class="current" href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a><ul><li><a href="#til.src.self.mlir_codegen.mlir_source_declarations">mlir_source_declarations</a></li><li><a href="#til.src.self.mlir_codegen.mlir_codegen_translate">mlir_codegen_translate</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.new">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.new</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.with_capacity">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.with_capacity</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.clear">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.clear</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.has">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.has</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.get">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.get</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.remove">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.remove</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64">Map__Str_U64</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.new">Map__Str_U64.new</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.with_capacity">Map__Str_U64.with_capacity</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.clear">Map__Str_U64.clear</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.has">Map__Str_U64.has</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.get">Map__Str_U64.get</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.set">Map__Str_U64.set</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.remove">Map__Str_U64.remove</a></li><li><a href="#til.src.self.mlir_codegen.Option__U64">Option__U64</a></li><li><a href="#til.src.self.mlir_codegen.Option__U64.unwrap">Option__U64.unwrap</a></li><li><a href="#til.src.self.mlir_codegen.Option__U64.take">Option__U64.take</a></li><li><a href="#til.src.self.mlir_codegen.Option__Bool">Option__Bool</a></li><li><a href="#til.src.self.mlir_codegen.Option__Bool.unwrap">Option__Bool.unwrap</a></li><li><a href="#til.src.self.mlir_codegen.Option__Bool.take">Option__Bool.take</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding">Vec__priv___src_self_mlir_codegen_til__MlirBinding</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.new">Vec__priv___src_self_mlir_codegen_til__MlirBinding.new</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.with_capacity">Vec__priv___src_self_mlir_codegen_til__MlirBinding.with_capacity</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.clear">Vec__priv___src_self_mlir_codegen_til__MlirBinding.clear</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete_marked">Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete_marked</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.push">Vec__priv___src_self_mlir_codegen_til__MlirBinding.push</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.append">Vec__priv___src_self_mlir_codegen_til__MlirBinding.append</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.take">Vec__priv___src_self_mlir_codegen_til__MlirBinding.take</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_to">Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_to</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_from">Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_from</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_get">Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_get</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.get">Vec__priv___src_self_mlir_codegen_til__MlirBinding.get</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.pop">Vec__priv___src_self_mlir_codegen_til__MlirBinding.pop</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.remove_at">Vec__priv___src_self_mlir_codegen_til__MlirBinding.remove_at</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.take_prefix">Vec__priv___src_self_mlir_codegen_til__MlirBinding.take_prefix</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.truncate">Vec__priv___src_self_mlir_codegen_til__MlirBinding.truncate</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_set">Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_set</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.set">Vec__priv___src_self_mlir_codegen_til__MlirBinding.set</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.push_take">Vec__priv___src_self_mlir_codegen_til__MlirBinding.push_take</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete">Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.clone">Vec__priv___src_self_mlir_codegen_til__MlirBinding.clone</a></li><li><a href="#til.src.self.mlir_codegen.adopt__priv___src_self_mlir_codegen_til__MlirBinding">adopt__priv___src_self_mlir_codegen_til__MlirBinding</a></li></ul></li>
+<li><a class="current" href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a><ul><li><a href="#til.src.self.mlir_codegen.mlir_source_declarations">mlir_source_declarations</a></li><li><a href="#til.src.self.mlir_codegen.mlir_codegen_translate">mlir_codegen_translate</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.new">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.new</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.with_capacity">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.with_capacity</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.clear">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.clear</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.has">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.has</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.get">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.get</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.remove">Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.remove</a></li><li><a href="#til.src.self.mlir_codegen.Option__Bool">Option__Bool</a></li><li><a href="#til.src.self.mlir_codegen.Option__Bool.unwrap">Option__Bool.unwrap</a></li><li><a href="#til.src.self.mlir_codegen.Option__Bool.take">Option__Bool.take</a></li><li><a href="#til.src.self.mlir_codegen.Option__U64">Option__U64</a></li><li><a href="#til.src.self.mlir_codegen.Option__U64.unwrap">Option__U64.unwrap</a></li><li><a href="#til.src.self.mlir_codegen.Option__U64.take">Option__U64.take</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64">Map__Str_U64</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.new">Map__Str_U64.new</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.with_capacity">Map__Str_U64.with_capacity</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.clear">Map__Str_U64.clear</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.has">Map__Str_U64.has</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.get">Map__Str_U64.get</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.set">Map__Str_U64.set</a></li><li><a href="#til.src.self.mlir_codegen.Map__Str_U64.remove">Map__Str_U64.remove</a></li><li><a href="#til.src.self.mlir_codegen.Option__Str">Option__Str</a></li><li><a href="#til.src.self.mlir_codegen.Option__Str.unwrap">Option__Str.unwrap</a></li><li><a href="#til.src.self.mlir_codegen.Option__Str.take">Option__Str.take</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding">Vec__priv___src_self_mlir_codegen_til__MlirBinding</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.new">Vec__priv___src_self_mlir_codegen_til__MlirBinding.new</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.with_capacity">Vec__priv___src_self_mlir_codegen_til__MlirBinding.with_capacity</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.clear">Vec__priv___src_self_mlir_codegen_til__MlirBinding.clear</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete_marked">Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete_marked</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.push">Vec__priv___src_self_mlir_codegen_til__MlirBinding.push</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.append">Vec__priv___src_self_mlir_codegen_til__MlirBinding.append</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.take">Vec__priv___src_self_mlir_codegen_til__MlirBinding.take</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_to">Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_to</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_from">Vec__priv___src_self_mlir_codegen_til__MlirBinding.move_from</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_get">Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_get</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.get">Vec__priv___src_self_mlir_codegen_til__MlirBinding.get</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.pop">Vec__priv___src_self_mlir_codegen_til__MlirBinding.pop</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.remove_at">Vec__priv___src_self_mlir_codegen_til__MlirBinding.remove_at</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.take_prefix">Vec__priv___src_self_mlir_codegen_til__MlirBinding.take_prefix</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.truncate">Vec__priv___src_self_mlir_codegen_til__MlirBinding.truncate</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_set">Vec__priv___src_self_mlir_codegen_til__MlirBinding.unsafe_set</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.set">Vec__priv___src_self_mlir_codegen_til__MlirBinding.set</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.push_take">Vec__priv___src_self_mlir_codegen_til__MlirBinding.push_take</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete">Vec__priv___src_self_mlir_codegen_til__MlirBinding.delete</a></li><li><a href="#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding.clone">Vec__priv___src_self_mlir_codegen_til__MlirBinding.clone</a></li><li><a href="#til.src.self.mlir_codegen.adopt__priv___src_self_mlir_codegen_til__MlirBinding">adopt__priv___src_self_mlir_codegen_til__MlirBinding</a></li></ul></li>
 <li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
@@ -172,7 +185,8 @@ on a missing key.</p>
 <article class="doc-entry" id="til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set">
 <h2>Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set</h2>
 <div class="doc-body">
-<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
+<p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_priv___src_self_mlir_codegen_til__MlirBinding, key: Str, own val: priv___src_self_mlir_codegen_til__MlirBinding)
 </code></pre>
@@ -183,6 +197,118 @@ on a missing key.</p>
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_priv___src_self_mlir_codegen_til__MlirBinding, key: Str) returns Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Bool">
+<h2>Option__Bool</h2>
+<pre><code class="language-til">enum {
+    None
+    Some: Bool
+namespace:
+    func is_some(self: Option__Bool) returns Bool
+    func is_none(self: Option__Bool) returns Bool
+    func unwrap_or(self: Option__Bool, default_v: Bool) returns Bool
+    func unwrap(self: Option__Bool) returns Bool
+    func take(own self: Option__Bool) returns Bool
+    ext_func None() returns Option__Bool
+    ext_func Some(val: Bool) returns Option__Bool
+    core_func is(self: Option__Bool, other: Option__Bool) returns Bool
+    func eq(self: Option__Bool, other: Option__Bool) returns Bool
+    func delete(own self: Option__Bool, call_free: Bool = true)
+    func cmp(a: Option__Bool, b: Option__Bool) returns I64
+    func to_str(self: Option__Bool) returns Str
+    func clone(self: Option__Bool) returns Option__Bool
+    func size() returns U64
+    func lt(a: Option__Bool, b: Option__Bool) returns Bool
+    func gt(a: Option__Bool, b: Option__Bool) returns Bool
+    func neq(a: Option__Bool, b: Option__Bool) returns Bool
+    func lte(a: Option__Bool, b: Option__Bool) returns Bool
+    func gte(a: Option__Bool, b: Option__Bool) returns Bool
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Bool.unwrap">
+<h2>Option__Bool.unwrap</h2>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__Bool) returns Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Bool.take">
+<h2>Option__Bool.take</h2>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__Bool) returns Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__U64">
+<h2>Option__U64</h2>
+<pre><code class="language-til">enum {
+    None
+    Some: U64
+namespace:
+    func is_some(self: Option__U64) returns Bool
+    func is_none(self: Option__U64) returns Bool
+    func unwrap_or(self: Option__U64, default_v: U64) returns U64
+    func unwrap(self: Option__U64) returns U64
+    func take(own self: Option__U64) returns U64
+    ext_func None() returns Option__U64
+    ext_func Some(val: U64) returns Option__U64
+    core_func is(self: Option__U64, other: Option__U64) returns Bool
+    func eq(self: Option__U64, other: Option__U64) returns Bool
+    func delete(own self: Option__U64, call_free: Bool = true)
+    func cmp(a: Option__U64, b: Option__U64) returns I64
+    func to_str(self: Option__U64) returns Str
+    func clone(self: Option__U64) returns Option__U64
+    func size() returns U64
+    func lt(a: Option__U64, b: Option__U64) returns Bool
+    func gt(a: Option__U64, b: Option__U64) returns Bool
+    func neq(a: Option__U64, b: Option__U64) returns Bool
+    func lte(a: Option__U64, b: Option__U64) returns Bool
+    func gte(a: Option__U64, b: Option__U64) returns Bool
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__U64.unwrap">
+<h2>Option__U64.unwrap</h2>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__U64) returns U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__U64.take">
+<h2>Option__U64.take</h2>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__U64) returns U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.mlir_codegen.Map__Str_U64">
@@ -254,7 +380,8 @@ on a missing key.</p>
 <article class="doc-entry" id="til.src.self.mlir_codegen.Map__Str_U64.set">
 <h2>Map__Str_U64.set</h2>
 <div class="doc-body">
-<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
+<p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_U64, key: Str, own val: U64)
 </code></pre>
@@ -267,36 +394,36 @@ on a missing key.</p>
 <pre><code class="language-til">func (mut self: Map__Str_U64, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.mlir_codegen.Option__U64">
-<h2>Option__U64</h2>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Str">
+<h2>Option__Str</h2>
 <pre><code class="language-til">enum {
     None
-    Some: U64
+    Some: Str
 namespace:
-    func is_some(self: Option__U64) returns Bool
-    func is_none(self: Option__U64) returns Bool
-    func unwrap_or(self: Option__U64, default_v: U64) returns U64
-    func unwrap(self: Option__U64) returns U64
-    func take(own self: Option__U64) returns U64
-    ext_func None() returns Option__U64
-    ext_func Some(val: U64) returns Option__U64
-    core_func is(self: Option__U64, other: Option__U64) returns Bool
-    func eq(self: Option__U64, other: Option__U64) returns Bool
-    func delete(own self: Option__U64, call_free: Bool = true)
-    func cmp(a: Option__U64, b: Option__U64) returns I64
-    func to_str(self: Option__U64) returns Str
-    func clone(self: Option__U64) returns Option__U64
+    func is_some(self: Option__Str) returns Bool
+    func is_none(self: Option__Str) returns Bool
+    func unwrap_or(self: Option__Str, default_v: Str) returns Str
+    func unwrap(self: Option__Str) returns Str
+    func take(own self: Option__Str) returns Str
+    ext_func None() returns Option__Str
+    ext_func Some(own val: Str) returns Option__Str
+    core_func is(self: Option__Str, other: Option__Str) returns Bool
+    func eq(self: Option__Str, other: Option__Str) returns Bool
+    func delete(own self: Option__Str, call_free: Bool = true)
+    func cmp(a: Option__Str, b: Option__Str) returns I64
+    func to_str(self: Option__Str) returns Str
+    func clone(self: Option__Str) returns Option__Str
     func size() returns U64
-    func lt(a: Option__U64, b: Option__U64) returns Bool
-    func gt(a: Option__U64, b: Option__U64) returns Bool
-    func neq(a: Option__U64, b: Option__U64) returns Bool
-    func lte(a: Option__U64, b: Option__U64) returns Bool
-    func gte(a: Option__U64, b: Option__U64) returns Bool
+    func lt(a: Option__Str, b: Option__Str) returns Bool
+    func gt(a: Option__Str, b: Option__Str) returns Bool
+    func neq(a: Option__Str, b: Option__Str) returns Bool
+    func lte(a: Option__Str, b: Option__Str) returns Bool
+    func gte(a: Option__Str, b: Option__Str) returns Bool
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.mlir_codegen.Option__U64.unwrap">
-<h2>Option__U64.unwrap</h2>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Str.unwrap">
+<h2>Option__Str.unwrap</h2>
 <div class="doc-body">
 <p>The contained value; PANICS on None, ala Rust's unwrap. For the
 <code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
@@ -306,11 +433,11 @@ default is meaningful -- reach for this only when None is
 unreachable by construction, so it fails loudly if that ever
 stops being true.</p>
 </div>
-<pre><code class="language-til">func (self: Option__U64) returns U64
+<pre><code class="language-til">func (self: Option__Str) returns Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.mlir_codegen.Option__U64.take">
-<h2>Option__U64.take</h2>
+<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Str.take">
+<h2>Option__Str.take</h2>
 <div class="doc-body">
 <p>The contained value, MOVED out; PANICS on None, like unwrap.
 unwrap only BORROWS self, so for an owned payload it must hand
@@ -320,63 +447,7 @@ Use it wherever the caller takes ownership of what the Option
 held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.</p>
 </div>
-<pre><code class="language-til">func (own self: Option__U64) returns U64
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Bool">
-<h2>Option__Bool</h2>
-<pre><code class="language-til">enum {
-    None
-    Some: Bool
-namespace:
-    func is_some(self: Option__Bool) returns Bool
-    func is_none(self: Option__Bool) returns Bool
-    func unwrap_or(self: Option__Bool, default_v: Bool) returns Bool
-    func unwrap(self: Option__Bool) returns Bool
-    func take(own self: Option__Bool) returns Bool
-    ext_func None() returns Option__Bool
-    ext_func Some(val: Bool) returns Option__Bool
-    core_func is(self: Option__Bool, other: Option__Bool) returns Bool
-    func eq(self: Option__Bool, other: Option__Bool) returns Bool
-    func delete(own self: Option__Bool, call_free: Bool = true)
-    func cmp(a: Option__Bool, b: Option__Bool) returns I64
-    func to_str(self: Option__Bool) returns Str
-    func clone(self: Option__Bool) returns Option__Bool
-    func size() returns U64
-    func lt(a: Option__Bool, b: Option__Bool) returns Bool
-    func gt(a: Option__Bool, b: Option__Bool) returns Bool
-    func neq(a: Option__Bool, b: Option__Bool) returns Bool
-    func lte(a: Option__Bool, b: Option__Bool) returns Bool
-    func gte(a: Option__Bool, b: Option__Bool) returns Bool
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Bool.unwrap">
-<h2>Option__Bool.unwrap</h2>
-<div class="doc-body">
-<p>The contained value; PANICS on None, ala Rust's unwrap. For the
-<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.</p>
-</div>
-<pre><code class="language-til">func (self: Option__Bool) returns Bool
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.mlir_codegen.Option__Bool.take">
-<h2>Option__Bool.take</h2>
-<div class="doc-body">
-<p>The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.</p>
-</div>
-<pre><code class="language-til">func (own self: Option__Bool) returns Bool
+<pre><code class="language-til">func (own self: Option__Str) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding">

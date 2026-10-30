@@ -1,0 +1,345 @@
+#+TITLE: src/std/dyn_vec.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* DynVec
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec
+:group: Standard library
+:END:
+
+Dynamic array of typed elements.
+
+#+begin_src til
+struct DynVec {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+    elem_size : USize
+    elem_kind : USize
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+namespace:
+    func new_type_name(elem_type: Str) returns DynVec
+    func new(T: Type) returns DynVec
+    func with_capacity(T: Type, n: U64) returns DynVec
+    func new_like(elem_size: U64, elem_kind: U64, elem_clone: CloneFn, elem_delete: DeleteFn, n: U64) returns DynVec
+    func len(self: DynVec) returns U64
+    func clear(mut self: DynVec)
+    func delete_marked(mut self: DynVec, marks: Dynamic)
+    func push(mut self: DynVec, own val: Dynamic)
+    func append(mut self: DynVec, own other: DynVec)
+    func move_from(mut self: DynVec, mut other: DynVec)
+    func move_to(mut self: DynVec, mut dest: DynVec)
+    func unsafe_get(self: DynVec, i: U64) returns ref Dynamic
+    func get(self: DynVec, i: U64) returns ref Dynamic throws OutOfBounds
+    func pop(mut self: DynVec) returns Dynamic
+    func remove_at(mut self: DynVec, i: U64) throws OutOfBounds
+    func truncate(mut self: DynVec, n: U64)
+    func take_prefix(mut self: DynVec, n: U64) returns DynVec
+    func take(mut self: DynVec) returns DynVec
+    func unsafe_set(mut self: DynVec, i: U64, own val: Dynamic)
+    func set(mut self: DynVec, i: U64, own val: Dynamic) throws OutOfBounds
+    func push_take(mut self: DynVec, mut src: DynVec, i: U64)
+    func delete(own self: DynVec, call_free: Bool = true)
+    func clone(self: DynVec) returns DynVec
+    func size() returns U64
+}
+#+end_src
+
+* DynVec.new_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.new_type_name
+:group: Standard library
+:END:
+
+Create a new empty DynVec for elements of the given type.
+
+#+begin_src til
+func DynVec.new_type_name(elem_type: Str) returns DynVec
+#+end_src
+
+* DynVec.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.with_capacity
+:group: Standard library
+:END:
+
+Create an empty DynVec with room for ~n~ elements, so filling it
+with n items reallocs zero times (Vec.with_capacity's counterpart;
+the element type is a runtime argument here, as for ~new~).
+
+#+begin_src til
+func DynVec.with_capacity(T: Type, n: U64) returns DynVec
+#+end_src
+
+* DynVec.new_like
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.new_like
+:group: Standard library
+:END:
+
+Create an empty DynVec with room for ~n~ elements, taking its
+element metadata from a container that already has it instead of
+from a Type or a type name. DynArray.to_vec is why this exists: a
+DynArray carries the element size / kind / clone / delete fns but
+not the type name ~new_type_name~ wants, and a DynVec record can
+only be built directly inside this file.
+
+#+begin_src til
+func DynVec.new_like(elem_size: U64, elem_kind: U64, elem_clone: CloneFn, elem_delete: DeleteFn, n: U64) returns DynVec
+#+end_src
+
+* DynVec.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.clear
+:group: Standard library
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the DynVec can be reused.
+
+#+begin_src til
+func DynVec.clear(mut self: DynVec)
+#+end_src
+
+* DynVec.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.delete_marked
+:group: Standard library
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries), then compact the
+survivors forward and update count. Vec.delete_marked's
+counterpart.
+
+#+begin_src til
+func DynVec.delete_marked(mut self: DynVec, marks: Dynamic)
+#+end_src
+
+* DynVec.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.push
+:group: Standard library
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func DynVec.push(mut self: DynVec, own val: Dynamic)
+#+end_src
+
+* DynVec.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.append
+:group: Standard library
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func DynVec.append(mut self: DynVec, own other: DynVec)
+#+end_src
+
+* DynVec.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.move_from
+:group: Standard library
+:END:
+
+Replace self's contents with other's via memcpy (no per-elem clone).
+Avoids the Vec_clone + extra Vec_delete that plain ~self = other~ emits.
+Takes ~mut~ (not ~own~) so caller retains ownership of other; its
+natural scope-end auto-delete frees other.data. Setting other.count = 0
+prevents that auto-delete from re-running elem_delete on items whose
+bytes were moved into self.
+
+#+begin_src til
+func DynVec.move_from(mut self: DynVec, mut other: DynVec)
+#+end_src
+
+* DynVec.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.move_to
+:group: Standard library
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+Vec.move_to's counterpart, and the argument-flipped spelling of
+~dest.move_from(self)~. Both sides are ~mut~ here rather than one
+of them ~own~, because the values these moves exist for are struct
+FIELDS, and a field cannot be an owned argument or receiver.
+
+#+begin_src til
+func DynVec.move_to(mut self: DynVec, mut dest: DynVec)
+#+end_src
+
+* DynVec.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.unsafe_get
+:group: Standard library
+:END:
+
+Unchecked ref to the element at index ~i~. Caller guarantees
+~i < self.count~; bypasses get's throwing bounds check. for-in
+and the DynMap binary search use this directly (issue #284/#287).
+
+#+begin_src til
+func DynVec.unsafe_get(self: DynVec, i: U64) returns ref Dynamic
+#+end_src
+
+* DynVec.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.get
+:group: Standard library
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func DynVec.get(self: DynVec, i: U64) returns ref Dynamic throws OutOfBounds
+#+end_src
+
+* DynVec.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.pop
+:group: Standard library
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func DynVec.pop(mut self: DynVec) returns Dynamic
+#+end_src
+
+* DynVec.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.remove_at
+:group: Standard library
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+Vec.remove_at's counterpart.
+
+#+begin_src til
+func DynVec.remove_at(mut self: DynVec, i: U64) throws OutOfBounds
+#+end_src
+
+* DynVec.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.truncate
+:group: Standard library
+:END:
+
+Drop the elements from index ~n~ to the end and set count to ~n~
+(the survivors [0, n) are left untouched). Panics if ~n~ exceeds
+len. Vec.truncate's counterpart.
+
+#+begin_src til
+func DynVec.truncate(mut self: DynVec, n: U64)
+#+end_src
+
+* DynVec.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.take_prefix
+:group: Standard library
+:END:
+
+Split off the first ~n~ elements into a new DynVec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func DynVec.take_prefix(mut self: DynVec, n: U64) returns DynVec
+#+end_src
+
+* DynVec.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.take
+:group: Standard library
+:END:
+
+Take the contents out: the returned DynVec holds self's elements
+and self is left empty. Vec.take hands its BUFFER over and blanks
+itself; a DynVec cannot, because elem_size/elem_kind/elem_clone/
+elem_delete are runtime values rather than type parameters, and a
+blanked DynVec would no longer know how to grow or free itself.
+The elements move as bytes into a fresh buffer instead -- which is
+take_prefix of the whole vec.
+
+#+begin_src til
+func DynVec.take(mut self: DynVec) returns DynVec
+#+end_src
+
+* DynVec.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.unsafe_set
+:group: Standard library
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func DynVec.unsafe_set(mut self: DynVec, i: U64, own val: Dynamic)
+#+end_src
+
+* DynVec.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.set
+:group: Standard library
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~dynvec[i] = val~
+(or ~dynvec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func DynVec.set(mut self: DynVec, i: U64, own val: Dynamic) throws OutOfBounds
+#+end_src
+
+* DynVec.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.push_take
+:group: Standard library
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and DynVec.delete).
+
+#+begin_src til
+func DynVec.push_take(mut self: DynVec, mut src: DynVec, i: U64)
+#+end_src
+
+* DynVec.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.delete
+:group: Standard library
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func DynVec.delete(own self: DynVec, call_free: Bool = true)
+#+end_src
+
+* DynVec.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_vec.DynVec.clone
+:group: Standard library
+:END:
+
+Deep-copy the DynVec and all its elements via elem_clone.
+
+#+begin_src til
+func DynVec.clone(self: DynVec) returns DynVec
+#+end_src

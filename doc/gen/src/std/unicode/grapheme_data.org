@@ -1,0 +1,43 @@
+#+TITLE: src/std/unicode/grapheme_data.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* unicode_grapheme_property
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.unicode.grapheme_data.unicode_grapheme_property
+:group: Standard library
+:END:
+
+#+begin_src til
+func unicode_grapheme_property(code: I64) returns I64
+#+end_src
+
+* unicode_pictographic
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.unicode.grapheme_data.unicode_pictographic
+:group: Standard library
+:END:
+
+#+begin_src til
+func unicode_pictographic(code: I64) returns I64
+#+end_src
+
+* unicode_incb
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.unicode.grapheme_data.unicode_incb
+:group: Standard library
+:END:
+
+#+begin_src til
+func unicode_incb(code: I64) returns I64
+#+end_src
+
+* unicode_ignorable
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.unicode.grapheme_data.unicode_ignorable
+:group: Standard library
+:END:
+
+#+begin_src til
+func unicode_ignorable(code: I64) returns I64
+#+end_src

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9e5acb222</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9bc23073e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -45,6 +45,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
 <li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
 <li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
+<li><a href="../../src/std/crypto.html">src/std/crypto.til</a></li>
+<li><a href="../../src/std/doc.html">src/std/doc.til</a></li>
+<li><a href="../../src/std/dyn_vec.html">src/std/dyn_vec.til</a></li>
+<li><a href="../../src/std/dyn_array.html">src/std/dyn_array.til</a></li>
+<li><a href="../../src/std/dyn_hashmap.html">src/std/dyn_hashmap.til</a></li>
+<li><a href="../../src/std/dyn_hashset.html">src/std/dyn_hashset.til</a></li>
+<li><a href="../../src/std/dyn_map.html">src/std/dyn_map.til</a></li>
+<li><a href="../../src/std/dyn_set.html">src/std/dyn_set.til</a></li>
+<li><a href="../../src/std/hashset.html">src/std/hashset.til</a></li>
+<li><a href="../../src/std/tilvm.html">src/std/tilvm.til</a></li>
+<li><a href="../../src/std/unicode/grapheme_data.html">src/std/unicode/grapheme_data.til</a></li>
+<li><a href="../../src/std/unicode.html">src/std/unicode.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -74,6 +86,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Vendor bindings</h2><ul>
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+<li><a href="../../vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
@@ -1086,7 +1099,8 @@ on a missing key.</p>
 <h2>Map__Str_Str.set</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <div class="doc-body">
-<p>Insert or overwrite the value for <code>key</code>. The value is owned.</p>
+<p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.</p>
 </div>
 <pre><code class="language-til">func (mut self: Map__Str_Str, key: Str, own val: Str)
 </code></pre>

@@ -1,5 +1,5 @@
 #+TITLE: src/self/mlir_codegen.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * mlir_source_declarations
@@ -110,7 +110,8 @@ func Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.get(self: Map__Str_p
 :CUSTOM_ID: til.src.self.mlir_codegen.Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.set(mut self: Map__Str_priv___src_self_mlir_codegen_til__MlirBinding, key: Str, own val: priv___src_self_mlir_codegen_til__MlirBinding)
@@ -125,6 +126,138 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
 func Map__Str_priv___src_self_mlir_codegen_til__MlirBinding.remove(mut self: Map__Str_priv___src_self_mlir_codegen_til__MlirBinding, key: Str) returns Bool
+#+end_src
+
+* Option__Bool
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__Bool
+:END:
+
+#+begin_src til
+enum Option__Bool {
+    None
+    Some: Bool
+namespace:
+    func is_some(self: Option__Bool) returns Bool
+    func is_none(self: Option__Bool) returns Bool
+    func unwrap_or(self: Option__Bool, default_v: Bool) returns Bool
+    func unwrap(self: Option__Bool) returns Bool
+    func take(own self: Option__Bool) returns Bool
+    ext_func None() returns Option__Bool
+    ext_func Some(val: Bool) returns Option__Bool
+    core_func is(self: Option__Bool, other: Option__Bool) returns Bool
+    func eq(self: Option__Bool, other: Option__Bool) returns Bool
+    func delete(own self: Option__Bool, call_free: Bool = true)
+    func cmp(a: Option__Bool, b: Option__Bool) returns I64
+    func to_str(self: Option__Bool) returns Str
+    func clone(self: Option__Bool) returns Option__Bool
+    func size() returns U64
+    func lt(a: Option__Bool, b: Option__Bool) returns Bool
+    func gt(a: Option__Bool, b: Option__Bool) returns Bool
+    func neq(a: Option__Bool, b: Option__Bool) returns Bool
+    func lte(a: Option__Bool, b: Option__Bool) returns Bool
+    func gte(a: Option__Bool, b: Option__Bool) returns Bool
+}
+#+end_src
+
+* Option__Bool.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__Bool.unwrap
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__Bool.unwrap(self: Option__Bool) returns Bool
+#+end_src
+
+* Option__Bool.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__Bool.take
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__Bool.take(own self: Option__Bool) returns Bool
+#+end_src
+
+* Option__U64
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__U64
+:END:
+
+#+begin_src til
+enum Option__U64 {
+    None
+    Some: U64
+namespace:
+    func is_some(self: Option__U64) returns Bool
+    func is_none(self: Option__U64) returns Bool
+    func unwrap_or(self: Option__U64, default_v: U64) returns U64
+    func unwrap(self: Option__U64) returns U64
+    func take(own self: Option__U64) returns U64
+    ext_func None() returns Option__U64
+    ext_func Some(val: U64) returns Option__U64
+    core_func is(self: Option__U64, other: Option__U64) returns Bool
+    func eq(self: Option__U64, other: Option__U64) returns Bool
+    func delete(own self: Option__U64, call_free: Bool = true)
+    func cmp(a: Option__U64, b: Option__U64) returns I64
+    func to_str(self: Option__U64) returns Str
+    func clone(self: Option__U64) returns Option__U64
+    func size() returns U64
+    func lt(a: Option__U64, b: Option__U64) returns Bool
+    func gt(a: Option__U64, b: Option__U64) returns Bool
+    func neq(a: Option__U64, b: Option__U64) returns Bool
+    func lte(a: Option__U64, b: Option__U64) returns Bool
+    func gte(a: Option__U64, b: Option__U64) returns Bool
+}
+#+end_src
+
+* Option__U64.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__U64.unwrap
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__U64.unwrap(self: Option__U64) returns U64
+#+end_src
+
+* Option__U64.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__U64.take
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__U64.take(own self: Option__U64) returns U64
 #+end_src
 
 * Map__Str_U64
@@ -217,7 +350,8 @@ func Map__Str_U64.get(self: Map__Str_U64, key: Str) returns ref U64 throws KeyNo
 :CUSTOM_ID: til.src.self.mlir_codegen.Map__Str_U64.set
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_U64.set(mut self: Map__Str_U64, key: Str, own val: U64)
@@ -234,41 +368,41 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 func Map__Str_U64.remove(mut self: Map__Str_U64, key: Str) returns Bool
 #+end_src
 
-* Option__U64
+* Option__Str
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.mlir_codegen.Option__U64
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__Str
 :END:
 
 #+begin_src til
-enum Option__U64 {
+enum Option__Str {
     None
-    Some: U64
+    Some: Str
 namespace:
-    func is_some(self: Option__U64) returns Bool
-    func is_none(self: Option__U64) returns Bool
-    func unwrap_or(self: Option__U64, default_v: U64) returns U64
-    func unwrap(self: Option__U64) returns U64
-    func take(own self: Option__U64) returns U64
-    ext_func None() returns Option__U64
-    ext_func Some(val: U64) returns Option__U64
-    core_func is(self: Option__U64, other: Option__U64) returns Bool
-    func eq(self: Option__U64, other: Option__U64) returns Bool
-    func delete(own self: Option__U64, call_free: Bool = true)
-    func cmp(a: Option__U64, b: Option__U64) returns I64
-    func to_str(self: Option__U64) returns Str
-    func clone(self: Option__U64) returns Option__U64
+    func is_some(self: Option__Str) returns Bool
+    func is_none(self: Option__Str) returns Bool
+    func unwrap_or(self: Option__Str, default_v: Str) returns Str
+    func unwrap(self: Option__Str) returns Str
+    func take(own self: Option__Str) returns Str
+    ext_func None() returns Option__Str
+    ext_func Some(own val: Str) returns Option__Str
+    core_func is(self: Option__Str, other: Option__Str) returns Bool
+    func eq(self: Option__Str, other: Option__Str) returns Bool
+    func delete(own self: Option__Str, call_free: Bool = true)
+    func cmp(a: Option__Str, b: Option__Str) returns I64
+    func to_str(self: Option__Str) returns Str
+    func clone(self: Option__Str) returns Option__Str
     func size() returns U64
-    func lt(a: Option__U64, b: Option__U64) returns Bool
-    func gt(a: Option__U64, b: Option__U64) returns Bool
-    func neq(a: Option__U64, b: Option__U64) returns Bool
-    func lte(a: Option__U64, b: Option__U64) returns Bool
-    func gte(a: Option__U64, b: Option__U64) returns Bool
+    func lt(a: Option__Str, b: Option__Str) returns Bool
+    func gt(a: Option__Str, b: Option__Str) returns Bool
+    func neq(a: Option__Str, b: Option__Str) returns Bool
+    func lte(a: Option__Str, b: Option__Str) returns Bool
+    func gte(a: Option__Str, b: Option__Str) returns Bool
 }
 #+end_src
 
-* Option__U64.unwrap
+* Option__Str.unwrap
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.mlir_codegen.Option__U64.unwrap
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__Str.unwrap
 :END:
 
 The contained value; PANICS on None, ala Rust's unwrap. For the
@@ -280,12 +414,12 @@ unreachable by construction, so it fails loudly if that ever
 stops being true.
 
 #+begin_src til
-func Option__U64.unwrap(self: Option__U64) returns U64
+func Option__Str.unwrap(self: Option__Str) returns Str
 #+end_src
 
-* Option__U64.take
+* Option__Str.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.mlir_codegen.Option__U64.take
+:CUSTOM_ID: til.src.self.mlir_codegen.Option__Str.take
 :END:
 
 The contained value, MOVED out; PANICS on None, like unwrap.
@@ -297,73 +431,7 @@ held -- an ~Option(Expr)~ returned by an AST helper, say, where
 a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
-func Option__U64.take(own self: Option__U64) returns U64
-#+end_src
-
-* Option__Bool
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.mlir_codegen.Option__Bool
-:END:
-
-#+begin_src til
-enum Option__Bool {
-    None
-    Some: Bool
-namespace:
-    func is_some(self: Option__Bool) returns Bool
-    func is_none(self: Option__Bool) returns Bool
-    func unwrap_or(self: Option__Bool, default_v: Bool) returns Bool
-    func unwrap(self: Option__Bool) returns Bool
-    func take(own self: Option__Bool) returns Bool
-    ext_func None() returns Option__Bool
-    ext_func Some(val: Bool) returns Option__Bool
-    core_func is(self: Option__Bool, other: Option__Bool) returns Bool
-    func eq(self: Option__Bool, other: Option__Bool) returns Bool
-    func delete(own self: Option__Bool, call_free: Bool = true)
-    func cmp(a: Option__Bool, b: Option__Bool) returns I64
-    func to_str(self: Option__Bool) returns Str
-    func clone(self: Option__Bool) returns Option__Bool
-    func size() returns U64
-    func lt(a: Option__Bool, b: Option__Bool) returns Bool
-    func gt(a: Option__Bool, b: Option__Bool) returns Bool
-    func neq(a: Option__Bool, b: Option__Bool) returns Bool
-    func lte(a: Option__Bool, b: Option__Bool) returns Bool
-    func gte(a: Option__Bool, b: Option__Bool) returns Bool
-}
-#+end_src
-
-* Option__Bool.unwrap
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.mlir_codegen.Option__Bool.unwrap
-:END:
-
-The contained value; PANICS on None, ala Rust's unwrap. For the
-~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a ~switch~ when both arms do real work, and ~unwrap_or~ when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.
-
-#+begin_src til
-func Option__Bool.unwrap(self: Option__Bool) returns Bool
-#+end_src
-
-* Option__Bool.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.mlir_codegen.Option__Bool.take
-:END:
-
-The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an ~Option(Expr)~ returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.
-
-#+begin_src til
-func Option__Bool.take(own self: Option__Bool) returns Bool
+func Option__Str.take(own self: Option__Str) returns Str
 #+end_src
 
 * Vec__priv___src_self_mlir_codegen_til__MlirBinding

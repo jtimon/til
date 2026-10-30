@@ -1148,6 +1148,8 @@ main := proc(args: ..Str) {
     // dominates the suite. Its doc/REPL children still use the selected compiler.
     add_single(tests, "doc_api", "docs", 0, "",
         format(til_bin, " run", asan_flag, " -o bin/c/doc_api -c gen/c/doc_api.c test/doc_api.til ", til_bin))
+    add_single(tests, "doc_sdk", "docs", 0, "",
+        format(til_bin, " run", asan_flag, " -o bin/c/doc_sdk -c gen/c/doc_sdk.c test/doc_sdk.til ", til_bin))
     // The shorter ownership session uses the selected compiler, including
     // bin/til_asan in the full suite. Interpret the small driver itself so it
     // needs no additional generated binary or C output.

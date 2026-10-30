@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -184,7 +184,7 @@ proc TilVmCallback.call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.ne
 :group: Compiler tools
 :END:
 
-Runtime bridge for call_throwing(E). error_payload must be empty;
+Runtime bridge for call_throwing(E or Signature). error_payload must be empty;
 a declared throw fills it with one independently owned host value.
 
 #+begin_src til
@@ -197,8 +197,9 @@ proc TilVmCallback.invoke_throwing(mut self: TilVmCallback, error_type: Type, mu
 :group: Compiler tools
 :END:
 
-Invoke a guest with one checked shared error schema. Declared errors
-become owned host E values; panic/exit/validation remain TilVmError.
+Invoke a guest with checked shared error schemas. E is either one error
+type or a named FuncSig; init specializes the signature form into typed
+throw arms. Panic/exit/validation remain TilVmError in both forms.
 
 #+begin_src til
 macro call_throwing(E: Type) returns FuncDef
@@ -1525,7 +1526,8 @@ func Map__Str_HeapBinding.get(self: Map__Str_HeapBinding, key: Str) returns ref 
 :group: Compiler tools
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_HeapBinding.set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)

@@ -1,0 +1,119 @@
+#+TITLE: src/std/dyn_hashset.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* DynHashSet
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet
+:group: Standard library
+:END:
+
+#+begin_src til
+struct DynHashSet {
+    mut keys : DynVec
+    mut buckets : DynVec
+    mut nexts : DynVec
+    mut hashes : DynVec
+    mut elem_hash : TypeHashFn
+    mut elem_cmp : CmpFn
+namespace:
+    hasher : HashFn
+    func new_type_name(elem_type: Str) returns DynHashSet
+    func new(T: Type) returns DynHashSet
+    func with_capacity(T: Type, n: U64) returns DynHashSet
+    func len(self: DynHashSet) returns U64
+    func clear(mut self: DynHashSet)
+    func clone(self: DynHashSet) returns DynHashSet
+    func hash_elem(self: DynHashSet, val: Dynamic) returns U64
+    func elems_equal(self: DynHashSet, a: Dynamic, b: Dynamic) returns Bool
+    func find(self: DynHashSet, val: Dynamic) returns I64
+    func has(self: DynHashSet, val: Dynamic) returns Bool
+    func stored_hash(self: DynHashSet, val: Dynamic) returns U64 throws KeyNotFound
+    func add(mut self: DynHashSet, own val: Dynamic)
+    func rehash(mut self: DynHashSet)
+    func delete(own self: DynHashSet, call_free: Bool = true)
+    func remove(mut self: DynHashSet, val: Dynamic) returns Bool
+    func size() returns U64
+    func hash(self: DynHashSet, hasher: HashFn) returns U64
+}
+#+end_src
+
+* DynHashSet.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet.with_capacity
+:group: Standard library
+:END:
+
+Create an empty DynHashSet pre-sized for ~n~ elements
+(HashSet.with_capacity's counterpart; the element type is a
+runtime argument here, as for ~new~).
+
+#+begin_src til
+func DynHashSet.with_capacity(T: Type, n: U64) returns DynHashSet
+#+end_src
+
+* DynHashSet.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet.clear
+:group: Standard library
+:END:
+
+Drop all live elements but keep the allocated storage and type
+metadata so the set can be reused (DynSet.clear's counterpart).
+The bucket array is reset to empty, not freed.
+
+#+begin_src til
+func DynHashSet.clear(mut self: DynHashSet)
+#+end_src
+
+* DynHashSet.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet.clone
+:group: Standard library
+:END:
+
+Deep copy. Cloning the dense vecs and the bucket array preserves
+every chain link, so the copy needs no rehash.
+
+#+begin_src til
+func DynHashSet.clone(self: DynHashSet) returns DynHashSet
+#+end_src
+
+* DynHashSet.stored_hash
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet.stored_hash
+:group: Standard library
+:END:
+
+The set's own stored hash of ~val~, retrieved rather than
+recomputed. Throws KeyNotFound if ~val~ is absent.
+
+#+begin_src til
+func DynHashSet.stored_hash(self: DynHashSet, val: Dynamic) returns U64 throws KeyNotFound
+#+end_src
+
+* DynHashSet.add
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet.add
+:group: Standard library
+:END:
+
+Insert ~val~. If an equal element already exists, ~val~ is
+dropped (DynSet.add's contract). ~val~ is owned.
+
+#+begin_src til
+func DynHashSet.add(mut self: DynHashSet, own val: Dynamic)
+#+end_src
+
+* DynHashSet.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashset.DynHashSet.remove
+:group: Standard library
+:END:
+
+Remove the element equal to ~val~, dropping it. Returns false if
+absent (same contract as DynSet.remove / core Set.remove).
+
+#+begin_src til
+func DynHashSet.remove(mut self: DynHashSet, val: Dynamic) returns Bool
+#+end_src

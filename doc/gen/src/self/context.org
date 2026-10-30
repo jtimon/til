@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -2704,7 +2704,8 @@ func Map__U32_Str.get(self: Map__U32_Str, key: U32) returns ref Str throws KeyNo
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__U32_Str.set(mut self: Map__U32_Str, key: U32, own val: Str)
@@ -2819,7 +2820,8 @@ func Map__Str_FFIEntry.get(self: Map__Str_FFIEntry, key: Str) returns ref FFIEnt
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_FFIEntry.set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
@@ -2934,7 +2936,8 @@ func Map__Str_ExprPtrBox.get(self: Map__Str_ExprPtrBox, key: Str) returns ref Ex
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_ExprPtrBox.set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
@@ -3049,7 +3052,8 @@ func Map__Str_FFITypePtrBox.get(self: Map__Str_FFITypePtrBox, key: Str) returns 
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_FFITypePtrBox.set(mut self: Map__Str_FFITypePtrBox, key: Str, own val: FFITypePtrBox)
@@ -3897,7 +3901,8 @@ func Map__UPtr_Str.get(self: Map__UPtr_Str, key: UPtr) returns ref Str throws Ke
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__UPtr_Str.set(mut self: Map__UPtr_Str, key: UPtr, own val: Str)
@@ -4344,7 +4349,8 @@ func Map__UPtr_ForeignPlace.get(self: Map__UPtr_ForeignPlace, key: UPtr) returns
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__UPtr_ForeignPlace.set(mut self: Map__UPtr_ForeignPlace, key: UPtr, own val: ForeignPlace)
@@ -4459,7 +4465,8 @@ func Map__Str_Mode.get(self: Map__Str_Mode, key: Str) returns ref Mode throws Ke
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_Mode.set(mut self: Map__Str_Mode, key: Str, own val: Mode)
@@ -4635,7 +4642,8 @@ func Map__Str_FuncType.get(self: Map__Str_FuncType, key: Str) returns ref FuncTy
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_FuncType.set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
@@ -4811,7 +4819,8 @@ func Map__Str_ImportUnit.get(self: Map__Str_ImportUnit, key: Str) returns ref Im
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_ImportUnit.set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
@@ -4926,7 +4935,8 @@ func Map__Str_StructLayout.get(self: Map__Str_StructLayout, key: Str) returns re
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_StructLayout.set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
@@ -5167,7 +5177,8 @@ func Map__Str_I64.get(self: Map__Str_I64, key: Str) returns ref I64 throws KeyNo
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_I64.set(mut self: Map__Str_I64, key: Str, own val: I64)
@@ -5282,7 +5293,8 @@ func Map__Str_call_Vec_Str.get(self: Map__Str_call_Vec_Str, key: Str) returns re
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_call_Vec_Str.set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
@@ -5719,7 +5731,8 @@ func Map__Str_Bool.get(self: Map__Str_Bool, key: Str) returns ref Bool throws Ke
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_Bool.set(mut self: Map__Str_Bool, key: Str, own val: Bool)
@@ -5834,7 +5847,8 @@ func Map__Str_Dynamic.get(self: Map__Str_Dynamic, key: Str) returns ref Dynamic 
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_Dynamic.set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
@@ -5949,7 +5963,8 @@ func Map__Str_Expr.get(self: Map__Str_Expr, key: Str) returns ref Expr throws Ke
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_Expr.set(mut self: Map__Str_Expr, key: Str, own val: Expr)

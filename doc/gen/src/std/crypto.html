@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/std/crypto.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+.doc-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,980px);justify-content:center;min-height:100vh}.doc-sidebar{position:sticky;top:0;align-self:start;box-sizing:border-box;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:1.5rem 1rem}.doc-sidebar h1{font-size:1.2rem;margin:0}.doc-version{color:var(--muted);font-size:.85rem}.doc-sidebar h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:1.4rem 0 .3rem}.doc-sidebar ul{list-style:none;margin:0;padding:0}.doc-sidebar ul ul{padding-left:.8rem}.doc-sidebar li{margin:.2rem 0}.doc-sidebar a{display:block;padding:.15rem .35rem;border-radius:5px;text-decoration:none}.doc-sidebar a.current{background:var(--line);font-weight:700}main{box-sizing:border-box;width:100%;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+.doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
+@media(max-width:760px){.doc-layout{display:block}.doc-sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);max-height:45vh}.doc-sidebar nav{columns:2;column-gap:1rem}main{padding-top:1.25rem}}@media(max-width:480px){.doc-sidebar nav{columns:1}}
+</style>
+<script src="../../search.js" defer></script>
+</head>
+<body>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9bc23073e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
+<li><a href="../../src/core/str.html">src/core/str.til</a></li>
+<li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
+<li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
+<li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
+<li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
+<li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
+<li><a href="../../src/core/array.html">src/core/array.til</a></li>
+<li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
+<li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
+<li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
+<li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
+<li><a href="../../src/core/io.html">src/core/io.til</a></li>
+<li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
+<li><a href="../../src/core/range.html">src/core/range.til</a></li>
+<li><a href="../../src/core/set.html">src/core/set.til</a></li>
+<li><a href="../../src/core/core.html">src/core/core.til</a></li>
+</ul>
+<h2>Standard library</h2><ul>
+<li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
+<li><a href="../../src/std/file.html">src/std/file.til</a></li>
+<li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
+<li><a class="current" href="../../src/std/crypto.html">src/std/crypto.til</a><ul><li><a href="#til.src.std.crypto.CryptoError">CryptoError</a></li><li><a href="#til.src.std.crypto._priv___src_std_crypto_til__SHA256_K_ek">_priv___src_std_crypto_til__SHA256_K_ek</a></li><li><a href="#til.src.std.crypto.sha256">sha256</a></li><li><a href="#til.src.std.crypto.sha256_str">sha256_str</a></li><li><a href="#til.src.std.crypto.Signature">Signature</a></li><li><a href="#til.src.std.crypto.Signature.from_hex">Signature.from_hex</a></li><li><a href="#til.src.std.crypto.Signature.to_hex">Signature.to_hex</a></li><li><a href="#til.src.std.crypto.schnorr_pubkey">schnorr_pubkey</a></li><li><a href="#til.src.std.crypto.schnorr_sign">schnorr_sign</a></li><li><a href="#til.src.std.crypto.schnorr_verify">schnorr_verify</a></li><li><a href="#til.src.std.crypto.Array__U32">Array__U32</a></li><li><a href="#til.src.std.crypto.Array__U32.new">Array__U32.new</a></li><li><a href="#til.src.std.crypto.Array__U32.unsafe_get">Array__U32.unsafe_get</a></li><li><a href="#til.src.std.crypto.Array__U32.get">Array__U32.get</a></li><li><a href="#til.src.std.crypto.Array__U32.unsafe_set">Array__U32.unsafe_set</a></li><li><a href="#til.src.std.crypto.Array__U32.set">Array__U32.set</a></li><li><a href="#til.src.std.crypto.Array__U32.concat">Array__U32.concat</a></li><li><a href="#til.src.std.crypto.Array__U32.to_vec">Array__U32.to_vec</a></li></ul></li>
+<li><a href="../../src/std/doc.html">src/std/doc.til</a></li>
+<li><a href="../../src/std/dyn_vec.html">src/std/dyn_vec.til</a></li>
+<li><a href="../../src/std/dyn_array.html">src/std/dyn_array.til</a></li>
+<li><a href="../../src/std/dyn_hashmap.html">src/std/dyn_hashmap.til</a></li>
+<li><a href="../../src/std/dyn_hashset.html">src/std/dyn_hashset.til</a></li>
+<li><a href="../../src/std/dyn_map.html">src/std/dyn_map.til</a></li>
+<li><a href="../../src/std/dyn_set.html">src/std/dyn_set.til</a></li>
+<li><a href="../../src/std/hashset.html">src/std/hashset.til</a></li>
+<li><a href="../../src/std/tilvm.html">src/std/tilvm.til</a></li>
+<li><a href="../../src/std/unicode/grapheme_data.html">src/std/unicode/grapheme_data.til</a></li>
+<li><a href="../../src/std/unicode.html">src/std/unicode.til</a></li>
+</ul>
+<h2>Compiler frontend</h2><ul>
+<li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
+<li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
+<li><a href="../../src/self/context.html">src/self/context.til</a></li>
+<li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
+<li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
+<li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
+<li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
+<li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
+</ul>
+<h2>Compiler backend</h2><ul>
+<li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
+<li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
+<li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
+<li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
+<li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
+</ul>
+<h2>Compiler tools</h2><ul>
+<li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
+<li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
+<li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
+</ul>
+<h2>CLI</h2><ul>
+<li><a href="../../src/til.html">src/til.til</a></li>
+</ul>
+<h2>Vendor bindings</h2><ul>
+<li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+<li><a href="../../vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
+</ul>
+<h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
+<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
+<li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
+<li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
+<li><a href="../../src/self/jvm_codegen.html">src/self/jvm_codegen.til</a></li>
+<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/install.html">src/self/install.til</a></li>
+<li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
+</ul>
+</nav></aside><main>
+<section class="doc-search" aria-label="Documentation search">
+<label for="til-doc-search">Search docs</label>
+<input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
+<ol id="til-doc-search-results" class="doc-search-results"></ol>
+</section>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/std/crypto.til</h1>
+<article class="doc-entry" id="til.src.std.crypto.CryptoError">
+<h2>CryptoError</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Thrown for an invalid key: a secret key of zero or at least the
+curve order, or an x-only public key that is not on the curve.
+Invalid SIGNATURES are not errors: schnorr_verify returns false.</p>
+</div>
+<pre><code class="language-til">struct {
+    mut msg : Str
+namespace:
+    func size() returns U64
+    func clone(self: CryptoError) returns CryptoError
+    func delete(own self: CryptoError, call_free: Bool = true)
+    func hash(self: CryptoError, hasher: HashFn) returns U64
+    func cmp(a: CryptoError, b: CryptoError) returns I64
+    func to_str(self: CryptoError) returns Str
+    func eq(a: CryptoError, b: CryptoError) returns Bool
+    func lt(a: CryptoError, b: CryptoError) returns Bool
+    func gt(a: CryptoError, b: CryptoError) returns Bool
+    func neq(a: CryptoError, b: CryptoError) returns Bool
+    func lte(a: CryptoError, b: CryptoError) returns Bool
+    func gte(a: CryptoError, b: CryptoError) returns Bool
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto._priv___src_std_crypto_til__SHA256_K_ek">
+<h2>_priv___src_std_crypto_til__SHA256_K_ek</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.sha256">
+<h2>sha256</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>SHA-256 of the <code>n</code> bytes at <code>data</code>.</p>
+</div>
+<pre><code class="language-til">func (data: Dynamic, n: U64) returns U256
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.sha256_str">
+<h2>sha256_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>SHA-256 of a string's bytes -- a nostr event id is this over the
+event's serialization.</p>
+</div>
+<pre><code class="language-til">func (s: Str) returns U256
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Signature">
+<h2>Signature</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>A 64-byte BIP-340 signature: the x coordinate of R, then s. Its
+bytes are the wire serialization, like U256's.</p>
+</div>
+<pre><code class="language-til">struct {
+    mut r : U256
+    mut s : U256
+namespace:
+    func from_hex(hex: Str) returns Signature
+    func to_hex(self: Signature) returns Str
+    func to_str(self: Signature) returns Str
+    func size() returns U64
+    func clone(self: Signature) returns Signature
+    func delete(own self: Signature, call_free: Bool = true)
+    func hash(self: Signature, hasher: HashFn) returns U64
+    func cmp(a: Signature, b: Signature) returns I64
+    func eq(a: Signature, b: Signature) returns Bool
+    func lt(a: Signature, b: Signature) returns Bool
+    func gt(a: Signature, b: Signature) returns Bool
+    func neq(a: Signature, b: Signature) returns Bool
+    func lte(a: Signature, b: Signature) returns Bool
+    func gte(a: Signature, b: Signature) returns Bool
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Signature.from_hex">
+<h2>Signature.from_hex</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Parse exactly 128 hex digits; panics on anything else.</p>
+</div>
+<pre><code class="language-til">func (hex: Str) returns Signature
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Signature.to_hex">
+<h2>Signature.to_hex</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>The 128 lowercase hex digits.</p>
+</div>
+<pre><code class="language-til">func (self: Signature) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.schnorr_pubkey">
+<h2>schnorr_pubkey</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>The serialized x-only public key of <code>seckey</code>.</p>
+</div>
+<pre><code class="language-til">proc (seckey: U256) returns U256 throws CryptoError
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.schnorr_sign">
+<h2>schnorr_sign</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Sign the 32-byte <code>msg</code> with <code>seckey</code> and the caller's 32 bytes of
+BIP-340 auxiliary randomness. Hashing a longer message down to
+<code>msg</code> and choosing <code>aux_rand</code> (fresh random bytes, or zeros for a
+deterministic signature) are the caller's: this module generates
+neither. The signature is verified before it is returned, as
+upstream's sign32 does not do that itself.</p>
+</div>
+<pre><code class="language-til">proc (seckey: U256, msg: U256, aux_rand: U256) returns Signature throws CryptoError
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.schnorr_verify">
+<h2>schnorr_verify</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Whether <code>sig</code> is a valid BIP-340 signature of the 32-byte <code>msg</code>
+under the serialized x-only <code>pubkey</code>. A public key that is not on
+the curve throws; a bad signature is a plain false.</p>
+</div>
+<pre><code class="language-til">proc (pubkey: U256, msg: U256, sig: Signature) returns Bool throws CryptoError
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32">
+<h2>Array__U32</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    cap : USize
+namespace:
+    func new(cap: U64) returns Array__U32
+    func len(self: Array__U32) returns U64
+    func unsafe_get(self: Array__U32, i: U64) returns ref U32
+    func get(self: Array__U32, shallow i: U64) returns ref U32 throws OutOfBounds
+    func unsafe_set(mut self: Array__U32, i: U64, own val: U32)
+    func set(mut self: Array__U32, i: U64, own val: U32) throws OutOfBounds
+    func delete(own self: Array__U32, call_free: Bool = true)
+    func concat(self: Array__U32, other: Array__U32) returns Array__U32
+    func to_vec(self: Array__U32) returns Vec__U32
+    func clone(self: Array__U32) returns Array__U32
+    func size() returns U64
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.new">
+<h2>Array__U32.new</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Create a zero-initialized Array with the given capacity.</p>
+</div>
+<pre><code class="language-til">func (cap: U64) returns Array__U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.unsafe_get">
+<h2>Array__U32.unsafe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Unchecked element access: ref to the element at index <code>i</code> with
+NO bounds check. The caller must prove <code>i &lt; len()</code>. This is the
+unchecked core that <code>get</code> wraps; for-in uses it directly because
+its <code>_fi &lt; len()</code> termination test already proves the index in
+bounds (issue #284).</p>
+</div>
+<pre><code class="language-til">func (self: Array__U32, i: U64) returns ref U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.get">
+<h2>Array__U32.get</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Ref to the element at index <code>i</code>. Throws OutOfBounds if <code>i</code> is
+past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (self: Array__U32, shallow i: U64) returns ref U32 throws OutOfBounds
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.unsafe_set">
+<h2>Array__U32.unsafe_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code> without a bounds check, dropping
+the old value. Caller guarantees <code>i &lt; self.cap</code>; the write-side
+mirror of unsafe_get (issue #284).</p>
+</div>
+<pre><code class="language-til">func (mut self: Array__U32, i: U64, own val: U32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.set">
+<h2>Array__U32.set</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Overwrite the element at index <code>i</code>. Drops the old value. <code>val</code> is
+owned. Throws OutOfBounds if <code>i</code> is past the end; call as
+<code>arr[i] = val</code> (or <code>arr.set(i, own val)!</code>) to panic on a bad index.</p>
+</div>
+<pre><code class="language-til">func (mut self: Array__U32, i: U64, own val: U32) throws OutOfBounds
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.concat">
+<h2>Array__U32.concat</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>#342: a fresh Array holding <code>self</code>'s elements followed by <code>other</code>'s.
+Both sources keep theirs -- every element is cloned, exactly as
+<code>clone</code> does -- so neither is moved out from under its owner. The
+mixed-splat variadic lowering builds its collector with this: the
+fixed arguments become one Array, the splatted Array is the other,
+and the call is then the pure-splat form the desugar already handles.</p>
+</div>
+<pre><code class="language-til">func (self: Array__U32, other: Array__U32) returns Array__U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.crypto.Array__U32.to_vec">
+<h2>Array__U32.to_vec</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>#342: a fresh Vec holding a clone of every element, <code>self</code> intact.
+The <code>vec(T, x, ..arr)</code> lowering ends here: a splat's length is a
+runtime value, so the literal's block is folded into one Array with
+<code>concat</code> and converted, instead of the desugar hand-building a push
+loop whose nodes no later pass would infer.</p>
+</div>
+<pre><code class="language-til">func (self: Array__U32) returns Vec__U32
+</code></pre>
+</article>
+</main></div>
+</body>
+</html>

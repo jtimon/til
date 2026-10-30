@@ -874,12 +874,12 @@ run_test_jvm := proc(mut b: Build) {
 }
 
 /// doc/gen/ and the UML outputs. On demand: doc generation over
-/// src/til.til runs the full init+typer pipeline.
+/// imports_for_docs.til runs the full init+typer pipeline for compiler + std.
 run_doc := proc(mut b: Build) {
     if b.begin("doc").not() { return }
     build_til(b)
     File.remove_tree("doc/gen")
-    run(TIL, "doc", "src/til.til")
+    run(TIL, "doc", "imports_for_docs.til")
     run(TIL, "run", "examples/uml.til")
 }
 

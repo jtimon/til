@@ -750,9 +750,13 @@
     so ~boot/til.c~ reflects the new compiler self-applied. Use for
     "Two-pass: "-prefixed commits.
   - ~make test_two_pass~ ~two_pass~ + run the full test suite.
-  - ~make doc~ regenerates the API pages, index/search and UML. Signatures
-    render retained default expressions, including map/set literals and match
-    expressions. Callable/body defaults show their signatures/captures with
+  - ~make doc~ uses ~imports_for_docs.til~ as the single compiler/std entry
+    point and regenerates API pages, one shared index/search and UML. Add new
+    std entry modules to that file; ~test/doc_sdk.til~ checks every std source
+    has a generated page, including dependencies. This file is documentation
+    input, not an installed module or directory-import language feature (#459).
+    Signatures render retained default expressions, including map/set literals
+    and match expressions. Callable/body defaults show their signatures/captures with
     an explicit ~{ ... }~ marker for the omitted implementation; the reference
     is not a source-code serialization. The same formatting is used by help().
   - ~make test_asan~ and ~make test_asan_full~ are aliases for ~make test~.

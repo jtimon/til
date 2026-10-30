@@ -1,0 +1,22 @@
+mode cli
+
+// Documentation-only entry point. Keep every std entry module here; the SDK
+// documentation test checks all std source files against the loaded graph.
+// Intentional imports retain declarations without adding artificial uses.
+_ := import("src/til")
+_ := import("src/std/crypto")
+_ := import("src/std/doc")
+_ := import("src/std/dyn_array")
+_ := import("src/std/dyn_hashmap")
+_ := import("src/std/dyn_hashset")
+_ := import("src/std/dyn_map")
+_ := import("src/std/dyn_set")
+_ := import("src/std/dyn_vec")
+_ := import("src/std/file")
+_ := import("src/std/hash")
+_ := import("src/std/hashmap")
+_ := import("src/std/hashset")
+_ := import("src/std/mode_type")
+_ := import("src/std/sys")
+_ := import("src/std/tilvm")
+_ := import("src/std/unicode")

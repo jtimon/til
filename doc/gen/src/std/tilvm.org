@@ -1,0 +1,72 @@
+#+TITLE: src/std/tilvm.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* TilVm
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.tilvm.TilVm
+:group: Standard library
+:END:
+
+An independent interpreter session. Serialize all VM use on one thread.
+The session owns all guest globals, code and strings. Destroy it to release
+them: ASAP calls delete after the last use, or use own vm.delete() explicitly.
+
+#+begin_src til
+struct TilVm {
+namespace:
+    func new(support_root: Str) returns TilVm
+    proc load_file(mut self: TilVm, path: Str, prelude_source: Str = "", prelude_name: Str = "", prelude_base: Str = "") throws TilVmError
+    proc lookup(mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
+    func delete(own self: TilVm, call_free: Bool = true)
+    func size() returns U64
+    func hash(self: TilVm, hasher: HashFn) returns U64
+}
+#+end_src
+
+* TilVm.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.tilvm.TilVm.new
+:group: Standard library
+:END:
+
+support_root names the installed lib/til SDK directory, not a compiler
+executable. It must match the SDK used to compile the host.
+
+#+begin_src til
+func TilVm.new(support_root: Str) returns TilVm
+#+end_src
+
+* TilVm.load_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.tilvm.TilVm.load_file
+:group: Standard library
+:END:
+
+Load one mode lib module and evaluate its initializers in this process.
+A failed load can be retried on the same VM. A successful load seals the
+first-slice session; reload uses a fresh VM. No compiler is run.
+Imports may link prebuilt native libraries; loading errors are returned.
+Native libraries remain loaded for the process lifetime, across VM reloads.
+Supply all three prelude arguments together. Empty source means no
+prelude; name/base without source is an error. The name is a logical
+module identity, not a path. The base resolves its imports and links.
+The loaded program owns the supplied strings until VM destruction.
+
+#+begin_src til
+proc TilVm.load_file(mut self: TilVm, path: Str, prelude_source: Str = "", prelude_name: Str = "", prelude_base: Str = "") throws TilVmError
+#+end_src
+
+* TilVm.lookup
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.tilvm.TilVm.lookup
+:group: Standard library
+:END:
+
+Retain a guest func/proc, checking an ordinary named signature type.
+Omitting signature retains the zero-argument, no-result contract.
+The handle owns its callable/captures and borrows this VM's code.
+
+#+begin_src til
+proc TilVm.lookup(mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
+#+end_src

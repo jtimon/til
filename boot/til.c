@@ -6313,6 +6313,7 @@ static void priv___src_self_builder_til__append_doc_html_sidebar_page(Str * out,
 static void priv___src_self_builder_til__append_doc_html_sidebar_group(Str * out, DocCatalog * catalog, Str * group, Str * current_page);
 static void priv___src_self_builder_til__append_doc_html_page_start(Str * out, DocCatalog * catalog, Str * current_page, Str * version);
 static void priv___src_self_builder_til__append_doc_html_tail(Str * out);
+static USize priv___src_self_builder_til__doc_html_sidebar_capacity(DocCatalog * catalog, Str * current_page);
 static USize priv___src_self_builder_til__doc_html_entry_capacity(DocEntry * e);
 static void priv___src_self_builder_til__append_doc_html_unit_entry(Str * out, DocEntry * e, Str * current_page);
 static Str priv___src_self_builder_til__format_unit_doc_html(Str * unit_path, DocCatalog * catalog, Str * version);
@@ -11139,7 +11140,8 @@ static Str hoisted__Str_self_builder_doc_expand_til_links_26 = (Str){.c_str = (v
 static Str hoisted__Str_self_builder_doc_expand_til_links_32 = (Str){.c_str = (void *)"./src/self/builder.til:1356:31", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_builder_doc_find_link_end_13 = (Str){.c_str = (void *)"./src/self/builder.til:1299:5", .count = 29ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_builder_doc_html_path_5 = (Str){.c_str = (void *)"./src/self/builder.til:1585:43", .count = 30ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_self_builder_ensure_parent_dir_5 = (Str){.c_str = (void *)"./src/self/builder.til:2194:28", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_builder_doc_html_sidebar_capacity_17 = (Str){.c_str = (void *)"./src/self/builder.til:1969:13", .count = 30ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_self_builder_ensure_parent_dir_5 = (Str){.c_str = (void *)"./src/self/builder.til:2218:28", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_builder_expand_doc_catalog_links_12 = (Str){.c_str = (void *)"./src/self/builder.til:1370:17", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_builder_expand_doc_catalog_links_17 = (Str){.c_str = (void *)"./src/self/builder.til:1371:13", .count = 30ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_self_builder_make_build_dirs_15 = (Str){.c_str = (void *)"./src/self/builder.til:635:43", .count = 29ULL, .cap = TIL_CAP_LIT};
@@ -17290,8 +17292,8 @@ static I64 REPL_BYTE_ESC = 27;
 static I64 REPL_BYTE_DEL = 127;
 static USize REPL_HISTORY_MAX = 1000;
 static I64 REPL_ESC_TIMEOUT_MS = 50;
-static Str VERSION = {.c_str = (I8 *)"0.0.1-f65e174a2", .count = 15ULL, .cap = TIL_CAP_LIT};
-static Str COMPILER_REVISION = {.c_str = (I8 *)"f65e174a26adfdd45c96b78992b540fd8300ede9", .count = 40ULL, .cap = TIL_CAP_LIT};
+static Str VERSION = {.c_str = (I8 *)"0.0.1-2ce01cfb8", .count = 15ULL, .cap = TIL_CAP_LIT};
+static Str COMPILER_REVISION = {.c_str = (I8 *)"2ce01cfb82257c163d9fc13b6cfb251cb154ed4d", .count = 40ULL, .cap = TIL_CAP_LIT};
 U8 U8_MAX = 255;
 U16 U16_MAX = 65535;
 U32 U32_MAX = 4294967295;
@@ -352918,6 +352920,104 @@ static void priv___src_self_builder_til__append_doc_html_tail(Str * out) {
     Str_push_str(out, &hoisted__Str_self_builder_append_doc_html_tail_0);
 }
 
+static USize priv___src_self_builder_til__doc_html_sidebar_capacity(DocCatalog * catalog, Str * current_page) {
+    I64 _err_kind = 0;
+    Vec__Str groups = priv___src_self_builder_til__doc_index_collect_groups(catalog);
+    USize total = 0;
+    {
+        Vec__Str *_fc_Vec__Str_0 = &groups;
+        USize _fi_USize_0 = 0;
+        while (1) {
+            U32 hoisted__U32_2 = (_fc_Vec__Str_0->count);
+            Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));
+            if (!(_wcond_Bool_1)) {
+                break;
+            }
+            Str *group = ((Str *)((void *)((U8 *)(_fc_Vec__Str_0->data) + (((U64)(((U64)(_fi_USize_0)) * 16ULL))))));
+            U32 hoisted__U32_3 = 1;
+            U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
+            _fi_USize_0 = hoisted__U32_4;
+            U32 hoisted__U32_5 = (group->count);
+            U32 hoisted__U32_6 = 6;
+            U32 hoisted__U32_7 = ((U32)(hoisted__U32_5 * hoisted__U32_6));
+            U32 hoisted__U32_8 = ((U32)(total + hoisted__U32_7));
+            U32 hoisted__U32_9 = 64;
+            U32 hoisted__U32_10 = ((U32)(hoisted__U32_8 + hoisted__U32_9));
+            total = hoisted__U32_10;
+        }
+    }
+    Vec__Str_delete(&groups, 0);
+    Bool has_ungrouped = 0;
+    Str hoisted__Str_self_builder_doc_html_sidebar_capacity_46 = priv___src_self_builder_til__doc_html_relative_prefix(current_page);
+    U32 prefix_len = (hoisted__Str_self_builder_doc_html_sidebar_capacity_46.count);
+    Str_delete(&hoisted__Str_self_builder_doc_html_sidebar_capacity_46, 0);
+    {
+        U32 _re_U32_11 = (catalog->entries.count);
+        U32 _rc_U32_11 = 0;
+        while (1) {
+            Bool _wcond_Bool_12 = ((Bool)(_rc_U32_11 < _re_U32_11));
+            if (!(_wcond_Bool_12)) {
+                break;
+            }
+            U32 i = (_rc_U32_11);
+            (++_rc_U32_11);
+            DocEntry *entry = (((Bool)((U32)(i) < catalog->entries.count)) ? (DocEntry *)((DocEntry *)((void *)((U8 *)(catalog->entries.data) + (((U64)(((U64)((U32)(i))) * 144ULL)))))) : (_err_kind = 1, (DocEntry *)NULL));
+            I64 hoisted__I64_38 = 1;
+            Bool hoisted__Bool_39 = ((Bool)(_err_kind == hoisted__I64_38));
+            if (hoisted__Bool_39) {
+                I64 hoisted__I64_13 = 0;
+                _err_kind = hoisted__I64_13;
+                U32 hoisted__U32_14 = 1;
+                Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_14);
+                I64 _va_Array_0_ek = 0;
+                U32 hoisted__U32_15 = 0;
+                Array__Str_set(&_va_Array_0, hoisted__U32_15, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
+                panic(&_va_Array_0, &hoisted__Str_self_builder_doc_html_sidebar_capacity_17);
+            }
+            Bool hoisted__Bool_40 = Str_is_empty(&entry->group);
+            if (hoisted__Bool_40) {
+                Bool hoisted__Bool_18 = 1;
+                has_ungrouped = hoisted__Bool_18;
+            }
+            Bool hoisted__Bool_41 = priv___src_self_builder_til__doc_catalog_page_first(catalog, i);
+            if (hoisted__Bool_41) {
+                U32 hoisted__U32_19 = (entry->unit_path.count);
+                U32 hoisted__U32_20 = (entry->page.count);
+                U32 hoisted__U32_21 = ((U32)(hoisted__U32_19 + hoisted__U32_20));
+                U32 hoisted__U32_22 = ((U32)(hoisted__U32_21 + prefix_len));
+                U32 hoisted__U32_23 = 1;
+                U32 hoisted__U32_24 = ((U32)(hoisted__U32_22 + hoisted__U32_23));
+                U32 hoisted__U32_25 = 6;
+                U32 hoisted__U32_26 = ((U32)(hoisted__U32_24 * hoisted__U32_25));
+                U32 hoisted__U32_27 = ((U32)(total + hoisted__U32_26));
+                U32 hoisted__U32_28 = 128;
+                U32 hoisted__U32_29 = ((U32)(hoisted__U32_27 + hoisted__U32_28));
+                total = hoisted__U32_29;
+            }
+            Str hoisted__Str_self_builder_doc_html_sidebar_capacity_42 = priv___src_self_builder_til__doc_html_path(&entry->page);
+            Bool hoisted__Bool_43 = Str_eq(&hoisted__Str_self_builder_doc_html_sidebar_capacity_42, current_page);
+            Str_delete(&hoisted__Str_self_builder_doc_html_sidebar_capacity_42, 0);
+            if (hoisted__Bool_43) {
+                U32 hoisted__U32_30 = (entry->name.count);
+                U32 hoisted__U32_31 = (entry->id.count);
+                U32 hoisted__U32_32 = ((U32)(hoisted__U32_30 + hoisted__U32_31));
+                U32 hoisted__U32_33 = 6;
+                U32 hoisted__U32_34 = ((U32)(hoisted__U32_32 * hoisted__U32_33));
+                U32 hoisted__U32_35 = ((U32)(total + hoisted__U32_34));
+                U32 hoisted__U32_36 = 64;
+                U32 hoisted__U32_37 = ((U32)(hoisted__U32_35 + hoisted__U32_36));
+                total = hoisted__U32_37;
+            }
+        }
+    }
+    if (has_ungrouped) {
+        U32 hoisted__U32_44 = 128;
+        U32 hoisted__U32_45 = ((U32)(total + hoisted__U32_44));
+        total = hoisted__U32_45;
+    }
+    return total;
+}
+
 static USize priv___src_self_builder_til__doc_html_entry_capacity(DocEntry * e) {
     U32 hoisted__U32_0 = (e->name.count);
     U32 hoisted__U32_1 = (e->id.count);
@@ -353002,7 +353102,9 @@ static Str priv___src_self_builder_til__format_unit_doc_html(Str * unit_path, Do
     U32 hoisted__U32_21 = 6;
     U32 hoisted__U32_22 = ((U32)(hoisted__U32_20 * hoisted__U32_21));
     U32 hoisted__U32_23 = 8192;
-    USize total = ((U32)(hoisted__U32_22 + hoisted__U32_23));
+    U32 hoisted__U32_24 = ((U32)(hoisted__U32_22 + hoisted__U32_23));
+    U32 hoisted__U32_25 = priv___src_self_builder_til__doc_html_sidebar_capacity(catalog, &current_page);
+    USize total = ((U32)(hoisted__U32_24 + hoisted__U32_25));
     {
         Vec__DocEntry *_fc_Vec__DocEntry_2 = &catalog->entries;
         USize _fi_USize_2 = 0;
@@ -353027,30 +353129,30 @@ static Str priv___src_self_builder_til__format_unit_doc_html(Str * unit_path, Do
     Str out = Str_with_capacity(total);
     priv___src_self_builder_til__append_doc_html_head(&out, &title, &current_page);
     priv___src_self_builder_til__append_doc_html_page_start(&out, catalog, &current_page, version);
-    static Str hoisted__Str_self_builder_format_unit_doc_html_24 = (Str){.c_str = (void *)"<nav><a href=\"", .count = 14ULL, .cap = TIL_CAP_LIT};
-    Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_24);
-    U32 hoisted__U32_25 = 2;
-    Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_25);
+    static Str hoisted__Str_self_builder_format_unit_doc_html_26 = (Str){.c_str = (void *)"<nav><a href=\"", .count = 14ULL, .cap = TIL_CAP_LIT};
+    Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_26);
+    U32 hoisted__U32_27 = 2;
+    Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_27);
     I64 _va_Array_0_ek = 0;
-    U32 hoisted__U32_26 = 0;
-    Str hoisted__Str_self_builder_format_unit_doc_html_27 = priv___src_self_builder_til__doc_html_relative_prefix(&current_page);
-    Array__Str_set(&_va_Array_0, hoisted__U32_26, &hoisted__Str_self_builder_format_unit_doc_html_27, &_va_Array_0_ek);
-    U32 hoisted__U32_28 = 1;
-    Array__Str_set(&_va_Array_0, hoisted__U32_28, &_til_str_lits.h4e9caf538a40, &_va_Array_0_ek);
-    Str hoisted__Str_self_builder_format_unit_doc_html_30 = format(&_va_Array_0);
-    Str hoisted__Str_self_builder_format_unit_doc_html_31 = priv___src_self_builder_til__doc_html_escape(&hoisted__Str_self_builder_format_unit_doc_html_30);
-    Str_delete(&hoisted__Str_self_builder_format_unit_doc_html_30, 0);
-    Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_31);
-    Str_delete(&hoisted__Str_self_builder_format_unit_doc_html_31, 0);
-    static Str hoisted__Str_self_builder_format_unit_doc_html_32 = (Str){.c_str = (void *)"\">Index</a></nav>\n", .count = 18ULL, .cap = TIL_CAP_LIT};
-    Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_32);
-    static Str hoisted__Str_self_builder_format_unit_doc_html_33 = (Str){.c_str = (void *)"<h1>", .count = 4ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_28 = 0;
+    Str hoisted__Str_self_builder_format_unit_doc_html_29 = priv___src_self_builder_til__doc_html_relative_prefix(&current_page);
+    Array__Str_set(&_va_Array_0, hoisted__U32_28, &hoisted__Str_self_builder_format_unit_doc_html_29, &_va_Array_0_ek);
+    U32 hoisted__U32_30 = 1;
+    Array__Str_set(&_va_Array_0, hoisted__U32_30, &_til_str_lits.h4e9caf538a40, &_va_Array_0_ek);
+    Str hoisted__Str_self_builder_format_unit_doc_html_32 = format(&_va_Array_0);
+    Str hoisted__Str_self_builder_format_unit_doc_html_33 = priv___src_self_builder_til__doc_html_escape(&hoisted__Str_self_builder_format_unit_doc_html_32);
+    Str_delete(&hoisted__Str_self_builder_format_unit_doc_html_32, 0);
     Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_33);
-    Str hoisted__Str_self_builder_format_unit_doc_html_34 = priv___src_self_builder_til__doc_html_escape(&title);
+    Str_delete(&hoisted__Str_self_builder_format_unit_doc_html_33, 0);
+    static Str hoisted__Str_self_builder_format_unit_doc_html_34 = (Str){.c_str = (void *)"\">Index</a></nav>\n", .count = 18ULL, .cap = TIL_CAP_LIT};
     Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_34);
-    Str_delete(&hoisted__Str_self_builder_format_unit_doc_html_34, 0);
-    static Str hoisted__Str_self_builder_format_unit_doc_html_35 = (Str){.c_str = (void *)"</h1>\n", .count = 6ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_self_builder_format_unit_doc_html_35 = (Str){.c_str = (void *)"<h1>", .count = 4ULL, .cap = TIL_CAP_LIT};
     Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_35);
+    Str hoisted__Str_self_builder_format_unit_doc_html_36 = priv___src_self_builder_til__doc_html_escape(&title);
+    Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_36);
+    Str_delete(&hoisted__Str_self_builder_format_unit_doc_html_36, 0);
+    static Str hoisted__Str_self_builder_format_unit_doc_html_37 = (Str){.c_str = (void *)"</h1>\n", .count = 6ULL, .cap = TIL_CAP_LIT};
+    Str_push_str(&out, &hoisted__Str_self_builder_format_unit_doc_html_37);
     {
         Vec__DocEntry *_fc_Vec__DocEntry_10 = &catalog->entries;
         USize _fi_USize_10 = 0;
@@ -353070,8 +353172,8 @@ static Str priv___src_self_builder_til__format_unit_doc_html(Str * unit_path, Do
             }
         }
     }
-    Str_delete(&current_page, 0);
     priv___src_self_builder_til__append_doc_html_tail(&out);
+    Str_delete(&current_page, 0);
     Str_delete(&title, 0);
     { Str _ret = out; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
@@ -353114,7 +353216,9 @@ static void priv___src_self_builder_til__append_doc_html_index_entry(Str * out, 
 static Str priv___src_self_builder_til__format_doc_index_html(DocCatalog * catalog, Str * version) {
     Vec__Str groups = priv___src_self_builder_til__doc_index_collect_groups(catalog);
     Bool has_ungrouped = 0;
-    USize total = 8192;
+    U32 hoisted__U32_44 = 8192;
+    U32 hoisted__U32_45 = priv___src_self_builder_til__doc_html_sidebar_capacity(catalog, &_til_str_lits.h4e9caf538a40);
+    USize total = ((U32)(hoisted__U32_44 + hoisted__U32_45));
     {
         Vec__Str *_fc_Vec__Str_0 = &groups;
         USize _fi_USize_0 = 0;
@@ -353162,11 +353266,11 @@ static Str priv___src_self_builder_til__format_doc_index_html(DocCatalog * catal
     }
     Str out = Str_with_capacity(total);
     static Str current_page = (Str){.c_str = (void *)"index.html", .count = 10ULL, .cap = TIL_CAP_LIT};
-    static Str hoisted__Str_self_builder_format_doc_index_html_43 = (Str){.c_str = (void *)"til documentation index", .count = 23ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_builder_til__append_doc_html_head(&out, &hoisted__Str_self_builder_format_doc_index_html_43, &current_page);
+    static Str hoisted__Str_self_builder_format_doc_index_html_46 = (Str){.c_str = (void *)"til documentation index", .count = 23ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_builder_til__append_doc_html_head(&out, &hoisted__Str_self_builder_format_doc_index_html_46, &current_page);
     priv___src_self_builder_til__append_doc_html_page_start(&out, catalog, &current_page, version);
-    static Str hoisted__Str_self_builder_format_doc_index_html_44 = (Str){.c_str = (void *)"<h1>til documentation index</h1>\n", .count = 33ULL, .cap = TIL_CAP_LIT};
-    Str_push_str(&out, &hoisted__Str_self_builder_format_doc_index_html_44);
+    static Str hoisted__Str_self_builder_format_doc_index_html_47 = (Str){.c_str = (void *)"<h1>til documentation index</h1>\n", .count = 33ULL, .cap = TIL_CAP_LIT};
+    Str_push_str(&out, &hoisted__Str_self_builder_format_doc_index_html_47);
     {
         Vec__Str *_fc_Vec__Str_20 = &groups;
         USize _fi_USize_20 = 0;

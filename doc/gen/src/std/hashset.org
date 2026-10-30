@@ -1,0 +1,13 @@
+#+TITLE: src/std/hashset.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* HashSet
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.hashset.HashSet
+:group: Standard library
+:END:
+
+#+begin_src til
+macro HashSet(T: Type) returns StructDef
+#+end_src

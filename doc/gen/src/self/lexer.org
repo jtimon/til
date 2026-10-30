@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * DiagnosticPhase
@@ -457,7 +457,8 @@ func Map__Str_TokenType.get(self: Map__Str_TokenType, key: Str) returns ref Toke
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_TokenType.set(mut self: Map__Str_TokenType, key: Str, own val: TokenType)

@@ -1,5 +1,5 @@
 #+TITLE: src/self/binder.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * generate_bindings
@@ -119,7 +119,8 @@ func Map__Str_priv___src_self_binder_til__AuditedDecl.get(self: Map__Str_priv___
 :group: Compiler tools
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_priv___src_self_binder_til__AuditedDecl.set(mut self: Map__Str_priv___src_self_binder_til__AuditedDecl, key: Str, own val: priv___src_self_binder_til__AuditedDecl)

@@ -1956,6 +1956,30 @@ priv append_doc_html_tail := func(mut out: Str) {
     out.push_str("</main></div>\n</body>\n</html>\n")
 }
 
+// Every page renders navigation for the whole catalog, even when its own
+// body is empty. Bound escaped text by six bytes per input byte and count
+// page links, group headings and the current page's declaration links.
+priv doc_html_sidebar_capacity := func(catalog: DocCatalog, current_page: Str) returns USize {
+    groups := doc_index_collect_groups(catalog)
+    mut total : USize = 0
+    for group in groups { total = total + group.len().mul(6) + 64 }
+    mut has_ungrouped := false
+    prefix_len := doc_html_relative_prefix(current_page).len()
+    for i in 0..catalog.entries.len() {
+        ref entry : DocEntry = catalog.entries[i]
+        if entry.group.is_empty() { has_ungrouped = true }
+        if doc_catalog_page_first(catalog, i) {
+            // .org -> .html adds one byte to the target path.
+            total = total + entry.unit_path.len().add(entry.page.len()).add(prefix_len).add(1).mul(6) + 128
+        }
+        if doc_html_path(entry.page) == current_page {
+            total = total + entry.name.len().add(entry.id.len()).mul(6) + 64
+        }
+    }
+    if has_ungrouped { total = total + 128 }
+    return total
+}
+
 priv doc_html_entry_capacity := func(e: DocEntry) returns USize {
     return e.name.len()
         .add(e.id.len())
@@ -1996,7 +2020,7 @@ priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog, version: 
     if title.starts_with("./") { title = title.strip_prefix("./").clone() }
 
     current_page := doc_index_link_path(doc_html_path(til_doc_out_path(unit_path)))
-    mut total : USize = title.len().mul(6) + 8192
+    mut total : USize = title.len().mul(6) + 8192 + doc_html_sidebar_capacity(catalog, current_page)
     for e : DocEntry in catalog.entries {
         if e.unit_path == unit_path { total = total + doc_html_entry_capacity(e) }
     }
@@ -2037,7 +2061,7 @@ priv append_doc_html_index_entry := func(mut out: Str, e: DocEntry, current_page
 priv format_doc_index_html := func(catalog: DocCatalog, version: Str) returns Str {
     groups := doc_index_collect_groups(catalog)
     mut has_ungrouped := false
-    mut total : USize = 8192
+    mut total : USize = 8192 + doc_html_sidebar_capacity(catalog, "index.html")
     for group : Str in groups { total = total + group.len().mul(6) + 128 }
     for e : DocEntry in catalog.entries {
         total = total + doc_html_entry_capacity(e)

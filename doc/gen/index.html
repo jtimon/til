@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9e5acb222</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9bc23073e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -45,6 +45,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="src/std/sys.html">src/std/sys.til</a></li>
 <li><a href="src/std/hash.html">src/std/hash.til</a></li>
 <li><a href="src/std/hashmap.html">src/std/hashmap.til</a></li>
+<li><a href="src/std/crypto.html">src/std/crypto.til</a></li>
+<li><a href="src/std/doc.html">src/std/doc.til</a></li>
+<li><a href="src/std/dyn_vec.html">src/std/dyn_vec.til</a></li>
+<li><a href="src/std/dyn_array.html">src/std/dyn_array.til</a></li>
+<li><a href="src/std/dyn_hashmap.html">src/std/dyn_hashmap.til</a></li>
+<li><a href="src/std/dyn_hashset.html">src/std/dyn_hashset.til</a></li>
+<li><a href="src/std/dyn_map.html">src/std/dyn_map.til</a></li>
+<li><a href="src/std/dyn_set.html">src/std/dyn_set.til</a></li>
+<li><a href="src/std/hashset.html">src/std/hashset.til</a></li>
+<li><a href="src/std/tilvm.html">src/std/tilvm.til</a></li>
+<li><a href="src/std/unicode/grapheme_data.html">src/std/unicode/grapheme_data.til</a></li>
+<li><a href="src/std/unicode.html">src/std/unicode.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="src/self/lexer.html">src/self/lexer.til</a></li>
@@ -74,6 +86,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Vendor bindings</h2><ul>
 <li><a href="vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+<li><a href="vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
 <li><a href="src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
@@ -4811,6 +4824,609 @@ namespace:
 </li>
 <li><a href="src/std/hashmap.html#til.src.std.hashmap.adopt__U64">adopt__U64</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: U64)
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.CryptoError">CryptoError</a>
+<pre><code class="language-til">struct {
+    mut msg : Str
+namespace:
+    func size() returns U64
+    func clone(self: CryptoError) returns CryptoError
+    func delete(own self: CryptoError, call_free: Bool = true)
+    func hash(self: CryptoError, hasher: HashFn) returns U64
+    func cmp(a: CryptoError, b: CryptoError) returns I64
+    func to_str(self: CryptoError) returns Str
+    func eq(a: CryptoError, b: CryptoError) returns Bool
+    func lt(a: CryptoError, b: CryptoError) returns Bool
+    func gt(a: CryptoError, b: CryptoError) returns Bool
+    func neq(a: CryptoError, b: CryptoError) returns Bool
+    func lte(a: CryptoError, b: CryptoError) returns Bool
+    func gte(a: CryptoError, b: CryptoError) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto._priv___src_std_crypto_til__SHA256_K_ek">_priv___src_std_crypto_til__SHA256_K_ek</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.sha256">sha256</a>
+<pre><code class="language-til">func (data: Dynamic, n: U64) returns U256
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.sha256_str">sha256_str</a>
+<pre><code class="language-til">func (s: Str) returns U256
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Signature">Signature</a>
+<pre><code class="language-til">struct {
+    mut r : U256
+    mut s : U256
+namespace:
+    func from_hex(hex: Str) returns Signature
+    func to_hex(self: Signature) returns Str
+    func to_str(self: Signature) returns Str
+    func size() returns U64
+    func clone(self: Signature) returns Signature
+    func delete(own self: Signature, call_free: Bool = true)
+    func hash(self: Signature, hasher: HashFn) returns U64
+    func cmp(a: Signature, b: Signature) returns I64
+    func eq(a: Signature, b: Signature) returns Bool
+    func lt(a: Signature, b: Signature) returns Bool
+    func gt(a: Signature, b: Signature) returns Bool
+    func neq(a: Signature, b: Signature) returns Bool
+    func lte(a: Signature, b: Signature) returns Bool
+    func gte(a: Signature, b: Signature) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Signature.from_hex">Signature.from_hex</a>
+<pre><code class="language-til">func (hex: Str) returns Signature
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Signature.to_hex">Signature.to_hex</a>
+<pre><code class="language-til">func (self: Signature) returns Str
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.schnorr_pubkey">schnorr_pubkey</a>
+<pre><code class="language-til">proc (seckey: U256) returns U256 throws CryptoError
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.schnorr_sign">schnorr_sign</a>
+<pre><code class="language-til">proc (seckey: U256, msg: U256, aux_rand: U256) returns Signature throws CryptoError
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.schnorr_verify">schnorr_verify</a>
+<pre><code class="language-til">proc (pubkey: U256, msg: U256, sig: Signature) returns Bool throws CryptoError
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32">Array__U32</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    cap : USize
+namespace:
+    func new(cap: U64) returns Array__U32
+    func len(self: Array__U32) returns U64
+    func unsafe_get(self: Array__U32, i: U64) returns ref U32
+    func get(self: Array__U32, shallow i: U64) returns ref U32 throws OutOfBounds
+    func unsafe_set(mut self: Array__U32, i: U64, own val: U32)
+    func set(mut self: Array__U32, i: U64, own val: U32) throws OutOfBounds
+    func delete(own self: Array__U32, call_free: Bool = true)
+    func concat(self: Array__U32, other: Array__U32) returns Array__U32
+    func to_vec(self: Array__U32) returns Vec__U32
+    func clone(self: Array__U32) returns Array__U32
+    func size() returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.new">Array__U32.new</a>
+<pre><code class="language-til">func (cap: U64) returns Array__U32
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.unsafe_get">Array__U32.unsafe_get</a>
+<pre><code class="language-til">func (self: Array__U32, i: U64) returns ref U32
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.get">Array__U32.get</a>
+<pre><code class="language-til">func (self: Array__U32, shallow i: U64) returns ref U32 throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.unsafe_set">Array__U32.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Array__U32, i: U64, own val: U32)
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.set">Array__U32.set</a>
+<pre><code class="language-til">func (mut self: Array__U32, i: U64, own val: U32) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.concat">Array__U32.concat</a>
+<pre><code class="language-til">func (self: Array__U32, other: Array__U32) returns Array__U32
+</code></pre>
+</li>
+<li><a href="src/std/crypto.html#til.src.std.crypto.Array__U32.to_vec">Array__U32.to_vec</a>
+<pre><code class="language-til">func (self: Array__U32) returns Vec__U32
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.__til_docs_blob__">__til_docs_blob__</a>
+<pre><code class="language-til"> is a Str
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.__til_info_blob__">__til_info_blob__</a>
+<pre><code class="language-til"> is a Str
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.__doc_init__">__doc_init__</a>
+<pre><code class="language-til">func (info_data: Str, docs_data: Str)
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.doc_org_load_core_info">doc_org_load_core_info</a>
+<pre><code class="language-til">ext_proc (index_path: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.doc_org_load_core_docs">doc_org_load_core_docs</a>
+<pre><code class="language-til">ext_proc (index_path: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.doc_blob_lookup">doc_blob_lookup</a>
+<pre><code class="language-til">ext_func (blob: Str, name: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.doc_init_org_files">doc_init_org_files</a>
+<pre><code class="language-til">proc (index_path: Str, user_info_data: Str, user_docs_data: Str)
+</code></pre>
+</li>
+<li><a href="src/std/doc.html#til.src.std.doc.help">help</a>
+<pre><code class="language-til">proc (name: Str)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec">DynVec</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+    elem_size : USize
+    elem_kind : USize
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+namespace:
+    func new_type_name(elem_type: Str) returns DynVec
+    func new(T: Type) returns DynVec
+    func with_capacity(T: Type, n: U64) returns DynVec
+    func new_like(elem_size: U64, elem_kind: U64, elem_clone: CloneFn, elem_delete: DeleteFn, n: U64) returns DynVec
+    func len(self: DynVec) returns U64
+    func clear(mut self: DynVec)
+    func delete_marked(mut self: DynVec, marks: Dynamic)
+    func push(mut self: DynVec, own val: Dynamic)
+    func append(mut self: DynVec, own other: DynVec)
+    func move_from(mut self: DynVec, mut other: DynVec)
+    func move_to(mut self: DynVec, mut dest: DynVec)
+    func unsafe_get(self: DynVec, i: U64) returns ref Dynamic
+    func get(self: DynVec, i: U64) returns ref Dynamic throws OutOfBounds
+    func pop(mut self: DynVec) returns Dynamic
+    func remove_at(mut self: DynVec, i: U64) throws OutOfBounds
+    func truncate(mut self: DynVec, n: U64)
+    func take_prefix(mut self: DynVec, n: U64) returns DynVec
+    func take(mut self: DynVec) returns DynVec
+    func unsafe_set(mut self: DynVec, i: U64, own val: Dynamic)
+    func set(mut self: DynVec, i: U64, own val: Dynamic) throws OutOfBounds
+    func push_take(mut self: DynVec, mut src: DynVec, i: U64)
+    func delete(own self: DynVec, call_free: Bool = true)
+    func clone(self: DynVec) returns DynVec
+    func size() returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.new_type_name">DynVec.new_type_name</a>
+<pre><code class="language-til">func (elem_type: Str) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.with_capacity">DynVec.with_capacity</a>
+<pre><code class="language-til">func (T: Type, n: U64) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.new_like">DynVec.new_like</a>
+<pre><code class="language-til">func (elem_size: U64, elem_kind: U64, elem_clone: CloneFn, elem_delete: DeleteFn, n: U64) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.clear">DynVec.clear</a>
+<pre><code class="language-til">func (mut self: DynVec)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.delete_marked">DynVec.delete_marked</a>
+<pre><code class="language-til">func (mut self: DynVec, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.push">DynVec.push</a>
+<pre><code class="language-til">func (mut self: DynVec, own val: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.append">DynVec.append</a>
+<pre><code class="language-til">func (mut self: DynVec, own other: DynVec)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.move_from">DynVec.move_from</a>
+<pre><code class="language-til">func (mut self: DynVec, mut other: DynVec)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.move_to">DynVec.move_to</a>
+<pre><code class="language-til">func (mut self: DynVec, mut dest: DynVec)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.unsafe_get">DynVec.unsafe_get</a>
+<pre><code class="language-til">func (self: DynVec, i: U64) returns ref Dynamic
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.get">DynVec.get</a>
+<pre><code class="language-til">func (self: DynVec, i: U64) returns ref Dynamic throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.pop">DynVec.pop</a>
+<pre><code class="language-til">func (mut self: DynVec) returns Dynamic
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.remove_at">DynVec.remove_at</a>
+<pre><code class="language-til">func (mut self: DynVec, i: U64) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.truncate">DynVec.truncate</a>
+<pre><code class="language-til">func (mut self: DynVec, n: U64)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.take_prefix">DynVec.take_prefix</a>
+<pre><code class="language-til">func (mut self: DynVec, n: U64) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.take">DynVec.take</a>
+<pre><code class="language-til">func (mut self: DynVec) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.unsafe_set">DynVec.unsafe_set</a>
+<pre><code class="language-til">func (mut self: DynVec, i: U64, own val: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.set">DynVec.set</a>
+<pre><code class="language-til">func (mut self: DynVec, i: U64, own val: Dynamic) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.push_take">DynVec.push_take</a>
+<pre><code class="language-til">func (mut self: DynVec, mut src: DynVec, i: U64)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.delete">DynVec.delete</a>
+<pre><code class="language-til">func (own self: DynVec, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_vec.html#til.src.std.dyn_vec.DynVec.clone">DynVec.clone</a>
+<pre><code class="language-til">func (self: DynVec) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray">DynArray</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    cap : USize
+    elem_size : USize
+    elem_kind : USize
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+namespace:
+    func new_type_name(elem_type: Str, cap: U64) returns DynArray
+    func new(T: Type, cap: U64) returns DynArray
+    func len(self: DynArray) returns U64
+    func unsafe_get(self: DynArray, i: U64) returns ref Dynamic
+    func get(self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
+    func unsafe_set(mut self: DynArray, i: U64, own val: Dynamic)
+    func set(mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+    func delete(own self: DynArray, call_free: Bool = true)
+    func concat(self: DynArray, other: DynArray) returns DynArray
+    func to_vec(self: DynArray) returns DynVec
+    func clone(self: DynArray) returns DynArray
+    func size() returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.new_type_name">DynArray.new_type_name</a>
+<pre><code class="language-til">func (elem_type: Str, cap: U64) returns DynArray
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.unsafe_get">DynArray.unsafe_get</a>
+<pre><code class="language-til">func (self: DynArray, i: U64) returns ref Dynamic
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.get">DynArray.get</a>
+<pre><code class="language-til">func (self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.unsafe_set">DynArray.unsafe_set</a>
+<pre><code class="language-til">func (mut self: DynArray, i: U64, own val: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.set">DynArray.set</a>
+<pre><code class="language-til">func (mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.concat">DynArray.concat</a>
+<pre><code class="language-til">func (self: DynArray, other: DynArray) returns DynArray
+</code></pre>
+</li>
+<li><a href="src/std/dyn_array.html#til.src.std.dyn_array.DynArray.to_vec">DynArray.to_vec</a>
+<pre><code class="language-til">func (self: DynArray) returns DynVec
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap">DynHashMap</a>
+<pre><code class="language-til">struct {
+    mut keys : DynVec
+    mut values : DynVec
+    mut buckets : DynVec
+    mut nexts : DynVec
+    mut hashes : DynVec
+    mut key_hash : TypeHashFn
+    mut key_cmp : CmpFn
+namespace:
+    hasher : HashFn
+    func new_type_names(key_type: Str, val_type: Str) returns DynHashMap
+    func new(K: Type, V: Type) returns DynHashMap
+    func with_capacity(K: Type, V: Type, n: U64) returns DynHashMap
+    func len(self: DynHashMap) returns U64
+    func clear(mut self: DynHashMap)
+    func clone(self: DynHashMap) returns DynHashMap
+    func hash_key(self: DynHashMap, key: Dynamic) returns U64
+    func keys_equal(self: DynHashMap, a: Dynamic, b: Dynamic) returns Bool
+    func find(self: DynHashMap, key: Dynamic) returns I64
+    func has(self: DynHashMap, key: Dynamic) returns Bool
+    func get(self: DynHashMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+    func stored_hash(self: DynHashMap, key: Dynamic) returns U64 throws KeyNotFound
+    func set(mut self: DynHashMap, key: Dynamic, own val: Dynamic)
+    func rehash(mut self: DynHashMap)
+    func delete(own self: DynHashMap, call_free: Bool = true)
+    func remove(mut self: DynHashMap, key: Dynamic) returns Bool
+    func size() returns U64
+    func hash(self: DynHashMap, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap.with_capacity">DynHashMap.with_capacity</a>
+<pre><code class="language-til">func (K: Type, V: Type, n: U64) returns DynHashMap
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap.clear">DynHashMap.clear</a>
+<pre><code class="language-til">func (mut self: DynHashMap)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap.clone">DynHashMap.clone</a>
+<pre><code class="language-til">func (self: DynHashMap) returns DynHashMap
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap.get">DynHashMap.get</a>
+<pre><code class="language-til">func (self: DynHashMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap.stored_hash">DynHashMap.stored_hash</a>
+<pre><code class="language-til">func (self: DynHashMap, key: Dynamic) returns U64 throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashmap.html#til.src.std.dyn_hashmap.DynHashMap.remove">DynHashMap.remove</a>
+<pre><code class="language-til">func (mut self: DynHashMap, key: Dynamic) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet">DynHashSet</a>
+<pre><code class="language-til">struct {
+    mut keys : DynVec
+    mut buckets : DynVec
+    mut nexts : DynVec
+    mut hashes : DynVec
+    mut elem_hash : TypeHashFn
+    mut elem_cmp : CmpFn
+namespace:
+    hasher : HashFn
+    func new_type_name(elem_type: Str) returns DynHashSet
+    func new(T: Type) returns DynHashSet
+    func with_capacity(T: Type, n: U64) returns DynHashSet
+    func len(self: DynHashSet) returns U64
+    func clear(mut self: DynHashSet)
+    func clone(self: DynHashSet) returns DynHashSet
+    func hash_elem(self: DynHashSet, val: Dynamic) returns U64
+    func elems_equal(self: DynHashSet, a: Dynamic, b: Dynamic) returns Bool
+    func find(self: DynHashSet, val: Dynamic) returns I64
+    func has(self: DynHashSet, val: Dynamic) returns Bool
+    func stored_hash(self: DynHashSet, val: Dynamic) returns U64 throws KeyNotFound
+    func add(mut self: DynHashSet, own val: Dynamic)
+    func rehash(mut self: DynHashSet)
+    func delete(own self: DynHashSet, call_free: Bool = true)
+    func remove(mut self: DynHashSet, val: Dynamic) returns Bool
+    func size() returns U64
+    func hash(self: DynHashSet, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet.with_capacity">DynHashSet.with_capacity</a>
+<pre><code class="language-til">func (T: Type, n: U64) returns DynHashSet
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet.clear">DynHashSet.clear</a>
+<pre><code class="language-til">func (mut self: DynHashSet)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet.clone">DynHashSet.clone</a>
+<pre><code class="language-til">func (self: DynHashSet) returns DynHashSet
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet.stored_hash">DynHashSet.stored_hash</a>
+<pre><code class="language-til">func (self: DynHashSet, val: Dynamic) returns U64 throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet.add">DynHashSet.add</a>
+<pre><code class="language-til">func (mut self: DynHashSet, own val: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_hashset.html#til.src.std.dyn_hashset.DynHashSet.remove">DynHashSet.remove</a>
+<pre><code class="language-til">func (mut self: DynHashSet, val: Dynamic) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap">DynMap</a>
+<pre><code class="language-til">struct {
+    mut keys : DynVec
+    mut values : DynVec
+    mut key_cmp : CmpFn
+namespace:
+    func new(K: Type, V: Type) returns DynMap
+    func with_capacity(K: Type, V: Type, n: U64) returns DynMap
+    func len(self: DynMap) returns U64
+    func clear(mut self: DynMap)
+    func has(self: DynMap, key: Dynamic) returns Bool
+    func get(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+    func set(mut self: DynMap, key: Dynamic, own val: Dynamic)
+    func remove(mut self: DynMap, key: Dynamic) returns Bool
+    func delete(own self: DynMap, call_free: Bool = true)
+    func clone(self: DynMap) returns DynMap
+    func size() returns U64
+    func hash(self: DynMap, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.new">DynMap.new</a>
+<pre><code class="language-til">func (K: Type, V: Type) returns DynMap
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.with_capacity">DynMap.with_capacity</a>
+<pre><code class="language-til">func (K: Type, V: Type, n: U64) returns DynMap
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.clear">DynMap.clear</a>
+<pre><code class="language-til">func (mut self: DynMap)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.has">DynMap.has</a>
+<pre><code class="language-til">func (self: DynMap, key: Dynamic) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.get">DynMap.get</a>
+<pre><code class="language-til">func (self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.set">DynMap.set</a>
+<pre><code class="language-til">func (mut self: DynMap, key: Dynamic, own val: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_map.html#til.src.std.dyn_map.DynMap.remove">DynMap.remove</a>
+<pre><code class="language-til">func (mut self: DynMap, key: Dynamic) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet">DynSet</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+    elem_size : USize
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+    elem_cmp : CmpFn
+namespace:
+    func new(T: Type) returns DynSet
+    func with_capacity(T: Type, n: U64) returns DynSet
+    func len(self: DynSet) returns U64
+    func clear(mut self: DynSet)
+    func has(self: DynSet, val: Dynamic) returns Bool
+    func add(mut self: DynSet, own val: Dynamic)
+    func remove(mut self: DynSet, val: Dynamic) returns Bool
+    func delete(own self: DynSet, call_free: Bool = true)
+    func clone(self: DynSet) returns DynSet
+    func size() returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet.new">DynSet.new</a>
+<pre><code class="language-til">func (T: Type) returns DynSet
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet.with_capacity">DynSet.with_capacity</a>
+<pre><code class="language-til">func (T: Type, n: U64) returns DynSet
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet.clear">DynSet.clear</a>
+<pre><code class="language-til">func (mut self: DynSet)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet.has">DynSet.has</a>
+<pre><code class="language-til">func (self: DynSet, val: Dynamic) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet.add">DynSet.add</a>
+<pre><code class="language-til">func (mut self: DynSet, own val: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/std/dyn_set.html#til.src.std.dyn_set.DynSet.remove">DynSet.remove</a>
+<pre><code class="language-til">func (mut self: DynSet, val: Dynamic) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/hashset.html#til.src.std.hashset.HashSet">HashSet</a>
+<pre><code class="language-til">macro (T: Type) returns StructDef
+</code></pre>
+</li>
+<li><a href="src/std/tilvm.html#til.src.std.tilvm.TilVm">TilVm</a>
+<pre><code class="language-til">struct {
+namespace:
+    func new(support_root: Str) returns TilVm
+    proc load_file(mut self: TilVm, path: Str, prelude_source: Str = &quot;&quot;, prelude_name: Str = &quot;&quot;, prelude_base: Str = &quot;&quot;) throws TilVmError
+    proc lookup(mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
+    func delete(own self: TilVm, call_free: Bool = true)
+    func size() returns U64
+    func hash(self: TilVm, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/std/tilvm.html#til.src.std.tilvm.TilVm.new">TilVm.new</a>
+<pre><code class="language-til">func (support_root: Str) returns TilVm
+</code></pre>
+</li>
+<li><a href="src/std/tilvm.html#til.src.std.tilvm.TilVm.load_file">TilVm.load_file</a>
+<pre><code class="language-til">proc (mut self: TilVm, path: Str, prelude_source: Str = &quot;&quot;, prelude_name: Str = &quot;&quot;, prelude_base: Str = &quot;&quot;) throws TilVmError
+</code></pre>
+</li>
+<li><a href="src/std/tilvm.html#til.src.std.tilvm.TilVm.lookup">TilVm.lookup</a>
+<pre><code class="language-til">proc (mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
+</code></pre>
+</li>
+<li><a href="src/std/unicode/grapheme_data.html#til.src.std.unicode.grapheme_data.unicode_grapheme_property">unicode_grapheme_property</a>
+<pre><code class="language-til">func (code: I64) returns I64
+</code></pre>
+</li>
+<li><a href="src/std/unicode/grapheme_data.html#til.src.std.unicode.grapheme_data.unicode_pictographic">unicode_pictographic</a>
+<pre><code class="language-til">func (code: I64) returns I64
+</code></pre>
+</li>
+<li><a href="src/std/unicode/grapheme_data.html#til.src.std.unicode.grapheme_data.unicode_incb">unicode_incb</a>
+<pre><code class="language-til">func (code: I64) returns I64
+</code></pre>
+</li>
+<li><a href="src/std/unicode/grapheme_data.html#til.src.std.unicode.grapheme_data.unicode_ignorable">unicode_ignorable</a>
+<pre><code class="language-til">func (code: I64) returns I64
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.unicode_scalar">unicode_scalar</a>
+<pre><code class="language-til">func (code: I64) returns Bool
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.grapheme_next">grapheme_next</a>
+<pre><code class="language-til">func (text: Str, start: U64) returns U64
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.grapheme_floor">grapheme_floor</a>
+<pre><code class="language-til">func (text: Str, position: U64) returns U64
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.grapheme_previous">grapheme_previous</a>
+<pre><code class="language-til">func (text: Str, position: U64) returns U64
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.grapheme_ceil">grapheme_ceil</a>
+<pre><code class="language-til">func (text: Str, position: U64) returns U64
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.grapheme_count">grapheme_count</a>
+<pre><code class="language-til">func (text: Str, start: U64, end: U64) returns U64
+</code></pre>
+</li>
+<li><a href="src/std/unicode.html#til.src.std.unicode.grapheme_offset">grapheme_offset</a>
+<pre><code class="language-til">func (text: Str, start: U64, end: U64, index: U64) returns U64
 </code></pre>
 </li>
 </ul>
@@ -10485,6 +11101,10 @@ namespace:
 <pre><code class="language-til">func (scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
 </code></pre>
 </li>
+<li><a href="src/self/typer.html#til.src.self.typer.target_value_size_align">target_value_size_align</a>
+<pre><code class="language-til">func (type_name: Str, scope: TypeScope, ctx: Context, mut sz: U64, mut al: U64)
+</code></pre>
+</li>
 <li><a href="src/self/typer.html#til.src.self.typer.target_value_size">target_value_size</a>
 <pre><code class="language-til">func (type_name: Str, scope: TypeScope, ctx: Context) returns U64
 </code></pre>
@@ -11286,6 +11906,10 @@ namespace:
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.make_default_value_expr">make_default_value_expr</a>
 <pre><code class="language-til">func (type_name: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr
+</code></pre>
+</li>
+<li><a href="src/self/desugarer.html#til.src.self.desugarer.throw_type_tag">throw_type_tag</a>
+<pre><code class="language-til">func (name: Str) returns I64
 </code></pre>
 </li>
 <li><a href="src/self/desugarer.html#til.src.self.desugarer.make_if_kind_eq_zero_wrap">make_if_kind_eq_zero_wrap</a>
@@ -16203,6 +16827,374 @@ namespace:
 <pre><code class="language-til">ext_proc (shallow abi: I32, mut struct_type: ffi_type, mut offsets: U64) returns shallow I32
 </code></pre>
 </li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context">secp256k1_context</a>
+<pre><code class="language-til">struct {
+namespace:
+    func size() returns U64
+    func clone(_self: secp256k1_context) returns secp256k1_context
+    func delete(own self: secp256k1_context, call_free: Bool = true)
+    func hash(self: secp256k1_context, hasher: HashFn) returns U64
+    func cmp(_a: secp256k1_context, _b: secp256k1_context) returns I64
+    func to_str(_self: secp256k1_context) returns Str
+    func eq(a: secp256k1_context, b: secp256k1_context) returns Bool
+    func lt(a: secp256k1_context, b: secp256k1_context) returns Bool
+    func gt(a: secp256k1_context, b: secp256k1_context) returns Bool
+    func neq(a: secp256k1_context, b: secp256k1_context) returns Bool
+    func lte(a: secp256k1_context, b: secp256k1_context) returns Bool
+    func gte(a: secp256k1_context, b: secp256k1_context) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_pubkey">secp256k1_pubkey</a>
+<pre><code class="language-til">struct {
+    mut d0 : U64
+    mut d1 : U64
+    mut d2 : U64
+    mut d3 : U64
+    mut d4 : U64
+    mut d5 : U64
+    mut d6 : U64
+    mut d7 : U64
+namespace:
+    func size() returns U64
+    func clone(self: secp256k1_pubkey) returns secp256k1_pubkey
+    func delete(own self: secp256k1_pubkey, call_free: Bool = true)
+    func hash(self: secp256k1_pubkey, hasher: HashFn) returns U64
+    func cmp(a: secp256k1_pubkey, b: secp256k1_pubkey) returns I64
+    func to_str(self: secp256k1_pubkey) returns Str
+    func eq(a: secp256k1_pubkey, b: secp256k1_pubkey) returns Bool
+    func lt(a: secp256k1_pubkey, b: secp256k1_pubkey) returns Bool
+    func gt(a: secp256k1_pubkey, b: secp256k1_pubkey) returns Bool
+    func neq(a: secp256k1_pubkey, b: secp256k1_pubkey) returns Bool
+    func lte(a: secp256k1_pubkey, b: secp256k1_pubkey) returns Bool
+    func gte(a: secp256k1_pubkey, b: secp256k1_pubkey) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature">secp256k1_ecdsa_signature</a>
+<pre><code class="language-til">struct {
+    mut d0 : U64
+    mut d1 : U64
+    mut d2 : U64
+    mut d3 : U64
+    mut d4 : U64
+    mut d5 : U64
+    mut d6 : U64
+    mut d7 : U64
+namespace:
+    func size() returns U64
+    func clone(self: secp256k1_ecdsa_signature) returns secp256k1_ecdsa_signature
+    func delete(own self: secp256k1_ecdsa_signature, call_free: Bool = true)
+    func hash(self: secp256k1_ecdsa_signature, hasher: HashFn) returns U64
+    func cmp(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns I64
+    func to_str(self: secp256k1_ecdsa_signature) returns Str
+    func eq(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns Bool
+    func lt(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns Bool
+    func gt(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns Bool
+    func neq(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns Bool
+    func lte(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns Bool
+    func gte(a: secp256k1_ecdsa_signature, b: secp256k1_ecdsa_signature) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_CONTEXT_NONE">SECP256K1_CONTEXT_NONE</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_CONTEXT_VERIFY">SECP256K1_CONTEXT_VERIFY</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_CONTEXT_SIGN">SECP256K1_CONTEXT_SIGN</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_CONTEXT_DECLASSIFY">SECP256K1_CONTEXT_DECLASSIFY</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_EC_COMPRESSED">SECP256K1_EC_COMPRESSED</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_EC_UNCOMPRESSED">SECP256K1_EC_UNCOMPRESSED</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_TAG_PUBKEY_EVEN">SECP256K1_TAG_PUBKEY_EVEN</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_TAG_PUBKEY_ODD">SECP256K1_TAG_PUBKEY_ODD</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_TAG_PUBKEY_UNCOMPRESSED">SECP256K1_TAG_PUBKEY_UNCOMPRESSED</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_TAG_PUBKEY_HYBRID_EVEN">SECP256K1_TAG_PUBKEY_HYBRID_EVEN</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.SECP256K1_TAG_PUBKEY_HYBRID_ODD">SECP256K1_TAG_PUBKEY_HYBRID_ODD</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_selftest">secp256k1_selftest</a>
+<pre><code class="language-til">ext_proc ()
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_create">secp256k1_context_create</a>
+<pre><code class="language-til">ext_proc (shallow flags: U32) returns ref secp256k1_context
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_clone">secp256k1_context_clone</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context) returns ref secp256k1_context
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_destroy">secp256k1_context_destroy</a>
+<pre><code class="language-til">ext_proc (mut ctx: secp256k1_context)
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_set_illegal_callback">secp256k1_context_set_illegal_callback</a>
+<pre><code class="language-til">ext_proc (mut ctx: secp256k1_context, fun: Dynamic, data: Dynamic)
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_set_error_callback">secp256k1_context_set_error_callback</a>
+<pre><code class="language-til">ext_proc (mut ctx: secp256k1_context, fun: Dynamic, data: Dynamic)
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_sha256_compression_function">secp256k1_sha256_compression_function</a>
+<pre><code class="language-til"> is a None
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_nonce_function">secp256k1_nonce_function</a>
+<pre><code class="language-til"> is a None
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_set_sha256_compression">secp256k1_context_set_sha256_compression</a>
+<pre><code class="language-til">ext_proc (mut ctx: secp256k1_context, fn_compression: Dynamic)
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_parse">secp256k1_ec_pubkey_parse</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, input: Dynamic, shallow inputlen: U64) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_serialize">secp256k1_ec_pubkey_serialize</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output: Dynamic, mut outputlen: U64, pubkey: secp256k1_pubkey, shallow flags: U32) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_cmp">secp256k1_ec_pubkey_cmp</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, pubkey1: secp256k1_pubkey, pubkey2: secp256k1_pubkey) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_sort">secp256k1_ec_pubkey_sort</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, pubkeys: Dynamic, shallow n_pubkeys: U64) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_parse_compact">secp256k1_ecdsa_signature_parse_compact</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, input64: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_parse_der">secp256k1_ecdsa_signature_parse_der</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, input: Dynamic, shallow inputlen: U64) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_serialize_der">secp256k1_ecdsa_signature_serialize_der</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output: Dynamic, mut outputlen: U64, sig: secp256k1_ecdsa_signature) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_serialize_compact">secp256k1_ecdsa_signature_serialize_compact</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output64: Dynamic, sig: secp256k1_ecdsa_signature) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_verify">secp256k1_ecdsa_verify</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, sig: secp256k1_ecdsa_signature, msghash32: Dynamic, pubkey: secp256k1_pubkey) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_normalize">secp256k1_ecdsa_signature_normalize</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sigout: secp256k1_ecdsa_signature, sigin: secp256k1_ecdsa_signature) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ecdsa_sign">secp256k1_ecdsa_sign</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, msghash32: Dynamic, seckey: Dynamic, noncefp: Dynamic, ndata: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_seckey_verify">secp256k1_ec_seckey_verify</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, seckey: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_create">secp256k1_ec_pubkey_create</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, seckey: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_seckey_negate">secp256k1_ec_seckey_negate</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut seckey: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_negate">secp256k1_ec_pubkey_negate</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_seckey_tweak_add">secp256k1_ec_seckey_tweak_add</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut seckey: Dynamic, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_tweak_add">secp256k1_ec_pubkey_tweak_add</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_seckey_tweak_mul">secp256k1_ec_seckey_tweak_mul</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut seckey: Dynamic, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_tweak_mul">secp256k1_ec_pubkey_tweak_mul</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_context_randomize">secp256k1_context_randomize</a>
+<pre><code class="language-til">ext_proc (mut ctx: secp256k1_context, seed32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_combine">secp256k1_ec_pubkey_combine</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut out: secp256k1_pubkey, ins: Dynamic, shallow n: U64) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_tagged_sha256">secp256k1_tagged_sha256</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut hash32: Dynamic, tag: Dynamic, shallow taglen: U64, msg: Dynamic, shallow msglen: U64) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey">secp256k1_xonly_pubkey</a>
+<pre><code class="language-til">struct {
+    mut d0 : U64
+    mut d1 : U64
+    mut d2 : U64
+    mut d3 : U64
+    mut d4 : U64
+    mut d5 : U64
+    mut d6 : U64
+    mut d7 : U64
+namespace:
+    func size() returns U64
+    func clone(self: secp256k1_xonly_pubkey) returns secp256k1_xonly_pubkey
+    func delete(own self: secp256k1_xonly_pubkey, call_free: Bool = true)
+    func hash(self: secp256k1_xonly_pubkey, hasher: HashFn) returns U64
+    func cmp(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns I64
+    func to_str(self: secp256k1_xonly_pubkey) returns Str
+    func eq(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns Bool
+    func lt(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns Bool
+    func gt(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns Bool
+    func neq(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns Bool
+    func lte(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns Bool
+    func gte(a: secp256k1_xonly_pubkey, b: secp256k1_xonly_pubkey) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_keypair">secp256k1_keypair</a>
+<pre><code class="language-til">struct {
+    mut d0 : U64
+    mut d1 : U64
+    mut d2 : U64
+    mut d3 : U64
+    mut d4 : U64
+    mut d5 : U64
+    mut d6 : U64
+    mut d7 : U64
+    mut d8 : U64
+    mut d9 : U64
+    mut d10 : U64
+    mut d11 : U64
+namespace:
+    func size() returns U64
+    func clone(self: secp256k1_keypair) returns secp256k1_keypair
+    func delete(own self: secp256k1_keypair, call_free: Bool = true)
+    func hash(self: secp256k1_keypair, hasher: HashFn) returns U64
+    func cmp(a: secp256k1_keypair, b: secp256k1_keypair) returns I64
+    func to_str(self: secp256k1_keypair) returns Str
+    func eq(a: secp256k1_keypair, b: secp256k1_keypair) returns Bool
+    func lt(a: secp256k1_keypair, b: secp256k1_keypair) returns Bool
+    func gt(a: secp256k1_keypair, b: secp256k1_keypair) returns Bool
+    func neq(a: secp256k1_keypair, b: secp256k1_keypair) returns Bool
+    func lte(a: secp256k1_keypair, b: secp256k1_keypair) returns Bool
+    func gte(a: secp256k1_keypair, b: secp256k1_keypair) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey_parse">secp256k1_xonly_pubkey_parse</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_xonly_pubkey, input32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey_serialize">secp256k1_xonly_pubkey_serialize</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output32: Dynamic, pubkey: secp256k1_xonly_pubkey) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey_cmp">secp256k1_xonly_pubkey_cmp</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, pk1: secp256k1_xonly_pubkey, pk2: secp256k1_xonly_pubkey) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey_from_pubkey">secp256k1_xonly_pubkey_from_pubkey</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut xonly_pubkey: secp256k1_xonly_pubkey, mut pk_parity: I32, pubkey: secp256k1_pubkey) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey_tweak_add">secp256k1_xonly_pubkey_tweak_add</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output_pubkey: secp256k1_pubkey, internal_pubkey: secp256k1_xonly_pubkey, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey_tweak_add_check">secp256k1_xonly_pubkey_tweak_add_check</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, tweaked_pubkey32: Dynamic, shallow tweaked_pk_parity: I32, internal_pubkey: secp256k1_xonly_pubkey, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_keypair_create">secp256k1_keypair_create</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut keypair: secp256k1_keypair, seckey: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_keypair_sec">secp256k1_keypair_sec</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut seckey: Dynamic, keypair: secp256k1_keypair) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_keypair_pub">secp256k1_keypair_pub</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, keypair: secp256k1_keypair) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_keypair_xonly_pub">secp256k1_keypair_xonly_pub</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_xonly_pubkey, mut pk_parity: I32, keypair: secp256k1_keypair) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_keypair_xonly_tweak_add">secp256k1_keypair_xonly_tweak_add</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut keypair: secp256k1_keypair, tweak32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_schnorrsig_extraparams">secp256k1_schnorrsig_extraparams</a>
+<pre><code class="language-til">struct {
+namespace:
+    func size() returns U64
+    func clone(_self: secp256k1_schnorrsig_extraparams) returns secp256k1_schnorrsig_extraparams
+    func delete(own self: secp256k1_schnorrsig_extraparams, call_free: Bool = true)
+    func hash(self: secp256k1_schnorrsig_extraparams, hasher: HashFn) returns U64
+    func cmp(_a: secp256k1_schnorrsig_extraparams, _b: secp256k1_schnorrsig_extraparams) returns I64
+    func to_str(_self: secp256k1_schnorrsig_extraparams) returns Str
+    func eq(a: secp256k1_schnorrsig_extraparams, b: secp256k1_schnorrsig_extraparams) returns Bool
+    func lt(a: secp256k1_schnorrsig_extraparams, b: secp256k1_schnorrsig_extraparams) returns Bool
+    func gt(a: secp256k1_schnorrsig_extraparams, b: secp256k1_schnorrsig_extraparams) returns Bool
+    func neq(a: secp256k1_schnorrsig_extraparams, b: secp256k1_schnorrsig_extraparams) returns Bool
+    func lte(a: secp256k1_schnorrsig_extraparams, b: secp256k1_schnorrsig_extraparams) returns Bool
+    func gte(a: secp256k1_schnorrsig_extraparams, b: secp256k1_schnorrsig_extraparams) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_schnorrsig_sign32">secp256k1_schnorrsig_sign32</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig64: Dynamic, msg32: Dynamic, keypair: secp256k1_keypair, aux_rand32: Dynamic) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_schnorrsig_sign_custom">secp256k1_schnorrsig_sign_custom</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig64: Dynamic, msg: Dynamic, shallow msglen: U64, keypair: secp256k1_keypair, mut extraparams: secp256k1_schnorrsig_extraparams) returns shallow I32
+</code></pre>
+</li>
+<li><a href="vendor/bindings/secp256k1.html#til.vendor.bindings.secp256k1.secp256k1_schnorrsig_verify">secp256k1_schnorrsig_verify</a>
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, sig64: Dynamic, msg: Dynamic, shallow msglen: U64, pubkey: secp256k1_xonly_pubkey) returns shallow I32
+</code></pre>
+</li>
 </ul>
 </section>
 <section>
@@ -16264,6 +17256,76 @@ namespace:
 <pre><code class="language-til">func (mut self: Map__Str_priv___src_self_mlir_codegen_til__MlirBinding, key: Str) returns Bool
 </code></pre>
 </li>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Bool">Option__Bool</a>
+<pre><code class="language-til">enum {
+    None
+    Some: Bool
+namespace:
+    func is_some(self: Option__Bool) returns Bool
+    func is_none(self: Option__Bool) returns Bool
+    func unwrap_or(self: Option__Bool, default_v: Bool) returns Bool
+    func unwrap(self: Option__Bool) returns Bool
+    func take(own self: Option__Bool) returns Bool
+    ext_func None() returns Option__Bool
+    ext_func Some(val: Bool) returns Option__Bool
+    core_func is(self: Option__Bool, other: Option__Bool) returns Bool
+    func eq(self: Option__Bool, other: Option__Bool) returns Bool
+    func delete(own self: Option__Bool, call_free: Bool = true)
+    func cmp(a: Option__Bool, b: Option__Bool) returns I64
+    func to_str(self: Option__Bool) returns Str
+    func clone(self: Option__Bool) returns Option__Bool
+    func size() returns U64
+    func lt(a: Option__Bool, b: Option__Bool) returns Bool
+    func gt(a: Option__Bool, b: Option__Bool) returns Bool
+    func neq(a: Option__Bool, b: Option__Bool) returns Bool
+    func lte(a: Option__Bool, b: Option__Bool) returns Bool
+    func gte(a: Option__Bool, b: Option__Bool) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Bool.unwrap">Option__Bool.unwrap</a>
+<pre><code class="language-til">func (self: Option__Bool) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Bool.take">Option__Bool.take</a>
+<pre><code class="language-til">func (own self: Option__Bool) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__U64">Option__U64</a>
+<pre><code class="language-til">enum {
+    None
+    Some: U64
+namespace:
+    func is_some(self: Option__U64) returns Bool
+    func is_none(self: Option__U64) returns Bool
+    func unwrap_or(self: Option__U64, default_v: U64) returns U64
+    func unwrap(self: Option__U64) returns U64
+    func take(own self: Option__U64) returns U64
+    ext_func None() returns Option__U64
+    ext_func Some(val: U64) returns Option__U64
+    core_func is(self: Option__U64, other: Option__U64) returns Bool
+    func eq(self: Option__U64, other: Option__U64) returns Bool
+    func delete(own self: Option__U64, call_free: Bool = true)
+    func cmp(a: Option__U64, b: Option__U64) returns I64
+    func to_str(self: Option__U64) returns Str
+    func clone(self: Option__U64) returns Option__U64
+    func size() returns U64
+    func lt(a: Option__U64, b: Option__U64) returns Bool
+    func gt(a: Option__U64, b: Option__U64) returns Bool
+    func neq(a: Option__U64, b: Option__U64) returns Bool
+    func lte(a: Option__U64, b: Option__U64) returns Bool
+    func gte(a: Option__U64, b: Option__U64) returns Bool
+}
+</code></pre>
+</li>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__U64.unwrap">Option__U64.unwrap</a>
+<pre><code class="language-til">func (self: Option__U64) returns U64
+</code></pre>
+</li>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__U64.take">Option__U64.take</a>
+<pre><code class="language-til">func (own self: Option__U64) returns U64
+</code></pre>
+</li>
 <li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Map__Str_U64">Map__Str_U64</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -16312,74 +17374,39 @@ namespace:
 <pre><code class="language-til">func (mut self: Map__Str_U64, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__U64">Option__U64</a>
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Str">Option__Str</a>
 <pre><code class="language-til">enum {
     None
-    Some: U64
+    Some: Str
 namespace:
-    func is_some(self: Option__U64) returns Bool
-    func is_none(self: Option__U64) returns Bool
-    func unwrap_or(self: Option__U64, default_v: U64) returns U64
-    func unwrap(self: Option__U64) returns U64
-    func take(own self: Option__U64) returns U64
-    ext_func None() returns Option__U64
-    ext_func Some(val: U64) returns Option__U64
-    core_func is(self: Option__U64, other: Option__U64) returns Bool
-    func eq(self: Option__U64, other: Option__U64) returns Bool
-    func delete(own self: Option__U64, call_free: Bool = true)
-    func cmp(a: Option__U64, b: Option__U64) returns I64
-    func to_str(self: Option__U64) returns Str
-    func clone(self: Option__U64) returns Option__U64
+    func is_some(self: Option__Str) returns Bool
+    func is_none(self: Option__Str) returns Bool
+    func unwrap_or(self: Option__Str, default_v: Str) returns Str
+    func unwrap(self: Option__Str) returns Str
+    func take(own self: Option__Str) returns Str
+    ext_func None() returns Option__Str
+    ext_func Some(own val: Str) returns Option__Str
+    core_func is(self: Option__Str, other: Option__Str) returns Bool
+    func eq(self: Option__Str, other: Option__Str) returns Bool
+    func delete(own self: Option__Str, call_free: Bool = true)
+    func cmp(a: Option__Str, b: Option__Str) returns I64
+    func to_str(self: Option__Str) returns Str
+    func clone(self: Option__Str) returns Option__Str
     func size() returns U64
-    func lt(a: Option__U64, b: Option__U64) returns Bool
-    func gt(a: Option__U64, b: Option__U64) returns Bool
-    func neq(a: Option__U64, b: Option__U64) returns Bool
-    func lte(a: Option__U64, b: Option__U64) returns Bool
-    func gte(a: Option__U64, b: Option__U64) returns Bool
+    func lt(a: Option__Str, b: Option__Str) returns Bool
+    func gt(a: Option__Str, b: Option__Str) returns Bool
+    func neq(a: Option__Str, b: Option__Str) returns Bool
+    func lte(a: Option__Str, b: Option__Str) returns Bool
+    func gte(a: Option__Str, b: Option__Str) returns Bool
 }
 </code></pre>
 </li>
-<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__U64.unwrap">Option__U64.unwrap</a>
-<pre><code class="language-til">func (self: Option__U64) returns U64
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Str.unwrap">Option__Str.unwrap</a>
+<pre><code class="language-til">func (self: Option__Str) returns Str
 </code></pre>
 </li>
-<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__U64.take">Option__U64.take</a>
-<pre><code class="language-til">func (own self: Option__U64) returns U64
-</code></pre>
-</li>
-<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Bool">Option__Bool</a>
-<pre><code class="language-til">enum {
-    None
-    Some: Bool
-namespace:
-    func is_some(self: Option__Bool) returns Bool
-    func is_none(self: Option__Bool) returns Bool
-    func unwrap_or(self: Option__Bool, default_v: Bool) returns Bool
-    func unwrap(self: Option__Bool) returns Bool
-    func take(own self: Option__Bool) returns Bool
-    ext_func None() returns Option__Bool
-    ext_func Some(val: Bool) returns Option__Bool
-    core_func is(self: Option__Bool, other: Option__Bool) returns Bool
-    func eq(self: Option__Bool, other: Option__Bool) returns Bool
-    func delete(own self: Option__Bool, call_free: Bool = true)
-    func cmp(a: Option__Bool, b: Option__Bool) returns I64
-    func to_str(self: Option__Bool) returns Str
-    func clone(self: Option__Bool) returns Option__Bool
-    func size() returns U64
-    func lt(a: Option__Bool, b: Option__Bool) returns Bool
-    func gt(a: Option__Bool, b: Option__Bool) returns Bool
-    func neq(a: Option__Bool, b: Option__Bool) returns Bool
-    func lte(a: Option__Bool, b: Option__Bool) returns Bool
-    func gte(a: Option__Bool, b: Option__Bool) returns Bool
-}
-</code></pre>
-</li>
-<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Bool.unwrap">Option__Bool.unwrap</a>
-<pre><code class="language-til">func (self: Option__Bool) returns Bool
-</code></pre>
-</li>
-<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Bool.take">Option__Bool.take</a>
-<pre><code class="language-til">func (own self: Option__Bool) returns Bool
+<li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Option__Str.take">Option__Str.take</a>
+<pre><code class="language-til">func (own self: Option__Str) returns Str
 </code></pre>
 </li>
 <li><a href="src/self/mlir_codegen.html#til.src.self.mlir_codegen.Vec__priv___src_self_mlir_codegen_til__MlirBinding">Vec__priv___src_self_mlir_codegen_til__MlirBinding</a>
@@ -16505,6 +17532,54 @@ namespace:
 <pre><code class="language-til">proc (mut lp: LoadedProgram, path: Str, source_names: Set__Str) returns I32
 </code></pre>
 </li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+namespace:
+    func new() returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+    func with_capacity(n: U64) returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+    func len(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition) returns U64
+    func clear(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition)
+    func has(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+    func get(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws KeyNotFound
+    func set(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+    func remove(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+    func delete(own self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
+    func clone(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition) returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+    func size() returns U64
+    func hash(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.new">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.new</a>
+<pre><code class="language-til">func () returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity</a>
+<pre><code class="language-til">func (n: U64) returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.clear">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.has">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.has</a>
+<pre><code class="language-til">func (self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.get">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.get</a>
+<pre><code class="language-til">func (self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.set">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.remove">Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+</code></pre>
+</li>
 <li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type">Map__Str_Type</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -16551,6 +17626,117 @@ namespace:
 </li>
 <li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Map__Str_Type.remove">Map__Str_Type.remove</a>
 <pre><code class="language-til">func (mut self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition">Vec__priv___src_self_fasm_codegen_til__FasmDefinition</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    func with_capacity(n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    func len(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns U64
+    func clear(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+    func delete_marked(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+    func append(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+    func take(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    func move_to(own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut dest: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+    func move_from(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+    func unsafe_get(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition
+    func get(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, shallow i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns priv___src_self_fasm_codegen_til__FasmDefinition
+    func remove_at(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    func truncate(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+    func set(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut src: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64)
+    func delete(own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    func size() returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.new">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.new</a>
+<pre><code class="language-til">func () returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity</a>
+<pre><code class="language-til">func (n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clear">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clear</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete_marked">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.append">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.append</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_to">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_to</a>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut dest: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_from">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_get">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.get">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.get</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, shallow i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.pop">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.pop</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.remove_at">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take_prefix">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.truncate">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_set">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.set">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.set</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push_take">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut src: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete</a>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clone">Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clone</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
 </code></pre>
 </li>
 <li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type">Vec__Type</a>
@@ -16662,6 +17848,10 @@ namespace:
 </li>
 <li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.Vec__Type.clone">Vec__Type.clone</a>
 <pre><code class="language-til">func (self: Vec__Type) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.adopt__priv___src_self_fasm_codegen_til__FasmDefinition">adopt__priv___src_self_fasm_codegen_til__FasmDefinition</a>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_fasm_codegen_til__FasmDefinition)
 </code></pre>
 </li>
 <li><a href="src/self/fasm_codegen.html#til.src.self.fasm_codegen.adopt__Type">adopt__Type</a>

@@ -1,0 +1,127 @@
+#+TITLE: src/std/dyn_hashmap.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* DynHashMap
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap
+:group: Standard library
+:END:
+
+#+begin_src til
+struct DynHashMap {
+    mut keys : DynVec
+    mut values : DynVec
+    mut buckets : DynVec
+    mut nexts : DynVec
+    mut hashes : DynVec
+    mut key_hash : TypeHashFn
+    mut key_cmp : CmpFn
+namespace:
+    hasher : HashFn
+    func new_type_names(key_type: Str, val_type: Str) returns DynHashMap
+    func new(K: Type, V: Type) returns DynHashMap
+    func with_capacity(K: Type, V: Type, n: U64) returns DynHashMap
+    func len(self: DynHashMap) returns U64
+    func clear(mut self: DynHashMap)
+    func clone(self: DynHashMap) returns DynHashMap
+    func hash_key(self: DynHashMap, key: Dynamic) returns U64
+    func keys_equal(self: DynHashMap, a: Dynamic, b: Dynamic) returns Bool
+    func find(self: DynHashMap, key: Dynamic) returns I64
+    func has(self: DynHashMap, key: Dynamic) returns Bool
+    func get(self: DynHashMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+    func stored_hash(self: DynHashMap, key: Dynamic) returns U64 throws KeyNotFound
+    func set(mut self: DynHashMap, key: Dynamic, own val: Dynamic)
+    func rehash(mut self: DynHashMap)
+    func delete(own self: DynHashMap, call_free: Bool = true)
+    func remove(mut self: DynHashMap, key: Dynamic) returns Bool
+    func size() returns U64
+    func hash(self: DynHashMap, hasher: HashFn) returns U64
+}
+#+end_src
+
+* DynHashMap.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap.with_capacity
+:group: Standard library
+:END:
+
+Create an empty DynHashMap pre-sized for ~n~ entries
+(HashMap.with_capacity's counterpart; the key/value types are
+runtime arguments here, as for ~new~). Sizes the dense
+keys/values/nexts arrays and grows the bucket array by doubling
+until ~n~ fits under the 0.75 load factor, so inserting up to ~n~
+never rehashes.
+
+#+begin_src til
+func DynHashMap.with_capacity(K: Type, V: Type, n: U64) returns DynHashMap
+#+end_src
+
+* DynHashMap.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap.clear
+:group: Standard library
+:END:
+
+Drop all live keys and values but keep the allocated storage and
+type metadata so the table can be reused (DynMap.clear's
+counterpart). The bucket array is reset to empty, not freed.
+
+#+begin_src til
+func DynHashMap.clear(mut self: DynHashMap)
+#+end_src
+
+* DynHashMap.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap.clone
+:group: Standard library
+:END:
+
+Deep copy. Cloning the dense keys/values/nexts vecs and the
+bucket array preserves every chain link, so the copy needs no
+rehash (DynMap.clone's counterpart).
+
+#+begin_src til
+func DynHashMap.clone(self: DynHashMap) returns DynHashMap
+#+end_src
+
+* DynHashMap.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap.get
+:group: Standard library
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ to panic on a missing
+key. Same contract as DynMap.get.
+
+#+begin_src til
+func DynHashMap.get(self: DynHashMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+#+end_src
+
+* DynHashMap.stored_hash
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap.stored_hash
+:group: Standard library
+:END:
+
+The map's own stored hash of ~key~ -- the exact value hash_key
+computed when the entry was inserted, retrieved rather than
+recomputed. Throws KeyNotFound if ~key~ is absent.
+
+#+begin_src til
+func DynHashMap.stored_hash(self: DynHashMap, key: Dynamic) returns U64 throws KeyNotFound
+#+end_src
+
+* DynHashMap.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_hashmap.DynHashMap.remove
+:group: Standard library
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if
+absent (same contract as DynMap.remove / core Map.remove).
+
+#+begin_src til
+func DynHashMap.remove(mut self: DynHashMap, key: Dynamic) returns Bool
+#+end_src

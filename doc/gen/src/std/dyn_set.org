@@ -1,0 +1,112 @@
+#+TITLE: src/std/dyn_set.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* DynSet
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet
+:group: Standard library
+:END:
+
+Unordered collection of unique typed elements.
+
+#+begin_src til
+struct DynSet {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+    elem_size : USize
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+    elem_cmp : CmpFn
+namespace:
+    func new(T: Type) returns DynSet
+    func with_capacity(T: Type, n: U64) returns DynSet
+    func len(self: DynSet) returns U64
+    func clear(mut self: DynSet)
+    func has(self: DynSet, val: Dynamic) returns Bool
+    func add(mut self: DynSet, own val: Dynamic)
+    func remove(mut self: DynSet, val: Dynamic) returns Bool
+    func delete(own self: DynSet, call_free: Bool = true)
+    func clone(self: DynSet) returns DynSet
+    func size() returns U64
+}
+#+end_src
+
+* DynSet.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet.new
+:group: Standard library
+:END:
+
+Create an empty DynSet. elem_type must implement ~cmp~.
+
+#+begin_src til
+func DynSet.new(T: Type) returns DynSet
+#+end_src
+
+* DynSet.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet.with_capacity
+:group: Standard library
+:END:
+
+Create an empty DynSet pre-sized for ~n~ elements, so adding up
+to ~n~ reallocs zero times (Set.with_capacity's counterpart; the
+element type is a runtime argument here, as for ~new~).
+
+#+begin_src til
+func DynSet.with_capacity(T: Type, n: U64) returns DynSet
+#+end_src
+
+* DynSet.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet.clear
+:group: Standard library
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the DynSet can be reused.
+
+#+begin_src til
+func DynSet.clear(mut self: DynSet)
+#+end_src
+
+* DynSet.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet.has
+:group: Standard library
+:END:
+
+True if the set contains an element equal to ~val~.
+
+#+begin_src til
+func DynSet.has(self: DynSet, val: Dynamic) returns Bool
+#+end_src
+
+* DynSet.add
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet.add
+:group: Standard library
+:END:
+
+Insert ~val~ into the set (sorted order). If an equal element
+already exists, ~val~ is dropped. ~val~ is owned.
+
+#+begin_src til
+func DynSet.add(mut self: DynSet, own val: Dynamic)
+#+end_src
+
+* DynSet.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_set.DynSet.remove
+:group: Standard library
+:END:
+
+Remove the element equal to ~val~, dropping it. Returns false if
+absent (Set.remove's counterpart). Later elements shift left to
+keep the storage sorted and dense.
+
+#+begin_src til
+func DynSet.remove(mut self: DynSet, val: Dynamic) returns Bool
+#+end_src

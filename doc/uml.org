@@ -787,15 +787,30 @@
 ** EvalHeap: StructDef
 *** unused : U8 = 0
 * fasm_codegen
+** FasmDefinition: StructDef
+*** path := ""
+*** declaration : USize = 0
+*** member : I64 = -1
+** FasmProgram: StructDef
+*** definitions := Map(Str, FasmDefinition).new()
+*** labels := Map(Str, Str).new()
+*** pending := Vec(Str).new()
+*** source_names := Set(Str).new()
 ** FasmState: StructDef
+*** ref program : FasmProgram
 *** text := ""
 *** slots : USize = 0
 *** labels : USize = 0
 *** values := Map(Str, Str).new()
 *** value_types := Map(Str, Type).new()
-*** functions := Map(Str, Str).new()
 *** addresses := Set(Str).new()
 *** pointers := Set(Str).new()
+*** boxes := Set(Str).new()
+*** no_free := Set(Str).new()
+*** references := Set(Str).new()
+*** parameters := Set(Str).new()
+*** return_type := Type.None
+*** return_ref := false
 *** data := ""
 *** prefix := ""
 *** literals : USize = 0
@@ -884,6 +899,9 @@
 ** MlirState: StructDef
 *** text := ""
 *** allocations := ""
+*** globals := ""
+*** symbol_prefix := ""
+*** needs_panic := false
 *** next : USize = 0
 *** next_block : USize = 0
 *** terminated := false
@@ -892,11 +910,12 @@
 *** has_break := false
 *** values := Map(Str, MlirBinding).new()
 *** functions := Set(Str).new()
-*** error_slots := Set(Str).new()
 *** error_parameter := ""
 *** error_known_clear := false
 *** error_version : USize = 0
 *** clear_conditions := Set(Str).new()
+*** set_conditions := Set(Str).new()
+*** bang_conditions := Set(Str).new()
 *** integers := Map(Str, U64).new()
 *** booleans := Map(Str, Bool).new()
 * repl_editor

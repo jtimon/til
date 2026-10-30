@@ -1,5 +1,5 @@
 #+TITLE: src/self/c_codegen.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * builder_rhs_is_definition
@@ -1019,7 +1019,8 @@ func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.get(self: Map__UP
 :group: Compiler backend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites.set(mut self: Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites, key: UPtr, own val: priv___src_self_c_codegen_til__BuilderFuncSites)

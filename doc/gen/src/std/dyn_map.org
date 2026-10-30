@@ -1,0 +1,124 @@
+#+TITLE: src/std/dyn_map.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* DynMap
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap
+:group: Standard library
+:END:
+
+Ordered map from typed keys to typed values.
+
+#+begin_src til
+struct DynMap {
+    mut keys : DynVec
+    mut values : DynVec
+    mut key_cmp : CmpFn
+namespace:
+    func new(K: Type, V: Type) returns DynMap
+    func with_capacity(K: Type, V: Type, n: U64) returns DynMap
+    func len(self: DynMap) returns U64
+    func clear(mut self: DynMap)
+    func has(self: DynMap, key: Dynamic) returns Bool
+    func get(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+    func set(mut self: DynMap, key: Dynamic, own val: Dynamic)
+    func remove(mut self: DynMap, key: Dynamic) returns Bool
+    func delete(own self: DynMap, call_free: Bool = true)
+    func clone(self: DynMap) returns DynMap
+    func size() returns U64
+    func hash(self: DynMap, hasher: HashFn) returns U64
+}
+#+end_src
+
+* DynMap.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.new
+:group: Standard library
+:END:
+
+Create an empty DynMap of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func DynMap.new(K: Type, V: Type) returns DynMap
+#+end_src
+
+* DynMap.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.with_capacity
+:group: Standard library
+:END:
+
+Create an empty DynMap pre-sized for ~n~ entries, so inserting up
+to ~n~ reallocs neither backing DynVec (Map.with_capacity's
+counterpart; the key/value types are runtime arguments here, as
+for ~new~).
+
+#+begin_src til
+func DynMap.with_capacity(K: Type, V: Type, n: U64) returns DynMap
+#+end_src
+
+* DynMap.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.clear
+:group: Standard library
+:END:
+
+Drop all live keys and values but keep the allocated storage and
+comparator/type metadata so the DynMap can be reused.
+
+#+begin_src til
+func DynMap.clear(mut self: DynMap)
+#+end_src
+
+* DynMap.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.has
+:group: Standard library
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func DynMap.has(self: DynMap, key: Dynamic) returns Bool
+#+end_src
+
+* DynMap.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.get
+:group: Standard library
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func DynMap.get(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
+#+end_src
+
+* DynMap.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.set
+:group: Standard library
+:END:
+
+Insert or overwrite the value for ~key~. The value is owned.
+
+#+begin_src til
+func DynMap.set(mut self: DynMap, key: Dynamic, own val: Dynamic)
+#+end_src
+
+* DynMap.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_map.DynMap.remove
+:group: Standard library
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent
+(core Map.remove's counterpart).
+
+#+begin_src til
+func DynMap.remove(mut self: DynMap, key: Dynamic) returns Bool
+#+end_src

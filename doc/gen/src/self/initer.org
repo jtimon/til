@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * generate_requested_value_method
@@ -458,7 +458,8 @@ func Map__Str_GenericFuncSource.get(self: Map__Str_GenericFuncSource, key: Str) 
 :group: Compiler frontend
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_GenericFuncSource.set(mut self: Map__Str_GenericFuncSource, key: Str, own val: GenericFuncSource)

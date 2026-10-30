@@ -1,5 +1,5 @@
 #+TITLE: src/self/holyc_codegen.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * holyc_codegen_translate
@@ -101,7 +101,8 @@ func Map__Str_call_Map_Str_Bool.get(self: Map__Str_call_Map_Str_Bool, key: Str) 
 :CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.set
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_call_Map_Str_Bool.set(mut self: Map__Str_call_Map_Str_Bool, key: Str, own val: Map__Str_Bool)
@@ -208,7 +209,8 @@ func Map__Str_FuncSig.get(self: Map__Str_FuncSig, key: Str) returns ref FuncSig 
 :CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_FuncSig.set
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_FuncSig.set(mut self: Map__Str_FuncSig, key: Str, own val: FuncSig)
@@ -315,7 +317,8 @@ func Map__Str_call_Set_Str.get(self: Map__Str_call_Set_Str, key: Str) returns re
 :CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_Str.set
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_call_Set_Str.set(mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
@@ -422,7 +425,8 @@ func Map__Str_call_Set_USize.get(self: Map__Str_call_Set_USize, key: Str) return
 :CUSTOM_ID: til.src.self.holyc_codegen.Map__Str_call_Set_USize.set
 :END:
 
-Insert or overwrite the value for ~key~. The value is owned.
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
 func Map__Str_call_Set_USize.set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)

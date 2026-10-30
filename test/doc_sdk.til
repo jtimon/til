@@ -1,0 +1,88 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+WORK := "tmp/doc_sdk"
+
+count_matches := func(text: Str, needle: Str) returns USize {
+    mut count : USize = 0
+    mut offset : USize = 0
+    while offset < text.len() {
+        found := text.substr(offset, text.len() - offset).find(needle)
+        if found < 0 { break }
+        count++
+        offset = offset + found.to_usize() + needle.len()
+    }
+    return count
+}
+
+// The child runs below the checkout, so imported files have absolute module
+// identities. Read its emitted paths rather than assuming the checkout path.
+generated_page := func(output: Str, source: Str, extension: Str) returns Str {
+    suffix := format("/", source.strip_suffix(".til"), ".", extension)
+    mut page := ""
+    for line in output.split("\n") {
+        if line.starts_with("Generated: ").and(line.ends_with(suffix)) {
+            expect(page.is_empty(), "duplicate page for ", source, "\n", output)
+            page = line.strip_prefix("Generated: ").clone()
+        }
+    }
+    expect(page.len() > 0, "missing SDK documentation for ", source, "; update imports_for_docs.til\n", output)
+    return page
+}
+
+check_std_pages := proc(directory: Str, output: Str) returns USize {
+    mut count : USize = 0
+    for name in Dir.list(directory) {
+        path := format(directory, "/", name)
+        if File.is_dir(path) { count = count + check_std_pages(path, output) }
+        else if path.ends_with(".til") {
+            org := generated_page(output, path, "org")
+            html := generated_page(output, path, "html")
+            expect(File.is_file(format(WORK, "/", org)), "missing org page: ", org)
+            expect(File.is_file(format(WORK, "/", html)), "missing HTML page: ", html)
+            count++
+        }
+    }
+    return count
+}
+
+main := proc(compiler_path: Str) {
+    mut compiler := compiler_path.clone()
+    if File.is_absolute(compiler).not() { compiler = format("../../", compiler) }
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+    // Use the real umbrella/import graph, but keep all output under tmp/ and
+    // avoid racing REPL tests reading the checkout's generated documentation.
+    source := File.readfile("imports_for_docs.til").replace("import(\"src/", "import(\"../../src/")
+    File.writefile(format(WORK, "/imports_for_docs.til"), format(source,
+        "\n/// Links resolve against the same catalog across compiler and std.\n",
+        "/// See [[til:TilVm]] and [[til:grapheme_next]].\n",
+        "doc_sdk_link_probe := func() returns I64 { return 0 }\n"))
+    doc := Cmd.new(compiler, "doc", "imports_for_docs.til")
+    doc.cwd(WORK).capture()
+    status := doc.run()
+    expect(status == 0, "SDK docs failed: ", doc.out(), doc.err())
+    pages := check_std_pages("src/std", doc.out())
+    expect(pages > 0, "no standard-library pages checked")
+    generated_page(doc.out(), "src/til.til", "org")
+
+    index := File.readfile(format(WORK, "/doc/gen/index.org"))
+    search := File.readfile(format(WORK, "/doc/gen/search.js"))
+    for name in vec(Str, "TilVm", "grapheme_next", "sha256", "DynVec", "File") {
+        expect(count_matches(index, format("][", name, "]]\n")) == 1, "missing/duplicate index entry: ", name)
+        expect(count_matches(search, format("{name:\"", name, "\",")) == 1, "missing/duplicate search entry: ", name)
+    }
+    vm_page := generated_page(doc.out(), "src/std/tilvm.til", "html")
+    unicode_page := generated_page(doc.out(), "src/std/unicode.til", "html")
+    vm := File.readfile(format(WORK, "/", vm_page))
+    unicode := File.readfile(format(WORK, "/", unicode_page))
+    expect(vm.contains("src/std/unicode.html\""), "VM sidebar omits Unicode")
+    expect(unicode.contains("src/std/tilvm.html\""), "Unicode sidebar omits VM")
+    expect(vm.contains("#til.").and(unicode.contains("#til.")), "missing current-page declaration anchors")
+    root_page := File.readfile(format(WORK, "/doc/gen/imports_for_docs.org"))
+    expect(root_page.contains("src/std/tilvm.org::#").and(root_page.contains("src/std/unicode.org::#")), "SDK links did not resolve")
+    expect(root_page.contains("[[til:").not(), "unexpanded SDK link")
+    println("SDK documentation PASS: ", pages.to_str(), " std modules")
+}

@@ -1,0 +1,102 @@
+#+TITLE: src/std/doc.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* __til_docs_blob__
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.__til_docs_blob__
+:group: Standard library
+:END:
+
+Packed runtime registry of /// doc comments collected by the loader.
+Encoded as ~name<0x01>doc<0x02>...~. Use help(name) for lookup.
+
+#+begin_src til
+__til_docs_blob__ is a Str
+#+end_src
+
+* __til_info_blob__
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.__til_info_blob__
+:group: Standard library
+:END:
+
+Packed runtime registry of human-readable info strings (kind +
+signature/fields/methods/var type) for every top-level Decl and
+struct/enum member. Encoded as ~name<0x01>info<0x02>...~. Use
+help(name) for lookup.
+
+#+begin_src til
+__til_info_blob__ is a Str
+#+end_src
+
+* __doc_init__
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.__doc_init__
+:group: Standard library
+:END:
+
+Loader-emitted entry point that hands the packed registry blobs to
+the runtime. Not intended for direct user calls.
+
+#+begin_src til
+func __doc_init__(info_data: Str, docs_data: Str)
+#+end_src
+
+* doc_org_load_core_info
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.doc_org_load_core_info
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc doc_org_load_core_info(index_path: Str) returns Str
+#+end_src
+
+* doc_org_load_core_docs
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.doc_org_load_core_docs
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc doc_org_load_core_docs(index_path: Str) returns Str
+#+end_src
+
+* doc_blob_lookup
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.doc_blob_lookup
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func doc_blob_lookup(blob: Str, name: Str) returns Str
+#+end_src
+
+* doc_init_org_files
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.doc_init_org_files
+:group: Standard library
+:END:
+
+Runtime doc init for the REPL. Core docs are packed from the generated
+org documentation on the first help() turn, then kept in the session.
+
+#+begin_src til
+proc doc_init_org_files(index_path: Str, user_info_data: Str, user_docs_data: Str)
+#+end_src
+
+* help
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.doc.help
+:group: Standard library
+:END:
+
+Print the doc comment and the kind/signature info for a top-level
+declaration or struct/enum member (~Type.method~). When both are
+registered, print the doc first then the info. If neither is
+registered print "undefined symbol: <name>".
+
+#+begin_src til
+proc help(name: Str)
+#+end_src

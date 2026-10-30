@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-9e5acb222
+#+SUBTITLE: til 0.0.1-9bc23073e
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -110,6 +110,16 @@ func make_int_lit(n: I64, line: U32, col: U32) returns Expr
 
 #+begin_src til
 func make_default_value_expr(type_name: Str, line: U32, col: U32, mut symbols: SymbolPool) returns Expr
+#+end_src
+
+* throw_type_tag
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.throw_type_tag
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func throw_type_tag(name: Str) returns I64
 #+end_src
 
 * make_if_kind_eq_zero_wrap

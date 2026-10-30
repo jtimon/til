@@ -1,0 +1,130 @@
+#+TITLE: src/std/dyn_array.til
+#+SUBTITLE: til 0.0.1-9bc23073e
+#+OPTIONS: toc:t
+
+* DynArray
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray
+:group: Standard library
+:END:
+
+Fixed-capacity array of typed elements.
+
+#+begin_src til
+struct DynArray {
+    own mut data : U8
+    cap : USize
+    elem_size : USize
+    elem_kind : USize
+    elem_clone : CloneFn
+    elem_delete : DeleteFn
+namespace:
+    func new_type_name(elem_type: Str, cap: U64) returns DynArray
+    func new(T: Type, cap: U64) returns DynArray
+    func len(self: DynArray) returns U64
+    func unsafe_get(self: DynArray, i: U64) returns ref Dynamic
+    func get(self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
+    func unsafe_set(mut self: DynArray, i: U64, own val: Dynamic)
+    func set(mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+    func delete(own self: DynArray, call_free: Bool = true)
+    func concat(self: DynArray, other: DynArray) returns DynArray
+    func to_vec(self: DynArray) returns DynVec
+    func clone(self: DynArray) returns DynArray
+    func size() returns U64
+}
+#+end_src
+
+* DynArray.new_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.new_type_name
+:group: Standard library
+:END:
+
+Create a zero-initialized DynArray with the given element type and capacity.
+
+#+begin_src til
+func DynArray.new_type_name(elem_type: Str, cap: U64) returns DynArray
+#+end_src
+
+* DynArray.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.unsafe_get
+:group: Standard library
+:END:
+
+Unchecked ref to the element at index ~i~. Caller guarantees
+~i < self.cap~; the unchecked core that ~get~ wraps (issue #284).
+
+#+begin_src til
+func DynArray.unsafe_get(self: DynArray, i: U64) returns ref Dynamic
+#+end_src
+
+* DynArray.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.get
+:group: Standard library
+:END:
+
+Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
+past the end; call as ~arr.get(i)!~ to panic on a bad index.
+
+#+begin_src til
+func DynArray.get(self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
+#+end_src
+
+* DynArray.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.unsafe_set
+:group: Standard library
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.cap~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func DynArray.unsafe_set(mut self: DynArray, i: U64, own val: Dynamic)
+#+end_src
+
+* DynArray.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.set
+:group: Standard library
+:END:
+
+Overwrite the element at index ~i~. Drops the old value. ~val~ is
+owned. Throws OutOfBounds if ~i~ is past the end; call as
+~dynarr[i] = val~ (or ~dynarr.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func DynArray.set(mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+#+end_src
+
+* DynArray.concat
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.concat
+:group: Standard library
+:END:
+
+A fresh DynArray holding ~self~'s elements followed by ~other~'s.
+Both sources keep theirs -- every element is cloned, exactly as
+~clone~ does. Array.concat's counterpart; the element type is
+runtime data here, so mismatched operands panic instead of being
+rejected by the typer.
+
+#+begin_src til
+func DynArray.concat(self: DynArray, other: DynArray) returns DynArray
+#+end_src
+
+* DynArray.to_vec
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.dyn_array.DynArray.to_vec
+:group: Standard library
+:END:
+
+A fresh DynVec holding a clone of every element, ~self~ intact.
+Array.to_vec's counterpart.
+
+#+begin_src til
+func DynArray.to_vec(self: DynArray) returns DynVec
+#+end_src
