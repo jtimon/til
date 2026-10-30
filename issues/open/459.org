@@ -1,0 +1,139 @@
+# priority: low
+# category: features
+** OPEN #459 Research bulk directory imports and package entry points
+
+Allow a directory/package import, for example:
+
+#+begin_src til
+_ := import("src/std")
+#+end_src
+
+The meaning is undecided: loading a package's curated API and automatically
+loading every module in its directory are different operations. Research the
+alternatives before choosing source syntax, a reserved filename or lookup rules.
+Names such as __init__.til, mod.til and package.til below are candidates, not
+approved additions to the language or SDK layout.
+
+*** Motivation and current behavior
+
+Full SDK documentation needs modules outside src/til.til's dependency graph,
+including std/tilvm, std/unicode, std/crypto and the dynamic containers. A normal
+source umbrella can import them explicitly today, but its list needs maintenance.
+Package imports could also help ordinary library authors present a single API.
+
+The current resolver loads files, not directory packages. import_path_for_call
+in src/self/context.til appends .til to extensionless paths; resolve_imports and
+load_import_unit in src/self/loader.til follow explicit/mode imports and dedupe
+canonical module identities. There is no directory enumeration for imports.
+The existing _ := import(...) spelling marks an intentional import/re-export;
+it is useful for an umbrella containing imports without ordinary symbol uses.
+
+There is no open general import-design issue to extend. #448 is the related
+public-name collision bug, while #215's import section concerns safe_script's
+dependency restrictions rather than directory resolution.
+
+*** Initial research: Python is not an automatic bulk import
+
+Python's regular package import executes __init__.py and exposes names defined
+there. It does not enumerate/import every sibling .py file. A package author
+can import/re-export selected submodules there. from package import * uses
+__all__ when provided; without it, it does not scan and import all submodules.
+
+Python namespace packages can omit __init__.py and combine portions from
+different search-path locations. That provides package/namespace discovery,
+not an instruction to eagerly import all descendants. Til has a shared program
+scope and file-local import aliases, so Python's module-object semantics must
+not be assumed to transfer unchanged.
+
+Rust supplies another curated-module comparison: foo.rs and foo/mod.rs are
+alternative module source locations; both cannot exist for the same module.
+Child modules are explicitly declared. This is not automatic sibling discovery
+either, and illustrates the file-versus-directory ambiguity Til must decide.
+
+*** Alternatives to compare
+
+**** Curated package entry module
+
+Resolve import("dir") to an agreed entry module in that directory. The author
+uses ordinary imports/re-exports to define the public package API.
+
+- Advantages: explicit stable exports/dependencies; helper and platform files
+  need not be pulled in; declaration/initialization order is reviewable; can
+  build on existing intentional re-exports without a separate export manifest.
+- Disadvantages: authors maintain the entry module; a new filename/layout
+  convention needs approval and SDK/tool support; import-time executable code
+  can have effects. Decide ambiguity with dir.til and what an absent entry means.
+
+**** Automatic directory expansion
+
+Import all eligible .til files in a directory in a defined order. Immediate
+children and recursive discovery must be evaluated separately.
+
+- Advantages: new files are discovered automatically; no per-package import
+  list; convenient for documentation and small collections of modules.
+- Disadvantages: adding a file can change a program's public names, native link
+  requirements, initialization effects and typechecking cost. Helpers, tests,
+  generated data, reserved entry files and platform-specific code need an
+  explicit inclusion policy. Traversal order must not depend on filesystem or
+  locale ordering. Recursive discovery amplifies these concerns.
+
+**** Explicit wildcard expansion alongside curated packages
+
+Keep a package import curated, and give eager discovery an explicit spelling
+(for research, e.g. import("dir/*")). No spelling is selected here.
+
+- Advantages: makes eager inclusion intentional; curated API and discovery can
+  coexist; preserves a distinction between stable package exports and all files.
+- Disadvantages: another source-language/path convention; wildcard matching and
+  recursion need rules; dependency, collision and initialization costs remain.
+
+**** Existing explicit umbrella modules
+
+Keep ordinary files containing _ := import("child") declarations, imported
+by filename under today's resolver. This is the compatibility baseline.
+
+- Advantages: no language or reserved-filename change; author-controlled API
+  and order; works with the current loader/typechecker and generated bindings.
+- Disadvantages: manual inventory; cannot satisfy a directory import without
+  a new resolution convention; documentation coverage can drift when new SDK
+  modules are added. Evaluate a coverage check independently of import syntax.
+
+*** Decisions and experiments needed
+
+- [ ] Define whether import("dir") means a package API, eager inclusion, or
+  something else. Compare the user-facing tradeoffs above with small prototypes.
+- [ ] Specify file-versus-directory lookup precedence, local/SDK resolution,
+  missing/empty directories, entry-module absence and ambiguity diagnostics.
+  Preserve existing extensionless file imports and import-base behavior.
+- [ ] Define shallow/recursive traversal, ordering, extension/case/symlink
+  handling and exclusions for tests, hidden files, generated helpers and targets.
+- [ ] Check bare imports, _ := import(...), qualified aliases and selective
+  imports/re-exports against Til's actual shared-scope semantics. Require clear
+  duplicate-name behavior; do not build package exports on #448's last-wins bug.
+- [ ] Prove direct-file plus package imports dedupe the same module, including
+  relative paths, cycles, diamonds and mode/prelude implicit dependency edges.
+  Specify initialization order and exactly-once behavior; adding discovery must
+  not bypass the mode/dependency restrictions discussed in #215.
+- [ ] Exercise compiled, interpreted and installed-SDK use, REPL help, docs,
+  generated native bindings and error paths. Diagnostics must identify the user
+  import and offending child source rather than a generated wrapper location.
+- [ ] Compare parse/typecheck cost, native dependencies and binary reachability
+  when importing a package versus a single module. Documentation convenience
+  alone must not silently dictate every program's import semantics.
+- [ ] Obtain approval for the chosen syntax, reserved files, installation and
+  compatibility behavior before implementation. Reuse the canonical import
+  graph; no new persistent index, manifest or copied source tree is assumed.
+
+*** References
+
+- [[https://docs.python.org/3/reference/import.html#regular-packages][Python regular packages]]
+- [[https://docs.python.org/3/reference/import.html#namespace-packages][Python namespace packages]]
+- [[https://docs.python.org/3/tutorial/modules.html#importing-from-a-package][Python package star imports and __all__]]
+- [[https://doc.rust-lang.org/reference/items/modules.html#module-source-filenames][Rust module source filenames]]
+- [[file:448.org][#448: duplicate public top-level functions across units]]
+- [[file:215.org][#215: safe_script dependency/import restrictions]]
+- [[../../doc/ffi.org::*Composing generated Til bindings][Generated binding composition and intentional re-exports]]
+
+This research does not block documenting today's SDK with ordinary explicit
+imports. The documentation-root change and a future language import feature
+have separate acceptance criteria.
