@@ -1,0 +1,50 @@
+mode lib
+
+// Instrument the real example with a finite loop and platform-input test
+// callbacks. Keep the game's rules, AI, controls and drawing source intact.
+checkers_acceptance_source := func(game: Str) returns Str {
+    instrumented := game.replace("import(\"lib/alphabeta\")", "import(\"../examples/lib/alphabeta\")")
+        .replace("while !WindowShouldClose() {", "while !WindowShouldClose() && checkers_frames < 80 {")
+        .replace("        EndDrawing()", "        checkers_frame()")
+        .replace("    CloseWindow()", "    checkers_finish()\n    CloseWindow()")
+    return format(instrumented, "\n",
+        "link_c(\"../test/gui_mouse.c\")\n",
+        "gui_mouse_move := ext_proc(shallow x: I32, shallow y: I32) {}\n",
+        "gui_mouse_button := ext_proc(shallow button: I32, shallow action: I32) {}\n",
+        "mut checkers_frames : I64 = 0\nmut checkers_stage : I64 = 0\n",
+        "checkers_pixel := proc(image: Image, x: I64, y: I64) returns Color {\n",
+        "  mut w := GetScreenWidth().cast(I64); mut h := GetScreenHeight().cast(I64)\n",
+        "  iw := image.width.cast(I64); ih := image.height.cast(I64)\n",
+        "  if w > iw { w = iw }; h = GetScreenHeight().cast(I64) * w / GetScreenWidth().cast(I64)\n",
+        "  if h > ih { h = ih; w = GetScreenWidth().cast(I64) * h / GetScreenHeight().cast(I64) }\n",
+        "  return GetImageColor(image, ((iw-w)/2+x*w/GetScreenWidth().cast(I64)).to_i32(), ((ih-h)/2+y*h/GetScreenHeight().cast(I64)).to_i32())\n}\n",
+        "checkers_red := func(color: Color) returns Bool { return color.r.to_i64() > color.g.to_i64()+40 && color.r.to_i64() > color.b.to_i64()+40 }\n",
+        "checkers_red_row := proc(image: Image, row: I64) returns I64 {\n",
+        "  mut count : I64 = 0\n  for column in 0..8 { if checkers_red(checkers_pixel(image, column*80+40, row*80+120)) { count++ } }\n  return count\n}\n",
+        "checkers_click := proc(x: I32, y: I32) { gui_mouse_move(x,y); gui_mouse_button(0,1) }\n",
+        "checkers_frame := proc() {\n  EndDrawing(); checkers_frames++\n",
+        "  if checkers_frames == 1 {\n    image := LoadImageFromScreen()\n",
+        "    if GetScreenWidth() != 720 || GetScreenHeight() != 800 { panic(\"checkers window size\") }\n",
+        "    if checkers_red_row(image,5) != 4 || checkers_red_row(image,4) != 0 { panic(\"checkers initial board\") }\n",
+        "    UnloadImage(image)\n  }\n",
+        "  if checkers_frames == 30 {\n    image := LoadImageFromScreen()\n",
+        "    if checkers_red_row(image,4) != 1 { panic(\"checkers AI did not move\") }\n",
+        "    UnloadImage(image); checkers_stage = 1\n  }\n",
+        "  if checkers_frames == 32 { checkers_click(320,55) }\n",
+        "  if checkers_frames == 40 { checkers_click(50,55) }\n",
+        "  if checkers_frames == 48 {\n    image := LoadImageFromScreen()\n",
+        "    if checkers_red_row(image,4) != 0 { panic(\"checkers restart\") }\n",
+        "    UnloadImage(image); checkers_stage = 2; checkers_click(40,520)\n  }\n",
+        "  if checkers_frames == 56 {\n    image := LoadImageFromScreen(); color := checkers_pixel(image,8,488)\n",
+        "    if color.r.to_i64() < 150 || color.g.to_i64() < 150 || color.b.to_i64() > 120 { panic(\"checkers piece selection\") }\n",
+        "    UnloadImage(image); checkers_stage = 3; checkers_click(120,440)\n  }\n",
+        "  if checkers_frames == 64 {\n    image := LoadImageFromScreen()\n",
+        "    if checkers_red(checkers_pixel(image,120,440)).not() || checkers_red(checkers_pixel(image,40,520)) { panic(\"checkers human move\") }\n",
+        "    UnloadImage(image); checkers_stage = 4; checkers_click(50,55)\n  }\n",
+        "  if checkers_frames == 72 {\n    image := LoadImageFromScreen()\n",
+        "    if checkers_red_row(image,4) != 0 || checkers_red_row(image,5) != 4 { panic(\"checkers restart after move\") }\n",
+        "    UnloadImage(image); checkers_stage = 5\n  }\n",
+        // Keep the native pointer out of the composited board pixel samples.
+        "  if checkers_frames == 35 || checkers_frames == 43 || checkers_frames == 51 || checkers_frames == 59 || checkers_frames == 67 { gui_mouse_button(0,0); gui_mouse_move(0,0) }\n",
+        "}\ncheckers_finish := proc() { if checkers_stage != 5 { panic(\"checkers acceptance incomplete\") }; println(\"Checkers interaction passed\") }\n")
+}

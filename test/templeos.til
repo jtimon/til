@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/file")
 import("../src/std/sys")
+import("checkers_fixture")
 
 get_cwd_str := ext_proc() returns Str {}
 
@@ -414,6 +415,24 @@ gui_middle_checks := proc(identity: Str, bits: Str) {
     run_guest(identity, format("gui_middle_boundaries_", bits), "GUI middle boundaries passed\n", "pass")
 }
 
+gui_checkers_checks := proc(identity: Str, bits: Str) {
+    File.writefile("tmp/checkers_acceptance.til", checkers_acceptance_source(File.readfile("examples/checkers.til")))
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "tmp/checkers_acceptance.til").run_checked()
+    // The shared fixture drives each platform's actual input path. Here the
+    // callback-equivalent test hooks deliver TempleOS mouse state/messages.
+    File.appendfile(format(WORK, "/TILTEST.HC"), format(
+        "\nU0 gui_mouse_move(I32 x,I32 y) { MsSet(TilGuiViewX+x*TilGuiViewWidth/TilGuiWidth,TilGuiViewY+y*TilGuiViewHeight/TilGuiHeight); }\n",
+        "U0 gui_mouse_button(I32 button,I32 action) { if (button!=0) TilPanicZ(\"checkers test button\\n\"); MsSet(ms.pos.x,ms.pos.y,0,action!=0,FALSE); if (action) Msg(MSG_MS_L_DOWN,ms.pos.x,ms.pos.y); else Msg(MSG_MS_L_UP,ms.pos.x,ms.pos.y); }\n",
+        "Bool checkers_old_ac=AutoComplete(OFF); MsSet(0,0); TilMain; AutoComplete(checkers_old_ac);\n"))
+    run_guest(identity, format("gui_checkers_", bits), "Checkers interaction passed\n", "pass")
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), "test/gui_shapes.til").run_checked()
+    File.appendfile(format(WORK, "/TILTEST.HC"),
+        "\nBool shapes_old_ac=AutoComplete(OFF); MsSet(0,0); TilMain; AutoComplete(shapes_old_ac);\n")
+    run_guest(identity, format("gui_shapes_", bits), "GUI shapes passed\n", "pass")
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -488,6 +507,7 @@ main := proc() {
         gui_mouse_checks(identity, bits)
         gui_wheel_checks(identity, bits)
         gui_middle_checks(identity, bits)
+        gui_checkers_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))

@@ -2298,7 +2298,8 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
         if state.gui_enabled {
             switch name {
             case "InitWindow", "CloseWindow", "SetTargetFPS", "BeginDrawing", "EndDrawing",
-                "ClearBackground", "DrawRectangle", "DrawText", "LoadImageFromScreen", "GetImageColor", "UnloadImage",
+                "ClearBackground", "DrawRectangle", "DrawCircle", "DrawText", "LoadImageFromScreen", "GetImageColor", "UnloadImage",
+                "GetScreenWidth", "GetScreenHeight",
                 "GetKeyPressed", "GetCharPressed", "IsKeyDown", "IsKeyUp", "IsKeyPressed", "IsKeyReleased",
                 "IsKeyPressedRepeat", "WindowShouldClose", "SetExitKey", "BeginScissorMode", "EndScissorMode",
                 "GetMouseX", "GetMouseY", "GetMousePosition", "IsMouseButtonDown", "IsMouseButtonUp",
@@ -5305,6 +5306,15 @@ priv holyc_emit_function := func(name: Str, func_expr: Expr, ctx: Context,
     }
     if funcdef_of(func_expr).sig.func_type.is_ext() {
         prototypes = format(prototypes, "extern ", signature, ";\n")
+        return
+    }
+    if state.gui_enabled.and(name.eq("init_window")) {
+        // The shared GUI convenience wrapper's Mesa retry is hosted-only.
+        // Its native implementation uses the same arguments and entry call.
+        ref params : Vec(Declaration) = funcdef_of(func_expr).sig.params
+        prototypes = format(prototypes, "extern ", signature, ";\n")
+        definitions = format(definitions, signature, "\n{\n    TilGuiInitWindow(",
+            params[0].name, ", ", params[1].name, ", ", params[2].name, "->c_str);\n}\n\n")
         return
     }
     if func_expr.children.len() != 1 {

@@ -1335,6 +1335,10 @@ main := proc(args: ..Str) {
         format(til_bin, " translate --target=templeos -c gen/c/gui_scissor.HC examples/gui_scissor.til"))
     add_single(tests, "holyc_gui_mouse_translate", "build", 0, "",
         format(til_bin, " translate --target=templeos -c gen/c/gui_mouse.HC examples/gui_mouse.til"))
+    add_count(tests, "holyc_checkers_translate", "build", "TilGuiDrawCircle(", 5,
+        format(til_bin, " translate --target=templeos -c gen/c/checkers.HC examples/checkers.til '&&' cat gen/c/checkers.HC"))
+    add_single(tests, "holyc_gui_shapes_translate", "build", 0, "",
+        format(til_bin, " translate --target=templeos -c gen/c/gui_shapes.HC test/gui_shapes.til"))
     add_count(tests, "holyc_i32_divmod_interp", "build", "I32 divmod passed", 1,
         format(til_bin, " interpret test/holyc_i32_divmod.til"))
     add_count(tests, "holyc_i32_divmod_compile", "build", "I32 divmod passed", 1,
@@ -2208,6 +2212,10 @@ main := proc(args: ..Str) {
             format(til_bin, " run -o bin/c/gui_keyboard_test -c gen/c/gui_keyboard_test.c test/gui_keyboard.til"))
         add_count(tests, "gui_mouse_input", "build", "GUI mouse acceptance passed", 1,
             format(til_bin, " run -o bin/c/gui_mouse_test -c gen/c/gui_mouse_test.c test/gui_mouse.til"))
+        add_count(tests, "gui_shapes_pixels", "build", "GUI shapes passed", 1,
+            format(til_bin, " run -o bin/c/gui_shapes -c gen/c/gui_shapes.c test/gui_shapes.til"))
+        add_count(tests, "gui_checkers_interaction", "build", "Checkers interaction passed", 1,
+            format(til_bin, " test/gui_checkers.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""

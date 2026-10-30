@@ -1,0 +1,9 @@
+mode cli
+import("../src/std/file")
+import("../src/std/sys")
+import("checkers_fixture")
+
+main := proc() {
+    File.writefile("tmp/checkers_acceptance.til", checkers_acceptance_source(File.readfile("examples/checkers.til")))
+    Cmd.new("bin/til", "run", "-o", "tmp/checkers_acceptance", "-c", "tmp/checkers_acceptance.c", "tmp/checkers_acceptance.til").run_checked()
+}

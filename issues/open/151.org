@@ -1215,6 +1215,51 @@
   }
   #+end_src
 
+**** Checkers: an existing GUI application
+
+  ~examples/checkers.til~ now runs on TempleOS without changes to the example,
+  its alpha-beta library, or its public GUI calls. The native implementation
+  adds DrawCircle, alpha-blended rectangles/circles/text, arbitrary positive
+  bitmap text sizes, and GetScreenWidth/Height. The existing ~init_window~
+  convenience call uses native initialization without its hosted Mesa retry.
+
+  TempleOS's display remains 640x480. The requested 720x800 checkers canvas is
+  fitted proportionally into that display, with black margins; application
+  drawing, scissor bounds and mouse coordinates stay in the requested logical
+  coordinate system. GetScreenWidth/Height report that logical size. Screen
+  capture still reads the physical composited display, including its pointer.
+  The existing 640x480 examples retain their one-to-one coordinate mapping.
+  Native colors are quantized to the OS palette and text uses its bitmap font.
+
+  ~test/checkers_fixture.til~ instruments the actual example with a finite
+  loop and input/pixel checks. The same game and acceptance logic verify its
+  initial board, the default depth-one AI move, switching to two-player mode,
+  restart, selecting a red piece, making a legal move, and restarting again.
+  Hosted input uses the existing GLFW callback test helpers; native input uses
+  TempleOS mouse state/messages. The pointer is moved away before composited
+  board samples so the cursor cannot hide a piece. ~test/gui_checkers.til~ runs
+  the hosted case; ~test/templeos.til~ registers it at USize32/64.
+
+  ~test/gui_shapes.til~ separately checks transparent/partially transparent
+  rectangles, circle fill/bounds/scissoring, and 14/20-pixel bitmap text through
+  the same GUI calls on both systems. No additional public GUI API is needed.
+
+  Verification on master ~6eed1697a~: clean hosted ASAN suite 491/491, including
+  clang validation and both new GUI cases. All 18 focused native cases pass at
+  USize32/64: checkers, shapes, the existing scissor/lifecycle/error cases, signed
+  arithmetic, mouse interaction/boundaries and unsupported-button diagnostics.
+  An uninstrumented native checkers run also opens and exits through Escape.
+  The full guest matrix was not rerun for this sprint.
+
+  Manual TigerVNC/QEMU testing confirmed that checkers renders, but the user
+  could not play reliably because of mouse behavior and the small display.
+  The injected-event tests above do not cover that viewer/device input path;
+  usable manual play still needs verification.
+
+  For manual testing, use the VM workflow below with ~examples/checkers.til~ in
+  the translate command instead of the mouse example. Escape closes checkers;
+  the existing repeat wrapper can start another game without rebooting.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,

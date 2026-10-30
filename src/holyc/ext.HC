@@ -1653,6 +1653,8 @@ class TilGuiColor { U8 r,g,b,a; };
 class TilGuiImage { U8 *data; I32 width,height,mipmaps,format; };
 class TilGuiVector2 { F32 x,y; };
 CDC *TilGuiFront=NULL,*TilGuiBack=NULL;
+I64 TilGuiWidth=GR_WIDTH,TilGuiHeight=GR_HEIGHT;
+I64 TilGuiViewX=0,TilGuiViewY=0,TilGuiViewWidth=GR_WIDTH,TilGuiViewHeight=GR_HEIGHT;
 I64 TilGuiFrameMs=0,TilGuiOldLeft,TilGuiOldRight,TilGuiOldTop,TilGuiOldBottom;
 I64 TilGuiOldInhibit,TilGuiMouseX=0,TilGuiMouseY=0;
 CCtrl *TilGuiWheelControl=NULL;
@@ -1789,8 +1791,8 @@ U0 TilGuiPollInput()
   }
   // Match the facade's client coordinates, not DolDoc's scrolled coordinates
   // carried by MSG_MS_MOVE. Position is sampled once for consistent X/Y/Vector2.
-  TilGuiMouseX=ms.pos.x-Fs->pix_left;
-  TilGuiMouseY=ms.pos.y-Fs->pix_top;
+  TilGuiMouseX=(ms.pos.x-Fs->pix_left-TilGuiViewX)*TilGuiWidth/TilGuiViewWidth;
+  TilGuiMouseY=(ms.pos.y-Fs->pix_top-TilGuiViewY)*TilGuiHeight/TilGuiViewHeight;
   // Wheel callbacks run in the window manager. Publish one non-consuming
   // snapshot per application frame, discarding input across observed blur.
   PUSHFD
@@ -1969,8 +1971,18 @@ U0 TilGuiDraw(CTask *task,CDC *dc)
 
 public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
 {
-  if (width!=GR_WIDTH || height!=GR_HEIGHT)
-    TilPanicZ("GUI POC requires 640x480\n");
+  if (width<=0 || height<=0) TilPanicZ("GUI requires positive window dimensions\n");
+  // TempleOS has a fixed display. Preserve application coordinates and fit
+  // larger canvases to it, with the inverse mapping used for mouse input.
+  TilGuiWidth=width; TilGuiHeight=height;
+  TilGuiViewWidth=MinI64(width,GR_WIDTH);
+  TilGuiViewHeight=MaxI64(1,height*TilGuiViewWidth/width);
+  if (TilGuiViewHeight>GR_HEIGHT) {
+    TilGuiViewHeight=GR_HEIGHT;
+    TilGuiViewWidth=MaxI64(1,width*GR_HEIGHT/height);
+  }
+  TilGuiViewX=(GR_WIDTH-TilGuiViewWidth)/2;
+  TilGuiViewY=(GR_HEIGHT-TilGuiViewHeight)/2;
   MemSet(TilGuiKeys,0,sizeof(TilGuiKeys));
   MemSet(TilGuiPreviousKeys,0,sizeof(TilGuiPreviousKeys));
   MemSet(TilGuiRepeatKeys,0,sizeof(TilGuiRepeatKeys));
@@ -2004,8 +2016,9 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   TilGuiWheelControl->wheel_chg=&TilGuiWheelChanged;
   TilGuiWheelControl->update_derived_vals=&TilGuiUpdateMiddle;
   QueIns(TilGuiWheelControl,&Fs->next_ctrl);
-  TilGuiFront=DCNew(width,height);
-  TilGuiBack=DCNew(width,height);
+  TilGuiFront=DCNew(GR_WIDTH,GR_HEIGHT);
+  TilGuiBack=DCNew(GR_WIDTH,GR_HEIGHT);
+  DCFill(TilGuiFront,BLACK); DCFill(TilGuiBack,BLACK);
   TilGuiOldBorder=WinBorder(OFF);
   WinHorz(0,TEXT_COLS-1);
   WinVert(0,TEXT_ROWS-1);
@@ -2014,9 +2027,12 @@ public U0 TilGuiInitWindow(I64 width,I64 height,U8 *title)
   // Let WinMgr baseline its cumulative wheel axis before accepting GUI input.
   Refresh(2);
   TilGuiWheelPending=0;
-  TilGuiMouseX=ms.pos.x-Fs->pix_left;
-  TilGuiMouseY=ms.pos.y-Fs->pix_top;
+  TilGuiMouseX=(ms.pos.x-Fs->pix_left-TilGuiViewX)*width/TilGuiViewWidth;
+  TilGuiMouseY=(ms.pos.y-Fs->pix_top-TilGuiViewY)*height/TilGuiViewHeight;
 }
+
+public I32 TilGuiGetScreenWidth() { return TilGuiWidth; }
+public I32 TilGuiGetScreenHeight() { return TilGuiHeight; }
 
 public U0 TilGuiSetTargetFPS(I64 fps)
 {
@@ -2036,8 +2052,8 @@ public U0 TilGuiBeginScissorMode(I64 x,I64 y,I64 width,I64 height)
   // Like raylib, Begin replaces the clip; End disables it, without a stack.
   TilGuiScissorLeft=MaxI64(0,x);
   TilGuiScissorTop=MaxI64(0,y);
-  TilGuiScissorRight=MinI64(GR_WIDTH,x+width);
-  TilGuiScissorBottom=MinI64(GR_HEIGHT,y+height);
+  TilGuiScissorRight=MinI64(TilGuiWidth,x+width);
+  TilGuiScissorBottom=MinI64(TilGuiHeight,y+height);
   TilGuiScissorActive=TRUE;
 }
 
@@ -2046,26 +2062,47 @@ public U0 TilGuiEndScissorMode()
   TilGuiScissorActive=FALSE;
 }
 
-U0 TilGuiFillRect(I64 x,I64 y,I64 width,I64 height)
+extern I64 TilGuiPaletteColor(U8 *opaque);
+
+U0 TilGuiFillRect(I64 x,I64 y,I64 width,I64 height,U8 *opaque=NULL)
 {
-  I64 right,bottom;
+  I64 right=MinI64(x+width,TilGuiWidth),bottom=MinI64(y+height,TilGuiHeight);
+  I64 px,py,index,alpha;
+  TilGuiColor *source=opaque(TilGuiColor *);
+  TilGuiColor mixed;
+  x=MaxI64(0,x); y=MaxI64(0,y);
   if (TilGuiScissorActive) {
-    right=MinI64(x+width,TilGuiScissorRight);
-    bottom=MinI64(y+height,TilGuiScissorBottom);
+    right=MinI64(right,TilGuiScissorRight);
+    bottom=MinI64(bottom,TilGuiScissorBottom);
     x=MaxI64(x,TilGuiScissorLeft);
     y=MaxI64(y,TilGuiScissorTop);
-    width=right-x; height=bottom-y;
-    // Empty and wholly off-screen clips legitimately draw no pixels.
-    if (width<=0 || height<=0) return;
   }
-  GrRect(TilGuiBack,x,y,width,height);
+  // Empty/off-screen rectangles and subpixel spans draw no pixels.
+  if (right<=x || bottom<=y) return;
+  right=TilGuiViewX+right*TilGuiViewWidth/TilGuiWidth;
+  bottom=TilGuiViewY+bottom*TilGuiViewHeight/TilGuiHeight;
+  x=TilGuiViewX+x*TilGuiViewWidth/TilGuiWidth;
+  y=TilGuiViewY+y*TilGuiViewHeight/TilGuiHeight;
+  if (right<=x || bottom<=y) return;
+  if (!source || source->a==255) { GrRect(TilGuiBack,x,y,right-x,bottom-y); return; }
+  alpha=source->a;
+  if (!alpha) return;
+  mixed.a=255;
+  for (py=y;py<bottom;py++)
+    for (px=x;px<right;px++) {
+      index=GrPeek(TilGuiBack,px,py);
+      mixed.r=(source->r*alpha+(gr_palette_std[index].r>>8)*(255-alpha)+127)/255;
+      mixed.g=(source->g*alpha+(gr_palette_std[index].g>>8)*(255-alpha)+127)/255;
+      mixed.b=(source->b*alpha+(gr_palette_std[index].b>>8)*(255-alpha)+127)/255;
+      TilGuiBack->color=TilGuiPaletteColor(&mixed);
+      GrPlot(TilGuiBack,px,py);
+    }
 }
 
 I64 TilGuiPaletteColor(U8 *opaque)
 {
   TilGuiColor *color=opaque(TilGuiColor *);
   I64 i,distance,best=I64_MAX,result=0;
-  if (color->a!=255) TilPanicZ("GUI POC requires opaque colors\n");
   for (i=0;i<COLORS_NUM;i++) {
     distance=SqrI64(color->r-(gr_palette_std[i].r>>8))+
       SqrI64(color->g-(gr_palette_std[i].g>>8))+
@@ -2080,23 +2117,41 @@ public U0 TilGuiClearBackground(U8 *color)
   I64 ink=TilGuiPaletteColor(color);
   if (TilGuiScissorActive) {
     TilGuiBack->color=ink;
-    TilGuiFillRect(0,0,GR_WIDTH,GR_HEIGHT);
-  } else DCFill(TilGuiBack,ink);
+    TilGuiFillRect(0,0,TilGuiWidth,TilGuiHeight);
+  } else {
+    DCFill(TilGuiBack,BLACK);
+    TilGuiBack->color=ink;
+    TilGuiFillRect(0,0,TilGuiWidth,TilGuiHeight);
+  }
 }
 
 public U0 TilGuiDrawRectangle(I64 x,I64 y,I64 width,I64 height,U8 *color)
 {
   TilGuiBack->color=TilGuiPaletteColor(color);
-  TilGuiFillRect(x,y,width,height);
+  TilGuiFillRect(x,y,width,height,color);
+}
+
+public U0 TilGuiDrawCircle(I64 x,I64 y,F32 radius,U8 *color)
+{
+  F64 r=TilF32Load(radius),square=r*r;
+  I64 extent,dy,dx;
+  if (r<=0) return;
+  extent=ToI64(Ceil(r));
+  for (dy=-extent;dy<=extent;dy++) {
+    dx=extent;
+    while (dx>=0 && dx*dx+dy*dy>square) dx--;
+    if (dx>=0) {
+      TilGuiBack->color=TilGuiPaletteColor(color);
+      TilGuiFillRect(x-dx,y+dy,2*dx+1,1,color);
+    }
+  }
 }
 
 public U0 TilGuiDrawText(U8 *text,I64 x,I64 y,I64 font_size,U8 *color)
 {
   CDC *glyph;
-  I64 scale,gx,gy,ink,start_x=x,ch;
-  if (font_size<FONT_HEIGHT || font_size%FONT_HEIGHT)
-    TilPanicZ("GUI text POC requires an integer bitmap-font scale\n");
-  scale=font_size/FONT_HEIGHT;
+  I64 gx,gy,ink,start_x=x,ch,left,top,right,bottom;
+  if (font_size<=0) TilPanicZ("GUI text requires a positive font size\n");
   ink=TilGuiPaletteColor(color);
   glyph=DCNew(FONT_WIDTH,FONT_HEIGHT);
   while (ch=*text++) {
@@ -2109,9 +2164,13 @@ public U0 TilGuiDrawText(U8 *text,I64 x,I64 y,I64 font_size,U8 *color)
       TilGuiBack->color=ink;
       for (gy=0;gy<FONT_HEIGHT;gy++)
         for (gx=0;gx<FONT_WIDTH;gx++)
-          if (GrPeek(glyph,gx,gy)==WHITE)
-            TilGuiFillRect(x+gx*scale,y+gy*scale,scale,scale);
-      x+=FONT_WIDTH*scale;
+          if (GrPeek(glyph,gx,gy)==WHITE) {
+            left=gx*font_size/FONT_HEIGHT; right=(gx+1)*font_size/FONT_HEIGHT;
+            top=gy*font_size/FONT_HEIGHT; bottom=(gy+1)*font_size/FONT_HEIGHT;
+            TilGuiBack->color=ink;
+            TilGuiFillRect(x+left,y+top,right-left,bottom-top,color);
+          }
+      x+=FONT_WIDTH*font_size/FONT_HEIGHT;
     }
   }
   DCDel(glyph);
