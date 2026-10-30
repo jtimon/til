@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-9bc23073e
+#+SUBTITLE: til 0.0.1-7d40494
 #+OPTIONS: toc:t
 
 * Core
@@ -2311,6 +2311,7 @@ struct Declaration {
     mut bounds : Str
     mut annotated : Type
     mut auto_shallow : Bool
+    mut runtime_type_param : Bool
 namespace:
     func eq(a: Declaration, b: Declaration) returns Bool
     func to_str(self: Declaration) returns Str
@@ -7963,6 +7964,11 @@ func binding_func_type(b: TypeBinding) returns shallow FuncType
 func type_binding_is_type_token(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns Bool
 #+end_src
 
+** [[file:src/self/context.org::#til.src.self.context.generic_param_is_type][generic_param_is_type]]
+#+begin_src til
+func generic_param_is_type(param: Declaration, symbols: SymbolPool) returns Bool
+#+end_src
+
 ** [[file:src/self/context.org::#til.src.self.context.init_func_is_generic][init_func_is_generic]]
 #+begin_src til
 func init_func_is_generic(rhs: Expr, symbols: SymbolPool) returns Bool
@@ -12578,6 +12584,11 @@ func resolve_fn_sig(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns 
 func fcall_returns_own(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool
 #+end_src
 
+** [[file:src/self/typer.org::#til.src.self.typer.reference_assignment_rebinds][reference_assignment_rebinds]]
+#+begin_src til
+func reference_assignment_rebinds(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool
+#+end_src
+
 ** [[file:src/self/typer.org::#til.src.self.typer.is_clone_fcall][is_clone_fcall]]
 #+begin_src til
 func is_clone_fcall(e: Expr, symbols: SymbolPool) returns Bool
@@ -14848,12 +14859,10 @@ enum Lang {
     C
     HolyC
     TIL
-    Java
 namespace:
     C : I64
     HolyC : I64
     TIL : I64
-    Java : I64
     core_func is(self: Lang, other: Lang) returns Bool
     func eq(self: Lang, other: Lang) returns Bool
     func delete(own self: Lang, call_free: Bool = true)
@@ -14884,7 +14893,6 @@ enum Target {
     MacosArm64
     Wasm32
     TempleosX86
-    Jvm
 namespace:
     LinuxX64 : I64
     LinuxArm64 : I64
@@ -14898,7 +14906,6 @@ namespace:
     MacosArm64 : I64
     Wasm32 : I64
     TempleosX86 : I64
-    Jvm : I64
     core_func is(self: Target, other: Target) returns Bool
     func eq(self: Target, other: Target) returns Bool
     func delete(own self: Target, call_free: Bool = true)
@@ -16342,21 +16349,6 @@ func Vec__priv___src_self_scavenger_til__DeclRef.clone(self: Vec__priv___src_sel
 func adopt__priv___src_self_scavenger_til__DeclRef(mut dest: Dynamic, own src: priv___src_self_scavenger_til__DeclRef)
 #+end_src
 
-** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.builder_rhs_is_definition][builder_rhs_is_definition]]
-#+begin_src til
-func builder_rhs_is_definition(rhs: Expr) returns Bool
-#+end_src
-
-** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.is_exported_top_level_global][is_exported_top_level_global]]
-#+begin_src til
-func is_exported_top_level_global(stmt: Expr) returns Bool
-#+end_src
-
-** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.ns_member_is_data][ns_member_is_data]]
-#+begin_src til
-func ns_member_is_data(def: Expr, idx: U64) returns Bool
-#+end_src
-
 ** [[file:src/self/c_codegen.org::#til.src.self.c_codegen.emit_funcsig_typedefs_prog][emit_funcsig_typedefs_prog]]
 #+begin_src til
 proc emit_funcsig_typedefs_prog(f: File, prog: Expr, mut ctx: Context)
@@ -17311,6 +17303,7 @@ struct HeapBinding {
     mut moved_out : Bool
     mut is_raw_alloc : Bool
     mut payload_released : Bool
+    mut is_ref_binding : Bool
     mut ext_slot : Option__ref_U8
     mut ext_target_layout : Bool
     mut foreign_root : UPtr
@@ -21554,295 +21547,6 @@ func adopt__Set__Str(mut dest: Dynamic, own src: Set__Str)
 ** [[file:src/self/holyc_codegen.org::#til.src.self.holyc_codegen.adopt__Set__USize][adopt__Set__USize]]
 #+begin_src til
 func adopt__Set__USize(mut dest: Dynamic, own src: Set__USize)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.jvm_package_segment][jvm_package_segment]]
-#+begin_src til
-func jvm_package_segment(name: Str) returns Str
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.jvm_codegen_translate][jvm_codegen_translate]]
-#+begin_src til
-proc jvm_codegen_translate(lp: LoadedProgram, source_dir: Str, package_dir: Str, source_path: Str, args_path: Str, package_name: Str) returns I32
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__JvmClassOut][Vec__JvmClassOut]]
-#+begin_src til
-Vec__JvmClassOut is a None
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember][Vec__priv___src_self_jvm_codegen_til__JvmMember]]
-#+begin_src til
-struct Vec__priv___src_self_jvm_codegen_til__JvmMember {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns U64
-    func clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-    func delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, marks: Dynamic)
-    func push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own val: priv___src_self_jvm_codegen_til__JvmMember)
-    func append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-    func take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-    func move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-    func unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember
-    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember throws OutOfBounds
-    func pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns priv___src_self_jvm_codegen_til__JvmMember
-    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
-    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64)
-    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, call_free: Bool = true)
-    func clone(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-    func size() returns U64
-}
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.new][Vec__priv___src_self_jvm_codegen_til__JvmMember.new]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.new() returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity][Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.clear][Vec__priv___src_self_jvm_codegen_til__JvmMember.clear]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.delete_marked][Vec__priv___src_self_jvm_codegen_til__JvmMember.delete_marked]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, marks: Dynamic)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.push][Vec__priv___src_self_jvm_codegen_til__JvmMember.push]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own val: priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.append][Vec__priv___src_self_jvm_codegen_til__JvmMember.append]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.take][Vec__priv___src_self_jvm_codegen_til__JvmMember.take]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.move_to][Vec__priv___src_self_jvm_codegen_til__JvmMember.move_to]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.move_from][Vec__priv___src_self_jvm_codegen_til__JvmMember.move_from]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, own other: Vec__priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_get][Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_get]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.get][Vec__priv___src_self_jvm_codegen_til__JvmMember.get]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.get(self: Vec__priv___src_self_jvm_codegen_til__JvmMember, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmMember throws OutOfBounds
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.pop][Vec__priv___src_self_jvm_codegen_til__JvmMember.pop]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at][Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64) throws OutOfBounds
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix][Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate][Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, n: U64)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set][Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.set][Vec__priv___src_self_jvm_codegen_til__JvmMember.set]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64, own val: priv___src_self_jvm_codegen_til__JvmMember) throws OutOfBounds
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take][Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmMember, mut src: Vec__priv___src_self_jvm_codegen_til__JvmMember, i: U64)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.delete][Vec__priv___src_self_jvm_codegen_til__JvmMember.delete]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmMember, call_free: Bool = true)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmMember.clone][Vec__priv___src_self_jvm_codegen_til__JvmMember.clone]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmMember.clone(self: Vec__priv___src_self_jvm_codegen_til__JvmMember) returns Vec__priv___src_self_jvm_codegen_til__JvmMember
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut][Vec__priv___src_self_jvm_codegen_til__JvmClassOut]]
-#+begin_src til
-struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func len(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns U64
-    func clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-    func delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, marks: Dynamic)
-    func push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
-    func append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-    func take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-    func move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-    func unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
-    func get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut throws OutOfBounds
-    func pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns priv___src_self_jvm_codegen_til__JvmClassOut
-    func remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
-    func set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64)
-    func delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, call_free: Bool = true)
-    func clone(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-    func size() returns U64
-}
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.new][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.new]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.new() returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.with_capacity(n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clear(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete_marked][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete_marked]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete_marked(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, marks: Dynamic)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.append][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.append]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.append(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_to][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_to]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_to(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut dest: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_from][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_from]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.move_from(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, own other: Vec__priv___src_self_jvm_codegen_til__JvmClassOut)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_get][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_get]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.get(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, shallow i: U64) returns ref priv___src_self_jvm_codegen_til__JvmClassOut throws OutOfBounds
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.pop(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.remove_at(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64) throws OutOfBounds
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.take_prefix(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.truncate(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, n: U64)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.unsafe_set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.set(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64, own val: priv___src_self_jvm_codegen_til__JvmClassOut) throws OutOfBounds
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.push_take(mut self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, mut src: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, i: U64)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.delete(own self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut, call_free: Bool = true)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone][Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone]]
-#+begin_src til
-func Vec__priv___src_self_jvm_codegen_til__JvmClassOut.clone(self: Vec__priv___src_self_jvm_codegen_til__JvmClassOut) returns Vec__priv___src_self_jvm_codegen_til__JvmClassOut
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.adopt__priv___src_self_jvm_codegen_til__JvmMember][adopt__priv___src_self_jvm_codegen_til__JvmMember]]
-#+begin_src til
-func adopt__priv___src_self_jvm_codegen_til__JvmMember(mut dest: Dynamic, own src: priv___src_self_jvm_codegen_til__JvmMember)
-#+end_src
-
-** [[file:src/self/jvm_codegen.org::#til.src.self.jvm_codegen.adopt__priv___src_self_jvm_codegen_til__JvmClassOut][adopt__priv___src_self_jvm_codegen_til__JvmClassOut]]
-#+begin_src til
-func adopt__priv___src_self_jvm_codegen_til__JvmClassOut(mut dest: Dynamic, own src: priv___src_self_jvm_codegen_til__JvmClassOut)
 #+end_src
 
 ** [[file:src/self/theme_codegen.org::#til.src.self.theme_codegen.theme_codegen_translate][theme_codegen_translate]]

@@ -58,8 +58,7 @@
 
   Default executable and backend-source paths preserve source directories:
   ~foo/main.til~ produces ~bin/foo/main~ and ~gen/til/foo/main.c~ (plus its
-  forward header). JVM uses ~bin/foo/main.jar~ and ~gen/jvm/foo/main/~;
-  theme output uses ~gen/til/foo/main.el~. ~-o~ and ~-c~ override their
+  forward header); theme output uses ~gen/til/foo/main.el~. ~-o~ and ~-c~ override their
   respective paths. Library names, bindings and ~gen/lib/~ keep their
   existing naming contract.
 

@@ -1,8 +1,0 @@
-mode script
-
-Point := struct {
-    x : I64
-}
-
-p := Point(x = 1)
-println(p.x.to_str())

@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-9bc23073e
+#+SUBTITLE: til 0.0.1-7d40494
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -220,6 +220,16 @@ func resolve_fn_sig(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns 
 
 #+begin_src til
 func fcall_returns_own(fcall: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool
+#+end_src
+
+* reference_assignment_rebinds
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.reference_assignment_rebinds
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func reference_assignment_rebinds(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool
 #+end_src
 
 * is_clone_fcall

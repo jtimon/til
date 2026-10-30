@@ -43,7 +43,7 @@
   classification where those describe til semantics rather than C spelling.
 
   Keep textual emission in a dedicated ~holyc_codegen.til~ backend, following
-  the builder boundary already used by the JVM backend. The regular C emitter
+  the builder's per-language boundary. The regular C emitter
   assumes libc headers and ~ext.h~, typedefs/unions, the C pointer ABI, GNU
   statement expressions, compound literals, ternaries, attributes, libc
   allocation/memory/output, C entrypoints, libffi, and C-specific helper

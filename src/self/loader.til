@@ -384,7 +384,6 @@ namespace:
         case .MacosArm64: target_name = "macos-arm64"
         case .Wasm32: target_name = "wasm32"
         case .TempleosX86: target_name = "templeos-x86"
-        case .Jvm: target_name = "jvm"
         }
         mut out := format(self.compiler_revision, "-", target_name, "-", self.ctx.target_usize_pname)
         // ISA variants must not replace a baseline runtime/core used by

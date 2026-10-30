@@ -1347,9 +1347,8 @@ priv dce_drop_after_diverge := func(mut body: Expr, scope: TypeScope, symbols: S
 
 // #326: a `while false { ... }` never runs its body, and a literal
 // condition has nothing to evaluate, so the loop is unreachable code in
-// every back end -- C emitted it as `while (0) { ... }`, and javac rejects
-// the JVM's `while (false)` outright as an unreachable statement. Returns
-// true if anything was removed.
+// every back end -- C emitted it as `while (0) { ... }`. Returns true if
+// anything was removed.
 priv dce_drop_never_loops := func(mut body: Expr) returns Bool {
     n := body.children.len()
     if n == 0 { return false }

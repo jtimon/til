@@ -9,7 +9,7 @@ slowly diverges from the language semantics tested by C with GCC and Clang.
 
 The existing tests are the semantic source of truth. New backends should pass
 those same source tests incrementally rather than permanently cloning them as
-~holyc_*~, ~jvm_*~, or other backend-specific variants. Target-specific tests
+~holyc_*~ or other backend-specific variants. Target-specific tests
 remain appropriate for translation goldens, native syntax, explicit rejection
 diagnostics, and small temporary steps at the unsupported frontier. Those
 fixtures should be retired or replaced by the shared test when the backend can

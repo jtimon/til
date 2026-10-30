@@ -759,7 +759,7 @@ usage := proc() {
     println("  help       Print this message")
     println("")
     println("Options:")
-    println("  --target=<name>  Select a target, including the portable JVM target.")
+    println("  --target=<name>  Select a target platform (default: the host).")
     println("  --backend=c|mlir|fasm  Select native code generation (default c; experimental subsets).")
     println("  --cpu=baseline|x86-64-v3|x86-64-v4  Target CPU profile (default baseline).")
     println("              Controls SIMD width queries and C ISA flags; no host probing.")
@@ -1027,23 +1027,6 @@ priv validate_target_flags := proc(cli: CliArgs, target: Target) {
             println("error: --cpu and --opt are supported only with C targets")
             exit(1)
         }
-    }
-    if target.is(Target.Jvm).not() { return }
-    if cli.custom_c_set {
-        println("error: -c is not supported with --target=jvm")
-        exit(1)
-    }
-    if cli.cc_set {
-        println("error: --cc is not supported with --target=jvm")
-        exit(1)
-    }
-    if cli.asan {
-        println("error: --asan is not supported with --target=jvm")
-        exit(1)
-    }
-    if cli.prof {
-        println("error: --prof is not supported with --target=jvm")
-        exit(1)
     }
 }
 

@@ -552,9 +552,8 @@ print_test_result := proc(t: Test) {
 // is checked before anything runs.
 //
 // What is checked is the plain C path and only that. A row carrying
-// `--target=` writes something else entirely (templeos .HC, jvm .java under
-// gen/jvm/), and a row that spells its own -c or -o has already answered the
-// question. Those are skipped rather than guessed at: predicting the
+// `--target=` writes something else entirely (templeos .HC), and a row that
+// spells its own -c or -o has already answered the question. Those are skipped rather than guessed at: predicting the
 // artifact of every backend, from a command line, is how a guard starts
 // crying wolf -- the first draft of this one flagged six honest rows.
 
@@ -587,8 +586,8 @@ priv unquoted := func(tok: Str) returns Str {
 
 // The til command a row runs, with the runner's own arguments stripped.
 // Needles live before the `--` separator and are arbitrary text -- one of
-// them is "error: -c is not supported with --target=jvm", which a scan of
-// the whole string reads as a -c flag.
+// them is "error: -c is not supported with mode theme", which a scan of the
+// whole string reads as a -c flag.
 priv til_command_of := func(cmd: Str) returns Str {
     pos := cmd.find(" -- ")
     if pos < 0 { return cmd.clone() }
@@ -1373,94 +1372,6 @@ main := proc(args: ..Str) {
         "proc has no proc/ext_proc calls; should be a func", 1,
         format(til_bin, " interpret test/proc_without_proc_call.til"))
 
-    // #375 Stages B-F: JVM owns a distinct Java output tree, emits the lowered
-    // entrypoint, scalar slots, aggregate classes, virtual-heap calls and typed
-    // function carriers, and rejects C-only flags. None invokes a JDK, so the
-    // default suite remains JDK-free; the CLI pairs pin the same corpora on
-    // interpreter/C.
-    add_single(tests, "jvm_skeleton", "build", 0, "test/jvm_skeleton.expected",
-        format("'(' ", til_bin, " translate --target=jvm examples/hello_script.til '&&' cat gen/jvm/examples/hello_script/src/til/generated/p_hello_x5fscript/Main.java ')'"))
-    // #326: the source list names the runtime and only the classes the
-    // program reaches -- Array(Str), Point, the script unit holding its
-    // top-level globals (as C's statics), Functions and Main, not an empty
-    // Unit_ class per loaded core file nor a class per primitive layout. In
-    // a live class, the setter nothing calls is gone while the StrParts
-    // methods the runtime calls through its interface stay. One row, since
-    // parallel rows translating one .til share gen/jvm/<name>.
-    add_counts(tests, "jvm_sources_include_runtime", "build",
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_unsupported.til '&&' cat gen/jvm/test/jvm_unsupported/sources.args gen/jvm/test/jvm_unsupported/src/til/generated/p_jvm_x5funsupported/S_p_Array_x5f_x5fStr.java ')'"),
-        CountCheck(needle = "src/jvm/TilRuntime.java", expected_count = 1),
-        CountCheck(needle = ".java\"", expected_count = 6),
-        CountCheck(needle = "Unit_p_", expected_count = 1),
-        CountCheck(needle = "set_p_data", expected_count = 0),
-        CountCheck(needle = "public int length()", expected_count = 1))
-    add_count(tests, "jvm_direct_call_source", "build", "f_p_show", 2,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_scalar_smoke.til '&&' cat gen/jvm/test/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Unit_p_test_x2fjvm_x5fscalar_x5fsmoke_x2etil.java '&&' cat gen/jvm/test/jvm_scalar_smoke/src/til/generated/p_jvm_x5fscalar_x5fsmoke/Main.java ')'"))
-    // #375: none of these runs javac (the suite stays JDK-free), so they pin
-    // the shapes javac rejected: a by-value parameter the body hands to a
-    // callee's cell parameter is boxed on entry (it used to pass a `long`
-    // where a U64Slot was expected), and an I64 -> U64 cast between two
-    // `long` carriers writes no identity cast (-Xlint:cast with -Werror).
-    add_counts(tests, "jvm_stage_d_cells", "build",
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_d.til '&&' cat gen/jvm/test/jvm_stage_d/src/til/generated/p_jvm_x5fstage_x5fd/*.java ')'"),
-        CountCheck(needle = "TilRuntime.I64Cell", expected_count = 6),
-        CountCheck(needle = "new TilRuntime.U64Cell(v_p_i_arg)", expected_count = 1),
-        CountCheck(needle = "(long) (v_p_seed", expected_count = 0))
-    add_cli_pair(tests, "jvm_stage_d", "test/jvm_stage_d.til", "", 0,
-        "test/jvm_stage_d.expected", til_bin, asan_flag)
-    add_cli_pair(tests, "jvm_stage_e", "test/jvm_stage_e.til", "", 0,
-        "test/jvm_stage_e.expected", til_bin, asan_flag)
-    // #375: USize resolves through the build's target width -- a USize cell
-    // used to come out as `new (...)`, its class name empty -- and the
-    // runtime Str's int lengths are read through TilRuntime.widenLength
-    // when USize is wider.
-    add_counts(tests, "jvm_stage_e_aggregate_source", "build",
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_e.til '&&' cat gen/jvm/test/jvm_stage_e/src/til/generated/p_jvm_x5fstage_x5fe/*.java ')'"),
-        CountCheck(needle = "final class S_p_JvmPoint", expected_count = 1),
-        CountCheck(needle = "new (", expected_count = 0),
-        // 8, all in Str.cmp. It was 16 while the generated clone of a
-        // tag-only enum (JvmWide) ended in an UNREACHABLE call, which kept
-        // UNREACHABLE and the Str formatting behind it reachable.
-        CountCheck(needle = "TilRuntime.widenLength(", expected_count = 15),
-        CountCheck(needle = "TilRuntime.payloadSlot(", expected_count = 5),
-        // #416: an aggregate payload binding is written in place, and so
-        // is a reassigned owned local a `ref` may borrow; a value handed
-        // away by `own` leaves its variable null first.
-        CountCheck(needle = "TilRuntime.assignStr(", expected_count = 2),
-        CountCheck(needle = ".assignFrom(assignNew)", expected_count = 8),
-        CountCheck(needle = "if (v_p_lent_x5fpoint == null)", expected_count = 1),
-        CountCheck(needle = "v_p_to_x5fvec = null;", expected_count = 1),
-        // A module global is a static of its unit's class (a scalar one a
-        // cell), initialized in Main.main before main runs.
-        CountCheck(needle = "static TilRuntime.I64Slot v_p_jvm_x5fcounter;", expected_count = 1),
-        CountCheck(needle = "v_p_jvm_x5fcounter = new TilRuntime.I64Cell(", expected_count = 1),
-        // Enum switches go through the variant ordinal: an enum(U64) tag
-        // does not fit the int a Java switch takes.
-        CountCheck(needle = "if (tag == 4294967303L) return", expected_count = 2),
-        CountCheck(needle = ".sameValue(", expected_count = 0))
-    add_count(tests, "jvm_stage_e_heap_source", "build", "TilRuntime.ptrAdd", 3,
-        format("'(' ", til_bin, " translate --target=jvm test/script_raw_alloc.til '&&' cat gen/jvm/test/script_raw_alloc/src/til/generated/p_script_x5fraw_x5falloc/Main.java ')'"))
-    add_cli_pair(tests, "jvm_stage_f", "test/jvm_stage_f.til", "", 0,
-        "test/jvm_stage_f.expected", til_bin, asan_flag)
-    add_count(tests, "jvm_stage_f_funcsig_source", "build", "@FunctionalInterface", 3,
-        format("'(' ", til_bin, " translate --target=jvm test/jvm_stage_f.til '&&' cat gen/jvm/test/jvm_stage_f/src/til/generated/p_jvm_x5fstage_x5ff/F_*.java ')'"))
-    // #375: struct namespace data is a static field of the struct's class
-    // (a scalar one a cell), initialized at the top of Main.main.
-    add_counts(tests, "jvm_structs_namespace_source", "build",
-        format("'(' ", til_bin, " translate --target=jvm test/structs.til '&&' cat gen/jvm/test/structs/src/til/generated/p_structs/*.java ')'"),
-        CountCheck(needle = "static TilRuntime.I64Slot ns_p_instance_x5fcount;", expected_count = 1),
-        CountCheck(needle = "S_p_Counter.ns_p_instance_x5fcount = new TilRuntime.I64Cell(0L);", expected_count = 1))
-    add_count(tests, "jvm_rejects_c_path", "build", "error: -c is not supported with --target=jvm", 1,
-        format(til_bin, " translate --target=jvm -c gen/jvm/nope.java examples/hello_script.til"))
-    add_count(tests, "jvm_rejects_cc", "build", "error: --cc is not supported with --target=jvm", 1,
-        format(til_bin, " build --target=jvm --cc=javac examples/hello_script.til"))
-    add_count(tests, "jvm_rejects_asan", "build", "error: --asan is not supported with --target=jvm", 1,
-        format(til_bin, " build --target=jvm --asan examples/hello_script.til"))
-    add_count(tests, "jvm_rejects_prof", "build", "error: --prof is not supported with --target=jvm", 1,
-        format(til_bin, " build --target=jvm --prof examples/hello_script.til"))
-    add_single(tests, "jvm_target_width", "build", 0, "",
-        format(til_bin, " interpret test/jvm_target.til"))
-
     // #84: mode theme owns a domain serializer rather than falling through
     // to C. The tracked Emacs artifact is the direct golden -- no second copy.
     // Invalid typed data must fail before writing plausible-looking Elisp.
@@ -1489,7 +1400,7 @@ main := proc(args: ..Str) {
         refused_before_codegen = true)
     add_count(tests, "theme_rejects_target", "build",
         "error: --target is not supported with mode theme", 1,
-        format(til_bin, " translate --target=jvm editor/themes/til-dark-theme.til"))
+        format(til_bin, " translate --target=wasm32 editor/themes/til-dark-theme.til"))
 
     // Collect checks by fixture and output kind, then register one translation
     // per group below. Keep each regression's explanation beside its check.
@@ -2419,9 +2330,6 @@ main := proc(args: ..Str) {
         CountCheck(needle = "Simd__U32_n2_16_store(", expected_count = 0),
         CountCheck(needle = "Simd__U32_n2_16 _t_simd_mem_value __attribute__((aligned(64)))", expected_count = 2),
         CountCheck(needle = "memcpy(&_t_simd_mem_value,", expected_count = 0))
-    add_count(tests, "simd_java_unsupported", "typer",
-        "SIMD is not supported by this backend", 1,
-        format(til_bin, " translate --target=jvm test/simd.til"))
     add_count(tests, "simd_holyc_unsupported", "typer",
         "SIMD is not supported by this backend", 1,
         format(til_bin, " translate --target=templeos-x86 test/simd.til"))
@@ -3280,7 +3188,7 @@ main := proc(args: ..Str) {
 
     // === CLI tests ===
     // Expected outputs are reviewed goldens under test/*.expected, the same
-    // artifacts the HolyC and JVM checks already use. They used to be
+    // artifacts the HolyC checks already use. They used to be
     // hardcoded strings this file wrote into gen/out/expected/ on every run
     // (issue #171), which put the expectation and the reimplementation of it
     // -- fizzbuzz's 100 lines were GENERATED here by a second fizzbuzz -- in

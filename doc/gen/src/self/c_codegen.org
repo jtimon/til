@@ -1,36 +1,6 @@
 #+TITLE: src/self/c_codegen.til
-#+SUBTITLE: til 0.0.1-9bc23073e
+#+SUBTITLE: til 0.0.1-7d40494
 #+OPTIONS: toc:t
-
-* builder_rhs_is_definition
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.c_codegen.builder_rhs_is_definition
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func builder_rhs_is_definition(rhs: Expr) returns Bool
-#+end_src
-
-* is_exported_top_level_global
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.c_codegen.is_exported_top_level_global
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func is_exported_top_level_global(stmt: Expr) returns Bool
-#+end_src
-
-* ns_member_is_data
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.c_codegen.ns_member_is_data
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func ns_member_is_data(def: Expr, idx: U64) returns Bool
-#+end_src
 
 * emit_funcsig_typedefs_prog
 :PROPERTIES:

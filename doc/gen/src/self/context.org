@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-9bc23073e
+#+SUBTITLE: til 0.0.1-7d40494
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -355,6 +355,16 @@ func binding_func_type(b: TypeBinding) returns shallow FuncType
 
 #+begin_src til
 func type_binding_is_type_token(scope: TypeScope, b: TypeBinding, symbols: SymbolPool) returns Bool
+#+end_src
+
+* generic_param_is_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.generic_param_is_type
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func generic_param_is_type(param: Declaration, symbols: SymbolPool) returns Bool
 #+end_src
 
 * init_func_is_generic

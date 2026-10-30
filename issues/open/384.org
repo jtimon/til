@@ -25,8 +25,8 @@ Keep the two concepts distinct:
 - generic range-loop lowering likewise advances by unity, even though it
   currently emits zero-argument ~inc~ / ~dec~ calls directly.
 
-The implementation must update numeric core methods and their C, interpreter,
-JVM, and HolyC handling, derived method generation, operator lowering, and
+The implementation must update numeric core methods and their C, interpreter
+and HolyC handling, derived method generation, operator lowering, and
 range-loop lowering. Add focused coverage for an explicit non-unity step,
 the omitted default, generic ~++~ / ~--~, and ascending/descending generic
 range iteration.

@@ -25,10 +25,14 @@ State when cancelled: 17 programs of the JVM corpus passed at both USize
 widths (~make test_jvm~). The burn-down found shared ownership bugs fixed in
 common code, which stay: [[../fixed/416.org][#416]], the owned-niche enum
 clone double free, and [[../fixed/415.org][#415]]'s earlier-statement and
-field shapes. The code (~src/self/jvm_codegen.til~, ~src/jvm/~, the
-~--target=jvm~ plumbing, ~make test_jvm~, ~test/jvm*~) is still in the tree;
-removing it is a separate commit, whose parent is the restore point for
-reviving this backend.
+field shapes.
+
+Removed 2026-10-30: ~src/self/jvm_codegen.til~, ~src/jvm/TilRuntime.java~,
+the ~--target=jvm~ / ~Lang.Java~ plumbing in builder, targets, loader,
+install and the CLI, ~make test_jvm~, the ~test/jvm*~ fixtures and their
+src/tests.til pins. Master ~7d40494~ is the last commit with the complete
+backend: reviving it starts from there (revert the removal commit, then
+rebase onto current master).
 
 Add a backend that runs til programs on the Java Virtual Machine. The C
 backend remains the default and the only bootstrap path; a normal build and

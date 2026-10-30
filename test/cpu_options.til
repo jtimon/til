@@ -111,7 +111,7 @@ main := proc(args: ..Str) {
         reject(Cmd.new(compiler, "translate", format("--target=", target),
             "--cpu=x86-64-v3", "width.til"), "requires an x86-64 C target")
     }
-    reject(Cmd.new(compiler, "translate", "--target=jvm", "--cpu=baseline", "width.til"), "only with C targets")
+    reject(Cmd.new(compiler, "translate", "--target=templeos", "--cpu=baseline", "width.til"), "only with C targets")
     reject(Cmd.new(compiler, "build", "--target=templeos", "--opt=2", "width.til"), "only with C targets")
     reject(Cmd.new(compiler, "interpret", "--opt=2", "width.til"), "--opt requires build, run, test or install")
     reject(Cmd.new(compiler, "translate", "--opt=2", "width.til"), "--opt requires build, run, test or install")

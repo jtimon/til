@@ -344,8 +344,7 @@ typedef struct Vec__GenericFuncSource Vec__GenericFuncSource;
 enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
-    Lang_TAG_TIL,
-    Lang_TAG_Java
+    Lang_TAG_TIL
 };
 typedef struct Lang Lang;
 enum {
@@ -360,8 +359,7 @@ enum {
     Target_TAG_MacosX64,
     Target_TAG_MacosArm64,
     Target_TAG_Wasm32,
-    Target_TAG_TempleosX86,
-    Target_TAG_Jvm
+    Target_TAG_TempleosX86
 };
 typedef struct Target Target;
 typedef struct TargetCpu TargetCpu;
@@ -457,11 +455,6 @@ typedef struct Vec__call_Map_Str_Bool Vec__call_Map_Str_Bool;
 typedef struct Vec__FuncSig Vec__FuncSig;
 typedef struct Vec__call_Set_Str Vec__call_Set_Str;
 typedef struct Vec__call_Set_USize Vec__call_Set_USize;
-typedef struct priv___src_self_jvm_codegen_til__JvmEmitState priv___src_self_jvm_codegen_til__JvmEmitState;
-typedef struct priv___src_self_jvm_codegen_til__JvmMember priv___src_self_jvm_codegen_til__JvmMember;
-typedef struct priv___src_self_jvm_codegen_til__JvmClassOut priv___src_self_jvm_codegen_til__JvmClassOut;
-typedef struct Vec__priv___src_self_jvm_codegen_til__JvmMember Vec__priv___src_self_jvm_codegen_til__JvmMember;
-typedef struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut Vec__priv___src_self_jvm_codegen_til__JvmClassOut;
 typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__ThemeSpec;
 typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
@@ -1642,47 +1635,6 @@ typedef struct Vec__call_Set_USize {
 } Vec__call_Set_USize;
 
 
-typedef struct priv___src_self_jvm_codegen_til__JvmEmitState {
-    Str path;
-    I32 errors;
-    Set__Str cells;
-    Map__Str_Str cell_types;
-    Set__Str raw_refs;
-    Map__Str_Str callable_defs;
-    Bool return_cell;
-    Set__Str ns_used;
-    Bool return_loads_raw;
-    Map__Str_Str globals;
-    Map__Str_Str global_scalars;
-    Set__Str global_raws;
-    Map__Str_Str global_raw_scalars;
-    Map__Str_Str global_jtypes;
-    Set__Str locals;
-    Set__Str ref_scalars;
-} priv___src_self_jvm_codegen_til__JvmEmitState;
-
-
-typedef struct priv___src_self_jvm_codegen_til__JvmMember {
-    Str name;
-    Str text;
-    Bool live;
-} priv___src_self_jvm_codegen_til__JvmMember;
-
-
-typedef struct Vec__priv___src_self_jvm_codegen_til__JvmMember {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_jvm_codegen_til__JvmMember;
-
-
-typedef struct Vec__priv___src_self_jvm_codegen_til__JvmClassOut {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_jvm_codegen_til__JvmClassOut;
-
-
 typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec {
     Str name;
     Str value;
@@ -1705,14 +1657,6 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str h_path;
     Str til_path;
     Str py_path;
-    Str jvm_root;
-    Str jvm_source_dir;
-    Str jvm_package_dir;
-    Str jvm_source_path;
-    Str jvm_classes_dir;
-    Str jvm_args_path;
-    Str jvm_package;
-    Str jvm_entry_class;
     Str theme_path;
     Bool do_lib;
 } priv___src_self_builder_til__BuildPaths;
@@ -2322,16 +2266,6 @@ typedef struct Map__Str_call_Set_USize {
     Vec__Str keys;
     Vec__call_Set_USize values;
 } Map__Str_call_Set_USize;
-
-
-typedef struct priv___src_self_jvm_codegen_til__JvmClassOut {
-    Str path;
-    Str name;
-    Str head;
-    Vec__priv___src_self_jvm_codegen_til__JvmMember members;
-    Str tail;
-    Bool live;
-} priv___src_self_jvm_codegen_til__JvmClassOut;
 
 
 typedef struct priv___src_self_theme_codegen_til__ThemeSpec {

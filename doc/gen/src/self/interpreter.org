@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-9bc23073e
+#+SUBTITLE: til 0.0.1-7d40494
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -59,6 +59,7 @@ struct HeapBinding {
     mut moved_out : Bool
     mut is_raw_alloc : Bool
     mut payload_released : Bool
+    mut is_ref_binding : Bool
     mut ext_slot : Option__ref_U8
     mut ext_target_layout : Bool
     mut foreign_root : UPtr

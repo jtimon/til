@@ -122,6 +122,7 @@
 *** bounds := ""
 *** annotated := Type.Unknown
 *** auto_shallow := false
+*** runtime_type_param := false
 ** FuncSig: StructDef
 *** func_type := FuncType.Func
 *** params := Vec(Declaration).new()
@@ -493,7 +494,6 @@
 *** C
 *** HolyC
 *** TIL
-*** Java
 ** Target: EnumDef
 *** LinuxX64
 *** LinuxArm64
@@ -507,7 +507,6 @@
 *** MacosArm64
 *** Wasm32
 *** TempleosX86
-*** Jvm
 ** TargetCpu: StructDef
 *** name := "baseline"
 *** simd_bits : USize = 0
@@ -634,6 +633,10 @@
 *** borrower := ""
 *** fixed_reach : I64 = -1
 *** created_at : I64 = -1
+** ReferenceLoans: StructDef
+*** sources := Map(Str, Vec(Str)).new()
+*** references := Set(Str).new()
+*** next : USize = 0
 ** GcDeposit: StructDef
 *** sink := BorrowRoot()
 *** source := BorrowRoot()
@@ -661,14 +664,6 @@
 *** h_path := ""
 *** til_path := ""
 *** py_path := ""
-*** jvm_root := ""
-*** jvm_source_dir := ""
-*** jvm_package_dir := ""
-*** jvm_source_path := ""
-*** jvm_classes_dir := ""
-*** jvm_args_path := ""
-*** jvm_package := ""
-*** jvm_entry_class := ""
 *** theme_path := ""
 *** do_lib := false
 ** DocEntry: StructDef
@@ -700,6 +695,7 @@
 *** moved_out := false
 *** is_raw_alloc := false
 *** payload_released := false
+*** is_ref_binding := false
 *** ext_slot := Option(ref U8).None
 *** ext_target_layout := false
 *** foreign_root : UPtr = 0
@@ -860,35 +856,6 @@
 *** struct_pointer_types := Map(Str, Str).new()
 *** callable_sigs := Map(Str, Str).new()
 *** callable_slot_names := Set(Str).new()
-* jvm_codegen
-** JvmEmitState: StructDef
-*** path := ""
-*** errors : I32 = 0
-*** cells := Set(Str).new()
-*** cell_types := Map(Str, Str).new()
-*** raw_refs := Set(Str).new()
-*** callable_defs := Map(Str, Str).new()
-*** return_cell := false
-*** ns_used := Set(Str).new()
-*** return_loads_raw := false
-*** globals := Map(Str, Str).new()
-*** global_scalars := Map(Str, Str).new()
-*** global_raws := Set(Str).new()
-*** global_raw_scalars := Map(Str, Str).new()
-*** global_jtypes := Map(Str, Str).new()
-*** locals := Set(Str).new()
-*** ref_scalars := Set(Str).new()
-** JvmMember: StructDef
-*** name := ""
-*** text := ""
-*** live := false
-** JvmClassOut: StructDef
-*** path := ""
-*** name := ""
-*** head := ""
-*** members := Vec(JvmMember).new()
-*** tail := ""
-*** live := false
 * mlir_codegen
 ** MlirBinding: StructDef
 *** value := ""

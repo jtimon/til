@@ -49,7 +49,7 @@ semantic palette role a fixed type; color values use one representation rather
 than a heterogeneous map.
 
 The serializer consumes the same typed, initialized, constant-folded, and
-scavenged AST as the C, HolyC, and JVM emitters. It validates the root
+scavenged AST as the C and HolyC emitters. It validates the root
 declaration, static constructor shape, required fields, color spelling, and
 unsupported imports/link directives, then emits deterministic Elisp. Missing,
 duplicate, dynamic, or malformed theme data fails at translation with a source
@@ -95,4 +95,4 @@ remains Emacs-free.
 - The normal suite compares fresh generated output directly with that file and
   remains independent of Emacs.
 - Invalid or dynamic theme declarations fail loudly before writing output.
-- Existing non-theme modes and C/HolyC/JVM translation behavior are unchanged.
+- Existing non-theme modes and C/HolyC translation behavior are unchanged.

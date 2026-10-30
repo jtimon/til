@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-9bc23073e
+#+SUBTITLE: til 0.0.1-7d40494
 #+OPTIONS: toc:t
 
 * Primitive
@@ -368,6 +368,7 @@ struct Declaration {
     mut bounds : Str
     mut annotated : Type
     mut auto_shallow : Bool
+    mut runtime_type_param : Bool
 namespace:
     func eq(a: Declaration, b: Declaration) returns Bool
     func to_str(self: Declaration) returns Str

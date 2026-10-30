@@ -182,8 +182,7 @@ priv is_ext_h_type := func(name: Str) returns Bool {
 // print_single / print_flush have hand-written prototypes emitted as
 // part of the standard prelude (see emit_header_defs_and_funcs_lp);
 // suppressing the ext_proc-side emission avoids a duplicate decl.
-// Shared with the JVM back end (module globals).
-builder_rhs_is_definition := func(rhs: Expr) returns Bool {
+priv builder_rhs_is_definition := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd): return fd.captures.len() == 0
     case .StructDef, .EnumDef: return true
@@ -191,7 +190,7 @@ builder_rhs_is_definition := func(rhs: Expr) returns Bool {
     }
 }
 
-is_exported_top_level_global := func(stmt: Expr) returns Bool {
+priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     ref rhs : Expr = stmt.children[0]
     if builder_rhs_is_definition(rhs) { return false }
@@ -3656,8 +3655,7 @@ priv typed_num_lit_to_c := func(text: Str, t: Type) returns Str {
     return num_lit_to_c(text)
 }
 
-// Shared with the JVM backend (namespace data as static fields).
-ns_member_is_data := func(def: Expr, idx: USize) returns Bool {
+priv ns_member_is_data := func(def: Expr, idx: USize) returns Bool {
     ref ns : Vec(Declaration) = def_ns_decls(def)
     if idx >= ns.len() { return false }
     ref dd : Declaration = ns.unsafe_get(idx)
