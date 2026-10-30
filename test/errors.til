@@ -6,6 +6,16 @@ mode test
 
 AAAError := struct {}
 
+EmptyVariantError := enum(U16) { Empty = 7, Message: Str = 9 }
+throw_empty_variant := func() throws EmptyVariantError { throw EmptyVariantError.Empty }
+
+test_throw_empty_enum_variant := test() {
+    mut caught := false
+    throw_empty_variant()?
+    catch (error: EmptyVariantError) { caught = error.is(EmptyVariantError.Empty) }
+    assert(caught)
+}
+
 // #443: guard uses of a failed reference result and later operands, not
 // just statements following the enclosing expression.
 nested_pair := func(a: Array(F32), b: Array(F32)) returns F32 throws OutOfBounds {

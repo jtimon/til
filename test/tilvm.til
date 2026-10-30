@@ -1023,7 +1023,124 @@ enum_callback_tests := proc(root: Str) {
     }
 }
 
+NestedInner := struct { text := ""; marker: I32 = 0; state := CallbackState.Idle }
+NestedChoice := enum { Empty, Inner: NestedInner, State: CallbackState, Text: Str }
+NestedUnion := enum { Empty, Value: NestedChoice }
+NestedOuter := struct { left := NestedInner(); right := NestedInner(); choice := NestedChoice.Empty; maybe := NestedUnion.Empty }
+NestedFailure := enum { Empty, Request: NestedOuter, Flag: CallbackState }
+NestedTransform := proc(mut NestedOuter, I64) returns NestedOuter throws NestedFailure
+NestedOwned := proc(own mut NestedOuter) returns NestedOuter
+NestedRead := func() returns ref NestedOuter
+NestedValueRead := func() returns NestedOuter
+NestedThrowOnly := func() throws NestedFailure
+CallbackLink := enum { None, Some: CallbackNode }
+CallbackNode := struct { number: I64 = 0; next := CallbackLink.None; text := "" }
+NodeRoundtrip := func(CallbackNode) returns CallbackNode
+
+check_nested_value := func(value: NestedOuter) {
+    assert(value.left.text == "payload" && value.left.marker == 17 && value.left.state == CallbackState.Busy)
+    assert(value.right.text == "nested literal")
+    assert(value.choice == NestedChoice.Inner(NestedInner(text = "payload", marker = 33, state = CallbackState.Busy)))
+    assert(value.maybe == NestedUnion.Value(NestedChoice.State(CallbackState.Busy)))
+}
+
+nested_callback_tests := proc(root: Str) {
+    schemas := format(
+        "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\n",
+        "NestedInner := struct { text := \"\"; marker: I32 = 0; state := CallbackState.Idle }\n",
+        "NestedChoice := enum { Empty, Inner: NestedInner, State: CallbackState, Text: Str }\n",
+        "NestedUnion := enum { Empty, Value: NestedChoice }\n",
+        "NestedOuter := struct { left := NestedInner(); right := NestedInner(); choice := NestedChoice.Empty; maybe := NestedUnion.Empty }\n",
+        "NestedFailure := enum { Empty, Request: NestedOuter, Flag: CallbackState }\n",
+        "CallbackLink := enum { None, Some: CallbackNode }\nCallbackNode := struct { number: I64 = 0; next := CallbackLink.None; text := \"\" }\n")
+    File.writefile("guest.til", format("mode lib\n", schemas,
+        "message := format(\"guest \", \"payload\")\nstored := NestedOuter(left = NestedInner(text = \"stored literal\"))\n",
+        "borrowed := func() returns ref NestedOuter { return stored }\n",
+        "node := func(value: CallbackNode) returns CallbackNode { return value.clone() }\n",
+        "consume := proc(own mut value: NestedOuter) returns NestedOuter { noop_proc(); value.left.text = \"owned change\"; return value.clone() }\n",
+        "transform := proc(mut value: NestedOuter, action: I64) returns NestedOuter throws NestedFailure {\n",
+        "noop_proc(); value.left = NestedInner(text = message.substr(6, 7), marker = 17, state = CallbackState.Busy);\n",
+        "value.right.text = \"nested literal\";\n",
+        "value.choice = NestedChoice.Inner(NestedInner(text = message.substr(6, 7), marker = 33, state = CallbackState.Busy));\n",
+        "value.maybe = NestedUnion.Value(NestedChoice.State(CallbackState.Busy));\n",
+        "if action == 1 { throw NestedFailure.Request(value.clone()) };\n",
+        "if action == 2 { panic(\"nested panic\") }; if action == 3 { exit(0) }; return value.clone() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut transform := vm.lookup("transform", NestedTransform)!
+    mut kept := Tuple.new()
+    mut failure := NestedFailure.Empty
+    for action in 0..4 {
+        mut args := Tuple.new()
+        args.push(NestedOuter, own NestedOuter(left = NestedInner(text = format("old ", "left")),
+            choice = NestedChoice.Text(format("old ", "choice")),
+            maybe = NestedUnion.Value(NestedChoice.Text(format("old ", "nested")))))
+        args.push(I64, own action.clone())
+        mut caught := false
+        result := call_throwing(NestedTransform)(transform, args)?
+        catch (error: NestedFailure) { assert(action == 1); failure = error; caught = true }
+        catch (error: TilVmError) {
+            assert(action == 2 || action == 3)
+            if action == 2 { assert(error.to_str().contains("nested panic")) }
+            if action == 3 { assert(error.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if action == 0 { kept = result } else { assert(caught) }
+        ref updated : NestedOuter = args.get(0)
+        check_nested_value(updated)
+    }
+    mut consume := vm.lookup("consume", NestedOwned)!
+    mut owned_args := Tuple.new()
+    owned_args.push(NestedOuter, own NestedOuter(left = NestedInner(text = format("host ", "owned"))))
+    consumed := consume.call(owned_args)!
+    ref original : NestedOuter = owned_args.get(0)
+    assert(original.left.text == "host owned")
+    mut borrow := vm.lookup("borrowed", NestedRead)!
+    borrowed := borrow.call()!
+    mut node := vm.lookup("node", NodeRoundtrip)!
+    mut node_args := Tuple.new()
+    node_args.push(CallbackNode, own CallbackNode(number = 41, text = format("root ", "text"),
+        next = CallbackLink.Some(CallbackNode(number = 42, text = format("child ", "text")))))
+    copied_node := node.call(node_args)!
+    own node.delete()
+    own borrow.delete()
+    own consume.delete()
+    own transform.delete()
+    own vm.delete()
+    ref result : NestedOuter = kept.get(0)
+    check_nested_value(result)
+    switch failure {
+    case .Request(value): check_nested_value(value)
+    case: panic("nested declared error was not preserved")
+    }
+    ref owned : NestedOuter = consumed.get(0)
+    ref stored : NestedOuter = borrowed.get(0)
+    assert(owned.left.text == "owned change" && stored.left.text == "stored literal")
+    ref tree : CallbackNode = copied_node.get(0)
+    assert(tree.text == "root text" && tree.number == 41)
+    switch tree.next {
+    case .Some(child): assert(child.text == "child text" && child.number == 42 && child.next.is(CallbackLink.None))
+    case: panic("nested owned box was not preserved")
+    }
+    for bad_schema : Str in array(Str,
+        schemas.replace("marker: I32", "marker: I64"),
+        schemas.replace("enum(U16)", "enum(U32)"),
+        schemas.replace("text := \"\"", "ref text: Str = \"\"")) {
+        File.writefile("guest.til", format("mode lib\n", bad_schema,
+            "consume := proc(own mut value: NestedOuter) returns NestedOuter { noop_proc(); value.left.marker = 99; return value.clone() }\n",
+            "reader := func() returns NestedOuter { return NestedOuter() }\n",
+            "failure := func() throws NestedFailure { throw NestedFailure.Empty }\n"))
+        mut invalid := TilVm.new(root)
+        invalid.load_file("guest.til")?
+        catch (error: TilVmError) { panic(error.to_str()) }
+        expect_lookup_failure(invalid, "consume", "argument schema", signature = NestedOwned)
+        expect_lookup_failure(invalid, "reader", "result schema", signature = NestedValueRead)
+        expect_lookup_failure(invalid, "failure", "error schema", signature = NestedThrowOnly)
+    }
+}
+
 main := proc(root: Str) returns I64 {
+    nested_callback_tests(root)
     enum_callback_tests(root)
     record_callback_tests(root)
     multiple_error_callback_tests(root)

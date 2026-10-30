@@ -724,6 +724,21 @@ priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) re
         case: return ""
         }
     case .Ident(idn): return guess_local_type(ctx.scope, body, idn.ident_name(ctx.symbols.names), ctx.symbols)
+    case .FieldAccess(member):
+        // A payload-free enum variant is a value without a constructor call.
+        // Its nominal enum type still supplies the declared throw identity.
+        if e.children.len() != 1 { return "" }
+        switch e.children[0].node_type {
+        case .Ident(owner):
+            def := ctx.scope.get_struct_by_sym(owner.ident_sym())
+            if def.is_none() { return "" }
+            if def.unwrap().node_type.is(NodeType.EnumDef).not() { return "" }
+            index := enum_variant_index(def.unwrap(), member.field_access_name(ctx.symbols.names))
+            if index < 0 { return "" }
+            if enum_variant_type(def.unwrap(), index).len() == 0 { return owner.ident_name(ctx.symbols.names).clone() }
+        case:
+        }
+        return ""
     case: return ""
     }
 }

@@ -95,9 +95,8 @@ Lookup/call errors carry owned diagnostics, phase and optional exit status in
 ~TilVmError~. Hosts can catch them with ~?~ and ~catch~; the example's ~!~
 instead converts an error into a host panic. Guest output uses host stdio.
 
-The fixed call boundary supports core scalars, Str, shared records with
-inline scalar/Str fields, and the shared enums described below, with at most
-63 arguments. Variadic and kwargs calls, nested records and
+The fixed call boundary supports core scalars, Str, and nested shared records
+and enums, with at most 63 arguments. Variadic and kwargs calls and
 pointer/reference-bearing record fields remain
 unsupported. Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
@@ -107,10 +106,12 @@ reference route described below.
 **** Shared record arguments and results
 
 The host and guest declare the same named record schema. Checked lookup compares
-field names/order, scalar/Str types, mutability, ownership and host layout size
+field names/order, types, mutability, ownership and host layout size
 for each argument and result, using the same validation as declared errors.
 Matching type names alone are not enough. Record names are preserved in Tuple
 elements, so passing another record type is rejected before the guest runs.
+Inline fields may themselves be shared records or enums; their schemas are
+checked recursively down to scalar/Str leaves.
 
 #+begin_src til
 Request := struct { number: I32 = 0; enabled := false; text := "" }
@@ -140,10 +141,10 @@ recovery after failure. Throwing record callbacks use the same
 **** Shared enum arguments, results and errors
 
 Shared enums can cross as arguments, results or declared errors. Supported
-variants are payload-free, scalar/Str-bearing, or carry a shared record with
-inline scalar/Str fields. Both tagged unions and owned-box niche enums (such
+variants are payload-free, scalar/Str-bearing, or carry another shared record
+or enum. Both tagged unions and owned-box niche enums (such
 as an optional record) retain their normal representation. Borrowed-reference
-and callable payloads, and enums nested inside enum payloads, are rejected.
+and callable payloads are rejected at every depth.
 
 Checked lookup compares tag type/width, ordered variant names, discriminant
 values, payload types and qualifiers, and each record payload's schema. A
@@ -162,13 +163,33 @@ enums, scalar/Str/record variants, optional records, borrowed results, enum
 errors, variant replacement, teardown and incompatible-schema rejection in
 the installed ASAN host with empty PATH.
 
+**** Nested values
+
+Records in records, enums in records, records in enums and enums in enums all
+use the same checked snapshot boundary. Only active enum payloads are copied;
+every reachable string and owned niche box receives independent storage. Copy-in,
+mutable copy-back and returned/declared-error values follow the same recursion.
+Narrow tag-only enums occupy their native field width inside an aggregate,
+even when the interpreter uses a wider standalone scratch slot.
+
+Recursive type graphs through owned optional boxes are supported. Validation
+visits each distinct schema once per traversal and checks all its members; this
+does not create a persistent schema cache. Copying follows the finite owned
+value tree. Explicit pointer/reference fields and borrowed/callable enum
+payloads remain outside this contract.
+
+~test/tilvm.til::nested_callback_tests~ covers mixed nesting, a recursive
+owned-node schema, mutable copy-back on success/throw/panic/exit, owned-input
+isolation, borrowed results, post-VM reads and mismatches deep inside argument,
+result and error schemas, through the installed ASAN host with empty PATH.
+
 **** Declared errors on retained callbacks
 
 This extension follows the completed #370 contract. A host and guest may share
-declared error schemas: scalars/Str, the shared enums above, or structs with inline scalar/Str
+declared error schemas: scalars/Str, the shared enums above, or structs with inline supported
 fields (including an empty marker struct). Checked lookup compares the signature
 and, for error structs, field names/order, types, mutability and ownership, plus
-host layout size. Pointer/reference fields and nested records remain
+host layout size, recursively. Pointer/reference fields remain
 outside this slice. The shared type name and validated
 schema identify the error; a guest's numeric throw tag is never exposed as a
 host type identity.
@@ -432,12 +453,11 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments,
-  nested records or records with pointer/reference fields. Shared enums with
-  scalar/Str or plain-record payloads are supported; borrowed, callable and
-  nested-enum payloads remain outside this boundary. Shared
-  scalar/Str-field record arguments/results are supported. The ~call_throwing(E)~ adapter supports
-  shared scalar/Str-field error schemas, including multiple declared errors
+- ~TilVmCallback.call(Tuple)~ does not marshal variadic or kwargs arguments
+  or records with pointer/reference fields. Nested shared records/enums are
+  supported; borrowed and callable enum payloads remain outside this boundary.
+  The ~call_throwing(E)~ adapter supports the same nested error schemas,
+  including multiple declared errors
   through its signature-based form. Extending
   it requires checked marshalling and ownership/error-path coverage in the
   installed host tests. Native-library record references and native throws

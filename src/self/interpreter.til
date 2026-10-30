@@ -6806,12 +6806,20 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
 }
 
 // Shared boundary schema for error payloads, ordinary arguments and results.
-// Record fields are deliberately limited to inline scalars/Str, not recursive
-// records or pointer-bearing ownership forms.
+// The visited set belongs to this one validation, not to the VM. An owned
+// niche can close a type-graph cycle; every distinct schema still has all its
+// fields/variants checked before the root succeeds.
 priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns Bool {
+    mut visited := Set(Str).new()
+    return interp_callback_schema_visit(name, visited, ctx)
+}
+
+priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut ctx: Context) returns Bool {
     if is_scalar_type_name(name).or(name == "Str") { return true }
+    if visited.has(name) { return true }
     guest_o := ctx.scope.get_struct(name, ctx.symbols)
     if guest_o.is_none() { return false }
+    visited.add(own name.clone())
     if guest_o.unwrap().node_type.is(NodeType.EnumDef) {
         ref def : Expr = guest_o.unwrap()
         ref guest : EnumDef = enumdef_of(def)
@@ -6824,14 +6832,9 @@ priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns B
             if gv.payload_const != hv.payload_const { return false }
             if gv.payload_ref.or(hv.payload_ref).or(gv.payload_funcsig).or(hv.payload_funcsig) { return false }
             if gv.payload_type.len() == 0 { continue }
-            if interp_lookup_type(gv.payload_type, ctx).len() == 0 {
-                payload := ctx.scope.get_struct(gv.payload_type, ctx.symbols)
-                if payload.is_none() { return false }
-                if payload.unwrap().node_type.is(NodeType.StructDef).not() { return false }
-                if interp_callback_error_schema(gv.payload_type, ctx).not() { return false }
-            }
+            if interp_callback_schema_visit(gv.payload_type, visited, ctx).not() { return false }
             pt := type_from_name_init_name(gv.payload_type, ctx.scope, ctx.symbols)
-            if raw_type_size(pt, ctx) != dyn_size_of(hv.payload_type) { return false }
+            if interp_callback_native_size(pt, ctx) != dyn_size_of(hv.payload_type) { return false }
         }
         ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
         return layout.ptr.size.to_usize() == dyn_size_of(name)
@@ -6843,10 +6846,11 @@ priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns B
     for i in 0..host.fields.len() {
         ref hf : Declaration = host.fields[i]
         ref gf : Declaration = guest.fields[i]
-        gn := interp_lookup_type(decl_type_name(gf, ctx.symbols), ctx)
+        gn := interp_lookup_type(decl_type_name(gf, ctx.symbols), ctx, true)
         if gn.len() == 0 { return false }
         if hf.name != gf.name || hf.type_name() != gn || hf.is_mut != gf.is_mut { return false }
         if hf.own_type.is(OwnType.Shallow).and(gf.own_type.is(OwnType.Shallow)).not() { return false }
+        if interp_callback_schema_visit(gn, visited, ctx).not() { return false }
     }
     ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
     return layout.ptr.size.to_usize() == dyn_size_of(name)
@@ -6880,7 +6884,7 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
         if variant.payload_type.len() > 0 {
             ref offset : U64 = ptr_add(layout.offsets, 8)
-            copied : Dynamic = interp_callback_error_copy(variant.payload_type, ptr_add(source, offset.to_usize()), ctx)
+            copied : Dynamic = interp_callback_error_copy(variant.payload_type, ptr_add(source, offset.to_usize()), ctx, to_guest)
             memcpy(ptr_add(out, offset.to_usize()), copied, dyn_size_of(variant.payload_type))
             EvalHeap.heap_free(own copied)
         }
@@ -6893,8 +6897,10 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         ref field : Declaration = sd.fields[i]
         ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
         field_type := type_from_name_init_name(decl_type_name(field, ctx.symbols), ctx.scope, ctx.symbols)
-        copied : Dynamic = interp_call_copy(field_type, ptr_add(source, offset.to_usize()), ctx)
-        memcpy(ptr_add(out, offset.to_usize()), copied, raw_type_size(field_type, ctx))
+        copied : Dynamic = interp_callback_error_copy(decl_type_name(field, ctx.symbols), ptr_add(source, offset.to_usize()), ctx, to_guest)
+        // A narrow enum's interpreter scratch slot is wider than its inline
+        // field. Copy the native field width, not the scratch allocation size.
+        memcpy(ptr_add(out, offset.to_usize()), copied, interp_callback_native_size(field_type, ctx))
         EvalHeap.heap_free(own copied)
     }
     return out
