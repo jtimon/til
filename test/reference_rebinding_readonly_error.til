@@ -1,0 +1,13 @@
+mode cli
+Cell := struct { number: I64 = 0 }
+borrow := func(cell: Cell) returns ref Cell { return cell }
+main := proc() {
+    mut first := Cell(number=1)
+    mut second := Cell()
+    second.number = 2
+    ref mut alias : Cell = borrow(first)
+    ref source : Cell = borrow(second)
+    alias = source
+    alias.number = 9
+    println(first.number.to_str(), second.number.to_str())
+}

@@ -2372,6 +2372,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/loops.til", flags)
     add_both(tests, "test/scalar_control.til", flags)
     add_both(tests, "test/aggregate_control.til", flags)
+    add_both(tests, "test/reference_rebinding.til", flags)
     add_both(tests, "test/aliases.til", flags)
     add_both(tests, "test/fn_ptr.til", flags)
     add_both(tests, "test/comparisons.til", flags)
@@ -3125,6 +3126,18 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_mut_escape_error_build", "typer",
         "returned closure borrows captured local", 1,
         format(til_bin, " build", asan_flag, " test/capture_mut_escape_error.til"))
+    add_count(tests, "reference_rebinding_escape_interp", "typer",
+        "source does not outlive the reference binding", 1,
+        format(til_bin, " interpret test/reference_rebinding_escape_error.til"))
+    add_count(tests, "reference_rebinding_escape_build", "typer",
+        "source does not outlive the reference binding", 1,
+        format(til_bin, " build", asan_flag, " test/reference_rebinding_escape_error.til"))
+    add_count(tests, "reference_rebinding_readonly_interp", "typer",
+        "'source' is an immutable binding", 1,
+        format(til_bin, " interpret test/reference_rebinding_readonly_error.til"))
+    add_count(tests, "reference_rebinding_readonly_build", "typer",
+        "'source' is an immutable binding", 1,
+        format(til_bin, " build", asan_flag, " test/reference_rebinding_readonly_error.til"))
     add_count(tests, "qualifier_shallow_local_error_interp", "parser",
         "locals cannot use", 1,
         format(til_bin, " interpret test/qualifier_shallow_local_error.til"))

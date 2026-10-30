@@ -389,6 +389,7 @@ typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbage
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
+typedef struct priv___src_self_garbager_til__ReferenceLoans priv___src_self_garbager_til__ReferenceLoans;
 typedef struct priv___src_self_garbager_til__GcDeposit priv___src_self_garbager_til__GcDeposit;
 typedef struct Array__Bool Array__Bool;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
@@ -1337,6 +1338,13 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
     I64 fixed_reach;
     I64 created_at;
 } priv___src_self_garbager_til__GcBorrowEdge;
+
+
+typedef struct priv___src_self_garbager_til__ReferenceLoans {
+    Map__Str_call_Vec_Str sources;
+    Set__Str references;
+    USize next;
+} priv___src_self_garbager_til__ReferenceLoans;
 
 
 typedef struct priv___src_self_garbager_til__GcDeposit {
@@ -2359,6 +2367,7 @@ typedef struct HeapBinding {
     Bool moved_out;
     Bool is_raw_alloc;
     Bool payload_released;
+    Bool is_ref_binding;
     Option__ref_U8 ext_slot;
     Bool ext_target_layout;
     UPtr foreign_root;

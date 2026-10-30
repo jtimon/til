@@ -337,6 +337,10 @@ HeapBinding := struct {
     // script-scope binding (`Vec.delete(v, false)` -- drop the innards,
     // leave the box), which is what the compiled backend emits too.
     payload_released := false
+    // A source `ref` declaration has a rebindable pointer variable. Borrowed
+    // parameters and closure captures instead lend their target for writes.
+    // is_borrowed describes storage ownership, not this source-level distinction.
+    is_ref_binding := false
     // The C POINTER variable a `ref` ext_global binds. The binding borrows
     // that variable's pointee, and scope_lookup_heap_binding re-loads ptr
     // from the slot on every lookup, so a C-side re-point made after the
@@ -2950,6 +2954,72 @@ priv eval_replacement_delete := proc(mut scope: Scope, shallow value_type: Type,
     scope_free(own drop_scope)
 }
 
+priv scope_rebind_reference := func(mut binding_scope: Scope, name: Str, pointer: Dynamic, source_type: Dynamic, source_ctx: Context, source_name: Str) {
+    ref mut target : HeapBinding = binding_scope.heap_bindings[name]
+    switch target.ext_slot {
+    case .Some(slot):
+        write_ptr(slot, pointer)
+        // The next lookup refreshes the foreign borrow from the new pointer.
+    case .None:
+        scope_set_heap_owned(binding_scope, name, pointer, source_type, OwnType.Ref, source_ctx, false, true)
+        ref mut rebound : HeapBinding = binding_scope.heap_bindings[name]
+        rebound.is_ref_binding = true
+        binding_scope.heap_aliases.remove(name)
+        if source_name.len() > 0 { binding_scope.heap_aliases.set(name, own source_name.clone()) }
+    }
+}
+
+priv eval_reference_rebind := proc(mut scope: Scope, name: Str, mut rhs: Expr, mut target: HeapBinding, mut ctx: Context) returns Bool {
+    if target.is_ref_binding.not().or(target.is_borrowed.not()) { return false }
+    if hb_type(target).is(Type.Dynamic).or(heap_type_is_callable(hb_type(target))) { return false }
+    ref mut binding_scope : Scope = scope_get_binding_scope(scope, name)
+    mut pointer : Dynamic = 0
+    mut source_type : Dynamic = interp_intern_type(hb_type(target), target.ctx)
+    switch rhs.node_type {
+    case .Ident(id):
+        ref rhs_name : Str = id.ident_name(ctx.symbols.names)
+        ref mut source : HeapBinding = scope_lookup_heap_binding(scope, rhs_name).unwrap()
+        // A value or a parameter on the RHS is still a value assignment.
+        // Only a named reference supplies another rebindable borrow here.
+        if source.is_ref_binding.not() { return false }
+        if source.moved_out { panic("reference rebinding from moved source: ", rhs_name) }
+        ffi_refresh_external_place(source, ctx)
+        pointer = to_ptr(source.ptr)
+        if hb_type(source).is(Type.Dynamic) {
+            if source.is_erased_dynamic.not() { pointer = deref(pointer) }
+        } else { source_type = interp_intern_type(hb_type(source), source.ctx) }
+        scope_rebind_reference(binding_scope, name, pointer, source_type, source.ctx, rhs_name)
+        return true
+    case .FieldAccess:
+        // Namespace constants/variants are value expressions, not instance
+        // field places. Keep their existing value-assignment path.
+        if interp_fa_namespace_def(scope, rhs, ctx).is_some() { return false }
+        mut fallback_name := ""
+        ref owner_name : Str = field_access_sname(rhs, fallback_name, ctx.symbols)
+        ref field : Declaration = field_access_decl(rhs, owner_name, ctx).unwrap()
+        if rhs.children[0].node_type.is_literal_str().and(field.own_type.is(OwnType.Shallow)) { return false }
+        mut info := raw_result_info_new()
+        pointer = eval_expr_raw_info(scope, rhs, ctx, info)
+        if info.is_ref.not() { panic("reference rebinding lost its field place") }
+        // Keep the place's actual storage type. A host Str's USize field can
+        // be narrower than the requested target alias during interpretation.
+        if raw_result_source_type(info).is(Type.Dynamic) {
+            if field.own_type.is(OwnType.Shallow) { pointer = deref(pointer) }
+        } else { source_type = interp_intern_type(raw_result_source_type(info), ctx) }
+        scope_rebind_reference(binding_scope, name, pointer, source_type, ctx, "")
+        return true
+    case .FCall:
+        if fcall_returns_ref(rhs, ctx.scope, ctx.symbols) == 0 { return false }
+        mut info := raw_result_info_new()
+        pointer = eval_expr_raw_info(scope, rhs, ctx, info)
+        if info.is_ref.not() { panic("reference rebinding lost its returned place") }
+        if raw_result_source_type(info).is(Type.Dynamic).not() { source_type = interp_intern_type(raw_result_source_type(info), ctx) }
+        scope_rebind_reference(binding_scope, name, pointer, source_type, ctx, "")
+        return true
+    case: return false
+    }
+}
+
 eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
@@ -2963,6 +3033,11 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
         switch stmt.node_type {
         case .Decl(dd):
             eval_declaration(scope, stmt, dd, ctx)
+            // Type/namespace declarations need not introduce a runtime slot.
+            if scope.heap_bindings.has(dd.name) {
+                ref mut declared : HeapBinding = scope.heap_bindings[dd.name]
+                declared.is_ref_binding = dd.own_type.is(OwnType.Ref)
+            }
             // #432: an interface box whose payload is a borrow (`ref d :
             // Iface = c`, the elided copy, a hoisted argument box) owns
             // nothing behind its slot. The garbager emits no delete for it;
@@ -2982,6 +3057,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             if assign_hb_o.is_none() { panic("assignment binding not found: ", ad.name) }
             ref mut assign_hb : HeapBinding = assign_hb_o.unwrap()
             ffi_refresh_external_place(assign_hb, ctx)
+            if ad.is_payload_alias.not() && eval_reference_rebind(scope, ad.name, rhs, assign_hb, ctx) { continue }
             mut new_raw : Dynamic = 0
             if stmt.til_type().is(Type.Dynamic).and(rhs.node_type.is(NodeType.Ident)) {
                 switch rhs.node_type {
@@ -5003,21 +5079,12 @@ scope_pool_drain := func() {
 // never a real state here -- it is a broken invariant. Fail loudly at
 // the source instead of handing back a null ref for the caller to
 // segfault on.
-priv scope_get_binding_scope := func(mut s: Scope, name: Str) returns ref Scope {
-    ref mut cur : Scope = s
-    mut walking := true
-    while walking {
-        cur.heap_bindings.get(name)?
-        catch (e: KeyNotFound) {
-            switch cur.parent {
-            case .Some(p): cur = p
-            case .None: walking = false
-            }
-            continue
-        }
-        return cur
+priv scope_get_binding_scope := func(s: Scope, name: Str) returns ref Scope {
+    if s.heap_bindings.has(name) { return s }
+    switch s.parent {
+    case .Some(parent): return scope_get_binding_scope(parent, name)
+    case .None: panic(__LOC__, "binding scope not found: ", name)
     }
-    panic(__LOC__, "binding scope not found: ", name)
 }
 
 scope_new := func(parent: Option(ref Scope)) returns Scope {

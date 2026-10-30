@@ -1,0 +1,113 @@
+mode cli
+
+Cell := struct { number: I64 = 0; text: Str = "" }
+Holder := struct { cell: Cell = Cell(); ref link: Cell }
+
+make_cell := func(number: I64, text: Str) returns Cell {
+    return Cell(number=number, text=text.clone())
+}
+borrow_cell := func(cell: Cell) returns ref Cell { return cell }
+borrow_number := func(number: I64) returns ref I64 { return number }
+borrow_size := func(size: USize) returns ref USize { return size }
+choose_cell := func(mut calls: I64, first: Cell, second: Cell, choice: Bool) returns ref Cell {
+    calls++
+    if choice { return first }
+    return second
+}
+assign_parameter := func(mut target: I64, value: I64) { target = value }
+
+late_borrow := proc(seed: I64) {
+    mut first := make_cell(seed, "first")
+    mut second := make_cell(seed, "later")
+    second.number = seed + 1
+    ref mut alias : Cell = borrow_cell(first)
+    ref mut source : Cell = borrow_cell(second)
+    alias = source
+    alias.number++
+    // Neither source reference nor owner is read after the rebind. The new
+    // owner must remain alive through uses of the destination reference.
+    println(alias.text)
+}
+
+main := proc() {
+    mut seed : I64 = 0
+    seed++
+    mut first := make_cell(seed, "one")
+    mut second := make_cell(seed, "two")
+    second.number = 2
+    ref mut alias : Cell = borrow_cell(first)
+    ref mut source : Cell = borrow_cell(second)
+    ref snapshot : Cell = alias
+    alias = source
+    alias.number = 9
+    assert(first.number == 1)
+    assert(second.number == 9)
+    assert(snapshot.number == 1)
+    assert(first.text.eq("one"))
+    assert(second.text.eq("two"))
+    // Rebinding again must retain the binding's reference classification.
+    alias = source
+    alias.number = 10
+    assert(second.number == 10)
+    {
+        mut alias := make_cell(seed, "shadow")
+        alias = make_cell(seed + 1, "shadow replacement")
+        assert(alias.number == 2)
+    }
+    assert(alias.number == 10)
+
+    mut holder := Holder(cell=make_cell(seed, "field"), link=first)
+    holder.cell.number = 3
+    alias = holder.cell
+    alias.number = 30
+    assert(holder.cell.number == 30)
+    assert(first.number == 1)
+    alias = holder.link
+    alias.number = 40
+    assert(first.number == 40)
+    assert(holder.cell.number == 30)
+
+    mut calls := 0
+    alias = choose_cell(calls, first, second, false)
+    alias.number = 50
+    assert(calls == 1)
+    assert(second.number == 50)
+    assert(first.number == 40)
+    ref mut first_reference : Cell = borrow_cell(first)
+    for i in 0..4 {
+        if i.mod(2) == 0 { alias = first_reference }
+        else { alias = source }
+        alias.number++
+    }
+    assert(first.number == 42)
+    assert(second.number == 52)
+
+    mut left := 10
+    mut right := 0
+    right = 20
+    ref mut number : I64 = borrow_number(left)
+    ref mut next_number : I64 = borrow_number(right)
+    ref before : I64 = number
+    number = next_number
+    number = 21
+    assert(left == 10)
+    assert(right == 21)
+    assert(before == 10)
+    assign_parameter(left, right)
+    assert(left == 21)
+    number = 22
+    assert(right == 22)
+
+    mut original_size : USize = 0
+    ref mut length : USize = borrow_size(original_size)
+    mut text := Str.with_capacity(8)
+    text.push_str("four")
+    length = text.count
+    length = 2
+    assert(original_size == 0)
+    assert(text.len() == 2)
+    assert(text.cap == 8)
+
+    late_borrow(seed)
+    println("reference rebinding passed")
+}

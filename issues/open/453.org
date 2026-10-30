@@ -155,16 +155,41 @@ existing C and MLIR backends.
   now follows ext.c's current unlink/ENOENT contract, including directory errors.
 
   The tests exposed a pre-existing interpreter/C discrepancy for ref-to-ref
-  rebinding: the interpreter copies through the left reference, while C rebinds
-  it. FASM follows C, and the native driver records that comparison separately;
-  the shared corpus covers mutation through returned borrows. Enums, interfaces,
-  indirect calls and broader runtime/test-mode coverage remain unfinished.
+  rebinding. That was initially tested separately against C; the follow-up below
+  fixes it and moves the case into shared coverage. Enums, interfaces, indirect
+  calls and broader runtime/test-mode coverage remain unfinished.
 
   Verification on master base ~1ec7e4ba0~: ~make clean && make test~ passed
   495/495. Both FASM native drivers passed with the ASAN compiler/test driver,
   exercising the shared sources at USize32 and USize64, including bounds
   failures and custom destructor counts. Native emitted code is not ASAN
   instrumented; the compiler, driver and ordinary C suite are.
+
+**** Reference-rebinding conformance fix
+
+  The interpreter treated every borrowed assignment as a write through the
+  existing pointer, cloning an aggregate RHS into the old pointee. It now
+  distinguishes a source ref declaration from borrowed parameters/captures,
+  retargets the reference for reference/field/ref-returning-call sources, and
+  preserves foreign-borrow bookkeeping and the actual field storage width.
+
+  The shared ownership pass had two related defects: it inserted a destructor
+  for the old pointee before a ref rebind, and it omitted owners acquired by
+  later rebindings from the borrow graph. Reference assignments now stand down
+  value-replacement deletion. Scoped storage-identity loan edges retain the
+  new owner (including chains through nested blocks), without incorrectly
+  retaining already-consumed constructor inputs. Typer provenance is updated
+  for subsequent mutability checks and rejects shorter-lived local sources.
+
+  test/reference_rebinding.til replaces the C/FASM-only workaround and runs in
+  the ordinary interpreter/C suite and the FASM driver at both USize widths.
+  It covers owned pointees, snapshots, repeated and loop rebinding, shadowing,
+  field places, a getter evaluated once, scalar write-through and owner lifetime.
+  The escape and read-only fixtures check unsafe cases before code generation.
+
+  Verification on master base ~9bc23073e~: ~make clean && make test~ passed
+  500/500. Both FASM native drivers also passed with the ASAN compiler and
+  driver; emitted native assembly is not ASAN-instrumented.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or

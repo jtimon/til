@@ -743,6 +743,58 @@ priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr,
     , ctx)
 }
 
+// Reference declarations have pointer variables; parameters and captured
+// storage are write-through places. Do not cross a function boundary when
+// classifying a local reference (an enclosing function's local is a capture).
+priv reference_binding_in_frame := func(scope: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref TypeBinding) {
+    binding := scope.local_binding_name(name, symbols)
+    if binding.is_some() { return binding }
+    if scope.is_func_root { return Option(ref TypeBinding).None }
+    switch scope.parent {
+    case .Some(parent): return reference_binding_in_frame(parent, name, symbols)
+    case .None: return Option(ref TypeBinding).None
+    }
+}
+
+reference_assignment_rebinds := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    switch stmt.node_type {
+    case .Assign(ad):
+        target_o := reference_binding_in_frame(scope, ad.name, symbols)
+        if target_o.is_none() { return false }
+        ref target : TypeBinding = target_o.unwrap()
+        if target.own_type.is(OwnType.Ref).not().or(target.is_param).or(target.is_alias).or(target.iface_payload_borrowed) { return false }
+        if target.type.is(Type.Dynamic).or(type_is_callable_storage(target.type)) { return false }
+        ref rhs : Expr = stmt.children[0]
+        switch rhs.node_type {
+        case .Ident(id):
+            source_o := reference_binding_in_frame(scope, id.ident_name(symbols.names), symbols)
+            if source_o.is_none() { return false }
+            ref source : TypeBinding = source_o.unwrap()
+            return source.own_type.is(OwnType.Ref).and(source.is_param.not()).and(source.iface_payload_borrowed.not())
+        case .FieldAccess:
+            return fa_is_ns(rhs, scope, symbols).or(rhs.children[0].node_type.is_literal_str()).not()
+        case .FCall: return fcall_returns_ref(rhs, scope, symbols) != 0
+        case: return false
+        }
+    case: return false
+    }
+}
+
+priv check_reference_rebind_lifetime := proc(scope: TypeScope, target: TypeBinding, roots: Vec(BorrowRoot), site: Expr, mut ctx: Context) {
+    sink := borrow_root_of_binding(target)
+    for root : BorrowRoot in roots {
+        owner_o := lookup_binding_at(scope, root, ctx.symbols)
+        if owner_o.is_none() { continue }
+        ref owner : TypeBinding = owner_o.unwrap()
+        if owner.own_type.is(OwnType.Ref).or(owner.is_param.and(owner.own_type.is(OwnType.Own).not())).or(owner.is_builtin).or(owner.type.is(Type.Dynamic)) { continue }
+        if root_is_global(scope, root, ctx.symbols) { continue }
+        if deposit_sink_outlives_owner(scope, owner, sink, ctx.symbols) {
+            site.type_error(format("cannot rebind reference '", target.name, "' to local '", owner.name,
+                "': the source does not outlive the reference binding"), ctx)
+        }
+    }
+}
+
 // #168 step 1b / #177: ref bindings cannot be initialized to null. A
 // `ref` slot initialized to null is structurally an uninitialized
 // borrow; every legitimate use is rewritable as the borrow at the
@@ -10464,7 +10516,15 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     // so the write actually persists (find returns by-value semantics).
     // #344: `ref mut r : T = <borrow>` followed by `r = v` writes the
     // storage `r` aliases, so the same walker credits its roots.
-    mark_name_written_name(scope, aname, ctx.symbols)
+    if reference_assignment_rebinds(stmt, scope, ctx.symbols) {
+        roots := expr_borrow_roots(scope, rhs, ctx.symbols)
+        ref mut target : TypeBinding = scope.get_binding_name(aname, ctx.symbols).unwrap()
+        check_reference_rebind_lifetime(scope, target, roots, stmt, ctx)
+        target.written = true
+        // Rebinding changes the borrow, not either pointee. Retain the union
+        // for branches/loops, as with the existing carried-borrow summaries.
+        for root : BorrowRoot in roots { push_root_unique(target.borrow_roots, root) }
+    } else { mark_name_written_name(scope, aname, ctx.symbols) }
     sf_assign := scope.find_name(aname, ctx.symbols)
     mut is_ref_target := false
     mut is_payload_alias := false

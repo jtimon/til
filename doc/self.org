@@ -478,10 +478,13 @@
   wrappers. The existing imported-call and bang-panic fixtures run unchanged.
   Aggregate translation also runs in the assembler-free options test.
 
-  An existing interpreter discrepancy remains for local ref-to-ref rebinding:
-  it copies through the left reference where C rebinds it. FASM follows C,
-  with a separate C/FASM regression for that case rather than pretending the
-  interpreter agrees. Mutation through a returned borrow is in the shared corpus.
+  ~test/reference_rebinding.til~ now runs unchanged through the interpreter,
+  C and FASM at both USize widths. Reference rebinding retargets the borrow
+  without cloning or destroying either pointee. Its coverage includes snapshots,
+  repeated/nested rebindings, shadowing, fields, ref-returning calls and keeping
+  the new owner alive through later uses. Scalar value assignments and mutable
+  parameters retain write-through behavior. Separate negative fixtures reject
+  inner-scope escapes and writes through a rebound read-only borrow.
 
   ~test/fasm_runtime.til~ compares identical runtime programs through the
   interpreter, C and FASM at USize32 and USize64. It reuses the existing

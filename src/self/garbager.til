@@ -2067,6 +2067,94 @@ priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrow
     edges.push(own e)
 }
 
+priv ReferenceLoans := struct {
+    sources := Map(Str, Vec(Str)).new()
+    references := Set(Str).new()
+    next : USize = 0
+}
+
+priv reference_loan_push := func(mut names: Vec(Str), name: Str) {
+    for prior : Str in names { if prior == name { return } }
+    names.push(own name.clone())
+}
+
+// Storage identity, not carried-value provenance: after a ctor adopts `buf`,
+// a borrow of `entry.buf` belongs to entry, not the consumed local buf.
+priv reference_storage_sources := func(e: Expr, names: Map(Str, Str), loans: ReferenceLoans, symbols: SymbolPool) returns Vec(Str) {
+    mut roots := Vec(Str).new()
+    switch e.node_type {
+    case .Ident(id):
+        mut key := id.ident_name(symbols.names).clone()
+        if names.has(key) { key = names[key].clone() }
+        if loans.sources.has(key) { return loans.sources[key].clone() }
+        roots.push(own key)
+    case .FieldAccess: return reference_storage_sources(e.children[0], names, loans, symbols)
+    case .FCall:
+        for i in 1..e.children.len() {
+            if get_own_arg(e, i).and(get_keep_outer_arg(e, i).not()) { continue }
+            for root : Str in reference_storage_sources(e.children[i], names, loans, symbols) { reference_loan_push(roots, root) }
+        }
+    case:
+    }
+    return roots
+}
+
+priv collect_reference_loans := func(e: Expr, scope: TypeScope, root_level: Bool, step: I64,
+    mut names: Map(Str, Str), mut loans: ReferenceLoans, mut edges: Vec(GcBorrowEdge), symbols: SymbolPool) {
+    switch e.node_type {
+    case .FuncDef, .StructDef, .EnumDef, .BodyValue: return
+    case .Decl(dd):
+        if e.children.len() == 0 { return }
+        ref rhs : Expr = e.children[0]
+        if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { return }
+        mut key := dd.name.clone()
+        if root_level.not() {
+            // Internal graph nodes cannot collide with source identifiers.
+            key = format("@", loans.next.to_str(), ":", dd.name)
+            loans.next++
+        }
+        mut roots := Vec(Str).new()
+        if dd.own_type.is(OwnType.Ref) && type_is_callable_storage(dd.til_type).not() && dd.til_type.is(Type.Dynamic).not()
+            && rhs_is_payload_binding(rhs, symbols).not() && expr_is_borrowed_iface_box_ctor(rhs, scope, symbols).not() {
+            roots = reference_storage_sources(rhs, names, loans, symbols)
+            loans.references.add(own key.clone())
+            for owner : Str in roots { gc_add_borrow_edge(edges, owner, key, step) }
+        } else { roots.push(own key.clone()) }
+        loans.sources.set(key, own roots)
+        names.set(dd.name, own key)
+        return
+    case .Assign(ad):
+        if names.has(ad.name).not().or(ad.is_payload_alias) { return }
+        ref target : Str = names[ad.name]
+        if loans.references.has(target).not() { return }
+        ref rhs : Expr = e.children[0]
+        mut rebind := false
+        switch rhs.node_type {
+        case .Ident(id):
+            ref source : Str = id.ident_name(symbols.names)
+            rebind = names.has(source).and(loans.references.has(names[source]))
+            if rebind { gc_add_borrow_edge(edges, names[source], target, step) }
+        case .FieldAccess: rebind = fa_is_ns(rhs, scope, symbols).or(rhs.children[0].node_type.is_literal_str()).not()
+        case .FCall: rebind = fcall_returns_ref(rhs, scope, symbols) != 0
+        case:
+        }
+        if rebind {
+            roots := reference_storage_sources(rhs, names, loans, symbols)
+            for owner : Str in roots {
+                gc_add_borrow_edge(edges, owner, target, step)
+                reference_loan_push(loans.sources[target], owner)
+            }
+        }
+        return
+    case .Body:
+        mut nested_names := names.clone()
+        for child : Expr in e.children { collect_reference_loans(child, scope, false, step, nested_names, loans, edges, symbols) }
+        return
+    case:
+    }
+    for child : Expr in e.children { collect_reference_loans(child, scope, false, step, names, loans, edges, symbols) }
+}
+
 priv GcDeposit := struct {
     sink := BorrowRoot()
     source := BorrowRoot()
@@ -2221,6 +2309,11 @@ priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach
 
 priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool, ctx: Context) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
+    mut reference_names := Map(Str, Str).new()
+    mut reference_loans := ReferenceLoans()
+    for i in 0..body.children.len() {
+        collect_reference_loans(body.children[i], scope, true, i.to_i64(), reference_names, reference_loans, edges, symbols)
+    }
     body_last := body.children.len().sub(1).to_i64()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
@@ -2363,26 +2456,23 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
 }
 
 priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(LocalInfo)) {
+    // Include nested reference nodes as well as owning locals, so a borrow
+    // rebound through an inner block can keep its outer owner alive later.
+    mut reaches := Map(Str, I64).new()
+    for local : LocalInfo in locals { reaches.set(local.name, own local.last_use.clone()) }
     mut changed := true
     while changed {
         changed = false
         for e : GcBorrowEdge in edges {
             mut reach := e.fixed_reach
-            if e.borrower.len() > 0 {
-                for bl : LocalInfo in locals {
-                    if bl.name.eq(e.borrower).and(bl.last_use.gt(reach)) {
-                        reach = bl.last_use
-                    }
-                }
-            }
-            for mut local : LocalInfo in locals {
-                if local.name.eq(e.owner).and(local.last_use.lt(reach)) {
-                    local.last_use = reach
-                    changed = true
-                }
+            if e.borrower.len() > 0 && reaches.has(e.borrower) && reaches[e.borrower] > reach { reach = reaches[e.borrower] }
+            if reaches.has(e.owner).not() || reaches[e.owner] < reach {
+                reaches.set(e.owner, own reach.clone())
+                changed = true
             }
         }
     }
+    for mut local : LocalInfo in locals { local.last_use = reaches[local.name] }
 }
 
 priv extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, mut ctx: Context) {
@@ -3378,9 +3468,13 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), s
     }
 }
 
-priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize, consumed: Set(UPtr), mut symbols: SymbolPool) {
+priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize, consumed: Set(UPtr), scope: TypeScope, mut symbols: SymbolPool) {
     switch stmt.node_type {
     case .Assign(ad):
+        if reference_assignment_rebinds(stmt, scope, symbols) {
+            ad.save_old_delete = false
+            return
+        }
         // #415: the old value was already consumed -- moved away earlier
         // on every path in, or by this very RHS (`x = f(own x)`). Deleting
         // it again (here, or via save_old_delete in the backend) frees
@@ -4473,7 +4567,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         if rebuilding {
             insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch, ctx.symbols)
             insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-            insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, consumed_assigns, ctx.symbols)
+            insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, consumed_assigns, scope, ctx.symbols)
             mut post_deletes := Vec(Expr).new()
             insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
             new_ch.push_take(old, i)
@@ -4487,7 +4581,7 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         mut pre_deletes := Vec(Expr).new()
         insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, pre_deletes, ctx.symbols)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-        insert_assign_delete(stmt, locals_vec, pre_deletes, taint_facts, fidx, i, consumed_assigns, ctx.symbols)
+        insert_assign_delete(stmt, locals_vec, pre_deletes, taint_facts, fidx, i, consumed_assigns, scope, ctx.symbols)
         mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, pre_deletes)
         if pre_deletes.len().eq(0).and(post_deletes.len().eq(0)) { continue }
@@ -4613,6 +4707,15 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         }
     case .Assign(ad):
         if stmt.children.len() > 0 {
+            if reference_assignment_rebinds(stmt, scope, ctx.symbols) {
+                roots := expr_borrow_roots(scope, stmt.children[0], ctx.symbols)
+                ref mut target : TypeBinding = scope.get_binding_name(ad.name, ctx.symbols).unwrap()
+                for root : BorrowRoot in roots {
+                    mut found := false
+                    for prior : BorrowRoot in target.borrow_roots { if BorrowRoot.eq(prior, root) { found = true } }
+                    if found.not() { target.borrow_roots.push(own root.clone()) }
+                }
+            }
             garbager_record_carried_assignment(scope, ad.name, stmt.children[0], ctx.symbols)
         }
     case .FieldAssign:

@@ -947,6 +947,8 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) 
             if state.references.has(dd.name) {
                 mut rebind := rhs.node_type.is(NodeType.FieldAccess)
                 switch rhs.node_type {
+                case .FCall:
+                    rebind = fcall_returns_ref(rhs, lp.ctx.scope, lp.ctx.symbols) != 0
                 case .Ident(id):
                     ref name : Str = id.ident_name(lp.ctx.symbols.names)
                     if state.values.has(name).not() { fasm_error(stmt, "unsupported reference reassignment source", lp); continue }
