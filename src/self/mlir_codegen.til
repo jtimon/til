@@ -63,6 +63,7 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
             ref sd : StructDef = structdef_of(definition.unwrap())
             if sd.simd_width == 4 {
                 if decl_type_name_ref(sd.fields[0], lp.ctx.symbols) == "F32" { return "vector<4xf32>" }
+                if decl_type_name_ref(sd.fields[0], lp.ctx.symbols) == "Bool" { return "vector<4xi1>" }
             }
         }
     }
@@ -250,13 +251,29 @@ priv mlir_boolean := func(e: Expr, state: MlirState, lp: LoadedProgram) returns 
 }
 
 priv mlir_construct := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
-    mut vector := mlir_value(state, "llvm.mlir.undef : vector<4xf32>")
+    t := mlir_type(e.til_type(), lp)
+    mut scalar := "f32"
+    if t == "vector<4xi1>" { scalar = "i1" }
+    mut vector := mlir_value(state, format("llvm.mlir.undef : ", t))
     for i in 0..4 {
         lane := mlir_expr(e.children[(i + 1).to_usize()], state, lp)
         vector = mlir_value(state, format("vector.insert ", lane, ", ", vector,
-            "[", i.to_str(), "] : f32 into vector<4xf32>"))
+            "[", i.to_str(), "] : ", scalar, " into ", t))
     }
     return vector
+}
+
+// The C mask is four normalized Bool bytes, classified as one SysV INTEGER
+// chunk. Register predicates remain i1 lanes; never expose their packed bits.
+priv mlir_pack_mask := func(value: Str, mut state: MlirState) returns Str {
+    bytes := mlir_value(state, format("arith.extui ", value, " : vector<4xi1> to vector<4xi8>"))
+    return mlir_value(state, format("llvm.bitcast ", bytes, " : vector<4xi8> to i32"))
+}
+
+priv mlir_unpack_mask := func(value: Str, mut state: MlirState) returns Str {
+    bytes := mlir_value(state, format("llvm.bitcast ", value, " : i32 to vector<4xi8>"))
+    zero := mlir_value(state, "arith.constant dense<0> : vector<4xi8>")
+    return mlir_value(state, format("arith.cmpi ne, ", bytes, ", ", zero, " : vector<4xi8>"))
 }
 
 priv mlir_pack_return := func(value: Str, mut state: MlirState) returns Str {
@@ -479,7 +496,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     one := mlir_value(state, "arith.constant 1 : i1")
                     return mlir_value(state, format("arith.xori ", a, ", ", one, " : i1"))
                 }
-                if t != "vector<4xf32>" && e.children.len() == 3 {
+                if e.children.len() == 3 {
                     mut predicate := ""
                     switch op {
                     case "eq": predicate = "eq"
@@ -495,10 +512,10 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                         a := mlir_coerce(a_value, e.children[1], t, state, lp)
                         b_value := mlir_expr(e.children[2], state, lp)
                         b := mlir_coerce(b_value, e.children[2], t, state, lp)
-                        if t == "f32" {
+                        if t == "f32" || t == "vector<4xf32>" {
                             if predicate == "ne" { predicate = "une" }
                             else { predicate = format("o", predicate) }
-                            return mlir_value(state, format("arith.cmpf ", predicate, ", ", a, ", ", b, " : f32"))
+                            return mlir_value(state, format("arith.cmpf ", predicate, ", ", a, ", ", b, " : ", t))
                         }
                         if predicate != "eq" && predicate != "ne" {
                             mut sign := "s"
@@ -506,6 +523,48 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                             predicate = format(sign, predicate)
                         }
                         return mlir_value(state, format("arith.cmpi ", predicate, ", ", a, ", ", b, " : ", t))
+                    }
+                }
+                if t == "vector<4xi1>" || t == "vector<4xf32>" {
+                    if op == "select" && e.children.len() == 4 {
+                        mask := mlir_expr(e.children[1], state, lp)
+                        a := mlir_expr(e.children[2], state, lp)
+                        b := mlir_expr(e.children[3], state, lp)
+                        return mlir_value(state, format("arith.select ", mask, ", ", a, ", ", b, " : vector<4xi1>, ", t))
+                    }
+                }
+                if t == "vector<4xi1>" {
+                    if op == "new" && e.children.len() == 5 { return mlir_construct(e, state, lp) }
+                    if op == "zero" && e.children.len() == 1 { return mlir_value(state, "arith.constant dense<false> : vector<4xi1>") }
+                    if op == "splat" && e.children.len() == 2 {
+                        value := mlir_expr(e.children[1], state, lp)
+                        return mlir_value(state, format("vector.broadcast ", value, " : i1 to vector<4xi1>"))
+                    }
+                    if op.eq("band").or(op.eq("bor")).or(op.eq("bxor")) && e.children.len() == 3 {
+                        a := mlir_expr(e.children[1], state, lp)
+                        b := mlir_expr(e.children[2], state, lp)
+                        mut operation := "andi"
+                        if op == "bor" { operation = "ori" }
+                        if op == "bxor" { operation = "xori" }
+                        return mlir_value(state, format("arith.", operation, " ", a, ", ", b, " : ", t))
+                    }
+                    if op == "bnot" && e.children.len() == 2 {
+                        value := mlir_expr(e.children[1], state, lp)
+                        ones := mlir_value(state, "arith.constant dense<true> : vector<4xi1>")
+                        return mlir_value(state, format("arith.xori ", value, ", ", ones, " : ", t))
+                    }
+                    if op.eq("all").or(op.eq("any")) && e.children.len() == 2 {
+                        value := mlir_expr(e.children[1], state, lp)
+                        mut operation := "and"
+                        if op == "any" { operation = "or" }
+                        return mlir_value(state, format("vector.reduction <", operation, ">, ", value, " : vector<4xi1> into i1"))
+                    }
+                    if op == "get" && e.children.len() == 4 {
+                        index := mlir_integer(e.children[2], state, lp)
+                        if index.is_none() { return mlir_error(e, "SIMD lane index must be statically known and in 0..3", lp) }
+                        if index.unwrap() >= 4 { return mlir_error(e, "SIMD lane index must be statically known and in 0..3", lp) }
+                        value := mlir_expr(e.children[1], state, lp)
+                        return mlir_value(state, format("vector.extract ", value, "[", index.unwrap().to_str(), "] : i1 from vector<4xi1>"))
                     }
                 }
                 if t == "vector<4xf32>" {
@@ -587,7 +646,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 }
             }
             constructor_type := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
-            if mlir_type(constructor_type, lp) == "vector<4xf32>" && e.children.len() == 5 {
+            constructor_mlir_type := mlir_type(constructor_type, lp)
+            if constructor_mlir_type.eq("vector<4xf32>").or(constructor_mlir_type.eq("vector<4xi1>")) && e.children.len() == 5 {
                 // The constant folder materializes SIMD values as positional
                 // struct constructors, rather than calls to .new/.splat.
                 return mlir_construct(e, state, lp)
@@ -620,6 +680,10 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     hi := mlir_half(value, true, state)
                     args = format(args, lo, ", ", hi)
                     types = format(types, "vector<2xf32>, vector<2xf32>")
+                } else if t == "vector<4xi1>" {
+                    value = mlir_pack_mask(value, state)
+                    args = format(args, value)
+                    types = format(types, "i32")
                 } else if t == "i1" {
                     value = mlir_value(state, format("arith.extui ", value, " : i1 to i8"))
                     args = format(args, value)
@@ -633,6 +697,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             mut abi_ret := ret.clone()
             if ret == "vector<4xf32>" { abi_ret = mlir_f4_type() }
             if ret == "i1" { abi_ret = "i8" }
+            if ret == "vector<4xi1>" { abi_ret = "i32" }
             mut result := ""
             if fd.sig.throw_types.len() > 0 { mlir_error_write(state) }
             if ret == "void" {
@@ -643,7 +708,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     lo := mlir_value(state, format("llvm.extractvalue ", result, "[0] : ", abi_ret))
                     hi := mlir_value(state, format("llvm.extractvalue ", result, "[1] : ", abi_ret))
                     result = mlir_join(lo, hi, state)
-                } else if ret == "i1" {
+                } else if ret == "vector<4xi1>" { result = mlir_unpack_mask(result, state) }
+                else if ret == "i1" {
                     result = mlir_value(state, format("arith.trunci ", result, " : i8 to i1"))
                 }
             }
@@ -885,6 +951,7 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
                 value = mlir_coerce(value, stmt.children[0], ret, state, lp)
                 mut abi_ret := ret.clone()
                 if ret == "vector<4xf32>" { value = mlir_pack_return(value, state); abi_ret = mlir_f4_type() }
+                else if ret == "vector<4xi1>" { value = mlir_pack_mask(value, state); abi_ret = "i32" }
                 else if ret == "i1" { value = mlir_value(state, format("arith.extui ", value, " : i1 to i8")); abi_ret = "i8" }
                 state.text = format(state.text, "    llvm.return ", value, " : ", abi_ret, "\n")
             }
@@ -1042,6 +1109,10 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut needs_panic: Boo
                 abi_t = "i8"
                 value = mlir_value(state, format("arith.trunci ", arg, " : i8 to i1"))
             }
+            if t == "vector<4xi1>" {
+                abi_t = "i32"
+                value = mlir_unpack_mask(arg, state)
+            }
             signature = format(signature, arg, ": ", abi_t)
             state.values.set(p.name, own MlirBinding(value = value, type_name = t.clone(), is_signed = mlir_signed(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols))))
             if t == "f32" { slots++ }
@@ -1071,6 +1142,7 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut needs_panic: Boo
     mut result := format("  llvm.func ", linkage, "@\"", name, "\"(", signature, ")")
     if ret == "vector<4xf32>" { result = format(result, " -> ", mlir_f4_type()) }
     else if ret == "i1" { result = format(result, " -> i8") }
+    else if ret == "vector<4xi1>" { result = format(result, " -> i32") }
     else if ret != "void" { result = format(result, " -> ", ret) }
     mut entry := ""
     if state.allocations.len() > 0 { entry = format("    %alloc_count = llvm.mlir.constant(1 : i64) : i64\n", state.allocations) }

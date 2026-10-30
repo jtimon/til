@@ -167,6 +167,7 @@
 
   This is a restricted value/control-flow backend, not GPU execution or a
   replacement for the general C backend. It supports F32, ~Simd(F32,4)~,
+  ~Simd(Bool,4)~ masks,
   Bool, I32/U32 and I64/U64 values, including USize/UPtr aliases resolved
   through the existing target configuration. Value parameters are immutable;
   locals may be mutable. Borrowed ~Array(F32)~ parameters support read-only
@@ -207,6 +208,18 @@
   remains the default; the existing explicit width override is unchanged.
   Accepted 32-to-64-bit integer widening uses sign or zero extension as
   appropriate, including widened locals, assignments and return values.
+
+  F32x4 comparisons return elementwise Bool masks. Equality and ordered
+  comparisons are false for NaNs; inequality is true for unordered operands,
+  matching the interpreter/C backend. Masks use ~vector<4xi1>~ internally and
+  four normalized Bool bytes at the public ABI (one SysV INTEGER/i32 chunk),
+  not packed predicate bits. They support construction, splat, zero, constant
+  lane reads, equality/inequality, band/bor/bxor/bnot and all/any reductions.
+  ~select~ accepts masks and either F32x4 or Boolx4 values and preserves the
+  selected lane's bits, including signed zero and NaN payloads. Mask operands
+  are values; these operations do not introduce scalar short-circuiting or
+  masked memory access. Mutable mask locals and same-file calls retain the
+  same representation conversions as exported functions.
 
   Lane access is lowered only after proving the index is in 0..3. The
   backend tracks compile-time integer/boolean bookkeeping to prove the

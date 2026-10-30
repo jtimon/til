@@ -150,6 +150,72 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_masks := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/masks.til"), format(
+        "mode pure\nF4:=Simd(F32,4)\nM4:=Simd(Bool,4)\n",
+        "make4 := func(a:F32,b:F32,c:F32,d:F32) returns F4 { return F4.new(a,b,c,d) }\n",
+        "equal := func(a:F4,b:F4) returns M4 { return a==b }\n",
+        "unequal := func(a:F4,b:F4) returns M4 { return a!=b }\n",
+        "less := func(a:F4,b:F4) returns M4 { return a<b }\n",
+        "less_equal := func(a:F4,b:F4) returns M4 { return a<=b }\n",
+        "greater := func(a:F4,b:F4) returns M4 { return a>b }\n",
+        "greater_equal := func(a:F4,b:F4) returns M4 { return a>=b }\n",
+        "choose := func(m:M4,a:F4,b:F4) returns F4 { return F4.select(m,a,b) }\n",
+        "choose_mask := func(m:M4,a:M4,b:M4) returns M4 { return M4.select(m,a,b) }\n",
+        "both := func(a:M4,b:M4) returns M4 { return a.band(b) }\n",
+        "either := func(a:M4,b:M4) returns M4 { return a.bor(b) }\n",
+        "different := func(a:M4,b:M4) returns M4 { return a.bxor(b) }\n",
+        "invert := func(a:M4) returns M4 { return a.bnot() }\n",
+        "same_mask := func(a:M4,b:M4) returns M4 { return a.eq(b) }\n",
+        "different_mask := func(a:M4,b:M4) returns M4 { return a.neq(b) }\n",
+        "every := func(a:M4) returns Bool { return a.all() }\n",
+        "some := func(a:M4) returns Bool { return a.any() }\n",
+        "lane := func(a:M4) returns Bool { return a[2] }\n",
+        "construct := func(a:Bool,b:Bool,c:Bool,d:Bool) returns M4 { return M4.new(a,b,c,d) }\n",
+        "splat := func(a:Bool) returns M4 { return M4.splat(a) }\n",
+        "zero := func() returns M4 { return M4.zero() }\n",
+        "forward := func(a:F4,b:F4) returns M4 { mut m:=equal(a,b); if m.any() { m=invert(m) }; return m }\n"))
+    File.writefile(format(work, "/mask_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#include <math.h>\n",
+        "typedef struct{float v[4];}F4;typedef struct{uint8_t v[4];}M4;\n",
+        "extern M4 equal(F4,F4),unequal(F4,F4),less(F4,F4),less_equal(F4,F4),greater(F4,F4),greater_equal(F4,F4),forward(F4,F4);\n",
+        "extern F4 choose(M4,F4,F4);extern M4 choose_mask(M4,M4,M4),both(M4,M4),either(M4,M4),different(M4,M4),same_mask(M4,M4),different_mask(M4,M4),invert(M4),construct(uint8_t,uint8_t,uint8_t,uint8_t),splat(uint8_t),zero(void);\n",
+        "extern uint8_t every(M4),some(M4),lane(M4);\n",
+        "static void check(M4 m,unsigned bits){for(unsigned k=0;k<4;k++)assert(m.v[k]==((bits>>k)&1));}\n",
+        "int main(void){const float values[]={0.0f,-0.0f,1,-1,INFINITY,-INFINITY,NAN,0x1p-149f};\n",
+        "for(unsigned i=0;i<8;i++)for(unsigned j=0;j<8;j++){F4 a,b;for(unsigned k=0;k<4;k++){a.v[k]=values[(i+k)%8];b.v[k]=values[(j+k)%8];}M4 e=equal(a,b),n=unequal(a,b),l=less(a,b),le=less_equal(a,b),g=greater(a,b),ge=greater_equal(a,b);unsigned bits=0;for(unsigned k=0;k<4;k++){assert(e.v[k]==(a.v[k]==b.v[k]));assert(n.v[k]==(a.v[k]!=b.v[k]));assert(l.v[k]==(a.v[k]<b.v[k]));assert(le.v[k]==(a.v[k]<=b.v[k]));assert(g.v[k]==(a.v[k]>b.v[k]));assert(ge.v[k]==(a.v[k]>=b.v[k]));bits|=(unsigned)e.v[k]<<k;}check(forward(a,b),bits?bits^15:bits);}\n",
+        "const uint32_t abits[4]={0x7f800001,0xffc12345,0x80000000,1},bbits[4]={0x7fc12345,0x7f800001,0,0xff800000};F4 a,b;memcpy(&a,abits,16);memcpy(&b,bbits,16);\n",
+        "check(zero(),0);check(splat(0),0);check(splat(1),15);for(unsigned i=0;i<16;i++){M4 m;for(unsigned k=0;k<4;k++)m.v[k]=(i>>k)&1;check(construct(m.v[0],m.v[1],m.v[2],m.v[3]),i);assert(every(m)==(i==15)&&some(m)==(i!=0)&&lane(m)==m.v[2]);check(invert(m),i^15);F4 selected=choose(m,a,b);uint32_t got[4];memcpy(got,&selected,16);for(unsigned k=0;k<4;k++)assert(got[k]==(m.v[k]?abits[k]:bbits[k]));for(unsigned j=0;j<16;j++){M4 n;for(unsigned k=0;k<4;k++)n.v[k]=(j>>k)&1;check(both(m,n),i&j);check(either(m,n),i|j);check(different(m,n),i^j);check(same_mask(m,n),(i^j)^15);check(different_mask(m,n),i^j);check(choose_mask(m,n,invert(n)),(i&j)|((i^15)&(j^15)));}}return 0;}\n"))
+    checks := "main := proc() { a:=make4(1,2,3,4); b:=make4(1,9,3,0); m:=equal(a,b); m0:=m[0]; m1:=m[1]; m2:=m[2]; m3:=m[3]; assert(m0 && m1.not() && m2 && m3.not()); assert(some(m) && every(m).not()); assert(every(either(m,invert(m)))); assert(some(both(m,invert(m))).not()); assert(every(same_mask(construct(true,false,true,false),m))); chosen:=choose(m,a,b); assert_eq(F32,chosen[1],9); assert_eq(F32,chosen[3],0); assert(every(different_mask(forward(a,b),m))); println(\"masks PASS\") }\n"
+    File.writefile(format(work, "/mask_reference.til"), format("mode cli\nimport(\"masks\")\n", checks))
+    File.writefile(format(work, "/mask_consumer.til"), format(
+        "mode cli\nlink(\"gen/lib/libmasks.so\")\nF4:=Simd(F32,4)\nM4:=Simd(Bool,4)\n",
+        "make4:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32,shallow d:F32) returns shallow F4 {}\n",
+        "equal:=ext_func(shallow a:F4,shallow b:F4) returns shallow M4 {}\nforward:=ext_func(shallow a:F4,shallow b:F4) returns shallow M4 {}\n",
+        "choose:=ext_func(shallow m:M4,shallow a:F4,shallow b:F4) returns shallow F4 {}\n",
+        "both:=ext_func(shallow a:M4,shallow b:M4) returns shallow M4 {}\neither:=ext_func(shallow a:M4,shallow b:M4) returns shallow M4 {}\n",
+        "same_mask:=ext_func(shallow a:M4,shallow b:M4) returns shallow M4 {}\ndifferent_mask:=ext_func(shallow a:M4,shallow b:M4) returns shallow M4 {}\n",
+        "invert:=ext_func(shallow a:M4) returns shallow M4 {}\nsome:=ext_func(shallow a:M4) returns shallow Bool {}\nevery:=ext_func(shallow a:M4) returns shallow Bool {}\n",
+        "construct:=ext_func(shallow a:Bool,shallow b:Bool,shallow c:Bool,shallow d:Bool) returns shallow M4 {}\n", checks))
+    for width in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        for command in array(Str, "interpret", "run") {
+            reference := Cmd.new(compiler, command, flag, "mask_reference.til")
+            checked(reference, work)
+        }
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "masks.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "mask_caller.c", "gen/lib/libmasks.a", "-o", "mask_caller")
+            checked(cc, work)
+            native := Cmd.new("./mask_caller")
+            checked(native, work)
+            consumer := Cmd.new(compiler, "run", "--asan", flag, "mask_consumer.til")
+            checked(consumer, work)
+        }
+    }
+}
+
 priv panic_output := proc(command: Cmd, work: Str) returns Str {
     command.cwd(work).capture()
     status := command.run()
@@ -293,5 +359,6 @@ main := proc(compiler_arg: Str) {
     check_control_flow(compiler, work)
     check_buffers(compiler, work)
     check_exceptions(compiler, work)
+    check_masks(compiler, work)
     println("mlir PASS")
 }

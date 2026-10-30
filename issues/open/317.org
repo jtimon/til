@@ -159,6 +159,34 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** SIMD comparisons, masks and selection (base 1ec7e4ba0)
+
+F32x4 now supports all six elementwise comparisons, with ordered predicates
+except unordered inequality. Simd(Bool,4) supports new/splat/zero, constant
+lane reads, eq/neq, band/bor/bxor/bnot, all/any and selection. Selection also
+accepts F32x4 values and preserves the chosen bits rather than performing
+floating arithmetic. Internal four-i1 predicates cross the existing C ABI as
+four normalized Bool bytes in one INTEGER chunk. Mutable locals and direct
+calls support masks without exposing packed predicate storage to C callers.
+
+The optional integration test covers all 16 masks and all 256 mask pairs,
+six floating comparisons including NaNs/infinities/zeros/subnormals, and
+bit-preserving selection including signaling NaNs. Interpreter/C references,
+native C callers and ASAN til/C callers exercise both USize widths and
+O0/O2/O3. Normal translation tests require no LLVM tools.
+
+*** Local OutOfBounds handling (merged 1ec7e4ba0)
+
+The backend handles the shared frontend's lowered local error slots,
+catch/reset branches and rethrowing. Generated bang failures preserve the
+source-location diagnostic on stdout and exit status 1. Until general strings
+and runtime calls are supported, only the compiler-generated OutOfBounds
+panic shape is recognized and emitted through libc fwrite/exit; this is not
+a second throw/catch desugaring pass. Tests cover repeated recovery, partial
+writes, nested ? inside ! and exact panic output/status. Verification was
+494/494 clean-suite tests plus ASAN MLIR integration at both USize widths
+and O0/O2/O3.
+
 *** Borrowed F32 buffers and checked memory (base ee8785cb2)
 
 The MLIR backend now accepts borrowed Array(F32) descriptors, including mut
