@@ -4416,7 +4416,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
         mut first := true
         mut new_idx : I64 = 0
         for p : Declaration in gfd.sig.params {
-            if decl_type_name_ref(p, ctx.symbols).eq("Type").not() {
+            if generic_param_is_type(p, ctx.symbols).not() {
                 // A fresh box per push: Vec.push CONSUMES its argument, so
                 // pushing the running counter itself would free it.
                 kept_pos : I64 = new_idx
@@ -4462,6 +4462,20 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
         // rewrite their calls to that name. The path half of the key keeps
         // two units' same-named PRIVATE generics apart.
         dedup_key := format(src.path, "#", dedup_mono)
+        // Explicit factory application and inferred calls share one concrete
+        // function. Init may have already emitted it before the typer creates
+        // the factory's direct-generic twin.
+        if ctx.type_gen_binding_sources.has(mono) {
+            ref application : Expr = ctx.type_gen_binding_sources[mono]
+            switch application.children[0].node_type {
+            case .Ident(factory):
+                if factory.ident_name(ctx.symbols.names) == src.name {
+                    ctx.generic_func_synths.add(own dedup_key.clone())
+                    ctx.generic_func_synth_names.add(own mono.clone())
+                }
+            case:
+            }
+        }
         if seen.has(dedup_key).not() {
             if ctx.generic_func_synths.has(dedup_key).not() {
                 ctx.generic_func_synths.add(own dedup_key.clone())
@@ -4473,7 +4487,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                     mut kidx : I32 = cfd.sig.kwargs_index
                     for ci in 0..cfd.sig.params.len() {
                         ref kp : Declaration = cfd.sig.params[ci]
-                        if decl_type_name_ref(kp, ctx.symbols) == "Type" {
+                        if generic_param_is_type(kp, ctx.symbols) {
                             // Removing a param shifts every later block
                             // marker down by one.
                             cpos : I32 = ci.to_i64().to_i32()
@@ -4598,7 +4612,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             // fills its default into the monomorphized call later. Bailing on
             // a missing value-arg (the old behaviour) left the generic call
             // un-monomorphized and tripped desugar's UNREACHABLE.
-            if decl_type_name_ref(p, ctx.symbols).eq("Type").not() {
+            if generic_param_is_type(p, ctx.symbols).not() {
                 // #320: a ref bit on a VALUE-arg position would be
                 // silently lost by the rewrite below -- reject it loudly.
                 argi_v := i + 1
@@ -5323,6 +5337,15 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
                 }
             } else {
                 subs.set(param.name, own arg.clone())
+            }
+            if param.bounds.len() > 0 {
+                concrete := init_subst_ident_name(subs, ref_params, param.name, ctx.symbols)
+                switch rhs.children[0].node_type {
+                case .Ident(callee):
+                    check_generic_bounds(callee.ident_name(ctx.symbols.names), param,
+                        init_type_arg_name(scope, concrete, ctx.symbols), rhs.line, rhs.col, scope, ctx)
+                case:
+                }
             }
         }
     case:

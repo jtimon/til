@@ -601,6 +601,7 @@ typedef struct Declaration {
     Str bounds;
     Type annotated;
     Bool auto_shallow;
+    Bool runtime_type_param;
 } Declaration;
 
 

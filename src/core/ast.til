@@ -346,6 +346,9 @@ Declaration := struct {
     // its provenance so a discovered escape restores borrowing, while an
     // explicitly shallow parameter keeps its declared calling convention.
     auto_shallow := false
+    // A Type-valued parameter in a generated function's runtime list must
+    // survive when its factory parameters are prepended for inference.
+    runtime_type_param := false
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }

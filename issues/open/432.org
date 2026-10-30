@@ -174,10 +174,23 @@
    Multi-argument abstract dispatch landed on master in the meantime
    (MultiContract tests), so that gap is closed.
 
-*** Pending decision: bounded-generic UFCS (2026-10-27)
+*** DECIDED: bounded generic declarations and inferred UFCS
 
-   No option below has been selected. These are alternatives for discussion,
-   not newly supported syntax or an instruction to implement one.
+    Use the existing angle-bracket-to-macro sugar, extended with the same
+    bounds as direct generic parameters:
+
+        use_values := proc<T: Type implements Drawable>(values: Vec(T)) { ... }
+
+    It desugars to a macro with bounded Type parameters returning a FuncDef,
+    just as struct templates return StructDef. The direct-generic spelling
+    below remains supported too. Both forms now support inferred UFCS through
+    ordinary generic inference, bound checking and call validation, after
+    namespace-method lookup. Runtime Type-valued arguments are not erased
+    from a generated function's runtime signature.
+
+    Explicit UFCS type-argument syntax and trailing constraints were not
+    selected. The alternatives below are retained as design history. Missing
+    enum template sugar is recorded separately in #460.
 
    Current spelling:
 
@@ -187,11 +200,12 @@
    }
    #+end_src
 
-   An isolated probe accepts ~use_values(my_vals)~ for ~Vec(Circle)~, infers
-   T = Circle and checks the bound. ~my_vals.use_values()~ instead reports
-   "no method 'use_values' for type 'Vec__Circle'". try_ufcs_rewrite checks
-   the first declared parameter (~T: Type~) against the receiver's type,
-   rather than using the runtime argument list and generic inference.
+    The original probe accepted ~use_values(my_vals)~ for ~Vec(Circle)~ but
+    rejected ~my_vals.use_values()~: try_ufcs_rewrite matched the leading
+    ~T: Type~ rather than the runtime receiver. Both now infer T = Circle and
+    check the bound. Regressions: test_bounded_generator_ufcs and the bounded
+    loop tests in test/interfaces.til; test/type_arg_qualifiers.til covers
+    invalid bounds, explicit/inferred calls, imports and argument flags.
 
 **** Keep the current syntax; use ordinary generic inference for UFCS
 
@@ -210,9 +224,9 @@
    Possible syntax: ~proc<T implements Drawable>(values: Vec(T)) { ... }~.
 
    Advantages: the receiver is visibly the first runtime parameter; bounds
-   and value parameters are separated. Tradeoffs: multiple type parameters
-   and multiple bounds need an unambiguous grammar; today's ~func<T>~ sugar
-   has no bounds. UFCS must still use the runtime signature after lowering,
+    and value parameters are separated. Multiple bounds use the existing
+    ~implements A, B~ grammar; a following parameter uses ~U: Type~ to
+    disambiguate it from another bound. UFCS uses the runtime signature after lowering,
    so changing the surface syntax alone does not fix the implementation.
 
 **** Trailing constraints
@@ -244,7 +258,7 @@
      handles. Bare parameters borrow and bare returns own as before.
       The nested-substitution draft's automatic ~Vec(Iface) -> Vec(Concrete)~
       rewrite has now been replaced by preservation of interface-handle
-      aggregate types. The generic UFCS syntax options above remain undecided.
+      aggregate types. The selected generic UFCS syntax is recorded above.
    - The ordinary-call probe with ~for value: T in values~ previously failed
      with "undefined type 'T'". Fixed: init_substitute_idents now substitutes
      ForInData.til_type as well as Declaration.til_type. Regression coverage:

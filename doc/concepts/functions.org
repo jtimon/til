@@ -256,7 +256,8 @@ first := func(T: Type, v: Vec(T)) returns T { return v.get(0)!.clone() }
 gid := func<T>(x: T) returns T { return x }
 #+end_src
 
-~func<T>(...)~ is sugar for a function generator (below) taking ~T: Type~.
+~func<T>(...)~ and ~proc<T>(...)~ are sugar for function generators (below)
+taking ~T: Type~, using the same parameter-list grammar as ~struct<T>~.
 Each distinct set of type arguments compiles to one concrete function
 (~gid__I64~), shared across modules.
 
@@ -311,10 +312,41 @@ dispatches on the box. A struct or enum may implement several interfaces
 each one's defaults are copied in, and a default that two of them provide
 is copied from neither -- the implementer must override it. A
 two-interface bound is satisfied by such a type (the dynamic box, by
-contrast, is always of ONE interface). The bound belongs on a parameter the signature uses as a type;
-on a runtime ~Type~ value it is an error. The ~func<T>~ sugar does not
-take bounds (a bound list and the next ~<T, U>~ parameter would be
-ambiguous there); spell the parameter out.
+contrast, is always of ONE interface). In the direct-generic spelling, the
+bound belongs on a parameter the signature uses as a type; on a runtime
+~Type~ value it is an error.
+
+The same bounds can be written in the generic parameter list:
+
+#+begin_src til
+use_values := proc<T: Type implements Drawable>(values: Vec(T)) {
+    println(values[0].draw())
+}
+#+end_src
+
+This is sugar for a ~macro(T: Type implements Drawable) returns FuncDef~
+whose result is the ~proc(values: Vec(T))~ definition. Bounds are checked for
+both explicit instantiation (~use_values(Circle)(values)~) and inferred calls
+(~use_values(values)~). The shared grammar also supports bounds on struct
+templates. ~<T implements Drawable>~ abbreviates ~T: Type~; when another
+parameter follows a bound list, write its annotation, for example
+~<T: Type implements Drawable, Named, U: Type>~, so the comma is unambiguous.
+
+** Generic UFCS
+
+~values.use_values()~ inserts ~values~ as the first runtime argument and uses
+ordinary generic inference and bound checking. A namespace method takes
+precedence over a free function with the same name. This works for the direct
+generic spelling as well as all-Type-parameter generators returning a single
+function template. The
+receiver is evaluated once, and ownership, mutability, effects and splats
+follow the ordinary call's rules.
+
+A ~Type~-valued runtime parameter in the generated function stays a runtime
+argument; it is not erased merely because the factory has type parameters.
+For explicit type selection, use the ordinary call forms. No separate
+~receiver.method<Type>()~ syntax is introduced. Enum template sugar is tracked
+separately in issue #460.
 
 * Function generators
 

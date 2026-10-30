@@ -1386,10 +1386,80 @@ test_interface_bound_loop_type := test() {
     circles.push(own Circle())
     circles.push(own Circle(r = 2))
     assert_eq(Str, draw_values(Circle, circles), "circle;circle;")
+    assert_eq(Str, circles.draw_values(), "circle;circle;")
     // A different concrete type forces the inferred instantiation path too.
     mut polygons := Vec(Polygon).new()
     polygons.push(own Polygon.Tri)
     assert_eq(Str, draw_values(polygons), "polygon;")
+    assert_eq(Str, polygons.draw_values(), "polygon;")
     empty := Vec(Circle).new()
     assert_eq(Str, draw_values(empty), "")
+}
+
+angle_draw := func<T: Type implements Drawable>(value: T) returns Str { return value.draw() }
+angle_many := proc<T: Type implements Drawable>(values: Vec(T)) returns Str {
+    noop_proc()
+    mut result := ""
+    for value: T in values { result = format(result, value.draw(), ";") }
+    return result
+}
+angle_pair := func<T: Type implements Drawable, U: Type implements Named>(first: T, second: U) returns Str {
+    return format(first.draw(), "/", second.name())
+}
+angle_both := func<T implements Drawable, Named>(value: T) returns Str { return format(value.draw(), "/", value.name()) }
+angle_suffix := func<T: Type implements Drawable>(value: T, own suffix: Str) returns Str { return format(value.draw(), suffix) }
+angle_append := func<T: Type implements Drawable>(mut values: Vec(T), own value: T) { values.push(own value) }
+angle_parts := func<T: Type implements Drawable>(value: T, parts: ..Str) returns Str {
+    mut result := value.draw()
+    for part in parts { result = format(result, part) }
+    return result
+}
+priv hidden_angle := func<T: Type implements Drawable>(value: T) returns Str { return value.draw() }
+BoundedBox := struct<T: Type implements Drawable> { value: T }
+TemplateShape := struct<T: Type> implements Drawable {
+    value: T
+namespace:
+    draw := func(self: TemplateShape(T)) returns Str { return self.value.to_str() }
+}
+counted_circle := func(mut calls: I64) returns Circle { calls++; return Circle() }
+
+namespace_choice := func<T: Type implements Drawable>(value: T) returns Str { return value.draw() }
+NamespaceChoice := struct implements Drawable {
+    n := 1
+namespace:
+    draw := func(_self: NamespaceChoice) returns Str { return "free" }
+    namespace_choice := func(_self: NamespaceChoice) returns Str { return "namespace" }
+}
+
+test_bounded_generator_ufcs := test() {
+    circle := Circle()
+    polygon := Polygon.Tri
+    badge := Badge(text = "label")
+    assert_eq(Str, angle_draw(circle), "circle")
+    assert_eq(Str, angle_draw(Circle)(circle), "circle")
+    assert_eq(Str, angle_draw(Circle, circle), "circle")
+    assert_eq(Str, circle.angle_draw(), "circle")
+    assert_eq(Str, polygon.angle_draw(), "polygon")
+    assert_eq(Str, circle.angle_pair(badge), "circle/label")
+    assert_eq(Str, badge.angle_both(), "badge label/label")
+    assert_eq(Str, circle.angle_suffix(own format("!")), "circle!")
+    parts := array(Str, "a", "b")
+    assert_eq(Str, circle.angle_parts(":", ..parts), "circle:ab")
+    assert_eq(Str, circle.hidden_angle(), "circle")
+    box := BoundedBox(Circle)(value = Circle())
+    assert_eq(Str, box.value.draw(), "circle")
+    shape := TemplateShape(I64)(value = 17)
+    assert_eq(Str, shape.angle_draw(), "17")
+    view: Drawable = circle
+    assert_eq(Str, view.angle_draw(), "circle")
+    mut values := Vec(Circle).new()
+    values.angle_append(own Circle())
+    assert_eq(Str, values.angle_many(), "circle;")
+    assert_eq(Str, angle_many(Circle)(values), "circle;")
+    mut calls := 0
+    assert_eq(Str, counted_circle(calls).angle_draw(), "circle")
+    assert_eq(I64, calls, 1)
+    value := NamespaceChoice()
+    assert_eq(Str, value.namespace_choice(), "namespace")
+    assert_eq(Str, namespace_choice(value), "free")
 }

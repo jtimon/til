@@ -20,6 +20,19 @@ reject := proc(cmd: Cmd, expects_arity: Bool = true) {
     if expects_arity { expect(output.contains("type_arg_is_ref expects one compile-time type argument"), output) }
 }
 
+reject_generic := proc(compiler: Str, root: Str, source: Str, expected: Str) {
+    path := format(root, "/invalid_generic.til")
+    File.writefile(path, source)
+    for action : Str in array(Str, "interpret", "translate") {
+        cmd := Cmd.new(compiler, action, path)
+        cmd.capture()
+        status := cmd.run()
+        output := format(cmd.out(), cmd.err())
+        expect(status != 0, source, ": ", output)
+        expect(output.contains(expected), source, ": ", output)
+    }
+}
+
 main := proc(args: ..Str) {
     ref compiler: Str = args[0]
     root := "tmp/type_arg_qualifiers"
@@ -411,5 +424,64 @@ main := proc(args: ..Str) {
         expect(status != 0, output)
         expect(output.contains("has a 'ref' payload"), output)
     }
+    File.writefile(format(root, "/ufcs_api.til"), format(
+        "mode lib\nRender := interface { draw := func(self: Render) returns Str }\n",
+        "RenderValue := struct implements Render { text: Str\nnamespace:\ndraw := func(self: RenderValue) returns Str { return self.text.clone() } }\n",
+        "render := func<T: Type implements Render>(value: T) returns Str { return value.draw() }\n",
+        "runtime_type_label := func(value: Type) returns Str { return dyn_type_to_str(value) }\n",
+        "render_kind := func<T: Type implements Render>(value: T, kind: Type) returns Str { return format(value.draw(), \"/\", dyn_type_to_str(kind)) }\n",
+        "runtime_receiver := func<T: Type implements Render>(kind: Type, value: T) returns Str { return format(dyn_type_to_str(kind), \"/\", value.draw()) }\n"))
+    for side : Str in array(Str, "left", "right") {
+        File.writefile(format(root, "/ufcs_", side, ".til"), format(
+            "mode lib\nimport(\"ufcs_api\")\n", side,
+            " := func() returns Str { value := RenderValue(text = \"", side, "\"); return value.render() }\n"))
+    }
+    File.writefile(format(root, "/ufcs_imports.til"), format(
+        "mode cli\nimport(\"ufcs_left\")\nimport(\"ufcs_right\")\nimport(\"ufcs_api\")\n",
+        "main := proc() { value := RenderValue(text = \"main\"); kind := Type.Primitive(Primitive.I64);\n",
+        "assert_eq(Str, kind.runtime_type_label(), \"I64\"); assert_eq(Str, value.render_kind(kind), \"main/I64\");\n",
+        "assert_eq(Str, render_kind(RenderValue, value, kind), \"main/I64\"); assert_eq(Str, render_kind(RenderValue)(value, kind), \"main/I64\");\n",
+        "assert_eq(Str, kind.runtime_receiver(value), \"I64/main\");\n",
+        "println(left(), \":\", right(), \":\", value.render(), \":\", render(RenderValue)(value)) }\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/ufcs_imports.til")), "left:right:main:main\n")
+    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/ufcs_imports"),
+        "-c", format(root, "/ufcs_imports.c"), format(root, "/ufcs_imports.til")), "left:right:main:main\n")
+    bound_prelude := format("mode cli\n",
+        "Draw := interface { draw := func(self: Draw) returns Str }\n",
+        "Extra := interface { extra := func(self: Extra) returns I64 }\n",
+        "Good := struct implements Draw { n := 1\nnamespace:\ndraw := func(_self: Good) returns Str { return \"good\" } }\n")
+    for call : Str in array(Str, "check(1)", "check(I64)(1)", "check(I64, 1)", "value.check()") {
+        reject_generic(compiler, root, format(bound_prelude,
+            "check := func<T: Type implements Draw>(_value: T) returns Bool { return true }\n",
+            "main := proc() { value := 1; println(", call, ") }\n"), "does not implement 'Draw'")
+    }
+    reject_generic(compiler, root, format(bound_prelude,
+        "check := func(T: Type implements Draw, _value: T) returns Bool { return true }\n",
+        "main := proc() { value := 1; println(value.check()) }\n"), "does not implement 'Draw'")
+    reject_generic(compiler, root, format(bound_prelude,
+        "check := func<T implements Draw, Extra>(_value: T) returns Bool { return true }\n",
+        "main := proc() { value := Good(); println(value.check()) }\n"), "does not implement 'Extra'")
+    reject_generic(compiler, root, format(bound_prelude,
+        "Box := struct<T: Type implements Draw> { value: T }\nBad := Box(I64)\nmain := proc() {}\n"), "does not implement 'Draw'")
+    reject_generic(compiler, root, format(bound_prelude,
+        "check := macro(T: Type implements Draw) returns FuncDef { return func(_value: T) returns Bool { return true } }\n",
+        "main := proc() { println(check(I64)(1)) }\n"), "does not implement 'Draw'")
+    reject_generic(compiler, root, format(bound_prelude,
+        "check := func<T: Type implements I64>(_value: T) returns Bool { return true }\n",
+        "main := proc() { value := Good(); println(value.check()) }\n"), "which is not an interface")
+    reject_generic(compiler, root, format(bound_prelude,
+        "action := proc<T: Type implements Draw>(_value: T) returns Bool { noop_proc(); return true }\n",
+        "bad := func(value: Good) returns Bool { return value.action() }\nmain := proc() {}\n"), "func cannot call proc")
+    reject_generic(compiler, root, format(bound_prelude,
+        "runtime_type := func(value: Type) returns Str { return dyn_type_to_str(value) }\n",
+        "main := proc() { value := Good(); println(value.runtime_type()) }\n"), "no method 'runtime_type'")
+    reject_generic(compiler, root, format(bound_prelude,
+        "bad := func<N: I64 implements Draw>() returns I64 { return N }\nmain := proc() {}\n"), "interface bounds require a Type parameter")
+    mut many_args := ""
+    for _ in 0..62 { many_args = format(many_args, "\"x\", ") }
+    reject_generic(compiler, root, format(bound_prelude,
+        "many := func<T: Type implements Draw>(value: T, parts: ..Str) returns Str { return format(value.draw(), ..parts) }\n",
+        "main := proc() { value := Good(); parts := array(Str, \"end\"); println(value.many(", many_args, "..parts)) }\n"),
+        "UFCS receiver insertion would overflow the argument qualifier bitmap")
     println("type argument qualifiers passed")
 }

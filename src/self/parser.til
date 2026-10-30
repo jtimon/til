@@ -756,6 +756,14 @@ priv parse_generic_params := proc(mut p: Parser) returns Vec(Declaration) {
         } else {
             set_decl_type(gp, "Type", p.symbols)
         }
+        if check(p, TokenType.KwImplements) {
+            if decl_type_name_ref(gp, p.symbols) != "Type" {
+                parse_fail(p, peek_line(p), peek_col(p), "interface bounds require a Type parameter")
+                return gparams
+            }
+            advance(p)
+            gp.bounds = parse_type_param_bounds(p)
+        }
         gparams.push(own gp)
         if check(p, TokenType.Comma) { advance(p) }
     }

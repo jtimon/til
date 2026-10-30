@@ -420,7 +420,7 @@ find_ns_decl := func(sdef: Expr, method: Str) returns Option(ref Declaration) {
     return safe_ref(d)
 }
 
-priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, method_sym: Sym, type_name: Str, mut ctx: Context) returns Bool {
+priv try_ufcs_rewrite := proc(mut scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, method_sym: Sym, type_name: Str, mut ctx: Context) returns Bool {
     // Top-level `priv` free functions are file-mangled to
     // `priv__<path>__<name>`, and init_rewrite_refs only rewrites Ident
     // references -- not the method name on a UFCS FieldAccess. So
@@ -444,7 +444,21 @@ priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
             ref top_fd : Expr = top_fd_o.unwrap()
             switch top_fd.node_type {
             case .FuncDef(top_fdef):
-                if top_fdef.sig.params.len() > 0 {
+                // Generic declarations match through ordinary inference after
+                // inserting the receiver, not against the leading Type slot.
+                // A runtime Type parameter is not erased by this test.
+                if top.is_func_decl.and(init_func_is_generic(top_fd, ctx.symbols)) {
+                    for param : Declaration in top_fdef.sig.params {
+                        if generic_param_is_type(param, ctx.symbols).not() { ufcs_match = 1 }
+                    }
+                }
+                template_o := func_gen_macro_template(top_fd, ctx.symbols)
+                if top.is_func_decl.and(template_o.is_some()) {
+                    ref template : Expr = template_o.unwrap()
+                    if template.children.len().gt(0).and(funcdef_of(template).sig.params.len() > 0)
+                        .and(funcdef_of(template).sig.func_type.is_plain()) { ufcs_match = 1 }
+                }
+                if ufcs_match.eq(0).and(top_fdef.sig.params.len() > 0) {
                     ref first_param : Str = decl_type_name_ref(top_fdef.sig.params[0], ctx.symbols)
                     if first_param.len() > 0 {
                         // Only a genuine free-function *declaration* is
@@ -478,6 +492,12 @@ priv try_ufcs_rewrite := func(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
         }
     }
     if ufcs_match == 0 { return false }
+    check_ufcs_arg_bitmap(e, ctx)
+    ref mut flags : FCallData = fcall_of(e)
+    flags.own_args = shift_fcall_bitmap_for_ufcs(flags.own_args)
+    flags.keep_outer_args = shift_fcall_bitmap_for_ufcs(flags.keep_outer_args)
+    flags.ref_args = shift_fcall_bitmap_for_ufcs(flags.ref_args)
+    flags.splat_args = shift_fcall_bitmap_for_ufcs(flags.splat_args)
     mut fn_ident := Expr.new(own ident_node(ctx.symbols.intern(lookup_name)), fa.line, fa.col)
     mut new_children := Vec(Expr).new()
     new_children.push(own fn_ident)
@@ -2204,6 +2224,15 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
     return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
 }
 
+priv check_ufcs_arg_bitmap := proc(call: Expr, mut ctx: Context) {
+    ref flags : FCallData = fcall_of(call)
+    marked := flags.own_args.bor(flags.keep_outer_args).bor(flags.ref_args).bor(flags.splat_args)
+    one: U64 = 1
+    if marked.band(one.shl(FCALL_ARG_BITS.sub(1).to_u64())) != 0 {
+        call.type_error("UFCS receiver insertion would overflow the argument qualifier bitmap", ctx)
+    }
+}
+
 // Issues #389/#381: the field sweep infers on a clone only to stamp the field
 // type; the original default is inferred and validated again in the body
 // sweep. Ordinary struct methods cannot be materialized until every field
@@ -2589,6 +2618,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         // allocate once per UFCS call.
         // Keep every child-indexed call flag aligned with the argument it
         // describes when UFCS inserts self at position 1.
+        check_ufcs_arg_bitmap(e, ctx)
         ref mut ufcs_fcd : FCallData = fcall_of(e)
         ufcs_fcd.own_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.own_args)
         ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
@@ -3663,7 +3693,7 @@ priv generic_closure_walk_calls := func(scope: TypeScope, e: Expr, mut seen: Set
 // Is `pname` one of this source's type-parameter names?
 priv generic_is_type_param := func(gfd: FunctionDef, pname: Str, symbols: SymbolPool) returns Bool {
     for p : Declaration in gfd.sig.params {
-        if decl_type_name_ref(p, symbols).eq("Type").and(p.name.eq(pname)) { return true }
+        if generic_param_is_type(p, symbols).and(p.name.eq(pname)) { return true }
     }
     return false
 }
@@ -3780,7 +3810,7 @@ priv generic_value_only_fdef := func(gfd: FunctionDef, symbols: SymbolPool) retu
     mut kidx : I32 = gfd.sig.kwargs_index
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
-        if decl_type_name_ref(p, symbols) == "Type" {
+        if generic_param_is_type(p, symbols) {
             cpos : I32 = i.to_i64().to_i32()
             if vidx > cpos { vidx = vidx - 1 }
             if kidx > cpos { kidx = kidx - 1 }
@@ -3799,7 +3829,7 @@ priv generic_value_only_fdef := func(gfd: FunctionDef, symbols: SymbolPool) retu
 priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDef, symbols: SymbolPool) returns Bool {
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
-        if decl_type_name_ref(p, symbols).eq("Type").not() { continue }
+        if generic_param_is_type(p, symbols).not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() { return false }
         switch e.children[argidx].node_type {
@@ -3820,7 +3850,7 @@ priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDe
 priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, mut ctx: Context) returns Bool {
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
-        if decl_type_name_ref(p, ctx.symbols).eq("Type").not() { continue }
+        if generic_param_is_type(p, ctx.symbols).not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() {
             e.type_error(format("missing type argument for parameter '", p.name, "' of generic '", display_name, "'"), ctx)
@@ -3966,7 +3996,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
     for np : Declaration in vo.sig.params {
         ref np_type : Str = decl_type_name_ref(np, ctx.symbols)
         for tp : Declaration in gfd.sig.params {
-            if decl_type_name_ref(tp, ctx.symbols).eq("Type").not() { continue }
+            if generic_param_is_type(tp, ctx.symbols).not() { continue }
             if np_type.eq(tp.name) { continue }
             if type_name_mentions_param(np_type, tp.name) { nested_only.add(own tp.name.clone()) }
         }
@@ -3989,7 +4019,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         // or more type parameters. Every operand in the run must agree.
         if generic_is_type_param(gfd, ptype_name, ctx.symbols).not() {
             for ntp : Declaration in gfd.sig.params {
-                if decl_type_name_ref(ntp, ctx.symbols).eq("Type").not() { continue }
+                if generic_param_is_type(ntp, ctx.symbols).not() { continue }
                 if type_name_mentions_param(ptype_name, ntp.name).not() { continue }
                 for nk in 0..run {
                     if ci + nk >= e.children.len() { break }
@@ -4091,7 +4121,7 @@ priv generic_infer_subs := proc(mut scope: TypeScope, mut e: Expr, gfd: Function
         pi++
     }
     for tp : Declaration in gfd.sig.params {
-        if decl_type_name_ref(tp, ctx.symbols).eq("Type").not() { continue }
+        if generic_param_is_type(tp, ctx.symbols).not() { continue }
         mut chosen := ""
         if ev_spell.has(tp.name) {
             chosen = ev_spell[tp.name].clone()
@@ -4353,7 +4383,7 @@ priv func_gen_macro_template := func(fd: Expr, symbols: SymbolPool) returns Opti
 // the whole #328 inference-and-instantiate path applies unchanged, and the
 // instance it names (`gid__I64`) is the one init's macro expansion would
 // have produced for the explicit form.
-priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr) returns Expr {
+priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr, symbols: SymbolPool) returns Expr {
     mut twin := FunctionDef()
     switch tmpl.node_type {
     case .FuncDef(tfd):
@@ -4368,7 +4398,19 @@ priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr) returns Expr {
         case:
         }
         ntype := twin.sig.params.len().to_i32()
-        for vp : Declaration in tfd.sig.params { twin.sig.params.push(own vp.clone()) }
+        for vp : Declaration in tfd.sig.params {
+            mut runtime_param := vp.clone()
+            runtime_param.runtime_type_param = true
+            // Preserve the legacy direct-generic spelling if the inner
+            // signature itself uses this parameter as a type.
+            if decl_type_name_ref(vp, symbols) == "Type" {
+                if type_name_mentions_param(tfd.sig.return_type, vp.name) { runtime_param.runtime_type_param = false }
+                for other : Declaration in tfd.sig.params {
+                    if type_name_mentions_param(decl_type_name_ref(other, symbols), vp.name) { runtime_param.runtime_type_param = false }
+                }
+            }
+            twin.sig.params.push(own runtime_param)
+        }
         // The variadic/kwargs markers index the PARAMETER LIST, so they
         // shift by however many type params were prepended. -1 means
         // "none" and must stay -1.
@@ -4617,8 +4659,13 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         // unit still needs to read the macro through this binding.
         macro_fd_o := scope.lookup_func_name(func_gen_src_name, ctx.symbols)
         tmpl_o := func_gen_macro_template(macro_fd_o.unwrap(), ctx.symbols)
-        ctx.func_gen_twins.add_child(own make_direct_generic_twin(macro_fd_o.unwrap(), tmpl_o.unwrap()))
-        ref twin : Expr = ctx.func_gen_twins.children[ctx.func_gen_twins.children.len() - 1]
+        // Keep the FuncDef in a declaration's separately allocated children.
+        // Appending another twin can move the outer Vec, but must not dangle
+        // the definition pointers already registered in TypeScope.
+        mut holder := Expr.new(own NodeType.Decl(Declaration(name = func_gen_src_name.clone())), e.line, e.col)
+        holder.add_child(own make_direct_generic_twin(macro_fd_o.unwrap(), tmpl_o.unwrap(), ctx.symbols))
+        ctx.func_gen_twins.add_child(own holder)
+        ref twin : Expr = ctx.func_gen_twins.children[ctx.func_gen_twins.children.len() - 1].children[0]
         // Against ctx.scope, never the caller's nested body scope: the
         // macro's BINDING is a unit-level one, and lookup_func answers
         // from the scope that owns the binding -- a func_def parked in a
@@ -6000,7 +6047,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             if mtg_ret { macro_is_template = true }
             if macro_is_template.not() {
                 for tmp_param : Declaration in fdef.sig.params {
-                    if decl_type_name_ref(tmp_param, ctx.symbols) == "Type" {
+                    if generic_param_is_type(tmp_param, ctx.symbols) {
                         macro_is_template = true
                     }
                 }
@@ -6133,9 +6180,12 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             pshallow := param.own_type.is(OwnType.Shallow)
             // #434: a bound belongs on a TYPE parameter. A generic source
             // is never typed (its instances have the Type params removed),
-            // so reaching this check with a bound means the parameter is a
-            // runtime Type value the signature never uses as a type.
-            if param.bounds.len() > 0 {
+            // Definition-generator macros keep their compile-time parameters;
+            // their bounds are checked when the definition is instantiated.
+            definition_generator := fdef.sig.func_type.is(FuncType.Macro)
+                .and(fdef.sig.return_type.eq("StructDef").or(fdef.sig.return_type == "EnumDef")
+                    .or(fdef.sig.return_type == "FuncDef").or(fdef.sig.return_type == "FunctionDef"))
+            if param.bounds.len().gt(0).and(definition_generator.not()) {
                 expr.type_error(format("'implements' on parameter '", param.name,
                     "' needs a type parameter that the signature uses as a type (`v: ", param.name,
                     "`, `returns ", param.name, "`); here it is a runtime Type value"), ctx)
@@ -9371,10 +9421,8 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     // to the WRONG unit, so clear it here and check it drained at exit.
     ctx.generic_pending.children.clear()
     carries_borrow_memo_clear(scope, ctx)
-    // #328 follow-up: same per-unit lifetime for the function-generator twins.
-    // A twin is only reachable through this unit's scope registration, so
-    // carrying one into the next unit would leave a dangling func_def.
-    ctx.func_gen_twins.children.clear()
+    // Function-generator twins remain registered in the shared root scope.
+    // Keep them until Context teardown, including across importing units.
     // Lift anonymous func literals out of expression positions to
     // top-level _lambda_<N> priv decls. The typer then types them as
     // ordinary named functions through the normal walk below. Doing
@@ -12647,16 +12695,16 @@ fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope, symbols: S
 priv summary_fcall_arg_for_param := func(fcall: Expr, cfd: FunctionDef, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
     mut has_type_param := false
     for p : Declaration in cfd.sig.params {
-        if decl_type_name_ref(p, symbols) == "Type" { has_type_param = true }
+        if generic_param_is_type(p, symbols) { has_type_param = true }
     }
     if has_type_param.not().or(generic_call_is_explicit(scope, fcall, cfd, symbols)) {
         return fcall_arg_for_param(fcall, pi, scope, symbols)
     }
     if pi >= cfd.sig.params.len() { return Option(ref Expr).None }
-    if decl_type_name_ref(cfd.sig.params[pi], symbols) == "Type" { return Option(ref Expr).None }
+    if generic_param_is_type(cfd.sig.params[pi], symbols) { return Option(ref Expr).None }
     mut value_pos : USize = 0
     for before in 0..pi {
-        if decl_type_name_ref(cfd.sig.params[before], symbols) != "Type" { value_pos++ }
+        if generic_param_is_type(cfd.sig.params[before], symbols).not() { value_pos++ }
     }
     if value_pos + 1 >= fcall.children.len() { return Option(ref Expr).None }
     return safe_ref(fcall.children[value_pos + 1])

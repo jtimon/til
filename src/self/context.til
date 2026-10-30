@@ -969,6 +969,10 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding, symbols: Sy
 // each call is rewritten to that copy with the type-args dropped.
 // Issue #328 moved it here from initer.til: initer, desugarer and typer
 // all need ONE source-classification rule.
+generic_param_is_type := func(param: Declaration, symbols: SymbolPool) returns Bool {
+    return param.runtime_type_param.not().and(decl_type_name_ref(param, symbols) == "Type")
+}
+
 init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd):
@@ -981,7 +985,7 @@ init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
         // never used to type anything, e.g. til_type_name_c) is NOT a
         // generic and must be left untouched.
         for p : Declaration in fd.sig.params {
-            if decl_type_name_ref(p, symbols).eq("Type").not() { continue }
+            if generic_param_is_type(p, symbols).not() { continue }
             tname := p.name
             // Directly (`v: T`, `returns T`), or as a SEGMENT of a
             // generated instance name: the parser mangles an annotation
@@ -1076,7 +1080,7 @@ generic_source_throws_depend_on_type := func(rhs: Expr, symbols: SymbolPool) ret
     switch rhs.node_type {
     case .FuncDef(fd):
         for p : Declaration in fd.sig.params {
-            if decl_type_name_ref(p, symbols).eq("Type").not() { continue }
+            if generic_param_is_type(p, symbols).not() { continue }
             for t : Str in fd.sig.throw_types {
                 if type_name_mentions_param(t, p.name) { return true }
             }
@@ -1619,13 +1623,14 @@ Context := struct {
     // per-owner synth_symbol_seq below -- a late concrete body lifts under
     // its own unique mono name, so it cannot collide with the initial
     // sweep's symbols.)
-    // #328 follow-up: per-unit holder for the DIRECT-generic twins the
+    // #328 follow-up: context-lifetime holder for the DIRECT-generic twins the
     // typer synthesizes from all-Type-param function generators (the
     // macros #58's `func<T>` sugar desugars to), so their omitted type
     // arguments infer through the same path direct generics use. A twin
     // is registered into the scope by pointer, so it has to outlive the
-    // call that built it -- this holder owns it for the unit. Reset
-    // alongside generic_pending at type_check_unit entry.
+    // call that built it and later importing units. Each child is a Decl
+    // whose child FuncDef stays put when the holder grows. Context owns them
+    // as long as its shared root scope can refer to them.
     own func_gen_twins : Expr = Expr.new(own NodeType.Body, 0, 0)
     // #328 follow-up: expected-type evidence for generic inference.
     // `v : Point = gdefault()` names T's answer in the ANNOTATION, which
