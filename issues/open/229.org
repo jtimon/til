@@ -3,32 +3,49 @@
 ** OPEN #229 Support user-defined enum/struct types as main() CLI args
 
   Today a program whose ~main()~ takes a CLI argument can only use the
-  built-in parseable types: ~Str~, ~Bool~, and the integer family
+  built-in parseable types: ~Str~, ~Bool~, ~F32~, ~F64~, and the integer family
   (~I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr~). Any other type is rejected
   up front by ~validate_cli_main~ (see ~src/self/loader.til~). This issue
   extends that set to user-defined ~enum~ and ~struct~ types.
 
-  Note: ~F32~ is NOT part of this issue. ~Str.to_f32~ already exists
-  (~str_parse_f32~ -> C ~strtof~), so F32 is a trivial separate add; it is
-  only "unsupported" because it was never wired into the CLI arg set.
+  Reviewed against master ~4f976d78e~ on 2026-10-31. Both float widths
+  already work in the validation, C parsing and interpreter paths. This
+  issue remains about user-defined enums/structs, not float enablement.
+  The review inspected code and registered tests; it did not rerun the
+  runtime tests.
 
-*** Canonical supported-type set (three places, keep in sync)
+*** Current implementation map
 
-   The parseable-type knowledge is duplicated in three spots; all three
-   must learn about enums/structs together:
+   Parsing/validation and reachability must stay in sync. The old
+   three-location list omitted scavenger roots and named a removed helper:
 
-   1. ~cli_arg_type_supported(name)~ in ~src/self/loader.til~ -- the
-      gatekeeper used by ~validate_cli_main~. Currently a pure string
-      match. To accept enums/structs it must consult the program's type
-      definitions (is ~name~ a known enum/struct decl?), so it needs the
-      type registry / ~LoadedProgram~ context rather than just a name.
+   1. [[file:../../src/self/loader.til][validate_cli_main(lp: LoadedProgram)]] checks parameter names directly
+      against the supported set; there is no ~cli_arg_type_supported~
+      function now. The validator already has ~LoadedProgram~ and its
+      context. Enum/struct acceptance needs definition-aware validation
+      instead of merely adding more string comparisons. Variadic parameters
+      are checked by element type.
 
-   2. ~cli_box_expr(ttype, arg)~ in ~src/self/builder.til~ -- emits the C
-      expression that parses one argv string into a boxed value (compile
-      backend).
+   2. [[file:../../src/self/c_codegen.til][cli_box_expr(ttype, arg, by_value)]] is in ~c_codegen.til~, not
+      ~builder.til~. ~emit_cli_parse_value~ selects value, stack-backed or
+      boxed bindings for fixed/variadic arguments. New aggregate parsers
+      must preserve that storage/ownership contract, rather than returning
+      a tag scalar where an enum value is required.
 
-   3. ~parse_cli_arg(s, type_name, ctx)~ in ~src/self/interpreter.til~ --
-      builds the Value for one argv string (interpret backend).
+   3. [[file:../../src/self/interpreter.til][parse_cli_arg(s, type_name, ctx)]] allocates raw result storage
+      through ~dispatch_result_alloc~ and writes the parsed value. It no
+      longer constructs the historical ~Value~ enum. Enum construction
+      must use the current interpreter layout and ownership rules.
+
+   4. [[file:../../src/self/scavenger.til][seed_cli_arg_helpers / seed_cli_main_arg_roots]] root the exact
+      conversions needed by main's signature, plus deletion for variadic
+      elements. Any new parser/constructor/deletion dependency must survive
+      scavenging even when referenced only by the generated entry wrapper.
+
+   ~validate_cli_main~ is shared frontend validation. Extending it also
+   changes what reaches alternative backends; check their CLI entry
+   restrictions rather than assuming the C/interpreter implementation
+   establishes support on every target.
 
 *** Phase 1: enums (tractable)
 
@@ -36,17 +53,18 @@
    ~Color := enum { Red, Green, Blue }~). Parse the argv string by
    matching it against the variant names.
 
-   - builder ~cli_box_expr~: for enum ~E~, emit a small dispatch --
-     compare the argv c-string against each variant name; on match assign
-     the variant's tag (the enum's C representation); else
-     ~fprintf(stderr, ...); exit(1)~. The variant names + tag values come
-     from the enum's type def, which the builder already has access to
-     (it emits enum ctors elsewhere -- reuse that lookup).
+   - C emitter ~cli_box_expr~: for enum ~E~, emit a dispatch comparing
+     the argv text against its variant names. On match construct the
+     corresponding enum using its current representation; on mismatch
+     report the bad value and exit nonzero. The current helper takes only
+     strings and a storage flag, so definition-aware parsing needs access
+     to the enum definition through the emitter context. Do not assume
+     the whole enum value is represented by its tag alone.
    - interpreter ~parse_cli_arg~: look up the enum def in ~ctx~, match the
-     variant name, construct the enum Value (mirror how enum literals are
+     variant name, construct the enum result (mirror how enum literals are
      evaluated).
-   - ~cli_arg_type_supported~: return true when ~name~ resolves to an enum
-     decl all of whose variants are payload-less. Reject payload-carrying
+   - ~validate_cli_main~: accept a parameter when its type resolves to an
+     enum declaration all of whose variants are payload-less. Reject payload-carrying
      enums in phase 1 with a clear message (their payloads would need
      parsing too).
 
@@ -62,15 +80,24 @@
 
    - Add a passing example (e.g. ~examples/cli_enum.til~ with
      ~main(c: Color)~) exercised by ~add_cli_pair~ on both backends.
-   - The existing negative test ~test/cli_unsupported_main.til~ uses
-     ~F32~. If F32 (or enums) become supported, switch that test to a type
-     that is still genuinely unparseable (e.g. a payload-carrying enum in
-     phase 1, or a bare struct) so the ~validate_cli_main~ rejection path
-     keeps its coverage.
+   - [[file:../../test/cli_unsupported_main.til][test/cli_unsupported_main.til]] already uses a ~Point~ struct,
+     not F32. [[file:../../src/tests.til][src/tests.til]] registers its rejection in both
+     ~cli_unsupported_main_interp~ and ~cli_unsupported_main_build~.
+     Retain that coverage during enum-only work; reconsider the fixture
+     only when struct support actually changes its expected result.
+   - Existing ~cli_scalars~, ~f64~, and ~f64_variadic~ test pairs cover
+     [[file:../../examples/cli_scalars.til][scalar CLI arguments]], [[file:../../test/f64.til][F64 main arguments]], and
+     [[file:../../test/f64_variadic.til][variadic F64 arguments]] in interpretation and compiled execution.
+   - Future enum coverage should include every variant, unknown/empty
+     input, payload-enum rejection, and fixed plus variadic arguments.
+     Check generated parser reachability and result cleanup as well as
+     name matching.
 
 *** Hooks summary
 
-   - ~src/self/loader.til~  : ~cli_arg_type_supported~, ~validate_cli_main~
-   - ~src/self/builder.til~ : ~cli_box_expr~ (+ ~cli_view_box~ helper)
+   - ~src/self/loader.til~  : ~validate_cli_main~
+   - ~src/self/c_codegen.til~ : ~cli_box_expr~, ~emit_cli_parse_value~,
+     ~cli_view_scalar~, ~cli_view_value~, ~cli_view_box~
    - ~src/self/interpreter.til~ : ~parse_cli_arg~
+   - ~src/self/scavenger.til~ : ~seed_cli_arg_helpers~, ~seed_cli_main_arg_roots~
    - tests: ~src/tests.til~, ~examples/~, ~test/~

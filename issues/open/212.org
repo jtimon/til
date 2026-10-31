@@ -15,7 +15,57 @@ The chosen interface (see "Interface" below) is a two-argument builtin
 `cast(e, T)` callable UFCS-style as `e.cast(T)`, NOT Jai's prefix
 `cast(T) expr`. The Jai form is kept below as background/contrast.
 
-*** Status (shipped)
+*** Current contract (reviewed 2026-10-31, master 4f976d78e)
+
+The original integer-cast work shipped; the implementation has since grown.
+The authoritative legality checks are ~cast_pair_ok~ and ~infer_cast_fcall~
+in [[file:../../src/self/typer.til][typer.til]], not the narrower historical summary below.
+
+- Scalar integers: same-width casts (including identity) with either
+  signedness, and same-signedness widening. Narrowing and cross-signedness
+  widening are rejected. These are not checked numeric conversions.
+- Scalar floats, Bool, strings, arbitrary structs and ordinary enum values
+  are not admitted by the scalar integer rule. Parsing/formatting and scalar
+  float conversions still use their methods.
+- Callable recovery is already supported: ~Dynamic~ or a function-pointer
+  type can cast to a named FuncSig; ~Dynamic~ or ~Body~ can cast to ~Body~.
+  This is not general raw-pointer casting. The interpreter's ~h_cast~ calls
+  ~check_dynamic_callable_signature~ and handles callable storage separately
+  from integer bits. See [[file:../../test/fn_ptr.til][test/fn_ptr.til]], including delayed casts.
+- SIMD casts preserve lane count. Integer lanes use the integer legality
+  rule; F32/F64 lane conversions are also implemented. This does not imply
+  that scalar float casts or float-to-integer SIMD casts are supported.
+  [[file:../../test/simd.til][test/simd.til]] covers integer widening and both float-width
+  directions; [[file:../../test/simd_errors.til][test/simd_errors.til]] includes float-to-integer rejection.
+
+Implementation map:
+
+- [[file:../../src/core/cast.til][core/cast.til]] still declares
+  ~cast := ext_func(e: Dynamic, T: Type) returns shallow Dynamic {}~.
+- ~infer_cast_fcall~ resolves the target name and sets the concrete result
+  type. The type argument stays a type-token identifier; it is not a runtime
+  Type allocation. SIMD method-call lowering supplies the concrete vector
+  target for lane-style calls such as ~v.cast(I64)~.
+- [[file:../../src/self/c_codegen.til][c_codegen.til]] emits integer casts, callable handling and lane-wise
+  SIMD conversion. For scalar casts it recovers the explicitly requested
+  target from the type argument rather than trusting a result stamp that an
+  enclosing argument coercion may have widened. ~fcall_return_ctype~ handles
+  the concrete return type of the shallow-Dynamic builtin.
+- [[file:../../src/self/interpreter.til][interpreter.til: h_cast]] operates on raw result storage/inline
+  scalar words; the old ~Value.Sbyte~ / ~Value.Ushort~ implementation notes
+  below describe history, not today's interpreter representation.
+- [[file:../../test/cast.til][test/cast.til]] covers all signed/unsigned width pairs, plain-call
+  syntax, and signed/unsigned widening. This review read the implementations
+  and existing tests; it did not rerun backend conformance tests.
+
+Generic ~returns T~ is no longer absent from the language: see
+[[file:../../test/imports/generic_infer_public.til][generic_public_id]] and [[file:../fixed/328.org][#328]]. However, the ordinary generic mechanism
+does not by itself remove this intrinsic's legality, storage and backend
+rules. The remaining return-type question is whether/how to express this
+particular builtin through the current generic machinery while preserving
+~cast(value, T)~ and UFCS, not waiting for generic return syntax to exist.
+
+*** Original shipped arc (historical)
 
 The core arc is in master:
 
@@ -42,15 +92,9 @@ The core arc is in master:
   - Dead `U64.from_i64` removed (zero call sites, was duplicating the
     free `I64.to_u64`, with a false "Panics if negative" doc comment).
 
-Still open (kept under "Remaining open questions" below):
-
-  - F32 <-> integer: deliberately left as `.to_f32()` / `.to_i64()`
-    methods for now -- it is the one cast that genuinely recomputes
-    a value, so the cost is kept visible in the name.
-  - Pointer / enum casts.
-  - Dependent return type (`returns T`): once til has it, drop the
-    `returns shallow Dynamic` stopgap and the typer's result-type
-    override for cast.
+See "Remaining open questions" for the current scope. Historical paths such
+as ~src/core/u16.til~ now live in [[file:../../src/core/numbers.til][numbers.til]], and C emission is in
+~c_codegen.til~, not ~builder.til~.
 
 *** How Jai does it
 
@@ -75,7 +119,7 @@ Rather than copy Jai's prefix operator, til models `cast` as an ordinary
 two-argument builtin so it composes with existing machinery (UFCS,
 Dynamic, and type-name-as-argument) and needs NO new keyword or grammar:
 
-    cast := ext_func(e: Dynamic, T: Type) returns Dynamic {}
+    cast := ext_func(e: Dynamic, T: Type) returns shallow Dynamic {}
 
 Usage, plain and UFCS:
 
@@ -85,24 +129,23 @@ Usage, plain and UFCS:
 
 Design notes:
 
-  - `returns Dynamic` is a STOPGAP. The true signature is
-    `cast(e: Dynamic, T: Type) returns T` -- the result type is the
-    *value* of the T argument -- but til has no dependent/type-parametric
-    return syntax yet. Until it does, `cast` declares `returns Dynamic`
-    and the typer special-cases it (see below). When a `returns T` form
-    lands, drop the special-case and the stopgap.
-  - Typer special-case: when resolving a `cast` call, read the second
-    argument's `Type` value and set the call expression's result type to
+  - The declaration's ~returns shallow Dynamic~ does not describe the
+    concrete call result; the typer supplies T. Generic ~returns T~ now
+    exists, but replacing this intrinsic's declaration/handling remains an
+    investigation, not a mechanical deletion of its special cases.
+  - Typer special-case: when resolving a `cast` call, resolve the second
+    argument's type-token identifier and set the call expression's result type to
     exactly that type -- NOT generic `Dynamic`. That makes
     `b : I32 = a.cast(I32)` type-check directly instead of leaning on
     Dynamic->I32 narrowing at the assignment.
   - `T: Type` as an argument reuses the same type-name-as-value mechanism
-    that `Vec.new(Str)` / `Set.new(Str)` already rely on; the parser/typer
-    turns the type name `I32` in argument position into a `Type` value.
+    that `Vec(Str).new()` / `Set(Str).new()` already rely on. For cast,
+    the typer marks the target identifier as a Type token without emitting
+    a runtime Type value.
   - UFCS: `a.cast(I32)` desugars to `cast(a, I32)` through the existing
     `try_ufcs_rewrite` path, so `cast` is reachable as a method on any
     value without per-type definitions.
-  - Codegen: the builder intercepts `cast` and emits `(<CType>)e`; there
+  - Codegen: the C emitter intercepts scalar integer `cast` and emits `(<CType>)e`; there
     is no real C body despite the `ext_func` shape (like other builtins).
   - Ergonomics: `b : I32 = a.cast(I32)` restates `I32` on both sides.
     That is the accepted cost of NOT adopting `xx`-style autocast; the
@@ -120,7 +163,7 @@ already U32. The four same-size reinterpret methods (I64.to_u64,
 U64.to_i64, I32.to_u32, U32.to_i32) were the most clearly redundant:
 each emitted a bare C cast that `cast` now spells uniformly.
 
-*** Why a cast-style construct looks better
+*** Original motivation (historical, not the supported-pair contract)
 
   0. The motivating case: same-width sign reinterpret. Turning a U64
      into an I64 (or U32<->I32) is a free, no-op reinterpret at the
@@ -147,7 +190,7 @@ each emitted a bare C cast that `cast` now spells uniformly.
   5. Uniform across kinds: the one builtin could later cover pointer and
      enum casts, which today would each need bespoke methods.
 
-*** What to KEEP as methods (the dividing line)
+*** What to KEEP as methods (original rationale)
 
 The clean rule: `cast` is for representation conversion the CPU does
 directly; methods stay for operations that allocate, validate, or run an
@@ -156,9 +199,9 @@ algorithm. Those are not casts and should not masquerade as one.
   - `to_str` on every type -- it is FORMATTING, not reinterpretation: it
     allocates a heap Str, and for floats/uints runs real logic
     (F32_to_str uses sprintf, U64_to_str_ext is a divide-by-10 loop --
-    src/c/ext.c:399+,464+). `42.cast(Str)` would be a lie. KEEP to_str.
+    [[file:../../src/c/ext.c][src/c/ext.c]]). `42.cast(Str)` would be a lie. KEEP to_str.
   - `Str.to_i64` / `to_f32` / `to_u8` ... -- PARSING with validation that
-    panics on bad input (src/core/str.til:265,314). It is a fallible
+    panics on bad input ([[file:../../src/core/str.til][src/core/str.til]]). It is a fallible
     function, not a bit-level cast; `"123".cast(I64)` should not silently
     parse. KEEP these.
   - F32 <-> integer -- the one case where `cast` is NOT free. Same-width
@@ -179,16 +222,16 @@ algorithm. Those are not casts and should not masquerade as one.
     default. Folding it into `cast` (Jai-style: any primitive machine
     conversion) is a coherent alternative -- file a follow-up if/when
     that uniformity is wanted.
-  - Pointer / enum casts: scope whether `cast` should subsume any
-    existing pointer / enum-int conversions or stay integer-only.
-  - Dependent return type: the honest signature is
-    `cast(e: Dynamic, T: Type) returns T`. Once til has a way to spell
-    a return type that depends on a `Type`-valued argument, drop the
-    `returns shallow Dynamic` stopgap in src/core/cast.til AND the
-    typer's result-type override in infer_cast_fcall AND the two
-    typer-override short-circuits in src/self/builder.til
-    (fcall_returns_dynamic, fcall_return_ctype). The same-size-pair
-    legality check in infer_cast_fcall still stays.
+  - General pointer / enum casts: decide whether additional conversions
+    belong here, separately from the already-supported callable recovery.
+    The builtin is no longer integer-only because of callable and SIMD use.
+  - Generic return declaration: investigate the existing generic machinery
+    for this builtin, preserving argument order, UFCS and all admitted cast
+    families. Keep pair validation and backend-specific conversion semantics.
+    Audit ~fcall_return_ctype~ in ~c_codegen.til~ rather than following the
+    obsolete two-helper deletion recipe in ~builder.til~. In particular,
+    ~fcall_returns_dynamic_storage~ in ~typer.til~ handles owned Dynamic
+    returns generally; it is not obsolete just because cast is shallow.
   - Followup cleanup: `is_self_conversion_method` in src/self/typer.til
     is now unreachable for the four same-size pairs (their methods are
     gone, so any `x.to_u32()` on a U32 fails earlier with "no method").
@@ -196,7 +239,7 @@ algorithm. Those are not casts and should not masquerade as one.
     via ASCII case-insensitive matching (`val.to_terrselfaaa()` on
     `TerrSelfAaa`) -- without it the typer would surface a generic
     "no method" instead of the clearer "redundant self-conversion"
-    diagnostic. test/typer_errors.til:519-541 exercises the path. The
+    diagnostic. [[file:../../test/typer_errors.til][test/typer_errors.til]] exercises the path. The
     function already carries an explanatory comment.
 
 *** Notes

@@ -2,6 +2,82 @@
 # category: experiments
 ** OPEN #215 Investigate mode safe_script (port from rstil)
 
+*** Current status (reviewed 2026-10-31, master 4f976d78e)
+
+No built-in ~safe_script~ mode or ~SAFE_COMMANDS~ enforcement exists in
+current til. The structural prerequisite [[file:../fixed/216.org][#216]] is complete; this issue
+is no longer blocked on moving process operations out of core or adding
+~Str.trim~. The rstil research and original decisions below are retained
+as history, not a description of the current compiler or a ready-to-apply
+implementation recipe. The rstil checkout was not re-audited in this review.
+
+**** Current source map
+
+- [[file:../../src/std/mode_type.til][Mode]] is defined in ~src/std/mode_type.til~. It carries structural,
+  purity, auto-import, test, target and build-hint settings, but no command,
+  filesystem or FFI permission policy.
+- [[file:../../src/core/modes.til][src/core/modes.til]] supplies built-ins as ~mode mode~ declarations.
+  There is no ~core_modes~ map to extend. [[file:../../src/self/modes.til][self/modes.til]] initializes
+  the registry with the bootstrap ~mode~ definition and maintains per-file
+  modes; [[file:../../src/self/loader.til][load_mode_file/load_program]] load the built-in definitions and
+  extra mode files. User-defined modes already exist ([[file:../fixed/63.org][#63]]).
+- [[file:../../src/std/sys.til][std/sys.til]] owns ~spawn_cmd~, ~system_cmd~, ~run_cmd~ and the
+  argv-based ~Cmd~ / ~ccmd_*~ API. ~run_cmd~ still wraps ~spawn_cmd~,
+  but ~spawn_cmd~ is no longer the sole process-execution entry point.
+- [[file:../../src/std/file.til][std/file.til]] owns ~File~, ~Dir~, and the ~cfile_*~ / ~cdir_*~
+  primitives. ~std/sys~ imports it, but a program can import ~std/file~
+  directly. ~mkdir_p~, ~copy_file~, and ~copy_tree~ are ext_procs in
+  ~std/sys~, not just til-level helper names as the old plan assumed.
+- [[file:../../src/c/ext.c][ext.c]] implements shell execution and the argv process boundary;
+  the POSIX ~Cmd~ path uses ~posix_spawnp~. ~Cmd~ avoids shell-string
+  parsing, but still permits explicitly launching a shell and resolves bare
+  executable names through PATH. It is an execution API, not a sandbox.
+- [[file:../../src/self/loader.til][extract_link_info]] collects ~link~, ~link_macos~, and ~link_c~.
+  [[file:../../src/self/interpreter.til][interpreter.til]] resolves external symbols and invokes them via libffi.
+  A restriction only on known til wrapper names would not cover new FFI
+  declarations or foreign code introduced through those directives.
+- [[file:../../src/self/constfolder.til][try_eval_call]] excludes ordinary proc/ext_proc effects from normal
+  folding, but explicitly permits effects during macro evaluation. Checking
+  only runtime calls is therefore insufficient for untrusted source: any
+  eventual restriction must also cover compile-time execution.
+
+**** Corrections to the original plan
+
+The chosen direction remains an opt-in restricted mode, with other modes
+unrestricted and disallowed actions producing hard errors rather than
+prompts. This review does not choose new policy fields or a new public API.
+Several implementation assumptions must be resolved before that direction
+can actually be implemented:
+
+- Checking the first whitespace-delimited word of shell text is not a
+  command whitelist: ~ls ; other_command~ or ~ls $(other_command)~ can
+  execute more than the admitted first word. ~trim~ does not solve this.
+  The historical "first word is sufficient" recipe below is invalid.
+- Gating ~spawn_cmd~ alone misses ~system_cmd~ and ~Cmd.start/run~ via
+  ~ccmd_start~. Define the allowed process boundary and argument/path
+  behavior before selecting its enforcement point. The old command names
+  alone do not establish a cwd restriction (for example ~find~ has actions
+  that execute commands, and ~mkdir~ accepts paths outside cwd).
+- Banning only ~std/sys~ imports misses direct ~std/file~ imports and
+  user-declared FFI. The transitive import, FFI, link-directive and macro
+  rules must agree. Per-file ~ctx.mode~ is not a program-wide restriction:
+  importing a ~mode lib~ helper must not drop the root script's policy.
+- The old plan both bans the syscall subtree and allows selected operations
+  from it. Specify how those allowed operations become available without
+  exposing the unrestricted subtree. This remains a design question, not
+  an implementation already supplied by #216.
+- ~is_pure~ is not this policy: the current typer rejects ~proc~ definitions
+  in pure mode, but the Mode structure does not express host permissions.
+  Define interpreter/compiled behavior and check before macro effects; an
+  interpreter-only guard cannot promise the same behavior for built output.
+
+Future acceptance should exercise allowed operations and rejected shell
+composition, alternate process APIs, transitive helpers, direct file imports,
+new FFI/link directives, and compile-time macros. These are proposed checks
+for this feature, not claims that a safe_script test suite already exists.
+
+*** Historical rstil research and local proposal
+
 Idea taken from Roc's platforms.  Researched in the rstil repo
 ([[https://github.com/jtimon/rstil]]), where a first cut of safe_script
 exists in the rs interpreter only -- the self-hosted til version
@@ -145,7 +221,7 @@ just a doc-comment warning -- no language-level annotation that it is
    rust ~rstil interpret~ honours it, so safe_script files break the
    moment you compile/translate through the self-hosted path.
 
-* Mode system in this repo, for comparison
+* Historical mode system in this repo, for comparison
 
 Modes here are described by ~src/self/modes.til~'s ~Mode~ struct and
 the ~core_modes~ map:
@@ -179,13 +255,14 @@ core_modes := {
 interpreter or codegen.  ~spawn_cmd~ itself is the ext_proc that
 actually shells out.
 
-Issue [[file:63.org][#63]] tracks user-defined modes; whatever shape
+Issue [[file:../fixed/63.org][#63]] tracked user-defined modes; whatever shape
 safe_script takes will probably want to share machinery with that.
 
-* Options for starting safe_script here (less detail)
+* Historical options for starting safe_script here
 
-Chosen direction is Option A.  B and C are kept below as "considered
-and not picked" so the rationale is on file.
+The original discussion chose Option A. Its intent is retained, but the
+current review above supersedes its process, import and shell-parsing
+assumptions. B and C remain historical alternatives, not new decisions.
 
 ** Option A (chosen): minimal port -- one whitelist, only for safe_script
 Add a ~"safe_script"~ entry to ~core_modes~, add a single hardcoded
@@ -223,7 +300,7 @@ whole point of having modes is to put the restriction in the
 language itself.  Mentioned only so future readers know we
 considered it.
 
-* Resolved questions
+* Original decisions (implementation assumptions corrected above)
 
 Numbering matches the discussion that produced this issue.
 
@@ -317,10 +394,10 @@ Whether the error is raised at compile time or runtime is question
 3.  No interactive prompts, no per-call ~allow_cmd~ header in v1;
 either can be added later without breaking scripts that work today.
 
-* Dependencies
+* Original dependency checklist (completed by #216)
 
-Blocked on: issue [[file:216.org][#216]] -- "Audit src/core/sys.til
-and move non-essential syscalls into src/std".  Scope:
+Former dependency: issue [[file:../fixed/216.org][#216]] -- "Audit src/core/sys.til
+and move non-essential syscalls into src/std". Historical scope:
 - Walk every symbol in ~src/core/sys.til~ and decide whether it
   truly belongs in ~core~ (i.e. every program needs it, regardless
   of mode) or in ~std~.  Default to ~std~.
@@ -337,12 +414,12 @@ and move non-essential syscalls into src/std".  Scope:
   of ~std/sys~ and ban user-declared ~ext_proc~ / ~ext_func~ inside
   a safe_script file.
 
-* Pointers
+* Historical pointers
 - rstil clone for reference: ~tmp/rstil/~ (added by this task, not
   committed).
 - Local mode plumbing: ~src/self/modes.til~, ~src/self/loader.til~.
 - Local syscalls: ~src/core/sys.til~ (~run_cmd~, ~spawn_cmd~,
   ~spawn_cmd~ ext_proc).
 - Local string utils: ~src/core/str.til~.
-- Related: issue #63 (user-defined modes); dependency [[file:216.org][#216]]
+- Related: [[file:../fixed/63.org][#63]] (user-defined modes); completed dependency [[file:../fixed/216.org][#216]]
   for the core->std audit.
