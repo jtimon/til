@@ -159,6 +159,22 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Min/max reductions (base bac208501)
+
+F32x4, I32x4 and U32x4 reduce_min/reduce_max now lower through the same
+halving tree as core: (0,2), (1,3), then the two results. The operand is
+evaluated once. Integer comparisons preserve signedness. Float pairs propagate
+NaNs (RHS wins if both are NaNs), preserve the chosen bits/payload, and select
+-0 for min / +0 for max when both zero signs are present. Explicit comparisons
+and selects avoid changing those semantics through generic LLVM reductions.
+
+Regression coverage compares all 14^4 combinations of boundary bit patterns
+through native C callers, plus interpreter/C and ASAN til/C reference cases
+for zero signs, quiet/signaling NaNs, multiple payloads and the tree's ordering.
+Side-effecting/throwing operands check single evaluation and propagation. The
+clean suite passed 491/491 and ASAN MLIR integration passed at O0/O2/O3 with
+both USize widths.
+
 *** I32x4/U32x4 SIMD (base f2ad7b5ca)
 
 Integer four-lane vectors now support new/splat/zero, wrapping arithmetic and

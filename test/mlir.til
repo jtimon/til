@@ -150,6 +150,50 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_extrema := proc(compiler: Str, work: Str) {
+    File.writefile(format(work,"/extrema.til"),format(
+        "mode pure\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
+        "f_min:=func(a:F4) returns F32 {return a.reduce_min()}\nf_max:=func(a:F4) returns F32 {return a.reduce_max()}\n",
+        "s_min:=func(a:S4) returns I32 {return a.reduce_min()}\ns_max:=func(a:S4) returns I32 {return a.reduce_max()}\n",
+        "u_min:=func(a:U4) returns U32 {return a.reduce_min()}\nu_max:=func(a:U4) returns U32 {return a.reduce_max()}\n",
+        "make_f:=func(a:F32,b:F32,c:F32,d:F32) returns F4 {return F4.new(a,b,c,d)}\n",
+        "make_s:=func(a:I32,b:I32,c:I32,d:I32) returns S4 {return S4.new(a,b,c,d)}\n",
+        "make_u:=func(a:U32,b:U32,c:U32,d:U32) returns U4 {return U4.new(a,b,c,d)}\n",
+        "priv counted:=func(mut trace:Array(I32)) returns F4 throws OutOfBounds {ref mut count:I32=trace.get(0)?;count=count+1;return F4.new(-3,5,-7,2)}\n",
+        "min_once:=func(mut trace:Array(I32)) returns F32 throws OutOfBounds {return counted(trace)?.reduce_min()}\n",
+        "max_once:=func(mut trace:Array(I32)) returns F32 throws OutOfBounds {return counted(trace)?.reduce_max()}\n"))
+    File.writefile(format(work,"/extrema_caller.c"),format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct{float v[4];}F4;typedef struct{int32_t v[4];}S4;typedef struct{uint32_t v[4];}U4;typedef struct{int32_t *data;Count cap;}Buffer;extern float f_min(F4),f_max(F4),min_once(Buffer*,int64_t*),max_once(Buffer*,int64_t*);extern int32_t s_min(S4),s_max(S4);extern uint32_t u_min(U4),u_max(U4);\n",
+        "static uint32_t bits(float f){uint32_t b;memcpy(&b,&f,4);return b;}\n",
+        "static uint32_t pair(uint32_t a,uint32_t b,int maximum){uint32_t am=a&0x7fffffff,bm=b&0x7fffffff;if(bm>0x7f800000)return b;if(am>0x7f800000)return a;if(am==0 && bm==0){int negative=(b>>31)!=0;return (maximum?!negative:negative)?b:a;}float x,y;memcpy(&x,&a,4);memcpy(&y,&b,4);return (maximum?y>x:y<x)?b:a;}\n",
+        "int main(void){const uint32_t p[]={0,0x80000000,0x3f800000,0xbf800000,1,0x80000001,0x7f800000,0xff800000,0x7fc00011,0x7fc00022,0x7f800033,0xff800044,0x7fffffff,0xffffffff};for(unsigned a=0;a<14;a++)for(unsigned b=0;b<14;b++)for(unsigned c=0;c<14;c++)for(unsigned d=0;d<14;d++){uint32_t raw[4]={p[a],p[b],p[c],p[d]};F4 f;S4 s;U4 u;memcpy(&f,raw,16);memcpy(&s,raw,16);memcpy(&u,raw,16);assert(bits(f_min(f))==pair(pair(raw[0],raw[2],0),pair(raw[1],raw[3],0),0));assert(bits(f_max(f))==pair(pair(raw[0],raw[2],1),pair(raw[1],raw[3],1),1));int32_t sm=s.v[0],sx=s.v[0];uint32_t um=u.v[0],ux=u.v[0];for(unsigned i=1;i<4;i++){if(s.v[i]<sm)sm=s.v[i];if(s.v[i]>sx)sx=s.v[i];if(u.v[i]<um)um=u.v[i];if(u.v[i]>ux)ux=u.v[i];}assert(s_min(s)==sm && s_max(s)==sx && u_min(u)==um && u_max(u)==ux);}\n",
+        "int32_t count=0;Buffer trace={&count,1},empty={0,0};int64_t error=0;assert(min_once(&trace,&error)==-7 && error==0 && count==1);assert(max_once(&trace,&error)==5 && error==0 && count==2);min_once(&empty,&error);assert(error==1);return 0;}\n"))
+    checks:=format(
+        "bits:=func(value:F32) returns U32 {mut out:U32=0;memcpy(to_ptr(out),to_ptr(value),4);return out}\nfrom_bits:=func(value:U32) returns F32 {mut out:F32=0;memcpy(to_ptr(out),to_ptr(value),4);return out}\n",
+        "main:=proc(){s:=make_s(I32.MIN,I32.MAX,-1,0);assert_eq(I32,s_min(s),I32.MIN);assert_eq(I32,s_max(s),I32.MAX);u:=make_u(U32.MAX,0,1,2147483648);assert_eq(U32,u_min(u),0);assert_eq(U32,u_max(u),U32.MAX);\n",
+        "for pattern in 0..16 {p:=pattern.to_u32();a:=from_bits(p.band(1)*2147483648);b:=from_bits(p.shr(1).band(1)*2147483648);c:=from_bits(p.shr(2).band(1)*2147483648);d:=from_bits(p.shr(3).band(1)*2147483648);v:=make_f(a,b,c,d);mut minimum:U32=0;mut maximum:U32=0;if pattern!=0 {minimum=2147483648};if pattern==15 {maximum=2147483648};assert_eq(U32,bits(f_min(v)),minimum);assert_eq(U32,bits(f_max(v)),maximum)};\n",
+        "for nan in array(U32,0x7fc00011,0x7fc00022,0x7f800033,0xff800044){for pos in 0..4 {mut a:U32=0x3f800000;mut b:U32=0xbf800000;mut c:U32=0x7f800000;mut d:U32=0xff800000;if pos==0 {a=nan};if pos==1 {b=nan};if pos==2 {c=nan};if pos==3 {d=nan};v:=make_f(from_bits(a),from_bits(b),from_bits(c),from_bits(d));assert_eq(U32,bits(f_min(v)),nan);assert_eq(U32,bits(f_max(v)),nan)}};\n",
+        "v:=make_f(1,from_bits(0x7fc00011),from_bits(0x7fc00022),2);assert_eq(U32,bits(f_min(v)),0x7fc00011);assert_eq(U32,bits(f_max(v)),0x7fc00011);mut trace:=array(I32,0);assert_eq(F32,min_once(trace)!,-7);assert_eq(F32,max_once(trace)!,5);assert_eq(I32,trace[0],2);println(\"extrema PASS\")}\n")
+    File.writefile(format(work,"/extrema_reference.til"),format("mode cli\nimport(\"extrema\")\n",checks))
+    File.writefile(format(work,"/extrema_consumer.til"),format(
+        "mode cli\nlink(\"gen/lib/libextrema.so\")\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
+        "f_min:=ext_func(shallow a:F4) returns shallow F32 {}\nf_max:=ext_func(shallow a:F4) returns shallow F32 {}\ns_min:=ext_func(shallow a:S4) returns shallow I32 {}\ns_max:=ext_func(shallow a:S4) returns shallow I32 {}\nu_min:=ext_func(shallow a:U4) returns shallow U32 {}\nu_max:=ext_func(shallow a:U4) returns shallow U32 {}\n",
+        "make_f:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32,shallow d:F32) returns shallow F4 {}\nmake_s:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32) returns shallow S4 {}\nmake_u:=ext_func(shallow a:U32,shallow b:U32,shallow c:U32,shallow d:U32) returns shallow U4 {}\n",
+        "min_once:=ext_func(mut trace:Array(I32)) returns shallow F32 throws OutOfBounds {}\nmax_once:=ext_func(mut trace:Array(I32)) returns shallow F32 throws OutOfBounds {}\n",checks))
+    for width in array(Str,"32","64") {
+        flag:=format("--usize=",width)
+        for command in array(Str,"interpret","run") {reference:=Cmd.new(compiler,command,flag,"extrema_reference.til");checked(reference,work)}
+        for level in array(Str,"0","2","3") {
+            build:=Cmd.new(compiler,"build","--backend=mlir",flag,format("--opt=",level),"extrema.til");checked(build,work)
+            cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","extrema_caller.c","gen/lib/libextrema.a","-lm","-o","extrema_caller")
+            if width=="32" {cc.arg("-DCOUNT32")};checked(cc,work)
+            native:=Cmd.new("./extrema_caller");checked(native,work)
+            consumer:=Cmd.new(compiler,"run","--asan",flag,"extrema_consumer.til");checked(consumer,work)
+        }
+    }
+}
+
 priv check_integer_vectors := proc(compiler: Str, work: Str) {
     mut source := "mode pure\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nM4:=Simd(Bool,4)\nF4:=Simd(F32,4)\n"
     mut declarations := "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\ntypedef struct{int32_t v[4];}S4;typedef struct{uint32_t v[4];}U4;typedef struct{uint8_t v[4];}M4;typedef struct{float v[4];}F4;typedef struct{void *data;Count cap;}Buffer;\n"
@@ -596,5 +640,6 @@ main := proc(compiler_arg: Str) {
     check_float_arithmetic(compiler, work)
     check_runtime(compiler, work)
     check_integer_vectors(compiler, work)
+    check_extrema(compiler, work)
     println("mlir PASS")
 }

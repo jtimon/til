@@ -235,6 +235,17 @@
   signed/unsigned boundary values, wraparound, zero/overflow division, all
   selection masks, and C/til consumers at both USize widths and O0/O2/O3.
 
+  F32x4, I32x4 and U32x4 support ~reduce_min~ and ~reduce_max~. The operand
+  is evaluated once, then the existing halving tree combines lanes (0,2),
+  (1,3), and those two results. Integer comparisons retain signedness. Floating
+  pairs propagate NaNs, selecting the right-hand NaN when both are NaNs;
+  selection preserves its original bits, including signaling state and payload.
+  Zero ties prefer -0 for min and +0 for max when present. Explicit comparisons
+  and selects preserve these rules rather than an unspecified/reassociated
+  LLVM reduction. Tests cover every four-lane combination of 14 boundary bit
+  patterns, all zero-sign combinations, multiple NaN payloads, single evaluation
+  and throwing operands, at both widths and O0/O2/O3.
+
   F32x4 comparisons return elementwise Bool masks. Equality and ordered
   comparisons are false for NaNs; inequality is true for unordered operands,
   matching the interpreter/C backend. Masks use ~vector<4xi1>~ internally and
