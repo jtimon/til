@@ -1,0 +1,203 @@
+mode script
+
+integer_common := func(T: Type, input: T, bytes: USize) {
+    mut a : T = input
+    b : T = 5
+    zero : T = 0
+    if a + b != 17 || a - b != 7 || a * b != 60 || a / b != 2 || a % b != 2 { panic("integer arithmetic") }
+    if a / zero != 0 || a % zero != 0 { panic("integer zero divisor") }
+    if a.band(b) != 4 || a.bor(b) != 13 || a.bxor(b) != 9 { panic("integer bitwise operations") }
+    if a.eq(b) || a.neq(b).not() || a.lt(b) || a.gt(b).not() || a.lte(b) || a.gte(b).not() { panic("integer comparisons") }
+    if a.cmp(b) != 1 || b.cmp(a) != -1 || a.cmp(a) != 0 { panic("integer cmp") }
+    if a.clone() != a || a.unity() != 1 || T.size() != bytes { panic("integer clone/unity/size") }
+    ref mut alias : T = to_ptr(a)
+    alias.inc()
+    if a != 13 { panic("integer ref increment") }
+    alias.dec()
+    if a != 12 { panic("integer ref decrement") }
+    if T.distance(to_ptr(a), to_ptr(b)) != 7 { panic("integer distance") }
+    mut allocated : T = malloc(T.size().to_uptr())
+    allocated = a.clone()
+    if allocated != a { panic("allocated primitive storage") }
+    own allocated.delete()
+    mut edge : T = T.MAX
+    edge.inc()
+    if edge != T.MIN { panic("integer increment wrap") }
+    edge.dec()
+    if edge != T.MAX { panic("integer decrement wrap") }
+    own a.delete(false)
+}
+
+integer_shifts := func(T: Type, a: T) {
+    zero : T = 0
+    if a.shl(2) != 48 || a.shr(2) != 3 { panic("integer shifts") }
+    if a.bnot().bxor(a) != zero.bnot() || a.bnot().band(a) != zero { panic("integer complement") }
+}
+
+unsigned_edges := func(T: Type, input: T) {
+    mut high : T = input
+    high = T.MAX
+    zero : T = 0
+    one : T = 1
+    if high / one != high || high % one != zero || high / high != one { panic("unsigned division width") }
+    if high.cmp(zero) != 1 || high < zero { panic("unsigned high-bit comparison") }
+    if high + one != zero || zero - one != high || high * high != one { panic("unsigned wrapping arithmetic") }
+    if high.safe_sub(one)! != high - one || one.safe_add(one)! != 2 || one.safe_mul(high)! != high { panic("unsigned checked arithmetic") }
+    mut caught := false
+    mut _ := high.safe_add(one)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("unsigned checked addition overflow") }
+    caught = false
+    _ = zero.safe_sub(one)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("unsigned checked subtraction overflow") }
+    caught = false
+    _ = high.safe_mul(high)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("unsigned checked multiplication overflow") }
+}
+
+signed_edges := func(T: Type, input: T, span: U64) {
+    a : T = input
+    b : T = 5
+    if a / b != -2 || a % b != -2 || b / a != 0 || b % a != b { panic("signed division/remainder") }
+    if a.neg() != 12 || a.abs() != 12 || a.cmp(b) != -1 { panic("signed neg/abs/cmp") }
+    high : T = T.MAX
+    zero : T = 0
+    if high + 1 != T.MIN || T.MIN - 1 != high { panic("signed wrapping arithmetic") }
+    if high.neg() != zero - high { panic("signed negation") }
+    low : T = T.MIN
+    if low.neg() != low || low.abs() != low { panic("signed minimum wrapping") }
+    if T.distance(to_ptr(low),to_ptr(high)) != span || T.distance(to_ptr(high),to_ptr(low)) != span { panic("signed full-range distance") }
+}
+
+signed_checked := func(T: Type, input: T) {
+    high : T = input
+    one : T = 1
+    two : T = 2
+    if one.safe_add(two)! != 3 || two.safe_sub(one)! != one || two.safe_mul(two)! != 4 { panic("signed checked arithmetic") }
+    mut caught := false
+    mut _ := high.safe_add(one)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("signed checked addition overflow") }
+    caught = false
+    _ = T.MIN.safe_sub(one)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("signed checked subtraction overflow") }
+    caught = false
+    _ = high.safe_mul(two)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("signed checked multiplication overflow") }
+    negative_one : T = -1
+    low : T = T.MIN
+    caught = false
+    _ = negative_one.safe_mul(low)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("signed minimum multiplication overflow") }
+    caught = false
+    _ = low.safe_mul(negative_one)?
+    catch (err: IntegerOverflow) { caught = true }
+    if caught.not() { panic("signed minimum reverse multiplication overflow") }
+}
+
+mut u8_value : U8 = 12
+mut u16_value : U16 = 12
+mut u32_value : U32 = 12
+mut u64_value : U64 = 12
+mut i8_value : I8 = 12
+mut i16_value : I16 = 12
+mut i32_value : I32 = 12
+mut i64_value : I64 = 12
+integer_common(U8, u8_value, 1)
+integer_common(U16, u16_value, 2)
+integer_common(U32, u32_value, 4)
+integer_common(U64, u64_value, 8)
+integer_common(I8, i8_value, 1)
+integer_common(I16, i16_value, 2)
+integer_common(I32, i32_value, 4)
+integer_common(I64, i64_value, 8)
+integer_shifts(U8, u8_value)
+integer_shifts(U32, u32_value)
+integer_shifts(U64, u64_value)
+integer_shifts(I8, i8_value)
+integer_shifts(I32, i32_value)
+integer_shifts(I64, i64_value)
+unsigned_edges(U8, u8_value)
+unsigned_edges(U16, u16_value)
+unsigned_edges(U32, u32_value)
+unsigned_edges(U64, u64_value)
+i8_value = -12
+i16_value = -12
+i32_value = -12
+i64_value = -12
+signed_edges(I8, i8_value, 255)
+signed_edges(I16, i16_value, 65535)
+signed_edges(I32, i32_value, 4294967295)
+signed_edges(I64, i64_value, U64.MAX)
+signed_checked(I16, I16.MAX)
+signed_checked(I32, I32.MAX)
+signed_checked(I64, I64.MAX)
+if i8_value.shr(2) != -3 || i32_value.shr(2) != -3 || i64_value.shr(2) != -3 { panic("signed right shift") }
+
+// Every declared integer conversion, including high bits and borrowed storage.
+mut wide : I64 = 65535
+if wide.to_i8() != -1 || wide.to_u8() != 255 || wide.to_i16() != -1 || wide.to_u16() != 65535 { panic("narrow integer conversions") }
+if wide.to_i32() != 65535 || wide.to_u32() != 65535 { panic("32-bit integer conversions") }
+mut negative : I64 = -1
+mut maximum : U64 = 0
+maximum.dec()
+if negative.cast(U64) != maximum || maximum.to_i64() != negative || maximum.to_i32() != -1 || maximum.to_u32() != U32.MAX { panic("integer signedness conversion") }
+if i8_value.to_u64() != i8_value.cast(I64).cast(U64) || i16_value.to_u64() != i16_value.cast(I64).cast(U64) || i32_value.to_u64() != i32_value.cast(I64).cast(U64) { panic("sign extension") }
+if u32_value.to_u64() != 12 || u32_value.to_u32() != 12 || u64_value.to_u64() != 12 { panic("unsigned conversion") }
+if u8_value.to_i64() != 12 || u8_value.to_i32() != 12 || u16_value.to_i64() != 12 || u32_value.to_i64() != 12 || u32_value.to_i32() != 12 { panic("integer widening") }
+if i16_value.to_u32() != negative.to_u32() - 11 { panic("signed to unsigned narrowing") }
+if maximum.to_usize().cast(U64) != USize.MAX.cast(U64) || maximum.to_uptr() != UPtr.MAX { panic("target-width conversion") }
+if u8_value.to_usize() != 12 || u32_value.to_usize() != 12 || u32_value.to_uptr() != 12 || u64_value.to_uptr() != 12 { panic("unsigned target-width widening") }
+if negative.to_usize() != USize.MAX || i32_value.to_usize() != USize.MAX - 11 { panic("signed target-width conversion") }
+mut binary : I64 = 0b101010
+mut octal : I64 = 0o52
+mut separated : I64 = 1_234_567
+mut dollar : I8 = '$'
+if binary != 42 || octal != 42 || separated != 1234567 || dollar.cast(I64) != 36 { panic("primitive literal forms") }
+if I8.MIN.to_str() != "-128" || I16.MIN.to_str() != "-32768" || I32.MIN.to_str() != "-2147483648" || I64.MIN.to_str() != "-9223372036854775808" || U64.MAX.to_str() != "18446744073709551615" { panic("primitive boundary formatting") }
+mut divide_caught := false
+_ := negative.safe_div(0)?
+catch (err: DivideByZero) { divide_caught = true }
+if divide_caught.not() || negative.safe_div(negative)! != 1 { panic("checked integer division") }
+
+counted_bool := func(mut count: I64, value: Bool) returns Bool { count++; return value }
+BoolProbe := struct {
+namespace:
+    guarded_and := func(mut count: I64, left: Bool) returns Bool { return left.and(counted_bool(count,true)) }
+    guarded_or := func(mut count: I64, left: Bool) returns Bool { return left.or(counted_bool(count,true)) }
+}
+BoolEnumProbe := enum {
+    Ready
+namespace:
+    guarded_and := func(mut count: I64, left: Bool) returns Bool { return left.and(counted_bool(count,true)) }
+}
+mut calls := 0
+if BoolProbe.guarded_and(calls,false) || BoolProbe.guarded_or(calls,true).not() || BoolEnumProbe.guarded_and(calls,false) || calls != 0 { panic("namespace Boolean short circuit") }
+if BoolProbe.guarded_and(calls,true).not() || BoolProbe.guarded_or(calls,false).not() || calls != 2 { panic("namespace Boolean evaluation") }
+calls = 0
+if and(false, counted_bool(calls, true)) || or(true, counted_bool(calls, false)).not() { panic("Boolean short circuit") }
+if calls != 0 { panic("Boolean eager evaluation") }
+if and(true, counted_bool(calls, true)).not() || or(false, counted_bool(calls, true)).not() { panic("Boolean evaluation") }
+if calls != 2 { panic("Boolean evaluation count") }
+if and(true, true, counted_bool(calls, true)).not() || or(false, false, counted_bool(calls, true)).not() || calls != 4 { panic("n-ary Boolean operations") }
+if and(false, counted_bool(calls, true), counted_bool(calls, true)) || or(true, counted_bool(calls, false), counted_bool(calls, false)).not() || calls != 4 { panic("n-ary Boolean short circuit") }
+mut truth := true
+mut falsity := false
+if truth.eq(falsity) || truth.not().eq(falsity).not() || truth.cmp(falsity) != 1 || falsity.cmp(truth) != -1 || truth.cmp(truth) != 0 { panic("Boolean operations") }
+if truth.clone().not() || falsity.clone() || Bool.size() != 1 || truth.to_str() != "true" || falsity.to_str() != "false" { panic("Boolean primitive methods") }
+mut allocated_bool : Bool = malloc(1)
+allocated_bool = truth.clone()
+if allocated_bool.not() { panic("allocated Boolean storage") }
+own allocated_bool.delete()
+counted_index := func(mut count: I64) returns USize { count++; return 0 }
+mut values := array(I64,7)
+calls = 0
+values[counted_index(calls)].inc()
+values[counted_index(calls)].dec()
+if calls != 2 || values[0] != 7 { panic("primitive step receiver evaluation") }
+println("Primitive integers and Booleans passed")

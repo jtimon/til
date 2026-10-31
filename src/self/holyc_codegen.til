@@ -33,6 +33,8 @@ priv HolyCEmitState := struct {
     temp_id : USize = 0
     needs_i64_div := false
     needs_i64_mod := false
+    needs_u64_div := false
+    needs_u64_mod := false
     needs_str_array_clone := false
     needs_str_array_get := false
     needs_str_array_concat := false
@@ -2399,7 +2401,10 @@ priv holyc_callable_adapters := func(ctx: Context, state: HolyCEmitState,
 priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
     mut state: HolyCEmitState, mut error: Str) {
     if owner.eq("Str").and(holyc_native_str_method(method)) { return }
-    if state.struct_names.has(owner).or(state.enum_types.has(owner)).or(owner.eq("Str")).not() { return }
+    if holyc_scalar_type_name(owner).and(method.eq("to_str").or(method.eq("size"))
+        .or(method.eq("delete")).or(method.eq("from_i64")).or(method.eq("cmp"))) { return }
+    if state.struct_names.has(owner).or(state.enum_types.has(owner)).or(owner.eq("Str"))
+        .or(holyc_scalar_type_name(owner)).not() { return }
     if state.needed_methods.has(owner).not() {
         state.needed_methods.set(owner, own Map(Str, Bool).new())
     }
@@ -2424,6 +2429,9 @@ priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
         error = format("unsupported comparison method '", owner, ".", method, "'")
         return
     }
+    // Ordinary primitive methods (neg/abs/unity/distance/safe arithmetic) keep
+    // their shared Til bodies. Core/ext operations are lowered below instead.
+    if holyc_scalar_type_name(owner).and(funcdef_of(body).sig.func_type.is_plain().not()) { return }
     state.needed_methods[owner].set(method, own true)
     holyc_collect_collection_types(body, ctx, state, error)
     if error.len() > 0 { return }
@@ -2466,7 +2474,7 @@ priv holyc_callable_name := func(e: Expr, ctx: Context, state: HolyCEmitState) r
     name := holyc_direct_call_name(e, ctx)
     if name.len() > 0 { return name }
     if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
-        owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+        owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
         method := holyc_field_call_name(e, ctx)
         if state.needed_methods.has(owner).and(state.needed_methods[owner].has(method)) {
             return holyc_method_name(owner, method)
@@ -2510,8 +2518,12 @@ priv holyc_scan_method_calls := func(e: Expr, ctx: Context,
                 }
             }
         case .FieldAccess:
-            owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+            owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
             method := holyc_field_call_name(e, ctx)
+            if holyc_scalar_type_name(owner) {
+                holyc_register_method(owner, method, ctx, state, error)
+                if error.len() > 0 { return }
+            }
             if owner.eq("Str").and(holyc_native_str_method(method).not()) {
                 holyc_register_method(owner, method, ctx, state, error)
                 if error.len() > 0 { return }
@@ -2688,23 +2700,28 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
     }
 }
 
+priv holyc_num_text := func(text: Str) returns Str {
+    return holyc_literal_text(numeric_literal_parse_text(text))
+}
+
 priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
     locals: HolyCLocalState, mut error: Str) returns Str {
     switch e.node_type {
     case .Literal(Literal.Num(num)):
+        text := holyc_num_text(num.literal_num_text())
         if type_is_primitive(e.til_type(), Primitive.F32) {
-            value := num.to_f32()
+            value := text.to_f32()
             mut bits : U32 = malloc(4)
             memcpy(bits, value, 4)
             return bits.to_str()
         }
         if type_is_primitive(e.til_type(), Primitive.F64) {
-            value := num.literal_num_text().to_f64()
+            value := text.to_f64()
             mut bits : U64 = malloc(8)
             memcpy(bits, value, 8)
             return format("TilF64Bits(", bits.to_str(), ")")
         }
-        return Str.clone(num.literal_num_text())
+        return text
     case .Literal(Literal.Bool(b)):
         if b { return "TRUE" }
         return "FALSE"
@@ -2757,7 +2774,19 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         }
         return emitted_name
     case .FieldAccess(fa):
-        owner := holyc_field_owner_name(e, ctx.symbols)
+        owner := holyc_storage_type_name(holyc_field_owner_name(e, ctx.symbols), state)
+        if holyc_scalar_type_name(owner) {
+            ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+            ref sd : StructDef = structdef_of(def)
+            ref member : Str = fa.field_access_name(ctx.symbols.names)
+            if sd.ns_index.has(member) {
+                ref declaration : Declaration = sd.member_at(sd.ns_index[member])
+                ref value : Expr = declaration.default_expr()
+                if value.node_type.is(NodeType.FuncDef).not() {
+                    return holyc_expr(value, ctx, state, locals, error)
+                }
+            }
+        }
         if state.niche_ref_types.has(owner) {
             ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
             ref member : Str = fa.field_access_name(ctx.symbols.names)
@@ -3275,6 +3304,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 right := holyc_pointer_expr(e.children[2], ctx, state, locals, error)
                 return format("(", left, " == ", right, ")")
             }
+            if method.eq("delete").and(holyc_scalar_type_name(owner)) {
+                if e.children.len() != 3 { error = "invalid primitive delete call"; return "" }
+                ptr := holyc_pointer_expr(e.children[1], ctx, state, locals, error)
+                call_free := holyc_delete_free_flag(e.children[1], e.children[2], ctx, state, locals, error)
+                return format("TilFloatDelete(", ptr, ", ", call_free, ")")
+            }
             if method.eq("to_f32").or(method.eq("to_f64"))
                 .or(method.eq("from_i64").and(owner.eq("F32").or(owner.eq("F64")))) {
                 if e.children.len() != 2 { error = "invalid floating conversion"; return "" }
@@ -3310,6 +3345,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                     if owner == "F32" { left = format("TilF32Load(", left, ")") }
                     return format("ToI64(", left, ")")
                 }
+                if method == "fma" {
+                    if e.children.len() != 4 { error = "invalid scalar fma call"; return "" }
+                    right := holyc_expr(e.children[2], ctx, state, locals, error)
+                    addend := holyc_expr(e.children[3], ctx, state, locals, error)
+                    return format("Til", owner, "Fma(", left, ", ", right, ", ", addend, ")")
+                }
                 if e.children.len() != 3 { error = format("unsupported float call '", owner, ".", method, "'"); return "" }
                 mut right := holyc_expr(e.children[2], ctx, state, locals, error)
                 op := holyc_float_op(method)
@@ -3326,23 +3367,17 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported floating operation '", method, "'")
                 return ""
             }
-            if method.eq("to_i64").and(holyc_scalar_type_name(owner)) {
-                if e.children.len() != 2 {
-                    error = "invalid core call 'to_i64'"
-                    return ""
-                }
+            if holyc_scalar_type_name(owner).and(method.eq("to_i8").or(method.eq("to_i16"))
+                .or(method.eq("to_i32")).or(method.eq("to_i64")).or(method.eq("to_u8"))
+                .or(method.eq("to_u16")).or(method.eq("to_u32")).or(method.eq("to_u64"))) {
+                if e.children.len() != 2 { error = format("invalid core call '", method, "'"); return "" }
+                mut target := method.substr(3, method.len() - 3)
+                if target.starts_with("i") { target = format("I", target.substr(1, target.len() - 1)) }
+                else { target = format("U", target.substr(1, target.len() - 1)) }
                 value := holyc_expr(e.children[1], ctx, state, locals, error)
-                // HolyC casts an lvalue's storage type. Force a numeric value
-                // before widening so a narrow payload is not read as I64.
-                return format("((", value, ") + 0)(I64)")
-            }
-            if method.eq("to_i32").and(holyc_scalar_type_name(owner)) {
-                if e.children.len() != 2 { error = "invalid core call 'to_i32'"; return "" }
-                return holyc_narrow_wrap(holyc_expr(e.children[1], ctx, state, locals, error), "I32")
-            }
-            if method.eq("to_u8").and(holyc_scalar_type_name(owner)) {
-                if e.children.len() != 2 { error = "invalid core call 'to_u8'"; return "" }
-                return holyc_narrow_wrap(holyc_expr(e.children[1], ctx, state, locals, error), "U8")
+                // Force a value before HolyC's postfix cast, which otherwise
+                // reinterprets an lvalue's storage rather than converting it.
+                return holyc_narrow_wrap(format("((", value, ") + 0)(", target, ")"), target)
             }
             if method.eq("to_uptr").or(method.eq("to_usize")) {
                 if e.children.len() != 2 { error = "invalid pointer/size conversion"; return "" }
@@ -3396,9 +3431,13 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             left := holyc_expr(e.children[1], ctx, state, locals, error)
             right := holyc_expr(e.children[2], ctx, state, locals, error)
             if method.eq("div").or(method.eq("mod")) {
-                if owner.eq("I64").or(owner.eq("I32")).not() {
-                    error = format("unsupported core call '", owner, ".", method, "'")
-                    return ""
+                if owner.starts_with("U") {
+                    if method == "div" {
+                        state.needs_u64_div = true
+                        return holyc_narrow_wrap(format("TilU64Div(", left, ", ", right, ")"), owner)
+                    }
+                    state.needs_u64_mod = true
+                    return holyc_narrow_wrap(format("TilU64Mod(", left, ", ", right, ")"), owner)
                 }
                 if method == "div" {
                     state.needs_i64_div = true
@@ -5284,6 +5323,13 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmit
         holyc_namespace_methods("Str", str_def, lp.ctx, state, error)
         if error.len() > 0 { return }
     }
+    for name : Str in state.needed_methods.keys {
+        if holyc_scalar_type_name(name) {
+            ref def : Expr = lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap()
+            holyc_namespace_methods(name, def, lp.ctx, state, error)
+            if error.len() > 0 { return }
+        }
+    }
     output = format(classes, state.method_prototypes, "\n", helpers)
 }
 
@@ -5695,6 +5741,12 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     }
     if state.needs_i64_div {
         helpers = format(helpers, "I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
+    }
+    if state.needs_u64_div {
+        helpers = format(helpers, "U64 TilU64Div(U64 a, U64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
+    }
+    if state.needs_u64_mod {
+        helpers = format(helpers, "U64 TilU64Mod(U64 a, U64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")
     }
     if state.needs_i64_mod {
         helpers = format(helpers, "I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")

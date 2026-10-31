@@ -1263,6 +1263,58 @@
   the translate command instead of the mouse example. Escape closes checkers;
   the existing repeat wrapper can start another game without rebooting.
 
+**** Scalar primitive conformance
+
+  HolyC now covers the existing scalar operation surface in ~core/numbers.til~
+  and ~core/bool.til~: all eight fixed-width integers, USize/UPtr aliases,
+  Boolean logic, and F32/F64. Integer division/remainder includes unsigned and
+  narrow signed operands, retaining the existing zero-divisor result. Integer
+  conversions preserve narrowing, sign/zero extension and target alias widths.
+  Declared bitwise operations, comparisons, shifts and mutation are exercised;
+  namespace MIN/MAX constants are lowered from their shared definitions.
+  Ordinary primitive methods (unity, neg/abs, distance and checked arithmetic)
+  compile their Til bodies instead of duplicating them in the backend.
+
+  F32/F64 fused multiply-add uses an exact integer product/addend accumulator
+  and one final nearest/even rounding, since the native x87 has no FMA. It
+  handles subnormals, signed zero, infinities/NaNs, distant sticky bits and
+  cancellation after an overflowing intermediate product. It uses bounded
+  stack storage and adds no external dependency or public primitive API.
+
+  The conformance work also fixed shared primitive correctness issues:
+
+  - Narrow signed distance subtracted before widening and could return a
+    sign-extended wrapped result. Signed distances now subtract U64 values.
+  - Checked signed multiplication must catch -1 * MIN before attempting a
+    division that either wraps or traps, depending on width.
+  - Lazy expansion skipped struct/enum namespace methods, allowing their
+    Boolean RHS calls to be hoisted eagerly. Those bodies now receive the
+    same pre-typing lazy expansion as free functions.
+  - Signed C arithmetic and ++/-- invoked C overflow undefined behavior,
+    breaking wrapping and checked arithmetic under optimization. Wrapping
+    operators now calculate unsigned values and narrow; steps bind their
+    receiver once.
+  - Primitive delete's heap outer was incorrectly treated as a caller slot,
+    leaking explicit primitive allocations. Conversely CLI variadic parse
+    slots must pass call_free=false, rather than relying on that no-op free.
+  - Interpreter/constant-folded floating literals now normalize separators
+    and binary/octal tokens consistently with compiled literals. HolyC also
+    normalizes its literal spelling and escapes character-literal dollars.
+
+  ~test/holyc_primitives.til~ and ~test/holyc_float_primitives.til~ run through
+  the interpreter, ASAN C at opt=0/2, and native TempleOS at USize32/64. They
+  cover arithmetic/bounds, source methods, local catches, primitive allocation
+  and deletion, byte/reference mutation, Boolean short-circuit/evaluation order,
+  literal forms, conversions and formatting. Float checks include 1,024
+  deterministic FMA samples plus conversion checksums against the C results,
+  explicit IEEE edge cases and argument-order/receiver-snapshot checks.
+
+  Verification on master ~3515db554~: clean two-pass hosted suite 507/507,
+  including clang validation. All 105 native matrix cases completed; after an
+  interrupted run, the remaining 64-bit I/O/failure cases were resumed with
+  the same source/compiler. This is a Two-pass commit so boot/ includes the
+  compiler's corrected C lowering self-applied.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,

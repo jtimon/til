@@ -131,6 +131,124 @@ public F32 TilF32FromU64(U64 value)
   return TilF32FromI64(value);
 }
 
+// Exact scalar FMA. TempleOS's x87 has no fused multiply-add instruction.
+// Keep the product and addend as integer magnitudes until the single IEEE
+// round-to-nearest/even step. Seventy words cover binary64's complete product
+// exponent range, including subnormals and cancellation after product overflow.
+U0 TilFmaProduct(U64 a,U64 b,U64 *low,U64 *high)
+{
+  U64 a0=a&0xFFFFFFFF,a1=a>>32,b0=b&0xFFFFFFFF,b1=b>>32;
+  U64 p00=a0*b0,p01=a0*b1,p10=a1*b0,word,next,carry;
+  word=p00+(p01<<32); carry=word<p00;
+  next=word+(p10<<32); carry+=next<word;
+  *low=next;
+  *high=a1*b1+(p01>>32)+(p10>>32)+carry;
+}
+
+U0 TilFmaPut(U64 *words,U64 low,U64 high,I64 shift)
+{
+  I64 index=shift/64,part=shift%64;
+  words[index]|=low<<part;
+  if (part) {
+    words[index+1]|=(low>>(64-part))|(high<<part);
+    words[index+2]|=high>>(64-part);
+  } else words[index+1]|=high;
+}
+
+U64 TilFloatFmaBits(U64 a,U64 b,U64 c,I64 width)
+{
+  I64 fraction_bits=52,bias=1023,exponent_max=2047;
+  U64 sign_bit=0x8000000000000000,fraction_mask=0x000FFFFFFFFFFFFF;
+  U64 product[70],addend[70],*large=product,*small=addend;
+  U64 ma,mb,mc,hidden,infinity,sign,add_sign,low,high;
+  U64 word,temp,total,carry,borrow,quotient,guard,mask;
+  I64 ea,eb,ec,anchor,min_lsb,i,comparison=0,top,exponent,lsb,shift,index,part,sticky_bits;
+  Bool sticky=FALSE;
+  if (width==32) {
+    fraction_bits=23; bias=127; exponent_max=255;
+    sign_bit=0x80000000; fraction_mask=0x007FFFFF;
+  }
+  hidden=fraction_mask+1;
+  infinity=exponent_max(U64)<<fraction_bits;
+  ma=a&fraction_mask; mb=b&fraction_mask; mc=c&fraction_mask;
+  ea=(a>>fraction_bits)&exponent_max;
+  eb=(b>>fraction_bits)&exponent_max;
+  ec=(c>>fraction_bits)&exponent_max;
+  sign=(a^b)&sign_bit; add_sign=c&sign_bit;
+  if ((ea==exponent_max && ma) || (eb==exponent_max && mb) || (ec==exponent_max && mc))
+    return infinity|(hidden>>1);
+  if (ea==exponent_max || eb==exponent_max) {
+    if (!(a&~sign_bit) || !(b&~sign_bit)) return infinity|(hidden>>1);
+    if (ec==exponent_max && sign!=add_sign) return infinity|(hidden>>1);
+    return sign|infinity;
+  }
+  if (ec==exponent_max) return c;
+  min_lsb=1-bias-fraction_bits;
+  anchor=2*min_lsb;
+  if (ea) { ma|=hidden; ea=ea-bias-fraction_bits; } else ea=min_lsb;
+  if (eb) { mb|=hidden; eb=eb-bias-fraction_bits; } else eb=min_lsb;
+  if (ec) { mc|=hidden; ec=ec-bias-fraction_bits; } else ec=min_lsb;
+  MemSet(product,0,sizeof(product)); MemSet(addend,0,sizeof(addend));
+  TilFmaProduct(ma,mb,&low,&high);
+  TilFmaPut(product,low,high,ea+eb-anchor);
+  TilFmaPut(addend,mc,0,ec-anchor);
+  if (sign==add_sign) {
+    carry=0;
+    for (i=0;i<70;i++) {
+      word=product[i]; temp=word+addend[i]; total=temp+carry;
+      carry=(temp<word)||(total<temp);
+      product[i]=total;
+    }
+  } else {
+    for (i=69;i>=0;i--) {
+      if (product[i]>addend[i]) { comparison=1; break; }
+      if (product[i]<addend[i]) { comparison=-1; break; }
+    }
+    if (!comparison) return 0; // Exact cancellation is positive zero.
+    if (comparison<0) { large=addend; small=product; sign=add_sign; }
+    borrow=0;
+    for (i=0;i<70;i++) {
+      word=large[i]; temp=word-small[i]; total=temp-borrow;
+      borrow=(word<small[i])||(temp<borrow);
+      large[i]=total;
+    }
+  }
+  top=70*64-1;
+  while (top>=0 && !((large[top/64]>>(top%64))&1)) top--;
+  if (top<0) return sign; // Same-sign zero operands retain their sign.
+  exponent=top+anchor;
+  lsb=MaxI64(exponent-fraction_bits,min_lsb);
+  shift=lsb-anchor; index=shift/64; part=shift%64;
+  quotient=large[index]>>part;
+  if (part) quotient|=large[index+1]<<(64-part);
+  guard=(large[(shift-1)/64]>>((shift-1)%64))&1;
+  sticky_bits=shift-1;
+  for (i=0;i<sticky_bits/64;i++)
+    if (large[i]) { sticky=TRUE; break; }
+  part=sticky_bits%64;
+  if (part) {
+    mask=(1(U64)<<part)-1;
+    if (large[sticky_bits/64]&mask) sticky=TRUE;
+  }
+  if (guard && (sticky || (quotient&1))) quotient++;
+  if (quotient>=hidden+hidden) { quotient>>=1; lsb++; }
+  if (quotient<hidden) return sign|quotient;
+  exponent=lsb+fraction_bits;
+  if (exponent>bias) return sign|infinity;
+  return sign|((exponent+bias)(U64)<<fraction_bits)|(quotient&fraction_mask);
+}
+
+public F32 TilF32Fma(F32 a,F32 b,F32 c)
+{
+  return TilFloatFmaBits(a,b,c,32);
+}
+
+public F64 TilF64Fma(F64 a,F64 b,F64 c)
+{
+  U64 bits=TilFloatFmaBits(a(U64),b(U64),c(U64),64);
+  return bits(F64);
+}
+
 public class TilStr {
   U8 *c_str;
   TIL_USIZE count;

@@ -553,6 +553,11 @@ priv is_slot_own_param := func(sym: Sym, ctx: Context) returns Bool {
     case .Some(cf):
     switch cf.node_type {
     case .FuncDef(fd):
+        // Like the shared parameter-ABI classifiers, exclude lifecycle
+        // helpers: delete(self, call_free) may own a real heap allocation.
+        if fd.sig.params.len() > 1 {
+            if fd.sig.params[1].name == "call_free" { return false }
+        }
         ref name : Str = ctx.symbols.resolve(sym)
         for i in 0..fd.sig.params.len() {
             if fd.sig.params[i].name == name {
@@ -4353,21 +4358,16 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     f.write(")((_cf_b == 0) ? 0 : (_cf_a ")
                     f.write(divmod_c_op)
                     f.write(" _cf_b)); })")
-                } else if core_op == "inc" {
-                    // inc core_func: a unary self-mutating op. `x.inc()`
-                    // lowers to native pre-increment `(++x)` -- no call, no
-                    // pointer write-back. emit_deref yields the mut-self
-                    // lvalue (a stack local emits as its bare name, a ref
-                    // local as DEREF(ptr)); `++` wraps at the scalar's
-                    // width exactly as the old `self = self + 1` body did.
-                    f.write("(++")
+                } else if core_op.eq("inc").or(core_op.eq("dec")) {
+                    // Bind the receiver once and step with unsigned arithmetic:
+                    // signed C ++/-- overflow lets optimization erase wrapping.
+                    f.write("({ __typeof__(&(")
                     emit_deref(f, e.children[1], depth, ctx)
-                    f.write(")")
-                } else if core_op == "dec" {
-                    // dec core_func: mirror of inc, `(--x)` in place.
-                    f.write("(--")
+                    f.write(")) til_step_target = &(")
                     emit_deref(f, e.children[1], depth, ctx)
-                    f.write(")")
+                    f.write("); *til_step_target = (__typeof__(*til_step_target))((U64)*til_step_target ")
+                    if core_op == "inc" { f.write("+") } else { f.write("-") }
+                    f.write(" 1ULL); })")
                 } else if core_op == "is" {
                     // The auto-generated enum `is` core_func: the typed
                     // tag compare, exactly the is_n lowering -- every
@@ -4397,11 +4397,18 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     f.write("((")
                     f.write(core_ret_c)
                     f.write(")(")
+                    wrapping_integer := is_primitive_type(core_ret_c)
+                        .and(core_ret_c.starts_with("I").or(core_ret_c.starts_with("U")))
+                        .and(core_op.eq("add").or(core_op.eq("sub")).or(core_op.eq("mul")).or(core_op.eq("shl")))
+                    if wrapping_integer { f.write("(U64)(") }
                     emit_deref(f, e.children[1], depth, ctx)
+                    if wrapping_integer { f.write(")") }
                     f.write(" ")
                     f.write(core_c_op)
                     f.write(" ")
+                    if wrapping_integer { f.write("(U64)(") }
                     emit_deref(f, e.children[2], depth, ctx)
+                    if wrapping_integer { f.write(")") }
                     f.write("))")
                 }
             } else if builder_is_inline_simd_memory(sname, mname.field_access_name(ctx.symbols.names), ctx) {
@@ -5759,12 +5766,10 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
-                    // #371: a PRIMITIVE element takes the caller-frame slot
-                    // form. This emitter owned its box and released it via
-                    // `<T>_delete(_val, 1)`, and that free is now a no-op for
-                    // an own primitive param, so a box here would leak.
-                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false,
-                        type_name_travels_by_slot(elem_c))
+                    // Primitive parse storage is a caller-frame slot. Transfer
+                    // its contents without asking delete to free that slot.
+                    element_stack_outer := type_name_travels_by_slot(elem_c)
+                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false, element_stack_outer)
                     // Issue #225: write the element directly instead of via
                     // Array.set. Array.set is about to start throwing
                     // OutOfBounds (so `arr[i] = v` can desugar to
@@ -5774,7 +5779,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     // raw memcpy is correct -- identical to the Vec path.
                     f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(elem_c).write("), _val, (UPtr)sizeof(").write(elem_c).write("));\n")
                     f.write("        memset(_val, 0, (UPtr)sizeof(").write(elem_c).write("));\n")
-                    f.write("        ").write(elem_c).write("_delete(_val, 1);\n")
+                    f.write("        ").write(elem_c).write("_delete(_val, ")
+                    if element_stack_outer { f.write("0") } else { f.write("1") }
+                    f.write(");\n")
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")

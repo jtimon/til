@@ -2277,8 +2277,8 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         case .Primitive(Primitive.I32): num_word = scalar_word_encode(expr_type, num_str.to_i32().cast(U32).cast(U64), ctx)
         case .Primitive(Primitive.U32): num_word = bits_word(num_str.to_u32().cast(U64))
         case .Primitive(Primitive.U64): num_word = bits_word(num_str.to_u64())
-        case .Primitive(Primitive.F32): num_word = bits_word(f32_word(num_str.to_f32()))
-        case .Primitive(Primitive.F64): num_word = bits_word(str_parse_f64_bits(num_str.text))
+        case .Primitive(Primitive.F32): num_word = bits_word(f32_word(numeric_literal_parse_text(num_str.text).to_f32()))
+        case .Primitive(Primitive.F64): num_word = bits_word(str_parse_f64_bits(numeric_literal_parse_text(num_str.text)))
         case: num_word = bits_word(num_str.to_i64().cast(U64))
         }
         if destination.is_null() { info.is_word = true; return num_word }

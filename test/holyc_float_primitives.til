@@ -1,0 +1,146 @@
+mode script
+
+FOLDED32 : F32 = F32.add(1_2.7_5,0b11)
+FOLDED64 : F64 = F64.add(0o17,0.25)
+
+float32_bits := func(value: F32) returns U32 { ref bits : U32 = to_ptr(value); return bits.clone() }
+float64_bits := func(value: F64) returns U64 { ref bits : U64 = to_ptr(value); return bits.clone() }
+float32_value := func(bits: U32) returns F32 { ref value : F32 = to_ptr(bits); return value.clone() }
+float64_value := func(bits: U64) returns F64 { ref value : F64 = to_ptr(bits); return value.clone() }
+
+float_common := func(T: Type, input: T, bytes: USize) {
+    a : T = input
+    b : T = 2.0
+    zero : T = 0.0
+    negative : T = -1.0
+    if a+b != 14.75 || a-b != 10.75 || a*b != 25.5 || a/b != 6.375 { panic("floating arithmetic") }
+    if a.eq(b) || a.neq(b).not() || a.lt(b) || a.gt(b).not() || a.lte(b) || a.gte(b).not() { panic("floating comparisons") }
+    if a.cmp(b) != 1 || b.cmp(a) != -1 || a.cmp(a) != 0 { panic("floating cmp") }
+    if a.to_i64() != 12 || (a*negative).to_i64() != -12 { panic("floating truncation") }
+    if a.clone() != a || T.size() != bytes || a.to_str() != "12.75" || a.to_repr() != "12.75" { panic("floating primitive methods") }
+    if a.safe_div(b)! != 6.375 { panic("floating checked division") }
+    mut caught := false
+    _ := a.safe_div(zero)?
+    catch (err: DivideByZero) { caught = true }
+    if caught.not() { panic("floating checked zero divisor") }
+    nan := zero / zero
+    infinity := b / zero
+    if nan == nan || nan.cmp(a) != 0 || nan < a || nan > a || nan <= a || nan >= a { panic("floating NaN comparisons") }
+    if infinity <= a || infinity < a { panic("floating infinity comparison") }
+    propagated := a.safe_div(nan)!
+    if propagated == propagated { panic("floating NaN propagation") }
+    mut allocated : T = malloc(T.size().to_uptr())
+    allocated = a.clone()
+    if allocated != a { panic("allocated floating storage") }
+    own allocated.delete()
+}
+
+counted_float := func(T: Type, mut calls: I64, value: T) returns T { calls = calls*10+value.to_i64(); return value }
+replace_float := func(T: Type, mut target: T) returns T { target=3.0; return 2.0 }
+float_evaluation := func(T: Type, initial: T) {
+    mut calls := 0
+    if counted_float(T,calls,2.0).fma(counted_float(T,calls,3.0),counted_float(T,calls,4.0)) != 10.0 || calls != 234 { panic("FMA evaluation order") }
+    mut target : T = initial
+    snapshot := target.fma(replace_float(T,target),4.0)
+    if snapshot != 6.0 || target != 3.0 { panic("FMA receiver snapshot") }
+}
+
+mut a32 : F32 = 12.75
+mut a64 : F64 = 12.75
+mut separated32 : F32 = 1_2.7_5
+mut binary32 : F32 = 0b1100
+mut octal64 : F64 = 0o17
+if separated32 != a32 || binary32 != 12.0 || octal64 != 15.0 { panic("floating literal forms") }
+if FOLDED32 != 15.75 || FOLDED64 != 15.25 { panic("floating literal constant evaluation") }
+float_common(F32,a32,4)
+float_common(F64,a64,8)
+if a32.to_f64() != a64 || a64.to_f32() != a32 { panic("floating width conversion") }
+mut integer : I64 = -12
+if F32.from_i64(integer) != -12.0 || F64.from_i64(integer) != -12.0 || integer.to_f32() != -12.0 || integer.to_f64() != -12.0 { panic("floating integer conversion") }
+mut unsigned_value : U64 = 0
+unsigned_value.dec()
+if unsigned_value.to_f32() != 18446744073709551616.0 || unsigned_value.to_f64() != 18446744073709551616.0 { panic("unsigned floating conversion") }
+mut u8_value : U8 = 200
+mut u16_value : U16 = 60000
+mut u32_value : U32 = 4000000000
+mut i16_value : I16 = -30000
+mut i32_value : I32 = -2000000000
+if u8_value.to_f32() != 200.0 || u16_value.to_f32() != 60000.0 || u32_value.to_f32() != 4000000000.0 || i16_value.to_f32() != -30000.0 || i32_value.to_f32() != -2000000000.0 { panic("narrow floating conversion") }
+
+next32 := float32_value(0x3f800001)
+below32 := float32_value(0x3f7ffffe)
+next64 := float64_value(0x3ff0000000000001)
+below64 := float64_value(0x3feffffffffffffe)
+if float32_bits(next32.to_repr().to_f32()) != float32_bits(next32) || float64_bits(next64.to_repr().to_f64()) != float64_bits(next64) { panic("floating repr roundtrip") }
+if float32_bits(next32.fma(below32,-1.0)) != 0xa8800000 || float64_bits(next64.fma(below64,-1.0)) != 0xb970000000000000 { panic("FMA single rounding") }
+tiny32 := float32_value(1)
+tiny64 := float64_value(1)
+if float32_bits(tiny32.fma(0.5,tiny32)) != 2 || float64_bits(tiny64.fma(0.5,tiny64)) != 2 { panic("FMA subnormal rounding") }
+negative_tiny32 := float32_value(0x80000001)
+negative_tiny64 := float64_value(0x8000000000000001)
+if float32_bits(next32.fma(1.5,negative_tiny32)) != 0x3fc00001 || float64_bits(next64.fma(1.5,negative_tiny64)) != 0x3ff8000000000001 { panic("FMA distant sticky bit") }
+mut maximum32 : F32 = F32.MAX
+mut maximum64 : F64 = F64.MAX
+zero32 : F32 = 0.0
+zero64 : F64 = 0.0
+if maximum32.fma(2.0,zero32-maximum32) != maximum32 || maximum64.fma(2.0,zero64-maximum64) != maximum64 { panic("FMA intermediate overflow cancellation") }
+negative_zero32 := float32_value(0x80000000)
+negative_zero64 := float64_value(0x8000000000000000)
+if float32_bits(negative_zero32.clone()) != 0x80000000 || float64_bits(negative_zero64.clone()) != 0x8000000000000000 { panic("floating clone bits") }
+if float32_bits(negative_zero32.fma(2.0,negative_zero32)) != 0x80000000 || float64_bits(negative_zero64.fma(2.0,negative_zero64)) != 0x8000000000000000 { panic("FMA signed zero") }
+infinity32 := float32_value(0x7f800000)
+infinity64 := float64_value(0x7ff0000000000000)
+invalid32 := infinity32.fma(0.0,1.0)
+invalid64 := infinity64.fma(0.0,1.0)
+if invalid32 == invalid32 || invalid64 == invalid64 { panic("FMA invalid infinity product") }
+if float32_bits(infinity32.fma(1.0,1.0)) != 0x7f800000 || float64_bits(infinity64.fma(1.0,1.0)) != 0x7ff0000000000000 { panic("FMA infinity") }
+opposite32 := infinity32.fma(1.0,float32_value(0xff800000))
+opposite64 := infinity64.fma(1.0,float64_value(0xfff0000000000000))
+if opposite32 == opposite32 || opposite64 == opposite64 { panic("FMA opposite infinities") }
+float_evaluation(F32,1.0)
+float_evaluation(F64,1.0)
+
+// Deterministic differential samples cover the full finite exponent range,
+// multiply/add cancellation, and the integer/float conversion boundaries.
+sample_fma64 := func(seed: U64, near_one: F64) returns U64 {
+    mut state := seed
+    mut checksum : U64 = 0
+    for _ in 0..256 {
+        state = state*6364136223846793005+1442695040888963407
+        a := float64_value(state.band(0xffefffffffffffff))
+        state = state*6364136223846793005+1442695040888963407
+        b := float64_value(state.band(0xffefffffffffffff))
+        state = state*6364136223846793005+1442695040888963407
+        c := float64_value(state.band(0xffefffffffffffff))
+        checksum = checksum.bxor(float64_bits(a.fma(b,c)))
+        checksum = checksum*1099511628211+float32_bits(a.to_f32()).cast(U64)
+        checksum = checksum.bxor(float64_bits(state.to_f64()))+float32_bits(state.to_f32()).cast(U64)
+        base := state.band(0x000fffffffffffff).bor(0x3ff0000000000000)
+        positive := float64_value(base)
+        negative := float64_value(base.bor(0x8000000000000000))
+        checksum = checksum.bxor(float64_bits(positive.fma(near_one,negative)))
+    }
+    return checksum
+}
+sample_fma32 := func(seed: U32, near_one: F32) returns U64 {
+    mut state := seed
+    mut checksum : U64 = 0
+    for _ in 0..256 {
+        state = state*1664525+1013904223
+        a := float32_value(state.band(0xff7fffff))
+        state = state*1664525+1013904223
+        b := float32_value(state.band(0xff7fffff))
+        state = state*1664525+1013904223
+        c := float32_value(state.band(0xff7fffff))
+        checksum = checksum.bxor(float32_bits(a.fma(b,c)).cast(U64))*1099511628211
+        base := state.band(0x007fffff).bor(0x3f800000)
+        positive := float32_value(base)
+        negative := float32_value(base.bor(0x80000000))
+        checksum = checksum.bxor(float32_bits(positive.fma(near_one,negative)).cast(U64))
+    }
+    return checksum
+}
+mut seed64 : U64 = 1
+mut seed32 : U32 = 1
+if sample_fma64(seed64,next64) != 12741508734569281103 || sample_fma32(seed32,next32) != 2831888558357757906 { panic("floating differential samples") }
+println("Primitive floating-point passed")

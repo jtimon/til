@@ -1355,6 +1355,25 @@ main := proc(args: ..Str) {
             format(til_bin, " translate --target=templeos --usize=", bits,
                 " -c gen/c/holyc_terminal_model_support_", bits, ".HC test/holyc_terminal_model_support.til"))
     }
+    for bits : Str in array(Str, "32", "64") {
+        for fixture : Str in array(Str, "holyc_primitives", "holyc_float_primitives") {
+            mut message := "Primitive integers and Booleans passed"
+            if fixture == "holyc_float_primitives" { message = "Primitive floating-point passed" }
+            name := format(fixture, "_", bits)
+            source := format("test/", fixture, ".til")
+            add_count(tests, format(name, "_interp"), "build", message, 1,
+                format(til_bin, " interpret --usize=", bits, " ", source))
+            for opt : Str in array(Str, "0", "2") {
+                executable := format(name, "_opt", opt)
+                add_count(tests, executable, "build", message, 1,
+                    format(til_bin, " run --asan --opt=", opt, " --usize=", bits,
+                        " -o bin/c/", executable, " -c gen/c/", executable, ".c ", source))
+            }
+            add_single(tests, format(name, "_translate"), "build", 0, "",
+                format(til_bin, " translate --target=templeos --usize=", bits,
+                    " -c gen/c/", name, ".HC ", source))
+        }
+    }
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),
         CountCheck(needle = "TilGuiGetKeyPressed(", expected_count = 2),

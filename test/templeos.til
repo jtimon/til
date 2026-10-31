@@ -450,10 +450,11 @@ main := proc() {
         "examples/templeos_calls.til", "examples/templeos_scalars.til",
         "test/script_raw_alloc.til", "test/script_dynamic_free.til",
         "test/script_str_runtime.til", "test/script_struct_runtime.til",
-        "test/holyc_f64.til", "test/holyc_continue.til")
+        "test/holyc_f64.til", "test/holyc_continue.til",
+        "test/holyc_primitives.til", "test/holyc_float_primitives.til")
     goldens := array(Str, "", "test/fizzbuzz.expected", "", "",
         "test/script_raw_alloc.expected", "test/script_dynamic_free.expected",
-        "test/script_str_runtime.expected", "test/script_struct_runtime.expected", "", "")
+        "test/script_str_runtime.expected", "test/script_struct_runtime.expected", "", "", "", "")
     for bits : Str in array(Str, "32", "64") {
         for i, source in sources {
             host := Cmd.new("timeout", "120", "bin/til", "interpret", format("--usize=", bits), source)

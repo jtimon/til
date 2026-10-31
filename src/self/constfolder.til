@@ -590,8 +590,8 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
         case .Primitive(Primitive.I32): write_i32(result, num.to_i32())
         case .Primitive(Primitive.U32): write_u32(result, num.to_u32())
         case .Primitive(Primitive.U64): write_u64(result, num.to_u64())
-        case .Primitive(Primitive.F32): write_f32(result, num.to_f32())
-        case .Primitive(Primitive.F64): write_u64(result, str_parse_f64_bits(num.text))
+        case .Primitive(Primitive.F32): write_f32(result, numeric_literal_parse_text(num.text).to_f32())
+        case .Primitive(Primitive.F64): write_u64(result, str_parse_f64_bits(numeric_literal_parse_text(num.text)))
         case:
             panic("numeric known value has non-numeric type ", til_type_name_c(t, ctx.symbols))
         }

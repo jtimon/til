@@ -3342,6 +3342,27 @@ priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, mu
 
 expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
     if depth > 256 { return }
+    // Namespace methods live in declarations, not Expr.children. Their lazy
+    // Boolean calls must expand before argument hoisting just like free funcs.
+    switch e.node_type {
+    case .StructDef(sd):
+        for mut member : Declaration in sd.ns_decls {
+            if member.default_value.is_some().and(member.default_expr().node_type.is(NodeType.FuncDef)) {
+                if lazy_recursive_variadic_def(member.default_expr(), ctx.symbols).not() {
+                    expand_lazy_in_expr(member.default_expr(), scope, depth + 1, ctx)
+                }
+            }
+        }
+    case .EnumDef(ed):
+        for mut member : Declaration in ed.ns_decls {
+            if member.default_value.is_some().and(member.default_expr().node_type.is(NodeType.FuncDef)) {
+                if lazy_recursive_variadic_def(member.default_expr(), ctx.symbols).not() {
+                    expand_lazy_in_expr(member.default_expr(), scope, depth + 1, ctx)
+                }
+            }
+        }
+    case:
+    }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
         mut inlined := false

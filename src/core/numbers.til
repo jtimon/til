@@ -397,8 +397,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I8 = a
         ref bu : I8 = b
-        if au <= bu { return bu.sub(au).to_u64() }
-        return au.sub(bu).to_u64()
+        if au <= bu { return bu.to_u64() - au.to_u64() }
+        return au.to_u64() - bu.to_u64()
     }
     delete := func(own self: I8, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -448,8 +448,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I16 = a
         ref bu : I16 = b
-        if au <= bu { return bu.sub(au).to_u64() }
-        return au.sub(bu).to_u64()
+        if au <= bu { return bu.to_u64() - au.to_u64() }
+        return au.to_u64() - bu.to_u64()
     }
     delete := func(own self: I16, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -499,7 +499,7 @@ namespace:
     safe_mul := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
         result := a * b
         if a.eq(0).not() {
-            if result.div(a).eq(b).not() {
+            if a.eq(-1).and(b.eq(I16.MIN)).or(result.div(a).eq(b).not()) {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))
             }
@@ -553,8 +553,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I32 = a
         ref bu : I32 = b
-        if au <= bu { return bu.sub(au).to_u64() }
-        return au.sub(bu).to_u64()
+        if au <= bu { return bu.to_u64() - au.to_u64() }
+        return au.to_u64() - bu.to_u64()
     }
     delete := func(own self: I32, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -604,7 +604,7 @@ namespace:
     safe_mul := func(a: I32, b: I32, loc: Str = __LOC__) returns I32 throws IntegerOverflow {
         result := a * b
         if a.eq(0).not() {
-            if result.div(a).eq(b).not() {
+            if a.eq(-1).and(b.eq(I32.MIN)).or(result.div(a).eq(b).not()) {
                 throw IntegerOverflow(msg = format(loc, ":I32.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))
             }
@@ -676,8 +676,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I64 = a
         ref bu : I64 = b
-        if au <= bu { return bu.sub(au).cast(U64) }
-        return au.sub(bu).cast(U64)
+        if au <= bu { return bu.cast(U64) - au.cast(U64) }
+        return au.cast(U64) - bu.cast(U64)
     }
     delete := func(own self: I64, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -736,7 +736,7 @@ namespace:
     safe_mul := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow {
         result := a * b
         if a.eq(0).not() {
-            if result.div(a).eq(b).not() {
+            if a.eq(-1).and(b.eq(I64.MIN)).or(result.div(a).eq(b).not()) {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))
             }

@@ -3556,6 +3556,24 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str, symbols: SymbolPoo
     return true
 }
 
+// Scalar token spelling for semantic parsing (not a backend source spelling).
+// Integer parsing accepts separators and base prefixes; libc float parsers
+// do not accept separators or binary/octal integer tokens narrowed to floats.
+numeric_literal_parse_text := func(text: Str) returns Str {
+    if text.starts_with("'") { return text.clone() }
+    clean := text.replace("_", "")
+    mut start : USize = 0
+    if clean.starts_with("-") { start = 1 }
+    body := clean.substr(start, clean.len() - start)
+    if body.starts_with("0b").or(body.starts_with("0B"))
+        .or(body.starts_with("0o")).or(body.starts_with("0O")) {
+        value := body.to_u64().to_str()
+        if start == 1 { return format("-", value) }
+        return value
+    }
+    return clean
+}
+
 // --- Type / AST helpers moved from src/core/ast.til ---
 // Cross-phase helper funcs over the core AST types. They live here (the
 // cross-phase home) rather than in src/core/ast.til so the core file stays
