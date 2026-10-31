@@ -23,7 +23,9 @@ Regression: test/jvm_stage_e.til (~retitle_jvm_note~ for a Str payload,
 ~replace_jvm_box~ for a struct payload, and a write through a borrowed
 ~ref JvmPoint~ payload), checked against the interpreter by ~make
 test_jvm~, against test/jvm_stage_e.expected for C, and pinned in
-src/tests.til (~TilRuntime.assignStr(~, ~.assignFrom(assignNew)~).
+src/tests.til (~TilRuntime.assignStr(~, ~.assignFrom(assignNew)~). These
+fixtures and pins were removed with the JVM backend in ~6084e80~
+([[../cancelled/375.org][#375]]); the bug itself was JVM-only.
 
 Found while burning down the [[../cancelled/375.org][#375]] JVM corpus. A payload
 binding (~case .Text(t):~) is a ~ref~ into the enum: assigning to it must

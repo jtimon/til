@@ -70,7 +70,9 @@ backend support are extensions, not prerequisites for this closure.
 - Regression sources: ~test/simd.til~, ~test/simd_errors.til~ and
   ~test/simd_width_error.til~. The test registry also checks the Java/HolyC
   unsupported diagnostics. Scalar IEEE and safe_div regressions are in
-  ~test/float_literals.til~; ~test/jvm_stage_d.til~ covers Java's scalar path.
+  ~test/float_literals.til~; ~test/jvm_stage_d.til~ covered Java's scalar path
+  (removed with the JVM backend in ~6084e80~, #375; the Java unsupported
+  diagnostic row went with it).
 
 **** Approved IEEE division correction
 
