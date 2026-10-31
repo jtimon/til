@@ -261,9 +261,10 @@ checked_lookup := proc(root: Str) {
     rejected_type := interp_session_call_function(session, program, "binary", binary, wrong_type)
     assert(rejected_type.is_none() && program.ctx.eval.eval_aborted.not())
     assert(program.ctx.diagnostics[0].message.contains("type/width mismatch"))
-    unsupported := interp_session_call_function(session, program, "keywords", lookup_contract(HostKeywords), no_arguments)
-    assert(unsupported.is_none() && program.ctx.eval.eval_aborted.not())
-    assert(program.ctx.diagnostics[0].message.contains("does not yet marshal"))
+    keyword_result := interp_session_call_function(session, program, "keywords", lookup_contract(HostKeywords), no_arguments)
+    assert(keyword_result.is_some() && program.ctx.eval.eval_aborted.not())
+    ref keyword_count : I64 = keyword_result.unwrap().get(0)
+    assert(keyword_count == 0)
 
     failed := interp_session_call_function(session, program, "fail_call", lookup_contract(HostMutable), text_values)
     assert(failed.is_none() && program.ctx.eval.eval_aborted)
@@ -434,8 +435,8 @@ callback_tests := proc(root: Str) {
     check.call()!
 }
 
-expect_call_failure := proc(mut callback: TilVmCallback, mut arguments: Tuple, detail: Str, path: Str = "lookup_guest.til") returns TilVmError {
-    result := callback.call(arguments)?
+expect_call_failure := proc(mut callback: TilVmCallback, mut arguments: Tuple, detail: Str, path: Str = "lookup_guest.til", keywords: KwargsMap = KwargsMap.new()) returns TilVmError {
+    result := callback.call(arguments, keywords = keywords)?
     catch (err: TilVmError) {
         assert(err.phase == "call")
         expect(err.to_str().contains(detail), err.to_str())
@@ -472,7 +473,10 @@ typed_callback_tests := proc(root: Str) {
     empty_tail := variadic.call()!
     ref empty_count : I64 = empty_tail.get(0)
     assert(empty_count == 0)
-    expect_lookup_failure(vm, "keywords", "without kwargs", signature = HostKeywords)
+    mut keywords := vm.lookup("keywords", HostKeywords)!
+    empty_keywords := keywords.call()!
+    ref keyword_count : I64 = empty_keywords.get(0)
+    assert(keyword_count == 0)
     mut throwing := vm.lookup("throwing", HostThrowing)!
     mut throw_args := Tuple.new()
     throw_args.push(I64, own -1)
@@ -1273,7 +1277,141 @@ variadic_callback_tests := proc(root: Str) {
     assert(record.inner.text == "nested tail" && dynamic_text == "7 mixed nested dynamic")
 }
 
+KeywordOnly := proc(options: ...) returns Str
+KeywordMixed := proc(mut Str, parts: ..Str, mut suffix: Str = "!", options: ...) returns Str throws TransformError
+KeywordCapture := proc(options: ...)
+
+capture_keyword_views := proc(mut callback: TilVmCallback) {
+    mut options := KwargsMap.new()
+    key_owner := format("key", " trailing")
+    value_owner := format("snapshot", " trailing")
+    options.set(key_owner.substr(0, 3), "Str", Str.size(), own value_owner.substr(0, 8).clone())
+    callback.call(keywords = options)!
+}
+
+kwargs_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\n",
+        "VariadicInner := struct { text := \"\"; state := CallbackState.Idle }\nVariadicOuter := struct { inner := VariadicInner() }\n",
+        "mut calls := 0\nread_calls := proc() returns I64 { noop_proc(); return calls }\n",
+        "mut held := KwargsMap.new()\ncapture_keywords := proc(options: ...) { noop_proc(); held = options.clone() }\n",
+        "read_held := func() returns Str { ref value: Str = held.get(\"key\"); return value.clone() }\n",
+        "keyword_only := proc(options: ...) returns Str { noop_proc(); calls = calls + 1; if options.len() == 0 { return \"empty\" }; ref n: I64 = options.get(\"number\"); ref text: Str = options.get(\"text\"); ref record: VariadicOuter = options.get(\"record\"); ref state: CallbackState = options.get(\"state\"); assert(state == CallbackState.Busy); return format(n.to_str(), text, record.inner.text) }\n",
+        "keyword_mixed := proc(mut prefix: Str, parts: ..Str, mut suffix: Str = \"!\", options: ...) returns Str throws TransformError {\n",
+        "noop_proc(); calls = calls + 1; prefix = format(prefix, \"+\"); suffix = format(suffix, \"?\"); mut out := prefix.clone(); for part: Str in parts { out = format(out, part) };\n",
+        "if options.has(\"prefix\") { ref named: Str = options.get(\"prefix\"); assert(named == \"map only\") };\n",
+        "if options.has(\"mode\") { ref mode: Str = options.get(\"mode\"); if mode == \"error\" { throw TransformError(code = 19, message = out.clone()) }; if mode == \"panic\" { panic(\"kwargs panic\") }; if mode == \"exit\" { exit(0) } }; return format(out, suffix) }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut only := vm.lookup("keyword_only", KeywordOnly)!
+    empty := only.call()!
+    ref empty_text : Str = empty.get(0)
+    assert(empty_text == "empty")
+    mut options := KwargsMap.new()
+    options.set("number", "I64", I64.size(), own 7)
+    options.set("text", "Str", Str.size(), own format(" key", "words "))
+    options.set("record", "VariadicOuter", VariadicOuter.size(), own VariadicOuter(inner = VariadicInner(text = format("nested ", "value"))))
+    options.set("state", "CallbackState", CallbackState.size(), own CallbackState.Busy)
+    result := only.call(keywords = options)!
+    mut reader := vm.lookup("read_calls", HostTick)!
+    mut no_args := Tuple.new()
+    no_collector := expect_call_failure(reader, no_args, "no kwargs collector", path = "guest.til", keywords = options)
+    assert(no_collector.exit_status.is_none())
+    before := reader.call()!
+    mut malformed := KwargsMap.new()
+    malformed.items.set("empty", own Tuple.new())
+    malformed_error := expect_call_failure(only, no_args, "exactly one typed value", path = "guest.til", keywords = malformed)
+    assert(malformed_error.exit_status.is_none())
+    mut raw := KwargsMap.new()
+    raw.set("raw", "Dynamic", Dynamic.size(), own 0)
+    raw_error := expect_call_failure(only, no_args, "unsupported keyword schema", path = "guest.til", keywords = raw)
+    assert(raw_error.exit_status.is_none())
+    mut unknown := KwargsMap.new()
+    unknown.set("unknown", "HostRecord", HostRecord.size(), own HostRecord(value = 9))
+    unknown_error := expect_call_failure(only, no_args, "unsupported keyword schema", path = "guest.til", keywords = unknown)
+    assert(unknown_error.exit_status.is_none())
+    mut wrong_width := KwargsMap.new()
+    wrong_width.set("number", "I64", I64.size(), own 7)
+    ref mut width_entry : Tuple = wrong_width.items.values[0]
+    width_entry.type_sizes.unsafe_set(0, own 1)
+    width_error := expect_call_failure(only, no_args, "keyword type/width mismatch", path = "guest.til", keywords = wrong_width)
+    assert(width_error.exit_status.is_none())
+    after := reader.call()!
+    ref before_count : I64 = before.get(0)
+    ref after_count : I64 = after.get(0)
+    assert(before_count == after_count)
+    mut mixed := vm.lookup("keyword_mixed", KeywordMixed)!
+    mut named_fixed := KwargsMap.new()
+    named_fixed.set("prefix", "Str", Str.size(), own "map only")
+    mut missing_fixed := false
+    call_throwing(KeywordMixed)(mixed, no_args, keywords = named_fixed)?
+    catch (error: TransformError) { panic("missing positional inputs executed the guest") }
+    catch (error: TilVmError) { missing_fixed = error.to_str().contains("count mismatch") }
+    assert(missing_fixed)
+    mut kept := Tuple.new()
+    mut kept_error := TransformError()
+    for mode: Str in array(Str, "ok", "error", "panic", "exit") {
+        mut args := Tuple.new()
+        args.push(Str, own format("pre", "fix"))
+        args.push(Str, own format(" tail", "1"))
+        args.push(Str, own format(" tail", "2"))
+        args.push(Str, own "!")
+        mut keywords := KwargsMap.new()
+        keywords.set("mode", "Str", Str.size(), own mode.clone())
+        keywords.set("prefix", "Str", Str.size(), own "map only")
+        mut caught := false
+        output := call_throwing(KeywordMixed)(mixed, args, keywords = keywords)?
+        catch (error: TransformError) { assert(mode == "error"); kept_error = error; caught = true }
+        catch (error: TilVmError) {
+            assert(mode == "panic" || mode == "exit")
+            if mode == "panic" { assert(error.to_str().contains("kwargs panic")) }
+            if mode == "exit" { assert(error.exit_status.unwrap() == 0) }
+            caught = true
+        }
+        if mode == "ok" { kept = output } else { assert(caught) }
+        ref prefix: Str = args.get(0)
+        ref suffix: Str = args.get(3)
+        ref original_mode: Str = keywords.get("mode")
+        assert(prefix == "prefix+" && suffix == "!?" && original_mode == mode)
+    }
+    mut fixed := Tuple.new()
+    fixed.push(Str, own "prefix")
+    fixed.push(Str, own "!")
+    recovered := call_throwing(TransformError)(mixed, fixed)!
+    mut single_args := Tuple.new()
+    single_args.push(Str, own "single")
+    single_args.push(Str, own "!")
+    mut single_keywords := KwargsMap.new()
+    single_keywords.set("mode", "Str", Str.size(), own "error")
+    mut single_caught := false
+    call_throwing(TransformError)(mixed, single_args, keywords = single_keywords)?
+    catch (error: TransformError) { single_caught = error.code == 19 && error.message == "single+" }
+    catch (error: TilVmError) { panic(error.to_str()) }
+    assert(single_caught)
+    mut capture := vm.lookup("capture_keywords", KeywordCapture)!
+    capture_keyword_views(capture)
+    mut held_reader := vm.lookup("read_held", HostReader)!
+    held := held_reader.call()!
+    own held_reader.delete()
+    own capture.delete()
+    own mixed.delete()
+    own reader.delete()
+    own only.delete()
+    own vm.delete()
+    ref text: Str = result.get(0)
+    ref joined: Str = kept.get(0)
+    ref again: Str = recovered.get(0)
+    ref snapshot: Str = held.get(0)
+    assert(text == "7 keywords nested value")
+    assert(joined == "prefix+ tail1 tail2!?" && again == "prefix+!?")
+    assert(kept_error.code == 19 && kept_error.message == "prefix+ tail1 tail2")
+    assert(snapshot == "snapshot")
+}
+
 main := proc(root: Str) returns I64 {
+    kwargs_callback_tests(root)
     variadic_callback_tests(root)
     nested_callback_tests(root)
     enum_callback_tests(root)

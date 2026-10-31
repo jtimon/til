@@ -5275,7 +5275,7 @@ priv init_expand_throwing_adapter := proc(mut stmt: Expr, scope: TypeScope, mut 
         stmt.type_error("call_throwing signature must declare at least one error", ctx)
         return false
     }
-    mut source := "generated := proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws "
+    mut source := "generated := proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new(), keywords: KwargsMap = KwargsMap.new()) returns Tuple throws "
     for error_type : Str in signature.throw_types {
         if error_type == "TilVmError" {
             stmt.type_error("TilVmError is reserved for VM failures, not declared guest errors", ctx)
@@ -5284,7 +5284,7 @@ priv init_expand_throwing_adapter := proc(mut stmt: Expr, scope: TypeScope, mut 
         source = format(source, error_type, ", ")
     }
     source = format(source, "TilVmError { mut error_value := Tuple.new(); result := self.invoke_throwing(",
-        signature_name, ", arguments, error_value)?; if error_value.len() > 0 { ")
+        signature_name, ", arguments, error_value, keywords = keywords)?; if error_value.len() > 0 { ")
     for error_type : Str in signature.throw_types {
         source = format(source, "if error_value.type_at(0) == til_type_name(", error_type, ") { throw ",
             error_type, ".clone(error_value.get(0)) }; ")

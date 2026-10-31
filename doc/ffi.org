@@ -74,8 +74,9 @@ result := transform.call(arguments)!
 ref text : Str = result.get(0)
 #+end_src
 
-~callback.call(arguments) returns Tuple throws TilVmError~ accepts a mutable
-Tuple of checked native values. Omitting arguments supplies an empty Tuple,
+~callback.call(arguments, keywords = KwargsMap.new()) returns Tuple throws TilVmError~
+accepts a mutable Tuple of checked native values and a borrowed keyword map.
+Omitting arguments supplies an empty Tuple,
 so existing ~callback.call()~ sites still work. A guest with no result returns
 an empty Tuple; otherwise it returns one independently owned value.
 
@@ -96,9 +97,9 @@ Lookup/call errors carry owned diagnostics, phase and optional exit status in
 instead converts an error into a host panic. Guest output uses host stdio.
 
 The call boundary supports core scalars, Str, and nested shared records
-and enums, with at most 63 declared parameters. Variadic calls are supported;
-the variadic element count is not limited to 63. Kwargs calls and
-pointer/reference-bearing record fields remain
+and enums, with at most 63 declared parameters. Variadic and kwargs calls are
+supported; variadic element and keyword entry counts are not limited to 63.
+Pointer/reference-bearing record fields remain
 unsupported. Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
@@ -130,13 +131,54 @@ The guest owns the carrier and its snapshots; the host's tail values remain
 owned by the input Tuple and are not copied back. Results and declared errors
 retain their independent ownership after carrier/callback/VM destruction.
 All count, element type/width and schema checks finish before carrier creation
-or guest execution. Kwargs calls remain unsupported.
+or guest execution. A kwargs collector consumes no positional Tuple entry.
 
 ~test/tilvm.til::variadic_callback_tests~ covers empty and long tails, typed and
 heterogeneous values, nested records, narrow enums, fixed mutable parameters
 before/after the tail, failure recovery and teardown in the installed ASAN
 host with empty PATH. Function-signature reflection retains defaulted source
 parameters even when lowering inserts hidden error slots before them.
+
+**** Keyword callbacks
+
+Supply named values with the existing ~KwargsMap~. For a guest export named
+~describe~ with signature ~proc(options: ...) returns Str~:
+
+#+begin_src til
+Describe := proc(options: ...) returns Str
+mut callback := vm.lookup("describe", Describe)!
+mut options := KwargsMap.new()
+options.set("label", til_type_name(Str), Str.size(), own format("host", " label"))
+result := callback.call(keywords = options)!
+#+end_src
+
+Throwing callbacks accept the same optional argument:
+~call_throwing(Signature)(callback, arguments, keywords = options)~ or
+~call_throwing(ErrorType)(callback, arguments, keywords = options)~. Omitting
+~keywords~ supplies an empty map. A nonempty map is rejected when the checked
+guest signature has no kwargs collector.
+
+The map fills only that collector. Its keys do not bind fixed parameters or
+replace positional values, even when their names match; all fixed parameters
+still come from the Tuple. Fixed, variadic and kwargs parameters can coexist.
+Source defaults are not evaluated for omitted fixed arguments.
+
+Before invocation, every entry must contain exactly one typed value with a
+supported shared schema and the correct native byte width. Untyped Dynamic/raw
+pointers and unknown schemas are rejected. The collector has no per-key type
+declarations: the guest determines its accepted keys and how to interpret them.
+
+The bridge makes an owned guest map with independent copies of keys and values,
+including keys or strings that were host views. The host retains its original
+map; keyword values are not copied back. The guest can retain its snapshots
+using ordinary ownership. Fixed mutable arguments still copy back on success,
+declared throw, panic and exit. Results and errors survive input/callback/VM
+destruction, and earlier effects are not rolled back.
+
+~test/tilvm.til::kwargs_callback_tests~ covers empty and populated maps, nested
+record/enum values, fixed-plus-variadic-plus-kwargs calls, both throwing adapter
+forms, validation before execution, retained key/value snapshots and teardown
+through the installed ASAN host with empty PATH.
 
 **** Shared record arguments and results
 
@@ -256,7 +298,7 @@ callback before invocation. The error type supplied to the adapter must match
 the checked callback contract. ~TilVmError~ remains reserved for VM failures;
 it cannot be included as a guest error in a signature-based adapter.
 
-~TilVmCallback.invoke_throwing(error_type, arguments, error_payload)~ is the
+~TilVmCallback.invoke_throwing(error_type, arguments, error_payload, keywords = KwargsMap.new())~ is the
 runtime bridge used by that adapter. Its first argument accepts the error type
 or the complete signature Type. It requires an initially empty error
 Tuple. Success returns the usual result Tuple and leaves the error Tuple empty;
@@ -488,9 +530,9 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- ~TilVmCallback.call(Tuple)~ does not marshal kwargs arguments
-  or records with pointer/reference fields. Typed and heterogeneous variadic
-  calls and nested shared records/enums are
+- ~TilVmCallback.call(Tuple)~ does not marshal records with pointer/reference
+  fields. Typed and heterogeneous variadic calls, keyword maps and nested
+  shared records/enums are
   supported; borrowed and callable enum payloads remain outside this boundary.
   The ~call_throwing(E)~ adapter supports the same nested error schemas,
   including multiple declared errors
