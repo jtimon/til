@@ -11,6 +11,8 @@ on:
   workflow_dispatch:
 
 jobs:
+  # GL/X11 headers are vendored (#59, #92); GUI execution needs only
+  # runtime libraries, Mesa and Xvfb, not graphics development packages.
   templeos:
     name: TempleOS guest (QEMU TCG, USize 32/64)
     runs-on: ubuntu-latest
@@ -22,8 +24,6 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
-      - name: Install compiler dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
       - name: Run native guest acceptance
         run: make test_templeos
       - name: Upload guest diagnostics
@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build and run tests
@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build compiler (default U32)
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build and run tests
@@ -117,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu qemu-user cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu qemu-user cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -175,7 +175,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu qemu-user cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu qemu-user cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -233,7 +233,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-multilib qemu-user
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-multilib qemu-user
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -320,7 +320,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-arm-linux-gnueabihf qemu-user
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-arm-linux-gnueabihf qemu-user
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -380,7 +380,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri qemu-user bzip2
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri qemu-user bzip2
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Download Bootlin riscv32 toolchain
@@ -467,7 +467,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -492,7 +492,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri mingw-w64 cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri mingw-w64 cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -620,7 +620,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri mingw-w64 cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri mingw-w64 cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -1019,7 +1019,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang lld llvm cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang lld llvm cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)
@@ -1296,7 +1296,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang lld llvm
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang lld llvm
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build bin/til (native)

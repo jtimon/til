@@ -1,0 +1,55 @@
+# priority: low
+# category: cleanups
+** CANCELLED #92 Bundle GL headers and linker scripts (zero apt deps)
+
+*** Cancellation reasoning (2026-10-31)
+
+Reviewed against master ~f2ad7b5ca~. The proposed GL headers and GNU ld
+scripts are obsolete: #59 eliminated the GL/X11 link-time dependencies
+rather than supplying unversioned linker names for them. Bundling more
+headers and linker scripts would add maintenance without addressing a
+current build requirement. Linking against those scripts would also
+require graphics runtime libraries at link time, whereas the current
+implementation loads them when needed at runtime.
+
+Sources in this revision:
+
+- [[file:../fixed/59.org][#59: Bundle all dependencies]] documents the bundled X11 headers,
+  bundled GLAD headers, removal of ~-lGL~ and ~-lX11~, and disabling
+  clipboard-image support to eliminate its direct X11 calls.
+- [[file:../../make.til::x11_cflags][make.til: x11_cflags]] supplies
+  ~-DSUPPORT_CLIPBOARD_IMAGE=0~ and ~vendor/x11/include~ to Linux
+  raylib builds, including cross builds.
+- [[file:../../vendor/raylib/src/rlgl.h][raylib rlgl.h]] includes ~external/glad.h~ for its modern desktop
+  OpenGL backend. [[file:../../vendor/raylib/src/platforms/rcore_desktop_glfw.c][rcore_desktop_glfw.c]] defines
+  ~GLFW_INCLUDE_NONE~ to disable system OpenGL header inclusion;
+  [[file:../../vendor/raylib/src/external/glfw/src/internal.h][GLFW internal.h]] does likewise.
+- [[file:../../src/modes/gui.til][src/modes/gui.til]] lists Linux system link dependencies as
+  ~m~, ~pthread~, ~rt~, and ~dl~, without ~GL~ or ~X11~.
+- [[file:../../vendor/raylib/src/external/glfw/src/glx_context.c][GLFW glx_context.c]] lists ~libGL.so.1~ for runtime loading;
+  [[file:../../vendor/raylib/src/external/glfw/src/x11_init.c][GLFW x11_init.c]] loads ~libX11.so.6~ dynamically.
+
+This cancellation concerns the proposed bundling implementation, not a
+claim that GUI execution has no system dependencies. Graphics runtime
+libraries and a display server (or Xvfb) are still needed for GUI tests;
+they are not guaranteed on every Linux installation.
+
+The accompanying cleanup in [[file:../../.github/workflows/tests.yml][CI tests.yml]] replaces GL/X11 development
+packages with explicit runtime packages and removes the obsolete
+graphics-development-only installation step from the TempleOS job.
+Mesa, Xvfb and the i386 GUI runtime packages are retained. The review
+above was source-based, not a package-isolated build/test run; runner
+images may still contain development packages, so removing these install
+requests alone does not prove their absence during CI builds.
+
+*** Original proposal
+
+Bundle Mesa/Khronos GL headers (~vendor/gl/include/~) and GNU ld linker
+  scripts (~vendor/system/libGL.so~, ~vendor/system/libX11.so~) so that
+  ~make test~ works without ~apt install libgl-dev~. Linker scripts
+  redirect ~-lGL~/~-lX11~ to versioned ~.so.1~/~.so.6~ files that
+  exist on any Linux desktop. Builder also needs ~-Lvendor/system~ for
+  GUI programs built with ~til build~.
+
+  Reference: ~origin/claude/bundle-gl-for-tests-1HDQZ~ has a working
+  implementation (commit 7c6dbe40d).
