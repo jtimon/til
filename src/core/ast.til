@@ -889,6 +889,10 @@ FieldLayout := struct {
     is_str := false
     is_enum := false
     is_funcptr := false
+    // #313: an own field stored as a 4-byte cage offset, because the running
+    // binary was built --cptr=32 (field_is_own_ptr). Read and write the slot
+    // with own_slot_load / own_slot_store, never deref / write_ptr.
+    is_cptr := false
 namespace:
     eq := func(a: FieldLayout, b: FieldLayout) returns Bool {
         return a.offset.eq(b.offset).and(a.size.eq(b.size)).and(a.struct_name.eq(b.struct_name))

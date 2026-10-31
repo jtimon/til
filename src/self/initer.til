@@ -2038,12 +2038,20 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
             mut field_struct_name := ""
             mut field_is_enum := false
             mut field_is_funcptr := false
+            mut field_is_cptr := false
 
             if fd.own_type.is(OwnType.Shallow).not() {
                 // own/ref fields are pointers in the HOST binary the
                 // interpreter walks; UPtr.size() is the host width.
                 fsz = UPtr.size()
                 falign = UPtr.size()
+                // #313: unless that binary was built --cptr=32, which keeps
+                // an own field as a 4-byte cage offset (TIL_OWN_PTR).
+                if field_is_own_ptr(struct_meta, fd).and(host_own_ptr_compressed()) {
+                    fsz = 4
+                    falign = 4
+                    field_is_cptr = true
+                }
 
                 ftype := decl_type_name(fd, ctx.symbols)
                 // #286: classify own-pointer struct/enum fields so the cache-
@@ -2159,7 +2167,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr))
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr, is_cptr = field_is_cptr))
             if falign > max_align { max_align = falign }
             offset = offset + fsz
         }

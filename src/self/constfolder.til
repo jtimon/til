@@ -510,7 +510,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             capacity := container_capacity(sname, raw, ctx)
             if count > capacity { panic("precomputed sequence count exceeds capacity: ", sname) }
             ref data_fl : FieldLayout = ctx_field_layout(sname, "data", ctx)
-            ref stored_data : Dynamic = deref(ptr_add(raw, data_fl.offset.to_uptr()))
+            ref stored_data : Dynamic = own_slot_load(ptr_add(raw, data_fl.offset.to_uptr()), data_fl.size)
             if count.gt(0).and(stored_data.is_null()) { panic("precomputed sequence has null live storage: ", sname) }
             elem_size := container_elem_size(elem_name, ctx)
             mut elements := Vec(Expr).new()

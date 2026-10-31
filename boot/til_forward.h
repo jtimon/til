@@ -670,6 +670,7 @@ typedef struct FieldLayout {
     Bool is_str;
     Bool is_enum;
     Bool is_funcptr;
+    Bool is_cptr;
 } FieldLayout;
 
 
@@ -1690,7 +1691,7 @@ typedef struct _ffi_type {
     U64 size;
     U16 alignment;
     U16 type;
-    TIL_OWN_PTR(U8) elements;
+    U8 *elements;
 } ffi_type;
 
 
@@ -1743,7 +1744,7 @@ typedef struct priv___src_self_interpreter_til__InterpAlias {
 
 
 typedef struct priv___src_self_interpreter_til__ExtStr {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } priv___src_self_interpreter_til__ExtStr;

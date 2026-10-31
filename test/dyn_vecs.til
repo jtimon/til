@@ -131,7 +131,19 @@ test_dyn_vec_size := test() {
     assert_eq(USize, U8.size(), 1)
     assert_eq(USize, Str.size(), dyn_size_of("Str"))
     assert_eq(USize, Bool.size(), 1)
-    assert_eq(USize, DynVec.size(), Str.size() * 2 + Dynamic.size())
+    assert_eq(USize, DynVec.size(), DynVecShape.size())
+}
+
+// DynVec's field shapes, to check its size against. (Str * 2 + Dynamic only
+// matched while an own pointer was 8 bytes; --cptr=32 makes it 4, #313.)
+DynVecShape := struct {
+    own data : U8 = 0
+    count : USize = 0
+    cap : USize = 0
+    elem_size : USize = 0
+    elem_kind : USize = 0
+    elem_clone : CloneFn = default_clone
+    elem_delete : DeleteFn = default_delete
 }
 
 test_dyn_vec_dynamic := test() {

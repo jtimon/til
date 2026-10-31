@@ -1,6 +1,37 @@
 # priority: low
 # category: features
-** WIP #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** FIXED #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+
+*** Post-mortem
+
+  Delivered as an opt-in flag: ~--cptr=32~ (64-bit C targets) stores every
+  ~own~ pointer field as a 32-bit byte offset into a 4GB allocation cage;
+  ~--cptr=64~, native pointers, stays the default.
+
+  - Root of the design: the plan's premises were half right. UPtr was never
+    the pointer representation (own-field storage is), there is no tracing
+    GC, and ownership already separates til-allocated (~own~) from borrowed
+    (~ref~) pointers. Two premises were wrong and changed the design: the
+    ~offset >> 4~ encoding cannot hold Str views (substr/trim point at any
+    byte), so offsets count bytes and the cage is 4GB; and the 4.3GB that
+    seemed to rule 4GB out was the ASAN self-translate (native peak ~430MB).
+  - What changed, in four commits: the cage allocator and the flag (step 1);
+    compressed storage through ~TIL_OWN_PTR~ / ~TIL_OWN_GET~ / ~TIL_OWN_SET~
+    with cage-resident literals and sequence templates (steps 2-3); the
+    ~own_slot_load~ / ~own_slot_store~ primitives and the typer's raw-store
+    rule (step 3b prep); the interpreter on a compressed host, ~ext_struct~
+    fields kept native, and sizes folded only when host and target agree
+    (step 3b + 4).
+  - Step 4's decision: the compressed compiler self-translates src/til.til in
+    -3.9% time and -4.8% peak RSS (-O0, --usize=32, 3 runs each, native
+    25.3-27.5s / 433MB vs 24.3-26.4s / 412MB). Below #309's -6% / -7% bar,
+    and a default flip would turn the 4GB heap cap into a language contract,
+    so the default is unchanged. Finer allocator size classes (8 per
+    doubling) were measured and did not move RSS; they were not kept.
+  - Regression tests: test/cptr32_sizes.til (Str/Vec 12, Map 24, mid-buffer
+    view), and ~make check_cptr32~ (CI job linux-x64 (--cptr=32)): the whole
+    suite through an ASAN compiler built --cptr=32, every program built
+    --cptr=32.
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time
@@ -266,7 +297,22 @@ assumptions do not match the compiler:
       With USize64 there is no gain: a 4-byte offset next to 8-byte counts
       is padded back to 24.
 
-  Remaining:
+  - Step 3b + 4 DONE (prep commit, then a Two-pass use commit). The
+    interpreter lays compressed own fields out at 4 bytes (initer, through
+    the shared ~field_is_own_ptr~ and the ~HostOwnPtrProbe.size()~ host
+    probe) and every raw own-slot access in interpreter.til / constfolder.til
+    goes through ~own_slot_load~ / ~own_slot_store~ (field access and base
+    walks, field init/write, heap clone/drop, Str value construction,
+    containers, FFI Vec(Str) marshaling, the FFI field type). ~ext_struct~
+    fields stay native (libffi reads ffi_type.elements as a pointer). Sizes
+    fold only when host and target compression agree. test/aggregate_control
+    and test/dyn_vecs had size assertions that held only for 8-byte own
+    fields (~Record == Str + 16~, ~DynVec == 2 Str + Dynamic~); they now state
+    the layout itself. check_cptr32 runs through a --cptr=32 compiler;
+    self_translate there compares two processes (boot/ is native), and
+    enums_no_uncalled_size targets --cptr=32 so sizes fold.
+
+  Superseded plan text (kept for history):
 
   - Step 3b (new): the interpreter on a compressed host. A compiler built
     with --cptr=32 must lay own fields out at 4 bytes in the interpreter

@@ -136,12 +136,22 @@
   on first use. ~Str.from_c_str~ copies the C string into an owned Str, since
   argv, getenv results and C library strings are not cage memory.
 
-  The compile-time interpreter keeps the host's native layout, so a compiler
-  built with ~--cptr=32~ does not work yet: its interpreter would have to
-  read and write compressed own fields (#313's next step). ~make
-  check_cptr32~ runs the whole suite with every compiled program built
-  ~--cptr=32~, under ASAN; ~test/interp_session.til~, which compiles the
-  interpreter into a program, is that step's open failure.
+  A compiler built ~--cptr=32~ works too. Its interpreter's value memory uses
+  the running binary's own layout (initer marks compressed own fields
+  ~FieldLayout.is_cptr~, 4 bytes), and reads/writes a pointer-field slot with
+  ~own_slot_load~ / ~own_slot_store~, size-aware twins of ~deref~ /
+  ~write_ptr~ that the typer's raw-store rules name alongside ~write_ptr~.
+  ~ext_struct~ fields mirror C library structs and always stay native. Like
+  #309's width split, sizes fold only when host and target agree; a
+  ~--cptr=32~ compiler building a native program (or the reverse) emits
+  ~X.size()~ as C ~sizeof~, so that translation is not byte-identical to a
+  same-layout one.
+
+  ~make check_cptr32~ (and its CI job) runs the whole suite through an ASAN
+  compiler built ~--cptr=32~, with every compiled program built ~--cptr=32~
+  too. Measured on the self-translate (-O0, ~--usize=32~): -4.8% peak RSS,
+  -3.9% time. That is below #309's bar, so the default stays ~--cptr=64~:
+  making it the default would also make the 4GB heap cap a language contract.
 
 ** CPU profiles and C optimization
 

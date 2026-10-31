@@ -156,7 +156,8 @@ priv clone_str_storage_into := func(mut dst: Dynamic, src: Dynamic, ctx: Context
     mut copy : I8 = malloc(cap.add(1).to_uptr())
     if cnt.gt(0) { memcpy(copy, s.c_str, cnt.to_uptr()) }
     memset(ptr_add(copy, cnt.to_uptr()), 0, 1)
-    write_ptr(dst, copy)
+    c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", dst, ctx)
+    own_slot_store(dst, copy, c_str_fl.size)
     str_write_count_cap(dst, cnt, cap, ctx)
 }
 
@@ -211,16 +212,16 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                     }
                     continue
                 }
-                ref src_ptr : Dynamic = deref(ptr_add(data, foff))
+                ref src_ptr : Dynamic = own_slot_load(ptr_add(data, hc_fl.offset), hc_fl.size)
                 if src_ptr.is_null().not() {
                     if nested_def_o.is_some() {
                         ref nested_def : Expr = nested_def_o.unwrap()
                         if nested_def.node_type.is(NodeType.EnumDef) {
                             cloned_enum : Dynamic = heap_clone_enum(ftype, src_ptr, ctx_total_size(ftype, ctx), ctx)
-                            write_ptr(ptr_add(dst_data, foff), cloned_enum)
+                            own_slot_store(ptr_add(dst_data, hc_fl.offset), cloned_enum, hc_fl.size)
                         } else {
                             cloned_struct : Dynamic = heap_clone(ftype, src_ptr, ctx)
-                            write_ptr(ptr_add(dst_data, foff), cloned_struct)
+                            own_slot_store(ptr_add(dst_data, hc_fl.offset), cloned_struct, hc_fl.size)
                         }
                     }
                 }
@@ -1546,12 +1547,12 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
         ref name : Str = type_name_ref(dd.til_type, ctx.symbols)
         if dd.own_type.is(OwnType.Own) {
             if raw_is_ref.or(raw_is_place) {
-                write_ptr(dst, heap_clone(name, raw, ctx))
+                own_slot_store(dst, heap_clone(name, raw, ctx), field_size)
             } else {
-                write_ptr(dst, raw)
+                own_slot_store(dst, raw, field_size)
             }
         } else if dd.own_type.is(OwnType.Ref) {
-            write_ptr(dst, raw)
+            own_slot_store(dst, raw, field_size)
         } else {
             if raw_is_ref.or(raw_is_place) {
                 copied : Dynamic = heap_clone(name, raw, ctx)
@@ -1568,12 +1569,12 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
         ref ename : Str = type_name_ref(dd.til_type, ctx.symbols)
         if dd.own_type.is(OwnType.Own) {
             if raw_is_ref.or(raw_is_place) {
-                write_ptr(dst, heap_clone_enum(ename, raw, dispatch_enum_size(ename, ctx), ctx))
+                own_slot_store(dst, heap_clone_enum(ename, raw, dispatch_enum_size(ename, ctx), ctx), field_size)
             } else {
-                write_ptr(dst, raw)
+                own_slot_store(dst, raw, field_size)
             }
         } else if dd.own_type.is(OwnType.Ref) {
-            write_ptr(dst, raw)
+            own_slot_store(dst, raw, field_size)
         } else {
             // dispatch_enum_size is the interpreter carrier capacity (at
             // least one word), not the inline C field width. Compact tag-only
@@ -1591,21 +1592,21 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
     }
     if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
         if raw_is_ref {
-            write_ptr(dst, raw)
+            own_slot_store(dst, raw, field_size)
         } else if raw_is_place.or(raw_type.is(Type.Dynamic)) {
             // #321: a null-literal value IS the null word, not a block
             // holding one -- raw_arg_pointer states the same rule for
             // arguments. An `own data : U8 = 0` field initialises
             // straight to null, and there is nothing to load through.
             if raw.is_null() {
-                write_ptr(dst, raw)
+                own_slot_store(dst, raw, field_size)
                 return
             }
             ref pointed : Dynamic = deref(raw)
-            write_ptr(dst, pointed)
+            own_slot_store(dst, pointed, field_size)
             if raw_is_place.not() { raw_block_free(raw) }
         } else {
-            write_ptr(dst, raw)
+            own_slot_store(dst, raw, field_size)
         }
         return
     }
@@ -1908,7 +1909,7 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         // niche cannot spell Some(null) -- it reads back as None. Callers
         // already treat both as "no base" and error out, so nothing changes
         // today, and step 1's forbid removes the case entirely.
-        ref stored : Dynamic = deref(slot)
+        ref stored : Dynamic = own_slot_load(slot, fl.size)
         if ffi_place_is_foreign(parent, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), stored, ctx) }
         return safe_ref(Dynamic, stored)
     case .FCall:
@@ -2022,7 +2023,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             if cstr_arg { check_c_string_terminator(base, e, ctx) }
             if info.is_ref {
                 if fdecl.own_type.is(OwnType.Shallow).not() {
-                    ref pointed : Dynamic = deref(ptr_add(base, fl.offset))
+                    ref pointed : Dynamic = own_slot_load(ptr_add(base, fl.offset), fl.size)
                     if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), pointed, ctx) }
                     result : Dynamic = pointed
                     return result
@@ -2053,7 +2054,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
             tmp_base : Dynamic = eval_expr_raw(scope, e.children[0], ctx)
             mut field_word : Dynamic = 0
             if info.is_ref {
-                field_word = deref(ptr_add(tmp_base, fl.offset))
+                field_word = own_slot_load(ptr_add(tmp_base, fl.offset), fl.size)
             } else {
                 field_word = read_field(tmp_base, fdecl, fl.offset, fl.size, ctx)
             }
@@ -2157,7 +2158,7 @@ priv eval_precomputed_sequence := proc(mut scope: Scope, mut e: Expr, data: Prec
 
     ref data_fl : FieldLayout = ctx_field_layout(seq_name, "data", ctx)
     ref cap_fl : FieldLayout = ctx_field_layout(seq_name, "cap", ctx)
-    write_ptr(ptr_add(result, data_fl.offset), elements)
+    own_slot_store(ptr_add(result, data_fl.offset), elements, data_fl.size)
     if cap_fl.size == 4 { write_u32(ptr_add(result, cap_fl.offset), data.capacity.to_u32()) }
     else { write_u64(ptr_add(result, cap_fl.offset), data.capacity.to_u64()) }
     if is_vec {
@@ -2264,7 +2265,8 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
             free(own buf)
         }
         ref pooled2 : Str = ctx.builder_str_lit_values[pooled_i]
-        write_ptr(result, pooled2.c_str)
+        c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", result, ctx)
+        own_slot_store(result, pooled2.c_str, c_str_fl.size)
         str_write_count_cap(result, j, CAP_LIT, ctx)
         return result
     case .Literal(Literal.Num(num_str)):
@@ -3252,7 +3254,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     }
                     ref field_data : Dynamic = ptr_add(base, wf_fl.offset)
                     if fdecl.own_type.is(OwnType.Own) {
-                        ref old_data : Dynamic = deref(field_data)
+                        ref old_data : Dynamic = own_slot_load(field_data, wf_fl.size)
                         // An owned field may still be its default null slot.
                         if old_data.is_null().not() {
                             eval_replacement_delete(scope, fdecl.til_type, old_data, true, stmt, ctx)
@@ -4377,7 +4379,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                                     mut copy : I8 = malloc(cnt.add(1).to_uptr())
                                                     memcpy(copy, source_str.c_str, cnt.to_uptr())
                                                     memset(ptr_add(copy, cnt.to_uptr()), 0, 1)
-                                                    write_ptr(arg_raw, copy)
+                                                    copy_c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", arg_raw, ctx)
+                                                    own_slot_store(arg_raw, copy, copy_c_str_fl.size)
                                                     str_write_count_cap(arg_raw, cnt, cnt, ctx)
                                                 }
                                             }
@@ -4679,7 +4682,7 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, mut dst_tuple: Dynamic, ctx:
         container_elem_clone_into(tn, ptr_add(new_buf, off), ptr_add(src_hdr.p, off), ts.clone(), ctx)
         off = off + ts
     }
-    write_ptr(ptr_add(dst_tuple, data_fl.offset), new_buf)
+    own_slot_store(ptr_add(dst_tuple, data_fl.offset), new_buf, data_fl.size)
 }
 
 // #286: cache-driven deep free of a struct value's nested heap. Reads
@@ -4753,7 +4756,7 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
         }
         if fl.own_type.is(OwnType.Own) {
             if fl.is_enum {
-                free_owned_enum_slot(ptr_add(data, foff), fl.struct_name, ctx)
+                free_owned_enum_slot(ptr_add(data, foff), fl.size, fl.struct_name, ctx)
                 continue
             }
             if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
@@ -4823,7 +4826,7 @@ priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, mut dst
         elem_off := i.mul(esz)
         container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), esz, ctx)
     }
-    write_ptr(ptr_add(dst_data, data_fl.offset), new_buf)
+    own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
 }
 
 priv dyn_vec_count := func(data: Dynamic, ctx: Context) returns USize {
@@ -4947,7 +4950,7 @@ priv clone_dyn_vec_buffer := func(src_data: Dynamic, mut dst_data: Dynamic, ctx:
             }
         }
     }
-    write_ptr(ptr_add(dst_data, data_fl.offset), new_buf)
+    own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
 }
 
 priv clone_dyn_array_buffer := func(src_data: Dynamic, mut dst_data: Dynamic, ctx: Context) {
@@ -4976,7 +4979,7 @@ priv clone_dyn_array_buffer := func(src_data: Dynamic, mut dst_data: Dynamic, ct
             }
         }
     }
-    write_ptr(ptr_add(dst_data, data_fl.offset), new_buf)
+    own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
 }
 
 priv clone_dyn_set_buffer := func(src_data: Dynamic, mut dst_data: Dynamic, ctx: Context) {
@@ -4996,7 +4999,7 @@ priv clone_dyn_set_buffer := func(src_data: Dynamic, mut dst_data: Dynamic, ctx:
         elem_off := i.mul(elem_size)
         container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), elem_size, ctx)
     }
-    write_ptr(ptr_add(dst_data, data_fl.offset), new_buf)
+    own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
 }
 
 // #321: the declared return type of the call being evaluated. Every
@@ -6061,7 +6064,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
     sz := ctx_total_size(array_canon_name, ctx)
     mut inst_data : Dynamic = EvalHeap.heap_alloc(sz)
     ref ba_data_fl : FieldLayout = ctx_field_layout(array_canon_name, "data", ctx)
-    write_ptr(ptr_add(inst_data, ba_data_fl.offset), data)
+    own_slot_store(ptr_add(inst_data, ba_data_fl.offset), data, ba_data_fl.size)
     ref ba_cap_fl : FieldLayout = ctx_field_layout(array_canon_name, "cap", ctx)
     memcpy(ptr_add(inst_data, ba_cap_fl.offset), count, ba_cap_fl.size)
     return inst_data
@@ -6374,7 +6377,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, fie
     }
     if dd.own_type.is(OwnType.Shallow).not() {
         mut result : Dynamic = dispatch_result_alloc(Type.Dynamic, ctx)
-        ref pointed : Dynamic = deref(ptr)
+        ref pointed : Dynamic = own_slot_load(ptr, field_size)
         write_ptr(result, pointed)
         return result
     }
@@ -6393,8 +6396,8 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, fie
     return result
 }
 
-priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
-    ref old_owned_ref : Dynamic = deref(ptr)
+priv free_owned_struct_slot := func(ptr: Dynamic, slot_size: USize, struct_name: Str, ctx: Context) {
+    ref old_owned_ref : Dynamic = own_slot_load(ptr, slot_size)
     mut old_owned : Dynamic = old_owned_ref
     heap_drop_struct(struct_name, old_owned, ctx)
     EvalHeap.heap_free(own old_owned)
@@ -6404,8 +6407,8 @@ priv free_inline_struct_slot := func(mut ptr: Dynamic, struct_name: Str, ctx: Co
     heap_drop_struct(struct_name, ptr, ctx)
 }
 
-priv free_owned_enum_slot := func(ptr: Dynamic, enum_name: Str, ctx: Context) {
-    ref old_data_ref : Dynamic = deref(ptr)
+priv free_owned_enum_slot := func(ptr: Dynamic, slot_size: USize, enum_name: Str, ctx: Context) {
+    ref old_data_ref : Dynamic = own_slot_load(ptr, slot_size)
     mut old_data : Dynamic = old_data_ref
     heap_drop_enum(enum_name, old_data, ctx)
     EvalHeap.heap_free(own old_data)
@@ -6437,18 +6440,18 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         ref name : Str = type_name_ref(dd.til_type, ctx.symbols)
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
-            if drop_old { free_owned_struct_slot(dst, name, ctx) }
+            if drop_old { free_owned_struct_slot(dst, field_size, name, ctx) }
             if raw_is_ref {
                 mut cloned : Dynamic = heap_clone(name, source, ctx)
                 if name == "Str" { prepare_owned_str_wrapper(cloned, ctx) }
-                write_ptr(dst, cloned)
+                own_slot_store(dst, cloned, field_size)
             } else {
                 if name == "Str" { prepare_owned_str_wrapper(source, ctx) }
-                write_ptr(dst, source)
+                own_slot_store(dst, source, field_size)
                 return
             }
         } else if dd.own_type.is(OwnType.Ref) {
-            write_ptr(dst, source)
+            own_slot_store(dst, source, field_size)
         } else {
             if drop_old { free_inline_struct_slot(dst, name, ctx) }
             if raw_is_ref.not() {
@@ -6478,11 +6481,11 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         ref ename : Str = type_name_ref(dd.til_type, ctx.symbols)
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
-            if drop_old { free_owned_enum_slot(dst, ename, ctx) }
-            if raw_is_ref { write_ptr(dst, heap_clone_enum(ename, source, dispatch_enum_size(ename, ctx), ctx)) }
-            else { write_ptr(dst, source); return }
+            if drop_old { free_owned_enum_slot(dst, field_size, ename, ctx) }
+            if raw_is_ref { own_slot_store(dst, heap_clone_enum(ename, source, dispatch_enum_size(ename, ctx), ctx), field_size) }
+            else { own_slot_store(dst, source, field_size); return }
         } else if dd.own_type.is(OwnType.Ref) {
-            write_ptr(dst, source)
+            own_slot_store(dst, source, field_size)
         } else {
             if drop_old { heap_drop_enum(ename, dst, ctx) }
             // Raw enum results use a word-sized carrier even when their
@@ -6506,11 +6509,11 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         mut source : Dynamic = raw
         if raw_type.is(Type.Dynamic) { source = deref(raw) }
         if dd.own_type.is(OwnType.Own) {
-            ref old : Dynamic = deref(dst)
+            ref old : Dynamic = own_slot_load(dst, field_size)
             if drop_old.and(old.is_null().not()) { mut owned_old : Dynamic = old; free(own owned_old) }
             write_ptr(raw, bits_word(0))
         }
-        write_ptr(dst, source)
+        own_slot_store(dst, source, field_size)
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
         return
     }
@@ -7010,7 +7013,7 @@ priv interp_callback_pack_variadic := proc(elem: Str, arguments: Tuple, start: U
     memset(storage, 0, raw_type_size(carrier_type, ctx))
     ref data_field : FieldLayout = ctx_field_layout(carrier, "data", ctx)
     ref cap_field : FieldLayout = ctx_field_layout(carrier, "cap", ctx)
-    write_ptr(ptr_add(storage, data_field.offset), data)
+    own_slot_store(ptr_add(storage, data_field.offset), data, data_field.size)
     if cap_field.size == 4 { write_u32(ptr_add(storage, cap_field.offset), count.to_u32()) }
     else { write_u64(ptr_add(storage, cap_field.offset), count.to_u64()) }
     return storage
@@ -7848,7 +7851,8 @@ cmd_interpret := proc(mut lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
 
 // Raw marshal mirror of the C Str layout; never built via the ctor.
 priv ExtStr := struct {
-    ref data : U8
+    // own, like Str.c_str: under --cptr=32 a cage offset (#313).
+    own data : U8 = 0
     count : USize = 0
     cap : USize = 0
 }
@@ -8322,15 +8326,16 @@ dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
 }
 
 priv dispatch_write_str := func(mut result: Dynamic, data: Dynamic, len: USize, ctx: Context) {
+    c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", result, ctx)
     if len == 0 {
-        write_ptr(result, "".c_str)
+        own_slot_store(result, "".c_str, c_str_fl.size)
         str_write_count_cap(result, 0, CAP_LIT, ctx)
         return
     }
     mut copy : Dynamic = EvalHeap.heap_alloc(len.add(1))
     memcpy(copy, data, len)
     memset(ptr_add(copy, len), 0, 1)
-    write_ptr(result, copy)
+    own_slot_store(result, copy, c_str_fl.size)
     str_write_count_cap(result, len, len, ctx)
 }
 
@@ -8700,7 +8705,8 @@ str_copy_into := func(mut result: Dynamic, src: Str, ctx: Context) {
     memcpy(buf, src.c_str, n)
     ref mut term : U8 = ptr_add(buf, n)
     term = 0
-    write_ptr(result, buf)
+    c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", result, ctx)
+    own_slot_store(result, buf, c_str_fl.size)
     str_write_count_cap(result, n, n, ctx)
 }
 
@@ -9405,7 +9411,10 @@ priv shallow_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Boo
     return ffi_type_ref("ffi_type_pointer")
 }
 
-priv field_ffi_type := proc(dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+priv field_ffi_type := proc(sd: StructDef, dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
+    // #313: a --cptr=32 interpreter compiles its FFI libraries with the same
+    // define, so an own field is a 4-byte cage offset on both sides.
+    if field_is_own_ptr(sd, dd).and(host_own_ptr_compressed()) { return ffi_type_ref("ffi_type_uint32") }
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
     t_o := known_ffi_type(decl_type_name_ref(dd, ctx.symbols), ctx, host_layout)
@@ -9441,7 +9450,7 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
         mut elements : Dynamic = malloc(nelements.add(1) * Dynamic.size())
         mut i : USize = 0
         for fd : Declaration in bsf_sdd.fields {
-            ref ft : ffi_type = field_ffi_type(fd, ctx, host_layout)
+            ref ft : ffi_type = field_ffi_type(bsf_sdd, fd, ctx, host_layout)
             // The elements array holds ffi_type POINTERS; the old memcpy
             // copied the pointed struct's first 8 bytes (its size field)
             // instead, so libffi walked (ffi_type*)1-style garbage.
@@ -9882,7 +9891,7 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, mut ctx: Context) r
             if fl.is_enum.not() { return bits_word(0) }
             if fl.own_type.is(OwnType.Own).or(fl.own_type.is(OwnType.Ref)) {
                 // Own/Ref enum fields store a pointer to the raw enum bytes.
-                ref heap_enum : Dynamic = deref(ptr_add(data, fl.offset))
+                ref heap_enum : Dynamic = own_slot_load(ptr_add(data, fl.offset), fl.size)
                 if heap_enum.is_null() { return bits_word(0) }
                 return ptr_add(heap_enum, 0)
             }
@@ -10361,6 +10370,16 @@ priv ffi_vec_str_field_slot := func(header: Dynamic, field_name: Str,
     return ptr_add(header, offset.to_uptr())
 }
 
+// #313: Vec(Str).data's slot width in that layout -- a cage offset (4)
+// when a --cptr=32 interpreter lays own fields out compressed.
+priv ffi_vec_str_data_size := func(host_layout: Bool, ctx: Context) returns USize {
+    ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
+    ref index : USize = sd.fields_index["data"]
+    ref layout : FFITypePtrBox = ffi_cached_layout("Vec__Str", ctx, host_layout)
+    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.mul(8)))
+    return field_type.size.to_usize()
+}
+
 priv ffi_vec_str_usize_field := func(header: Dynamic, field_name: Str,
         host_layout: Bool, ctx: Context) returns USize {
     ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
@@ -10377,11 +10396,12 @@ priv ffi_vec_str_usize_field := func(header: Dynamic, field_name: Str,
 // been transferred to the converted buffer (or are still borrowed there).
 priv ffi_release_vec_str_buffer := func(header: Dynamic, host_layout: Bool, ctx: Context) {
     mut slot : Dynamic = ffi_vec_str_field_slot(header, "data", host_layout, ctx)
-    ref buffer : Dynamic = deref(slot)
+    data_size := ffi_vec_str_data_size(host_layout, ctx)
+    ref buffer : Dynamic = own_slot_load(slot, data_size)
     if buffer.is_null().not() {
         mut owned_buffer : Dynamic = buffer
         free(own owned_buffer)
-        write_ptr(slot, bits_word(0))
+        own_slot_store(slot, bits_word(0), data_size)
     }
 }
 
@@ -10413,7 +10433,8 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             mut chars : I8 = calloc(capacity.add(1).to_uptr(), 1)
             if count > 0 { memcpy(chars, text.c_str, count.to_uptr()) }
             mut owned : Dynamic = EvalHeap.heap_alloc(ctx_total_size("Str", ctx))
-            write_ptr(owned, chars)
+            owned_c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", owned, ctx)
+            own_slot_store(owned, chars, owned_c_str_fl.size)
             str_write_count_cap(owned, count, capacity, ctx)
             ffi_copy_struct_into(type_name, owned, true, dst, false, ctx)
             EvalHeap.heap_free(own owned)
@@ -10516,7 +10537,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             }
         }
         if type_name.eq("Vec__Str").and(src_host.neq(dst_host)) {
-            ref data : Dynamic = deref(ffi_vec_str_field_slot(src, "data", src_host, ctx))
+            ref data : Dynamic = own_slot_load(ffi_vec_str_field_slot(src, "data", src_host, ctx), ffi_vec_str_data_size(src_host, ctx))
             count := ffi_vec_str_usize_field(src, "count", src_host, ctx)
             cap := ffi_vec_str_usize_field(src, "cap", src_host, ctx)
             if count > cap { panic("FFI Vec(Str) count exceeds capacity") }
@@ -10531,7 +10552,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
                     ref mut dst_elem : Dynamic = ptr_add(converted, i.to_uptr().mul(dst_str.ptr.size.to_uptr()))
                     ffi_copy_struct_into("Str", src_elem, src_host, dst_elem, dst_host, ctx, transfer_owned)
                 }
-                write_ptr(ffi_vec_str_field_slot(dst, "data", dst_host, ctx), converted)
+                own_slot_store(ffi_vec_str_field_slot(dst, "data", dst_host, ctx), converted, ffi_vec_str_data_size(dst_host, ctx))
             }
         }
     case:
@@ -10594,7 +10615,7 @@ priv ffi_marshal_struct := proc(type_name: Str, src: Dynamic, src_host: Bool,
 // header. An element reference therefore needs its own range/stride mapping.
 priv ffi_vec_str_reference_offset := func(header: Dynamic, borrowed: Dynamic,
         host_layout: Bool, ctx: Context) returns Option(U64) {
-    ref buffer : Dynamic = deref(ffi_vec_str_field_slot(header, "data", host_layout, ctx))
+    ref buffer : Dynamic = own_slot_load(ffi_vec_str_field_slot(header, "data", host_layout, ctx), ffi_vec_str_data_size(host_layout, ctx))
     if buffer.is_null() { return Option(U64).None } // A lazy-empty vector has no elements.
     count := ffi_vec_str_usize_field(header, "count", host_layout, ctx)
     ref layout : FFITypePtrBox = ffi_cached_layout("Str", ctx, host_layout)
@@ -10654,8 +10675,8 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
             index := offset_o.unwrap().div(from_str.ptr.size.to_u64())
             count := ffi_vec_str_usize_field(original, "count", original_host, ctx)
             if index >= count.to_u64() { panic("FFI returned a reference past the original Vec(Str) elements") }
-            ref from_buffer : Dynamic = deref(ffi_vec_str_field_slot(converted, "data", converted_host, ctx))
-            ref into_buffer : Dynamic = deref(ffi_vec_str_field_slot(original, "data", original_host, ctx))
+            ref from_buffer : Dynamic = own_slot_load(ffi_vec_str_field_slot(converted, "data", converted_host, ctx), ffi_vec_str_data_size(converted_host, ctx))
+            ref into_buffer : Dynamic = own_slot_load(ffi_vec_str_field_slot(original, "data", original_host, ctx), ffi_vec_str_data_size(original_host, ctx))
             return ffi_rebase_reference("Str",
                 ptr_add(from_buffer, index.mul(from_str.ptr.size.to_u64()).to_uptr()),
                 ptr_add(into_buffer, index.mul(into_str.ptr.size.to_u64()).to_uptr()),
@@ -10749,9 +10770,9 @@ priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut c
             ref fd : Declaration = sd.fields[i]
             fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
             if fd.own_type.is(OwnType.Own) {
-                write_ptr(ptr_add(data, fl.offset), bits_word(0))
+                own_slot_store(ptr_add(data, fl.offset), bits_word(0), fl.size)
             } else if fd.own_type.is(OwnType.Shallow).and(ctx.ffi.struct_defs.has(decl_type_name_ref(fd, ctx.symbols))) {
-                ref field_type : ffi_type = field_ffi_type(fd, ctx, true)
+                ref field_type : ffi_type = field_ffi_type(sd, fd, ctx, true)
                 if field_type.type == FFI_TYPE_STRUCT.to_u16() {
                     ffi_clear_struct_ownership(decl_type_name_ref(fd, ctx.symbols), ptr_add(data, fl.offset), ctx)
                 }
@@ -11064,7 +11085,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             ref sp : ExtStr = raw_ptr
             // Adopt the owned host-layout result, preserving the ownership
             // sentinels. Borrowed Str results took the ref path above.
-            write_ptr(result, sp.data)
+            c_str_fl := place_field_layout(ctx.eval.cached_str_name, "c_str", result, ctx)
+            own_slot_store(result, sp.data, c_str_fl.size)
             mut adopted_cap : USize = sp.count
             if sp.cap >= CAP_VIEW { adopted_cap = sp.cap }
             str_write_count_cap(result, sp.count, adopted_cap, ctx)

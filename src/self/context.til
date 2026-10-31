@@ -2234,6 +2234,28 @@ unsigned_prim_width_for_name := func(name: Str) returns USize {
 host_usize_pname := func() returns Str { return unsigned_prim_name_for_width(USize.size()) }
 host_uptr_pname := func() returns Str { return unsigned_prim_name_for_width(UPtr.size()) }
 
+// #313: an own field that points at a til allocation, so --cptr=32 stores it
+// as a cage offset (c_codegen's TIL_OWN_PTR, initer's FieldLayout.is_cptr).
+// ref fields borrow anything and stay native; Dynamic and callable fields
+// stay native too, and so does every field of an ext_struct, which mirrors
+// a C library's struct (libffi reads ffi_type.elements as a real pointer).
+field_is_own_ptr := func(sd: StructDef, dd: Declaration) returns Bool {
+    if sd.c_tag.len() > 0 { return false }
+    if dd.own_type.is(OwnType.Own).not() { return false }
+    if dd.til_type.is(Type.Dynamic) { return false }
+    if dd.til_type.is_funcptr().or(type_is_callable_storage(dd.til_type)) { return false }
+    return true
+}
+
+// #313: the width of such a field in the RUNNING binary -- the layout the
+// compile-time interpreter's value memory must share with the compiled code
+// it calls. The probe's size() is emitted as sizeof under --cptr=32, so a
+// compressed build reports 4 and a native one 8, like host_uptr_pname.
+priv HostOwnPtrProbe := struct {
+    own p : U8 = 0
+}
+host_own_ptr_compressed := func() returns Bool { return HostOwnPtrProbe.size() < UPtr.size() }
+
 // The interpreter's flat enum format: tag at offset 0 (its real 1/2/4/8-byte
 // width), payload at this fixed offset. Single source of truth for the
 // interpreter/constfolder payload accesses AND compute_enum_layout's enum
@@ -2268,12 +2290,15 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
 }
 
 // #313: the emitted struct layout differs from the host's whenever the widths
-// do, and also under --cptr=32, whose own pointer fields are 4 bytes. Sizes
-// baked from the host layout are then wrong, so they are emitted as sizeof.
+// do, and also when exactly one side stores own pointer fields as 4-byte cage
+// offsets (a --cptr=32 target built by a native compiler, or a native target
+// built by a --cptr=32 compiler). Sizes baked from the host layout are then
+// wrong, so they are emitted as sizeof; like #309's width mismatch, such a
+// cross-layout translation is not byte-identical to a same-layout one.
 // Separate from size_intrinsics_use_sizeof, which also decides the
 // interpreter's FFI marshaling: compile-time FFI still calls host code.
 size_intrinsics_emit_sizeof := func(ctx: Context) returns Bool {
-    return size_intrinsics_use_sizeof(ctx).or(ctx.target_cptr32)
+    return size_intrinsics_use_sizeof(ctx).or(ctx.target_cptr32.neq(host_own_ptr_compressed()))
 }
 
 constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {

@@ -1125,11 +1125,26 @@ main := proc(args: ..Str) {
     // The cmp then fails on a VERSION line, reporting a bootstrap
     // fixed-point break that did not happen. Removing the artifacts is what
     // makes the row test what it says it tests.
+    //
+    // #313: under --cptr=32 (make check_cptr32) the compiler under test was
+    // itself built --cptr=32, while boot/ comes from a native one. Its
+    // interpreter needs host (compressed) sizes, so for this native target
+    // it leaves size() unfolded -- like #309's --usize cross-width builds,
+    // a different translation, not a fixed-point break. There the row keeps
+    // the repeatability half: two processes must emit identical bytes.
+    mut self_reference := "boot/til"
+    mut self_reference_cmd := ""
+    if cptr32 == 1 {
+        self_reference = "tmp/self_det_ref"
+        self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
+            " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
+    }
     add_single(tests, "self_translate", "self", 0, "",
         format("rm -f tmp/self_det.c tmp/self_det_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det.c src/til.til",
-            " '&&' cmp tmp/self_det.c boot/til.c",
-            " '&&' cmp tmp/self_det_forward.h boot/til_forward.h"))
+            self_reference_cmd,
+            " '&&' cmp tmp/self_det.c ", self_reference, ".c",
+            " '&&' cmp tmp/self_det_forward.h ", self_reference, "_forward.h"))
 
     // Full Unicode rule conformance plus focused navigation contracts. Start
     // early so its interpreted work overlaps the rest of the suite.
@@ -2046,8 +2061,12 @@ main := proc(args: ..Str) {
     // ...while the ext.c boundary globals stay: ext.c reads CAP_LIT.
     add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern USize CAP_LIT;", 1,
         "cat gen/til/til_forward.h")
+    // #313: a --cptr=32 compiler folds sizes only for a target laid out like
+    // itself, so under make check_cptr32 the translation targets --cptr=32.
+    mut size_fold_flag := ""
+    if cptr32 == 1 { size_fold_flag = " --cptr=32" }
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
-        format(til_bin, " translate --usize=32 -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
+        format(til_bin, " translate --usize=32", size_fold_flag, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     first_class_checks = first_class_checks.concat(array(CountCheck,
         CountCheck(needle = "unused_default_op", expected_count = 0),
         CountCheck(needle = "__attribute__((unused))", expected_count = 0)))

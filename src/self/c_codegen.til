@@ -447,7 +447,7 @@ priv cptr_field_pointee := func(sname: Str, fname: Str, ctx: Context) returns St
         fd_o := member_get(sdd.fields_index, sdd.fields, fname)
         if fd_o.is_some() {
             ref fd : Declaration = fd_o.unwrap()
-            if field_is_own_ptr(fd) { return field_pointee_ctype(fd, ctx.symbols) }
+            if field_is_own_ptr(sdd, fd) { return field_pointee_ctype(fd, ctx.symbols) }
         }
     case:
     }
@@ -956,15 +956,6 @@ priv field_pointee_ctype := func(dd: Declaration, symbols: SymbolPool) returns S
     return field_emit_ctype(dd, symbols)
 }
 
-// #313: an own field that points at a til allocation, so --cptr=32 can store
-// it as a cage offset (TIL_OWN_PTR). ref fields borrow anything and stay
-// native; Dynamic and callable fields stay native too.
-priv field_is_own_ptr := func(dd: Declaration) returns Bool {
-    if dd.own_type.is(OwnType.Own).not() { return false }
-    if dd.til_type.is(Type.Dynamic) { return false }
-    if dd.til_type.is_funcptr().or(type_is_callable_storage(dd.til_type)) { return false }
-    return true
-}
 
 priv c_type_name := func(shallow t: Type, struct_name: Str, mut ctx: Context) returns Str {
     if is_struct_type(t).or(is_enum_type(t)) {
@@ -5345,7 +5336,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                     ref dd : Declaration = ecf_sdd.field_at(fi)
                     fld_own = dd.own_type
                     fname = ecf_sdd.field_name_at(fi).clone()
-                    if ctx.target_cptr32.and(field_is_own_ptr(dd)) { fld_pointee = field_pointee_ctype(dd, ctx.symbols) }
+                    if ctx.target_cptr32.and(field_is_own_ptr(ecf_sdd, dd)) { fld_pointee = field_pointee_ctype(dd, ctx.symbols) }
                     fi++
                 }
             case:
@@ -6349,7 +6340,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
         sbr = sbr + 1
         if dd.own_type.is(OwnType.Shallow).not() {
             pointee := field_pointee_ctype(dd, symbols)
-            if field_is_own_ptr(dd) {
+            if field_is_own_ptr(sdd, dd) {
                 // #313: spelled through ext.h so one header serves the
                 // native and the --cptr=32 (compressed) layout alike.
                 f.write("    TIL_OWN_PTR(").write(pointee).write(") ").write(sb_name).write(";\n")
