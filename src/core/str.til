@@ -202,8 +202,11 @@ namespace:
 
     /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
     /// The view borrows ~s~; the caller keeps ownership of the buffer.
+    /// Under ~--cptr=32~ a pointer the cage did not allocate cannot be
+    /// stored, so the result is instead an owned copy of the bytes.
     from_c_str := func(s: Dynamic) returns Str {
-        return Str(c_str = s, count = c_str_len(s), cap = CAP_VIEW)
+        n := c_str_len(s)
+        return Str(c_str = c_str_borrow_bytes(s, n), count = n, cap = c_str_borrow_cap(n))
     }
 
     /// Append ~s~ to ~self~. Panics if ~self~ is a view/literal or if
@@ -668,6 +671,11 @@ priv parse_integer_magnitude := func(self: Str, method: Str, mut neg: Bool) retu
 // handler can reach it; Str.to_f32 delegates here.
 str_parse_f32 := ext_func(s: Str) returns shallow F32 {}
 str_parse_f64 := ext_func(s: Str) returns shallow F64 {}
+
+// Str.from_c_str's storage (issue #313): natively the C string itself and
+// CAP_VIEW; under --cptr=32 an owned copy in the cage, with a real capacity.
+c_str_borrow_bytes := ext_func(s: Dynamic, shallow n: USize) returns ref Dynamic {}
+c_str_borrow_cap := ext_func(shallow n: USize) returns shallow USize {}
 
 c_str_len := func(s: Dynamic) returns USize {
     mut n : USize = 0

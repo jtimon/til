@@ -109,20 +109,39 @@
 ** Pointer-compression cage (~--cptr~)
 
   ~--cptr=32~ (issue #313, 64-bit C targets only; default ~--cptr=64~ is
-  native) builds with ~-DTIL_CPTR32~. ext.h then routes ~malloc~,
-  ~calloc~, ~realloc~ and ~free~ -- the names generated code, ext.c and
-  link_c code call -- to the cage allocator in ext.c: one 64GB reservation,
-  16-byte aligned blocks, so any til pointer is ~base + (offset << 4)~ for a
-  32-bit offset, with offset 0 never handed out. Exhausting the cage panics,
-  and so does freeing a pointer the cage did not allocate; memory libc
-  allocates for itself (~realpath(p, NULL)~) is released with ~(free)(p)~.
-  An interpreter built this way resolves the allocator names to the cage and
-  compiles the user's FFI .so with the same define. Libraries carry
-  ~-cptr32~ in their runtime/core identity.
+  native) stores every ~own~ pointer field as a 32-bit byte offset into one
+  4GB allocation region, the cage. ~ref~, ~Dynamic~ and callable fields stay
+  native pointers. With ~--usize=32~ that makes Str and Vec 12 bytes instead
+  of 16; with a 64-bit USize the saving disappears into alignment padding.
+  The 4GB is a hard per-process heap cap.
 
-  This is step 1 of #313: only the allocator changes, storage is still
-  native pointers. ~make check_cptr32~ builds and runs ~--cptr=32~ programs,
-  then runs the whole suite through a ~--cptr=32~ ASAN compiler.
+  The build defines ~TIL_CPTR32~, and ext.h then:
+
+  - routes ~malloc~, ~calloc~, ~realloc~ and ~free~ -- the names generated
+    code, ext.c and link_c code call -- to the cage allocator in ext.c.
+    Exhausting the cage panics, and so does freeing a pointer the cage did
+    not allocate; memory libc allocates for itself (~realpath(p, NULL)~) is
+    released with ~(free)(p)~.
+  - makes ~TIL_OWN_PTR(T)~, the spelling every generated struct uses for an
+    own field, a ~{U32 off}~ struct instead of ~T *~. The offset counts bytes
+    (a Str view points at any byte of its buffer), 0 is NULL. Loads and
+    stores go through ~TIL_OWN_GET(T, field)~ / ~TIL_OWN_SET(field, p)~,
+    which are plain accesses natively; a forgotten accessor is a C type
+    error, never a silent truncation. User C (link_c, FFI libraries) that
+    touches own fields uses the same macros.
+
+  The generated C is otherwise the native one, except where a pointer had to
+  be a link-time constant: string literals (pooled, __LOC__ and the rest) and
+  precomputed sequence templates are copied into the cage, by constructors or
+  on first use. ~Str.from_c_str~ copies the C string into an owned Str, since
+  argv, getenv results and C library strings are not cage memory.
+
+  The compile-time interpreter keeps the host's native layout, so a compiler
+  built with ~--cptr=32~ does not work yet: its interpreter would have to
+  read and write compressed own fields (#313's next step). ~make
+  check_cptr32~ runs the whole suite with every compiled program built
+  ~--cptr=32~, under ASAN; ~test/interp_session.til~, which compiles the
+  interpreter into a program, is that step's open failure.
 
 ** CPU profiles and C optimization
 

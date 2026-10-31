@@ -507,27 +507,27 @@ typedef TilClosure *HashFn;
 typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
 
 typedef struct Vec__Dynamic {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Dynamic;
 
 
 typedef struct Str {
-    I8 *c_str;
+    TIL_OWN_PTR(I8) c_str;
     USize count;
     USize cap;
 } Str;
 
 
 typedef struct Array__Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__Str;
 
 
 typedef struct Vec__Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Str;
@@ -639,10 +639,10 @@ typedef struct FieldAccessData {
 
 
 typedef struct StructDef {
-    Vec__Declaration *fields;
-    Vec__Declaration *ns_decls;
-    Map__Str_USize *fields_index;
-    Map__Str_USize *ns_index;
+    TIL_OWN_PTR(Vec__Declaration) fields;
+    TIL_OWN_PTR(Vec__Declaration) ns_decls;
+    TIL_OWN_PTR(Map__Str_USize) fields_index;
+    TIL_OWN_PTR(Map__Str_USize) ns_index;
     Str c_tag;
     Bool is_interface;
     Bool interface_ns_marker;
@@ -737,35 +737,35 @@ struct Option__ref_Str {
 };
 
 typedef struct Vec__VariantDef {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__VariantDef;
 
 
 typedef struct Vec__FieldLayout {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__FieldLayout;
 
 
 typedef struct Vec__Declaration {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Declaration;
 
 
 typedef struct Vec__Expr {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Expr;
 
 
 typedef struct Vec__USize {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__USize;
@@ -821,35 +821,35 @@ typedef struct Token {
 
 
 typedef struct Vec__SourceDiagnostic {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__SourceDiagnostic;
 
 
 typedef struct Vec__Token {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Token;
 
 
 typedef struct Vec__TokenType {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__TokenType;
 
 
 typedef struct Vec__call_Vec_Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__call_Vec_Str;
 
 
 typedef struct Vec__U32 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__U32;
@@ -864,7 +864,7 @@ struct Option__U32 {
 };
 
 typedef struct Set__Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Set__Str;
@@ -877,7 +877,7 @@ typedef struct Map__Str_Str {
 
 
 typedef struct Vec__Bool {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Bool;
@@ -889,14 +889,14 @@ typedef struct EvalHeap {
 
 
 typedef struct Vec__I64 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__I64;
 
 
 typedef struct Vec__U64 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__U64;
@@ -954,7 +954,7 @@ typedef struct ComptimeDefinition {
 
 
 typedef struct Vec__BorrowRoot {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__BorrowRoot;
@@ -982,14 +982,14 @@ typedef struct Map__U32_Str {
 
 
 typedef struct Vec__UPtr {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__UPtr;
 
 
 typedef struct Vec__ComptimeDefinition {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__ComptimeDefinition;
@@ -1010,7 +1010,7 @@ typedef struct Map__UPtr_Str {
 
 
 typedef struct Vec__InterpOutputEvent {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__InterpOutputEvent;
@@ -1025,7 +1025,7 @@ struct Option__Scope {
 };
 
 typedef struct Set__U32 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Set__U32;
@@ -1084,63 +1084,63 @@ struct Option__ref_Expr {
 };
 
 typedef struct Vec__TypeBinding {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__TypeBinding;
 
 
 typedef struct Vec__FFIEntry {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__FFIEntry;
 
 
 typedef struct Vec__ExprPtrBox {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__ExprPtrBox;
 
 
 typedef struct Vec__FFITypePtrBox {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__FFITypePtrBox;
 
 
 typedef struct Vec__ForeignPlace {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__ForeignPlace;
 
 
 typedef struct Vec__Mode {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Mode;
 
 
 typedef struct Vec__FuncType {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__FuncType;
 
 
 typedef struct Vec__ImportUnit {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__ImportUnit;
 
 
 typedef struct Vec__StructLayout {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__StructLayout;
@@ -1151,7 +1151,7 @@ struct Option__ref_Mode {
 };
 
 typedef struct Vec__GenericFuncSource {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__GenericFuncSource;
@@ -1203,21 +1203,21 @@ typedef struct DepositAcc {
 
 
 typedef struct Vec__priv___src_self_typer_til__CtorArg {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_typer_til__CtorArg;
 
 
 typedef struct Vec__priv___src_self_typer_til__ComptimeFunction {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_typer_til__ComptimeFunction;
 
 
 typedef struct Set__UPtr {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Set__UPtr;
@@ -1228,14 +1228,14 @@ struct Option__ref_Scope {
 };
 
 typedef struct Vec__priv___src_self_typer_til__CoverageNode {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_typer_til__CoverageNode;
 
 
 typedef struct Vec__RootBits {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__RootBits;
@@ -1257,14 +1257,14 @@ typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds {
 
 
 typedef struct Vec__I32 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__I32;
 
 
 typedef struct Vec__PendingRefBinding {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__PendingRefBinding;
@@ -1343,13 +1343,13 @@ typedef struct priv___src_self_garbager_til__GcDeposit {
 
 
 typedef struct Array__Bool {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__Bool;
 
 
 typedef struct Vec__priv___src_self_garbager_til__ReferenceNameChange {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__ReferenceNameChange;
@@ -1364,40 +1364,40 @@ struct Option__Str {
 };
 
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__GcBorrowEdge;
 
 
 typedef struct Array__USize {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__USize;
 
 
 typedef struct Array__U8 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__U8;
 
 
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__LocalInfo;
 
 
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__GcCfgBlock;
 
 
 typedef struct Vec__priv___src_self_garbager_til__GcDeposit {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__GcDeposit;
@@ -1408,7 +1408,7 @@ struct Option__ref_FunctionDef {
 };
 
 typedef struct Vec__U8 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__U8;
@@ -1428,7 +1428,7 @@ typedef struct SymMap__U8 {
 
 
 typedef struct Vec__priv___src_self_scavenger_til__DeclRef {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_scavenger_til__DeclRef;
@@ -1467,21 +1467,21 @@ typedef struct priv___src_self_loader_til__ImportCheckEntry {
 
 
 typedef struct Vec__TargetLink {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__TargetLink;
 
 
 typedef struct Vec__ProgramUnit {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__ProgramUnit;
 
 
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_loader_til__ImportCheckEntry;
@@ -1507,28 +1507,28 @@ typedef struct priv___src_self_c_codegen_til__BuilderFuncSites {
 
 
 typedef struct Set__USize {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Set__USize;
 
 
 typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_c_codegen_til__CollectionInfo;
 
 
 typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_c_codegen_til__DynCallInfo;
 
 
 typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
@@ -1567,7 +1567,7 @@ struct Option__Bool {
 };
 
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_mlir_codegen_til__MlirBinding;
@@ -1581,14 +1581,14 @@ typedef struct priv___src_self_fasm_codegen_til__FasmDefinition {
 
 
 typedef struct Vec__priv___src_self_fasm_codegen_til__FasmDefinition {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_fasm_codegen_til__FasmDefinition;
 
 
 typedef struct Vec__Type {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Type;
@@ -1612,28 +1612,28 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
 
 
 typedef struct Vec__call_Map_Str_Bool {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__call_Map_Str_Bool;
 
 
 typedef struct Vec__FuncSig {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__FuncSig;
 
 
 typedef struct Vec__call_Set_Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__call_Set_Str;
 
 
 typedef struct Vec__call_Set_USize {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__call_Set_USize;
@@ -1647,7 +1647,7 @@ typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec {
 
 
 typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
@@ -1680,7 +1680,7 @@ typedef struct DocEntry {
 
 
 typedef struct Vec__DocEntry {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__DocEntry;
@@ -1690,7 +1690,7 @@ typedef struct _ffi_type {
     U64 size;
     U16 alignment;
     U16 type;
-    U8 *elements;
+    TIL_OWN_PTR(U8) elements;
 } ffi_type;
 
 
@@ -1732,7 +1732,7 @@ typedef struct priv___src_self_interpreter_til__InterfaceCallBox {
 
 
 typedef struct priv___src_self_interpreter_til__DynPtrBox {
-    U8 *p;
+    TIL_OWN_PTR(U8) p;
 } priv___src_self_interpreter_til__DynPtrBox;
 
 
@@ -1753,16 +1753,16 @@ typedef struct FFIEntry {
     U8 *fn;
     Option__ref_Str return_type;
     USize nparam;
-    U8 *param_shallows;
-    U8 *param_dynamics;
+    TIL_OWN_PTR(U8) param_shallows;
+    TIL_OWN_PTR(U8) param_dynamics;
     Vec__Str param_types;
-    U8 *param_mutables;
-    U8 *param_owns;
+    TIL_OWN_PTR(U8) param_mutables;
+    TIL_OWN_PTR(U8) param_owns;
     Bool return_is_shallow;
     Bool return_is_ref;
     Bool host_layout;
-    ffi_cif *cif;
-    U8 *arg_types;
+    TIL_OWN_PTR(ffi_cif) cif;
+    TIL_OWN_PTR(U8) arg_types;
     I64 throw_kind_index;
 } FFIEntry;
 
@@ -1773,8 +1773,8 @@ typedef struct ExprPtrBox {
 
 
 typedef struct FFITypePtrBox {
-    ffi_type *ptr;
-    U64 *offsets;
+    TIL_OWN_PTR(ffi_type) ptr;
+    TIL_OWN_PTR(U64) offsets;
     I32 layout_status;
 } FFITypePtrBox;
 
@@ -1784,7 +1784,7 @@ struct Option__ref_U8 {
 };
 
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_interpreter_til__InterfaceCallBox;
@@ -1799,14 +1799,14 @@ struct Option__ref_HeapBinding {
 };
 
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_interpreter_til__DynPtrBox;
 
 
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_interpreter_til__InterpAlias;
@@ -1817,13 +1817,13 @@ struct Option__ref_ffi_type {
 };
 
 typedef struct Array__U64 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__U64;
 
 
 typedef struct Vec__HeapBinding {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__HeapBinding;
@@ -1843,7 +1843,7 @@ typedef struct priv___src_self_binder_til__AuditedDecl {
 
 
 typedef struct Vec__priv___src_self_binder_til__AuditedDecl {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_binder_til__AuditedDecl;
@@ -1857,7 +1857,7 @@ typedef struct ReplEditor {
     Bool interactive;
     Str hist_path;
     Bool persist;
-    Vec__Str *history;
+    TIL_OWN_PTR(Vec__Str) history;
     Str prompt;
     Str line;
     USize cursor;
@@ -1901,7 +1901,7 @@ typedef struct CliArgs {
     I64 usize_bits;
     I64 cptr_bits;
     Bool check_unused_imports;
-    Vec__Str *extra_modes;
+    TIL_OWN_PTR(Vec__Str) extra_modes;
 } CliArgs;
 
 
@@ -1948,8 +1948,8 @@ typedef struct FunctionDef {
 
 
 typedef struct EnumDef {
-    Vec__Declaration *ns_decls;
-    Map__Str_USize *ns_index;
+    TIL_OWN_PTR(Vec__Declaration) ns_decls;
+    TIL_OWN_PTR(Map__Str_USize) ns_index;
     Vec__VariantDef variants;
     Str implements_name;
     Str tag_type;
@@ -2079,7 +2079,7 @@ typedef struct TypeBinding {
 typedef struct ImportUnit {
     Str mode_str;
     Mode mode;
-    Expr *ast;
+    TIL_OWN_PTR(Expr) ast;
     Str import_dir;
     Str import_lib_dir;
     Str mode_import;
@@ -2125,7 +2125,7 @@ typedef struct InternedTypes {
 typedef struct ForeignPlace {
     Vec__Str names;
     Vec__UPtr roots;
-    U8 *state;
+    TIL_OWN_PTR(U8) state;
 } ForeignPlace;
 
 
@@ -2398,7 +2398,7 @@ typedef struct EvalState {
     Vec__InterpOutputEvent output;
     Option__Scope ns_fields;
     Map__UPtr_ForeignPlace foreign_places;
-    U8 *foreign_cleanup_dirty;
+    TIL_OWN_PTR(U8) foreign_cleanup_dirty;
     Str cached_str_name;
 } EvalState;
 
@@ -2416,6 +2416,7 @@ typedef struct Context {
     Str target_uptr_pname;
     USize target_usize_bytes;
     USize target_simd_bits;
+    Bool target_cptr32;
     Set__Str comptime_requests;
     Option__ComptimePreparation comptime_preparation;
     USize target_scalar64_align;
@@ -2444,8 +2445,8 @@ typedef struct Context {
     Set__Str generic_func_synths;
     Set__Str generic_func_synth_names;
     Map__Str_Expr generic_type_deps;
-    Expr *generic_pending;
-    Expr *func_gen_twins;
+    TIL_OWN_PTR(Expr) generic_pending;
+    TIL_OWN_PTR(Expr) func_gen_twins;
     Str generic_expected_type;
     void * *generic_expected_for;
     TypeScope scope;
@@ -2519,8 +2520,8 @@ typedef struct GenericSources {
 
 
 typedef struct LoadedProgram {
-    Vec__ProgramUnit *core_units;
-    Vec__ProgramUnit *units;
+    TIL_OWN_PTR(Vec__ProgramUnit) core_units;
+    TIL_OWN_PTR(Vec__ProgramUnit) units;
     Vec__Str mode_files;
     Target target;
     TargetCpu cpu;

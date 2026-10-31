@@ -767,8 +767,8 @@ usage := proc() {
     println("              CPU/optimization selections override --cc's -march/-O options.")
     println("  --usize=32|64  Override the target-native USize container width;")
     println("              UPtr always follows pointer width.")
-    println("  --cptr=32|64  64-bit targets only: 32 confines allocation to a 64GB")
-    println("              cage for compressed pointers (default 64, native).")
+    println("  --cptr=32|64  64-bit targets only: 32 stores own pointer fields as 32-bit")
+    println("              offsets into a 4GB allocation cage (default 64, native).")
     println("  --force-rebuild  Accepted for compatibility; translate/build/run")
     println("              always regenerate their outputs.")
     println("")
@@ -1228,6 +1228,7 @@ main := proc(args: ..Str) {
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
     lp.usize_override_bits = cli.usize_bits
     lp.cptr32 = cli.cptr_bits == 32
+    lp.ctx.target_cptr32 = lp.cptr32
     // #154 prototype: unused-import type errors, opt-in per invocation.
     lp.ctx.check_unused_imports = cli.check_unused_imports
     user_argv := collect_user_argv(lp, args, cli.path_idx + 1)

@@ -68,24 +68,30 @@ static int stdio_capture_atexit_armed = 0;
 // #346: ext.c's exported functions retain their pointer-return ABI across
 // bootstrap generations, while ordinary til Str.clone now returns a value.
 // Keep this boundary self-contained instead of compiling ext.c against either
-// generation's Str_clone prototype.
-static Str *ext_str_clone_box(const Str *val) {
+// generation's Str_clone prototype: ext_str_box_bytes builds the returned box
+// straight from C bytes, which may be a stack buffer, a literal or a C
+// library's string. (A Str view of those, cloned, could not be stored under
+// TIL_CPTR32 -- issue #313 -- whose own fields are cage offsets.) The empty
+// Str is a view of "" natively and NULL in the cage.
+static Str *ext_str_box_bytes(const char *bytes, size_t n) {
     Str *out = malloc(sizeof(Str));
-    out->count = val->count;
-    if (val->count == 0) {
+    out->count = (USize)n;
+    if (n == 0) {
+#ifdef TIL_CPTR32
+        TIL_OWN_SET(out->c_str, NULL);
+#else
         out->c_str = (I8 *)"";
+#endif
         out->cap = CAP_VIEW;
         return out;
     }
-    out->c_str = malloc(val->count + 1);
-    memcpy(out->c_str, val->c_str, val->count);
-    out->c_str[val->count] = '\0';
-    out->cap = val->count;
+    I8 *data = malloc(n + 1);
+    memcpy(data, bytes, n);
+    data[n] = '\0';
+    TIL_OWN_SET(out->c_str, data);
+    out->cap = (USize)n;
     return out;
 }
-
-#undef Str_clone
-#define Str_clone ext_str_clone_box
 
 static void stdio_capture_fail(const char *op) {
     perror(op);
@@ -182,10 +188,12 @@ static void *ffi_handle;
 // Issue #313: the pointer-compression cage (ext.h routes malloc, calloc,
 // realloc and free here).
 //
-// One reservation of 2^36 bytes (64GB) holds every til allocation. Every
-// block is 16-byte aligned, so a pointer into the cage is fully described by
-// a 32-bit offset counted in 16-byte units: base + (offset << 4). Page 0 is
-// never handed out, so offset 0 can stand for NULL.
+// One reservation of 4GB holds every til allocation, so a pointer into the
+// cage -- the start of a block or any byte inside it, as a Str view is -- is
+// a 32-bit byte offset from the base (ext.h's TIL_OWN_GET / TIL_OWN_SET).
+// Page 0 is never handed out, so offset 0 can stand for NULL, and the last
+// page is never handed out either, so a one-past-the-end pointer of the
+// highest block still encodes. 4GB is a hard per-process heap cap.
 //
 // The reservation is inaccessible until the allocator reaches it, then it is
 // committed in TIL_CAGE_COMMIT_STEP steps. Memory is carved into 64KB pages.
@@ -225,14 +233,15 @@ static void *ffi_handle;
 #define TIL_CAGE_UNPOISON(p, n) ((void)(p), (void)(n))
 #endif
 
-#define TIL_CAGE_SHIFT 4
-#define TIL_CAGE_BYTES ((UPtr)1 << (32 + TIL_CAGE_SHIFT))
+#define TIL_CAGE_BYTES ((UPtr)1 << 32)
 #define TIL_CAGE_PAGE_SHIFT 16
 #define TIL_CAGE_PAGE ((UPtr)1 << TIL_CAGE_PAGE_SHIFT)
 #define TIL_CAGE_PAGES (TIL_CAGE_BYTES >> TIL_CAGE_PAGE_SHIFT)
 #define TIL_CAGE_COMMIT_STEP ((UPtr)1 << 21)
 #define TIL_CAGE_SMALL_MAX 32768
 #define TIL_CAGE_CLASSES 44
+// Pages that can be handed out: all but page 0 and the last page.
+#define TIL_CAGE_USABLE_PAGES (TIL_CAGE_PAGES - 1)
 // Page kinds. 1..TIL_CAGE_CLASSES: a small page of class (kind - 1).
 #define TIL_CAGE_UNUSED 0     // at or above the top: never handed out
 #define TIL_CAGE_SPAN 0xFF    // first page of an allocated span
@@ -251,7 +260,7 @@ static const U32 til_cage_class_size[TIL_CAGE_CLASSES] = {
     10240, 12288, 14336, 16384, 20480, 24576, 28672, 32768,
 };
 
-static U8 *til_cage_base;
+U8 *til_cage_base;
 static UPtr til_cage_top;        // first page that was never handed out
 static UPtr til_cage_committed;  // bytes from base that are read/write
 static U8 til_cage_kind[TIL_CAGE_PAGES];
@@ -271,14 +280,14 @@ static void til_cage_die(const char *what, const void *ptr) {
 static void til_cage_init(void) {
 #ifdef _WIN32
     til_cage_base = VirtualAlloc(NULL, TIL_CAGE_BYTES, MEM_RESERVE, PAGE_NOACCESS);
-    if (!til_cage_base) til_cage_die("cannot reserve 64GB of address space", NULL);
+    if (!til_cage_base) til_cage_die("cannot reserve 4GB of address space", NULL);
 #else
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #ifdef MAP_NORESERVE
     flags |= MAP_NORESERVE;
 #endif
     void *m = mmap(NULL, TIL_CAGE_BYTES, PROT_NONE, flags, -1, 0);
-    if (m == MAP_FAILED) til_cage_die("cannot reserve 64GB of address space", NULL);
+    if (m == MAP_FAILED) til_cage_die("cannot reserve 4GB of address space", NULL);
     til_cage_base = m;
 #endif
     // Page 0 is never handed out: offset 0 is the compressed NULL.
@@ -380,7 +389,7 @@ static UPtr til_cage_take_pages(UPtr n) {
         if (len > n) til_cage_span_link(head + n, len - n);
         return head;
     }
-    if (n > TIL_CAGE_PAGES - til_cage_top) til_cage_die("cage exhausted (64GB)", NULL);
+    if (n > TIL_CAGE_USABLE_PAGES - til_cage_top) til_cage_die("cage exhausted (4GB)", NULL);
     UPtr head = til_cage_top;
     til_cage_top += n;
     til_cage_commit_to(til_cage_top);
@@ -445,7 +454,7 @@ static UPtr til_cage_block_size(const void *ptr, const char *op) {
 
 void *til_malloc(size_t n) {
     if (til_cage_base == NULL) til_cage_init();
-    if ((UPtr)n > TIL_CAGE_BYTES) til_cage_die("allocation larger than the cage (64GB)", NULL);
+    if ((UPtr)n > TIL_CAGE_BYTES) til_cage_die("allocation larger than the cage (4GB)", NULL);
     void *p = n <= TIL_CAGE_SMALL_MAX ? til_cage_small(til_cage_class_of(n)) : til_cage_large(n);
     TIL_CAGE_UNPOISON(p, n);
     return p;
@@ -493,7 +502,7 @@ void *til_realloc(void *ptr, size_t n) {
         UPtr end = page + len;
         UPtr extra = want - len;
         Bool grown = false;
-        if (end == til_cage_top && extra <= TIL_CAGE_PAGES - til_cage_top) {
+        if (end == til_cage_top && extra <= TIL_CAGE_USABLE_PAGES - til_cage_top) {
             til_cage_top += extra;
             til_cage_commit_to(til_cage_top);
             grown = true;
@@ -517,6 +526,17 @@ void *til_realloc(void *ptr, size_t n) {
     memcpy(q, ptr, (UPtr)n < old ? (size_t)n : (size_t)old);
     til_free(ptr);
     return q;
+}
+
+void til_cptr_encode_fail(const void *p) {
+    til_cage_die("an own pointer outside the cage cannot be compressed", p);
+}
+
+U32 til_cage_lit(const char *s, UPtr n) {
+    char *copy = til_malloc((size_t)n + 1);
+    memcpy(copy, s, (size_t)n);
+    copy[n] = '\0';
+    return til_cptr_encode(copy);
 }
 #endif // TIL_CPTR32
 
@@ -856,8 +876,8 @@ Str *F32_to_str(F32 v) {
     snprintf(buf, 32, "%g", (double)v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(len + 1);
-    memcpy(s->c_str, buf, len + 1);
+    TIL_OWN_SET(s->c_str, malloc(len + 1));
+    memcpy(TIL_OWN_GET(I8, s->c_str), buf, len + 1);
     s->count = len;
     s->cap = len;
     return s;
@@ -871,8 +891,8 @@ Str *F32_to_repr(F32 v) {
     snprintf(buf, 32, "%.9g", (double)v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(len + 1);
-    memcpy(s->c_str, buf, len + 1);
+    TIL_OWN_SET(s->c_str, malloc(len + 1));
+    memcpy(TIL_OWN_GET(I8, s->c_str), buf, len + 1);
     s->count = len;
     s->cap = len;
     return s;
@@ -882,7 +902,7 @@ Str *F32_to_repr(F32 v) {
 // and full precision, unlike the old hand-rolled Str.to_f32. Backs
 // Str.to_f32 so folded F32 literals round-trip in interp and codegen.
 F32 str_parse_f32(const Str *s) {
-    char *p = dup_n((const char *)s->c_str, s->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
     float v = strtof(p, NULL);
     free(p);
     return (F32)v;
@@ -909,8 +929,8 @@ Str *F64_to_str(F64 v) {
     snprintf(buf, 40, "%g", v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(len + 1);
-    memcpy(s->c_str, buf, len + 1);
+    TIL_OWN_SET(s->c_str, malloc(len + 1));
+    memcpy(TIL_OWN_GET(I8, s->c_str), buf, len + 1);
     s->count = len;
     s->cap = len;
     return s;
@@ -924,8 +944,8 @@ Str *F64_to_repr(F64 v) {
     snprintf(buf, 40, "%.17g", v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(len + 1);
-    memcpy(s->c_str, buf, len + 1);
+    TIL_OWN_SET(s->c_str, malloc(len + 1));
+    memcpy(TIL_OWN_GET(I8, s->c_str), buf, len + 1);
     s->count = len;
     s->cap = len;
     return s;
@@ -933,7 +953,7 @@ Str *F64_to_repr(F64 v) {
 
 // Faithful decimal/scientific parse (strtod), F64 twin of str_parse_f32.
 F64 str_parse_f64(const Str *s) {
-    char *p = dup_n((const char *)s->c_str, s->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
     double v = strtod(p, NULL);
     free(p);
     return (F64)v;
@@ -977,8 +997,8 @@ Str *U64_to_str_ext(U64 v) {
     snprintf(buf, 32, "%llu", v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(len + 1);
-    memcpy(s->c_str, buf, len + 1);
+    TIL_OWN_SET(s->c_str, malloc(len + 1));
+    memcpy(TIL_OWN_GET(I8, s->c_str), buf, len + 1);
     s->count = len;
     s->cap = len;
     return s;
@@ -1084,7 +1104,7 @@ static U64 til_dispatch_scratch[4096];
 void *dispatch_scratch_base(void) { return til_dispatch_scratch; }
 static U64 til_word_ring[4096];
 void *word_ring_base(void) { return til_word_ring; }
-void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
+void eprint_single(const Str *s) { fwrite(TIL_OWN_GET(I8, s->c_str), 1, (size_t)s->count, stderr); }
 
 // CLI arg parsing
 
@@ -1127,7 +1147,7 @@ static Str *str_from_bytes(const char *data, size_t len, const char *what) {
     buf[len] = '\0';
     Str *s = malloc(sizeof(Str));
     if (!s) doc_die_alloc(what);
-    s->c_str = (I8 *)buf;
+    TIL_OWN_SET(s->c_str, (I8 *)buf);
     s->count = (USize)len;
     s->cap = (USize)len;
     return s;
@@ -1657,7 +1677,7 @@ static void doc_org_rebuild_cache(const char *index_path) {
 }
 
 static void doc_org_ensure_cache(const Str *index_path) {
-    char *path = dup_n(index_path->c_str, index_path->count);
+    char *path = dup_n(TIL_OWN_GET(I8, index_path->c_str), index_path->count);
     if (!path) doc_die_alloc("doc_org_load");
     if (doc_org_cached_path && strcmp(doc_org_cached_path, path) == 0) {
         free(path);
@@ -1682,20 +1702,20 @@ Str *doc_blob_lookup(const Str *blob, const Str *name) {
     USize i = 0;
     while (i < blob->count) {
         USize sep1 = i;
-        while (sep1 < blob->count && (U8)blob->c_str[sep1] != 1) sep1++;
-        if (sep1 >= blob->count) return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+        while (sep1 < blob->count && (U8)TIL_OWN_GET(I8, blob->c_str)[sep1] != 1) sep1++;
+        if (sep1 >= blob->count) return ext_str_box_bytes((const char *)"", (size_t)(0));
 
         USize sep2 = sep1 + 1;
-        while (sep2 < blob->count && (U8)blob->c_str[sep2] != 2) sep2++;
+        while (sep2 < blob->count && (U8)TIL_OWN_GET(I8, blob->c_str)[sep2] != 2) sep2++;
 
-        if (sep1 - i == name->count && memcmp(blob->c_str + i, name->c_str, (size_t)name->count) == 0) {
+        if (sep1 - i == name->count && memcmp(TIL_OWN_GET(I8, blob->c_str) + i, TIL_OWN_GET(I8, name->c_str), (size_t)name->count) == 0) {
             USize len = sep2 - sep1 - 1;
             char *buf = malloc((size_t)len + 1);
             if (!buf) {
                 fprintf(stderr, "doc_blob_lookup: allocation failed\n");
                 exit(1);
             }
-            memcpy(buf, blob->c_str + sep1 + 1, (size_t)len);
+            memcpy(buf, TIL_OWN_GET(I8, blob->c_str) + sep1 + 1, (size_t)len);
             buf[len] = '\0';
 
             Str *s = malloc(sizeof(Str));
@@ -1703,7 +1723,7 @@ Str *doc_blob_lookup(const Str *blob, const Str *name) {
                 fprintf(stderr, "doc_blob_lookup: Str allocation failed\n");
                 exit(1);
             }
-            s->c_str = (I8 *)buf;
+            TIL_OWN_SET(s->c_str, (I8 *)buf);
             s->count = len;
             s->cap = len;
             return s;
@@ -1711,7 +1731,7 @@ Str *doc_blob_lookup(const Str *blob, const Str *name) {
 
         i = sep2 + 1;
     }
-    return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"", (size_t)(0));
 }
 
 // A capture redirects BOTH stdout and stderr into a file, so anything that
@@ -1747,7 +1767,7 @@ void stdio_capture_begin(const Str *path) {
     fflush(stdout);
     fflush(stderr);
 
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     int fd = TIL_OPEN(p, TIL_O_WRONLY | TIL_O_CREAT | TIL_O_TRUNC | TIL_O_BINARY, 0666);
     if (fd < 0) { free(p); stdio_capture_fail("stdio_capture_begin: open"); }
     // Kept so stdio_capture_atexit can replay the file if we die mid-capture.
@@ -1786,7 +1806,7 @@ void stdio_capture_end(void) {
 // --- File handle I/O ---
 
 void *cfile_open(const Str *path, Bool is_write) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     FILE *f = fopen(p, is_write ? "wb" : "rb");
     if (!f) {
         fprintf(stderr, "cfile_open: could not open '%s'\n", p);
@@ -1823,7 +1843,7 @@ void cfile_write_str(const void *handle, const Str *s) {
     // exceeded, a broken pipe. Discarding fwrite's return let writefile
     // report success having written nothing (copy_file above already
     // compares it; this was the one write path that did not).
-    size_t put = fwrite(s->c_str, 1, (size_t)s->count, (FILE *)handle);
+    size_t put = fwrite(TIL_OWN_GET(I8, s->c_str), 1, (size_t)s->count, (FILE *)handle);
     if (put != (size_t)s->count) {
         fprintf(stderr, "cfile_write_str: wrote %zu of %zu bytes: %s\n",
                 put, (size_t)s->count, strerror(errno));
@@ -1835,7 +1855,7 @@ void cfile_write_str(const void *handle, const Str *s) {
 // allowed and the cursor can move freely with cfile_seek, so small
 // regions can be patched without rewriting the whole file.
 void *cfile_open_update(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     FILE *f = fopen(p, "r+b");
     if (!f) {
         fprintf(stderr, "cfile_open_update: could not open '%s'\n", p);
@@ -1850,7 +1870,7 @@ void *cfile_open_update(const Str *path) {
 // file and existing contents are kept, unlike cfile_open's "wb" which
 // truncates. The file is created when it does not exist.
 void *cfile_open_append(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     FILE *f = fopen(p, "ab");
     if (!f) {
         fprintf(stderr, "cfile_open_append: could not open '%s'\n", p);
@@ -1864,7 +1884,7 @@ void *cfile_open_append(const Str *path) {
 // True when `path` names an existing directory entry. stat, not fopen:
 // a directory or a file the process cannot read still exists.
 Bool cfile_exists(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -1959,7 +1979,7 @@ Str *cfile_read_n(const void *handle, I64 count) {
     }
     buf[got] = '\0';
     Str *s = malloc(sizeof(Str));
-    s->c_str = (I8 *)buf;
+    TIL_OWN_SET(s->c_str, (I8 *)buf);
     s->count = (U32)got;
     s->cap = (U32)count;
     return s;
@@ -1982,16 +2002,16 @@ Bool in_read_line(Str *line) {
     }
     if (c == EOF && len == 0) {
         free(buf);
-        line->c_str = NULL;
+        TIL_OWN_SET(line->c_str, NULL);
         line->count = 0;
         line->cap = 0;
         return 0;
     }
     buf[len] = '\0';
-    if (line->c_str && line->cap != CAP_LIT && line->cap != CAP_VIEW) {
-        free(line->c_str);
+    if (TIL_OWN_GET(I8, line->c_str) && line->cap != CAP_LIT && line->cap != CAP_VIEW) {
+        free(TIL_OWN_GET(I8, line->c_str));
     }
-    line->c_str = (I8 *)buf;
+    TIL_OWN_SET(line->c_str, (I8 *)buf);
     line->count = (U32)len;
     line->cap = (U32)len;
     return 1;
@@ -2019,10 +2039,10 @@ static void repl_str_assign(Str *dst, const char *data, size_t len) {
     }
     if (len > 0) memcpy(buf, data, len);
     buf[len] = '\0';
-    if (dst->c_str && dst->cap != CAP_LIT && dst->cap != CAP_VIEW) {
-        free(dst->c_str);
+    if (TIL_OWN_GET(I8, dst->c_str) && dst->cap != CAP_LIT && dst->cap != CAP_VIEW) {
+        free(TIL_OWN_GET(I8, dst->c_str));
     }
-    dst->c_str = (I8 *)buf;
+    TIL_OWN_SET(dst->c_str, (I8 *)buf);
     dst->count = (USize)len;
     dst->cap = (USize)len;
 }
@@ -2425,7 +2445,7 @@ I64 repl_term_columns(void) {
 #endif  /* _WIN32 / __EMSCRIPTEN__ / POSIX */
 
 static I64 read_file_result(const Str *path, Str *out, Str *err, Bool missing_optional) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     if (!p) {
         fprintf(stderr, "repl_history_read: allocation failed\n");
         exit(1);
@@ -2481,7 +2501,7 @@ I64 compiler_read_source(const Str *path, Str *out, Str *err) {
 }
 
 I64 repl_history_write(const Str *path, const Str *contents, Str *err) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     if (!p) {
         fprintf(stderr, "repl_history_write: allocation failed\n");
         exit(1);
@@ -2499,7 +2519,7 @@ I64 repl_history_write(const Str *path, const Str *contents, Str *err) {
 #else
     snprintf(tmp, tmp_len, "%s.tmp%ld", p, (long)getpid());
 #endif
-    const char *data = (const char *)contents->c_str;
+    const char *data = (const char *)TIL_OWN_GET(I8, contents->c_str);
     size_t len = (size_t)contents->count;
 #if defined(_WIN32)
     FILE *f = fopen(tmp, "wb");
@@ -2644,7 +2664,7 @@ Str *cfile_read_all(const void *handle) {
     // lets .c_str reach a C string API at all.
     buf[len] = '\0';
     Str *s = malloc(sizeof(Str));
-    s->c_str = (I8 *)buf;
+    TIL_OWN_SET(s->c_str, (I8 *)buf);
     s->count = (USize)len;
     s->cap = (USize)len;
     return s;
@@ -2653,17 +2673,17 @@ Str *cfile_read_all(const void *handle) {
 Str *get_cwd_str(void) {
     char buf[PATH_MAX];
 #ifdef _WIN32
-    if (!_getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
+    if (!_getcwd(buf, sizeof(buf))) return ext_str_box_bytes((const char *)"", (size_t)(0));
     for (char *q = buf; *q; q++) if (*q == '\\') *q = '/';
 #else
-    if (!getcwd(buf, sizeof(buf))) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
+    if (!getcwd(buf, sizeof(buf))) return ext_str_box_bytes((const char *)"", (size_t)(0));
 #endif
-    return Str_clone(&(Str){.c_str = (I8*)(buf), .count = (USize)strlen(buf), .cap = CAP_VIEW});
+    return ext_str_box_bytes((const char *)(buf), (size_t)((USize)strlen(buf)));
 }
 
 Str *realpath_str(const Str *path) {
     char *p = malloc(path->count + 1);
-    memcpy(p, path->c_str, path->count);
+    memcpy(p, TIL_OWN_GET(I8, path->c_str), path->count);
     p[path->count] = '\0';
 #ifdef _WIN32
     char *abs = _fullpath(NULL, p, 0);
@@ -2674,16 +2694,16 @@ Str *realpath_str(const Str *path) {
     // otherwise links a nonexistent archive on a windows host), so
     // enforce the POSIX contract with an explicit existence check.
     if (abs && _access(abs, 0) != 0) { (free)(abs); abs = NULL; }
-    if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
+    if (!abs) return ext_str_box_bytes((const char *)"", (size_t)(0));
     // Normalize backslashes to forward slashes so path comparisons stay
     // consistent across Unix and Windows codepaths.
     for (char *q = abs; *q; q++) if (*q == '\\') *q = '/';
 #else
     char *abs = realpath(p, NULL);
     free(p);
-    if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
+    if (!abs) return ext_str_box_bytes((const char *)"", (size_t)(0));
 #endif
-    Str *s = Str_clone(&(Str){.c_str = (I8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
+    Str *s = ext_str_box_bytes((const char *)(abs), (size_t)((USize)strlen((const char*)(abs))));
     // libc allocated abs (realpath / _fullpath with a NULL buffer), so libc
     // frees it: (free) bypasses ext.h's TIL_CPTR32 cage macro.
     (free)(abs);
@@ -2696,7 +2716,7 @@ I32 system_cmd(const Str *cmd) {
     return 1;
 #else
     char *c = malloc(cmd->count + 1);
-    memcpy(c, cmd->c_str, cmd->count);
+    memcpy(c, TIL_OWN_GET(I8, cmd->c_str), cmd->count);
     c[cmd->count] = '\0';
     int status = system(c);
     free(c);
@@ -2714,26 +2734,26 @@ Str *get_bin_dir(void) {
 #ifdef _WIN32
     DWORD len = GetModuleFileNameA(NULL, buf, (DWORD)sizeof(buf));
     if (len == 0 || len >= sizeof(buf)) {
-        return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+        return ext_str_box_bytes((const char *)".", (size_t)(1));
     }
     for (DWORD i = 0; i < len; i++) if (buf[i] == '\\') buf[i] = '/';
 #elif defined(__EMSCRIPTEN__)
-    return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)".", (size_t)(1));
 #elif defined(__APPLE__)
     // No /proc on macOS; _NSGetExecutablePath may return a path with
     // symlinks or relative components, so resolve it before use.
     uint32_t bufsize = sizeof(buf);
     if (_NSGetExecutablePath(buf, &bufsize) != 0) {
-        return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+        return ext_str_box_bytes((const char *)".", (size_t)(1));
     }
     char resolved[PATH_MAX];
     if (realpath(buf, resolved) == NULL) {
-        return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+        return ext_str_box_bytes((const char *)".", (size_t)(1));
     }
     snprintf(buf, sizeof(buf), "%s", resolved);
 #else
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len <= 0) return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+    if (len <= 0) return ext_str_box_bytes((const char *)".", (size_t)(1));
     buf[len] = '\0';
 #endif
     char *slash = strrchr(buf, '/');
@@ -2742,9 +2762,9 @@ Str *get_bin_dir(void) {
         char test[PATH_MAX * 2];
         snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
 #ifdef _WIN32
-        if (_access(test, 0) == 0) return Str_clone(&(Str){.c_str = (I8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        if (_access(test, 0) == 0) return ext_str_box_bytes((const char *)(buf), (size_t)((USize)strlen((const char*)(buf))));
 #else
-        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (I8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        if (access(test, F_OK) == 0) return ext_str_box_bytes((const char *)(buf), (size_t)((USize)strlen((const char*)(buf))));
 #endif
         char *parent = strrchr(buf, '/');
         if (parent) {
@@ -2771,14 +2791,14 @@ Str *get_bin_dir(void) {
                 }
                 memcpy(install_root, buf, parent_len);
                 memcpy(install_root + parent_len, root_suffix, root_suffix_len + 1);
-                return Str_clone(&(Str){.c_str = (I8*)(install_root), .count = (USize)strlen((const char*)(install_root)), .cap = CAP_VIEW});
+                return ext_str_box_bytes((const char *)(install_root), (size_t)((USize)strlen((const char*)(install_root))));
             }
         }
         slash = strrchr(buf, '/');
         if (!slash) break;
         *slash = '\0';
     }
-    return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)".", (size_t)(1));
 }
 
 // Returns the OS family the running .exe is on. Mirrors target_to_str() OS
@@ -2786,17 +2806,17 @@ Str *get_bin_dir(void) {
 // "wasm" / "templeos". This is the host, not the build target.
 Str *host_os(void) {
 #if defined(__EMSCRIPTEN__)
-    return Str_clone(&(Str){.c_str = (I8*)"wasm", .count = 4, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"wasm", (size_t)(4));
 #elif defined(_WIN32)
-    return Str_clone(&(Str){.c_str = (I8*)"windows", .count = 7, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"windows", (size_t)(7));
 #elif defined(__APPLE__)
-    return Str_clone(&(Str){.c_str = (I8*)"macos", .count = 5, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"macos", (size_t)(5));
 #elif defined(__linux__)
-    return Str_clone(&(Str){.c_str = (I8*)"linux", .count = 5, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"linux", (size_t)(5));
 #elif defined(__wasm__) || defined(__wasm32__)
-    return Str_clone(&(Str){.c_str = (I8*)"wasm", .count = 4, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"wasm", (size_t)(4));
 #else
-    return Str_clone(&(Str){.c_str = (I8*)"unknown", .count = 7, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"unknown", (size_t)(7));
 #endif
 }
 
@@ -2809,26 +2829,26 @@ Str *host_os(void) {
 // Names mirror target_to_str() arch segments.
 Str *host_arch(void) {
 #if defined(__x86_64__) || defined(_M_X64)
-    return Str_clone(&(Str){.c_str = (I8*)"x64", .count = 3, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"x64", (size_t)(3));
 #elif defined(__aarch64__) || defined(_M_ARM64)
-    return Str_clone(&(Str){.c_str = (I8*)"arm64", .count = 5, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"arm64", (size_t)(5));
 #elif defined(__riscv) && defined(__riscv_xlen) && (__riscv_xlen == 64)
-    return Str_clone(&(Str){.c_str = (I8*)"riscv64", .count = 7, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"riscv64", (size_t)(7));
 #elif defined(__riscv)
-    return Str_clone(&(Str){.c_str = (I8*)"riscv32", .count = 7, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"riscv32", (size_t)(7));
 #elif defined(__arm__)
-    return Str_clone(&(Str){.c_str = (I8*)"arm32", .count = 5, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"arm32", (size_t)(5));
 #elif defined(__i386__) || defined(_M_IX86)
-    return Str_clone(&(Str){.c_str = (I8*)"x86", .count = 3, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"x86", (size_t)(3));
 #else
-    return Str_clone(&(Str){.c_str = (I8*)"unknown", .count = 7, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"unknown", (size_t)(7));
 #endif
 }
 
 #ifdef _WIN32
 I64 *spawn_cmd(const Str *cmd) {
     char *c = malloc(cmd->count + 1);
-    memcpy(c, cmd->c_str, cmd->count);
+    memcpy(c, TIL_OWN_GET(I8, cmd->c_str), cmd->count);
     c[cmd->count] = '\0';
 
     char cmdline[8192];
@@ -2877,7 +2897,7 @@ void sleep_ms(I64 ms) {
 // posix_spawn, not fork+exec: see cmd_start_impl for why a fork is not
 // survivable in a sanitized process on macOS.
 I64 *spawn_cmd(const Str *cmd) {
-    char *c = dup_n((const char *)cmd->c_str, cmd->count);
+    char *c = dup_n((const char *)TIL_OWN_GET(I8, cmd->c_str), cmd->count);
     char *argv[] = {"sh", "-c", c, NULL};
     pid_t pid;
     fflush(NULL);
@@ -2911,7 +2931,7 @@ void sleep_ms(I64 ms) {
 void noop_proc(void) {}
 
 I64 file_mtime(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -2920,7 +2940,7 @@ I64 file_mtime(const Str *path) {
 }
 
 I32 mkdir_p(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     int rc = mkdir_p_cstr(p);
     if (rc != 0) fprintf(stderr, "mkdir_p: failed for '%s'\n", p);
     free(p);
@@ -2928,8 +2948,8 @@ I32 mkdir_p(const Str *path) {
 }
 
 I32 copy_file(const Str *src, const Str *dst) {
-    char *s = dup_n((const char *)src->c_str, src->count);
-    char *d = dup_n((const char *)dst->c_str, dst->count);
+    char *s = dup_n((const char *)TIL_OWN_GET(I8, src->c_str), src->count);
+    char *d = dup_n((const char *)TIL_OWN_GET(I8, dst->c_str), dst->count);
     int rc = copy_file_cstr(s, d);
     if (rc != 0) fprintf(stderr, "copy_file: failed from '%s' to '%s'\n", s, d);
     free(s);
@@ -2938,8 +2958,8 @@ I32 copy_file(const Str *src, const Str *dst) {
 }
 
 I32 copy_tree(const Str *src, const Str *dst) {
-    char *s = dup_n((const char *)src->c_str, src->count);
-    char *d = dup_n((const char *)dst->c_str, dst->count);
+    char *s = dup_n((const char *)TIL_OWN_GET(I8, src->c_str), src->count);
+    char *d = dup_n((const char *)TIL_OWN_GET(I8, dst->c_str), dst->count);
     int rc = copy_tree_cstr(s, d);
     if (rc != 0) fprintf(stderr, "copy_tree: failed from '%s' to '%s'\n", s, d);
     free(s);
@@ -2980,7 +3000,7 @@ static int path_is_dot_entry(const char *name) {
 #endif
 
 void *cdir_open(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     TilDir *dir = calloc(1, sizeof(TilDir));
     if (!dir) {
         fprintf(stderr, "cdir_open: allocation failed\n");
@@ -3036,21 +3056,17 @@ Str *cdir_next(const void *handle) {
         }
         dir->pending = 0;
         if (path_is_dot_entry(dir->data.cFileName)) continue;
-        return Str_clone(&(Str){.c_str = (I8 *)dir->data.cFileName,
-                                .count = (USize)strlen(dir->data.cFileName),
-                                .cap = CAP_VIEW});
+        return ext_str_box_bytes((const char *)dir->data.cFileName, (size_t)((USize)strlen(dir->data.cFileName)));
     }
 #elif !defined(__EMSCRIPTEN__)
     TilDir *dir = (TilDir *)handle;
     struct dirent *ent = NULL;
     while ((ent = readdir(dir->d)) != NULL) {
         if (path_is_dot_entry(ent->d_name)) continue;
-        return Str_clone(&(Str){.c_str = (I8 *)ent->d_name,
-                                .count = (USize)strlen(ent->d_name),
-                                .cap = CAP_VIEW});
+        return ext_str_box_bytes((const char *)ent->d_name, (size_t)((USize)strlen(ent->d_name)));
     }
 #endif
-    return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"", (size_t)(0));
 }
 
 void cdir_close(const void *handle) {
@@ -3068,7 +3084,7 @@ void cdir_close(const void *handle) {
 }
 
 Bool cpath_is_dir(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -3078,7 +3094,7 @@ Bool cpath_is_dir(const Str *path) {
 
 // A regular file: not a directory, and not a device/fifo/socket either.
 Bool cpath_is_file(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -3180,7 +3196,7 @@ static int remove_tree_cstr(const char *path) {
 // every other failure (a permission denied halfway down, a non-empty
 // directory left behind) has already been reported, naming the entry.
 I32 cremove_tree(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     int rc = remove_tree_cstr(p);
     free(p);
     return (I32)rc;
@@ -3194,8 +3210,8 @@ I32 cremove_tree(const Str *path) {
 // outright while the target is a RUNNING executable -- callers rename
 // the old binary out of the way first.
 I32 crename_path(const Str *src, const Str *dst) {
-    char *s = dup_n((const char *)src->c_str, src->count);
-    char *d = dup_n((const char *)dst->c_str, dst->count);
+    char *s = dup_n((const char *)TIL_OWN_GET(I8, src->c_str), src->count);
+    char *d = dup_n((const char *)TIL_OWN_GET(I8, dst->c_str), dst->count);
 #ifdef _WIN32
     int rc = MoveFileExA(s, d, MOVEFILE_REPLACE_EXISTING) ? 0 : 1;
 #else
@@ -3261,7 +3277,7 @@ static TilCmd *cmd_of(const void *handle, const char *who) {
 }
 
 static char *cmd_cstr(const Str *s) {
-    char *p = dup_n((const char *)s->c_str, s->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
     if (!p) cmd_oom();
     return p;
 }
@@ -3357,9 +3373,9 @@ void ccmd_env(const void *handle, const Str *name, const Str *value) {
     TilCmd *c = cmd_of(handle, "ccmd_env");
     char *pair = malloc(name->count + value->count + 2);
     if (!pair) cmd_oom();
-    memcpy(pair, name->c_str, name->count);
+    memcpy(pair, TIL_OWN_GET(I8, name->c_str), name->count);
     pair[name->count] = '=';
-    memcpy(pair + name->count + 1, value->c_str, value->count);
+    memcpy(pair + name->count + 1, TIL_OWN_GET(I8, value->c_str), value->count);
     pair[name->count + 1 + value->count] = '\0';
     cmd_push(&c->env_pairs, &c->envc, &c->env_cap, pair);
 }
@@ -3433,9 +3449,7 @@ Str *ccmd_render(const void *handle) {
         cmd_buf_puts(&b, c->cwd);
         cmd_buf_puts(&b, "]");
     }
-    Str *s = Str_clone(&(Str){.c_str = (I8 *)(b.data ? b.data : ""),
-                              .count = (USize)b.len,
-                              .cap = CAP_VIEW});
+    Str *s = ext_str_box_bytes((const char *)(b.data ? b.data : ""), (size_t)((USize)b.len));
     free(b.data);
     return s;
 }
@@ -3876,7 +3890,7 @@ Str *ccmd_out(const void *handle) {
         fprintf(stderr, "ccmd_out: '%s' has not finished yet\n", c->argv[0]);
         exit(1);
     }
-    return Str_clone(&(Str){.c_str = (I8 *)c->out_text, .count = (USize)c->out_len, .cap = CAP_VIEW});
+    return ext_str_box_bytes((const char *)c->out_text, (size_t)((USize)c->out_len));
 }
 
 Str *ccmd_err(const void *handle) {
@@ -3889,7 +3903,7 @@ Str *ccmd_err(const void *handle) {
         fprintf(stderr, "ccmd_err: '%s' has not finished yet\n", c->argv[0]);
         exit(1);
     }
-    return Str_clone(&(Str){.c_str = (I8 *)c->err_text, .count = (USize)c->err_len, .cap = CAP_VIEW});
+    return ext_str_box_bytes((const char *)c->err_text, (size_t)((USize)c->err_len));
 }
 
 // Releasing a Cmd whose child is still running JOINS it first: the
@@ -4043,10 +4057,10 @@ U64 current_rss_bytes(I64 pid) {
 // the cage. A symbol search would find the C library's instead, through the
 // user .so's handle too, since that searches the .so's own dependencies.
 static U8 *ffi_cage_symbol(const Str *name) {
-    if (name->count == 6 && memcmp(name->c_str, "malloc", 6) == 0) return (U8 *)til_malloc;
-    if (name->count == 6 && memcmp(name->c_str, "calloc", 6) == 0) return (U8 *)til_calloc;
-    if (name->count == 7 && memcmp(name->c_str, "realloc", 7) == 0) return (U8 *)til_realloc;
-    if (name->count == 4 && memcmp(name->c_str, "free", 4) == 0) return (U8 *)til_free;
+    if (name->count == 6 && memcmp(TIL_OWN_GET(I8, name->c_str), "malloc", 6) == 0) return (U8 *)til_malloc;
+    if (name->count == 6 && memcmp(TIL_OWN_GET(I8, name->c_str), "calloc", 6) == 0) return (U8 *)til_calloc;
+    if (name->count == 7 && memcmp(TIL_OWN_GET(I8, name->c_str), "realloc", 7) == 0) return (U8 *)til_realloc;
+    if (name->count == 4 && memcmp(TIL_OWN_GET(I8, name->c_str), "free", 4) == 0) return (U8 *)til_free;
     return NULL;
 }
 #define TIL_FFI_CAGE_SYMBOL(name) do { U8 *cage_sym = ffi_cage_symbol(name); if (cage_sym) return cage_sym; } while (0)
@@ -4058,14 +4072,14 @@ static U8 *ffi_cage_symbol(const Str *name) {
 // dup_n on every Str reaching a C string API here: only owned til Strs
 // carry a NUL past count, views (substr/trim/from_c_str) do not.
 Bool ffi_load_global_lib(const Str *soname) {
-    char *s = dup_n((const char *)soname->c_str, soname->count);
+    char *s = dup_n((const char *)TIL_OWN_GET(I8, soname->c_str), soname->count);
     Bool ok = LoadLibraryA(s) != NULL;
     free(s);
     return ok;
 }
 
 Bool ffi_open_user_so(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     ffi_handle = LoadLibraryA(p);
     free(p);
     return ffi_handle != NULL;
@@ -4081,7 +4095,7 @@ void ffi_close_user_so(void) {
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
     TIL_FFI_CAGE_SYMBOL(name);
-    char *n = dup_n((const char *)name->c_str, name->count);
+    char *n = dup_n((const char *)TIL_OWN_GET(I8, name->c_str), name->count);
     U8 *sym = (U8 *)GetProcAddress(ffi_handle, n);
     free(n);
     return sym;
@@ -4096,7 +4110,7 @@ U8 *ffi_global_symbol(const Str *name) {
     if (!EnumProcessModules(GetCurrentProcess(), mods, sizeof(mods), &needed)) return NULL;
     DWORD count = needed / sizeof(HMODULE);
     if (count > 256) count = 256;
-    char *n = dup_n((const char *)name->c_str, name->count);
+    char *n = dup_n((const char *)TIL_OWN_GET(I8, name->c_str), name->count);
     for (DWORD i = 0; i < count; i++) {
         FARPROC p = GetProcAddress(mods[i], n);
         if (p) {
@@ -4111,7 +4125,7 @@ U8 *ffi_global_symbol(const Str *name) {
 Str *ffi_last_error(void) {
     DWORD err = GetLastError();
     if (!err) {
-        return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+        return ext_str_box_bytes((const char *)"", (size_t)(0));
     }
     char buf[512];
     DWORD n = FormatMessageA(
@@ -4121,7 +4135,7 @@ Str *ffi_last_error(void) {
         snprintf(buf, sizeof(buf), "Windows error %lu", (unsigned long)err);
         n = (DWORD)strlen(buf);
     }
-    return Str_clone(&(Str){.c_str = (I8 *)buf, .count = (USize)n, .cap = CAP_VIEW});
+    return ext_str_box_bytes((const char *)buf, (size_t)((USize)n));
 }
 #elif defined(__EMSCRIPTEN__)
 Bool ffi_load_global_lib(const Str *soname) {
@@ -4148,20 +4162,20 @@ U8 *ffi_global_symbol(const Str *name) {
 }
 
 Str *ffi_last_error(void) {
-    return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+    return ext_str_box_bytes((const char *)"", (size_t)(0));
 }
 #else
 // dup_n on every Str reaching a C string API here: only owned til Strs
 // carry a NUL past count, views (substr/trim/from_c_str) do not.
 Bool ffi_load_global_lib(const Str *soname) {
-    char *s = dup_n((const char *)soname->c_str, soname->count);
+    char *s = dup_n((const char *)TIL_OWN_GET(I8, soname->c_str), soname->count);
     Bool ok = dlopen(s, RTLD_NOW | RTLD_GLOBAL) != NULL;
     free(s);
     return ok;
 }
 
 Bool ffi_open_user_so(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     ffi_handle = dlopen(p, RTLD_NOW);
     free(p);
     return ffi_handle != NULL;
@@ -4177,7 +4191,7 @@ void ffi_close_user_so(void) {
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
     TIL_FFI_CAGE_SYMBOL(name);
-    char *n = dup_n((const char *)name->c_str, name->count);
+    char *n = dup_n((const char *)TIL_OWN_GET(I8, name->c_str), name->count);
     U8 *sym = dlsym(ffi_handle, n);
     free(n);
     return sym;
@@ -4185,7 +4199,7 @@ U8 *ffi_user_symbol(const Str *name) {
 
 U8 *ffi_global_symbol(const Str *name) {
     TIL_FFI_CAGE_SYMBOL(name);
-    char *n = dup_n((const char *)name->c_str, name->count);
+    char *n = dup_n((const char *)TIL_OWN_GET(I8, name->c_str), name->count);
     U8 *sym = dlsym(RTLD_DEFAULT, n);
     free(n);
     return sym;
@@ -4194,9 +4208,9 @@ U8 *ffi_global_symbol(const Str *name) {
 Str *ffi_last_error(void) {
     char *msg = dlerror();
     if (!msg) {
-        return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+        return ext_str_box_bytes((const char *)"", (size_t)(0));
     }
-    return Str_clone(&(Str){.c_str = (I8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
+    return ext_str_box_bytes((const char *)msg, (size_t)((USize)strlen(msg)));
 }
 #endif
 
@@ -4209,7 +4223,7 @@ Str *ffi_last_error(void) {
 // return code was dropped too. ENOENT stays non-fatal (removing an
 // already-missing path is a no-op); any other failure is real and loud.
 void cfile_remove(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
 #ifdef _WIN32
     int rc = _unlink(p);
 #else
@@ -4237,6 +4251,27 @@ I32 process_id(void) {
  * ASAN allocator, otherwise an interpreter-side malloc/calloc that libffi
  * routes to the (non-ASAN) user .so's libc allocator gets freed by the
  * interpreter's ASAN free() -- a spurious bad-free. */
+void *c_str_borrow_bytes(void *s, USize n) {
+#ifdef TIL_CPTR32
+    char *copy = malloc((size_t)n + 1);
+    memcpy(copy, s, (size_t)n);
+    copy[n] = '\0';
+    return copy;
+#else
+    (void)n;
+    return s;
+#endif
+}
+
+USize c_str_borrow_cap(USize n) {
+#ifdef TIL_CPTR32
+    return n;
+#else
+    (void)n;
+    return CAP_VIEW;
+#endif
+}
+
 /* Issue #313: whether this binary allocates from the TIL_CPTR32 cage. A
  * cage-built interpreter compiles the user's FFI .so with the same define,
  * for the same reason as the sanitizer above. */
@@ -4263,13 +4298,13 @@ Bool til_built_with_asan(void) {
 }
 
 Str *til_str_left(const Str *s, U64 n) {
-    if (!s || n == 0) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
+    if (!s || n == 0) return ext_str_box_bytes((const char *)"", (size_t)(0));
     USize len = (USize)s->count;
     if (n > len) n = len;
     char *buf = malloc(n + 1);
-    memcpy(buf, s->c_str, n);
+    memcpy(buf, TIL_OWN_GET(I8, s->c_str), n);
     buf[n] = '\0';
-    Str *result = Str_clone(&(Str){.c_str = (I8*)buf, .count = n, .cap = CAP_VIEW});
+    Str *result = ext_str_box_bytes((const char *)buf, (size_t)(n));
     free(buf);
     return result;
 }

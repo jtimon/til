@@ -175,7 +175,7 @@ main := proc(args: ..Str) {
     // both subcommand: compare interpret output with compiled-run output.
     if subcmd == "both" {
         if args.len() < 2 {
-            println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan]")
+            println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan] [--cptr=32]")
             exit(1)
         }
 
@@ -190,7 +190,9 @@ main := proc(args: ..Str) {
             if arg == "-no-interp" { en_interp = 0 }
             if arg == "-no-run" { en_run = 0 }
             if arg == "-no-match" { en_match = 0 }
-            if arg == "--asan" { asan_flag = " --asan" }
+            if arg == "--asan" { asan_flag = format(asan_flag, " --asan") }
+            // #313: compiled programs use the pointer-compression cage.
+            if arg == "--cptr=32" { asan_flag = format(asan_flag, " --cptr=32") }
             if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
                 ref val : Str = args[i + 1]
                 til_bin = val.clone()

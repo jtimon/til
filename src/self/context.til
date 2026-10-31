@@ -1511,6 +1511,10 @@ Context := struct {
     // delete calls it -- reading it there is a heap-use-after-free (#309).
     target_usize_bytes : USize = 8
     target_simd_bits : USize = 128
+    // --cptr=32 (issue #313): own pointer fields are stored as 32-bit cage
+    // offsets in the emitted C, so own-field loads/stores go through ext.h's
+    // TIL_OWN_GET / TIL_OWN_SET and literals are copied into the cage.
+    target_cptr32 := false
     // Active compile-time dependencies only; entries leave on return. This
     // detects cycles without caching a second representation of definitions.
     comptime_requests := Set(Str).new()
@@ -2263,13 +2267,22 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
     return ctx.target_usize_pname.eq(host_usize).and(ctx.target_uptr_pname.eq(host_uptr)).not()
 }
 
+// #313: the emitted struct layout differs from the host's whenever the widths
+// do, and also under --cptr=32, whose own pointer fields are 4 bytes. Sizes
+// baked from the host layout are then wrong, so they are emitted as sizeof.
+// Separate from size_intrinsics_use_sizeof, which also decides the
+// interpreter's FFI marshaling: compile-time FFI still calls host code.
+size_intrinsics_emit_sizeof := func(ctx: Context) returns Bool {
+    return size_intrinsics_use_sizeof(ctx).or(ctx.target_cptr32)
+}
+
 constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {
     case .FuncDef(fd):
         switch stmt.node_type {
         case .Decl(dd):
-            if dd.name.eq("dyn_size_of").and(size_intrinsics_use_sizeof(ctx)) {
+            if dd.name.eq("dyn_size_of").and(size_intrinsics_emit_sizeof(ctx)) {
                 // Issue #309: leave dyn_size_of unfolded on a width-mismatched
                 // target so a constant-arg call reaches the runtime
                 // dyn_size_of() (sizeof, target width) instead of folding to a
@@ -2292,7 +2305,7 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if fdd.default_value.is_none() { continue }
                 switch fdd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
+                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_emit_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
                         // Issue #309: skip the auto-generated size method on a
                         // width-mismatched target so the emitted X_size()
                         // returns sizeof(ctype) (target width).
@@ -2320,7 +2333,7 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if nsd.default_value.is_none() { continue }
                 switch nsd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
+                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_emit_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
                         // Issue #309: skip the auto-generated enum size method on
                         // a width-mismatched target (emitted X_size() -> sizeof).
                     } else {

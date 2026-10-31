@@ -42,20 +42,20 @@ typedef struct Vec__CfNestedValues Vec__CfNestedValues;
 
 
 typedef struct Str {
-    I8 *c_str;
+    TIL_OWN_PTR(I8) c_str;
     USize count;
     USize cap;
 } Str;
 
 
 typedef struct Array__Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__Str;
 
 
 typedef struct Vec__Str {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__Str;
@@ -113,20 +113,20 @@ struct NestedToken {
 };
 
 typedef struct Array__I64 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize cap;
 } Array__I64;
 
 
 typedef struct Vec__I64 {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__I64;
 
 
 typedef struct Vec__CfNestedValues {
-    U8 *data;
+    TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__CfNestedValues;
@@ -251,7 +251,7 @@ static void adopt__CfNestedValues(void * dest, CfNestedValues * src);
 #define TIL_CAP_LIT ((USize)0 - (USize)1)
 #define TIL_CAP_VIEW ((USize)0 - (USize)2)
 static void print_single(Str *s) {
-    fwrite(s->c_str, 1, (size_t)s->count, stdout);
+    fwrite(TIL_OWN_GET(I8, s->c_str), 1, (size_t)s->count, stdout);
 }
 static void print_flush() {
     putchar('\n');
@@ -292,8 +292,8 @@ static struct {
 };
 
 /* til source locations: line numbers shift with source edits; the code hunks are above */
-static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:214:13", .count = 25ULL, .cap = TIL_CAP_LIT};
-static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:218:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_3 = (Str){.c_str = (void *)"./src/core/str.til:217:13", .count = 25ULL, .cap = TIL_CAP_LIT};
+static Str hoisted__Str_Str_push_str_7 = (Str){.c_str = (void *)"./src/core/str.til:221:13", .count = 25ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_11 = (Str){.c_str = (void *)"test/constfold.til:650:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_15 = (Str){.c_str = (void *)"test/constfold.til:655:5", .count = 24ULL, .cap = TIL_CAP_LIT};
 static Str hoisted__Str_test_block_constants_do_not_escape_their_scope_19 = (Str){.c_str = (void *)"test/constfold.til:660:5", .count = 24ULL, .cap = TIL_CAP_LIT};
@@ -1203,7 +1203,7 @@ static void test_enum_literal_fold(void) {
         } else {
             Bool hoisted__Bool_2 = ((Bool)(0));
             if (hoisted__Bool_2) {
-                { Str _new = (Str){.c_str=(void*)"g", .count=1ULL, .cap=TIL_CAP_LIT}; Str_delete(&_m_Str_0, (Bool){0}); _m_Str_0 = _new; }
+                { Str _new = (Str){.c_str = (void *)"g", .count=1ULL, .cap=TIL_CAP_LIT}; Str_delete(&_m_Str_0, (Bool){0}); _m_Str_0 = _new; }
             } else {
                 Bool hoisted__Bool_1 = ((Bool)(0));
                 if (hoisted__Bool_1) {

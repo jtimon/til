@@ -436,6 +436,35 @@ priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) 
     }
 }
 
+// #313: the pointee C type when `sname.fname` is an own field stored as a
+// cage offset (--cptr=32), else "" -- a native pointer, or no such field.
+priv cptr_field_pointee := func(sname: Str, fname: Str, ctx: Context) returns Str {
+    if ctx.target_cptr32.not() { return "" }
+    def_o := find_struct_def(sname, ctx)
+    if def_o.is_none() { return "" }
+    switch def_o.unwrap().node_type {
+    case .StructDef(sdd):
+        fd_o := member_get(sdd.fields_index, sdd.fields, fname)
+        if fd_o.is_some() {
+            ref fd : Declaration = fd_o.unwrap()
+            if field_is_own_ptr(fd) { return field_pointee_ctype(fd, ctx.symbols) }
+        }
+    case:
+    }
+    return ""
+}
+
+// #313: open/close an own-field load: TIL_OWN_GET(T, (<lvalue>)) under
+// --cptr=32 when `pointee` is non-empty, the bare lvalue otherwise. The
+// argument is parenthesized because it may hold top-level commas (a
+// compound literal), which would split a macro argument.
+priv emit_cptr_get_open := proc(f: File, pointee: Str) {
+    if pointee.len() > 0 { f.write("TIL_OWN_GET(").write(pointee).write(", (") }
+}
+priv emit_cptr_close := proc(f: File, pointee: Str) {
+    if pointee.len() > 0 { f.write("))") }
+}
+
 // Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
 priv builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
     sname := fa_struct_name(e, ctx.symbols)
@@ -916,6 +945,25 @@ priv field_emit_ctype := func(dd: Declaration, symbols: SymbolPool) returns Str 
     if decl_type_name_ref(dd, symbols) == "USize" { return "USize" }
     if decl_type_name_ref(dd, symbols) == "UPtr" { return "UPtr" }
     return til_type_to_c(dd.til_type)
+}
+
+// The C type a non-shallow (pointer) field points at.
+priv field_pointee_ctype := func(dd: Declaration, symbols: SymbolPool) returns Str {
+    if is_struct_type(dd.til_type).or(is_enum_type(dd.til_type)) {
+        ref sname : Str = type_name_ref(dd.til_type, symbols)
+        if sname.len() > 0 { return sname.clone() }
+    }
+    return field_emit_ctype(dd, symbols)
+}
+
+// #313: an own field that points at a til allocation, so --cptr=32 can store
+// it as a cage offset (TIL_OWN_PTR). ref fields borrow anything and stay
+// native; Dynamic and callable fields stay native too.
+priv field_is_own_ptr := func(dd: Declaration) returns Bool {
+    if dd.own_type.is(OwnType.Own).not() { return false }
+    if dd.til_type.is(Type.Dynamic) { return false }
+    if dd.til_type.is_funcptr().or(type_is_callable_storage(dd.til_type)) { return false }
+    return true
 }
 
 priv c_type_name := func(shallow t: Type, struct_name: Str, mut ctx: Context) returns Str {
@@ -1884,6 +1932,30 @@ priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns B
     }
 }
 
+// #313: a Str literal's `.c_str = ...` designated initializer. Under
+// --cptr=32 the field is a cage offset, so the bytes are copied into the cage
+// once per use site (TIL_OWN_LIT, a function-scope expression).
+priv emit_lit_c_str_init := proc(f: File, s: Str, ctx: Context) {
+    if ctx.target_cptr32 {
+        f.write(".c_str = TIL_OWN_LIT(\"").write(s).write("\", ")
+        emit_usize(f, c_lit_byte_count(s))
+        f.write("ULL)")
+    } else {
+        f.write(".c_str = (void *)\"").write(s).write("\"")
+    }
+}
+
+// #313: a CAP_LIT Str value whose bytes are copied into the cage, for the
+// --cptr=32 initializers that run before main (a statement, `;` included).
+priv emit_cptr_static_str_lit := proc(f: File, s: Str) {
+    n := c_lit_byte_count(s)
+    f.write("(Str){.c_str = {til_cage_lit(\"").write(s).write("\", ")
+    emit_usize(f, n)
+    f.write("ULL)}, .count = ")
+    emit_usize(f, n)
+    f.write("ULL, .cap = TIL_CAP_LIT};\n")
+}
+
 priv builder_emit_str_lit_elem := proc(f: File, s: Str) {
     f.write("(Str){.c_str = (void *)\"")
     f.write(s)
@@ -2231,12 +2303,28 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
     for i in 0..n {
         f.write("    Str ").write(ctx.builder_str_lit_members[i]).write(";\n")
     }
-    f.write("} _til_str_lits = {\n")
-    for i in 0..n {
-        f.write("    .").write(ctx.builder_str_lit_members[i]).write(" = ")
-        builder_emit_str_lit_elem(f, ctx.builder_str_lit_values[i])
+    if ctx.target_cptr32 {
+        // #313: the pool's wrappers and bytes live in the cage (an own Str
+        // field may point at a pooled wrapper), built before main. The
+        // macro sends every `_til_str_lits.x` use, and TIL_LIT_GUARD's
+        // range test, to the cage copy.
+        f.write("} *_til_str_lits_cage;\n#define _til_str_lits (*_til_str_lits_cage)\n")
+        f.write("static void til_str_lits_init(void) __attribute__((constructor));\n")
+        f.write("static void til_str_lits_init(void) {\n")
+        f.write("    _til_str_lits_cage = malloc(sizeof(*_til_str_lits_cage));\n")
+        for i in 0..n {
+            f.write("    _til_str_lits.").write(ctx.builder_str_lit_members[i]).write(" = ")
+            emit_cptr_static_str_lit(f, ctx.builder_str_lit_values[i])
+        }
+        f.write("}\n")
+    } else {
+        f.write("} _til_str_lits = {\n")
+        for i in 0..n {
+            f.write("    .").write(ctx.builder_str_lit_members[i]).write(" = ")
+            builder_emit_str_lit_elem(f, ctx.builder_str_lit_values[i])
+        }
+        f.write("};\n")
     }
-    f.write("};\n")
     if ctx.builder_lit_guard_used.not() {
         f.write("\n")
         return
@@ -2262,6 +2350,26 @@ priv builder_emit_loc_region := proc(f: File, ctx: Context) {
     for lik : Str in ctx.builder_str_lit_ident_contents.keys {
         ref lval : Str = ctx.builder_str_lit_ident_contents[lik]
         if builder_str_lit_is_loc(lval) { sorted_locs.set(lik, own lval.clone()) }
+    }
+    if ctx.target_cptr32.and(sorted_locs.len() > 0) {
+        // #313: same as the literal pool -- the wrappers and bytes live in
+        // the cage, built before main, and each name is a macro for its
+        // cage member (a macro does not re-expand inside itself).
+        f.write("/* til source locations, in the --cptr=32 cage */\nstatic struct {\n")
+        for iname : Str in sorted_locs.keys { f.write("    Str ").write(iname).write(";\n") }
+        f.write("} *_til_loc_lits_cage;\n")
+        for iname : Str in sorted_locs.keys {
+            f.write("#define ").write(iname).write(" (_til_loc_lits_cage->").write(iname).write(")\n")
+        }
+        f.write("static void til_loc_lits_init(void) __attribute__((constructor));\n")
+        f.write("static void til_loc_lits_init(void) {\n")
+        f.write("    _til_loc_lits_cage = malloc(sizeof(*_til_loc_lits_cage));\n")
+        for iname : Str in sorted_locs.keys {
+            f.write("    ").write(iname).write(" = ")
+            emit_cptr_static_str_lit(f, sorted_locs[iname])
+        }
+        f.write("}\n\n")
+        return
     }
     mut wrote := false
     for iname : Str in sorted_locs.keys {
@@ -2491,12 +2599,14 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         // #326: pooled -- no declaration, so no statement.
                         // emit_stmt skipped the indent for this shape.
                     } else {
-                        if dd.is_mut.not() { f.write("static ") }
-                        f.write(ctype).write(" ").write(dd.name).write(" = (Str){.c_str = (void *)\"")
+                        // #313: a static initializer cannot hold a cage
+                        // offset, so --cptr=32 initializes it every time.
+                        if dd.is_mut.not().and(ctx.target_cptr32.not()) { f.write("static ") }
+                        f.write(ctype).write(" ").write(dd.name).write(" = (Str){")
                         switch rhs.node_type {
                         case .Literal(Literal.Str(s)):
-                            f.write(s)
-                            f.write("\", .count = ")
+                            emit_lit_c_str_init(f, s, ctx)
+                            f.write(", .count = ")
                             emit_usize(f, c_lit_byte_count(s))
                         case:
                         }
@@ -2926,10 +3036,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // CAP_LIT on it makes Str_delete skip freeing that box (a leak).
             if rhs.node_type.is_literal_str() {
                 f.write("TIL_LIT_GUARD(").write(acname).write("); ")
-                f.write("*").write(acname).write(" = (Str){.c_str = (void *)\"")
+                f.write("*").write(acname).write(" = (Str){")
                 switch rhs.node_type {
                 case .Literal(Literal.Str(lit_s)):
-                    f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
+                    emit_lit_c_str_init(f, lit_s, ctx)
+                    f.write(", .count = ").emit_usize(c_lit_byte_count(lit_s))
                 case:
                 }
                 f.write("ULL, .cap = TIL_CAP_VIEW};\n")
@@ -2978,7 +3089,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 if ctype.eq("Str").and(rhs.node_type.is_literal_str()) {
                     switch rhs.node_type {
                     case .Literal(Literal.Str(lit_s)):
-                        if lit_owns_box { emit_str_lit_own_box(f, lit_s) }
+                        if lit_owns_box { emit_str_lit_own_box(f, lit_s, ctx) }
                         else { emit_str_lit_expr(f, lit_s, ctx) }
                     case:
                     }
@@ -3051,7 +3162,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 if assign_str_lit_needs_own_box(aname, c_type_name(e.til_type(), e_sname, ctx), rhs, ctx) {
                     switch rhs.node_type {
                     case .Literal(Literal.Str(lit_s)):
-                        emit_str_lit_own_box(f, lit_s)
+                        emit_str_lit_own_box(f, lit_s, ctx)
                         emitted_box = true
                     case:
                     }
@@ -3094,14 +3205,18 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 if obj_sname_o.is_some() { flat_old = obj_sname_o.unwrap().concat3("_", fname) }
                 f.write(builder_resolve_c_ident_name(flat_old, ctx))
             } else {
+                old_pointee := cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname, ctx)
+                emit_cptr_get_open(f, old_pointee)
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
                 f.write(fname)
+                emit_cptr_close(f, old_pointee)
             }
             f.write(";\n")
             emit_indent(f, depth)
         }
 
+        mut set_pointee := ""
         if builder_fa_is_ns(e, ctx) {
             obj_sname_o := expr_type_name_ref(obj, ctx.symbols)
             mut flat_target := format("_", fname)
@@ -3111,12 +3226,16 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             }
             f.write(builder_resolve_c_ident_name(flat_target, ctx)).write(" = ")
         } else {
+            set_pointee = cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname, ctx)
+            if set_pointee.len() > 0 { f.write("TIL_OWN_SET((") }
             emit_expr(f, obj, depth, ctx)
             if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
-            f.write(fname).write(" = ")
+            f.write(fname)
+            if set_pointee.len() > 0 { f.write("), (") } else { f.write(" = ") }
         }
         if builder_fa_is_ptr(e, ctx) { emit_as_ptr(f, rhs_fa, depth, true, ctx) }
         else { emit_deref(f, rhs_fa, depth, ctx) }
+        emit_cptr_close(f, set_pointee)
         f.write(";\n")
 
         if did_save_old {
@@ -3566,6 +3685,26 @@ priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
     }
     ctx.builder_func.ctor_seq = ctx.builder_func.ctor_seq + 1
     id := ctx.builder_func.ctor_seq
+    if ctx.target_cptr32 {
+        // #313: the wrapper's address may land in an own field, so under
+        // --cptr=32 it lives in the cage too, built on first use.
+        f.write("({ static Str *_lit")
+        emit_i32(f, id)
+        f.write("; if (_lit")
+        emit_i32(f, id)
+        f.write(" == NULL) { _lit")
+        emit_i32(f, id)
+        f.write(" = malloc(sizeof(Str)); *_lit")
+        emit_i32(f, id)
+        f.write(" = (Str){")
+        emit_lit_c_str_init(f, s, ctx)
+        f.write(", .count = ")
+        emit_usize(f, c_lit_byte_count(s))
+        f.write("ULL, .cap = TIL_CAP_LIT}; } _lit")
+        emit_i32(f, id)
+        f.write("; })")
+        return
+    }
     f.write("({ static Str _lit")
     emit_i32(f, id)
     f.write(" = (Str){.c_str = (void *)\"")
@@ -3597,10 +3736,10 @@ priv assign_str_lit_needs_own_box := func(aname: Str, ctype: Str, rhs: Expr, mut
 // (Str_delete never frees it) while leaving the wrapper freeable, so the local
 // owns writable storage the callee can write back into. Same shape as the
 // CAP_LIT -> CAP_VIEW demotion emit_return_box performs.
-priv emit_str_lit_own_box := proc(f: File, s: Str) {
-    f.write("({ Str *_lb = malloc(TIL_BOX(Str)); *_lb = (Str){.c_str = (void *)\"")
-    f.write(s)
-    f.write("\", .count = ")
+priv emit_str_lit_own_box := proc(f: File, s: Str, ctx: Context) {
+    f.write("({ Str *_lb = malloc(TIL_BOX(Str)); *_lb = (Str){")
+    emit_lit_c_str_init(f, s, ctx)
+    f.write(", .count = ")
     emit_usize(f, c_lit_byte_count(s))
     f.write("ULL, .cap = TIL_CAP_VIEW}; _lb; })")
 }
@@ -3613,9 +3752,9 @@ priv emit_str_lit_temp_expr := proc(f: File, s: Str, ctx: Context) {
         f.write("&").write(ctx.builder_str_lit_symbols[s])
         return
     }
-    f.write("&(Str){.c_str = (void *)\"")
-    f.write(s)
-    f.write("\", .count = ")
+    f.write("&(Str){")
+    emit_lit_c_str_init(f, s, ctx)
+    f.write(", .count = ")
     emit_usize(f, c_lit_byte_count(s))
     f.write("ULL, .cap = TIL_CAP_LIT}")
 }
@@ -3818,7 +3957,18 @@ priv expr_has_c_initializer := func(e: Expr, allow_sequences: Bool, mut ctx: Con
 }
 
 priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bool {
+    // #313: a cage offset is not a link-time constant, so under --cptr=32 a
+    // global holding a Str literal is initialized at run time instead.
+    if ctx.target_cptr32.and(expr_holds_str_literal(e)) { return false }
     return expr_has_c_initializer(e, false, ctx)
+}
+
+priv expr_holds_str_literal := func(e: Expr) returns Bool {
+    if e.node_type.is_literal_str() { return true }
+    for child : Expr in e.children {
+        if expr_holds_str_literal(child) { return true }
+    }
+    return false
 }
 
 priv global_decl_has_c_static_initializer := func(stmt: Expr, mut ctx: Context) returns Bool {
@@ -3836,13 +3986,20 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
     case .Literal(Literal.Bool(b)):
         if b { f.write("1") } else { f.write("0") }
     case .Literal(Literal.Str(s)):
-        f.write("{.c_str = (I8 *)\"").write(s).write("\", .count = ")
+        // #313: under --cptr=32 only sequence templates reach here, and they
+        // are built at run time (emit_cptr_sequence_template), in a function.
+        f.write("{")
+        if ctx.target_cptr32 { emit_lit_c_str_init(f, s, ctx) }
+        else { f.write(".c_str = (I8 *)\"").write(s).write("\"") }
+        f.write(", .count = ")
         emit_usize(f, c_lit_byte_count(s))
         f.write("ULL, .cap = TIL_CAP_LIT}")
     case .PrecomputedSequence(data):
         symbol := precomputed_sequence_symbol(data)
         f.write("{.data = ")
-        if data.capacity == 0 { f.write("NULL") }
+        if data.capacity.eq(0).and(ctx.target_cptr32) { f.write("{0}") }
+        else if data.capacity == 0 { f.write("NULL") }
+        else if ctx.target_cptr32 { f.write(symbol).write("_data_cptr()") }
         else { f.write("(U8 *)").write(symbol).write("_data") }
         if precomputed_sequence_is_vec(data, ctx.symbols) {
             f.write(", .count = "); emit_usize(f, e.children.len()); f.write("ULL")
@@ -3888,7 +4045,15 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         switch e.children[0].node_type {
         case .FieldAccess(member):
             ref vname : Str = member.field_access_name(ctx.symbols.names)
-            if enum_is_niche(def) {
+            if enum_is_niche(def).and(ctx.target_cptr32) {
+                // #313: in a run-time template the payload needs storage
+                // that outlives the builder function.
+                payload_c := c_type_name(e.children[1].til_type(), type_name_ref(e.children[1].til_type(), ctx.symbols), ctx)
+                f.write("{.data = ({ ").write(payload_c).write(" *_np = malloc(sizeof(").write(payload_c)
+                    .write(")); *_np = (").write(payload_c).write(")")
+                emit_c_static_initializer(f, e.children[1], ctx)
+                f.write("; _np; })}")
+            } else if enum_is_niche(def) {
                 payload_c := c_type_name(e.children[1].til_type(), type_name_ref(e.children[1].til_type(), ctx.symbols), ctx)
                 f.write("{.data = &(").write(payload_c).write(")")
                 emit_c_static_initializer(f, e.children[1], ctx)
@@ -3938,6 +4103,10 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, owner: S
         if emitted.has(data.ordinal) { return }
         if expr_has_c_initializer(e, true, ctx).not() { panic(__LOC__, "precomputed sequence is not recursively serializable") }
         emitted.add(own data.ordinal.clone())
+        if ctx.target_cptr32 {
+            emit_cptr_sequence_template(f, e, data, in_sequence_initializer, ctx)
+            return
+        }
         symbol := precomputed_sequence_symbol(data)
         if data.capacity > 0 {
             elem_c := c_type_name(data.element_type, type_name_ref(data.element_type, ctx.symbols), ctx)
@@ -3959,6 +4128,42 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, owner: S
         }
     case:
     }
+}
+
+// #313: under --cptr=32 a template's data pointer and its literals are cage
+// offsets, which no static initializer can hold. Each template is instead
+// built on first use: `<sym>_data_cptr()` returns the element buffer (nested
+// templates are built by their parents' element initializers through the same
+// call) and `<sym>_get()` the top-level value that use sites clone.
+priv emit_cptr_sequence_template := proc(f: File, e: Expr, data: PrecomputedSequenceData,
+        in_sequence_initializer: Bool, mut ctx: Context) {
+    symbol := precomputed_sequence_symbol(data)
+    if data.capacity > 0 {
+        elem_c := c_type_name(data.element_type, type_name_ref(data.element_type, ctx.symbols), ctx)
+        is_aggregate := is_struct_type(data.element_type).or(is_enum_type(data.element_type))
+        f.write("static TilCPtr ").write(symbol).write("_data_cptr(void) {\n")
+        f.write("    static TilCPtr built;\n    if (built.off == 0) {\n")
+        f.write("        ").write(elem_c).write(" *a = calloc(")
+        emit_usize(f, data.capacity)
+        f.write("ULL, sizeof(").write(elem_c).write("));\n")
+        for i in 0..e.children.len() {
+            f.write("        a[")
+            emit_usize(f, i)
+            f.write("] = (").write(elem_c).write(")")
+            if is_aggregate.not() { f.write("(") }
+            emit_c_static_initializer(f, e.children[i], ctx)
+            if is_aggregate.not() { f.write(")") }
+            f.write(";\n")
+        }
+        f.write("        built = TIL_OWN_ENC(a);\n    }\n    return built;\n}\n")
+    }
+    if in_sequence_initializer { return }
+    seq_c := c_type_name(data.til_type, type_name_ref(data.til_type, ctx.symbols), ctx)
+    f.write("static ").write(seq_c).write(" *").write(symbol).write("_get(void) {\n")
+    f.write("    static ").write(seq_c).write(" t;\n    static Bool built;\n")
+    f.write("    if (built == 0) {\n        t = (").write(seq_c).write(")")
+    emit_c_static_initializer(f, e, ctx)
+    f.write(";\n        built = 1;\n    }\n    return &t;\n}\n")
 }
 
 priv emit_precomputed_sequence_templates := proc(f: File, mut lp: LoadedProgram) {
@@ -4590,9 +4795,9 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 if builder_uses_artifact_str_lit_pool(ms, ctx) {
                     f.write("&").write(ctx.builder_str_lit_symbols[ms])
                 } else {
-                    f.write("&(Str){.c_str=(void*)\"")
-                    f.write(ms)
-                    f.write("\", .count=")
+                    f.write("&(Str){")
+                    emit_lit_c_str_init(f, ms, ctx)
+                    f.write(", .count=")
                     emit_usize(f, ms.len())
                     f.write("ULL, .cap=TIL_CAP_LIT}")
                 }
@@ -4963,7 +5168,11 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             emit_c_static_initializer(f, e, ctx)
             return f
         }
-        f.write(seq_name).write("_clone(&").write(precomputed_sequence_symbol(data)).write(")")
+        if ctx.target_cptr32 {
+            f.write(seq_name).write("_clone(").write(precomputed_sequence_symbol(data)).write("_get())")
+        } else {
+            f.write(seq_name).write("_clone(&").write(precomputed_sequence_symbol(data)).write(")")
+        }
     case .FieldAccess(fname):
         ref obj : Expr = e.children[0]
         if builder_fa_is_ns(e, ctx) {
@@ -5018,6 +5227,8 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             }
             if obj_is_get_payload {
                 obj_sname_cast_o := expr_type_name_ref(obj, ctx.symbols)
+                gp_pointee := cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname.field_access_name(ctx.symbols.names), ctx)
+                emit_cptr_get_open(f, gp_pointee)
                 if obj_sname_cast_o.is_some() {
                     ref obj_sname_cast : Str = obj_sname_cast_o.unwrap()
                     f.write("((")
@@ -5031,6 +5242,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
                     f.write(fname.field_access_name(ctx.symbols.names))
                 }
+                emit_cptr_close(f, gp_pointee)
             } else {
                 // Field access on a Str literal (e.g. `"foo".c_str`): emit a
                 // stack compound literal and dot-access the field.
@@ -5040,12 +5252,14 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     obj_is_str_lit = true
                 case:
                 }
+                fa_pointee := cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname.field_access_name(ctx.symbols.names), ctx)
+                emit_cptr_get_open(f, fa_pointee)
                 if obj_is_str_lit {
                     switch obj.node_type {
                     case .Literal(Literal.Str(slit)):
-                        f.write("(Str){.c_str = (void *)\"")
-                        f.write(slit)
-                        f.write("\", .count = ")
+                        f.write("(Str){")
+                        emit_lit_c_str_init(f, slit, ctx)
+                        f.write(", .count = ")
                         emit_usize(f, c_lit_byte_count(slit))
                         f.write("ULL, .cap = TIL_CAP_LIT}.")
                         f.write(fname.field_access_name(ctx.symbols.names))
@@ -5057,6 +5271,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
                     f.write(fname.field_access_name(ctx.symbols.names))
                 }
+                emit_cptr_close(f, fa_pointee)
             }
         }
     case:
@@ -5102,6 +5317,14 @@ priv builder_borrowed_callable_expr := func(e: Expr, symbols: SymbolPool) return
     return false
 }
 
+// #313: `var->fname = ` for an own field, or `TIL_OWN_SET(var->fname, ` when
+// it is a cage offset (`pointee` non-empty); emit_cptr_close ends it.
+priv emit_own_field_store_open := proc(f: File, var: Str, fname: Str, pointee: Str, mut ctx: Context) {
+    if pointee.len() > 0 { f.write("TIL_OWN_SET((") }
+    emit_field(f, var, fname, ctx)
+    if pointee.len() > 0 { f.write("), (") } else { f.write(" = ") }
+}
+
 priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx: Context) {
     mut ecf_def_o := Option(ref Expr).None
     ctor_sname_o := expr_type_name_ref(ctor, ctx.symbols)
@@ -5113,6 +5336,8 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
     for i in 1..ctor.children.len() {
         mut fld_own := OwnType.Shallow
         mut fname := ""
+        // #313: the pointee type when this own field is a cage offset.
+        mut fld_pointee := ""
         if ecf_def_o.is_some() {
             switch ecf_def_o.unwrap().node_type {
             case .StructDef(ecf_sdd):
@@ -5120,6 +5345,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                     ref dd : Declaration = ecf_sdd.field_at(fi)
                     fld_own = dd.own_type
                     fname = ecf_sdd.field_name_at(fi).clone()
+                    if ctx.target_cptr32.and(field_is_own_ptr(dd)) { fld_pointee = field_pointee_ctype(dd, ctx.symbols) }
                     fi++
                 }
             case:
@@ -5151,13 +5377,13 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
             }
         } else if fld_own.is(OwnType.Own) {
             if arg.node_type.is_literal_str() {
-                emit_field(f, var, fname, ctx)
-                f.write(" = ")
+                emit_own_field_store_open(f, var, fname, fld_pointee, ctx)
                 switch arg.node_type {
                 case .Literal(Literal.Str(s)):
                     emit_str_lit_expr(f, s, ctx)
                 case:
                 }
+                emit_cptr_close(f, fld_pointee)
                 f.write(";\n")
             } else if arg.node_type.is(NodeType.FCall) {
                 arg_sname_o := expr_type_name_ref(arg, ctx.symbols)
@@ -5179,30 +5405,30 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, mut ctx
                             f.write("));\n")
                             emit_ctor_fields(f, tmp, arg, depth, ctx)
                             emit_indent(f, depth)
-                            emit_field(f, var, fname, ctx)
-                            f.write(" = ")
+                            emit_own_field_store_open(f, var, fname, fld_pointee, ctx)
                             f.write(tmp)
+                            emit_cptr_close(f, fld_pointee)
                             f.write(";\n")
                             handled = true
                         }
                     case:
                     }
                     if handled.not() {
-                        emit_field(f, var, fname, ctx)
-                        f.write(" = ")
+                        emit_own_field_store_open(f, var, fname, fld_pointee, ctx)
                         emit_as_ptr(f, arg, depth, true, ctx)
+                        emit_cptr_close(f, fld_pointee)
                         f.write(";\n")
                     }
                 } else {
-                    emit_field(f, var, fname, ctx)
-                    f.write(" = ")
+                    emit_own_field_store_open(f, var, fname, fld_pointee, ctx)
                     emit_as_ptr(f, arg, depth, true, ctx)
+                    emit_cptr_close(f, fld_pointee)
                     f.write(";\n")
                 }
             } else {
-                emit_field(f, var, fname, ctx)
-                f.write(" = ")
+                emit_own_field_store_open(f, var, fname, fld_pointee, ctx)
                 emit_as_ptr(f, arg, depth, true, ctx)
+                emit_cptr_close(f, fld_pointee)
                 f.write(";\n")
             }
         } else {
@@ -5338,7 +5564,9 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
             if builder_uses_artifact_str_lit_pool(s, ctx) {
                 f.write(ctx.builder_str_lit_symbols[s])
             } else {
-                f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
+                f.write("(Str){")
+                emit_lit_c_str_init(f, s, ctx)
+                f.write(", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
             }
         case .FCall:
             if fcall_returns_c_value(e, ctx) {
@@ -5436,7 +5664,10 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     if stack_outer_param { emit_deref(f, e, depth, ctx) }
                     else { emit_expr(f, e, depth, ctx) }
                     f.write(" }")
-                } else if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_sym(), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
+                } else if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_sym(), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not())
+                    // #313: that literal is static only natively; --cptr=32
+                    // re-initializes it on the stack, so it boxes like the rest.
+                    .and(ctx.target_cptr32.not()) {
                     f.write("&")
                     f.write(builder_resolve_c_ident_name(ident.ident_name(ctx.symbols.names), ctx))
                 } else {
@@ -5619,9 +5850,17 @@ priv cli_view_scalar := func(by_value: Bool, ctype: Str, conv: Str, arg: Str) re
     return cli_view_box(ctype, conv, arg)
 }
 
-priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
+priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool, cptr32: Bool) returns Str {
     switch ttype {
     case "Str":
+        if cptr32 {
+            // #313: argv is not cage memory, so --cptr=32 copies the bytes
+            // into the cage directly as an owned Str (no view to clone from).
+            owned := format("(Str){.c_str = {til_cage_lit(", arg, ", strlen(", arg, "))}, .count = strlen(",
+                arg, "), .cap = strlen(", arg, ")}")
+            if by_value { return owned }
+            return format("({ Str *_p = malloc(TIL_BOX(Str)); *_p = ", owned, "; _p; })")
+        }
         if by_value {
             return "Str_clone(&(Str){.c_str = (void *)".format(
                 arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
@@ -5642,8 +5881,12 @@ priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
     case "F32":   return cli_view_scalar(by_value, "F32", "Str_to_f32(_cv)", arg)
     case "F64":   return cli_view_scalar(by_value, "F64", "Str_to_f64(_cv)", arg)
     case "Bool":
-        true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
-        false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"
+        mut true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
+        mut false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"
+        if cptr32 {
+            true_lit = "&(Str){.c_str = TIL_OWN_LIT(\"true\", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT}"
+            false_lit = "&(Str){.c_str = TIL_OWN_LIT(\"false\", 5ULL), .count = 5ULL, .cap = TIL_CAP_LIT}"
+        }
         conv := "Str_cmp(_cv, ".format(true_lit, ") == 0 ? 1 : (Str_cmp(_cv, ", false_lit,
             ") == 0 ? 0 : (fprintf(stderr, \"error: cannot parse '%s' as Bool (expected true/false)\\n\", ",
             arg, "), exit(1), 0))")
@@ -5656,8 +5899,8 @@ priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
 // Emit the indented C declaration that binds CLI argument `var` of til type
 // `ttype`, parsed from the argv c-string expression `arg`. Used by both the
 // fixed-arg and variadic-arg paths in main()'s generated entry wrapper.
-priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, by_value: Bool, stack_outer: Bool) {
-    expr := cli_box_expr(ttype, arg, by_value.or(stack_outer))
+priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, by_value: Bool, stack_outer: Bool, cptr32: Bool) {
+    expr := cli_box_expr(ttype, arg, by_value.or(stack_outer), cptr32)
     if expr == "" {
         f.write(ind).write("// unsupported CLI arg type: ").write(ttype).write("\n")
         f.write(ind).write("fprintf(stderr, \"error: unsupported CLI argument type '").write(ttype).write("'\\n\"); return 1;\n")
@@ -5764,13 +6007,13 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                         f.write("    ").write(arr_ctype).write(" ").write(p.name).write(" = ")
                     }
                     if arr_type == "Array" {
-                        f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(elem_c).write("\", .count = "); emit_usize(f, elem_c.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
+                        f.write("Array_new_type_name(&(Str){"); emit_lit_c_str_init(f, elem_c, lp.ctx); f.write(", .count = "); emit_usize(f, elem_c.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
                     } else if stack_outer {
-                        f.write("    ").write(p.name).write("->data = calloc((UPtr)_va_cap, (UPtr)sizeof(").write(elem_c).write("));\n")
+                        f.write("    TIL_OWN_SET(").write(p.name).write("->data, calloc((UPtr)_va_cap, (UPtr)sizeof(").write(elem_c).write(")));\n")
                         f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     } else {
                         f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
-                        f.write("    ").write(p.name).write("->data = calloc((UPtr)_va_cap, (UPtr)sizeof(").write(elem_c).write("));\n")
+                        f.write("    TIL_OWN_SET(").write(p.name).write("->data, calloc((UPtr)_va_cap, (UPtr)sizeof(").write(elem_c).write(")));\n")
                         f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     }
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
@@ -5779,7 +6022,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     // Primitive parse storage is a caller-frame slot. Transfer
                     // its contents without asking delete to free that slot.
                     element_stack_outer := type_name_travels_by_slot(elem_c)
-                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false, element_stack_outer)
+                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false, element_stack_outer, lp.ctx.target_cptr32)
                     // Issue #225: write the element directly instead of via
                     // Array.set. Array.set is about to start throwing
                     // OutOfBounds (so `arr[i] = v` can desugar to
@@ -5787,7 +6030,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     // break this generated call. The slot is freshly
                     // zero-allocated and `_idx` is always in bounds here, so a
                     // raw memcpy is correct -- identical to the Vec path.
-                    f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(elem_c).write("), _val, (UPtr)sizeof(").write(elem_c).write("));\n")
+                    f.write("        memcpy((U8 *)TIL_OWN_GET(U8, ").write(p.name).write("->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(elem_c).write("), _val, (UPtr)sizeof(").write(elem_c).write("));\n")
                     f.write("        memset(_val, 0, (UPtr)sizeof(").write(elem_c).write("));\n")
                     f.write("        ").write(elem_c).write("_delete(_val, ")
                     if element_stack_outer { f.write("0") } else { f.write("1") }
@@ -5797,7 +6040,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     arg := "argv[".format(argi.to_str(), "]")
                     by_value := func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
                     stack_outer := func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
-                    emit_cli_parse_value(f, "    ", decl_type_name_ref(p, lp.ctx.symbols), p.name, arg, by_value, stack_outer)
+                    emit_cli_parse_value(f, "    ", decl_type_name_ref(p, lp.ctx.symbols), p.name, arg, by_value, stack_outer, lp.ctx.target_cptr32)
                     argi++
                 }
             }
@@ -6105,15 +6348,13 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
         ref sb_name : Str = sdd.field_name_at(sbr)
         sbr = sbr + 1
         if dd.own_type.is(OwnType.Shallow).not() {
-            if is_struct_type(dd.til_type).or(is_enum_type(dd.til_type)) {
-                ref sname : Str = type_name_ref(dd.til_type, symbols)
-                if sname.len() > 0 {
-                    f.write("    ").write(sname).write(" *").write(sb_name).write(";\n")
-                } else {
-                    tc := field_emit_ctype(dd, symbols); f.write("    ").write(tc).write(" *").write(sb_name).write(";\n")
-                }
+            pointee := field_pointee_ctype(dd, symbols)
+            if field_is_own_ptr(dd) {
+                // #313: spelled through ext.h so one header serves the
+                // native and the --cptr=32 (compressed) layout alike.
+                f.write("    TIL_OWN_PTR(").write(pointee).write(") ").write(sb_name).write(";\n")
             } else {
-                tc := field_emit_ctype(dd, symbols); f.write("    ").write(tc).write(" *").write(sb_name).write(";\n")
+                f.write("    ").write(pointee).write(" *").write(sb_name).write(";\n")
             }
         } else if is_struct_type(dd.til_type).or(is_enum_type(dd.til_type)) {
             ref sname : Str = type_name_ref(dd.til_type, symbols)
@@ -6253,7 +6494,7 @@ priv emit_interface_receiver := proc(f: File, iface_name: Str, concrete: Str, pa
         if param.own_type.is(OwnType.Shallow) { f.write("&") }
         f.write(param.name).write(";\n")
         f.write("        if (").write(source).write("->iface_type_name.count != ").write(concrete.len().to_str())
-            .write(" || memcmp(").write(source).write("->iface_type_name.c_str, \"").write(concrete).write("\", ")
+            .write(" || memcmp(TIL_OWN_GET(I8, ").write(source).write("->iface_type_name.c_str), \"").write(concrete).write("\", ")
             .write(concrete.len().to_str()).write(") != 0) { fprintf(stderr, \"interface dispatch: Self arguments have different runtime types\\n\"); exit(1); }\n")
     }
     f.write("        ").write(concrete).write(" *").write(payload).write(" = (").write(concrete).write(" *)").write(source).write("->iface_val;\n")
@@ -6291,8 +6532,8 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
             ref target : FunctionDef = funcdef_of(find_namespace_func(def, method, lp.ctx.scope, lp.ctx.symbols).unwrap())
             arms++
             f.write("    if (").write(receiver).write("->iface_type_name.count == ")
-                .write(concrete.len().to_str()).write(" && memcmp(").write(receiver)
-                .write("->iface_type_name.c_str, \"").write(concrete).write("\", ")
+                .write(concrete.len().to_str()).write(" && memcmp(TIL_OWN_GET(I8, ").write(receiver)
+                .write("->iface_type_name.c_str), \"").write(concrete).write("\", ")
                 .write(concrete.len().to_str()).write(") == 0) {\n")
             for i in 0..fd.sig.params.len() {
                 if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols).eq("Str")
@@ -6392,8 +6633,9 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     } else {
                         f.write("        ").write(name).write(" *_t_iface_box = malloc(TIL_BOX(").write(name).write("));\n        *_t_iface_box = (")
                     }
-                    f.write(name).write("){.iface_type_name = (Str){.c_str=(void *)\"")
-                        .write(concrete).write("\", .count=").write(concrete.len().to_str()).write(", .cap=TIL_CAP_LIT}, .iface_val=(void *)_t_iface_payload};\n")
+                    f.write(name).write("){.iface_type_name = (Str){")
+                    emit_lit_c_str_init(f, concrete, lp.ctx)
+                    f.write(", .count=").write(concrete.len().to_str()).write(", .cap=TIL_CAP_LIT}, .iface_val=(void *)_t_iface_payload};\n")
                     f.write("        return _t_iface_box;\n")
                 } else if func_returns_c_value(fd).not().and(func_returns_c_value(target)) {
                     result_type := type_name_to_c_value(fd.sig.return_type, lp.ctx)
@@ -6453,7 +6695,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
     // always USize (set in gen_size_method_for_stmt), resolved here the same way
     // the forward decl resolves it. The constfolder leaves these calls unfolded
     // for the same case (see size_intrinsics_use_sizeof / constfolder_classify_stmt).
-    if is_auto_size.and(size_intrinsics_use_sizeof(lp.ctx)) {
+    if is_auto_size.and(size_intrinsics_emit_sizeof(lp.ctx)) {
         // Return type is USize; its resolved scalar C name is the target pname
         // ("U32"/"U64"), matching how the forward decl resolves it.
         mut sized_name := name.clone()
@@ -7025,10 +7267,21 @@ priv c_header_ident_before := func(line: Str, pos: USize) returns Str {
 // have a source Declaration while keeping local variables and struct fields
 // out of the preprocessor namespace map.
 priv c_lib_collect_header_names := func(content: Str, mut names: Vec(Str), mut seen: Set(Str)) {
+    // Only file-scope declarations name linker symbols. A line inside braces
+    // is a struct field (`TIL_OWN_PTR(I8) c_str;`, issue #313) or a static
+    // inline function's body (`return (U32)off;`), never a declaration.
+    mut depth : I64 = 0
     for raw : Str in content.split("\n") {
         line := raw.trim()
         if line.len() == 0 { continue }
         if line.starts_with("#").or(line.starts_with("//")).or(line.starts_with("/*")) { continue }
+        depth_before := depth
+        for ci in 0..line.len() {
+            ref ch : I8 = line.unsafe_get(ci)
+            if ch.eq('{') { depth++ }
+            if ch.eq('}') { depth-- }
+        }
+        if depth_before > 0 { continue }
         if line.ends_with(";").not() { continue }
         paren := line.rfind("(")
         if paren >= 0 {
@@ -9597,7 +9850,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                         if dfn_fd.sig.func_type.is_ext().and(def_is_interface(def)).or(func_type_is_core(dfn_fd.sig.func_type)).not().and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
                             tlen := dd.name.len()
                             mlen := nsd_name.len()
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, method->c_str), \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
                         }
                     case:
                     }
@@ -9625,7 +9878,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
                     if dfn_fd2.sig.func_type.is_ext().and(def_is_interface(def)).or(func_type_is_core(dfn_fd2.sig.func_type)).not().and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
                         tlen := dd.name.len()
                         mlen := nsd2_name.len()
-                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")
+                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, method->c_str), \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")
                     }
                 case:
                 }
@@ -9635,7 +9888,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
     // Same wording as the interpreter's h_dyn_fn: the arms above cover the
     // kept FuncDef members, so falling through here means "no method by
     // that name" whether the member is absent or holds a value.
-    f.write("    fprintf(stderr, \"dyn_fn: no method %s.%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n")
+    f.write("    fprintf(stderr, \"dyn_fn: no method %s.%s\\n\", (char*)TIL_OWN_GET(I8, type_name->c_str), (char*)TIL_OWN_GET(I8, method->c_str));\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
     emit_typed_dyn_fn_lookups(f, lp)
@@ -9643,7 +9896,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, mut lp: LoadedProgram) {
 
 priv emit_dyn_name_return_branch := proc(f: File, type_name: Str, ret_expr: Str) {
     tlen := type_name.len()
-    f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(type_name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return ").write(ret_expr).write(";\n")
+    f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(type_name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return ").write(ret_expr).write(";\n")
 }
 
 // One `if (name == "X") return sizeof(X);` arm. The C `sizeof` is what
@@ -9653,7 +9906,7 @@ priv emit_dyn_name_return_branch := proc(f: File, type_name: Str, ret_expr: Str)
 priv emit_dyn_size_of_arm := proc(f: File, tname: Str) {
     tlen := tname.len()
     f.write("    if (type_name->count == "); emit_usize(f, tlen)
-    f.write("ULL && memcmp(type_name->c_str, \"").write(tname).write("\", "); emit_usize(f, tlen)
+    f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(tname).write("\", "); emit_usize(f, tlen)
     f.write("ULL) == 0) return sizeof(").write(tname).write(");\n")
 }
 
@@ -9692,7 +9945,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
             emit_dyn_size_of_arm(f, dd.name)
         }
     }
-    f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
+    f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
 }
@@ -9746,7 +9999,7 @@ priv emit_dyn_storage_kind_body := proc(f: File, mut lp: LoadedProgram) {
             }
         }
     }
-    f.write("    fprintf(stderr, \"dyn_storage_kind: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
+    f.write("    fprintf(stderr, \"dyn_storage_kind: unknown type %.*s\\n\", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
 }
@@ -9767,7 +10020,7 @@ priv emit_reflect_found_mark := proc(f: File) {
 
 priv emit_reflect_index_tails := proc(f: File, who: Str) {
     f.write("    if (_found) {\n")
-    f.write("        fprintf(stderr, \"").write(who).write(": type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)type_name->c_str, (long long)*index);\n")
+    f.write("        fprintf(stderr, \"").write(who).write(": type '%.*s' index %lld out of range\\n\", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str), (long long)*index);\n")
     f.write("        exit(1);\n")
     f.write("    }\n")
     emit_reflect_not_found_tail(f, who)
@@ -9779,7 +10032,7 @@ priv emit_reflect_index_tails := proc(f: File, who: Str) {
 // is the same one: the type was swept, and nothing in the program text says
 // so.
 priv emit_reflect_not_found_tail := proc(f: File, who: Str) {
-    f.write("    fprintf(stderr, \"").write(who).write(": type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
+    f.write("    fprintf(stderr, \"").write(who).write(": type '%.*s' not found\\n\", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));\n")
     f.write("    fprintf(stderr, \"  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere\\n\");\n")
     f.write("    exit(1);\n}\n\n")
 }
@@ -9799,7 +10052,7 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
     switch stmt.children[0].node_type {
     case .StructDef(sd):
         tlen := sname.len()
-        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(sname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
+        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(sname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
         if kind == 0 {
             f.write("        return "); emit_usize(f, sd.fields.len()); f.write("LL;\n")
         } else {
@@ -9884,7 +10137,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
     switch stmt.children[0].node_type {
     case .EnumDef(ed):
         tlen := ename.len()
-        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(ename).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
+        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(ename).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
         if kind == 0 {
             f.write("        return "); emit_usize(f, ed.variants.len()); f.write("LL;\n")
         } else if kind == 7 {
@@ -10008,7 +10261,7 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
     switch stmt.children[0].node_type {
     case .FuncDef(fd):
         tlen := fname.len()
-        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(fname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
+        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(fname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
         if kind == 0 {
             f.write("        return "); emit_usize(f, funcsig_reflect_param_count(fd)); f.write("LL;\n")
         } else if kind == 2 {
@@ -10132,12 +10385,12 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     if builder_needs_reflect("func_sig_return_own_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_own_type(Str *type_name) {\n")
         emit_funcsig_branches(f, 11, lp)
-        f.write("    fprintf(stderr, \"func_sig_return_own_type: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        f.write("    fprintf(stderr, \"func_sig_return_own_type: type '%.*s' not found\\n\", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));\n    exit(1);\n}\n\n")
     }
     if builder_needs_reflect("func_sig_return_shallow_explicit", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_shallow_explicit(Str *type_name) {\n")
         emit_funcsig_branches(f, 12, lp)
-        f.write("    fprintf(stderr, \"func_sig_return_shallow_explicit: type '%.*s' not found\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+        f.write("    fprintf(stderr, \"func_sig_return_shallow_explicit: type '%.*s' not found\\n\", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));\n    exit(1);\n}\n\n")
     }
     if builder_needs_reflect("func_sig_throw_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name) {\n")
@@ -10357,22 +10610,22 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                     if info.nargs == 2 {
                         if info.has_return {
                             if ret_sh {
-                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
                             } else {
-                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write(");\n")
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write(");\n")
                             }
                         } else {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return; }\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return; }\n")
                         }
                     } else {
                         if info.has_return {
                             if ret_sh {
-                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
                             } else {
-                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(");\n")
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(");\n")
                             }
                         } else {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return; }\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return; }\n")
                         }
                     }
                     case:
@@ -10435,22 +10688,22 @@ priv emit_dyn_call_bodies := proc(f: File, mut lp: LoadedProgram) {
                 if info.nargs == 2 {
                     if info.has_return {
                         if ret_sh {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return _r; }\n")
                         } else {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write(");\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write(");\n")
                         }
                     } else {
-                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return; }\n")
+                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write(", ").write(arg2_s).write("); return; }\n")
                     }
                 } else {
                     if info.has_return {
                         if ret_sh {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(ret_ct).write(" *_r = malloc(TIL_BOX(").write(ret_ct).write(")); *_r = ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return _r; }\n")
                         } else {
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(");\n")
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return (void *)").write(dd.name).write("_").write(method).write("(").write(arg1).write(");\n")
                         }
                     } else {
-                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return; }\n")
+                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) { ").write(dd.name).write("_").write(method).write("(").write(arg1).write("); return; }\n")
                     }
                 }
                 case:
@@ -10523,9 +10776,9 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
         if dyn_has_arms.len() == 0 { f.write("    (void)_type_name;\n") }
         for dyn_has_tn : Str in dyn_has_arms {
             if dyn_has_shallow {
-                f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) return 1;\n")
+                f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) return 1;\n")
             } else {
-                f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) { Bool *r = malloc(TIL_BOX(Bool)); *r = 1; return r; }\n")
+                f.write("    if (type_name->count == "); emit_usize(f, dyn_has_tn.len()); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(dyn_has_tn).write("\", "); emit_usize(f, dyn_has_tn.len()); f.write("ULL) == 0) { Bool *r = malloc(TIL_BOX(Bool)); *r = 1; return r; }\n")
             }
         }
         if dyn_has_shallow { f.write("    return 0;\n") }
@@ -10549,7 +10802,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             f.write(vec_ctype).write(" *vec_of_").write(et).write("(int count, ...) {\n")
             if vec_type == "Vec" {
                 f.write("    USize _esz = sizeof(").write(et).write(");\n")
-                f.write("    Vec *_v = Vec_new(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+                f.write("    Vec *_v = Vec_new(&(Str){"); emit_lit_c_str_init(f, et, lp.ctx); f.write(", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
             } else {
                 f.write("    ").write(vec_ctype).write(" *_v = ").write(vec_type).write("_new();\n")
             }
@@ -10574,10 +10827,10 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             f.write("    USize _cap = count;\n")
             f.write("    ").write(arr_ctype).write(" _a = ")
             if arr_type == "Array" {
-                f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
+                f.write("Array_new_type_name(&(Str){"); emit_lit_c_str_init(f, et, lp.ctx); f.write(", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
             } else {
                 f.write("malloc(TIL_BOX(").write(arr_type).write("));\n")
-                f.write("    _a->data = calloc((UPtr)_cap, (UPtr)sizeof(").write(et).write("));\n")
+                f.write("    TIL_OWN_SET(_a->data, calloc((UPtr)_cap, (UPtr)sizeof(").write(et).write(")));\n")
                 f.write("    _a->cap = _cap;\n")
             }
             f.write("    va_list ap; va_start(ap, count);\n")
@@ -10594,7 +10847,7 @@ priv emit_collection_helpers := proc(f: File, mut lp: LoadedProgram) {
             // matching note in main()'s variadic wrapper). The slot is freshly
             // zero-allocated and `_idx` is in bounds, so memcpy is correct and
             // decoupled from Array.set's signature.
-            f.write("        memcpy((U8 *)(_a->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(et).write("), _val, (UPtr)sizeof(").write(et).write("));\n")
+            f.write("        memcpy((U8 *)TIL_OWN_GET(U8, _a->data) + ((UPtr)_idx) * (UPtr)sizeof(").write(et).write("), _val, (UPtr)sizeof(").write(et).write("));\n")
             f.write("        memset(_val, 0, (UPtr)sizeof(").write(et).write("));\n")
             f.write("        ").write(et).write("_delete(_val, 1);\n")
             f.write("    }\n")
@@ -11431,7 +11684,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // it is always in bounds: every allocating Str path reserves count+1
     // (issue #343's audit) and a view's end never passes its base's.
     if lp.ctx.builder_cstr_used {
-        f.write("#define TIL_CSTR(s, loc) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"%s: panic: ").write(CSTR_VIEW_PANIC).write("\\n\", loc); exit(1); } _cs->c_str; })\n")
+        f.write("#define TIL_CSTR(s, loc) ({ Str *_cs = (s); I8 *_cb = TIL_OWN_GET(I8, _cs->c_str); if (!_cb || _cb[_cs->count]) { fprintf(stderr, \"%s: panic: ").write(CSTR_VIEW_PANIC).write("\\n\", loc); exit(1); } _cb; })\n")
     }
 
     f.write("#define TIL_CAP_LIT ((USize)0 - (USize)1)\n")
@@ -11440,7 +11693,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     if print_single_kept {
         partitioned_print := begin_shared_core_definition(f, "print_single", lp.ctx)
         f.write(pp_st).write("void print_single(Str *s) {\n")
-        f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
+        f.write("    fwrite(TIL_OWN_GET(I8, s->c_str), 1, (size_t)s->count, stdout);\n")
         f.write("}\n")
         end_shared_core_definition(f, partitioned_print)
     }
@@ -12015,7 +12268,7 @@ priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, 
     f.write("; I64 *_t_simd_mem_error = ")
     emit_as_ptr(f, e.children[array_arg + 2], depth, false, ctx)
     f.write("; USize _t_simd_mem_count = _t_simd_mem_values->cap; if (_t_simd_mem_start <= _t_simd_mem_count && _t_simd_mem_count - _t_simd_mem_start >= ")
-        .write(sd.simd_width.to_str()).write(") {\n#if defined(__OPTIMIZE__) && defined(__GNUC__) && !defined(__clang__)\nU8 *_t_simd_mem_address = (U8 *)_t_simd_mem_values->data + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0); ")
+        .write(sd.simd_width.to_str()).write(") {\n#if defined(__OPTIMIZE__) && defined(__GNUC__) && !defined(__clang__)\nU8 *_t_simd_mem_address = (U8 *)TIL_OWN_GET(U8, _t_simd_mem_values->data) + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0); ")
     for i in 0..sd.simd_width {
         lane := format("_t_simd_mem_value.lane", i.to_str())
         address := format("_t_simd_mem_address + ", i.to_str(), " * sizeof(", lane, ")")
@@ -12029,7 +12282,7 @@ priv emit_inline_simd_memory := proc(f: File, e: Expr, owner: Str, member: Str, 
     // scalarizes the bulk form well. This also works for externally compiled
     // translations: the C compiler's own mode selects the representation.
     f.write("\n#else\nmemcpy(")
-    address := "(U8 *)_t_simd_mem_values->data + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0)"
+    address := "(U8 *)TIL_OWN_GET(U8, _t_simd_mem_values->data) + (UPtr)_t_simd_mem_start * sizeof(_t_simd_mem_value.lane0)"
     if store { f.write(address).write(", &_t_simd_mem_value") }
     else { f.write("&_t_simd_mem_value, ").write(address) }
     f.write(", sizeof(_t_simd_mem_value));\n#endif\n")
