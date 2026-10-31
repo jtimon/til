@@ -159,6 +159,27 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** I32x4/U32x4 SIMD (base f2ad7b5ca)
+
+Integer four-lane vectors now support new/splat/zero, wrapping arithmetic and
+reduce_add, division, bitwise operations, all comparisons, mask selection,
+checked lane reads/updates, and checked load/store on borrowed I32/U32 arrays.
+Signed/unsigned predicates retain lane semantics. Division replaces exceptional
+divisors before evaluating LLVM div: zero yields zero and signed MIN/-1 yields
+MIN, matching the existing SIMD div_lane contract without creating poison.
+
+The SysV public ABI uses two i64 INTEGER chunks, not an SSE vector. Calls,
+returns and mixed scalar/pointer/mask/SSE arguments use that representation.
+More than six INTEGER slots with integer-vector parameters is rejected pending
+whole-aggregate stack passing; hidden error/sret pointers count toward the limit.
+
+Differential tests cover boundary bit patterns, wraparound and division, all
+comparison predicates and selection masks, the six-register ABI boundary,
+same-file calls, lane failures, scalar-aligned memory, failed-write preservation,
+empty/maximal-index accesses and signed/unsigned reference widening. Interpreter/C
+references and ASAN C/til callers run at O0/O2/O3 with both USize widths. The
+translation/ABI-limit checks remain independent of installed LLVM tools.
+
 *** Temporary C-core bridge for strings/runtime (base 3515db554)
 
 The human approved using the C-compiled core as an interim bridge. MLIR emits

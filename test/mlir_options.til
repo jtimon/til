@@ -23,7 +23,15 @@ main := proc(compiler_arg: Str) {
         File.writefile(format(work, "/buffers.til"), "mode pure\nF4 := Simd(F32,4)\nload_values := func(a: Array(F32),i: USize) returns F4 throws OutOfBounds { return F4.load(a,i)? }\nstore_values := func(mut a: Array(F32),i: USize,v: F4) throws OutOfBounds { v.store(a,i)? }\nscalar_read := func(a: Array(F32),i: USize) returns F32 throws OutOfBounds { ref value: F32 = a.get(i)?; return value.clone() }\n")
         File.writefile(format(work, "/masks.til"), "mode pure\nF4:=Simd(F32,4)\nM4:=Simd(Bool,4)\ncompare:=func(a:F4,b:F4) returns M4 { return a!=b }\nchoose:=func(m:M4,a:F4,b:F4) returns F4 { return F4.select(m,a,b) }\nevery:=func(m:M4) returns Bool { return m.all() }\n")
         File.writefile(format(work, "/strings.til"), "mode lib\ndecorate:=func(s:Str) returns Str {return format(\"[\",s,\"]\")}\n")
+        File.writefile(format(work, "/integer_vectors.til"), "mode pure\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nM4:=Simd(Bool,4)\nsigned_div:=func(a:S4,b:S4) returns S4 {return a/b}\nunsigned_div:=func(a:U4,b:U4) returns U4 {return a/b}\nsigned_less:=func(a:S4,b:S4) returns M4 {return a<b}\nunsigned_less:=func(a:U4,b:U4) returns M4 {return a<b}\nload:=func(a:Array(I32),i:USize) returns S4 throws OutOfBounds {return S4.load(a,i)?}\n")
         for width in array(Str, "32", "64") {
+            integers := Cmd.new(compiler, "translate", "--backend=mlir", format("--usize=", width), "integer_vectors.til")
+            integers.cwd(work).capture()
+            integers_status := integers.run()
+            expect(integers_status == 0, integers.out(), integers.err())
+            integers_ir := File.readfile(format(work, "/gen/mlir/integer_vectors.mlir"))
+            expect(integers_ir.contains("!llvm.struct<(i64, i64)>") && integers_ir.contains("arith.divsi") && integers_ir.contains("arith.divui"), integers_ir)
+            expect(integers_ir.contains("arith.cmpi slt") && integers_ir.contains("arith.cmpi ult") && integers_ir.contains("alignment = 4 : i64} : !llvm.ptr -> vector<4xi32>"), integers_ir)
             strings := Cmd.new(compiler, "translate", "--backend=mlir", format("--usize=", width), "strings.til")
             strings.cwd(work).capture()
             strings_status := strings.run()
@@ -111,6 +119,11 @@ main := proc(compiler_arg: Str) {
         expect(bad.run() != 0, "unsupported division accepted")
         expect(bad.out().contains("unsupported operation 'div'"), bad.out(), bad.err())
         expect(bad.out().contains("bad.til:2:"), bad.out())
+        File.writefile(format(work, "/integer_spill.til"), "mode pure\nS4:=Simd(I32,4)\nspill:=func(a:I32,b:I32,c:I32,d:I32,e:I32,v:S4) returns S4 {return v+S4.splat(a+b+c+d+e)}\n")
+        spill := Cmd.new(compiler, "translate", "--backend=mlir", "integer_spill.til")
+        spill.cwd(work).capture()
+        expect(spill.run() != 0, "unsupported integer SIMD stack ABI accepted")
+        expect(spill.out().contains("more than six INTEGER argument slots"), spill.out(), spill.err())
     }
     for command_name in array(Str, "interpret", "test", "ast", "doc", "install", "bindings") {
         bad := Cmd.new(compiler, command_name, "--backend=mlir", "add.til")

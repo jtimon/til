@@ -166,14 +166,15 @@
 
   This is a restricted value/control-flow backend, not GPU execution or a
   replacement for the general C backend. It supports F32, ~Simd(F32,4)~,
+  ~Simd(I32,4)~, ~Simd(U32,4)~,
   ~Simd(Bool,4)~ masks,
   Bool, I32/U32 and I64/U64 values, including USize/UPtr aliases resolved
   through the existing target configuration. Value parameters are immutable;
-  locals may be mutable. Borrowed ~Array(F32)~ parameters support read-only
+  locals may be mutable. Borrowed ~Array(F32)~, ~Array(I32)~ and ~Array(U32)~ parameters support read-only
   inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
   scalar comparisons, Boolean logic, cloning, literals, same-file direct
-  calls and returns. Integer division, shifts and other unsupported
+  calls and returns. Scalar integer division, shifts and other unsupported
   operations still produce diagnostics. SIMD ~new~,
   ~splat~, ~zero~, fixed-order ~reduce_add~ and checked lane
   access/update (~v[i]~, ~v.get(i)?~, ~v.set(i,own x)!~) are supported. Unsupported arithmetic,
@@ -217,19 +218,36 @@
   Accepted 32-to-64-bit integer widening uses sign or zero extension as
   appropriate, including widened locals, assignments and return values.
 
+  I32x4/U32x4 use ~vector<4xi32>~ internally. Their four scalar fields cross
+  the SysV ABI as two i64 INTEGER chunks for arguments and returns, independent
+  of the SSE budget. Sign-sensitive comparisons and division use the source
+  lane type; arithmetic and reduce_add wrap modulo 2^32 without LLVM overflow
+  promises. Division returns zero for a zero divisor, and signed MIN/-1 returns
+  MIN, matching til's SIMD div_lane. Exceptional lanes receive a safe divisor
+  before LLVM division, rather than selecting away a poison result afterwards.
+  Construction, splat, zero, band/bor/bxor/bnot, comparisons, mask selection,
+  checked lanes and checked load/store are supported for both types.
+
+  Functions taking integer SIMD currently reject more than six INTEGER argument
+  slots, counting scalar/pointer/mask arguments and any hidden sret/error pointer.
+  Whole-aggregate stack passing needs a separate ABI extension. Tests exercise
+  the six-register boundary, mixed scalar/vector/SSE arguments, direct calls,
+  signed/unsigned boundary values, wraparound, zero/overflow division, all
+  selection masks, and C/til consumers at both USize widths and O0/O2/O3.
+
   F32x4 comparisons return elementwise Bool masks. Equality and ordered
   comparisons are false for NaNs; inequality is true for unordered operands,
   matching the interpreter/C backend. Masks use ~vector<4xi1>~ internally and
   four normalized Bool bytes at the public ABI (one SysV INTEGER/i32 chunk),
   not packed predicate bits. They support construction, splat, zero, checked
   lane reads, equality/inequality, band/bor/bxor/bnot and all/any reductions.
-  ~select~ accepts masks and either F32x4 or Boolx4 values and preserves the
+  ~select~ accepts masks and F32x4, I32x4, U32x4 or Boolx4 values and preserves the
   selected lane's bits, including signed zero and NaN payloads. Mask operands
   are values; these operations do not introduce scalar short-circuiting or
   masked memory access. Mutable mask locals and same-file calls retain the
   same representation conversions as exported functions.
 
-  F32x4 and Boolx4 lane reads and local updates accept runtime indices.
+  F32x4, I32x4, U32x4 and Boolx4 lane reads and local updates accept runtime indices.
   Unsigned USize comparison against 4 precedes extraction/insertion, with no
   truncation that could turn an invalid wide index into a valid one. Failure
   writes OutOfBounds tag 1 and leaves the vector unchanged; preceding writes
@@ -243,7 +261,9 @@
   Borrowed buffers retain the existing C Array ABI: a pointer to a descriptor
   containing a data pointer followed by a USize capacity. The capacity field
   uses the selected USize width; the data pointer stays pointer-sized.
-  ~len~, checked scalar ~get/set~ and ~Simd(F32,4).load/store~ are supported.
+  ~len~, checked scalar ~get/set~ and four-lane ~load/store~ are supported for
+  F32, I32 and U32 buffers. Borrowed integer element reads retain signedness
+  when widened to I64.
   Element references may be read or, when declared mutable, written through.
   Buffer aliases borrow the same descriptor. Allocation, cloning, destruction,
   array returns and descriptor replacement stay in the host; passing an array

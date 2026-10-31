@@ -150,6 +150,68 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_integer_vectors := proc(compiler: Str, work: Str) {
+    mut source := "mode pure\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nM4:=Simd(Bool,4)\nF4:=Simd(F32,4)\n"
+    mut declarations := "#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\ntypedef struct{int32_t v[4];}S4;typedef struct{uint32_t v[4];}U4;typedef struct{uint8_t v[4];}M4;typedef struct{float v[4];}F4;typedef struct{void *data;Count cap;}Buffer;\n"
+    for element in array(Str, "I32", "U32") {
+        mut prefix := "s_"; mut vector := "S4"; mut cscalar := "int32_t"
+        if element=="U32" { prefix="u_"; vector="U4"; cscalar="uint32_t" }
+        for op in array(Str, "add", "sub", "mul", "div", "band", "bor", "bxor", "eq", "neq", "lt", "lte", "gt", "gte") {
+            mut result := vector.clone()
+            if op=="eq" || op=="neq" || op=="lt" || op=="lte" || op=="gt" || op=="gte" { result="M4" }
+            source=format(source,prefix,op,":=func(a:",vector,",b:",vector,") returns ",result," {return a.",op,"(b)}\n")
+            declarations=format(declarations,"extern ",result," ",prefix,op,"(",vector,",",vector,");\n")
+        }
+        source=format(source,
+            prefix,"new:=func(a:",element,",b:",element,",c:",element,",d:",element,") returns ",vector," {return ",vector,".new(a,b,c,d)}\n",
+            prefix,"splat:=func(a:",element,") returns ",vector," {return ",vector,".splat(a)}\n",
+            prefix,"zero:=func() returns ",vector," {return ",vector,".zero()}\n",
+            prefix,"bnot:=func(a:",vector,") returns ",vector," {return a.bnot()}\n",
+            prefix,"sum:=func(a:",vector,") returns ",element," {return a.reduce_add()}\n",
+            prefix,"select:=func(m:M4,a:",vector,",b:",vector,") returns ",vector," {return ",vector,".select(m,a,b)}\n",
+            prefix,"forward:=func(a:",vector,",b:",vector,") returns ",vector," {return ",prefix,"add(",prefix,"sub(a,b),b)}\n",
+            prefix,"three:=func(a:",vector,",b:",vector,",c:",vector,") returns ",vector," {return a+b+c}\n",
+            prefix,"mixed:=func(x:",element,",a:",vector,",pick:Bool,b:",vector,") returns ",vector," {mut v:=b.clone();if pick {v=a.clone()};v.set(0,own x)!;return v}\n",
+            prefix,"float_mix:=func(a:",vector,",f:F4,b:",vector,") returns ",vector," {if f[0]>0 {return a+b};return a-b}\n",
+            prefix,"lane:=func(a:",vector,",i:USize) returns ",element," throws OutOfBounds {return a.get(i)?}\n",
+            prefix,"set:=func(a:",vector,",i:USize,x:",element,") returns ",vector," {mut v:=a.clone();v.set(i,own x)? catch(err:OutOfBounds){};return v}\n",
+            prefix,"load:=func(a:Array(",element,"),i:USize) returns ",vector," throws OutOfBounds {return ",vector,".load(a,i)?}\n",
+            prefix,"store:=func(mut a:Array(",element,"),i:USize,v:",vector,") throws OutOfBounds {v.store(a,i)?}\n",
+            prefix,"read:=func(a:Array(",element,"),i:USize) returns I64 throws OutOfBounds {ref value:",element,"=a.get(i)?;return value.clone()}\n",
+            prefix,"write:=func(mut a:Array(",element,"),i:USize,x:",element,") throws OutOfBounds {a.set(i,own x)?}\n",
+            prefix,"increment:=func(mut a:Array(",element,"),i:USize) throws OutOfBounds {ref mut value:",element,"=a.get(i)?;value=value+1}\n")
+        declarations=format(declarations,
+            "extern ",vector," ",prefix,"new(",cscalar,",",cscalar,",",cscalar,",",cscalar,"),",prefix,"splat(",cscalar,"),",prefix,"zero(void),",prefix,"bnot(",vector,"),",prefix,"select(M4,",vector,",",vector,"),",prefix,"forward(",vector,",",vector,"),",prefix,"three(",vector,",",vector,",",vector,"),",prefix,"mixed(",cscalar,",",vector,",uint8_t,",vector,"),",prefix,"float_mix(",vector,",F4,",vector,"),",prefix,"set(",vector,",Count,",cscalar,"),",prefix,"load(Buffer*,Count,int64_t*);\n",
+            "extern ",cscalar," ",prefix,"sum(",vector,"),",prefix,"lane(",vector,",Count,int64_t*);extern int64_t ",prefix,"read(Buffer*,Count,int64_t*);extern void ",prefix,"store(Buffer*,Count,",vector,",int64_t*),",prefix,"write(Buffer*,Count,",cscalar,",int64_t*),",prefix,"increment(Buffer*,Count,int64_t*);\n")
+    }
+    File.writefile(format(work,"/integer_simd.til"),source)
+    File.writefile(format(work,"/integer_caller.c"),format(declarations,
+        "static void bits(S4 s,U4 u){assert(memcmp(&s,&u,16)==0);}\nint main(void){const uint32_t p[]={0,1,0xffffffff,0x80000000,0x7fffffff,0x80000001,0xfffffff0,65537,0xa5a5a5a5};for(unsigned i=0;i<9;i++)for(unsigned j=0;j<9;j++){U4 a,b;for(unsigned k=0;k<4;k++){a.v[k]=p[(i+k)%9];b.v[k]=p[(j+k*2)%9];}S4 sa,sb;memcpy(&sa,&a,16);memcpy(&sb,&b,16);U4 add=u_add(a,b),sub=u_sub(a,b),mul=u_mul(a,b),div=u_div(a,b),and=u_band(a,b),or=u_bor(a,b),xor=u_bxor(a,b),not=u_bnot(a),sd;S4 signed_div=s_div(sa,sb);memcpy(&sd,&signed_div,16);uint32_t sum=0;for(unsigned k=0;k<4;k++){assert(add.v[k]==a.v[k]+b.v[k]);assert(sub.v[k]==a.v[k]-b.v[k]);assert(mul.v[k]==(uint32_t)((uint64_t)a.v[k]*b.v[k]));assert(div.v[k]==(b.v[k]?a.v[k]/b.v[k]:0));assert(sd.v[k]==(sb.v[k]?(uint32_t)((int64_t)sa.v[k]/sb.v[k]):0));assert(and.v[k]==(a.v[k]&b.v[k]) && or.v[k]==(a.v[k]|b.v[k]) && xor.v[k]==(a.v[k]^b.v[k]) && not.v[k]==~a.v[k]);sum+=a.v[k];}bits(s_add(sa,sb),add);bits(s_sub(sa,sb),sub);bits(s_mul(sa,sb),mul);bits(s_band(sa,sb),and);bits(s_bor(sa,sb),or);bits(s_bxor(sa,sb),xor);bits(s_bnot(sa),not);assert(u_sum(a)==sum && (uint32_t)s_sum(sa)==sum);bits(s_forward(sa,sb),a);U4 uf=u_forward(a,b);assert(memcmp(&uf,&a,16)==0);\n",
+        "M4 se=s_eq(sa,sb),sn=s_neq(sa,sb),sl=s_lt(sa,sb),sle=s_lte(sa,sb),sg=s_gt(sa,sb),sge=s_gte(sa,sb),ue=u_eq(a,b),un=u_neq(a,b),ul=u_lt(a,b),ule=u_lte(a,b),ug=u_gt(a,b),uge=u_gte(a,b);for(unsigned k=0;k<4;k++){assert(se.v[k]==(sa.v[k]==sb.v[k]) && sn.v[k]==(sa.v[k]!=sb.v[k]) && sl.v[k]==(sa.v[k]<sb.v[k]) && sle.v[k]==(sa.v[k]<=sb.v[k]) && sg.v[k]==(sa.v[k]>sb.v[k]) && sge.v[k]==(sa.v[k]>=sb.v[k]));assert(ue.v[k]==(a.v[k]==b.v[k]) && un.v[k]==(a.v[k]!=b.v[k]) && ul.v[k]==(a.v[k]<b.v[k]) && ule.v[k]==(a.v[k]<=b.v[k]) && ug.v[k]==(a.v[k]>b.v[k]) && uge.v[k]==(a.v[k]>=b.v[k]));}\n",
+        "for(unsigned pattern=0;pattern<16;pattern++){M4 m;for(unsigned k=0;k<4;k++)m.v[k]=(pattern>>k)&1;U4 r=u_select(m,a,b);for(unsigned k=0;k<4;k++)assert(r.v[k]==(m.v[k]?a.v[k]:b.v[k]));bits(s_select(m,sa,sb),r);}U4 three=u_three(a,b,a);for(unsigned k=0;k<4;k++)assert(three.v[k]==a.v[k]+b.v[k]+a.v[k]);bits(s_three(sa,sb,sa),three);for(unsigned pick=0;pick<2;pick++){U4 mixed=u_mixed(0x80000000,a,pick,b);assert(mixed.v[0]==0x80000000);for(unsigned k=1;k<4;k++)assert(mixed.v[k]==(pick?a.v[k]:b.v[k]));bits(s_mixed(INT32_MIN,sa,pick,sb),mixed);F4 f={{(float)pick,0,0,0}};U4 r=u_float_mix(a,f,b);assert(memcmp(&r,pick?&add:&sub,16)==0);bits(s_float_mix(sa,f,sb),r);}\n",
+        "U4 made=u_new(a.v[0],a.v[1],a.v[2],a.v[3]);assert(memcmp(&made,&a,16)==0);bits(s_new(sa.v[0],sa.v[1],sa.v[2],sa.v[3]),a);U4 spl=u_splat(a.v[0]);bits(s_splat(sa.v[0]),spl);for(unsigned k=0;k<4;k++)assert(spl.v[k]==a.v[0]);const Count indices[]={0,1,2,3,4,(Count)-1};for(unsigned q=0;q<6;q++){Count k=indices[q];int64_t err=0;uint32_t lane=u_lane(a,k,&err);assert(err==(k>=4));if(k<4)assert(lane==a.v[k]);err=0;int32_t si=s_lane(sa,k,&err);assert(err==(k>=4));if(k<4)assert(si==sa.v[k]);U4 r=u_set(a,k,0xffffffff);bits(s_set(sa,k,-1),r);for(unsigned n=0;n<4;n++)assert(r.v[n]==(n==k?0xffffffff:a.v[n]));}}\n",
+        "U4 zero=u_zero();S4 sz=s_zero();uint32_t zeros[4]={0};assert(memcmp(&zero,zeros,16)==0 && memcmp(&sz,zeros,16)==0);uint32_t storage[12],out[12],before[12];for(unsigned k=0;k<12;k++){storage[k]=0x80000000+k;out[k]=0xfeedface;}Buffer input={storage+1,8},output={out+1,8},empty={0,0};const Count starts[]={0,1,4,5,8,(Count)-1};for(unsigned q=0;q<6;q++){Count i=starts[q];int good=i<=8 && 8-i>=4;int64_t err=0;U4 v=u_load(&input,i,&err);assert(err==!good);if(good)assert(memcmp(&v,storage+1+i,16)==0);err=0;S4 sv=s_load(&input,i,&err);assert(err==!good);if(good)assert(memcmp(&sv,storage+1+i,16)==0);memcpy(before,out,sizeof out);err=0;u_store(&output,i,u_splat(7),&err);assert(err==!good);if(good)for(unsigned k=0;k<4;k++)before[1+i+k]=7;assert(memcmp(before,out,sizeof out)==0);memcpy(before,out,sizeof out);err=0;s_store(&output,i,s_splat(-7),&err);assert(err==!good);if(good)for(unsigned k=0;k<4;k++)before[1+i+k]=(uint32_t)-7;assert(memcmp(before,out,sizeof out)==0);err=0;int64_t sr=s_read(&input,i,&err);assert(err==(i>=8));if(i<8)assert(sr==(int32_t)storage[1+i]);err=0;int64_t ur=u_read(&input,i,&err);assert(err==(i>=8));if(i<8)assert(ur==storage[1+i]);}\n",
+        "int64_t err=0;s_load(&empty,0,&err);assert(err==1);err=0;u_load(&empty,(Count)-1,&err);assert(err==1);err=0;s_write(&output,0,-1,&err);assert(err==0 && out[1]==0xffffffff);s_increment(&output,0,&err);assert(err==0 && out[1]==0);u_write(&output,0,0xffffffff,&err);u_increment(&output,0,&err);assert(err==0 && out[1]==0);memcpy(before,out,sizeof out);err=0;u_write(&output,(Count)-1,1,&err);assert(err==1 && memcmp(before,out,sizeof out)==0);return 0;}\n"))
+    checks := "main:=proc(){a:=s_new(I32.MIN,I32.MAX,-1,0);b:=s_new(-1,1,0,1);d:=s_div(a,b);assert_eq(I32,s_lane(d,0)!,I32.MIN);assert_eq(I32,s_lane(d,2)!,0);added:=s_add(a,b);assert_eq(I32,s_lane(added,1)!,I32.MIN);u:=u_new(U32.MAX,0,1,2147483648);v:=u_splat(1);q:=u_add(u,v);assert_eq(U32,u_lane(q,0)!,0);sum:=u_sum(u);assert_eq(U32,sum,2147483648);mut input:=array(I32,-1,-2,3,4,5);assert_eq(I64,s_read(input,0)!,-1);loaded:=s_load(input,1)!;assert_eq(I32,s_lane(loaded,0)!,-2);s_store(input,0,a)!;assert_eq(I32,input[0],I32.MIN);mut caught:=false;s_load(input,USize.MAX)? catch(err:OutOfBounds){caught=true};assert(caught);println(\"integer SIMD PASS\")}\n"
+    File.writefile(format(work,"/integer_reference.til"),format("mode cli\nimport(\"integer_simd\")\n",checks))
+    File.writefile(format(work,"/integer_consumer.til"),format(
+        "mode cli\nlink(\"gen/lib/libinteger_simd.so\")\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
+        "s_new:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32) returns shallow S4 {}\ns_div:=ext_func(shallow a:S4,shallow b:S4) returns shallow S4 {}\ns_add:=ext_func(shallow a:S4,shallow b:S4) returns shallow S4 {}\ns_lane:=ext_func(shallow a:S4,shallow i:USize) returns shallow I32 throws OutOfBounds {}\n",
+        "u_new:=ext_func(shallow a:U32,shallow b:U32,shallow c:U32,shallow d:U32) returns shallow U4 {}\nu_splat:=ext_func(shallow a:U32) returns shallow U4 {}\nu_add:=ext_func(shallow a:U4,shallow b:U4) returns shallow U4 {}\nu_lane:=ext_func(shallow a:U4,shallow i:USize) returns shallow U32 throws OutOfBounds {}\nu_sum:=ext_func(shallow a:U4) returns shallow U32 {}\n",
+        "s_read:=ext_func(a:Array(I32),shallow i:USize) returns shallow I64 throws OutOfBounds {}\ns_load:=ext_func(a:Array(I32),shallow i:USize) returns shallow S4 throws OutOfBounds {}\ns_store:=ext_func(mut a:Array(I32),shallow i:USize,shallow v:S4) throws OutOfBounds {}\n",checks))
+    for width in array(Str,"32","64") {
+        flag:=format("--usize=",width)
+        for command in array(Str,"interpret","run") { reference:=Cmd.new(compiler,command,flag,"integer_reference.til");checked(reference,work) }
+        for level in array(Str,"0","2","3") {
+            build:=Cmd.new(compiler,"build","--backend=mlir",flag,format("--opt=",level),"integer_simd.til");checked(build,work)
+            cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","integer_caller.c","gen/lib/libinteger_simd.a","-lm","-o","integer_caller")
+            if width=="32" {cc.arg("-DCOUNT32")};checked(cc,work)
+            native:=Cmd.new("./integer_caller");checked(native,work)
+            consumer:=Cmd.new(compiler,"run","--asan",flag,"integer_consumer.til");checked(consumer,work)
+        }
+    }
+}
+
 priv check_runtime := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/runtime_strings.til"), format(
         "mode lib\n",
@@ -533,5 +595,6 @@ main := proc(compiler_arg: Str) {
     check_lanes(compiler, work)
     check_float_arithmetic(compiler, work)
     check_runtime(compiler, work)
+    check_integer_vectors(compiler, work)
     println("mlir PASS")
 }
