@@ -1648,6 +1648,9 @@ priv BodyFacts := struct {
     // top-level initializer target. Unlike decls/transfers it also reads
     // Assign payloads inside nested FuncDefs.
     reassigns := Vec(U64).new()
+    // A reference-loan walk cannot create edges without a Ref declaration.
+    // Include nested declarations: they can rebind an enclosing reference.
+    has_reference_decls := false
     // Names whose pointer a statement stores into raw memory
     // (write_ptr): reachable afterwards through storage the pass cannot
     // see, so their cleanup stands down.
@@ -1741,12 +1744,14 @@ priv zeroed_words := func(total: USize) returns Vec(U64) {
     return v
 }
 
-priv collect_reassign_facts := func(e: Expr, fi: FactIndex, base: USize, mut reassigns: Vec(U64)) {
+priv collect_reassign_facts := func(e: Expr, fi: FactIndex, base: USize, mut reassigns: Vec(U64), mut has_reference_decls: Bool) {
     switch e.node_type {
     case .Assign(ad): fact_record_name(fi, ad.name, base, reassigns)
+    case .Decl(dd):
+        if dd.own_type.is(OwnType.Ref) { has_reference_decls = true }
     case:
     }
-    for child : Expr in e.children { collect_reassign_facts(child, fi, base, reassigns) }
+    for child : Expr in e.children { collect_reassign_facts(child, fi, base, reassigns, has_reference_decls) }
 }
 
 priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool, fi: FactIndex, symbols: SymbolPool) returns BodyFacts {
@@ -1768,7 +1773,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
         // walks over the same subtree -- 1.8M collector calls per
         // maps.til compile where one walk needs 411K.
         expr_collect_stmt_facts(stmt, scope, with_transfers, true, fi, base, bf.uses, bf.decls, bf.nested, bf.escapes, bf.transfers, symbols)
-        collect_reassign_facts(stmt, fi, base, bf.reassigns)
+        collect_reassign_facts(stmt, fi, base, bf.reassigns, bf.has_reference_decls)
         mut dname := ""
         if stmt.children.len() >= 1 {
             switch stmt.node_type {
@@ -2333,10 +2338,12 @@ priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach
 
 priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool, ctx: Context) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
-    mut reference_names := Map(Str, Str).new()
-    mut reference_loans := ReferenceLoans()
-    for i in 0..body.children.len() {
-        collect_reference_loans(body.children[i], scope, true, i.to_i64(), reference_names, reference_loans, edges, symbols)
+    if facts.has_reference_decls {
+        mut reference_names := Map(Str, Str).new()
+        mut reference_loans := ReferenceLoans()
+        for i in 0..body.children.len() {
+            collect_reference_loans(body.children[i], scope, true, i.to_i64(), reference_names, reference_loans, edges, symbols)
+        }
     }
     body_last := body.children.len().sub(1).to_i64()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads

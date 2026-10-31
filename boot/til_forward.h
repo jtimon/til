@@ -1320,6 +1320,7 @@ typedef struct priv___src_self_garbager_til__BodyFacts {
     Vec__U64 nested;
     Vec__U64 transfers;
     Vec__U64 reassigns;
+    Bool has_reference_decls;
     Vec__U64 escapes;
     Vec__Str def_names;
     Vec__I64 def_bits;

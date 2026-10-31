@@ -72,10 +72,21 @@ is an additional analysis policy, not a consequence of reference ownership.
   Verification: clean full suite 491/491; ASAN ~fasm_native~ and ~fasm_runtime~
   drivers pass against ~bin/til_asan~, including the extended fixture.
 
+  Follow-up (2026-10-31, base ~f2ad7b5ca~): the existing reassignment-fact
+  walk records Ref declaration presence, allowing provably empty loan walks
+  to be skipped. Self-translation drops 491,754 collector visits (16.1%);
+  maps drops 24,420 (36.9%). Three allocating helpers save 577,850 allocations
+  and about 21.3 MiB cumulative traffic. Existing fact-walk counts and frozen
+  C/headers are unchanged; timings show no established elapsed-time gain.
+  Remaining nested walks use scope-dependent identities and edge positions,
+  so child results cannot simply replace enclosing results. Measurements and
+  that limitation are recorded in [[../../doc/optimizations.org][Optimization measurements]].
+  Verification: clean full suite 491/491; both ASAN FASM drivers pass.
+
   - [ ] Measure the regression against the parent of ~7a7ce5a51~, using the
     same builds, inputs and compiler settings. Record time, peak memory and
     profiles; the dominant cost has not yet been established.
-  - [ ] Profile the new scoped reference-loan walk, string-keyed maps/vectors,
+  - [X] Profile the new scoped reference-loan walk, string-keyed maps/vectors,
     scope-name cloning and reach propagation. Check for repeated traversal of
     nested bodies already processed by the destruction pass.
   - [ ] Inventory existing borrow-driven lifetime extensions, not just the
