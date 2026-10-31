@@ -31,7 +31,6 @@
 ** Medium
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
-*** [[./open/367.org][#367]] The NUL guarantee in the type: #343's route 2
 *** [[./open/439.org][#439]] Evaluate and coordinate the user-defined mode promise against real downstream applications
 *** [[./open/451.org][#451]] T() on a primitive type parameter: "cannot instantiate builtin type"
 *** [[./open/454.org][#454]] Generate Kotlin bindings by default for mode lib

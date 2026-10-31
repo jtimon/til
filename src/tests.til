@@ -1216,11 +1216,19 @@ main := proc(args: ..Str) {
     // message appearing exactly once says the terminator check is what
     // stopped it. The safe half (literal / owned / clone) rides
     // test/ext_libc.til, a both entry that must stay green.
+    // The panic names the ARGUMENT that handed C the view -- test/cstr_view.til:46
+    // is `setenv(view.c_str, ...)` -- in the same file:line:col shape every
+    // other diagnostic has, on both backends.
     cstr_view_msg := "Str is not NUL-terminated"
-    add_count(tests, "cstr_view_interp", "cli", cstr_view_msg, 1,
-        format(til_bin, " test/cstr_view.til"))
-    add_count(tests, "cstr_view_run", "cli", cstr_view_msg, 1,
-        format(til_bin, " build", asan_flag, " -o bin/cstr_view test/cstr_view.til '&&' bin/cstr_view"))
+    cstr_view_at := "test/cstr_view.til:46:"
+    add_counts(tests, "cstr_view_interp", "cli",
+        format(til_bin, " test/cstr_view.til"),
+        CountCheck(needle = cstr_view_msg.clone(), expected_count = 1),
+        CountCheck(needle = cstr_view_at.clone(), expected_count = 1))
+    add_counts(tests, "cstr_view_run", "cli",
+        format(til_bin, " build", asan_flag, " -o bin/cstr_view test/cstr_view.til '&&' bin/cstr_view"),
+        CountCheck(needle = cstr_view_msg.clone(), expected_count = 1),
+        CountCheck(needle = cstr_view_at.clone(), expected_count = 1))
 
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command

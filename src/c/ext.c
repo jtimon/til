@@ -2741,6 +2741,15 @@ Bool cpath_is_file(const Str *path) {
     return (st.st_mode & S_IFMT) == S_IFREG;
 }
 
+// The failing ENTRY, not the tree root: a `make clean` that died on
+// `remove_tree: failed for 'bin/c': Permission denied` could not say which
+// of bin/c's children was root-owned, and the reader had to go looking.
+// Reported at the point of failure, where the path is in hand; the callers
+// above only propagate the status.
+static void report_remove_failure(const char *path) {
+    fprintf(stderr, "remove_tree: could not remove '%s': %s\n", path, strerror(errno));
+}
+
 static int remove_tree_cstr(const char *path) {
     struct stat st;
 #ifdef _WIN32
@@ -2749,16 +2758,30 @@ static int remove_tree_cstr(const char *path) {
     DWORD attrs = GetFileAttributesA(path);
     if (attrs == INVALID_FILE_ATTRIBUTES) return 0;
     if (attrs & FILE_ATTRIBUTE_REPARSE_POINT) {
-        if (attrs & FILE_ATTRIBUTE_DIRECTORY) return RemoveDirectoryA(path) ? 0 : 1;
-        return DeleteFileA(path) ? 0 : 1;
+        if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+            if (RemoveDirectoryA(path)) return 0;
+            report_remove_failure(path);
+            return 1;
+        }
+        if (DeleteFileA(path)) return 0;
+        report_remove_failure(path);
+        return 1;
     }
-    if (!(attrs & FILE_ATTRIBUTE_DIRECTORY)) return DeleteFileA(path) ? 0 : 1;
+    if (!(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+        if (DeleteFileA(path)) return 0;
+        report_remove_failure(path);
+        return 1;
+    }
 #else
     // lstat, not stat: a symlink to a directory is unlinked, never
     // followed. `rm -rf link-to-tree` removes the link; walking through
     // it would delete somebody else's files.
     if (lstat(path, &st) != 0) return 0;
-    if (!S_ISDIR(st.st_mode)) return unlink(path) == 0 ? 0 : 1;
+    if (!S_ISDIR(st.st_mode)) {
+        if (unlink(path) == 0) return 0;
+        report_remove_failure(path);
+        return 1;
+    }
 #endif
     (void)st;
 
@@ -2770,7 +2793,7 @@ static int remove_tree_cstr(const char *path) {
     WIN32_FIND_DATAA data;
     HANDLE h = FindFirstFileA(pattern, &data);
     free(pattern);
-    if (h == INVALID_HANDLE_VALUE) return 1;
+    if (h == INVALID_HANDLE_VALUE) { report_remove_failure(path); return 1; }
     do {
         if (path_is_dot_entry(data.cFileName)) continue;
         char *child = path_join(path, data.cFileName);
@@ -2781,13 +2804,15 @@ static int remove_tree_cstr(const char *path) {
     } while (FindNextFileA(h, &data));
     FindClose(h);
     if (rc != 0) return rc;
-    return RemoveDirectoryA(path) ? 0 : 1;
+    if (RemoveDirectoryA(path)) return 0;
+    report_remove_failure(path);
+    return 1;
 #elif defined(__EMSCRIPTEN__)
     (void)rc;
     return 1;
 #else
     DIR *dir = opendir(path);
-    if (!dir) return 1;
+    if (!dir) { report_remove_failure(path); return 1; }
     struct dirent *ent = NULL;
     while ((ent = readdir(dir)) != NULL) {
         if (path_is_dot_entry(ent->d_name)) continue;
@@ -2799,18 +2824,19 @@ static int remove_tree_cstr(const char *path) {
     }
     closedir(dir);
     if (rc != 0) return rc;
-    return rmdir(path) == 0 ? 0 : 1;
+    if (rmdir(path) == 0) return 0;
+    report_remove_failure(path);
+    return 1;
 #endif
 }
 
 // `rm -rf`: remove a file, or a directory with everything under it. A
 // path that does not exist is already removed, so that is success --
 // every other failure (a permission denied halfway down, a non-empty
-// directory left behind) is reported.
+// directory left behind) has already been reported, naming the entry.
 I32 cremove_tree(const Str *path) {
     char *p = dup_n((const char *)path->c_str, path->count);
     int rc = remove_tree_cstr(p);
-    if (rc != 0) fprintf(stderr, "remove_tree: failed for '%s': %s\n", p, strerror(errno));
     free(p);
     return (I32)rc;
 }

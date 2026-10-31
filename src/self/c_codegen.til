@@ -815,6 +815,11 @@ priv c_str_arg_needs_nul_check := func(e: Expr, symbols: SymbolPool) returns Boo
 // plain field access spells it (emit_expr's FieldAccess arm) and take the
 // address of the value forms. A get_payload receiver is `void *` there and
 // needs the same cast that arm emits, here to the known Str type.
+//
+// The second argument is the argument's own `file:line:col`, baked in as a C
+// string: a panic that names where the view was handed to C is the whole
+// point of checking at the boundary -- before this it said only what went
+// wrong, and a reader had to find the call by hand.
 priv emit_checked_c_str := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref obj : Expr = e.children[0]
     mut obj_is_get_payload := false
@@ -835,8 +840,13 @@ priv emit_checked_c_str := proc(f: File, e: Expr, depth: I32, mut ctx: Context) 
     } else {
         emit_expr(f, obj, depth, ctx)
     }
-    f.write(")")
+    at := format(ctx.path, ":", e.line.to_str(), ":", e.col.to_str())
+    f.write(", \"").write(at.replace("\\", "\\\\").replace("\"", "\\\"")).write("\")")
 }
+
+// The message both backends' C-string checks panic with; the cstr_view rows
+// pin it.
+CSTR_VIEW_PANIC := "Str is not NUL-terminated at count (a view into a longer buffer); a C string parameter would read past its end -- clone the view first"
 
 priv til_type_to_c := func(shallow t: Type) returns Str {
     switch t {
@@ -11421,7 +11431,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // it is always in bounds: every allocating Str path reserves count+1
     // (issue #343's audit) and a view's end never passes its base's.
     if lp.ctx.builder_cstr_used {
-        f.write("#define TIL_CSTR(s) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"panic: Str is not NUL-terminated; a C string parameter would read past its end -- clone the view first\\n\"); exit(1); } _cs->c_str; })\n")
+        f.write("#define TIL_CSTR(s, loc) ({ Str *_cs = (s); if (!_cs->c_str || _cs->c_str[_cs->count]) { fprintf(stderr, \"%s: panic: ").write(CSTR_VIEW_PANIC).write("\\n\", loc); exit(1); } _cs->c_str; })\n")
     }
 
     f.write("#define TIL_CAP_LIT ((USize)0 - (USize)1)\n")
