@@ -945,9 +945,25 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
 // mac ASAN suite, issue #25). Pass an explicit =0 there so children still
 // get a deterministic setting; leak checking on darwin needs Apple's
 // `leaks` tooling instead.
+//
+// Only detect_leaks is overridden: every other option in the inherited
+// ASAN_OPTIONS stays, so a setting the environment made for the whole
+// process tree still reaches the child. CI's linux-arm64 job relies on
+// that for detect_stack_use_after_return=0 (GCC 13's fake stack is ~60x
+// slower on that runner, see tests.yml): the plain "detect_leaks=1" this
+// used to return dropped it for every --asan child, and the tests that
+// drive such children (type_arg_qualifiers, doc_api, doc_sdk) took 2-3h
+// there instead of minutes (runs 2850-2866).
 priv asan_child_options := proc() returns Str {
-    if host_os() == "macos" { return "detect_leaks=0" }
-    return "detect_leaks=1"
+    mut kept := Vec(Str).new()
+    for option : Str in get_env("ASAN_OPTIONS").split(":") {
+        if option.len() == 0 { continue }
+        if option.starts_with("detect_leaks=") { continue }
+        kept.push(own option.clone())
+    }
+    if host_os() == "macos" { kept.push(own "detect_leaks=0") }
+    else { kept.push(own "detect_leaks=1") }
+    return join(kept, ":")
 }
 
 // The built program runs through Cmd, never through the host shell. A
