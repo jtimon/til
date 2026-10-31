@@ -2,6 +2,23 @@
 # category: features
 ** OPEN #156 Improve til-mode indentation rules
 
+*** Current mechanism (reviewed 2026-10-31, master 9ab5f052b)
+
+   [[file:../../editor/til-mode.el::(defun til-indent-line][editor/til-mode.el: til-indent-line]] is the implementation, installed as
+   ~indent-line-function~ by ~til-mode~. It walks enclosing delimiters with
+   ~backward-up-list~. An opening brace or parenthesis supplies its line's
+   indentation plus four spaces; closing delimiters align with their opening
+   line. There is no separate signature-body anchor or leading-dot chain
+   rule. This still matches the mechanism behind the historical report.
+
+   The examples below are historical reproductions, not current loader
+   signatures (the container types and compiler structures have changed).
+   Before changing editor behavior, reproduce these small indentation cases
+   directly in Emacs and agree the desired rule. This review inspected the
+   implementation; it did not run a fresh interactive indentation test.
+
+*** Original report and proposed rules
+
 Commit ~6b441819~ ("Indentation: apply current til-mode
   indentation rules") re-indented [[file:../../src/self/*.til][src/self/*.til]] with emacs'
   til-mode and produced some results that read as unusual compared
@@ -70,6 +87,5 @@ Commit ~6b441819~ ("Indentation: apply current til-mode
 
   References:
   - Commit ~6b441819~ applied the current rules in bulk.
-  - Emacs til-mode lives in ~editor/~ (the exact mechanism should
-    be linked here when someone tackles this issue).
-
+  - Emacs til-mode lives in [[file:../../editor/til-mode.el][editor/til-mode.el]]; see the current
+    mechanism above.

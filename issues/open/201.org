@@ -2,6 +2,36 @@
 # category: features
 ** OPEN #201 More built-in error types and safe_* methods
 
+*** Current status (2026-10-31, master 9ab5f052b)
+
+   The original checklist below predates substantial implementation. Keep
+   this issue open for the remaining access/parse and arithmetic work, not
+   for methods that already exist.
+
+   Implemented in [[file:../../src/core/numbers.til][src/core/numbers.til]]:
+   - ~safe_add~, ~safe_sub~, and ~safe_mul~ on ~U8~, ~U16~, ~U32~,
+     ~U64~, ~I16~, ~I32~, and ~I64~. They share ~IntegerOverflow~
+     with a ~msg: Str~ field; the error-name choice is no longer open.
+   - ~F32.safe_div~ and ~F64.safe_div~, as well as ~I64.safe_div~,
+     throw ~DivideByZero~ with a message and caller location.
+   - [[file:../../test/errors.til][test/errors.til]] already covers F32 safe division and checked
+     integer arithmetic, including overflow/underflow catches and messages.
+
+   Remaining work from the original proposal:
+   - ~I8~ checked arithmetic is not present in ~numbers.til~; audit its
+     current representation before extending the numeric family.
+   - [[file:../../src/core/str.til][Str.get]] still panics on an invalid byte index, and ~Str.to_i64~
+     still panics on invalid/out-of-range input. The throwing byte-access
+     API and optional throwing parse API remain design/implementation work.
+   - [[file:../../src/core/tuple.til][Tuple.get]] and [[file:../../src/core/vec.til][Vec.pop]] still have panic-based failure paths.
+     Re-inventory current container methods before applying the old list:
+     [[file:../../src/core/map.til][Map(K, V).get]] already throws ~KeyNotFound~, and the old
+     ~HashMap~ / ~DynHashMap~ / ~DynVec~ names are not a current API map.
+
+   This is a source/test review, not a fresh execution of those tests.
+
+*** Historical proposal (superseded where noted above)
+
    Follow-up to [[../fixed/198.org][#198]]: extend the catalogue of
    built-in error types and the safe_* method variants that throw
    them. [[../fixed/198.org][#198]] shipped only ~DivideByZero~ +

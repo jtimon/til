@@ -4,26 +4,37 @@
 
 *** Summary
 
-til has no regular-expression engine and no general text/stream processing
-library, so mechanical source-to-source edits across the tree cannot be
-written IN til -- they fall back to external sed / awk / Python. The
-immediate trigger was the gte/lte/lt/gt -> >= / <= / < / > sweep across
+The remaining gap is a regular-expression API and reusable higher-level
+text-processing helpers, not an inability to rewrite files in til. Current
+Str and File APIs already support ordinary scan/replace/write tools.
+The original trigger was the gte/lte/lt/gt -> >= / <= / < / > sweep across
 src/ (the inverse of how the parser desugars the operators): doing it
 safely needs balanced-paren matching plus string/comment skipping plus
 cross-line chain detection, which a one-line sed cannot express, so it was
 done with a throwaway Python script instead of a checked-in til tool.
 
-*** What is missing (the "regexp and all that stuff")
+*** Current inventory (2026-10-31, master 9ab5f052b)
+
+- [[file:../../src/core/str.til][Str]] already supplies ~split~, ~trim~, ~find~, ~rfind~, and
+  ~replace~. ~replace~ replaces all occurrences; a second API named
+  ~replace_all~ is not needed merely to obtain that behavior.
+- [[file:../../src/std/file.til][File]] supplies ~readfile~, ~writefile~, and ~appendfile~.
+  Whole-file line processing can use ~readfile(...).split("\n")~ and
+  ordinary loops; this is distinct from a streaming line iterator.
+- The same file supplies directory iteration through ~Dir~ and the
+  ~cdir_*~ primitives, plus ~File.is_dir~ / ~File.is_file~. Directory
+  enumeration does not require a shell. Glob-pattern matching is a
+  separate feature, not a prerequisite for enumerating files.
+
+*** Remaining scope to evaluate
 
 - A regex engine: compile + match + capture groups + replace. Even a small
   backtracking matcher over Str would cover most tooling needs.
-- Str conveniences for scanning/rewriting: split, replace_all, trim,
-  index-of-from, find-all (some of starts_with/ends_with/find exist; the
-  rest do not), and a char-class predicate set.
-- Stream/line helpers: read a file as lines, map/filter/rewrite lines, write
-  back. File.readfile exists; the iterate + rewrite glue does not.
-- A glob / directory-listing helper so a til tool can act on a file set
-  without shelling out.
+- Additional scanning conveniences such as index-of-from, find-all, and
+  character-class predicates, after checking the existing Str methods.
+- Reusable streaming/line-rewrite helpers where whole-file splitting and
+  ordinary loops are insufficient; basic file rewriting already works.
+- Glob-pattern matching over the existing directory iterator.
 
 *** Note: til already has a better lever than regex for til sources
 
@@ -39,5 +50,6 @@ issue is mainly about.
 
 Nice-to-have developer tooling, not a compiler-correctness gap. Filed so the
 "had to drop to sed/python" friction is tracked rather than forgotten. Pick
-the smallest useful slice first (likely a regex matcher + Str.replace_all +
-line iteration) when someone wants to write the next source sweep in til.
+the smallest useful missing slice first (for example a regex matcher)
+when someone wants to write the next source sweep in til, reusing the
+existing string and file APIs.

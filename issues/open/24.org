@@ -46,13 +46,15 @@ Recent progress:
   Nathex mode keeps the same open-string names but plays `NATHEX_FREQS` and
   uses 16 wider frets over the same physical span as the regular 24-fret
   board.
-- Opened [[./285.org][#285]] for the macro bug found while building the
-  nathex table: foldable function-call expressions such as `2.to_f32()` are
-  rejected as macro arguments even though they should be constfoldable.
+- The macro bug found while building the nathex table is fixed in
+  [[../fixed/285.org][#285]]: foldable calls such as `2.to_f32()` are accepted as
+  macro arguments. Its post-mortem names ~test_macro_to_f32_arg~ and
+  ~test_macro_nested_foldable_args~ in ~test/macros.til~ as regressions.
+  It is no longer a blocker for these examples (reviewed 2026-10-31).
 
 Notes:
 
-- The old mode-button rendering note from [[./44.org][#44]] is stale; manual
+- The old mode-button rendering note from [[../fixed/44.org][#44]] is stale; manual
   testing of the current music examples showed the mode controls and removed
   radio row behaving correctly.
 - `examples/music_modes.til` still calculates scale spelling separately from

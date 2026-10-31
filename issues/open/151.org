@@ -10,8 +10,8 @@
 
   The old broad 32-bit scope was split:
 
-  - Hosted 32-bit Linux/Windows targets are tracked in [[./232.org][#232]].
-  - Browser WASM is tracked in [[./228.org][#228]].
+  - Hosted 32-bit Linux/Windows targets landed in [[../fixed/232.org][#232]].
+  - Browser WASM landed in [[../fixed/228.org][#228]].
 
 *** Scope
 
@@ -25,8 +25,11 @@
 *** Notes
 
   TempleOS has no normal C compiler path comparable to the Linux,
-  Windows, or browser targets. Treat it as deferred platform work, not
-  as one more clang cross target.
+  Windows, or browser targets. It is an active dedicated backend, not
+  one more clang cross target. As of the 2026-10-31 review,
+  [[file:../../src/self/holyc_codegen.til][holyc_codegen.til]] and [[file:../../src/holyc/ext.HC][the native runtime]] implement this boundary,
+  and [[file:../../.github/workflows/tests.yml][CI]] runs ~make test_templeos~. The progress and remaining
+  acceptance work below supersede the original deferred-platform wording.
 
 *** Direction
 

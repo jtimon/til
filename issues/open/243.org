@@ -2,6 +2,33 @@
 # category: features
 ** OPEN #243 Array/Vec/Slice literal syntax + monomorphized containers via macros
 
+*** Current status (2026-10-31, master 9ab5f052b)
+
+   This issue combines historical alternatives with work that has since
+   shipped. The discussion below is retained as design history, not as a
+   description of today's containers or a reopening of later decisions.
+
+   - Monomorphized containers already exist: [[file:../../src/core/vec.til][Vec(T)]] and
+     [[file:../../src/core/array.til][Array(T)]] are macros returning ~StructDef~. Their typed
+     implementations replace the old runtime element-size/clone/delete
+     metadata described below. ~Vec(I32)()~ is current constructor syntax,
+     not a hypothetical prerequisite for this issue.
+   - The pseudo-literals take a type value, e.g. ~vec(I64, 1, 2, 3)~
+     and ~array(I64, 1, 2, 3)~, not the historical ~"I64"~ string.
+     Their declarations are in the same core files.
+   - Borrowed views and slicing are tracked in [[file:329.org][#329]].
+     Type-position bracket sugar is tracked in [[file:330.org][#330]], which records
+     approved ~[]T~ (Slice) and ~[..]T~ (Vec) spellings, with the
+     fixed-array representation behind ~[N]T~ still a separate decision.
+     These type spellings do not settle bare value-literal ~[...]~ syntax.
+
+   The remaining distinct discussion here is Array/Vec value-literal syntax,
+   including inference, the default container for bare ~[...]~, and empty
+   literals. Coordinate it with #329/#330 rather than treating typed
+   containers as future work or presenting all later decisions as open.
+
+*** Historical design discussion
+
    til has literal syntax for Map (`{"a": 1}`), Set (`{3, 1, 2}`),
    primitives and Str, but NOT for Array or Vec -- they use the
    `array("I64", 1, 2, 3)` / `vec("I64", 10, 20, 30)` pseudo-literals

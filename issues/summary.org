@@ -18,7 +18,6 @@
 ** Medium
 *** [[./open/455.org][#455]] Replace --usize with source-level configuration while preserving cross-width use cases
 ** Low
-*** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/429.org][#429]] no-shell-antipatterns.sh: tail -f check has false positives
 *** [[./open/449.org][#449]] Map and set literal nodes have no type slot; the instance name lives on the Decl
 * Optimizations
