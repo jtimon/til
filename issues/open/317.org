@@ -159,6 +159,32 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Temporary C-core bridge for strings/runtime (base 3515db554)
+
+The human approved using the C-compiled core as an interim bridge. MLIR emits
+ordinary Str/Array(Str) values and ABI calls for printing, formatting, string
+methods and panic, preserving the prepared AST's ownership decisions. The
+special generated-bang panic recognizer/emitter is removed. Str value returns
+match SysV at both USize widths (16-byte register return / 24-byte sret), and
+owned transfers distinguish stack records from already-owned heap wrappers.
+
+Translation writes the normal gen/til source/forward-header pair alongside
+gen/mlir. Builds compile only the C core/runtime portions, using existing
+versioned gen/lib object paths, and include those objects in the MLIR artifact.
+This adds generated C and compilation work, not a cache or new source of truth.
+Native static-archive callers link libm. The bridge does not emit public bindings.
+
+IMPORTANT: the intended end state is til core bodies emitted directly as MLIR,
+with libc/platform dependencies at the same low-level boundary ext.c provides.
+Depending on C-generated til core code is temporary, not the final architecture.
+Remove this support-generation/link bridge as native MLIR coverage replaces it;
+do not duplicate string/ownership algorithms in a permanent second runtime.
+
+Tests compare stdout/stderr and explicit/bang panic diagnostics, exercise
+embedded NULs and escaping, and check C/til consumers of both return ABIs.
+Repeated transfers, replacement, mutation and owned-parameter returns are
+checked with ASAN callers, across both widths and O0/O2/O3.
+
 *** Floating division and explicit FMA (base 6eed1697a)
 
 F32 and F32x4 division lower to arith.divf with the existing IEEE semantics;

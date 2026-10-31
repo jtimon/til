@@ -1224,7 +1224,12 @@ main := proc(args: ..Str) {
     // An output's mtime cannot establish its source, compiler or options.
     // Always prepare and emit the requested program, including explicit paths.
     mut mlir_functions := Set(Str).new()
-    if cli.backend == "mlir" { mlir_functions = mlir_source_declarations(lp) }
+    if cli.backend == "mlir" {
+        mlir_functions = mlir_source_declarations(lp)
+        lp.mlir_runtime = true
+        // Core calls cross a translation-unit boundary even for executables.
+        lp.ctx.param_value_abi_ok = false
+    }
     if cli.backend == "fasm" { mlir_functions = fasm_source_declarations(lp) }
     prepare_program(lp, cli.command == "test")
 

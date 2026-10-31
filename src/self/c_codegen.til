@@ -11660,6 +11660,21 @@ priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str,
     File.writefile(c_path, out)
 }
 
+// The temporary MLIR bridge compiles only TIL_CORE_ONLY and ext.c from these
+// ordinary C outputs. User bodies remain MLIR; no public binding files needed.
+c_codegen_translate_runtime := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, lib_name: Str) returns I32 {
+    saved_library := lp.cur_mode.is_library
+    lp.cur_mode.is_library = true
+    builder_prepare_emit(lp)
+    mut result := build_forward_header_lp(fwd_path, lp)
+    if result == 0 {
+        prepare_lib_c_namespace(lp, fwd_path, lib_name)
+        result = build(lp.cur_mode, lp.run_tests, c_path, lp)
+    }
+    lp.cur_mode.is_library = saved_library
+    return result
+}
+
 c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
     builder_prepare_emit(lp)
     mut result := build_forward_header_lp(fwd_path, lp)

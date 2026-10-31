@@ -353,6 +353,8 @@ LoadedProgram := struct {
     link_c_paths := ""
     compiler_revision := ""
     asan_build := false
+    // Temporary MLIR-to-C core bridge; not a source-language mode or cache.
+    mlir_runtime := false
     run_tests := false
     // Non-zero when load_program gave up on a user import (missing file, or a
     // syntax error inside one). The program is unusable; the caller decides
@@ -366,7 +368,7 @@ LoadedProgram := struct {
     usize_override_bits : I64 = 0
 namespace:
     uses_shared_runtime := func(self: LoadedProgram) returns Bool {
-        return self.cur_mode.is_library.and(self.target.is(Target.Wasm32).not())
+        return self.cur_mode.is_library.or(self.mlir_runtime).and(self.target.is(Target.Wasm32).not())
     }
     runtime_abi_id := func(self: LoadedProgram) returns Str {
         if self.compiler_revision.len() == 0 { panic("library runtime ABI has no compiler revision") }

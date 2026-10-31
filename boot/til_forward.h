@@ -428,17 +428,17 @@ typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___
 typedef struct priv___src_self_mlir_codegen_til__MlirBinding priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_mlir_codegen_til__MlirState priv___src_self_mlir_codegen_til__MlirState;
 typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
-enum {
-    Option__Bool_TAG_None,
-    Option__Bool_TAG_Some
-};
-typedef struct Option__Bool Option__Bool;
+typedef struct Map__Str_U64 Map__Str_U64;
 enum {
     Option__U64_TAG_None,
     Option__U64_TAG_Some
 };
 typedef struct Option__U64 Option__U64;
-typedef struct Map__Str_U64 Map__Str_U64;
+enum {
+    Option__Bool_TAG_None,
+    Option__Bool_TAG_Some
+};
+typedef struct Option__Bool Option__Bool;
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding Vec__priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_fasm_codegen_til__FasmDefinition priv___src_self_fasm_codegen_til__FasmDefinition;
 typedef struct priv___src_self_fasm_codegen_til__FasmProgram priv___src_self_fasm_codegen_til__FasmProgram;
@@ -1539,16 +1539,15 @@ typedef struct priv___src_self_mlir_codegen_til__MlirBinding {
     Bool is_mut;
     Bool is_signed;
     Bool is_ref;
+    Bool owns_wrapper;
 } priv___src_self_mlir_codegen_til__MlirBinding;
 
 
-struct Option__Bool {
-    U8 tag;
-    union {
-        Bool Some;
-        void *_til_payload_align;
-    } data;
-};
+typedef struct Map__Str_U64 {
+    Vec__Str keys;
+    Vec__U64 values;
+} Map__Str_U64;
+
 
 struct Option__U64 {
     U8 tag;
@@ -1558,11 +1557,13 @@ struct Option__U64 {
     } data;
 };
 
-typedef struct Map__Str_U64 {
-    Vec__Str keys;
-    Vec__U64 values;
-} Map__Str_U64;
-
+struct Option__Bool {
+    U8 tag;
+    union {
+        Bool Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
     U8 *data;
@@ -2535,6 +2536,7 @@ typedef struct LoadedProgram {
     Str link_c_paths;
     Str compiler_revision;
     Bool asan_build;
+    Bool mlir_runtime;
     Bool run_tests;
     I32 load_errors;
     I64 usize_override_bits;
@@ -2546,7 +2548,7 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
     Str allocations;
     Str globals;
     Str symbol_prefix;
-    Bool needs_panic;
+    Map__Str_Str externals;
     USize next;
     USize next_block;
     Bool terminated;
@@ -2560,7 +2562,6 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
     USize error_version;
     Set__Str clear_conditions;
     Set__Str set_conditions;
-    Set__Str bang_conditions;
     Map__Str_U64 integers;
     Map__Str_Bool booleans;
 } priv___src_self_mlir_codegen_til__MlirState;

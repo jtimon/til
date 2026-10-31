@@ -72,7 +72,7 @@ priv check_control_flow := proc(compiler: Str, work: Str) {
         for level in array(Str, "0", "2", "3") {
             build := Cmd.new(compiler, "build", "--backend=mlir", width_flag, format("--opt=", level), "flow.til")
             checked(build, work)
-            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "flow_caller.c", "gen/lib/libflow.a", "-o", "flow_caller")
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "flow_caller.c", "gen/lib/libflow.a", "-lm", "-o", "flow_caller")
             if width == "32" { cc.arg("-DCOUNT32") }
             checked(cc, work)
             run := Cmd.new("./flow_caller")
@@ -139,13 +139,80 @@ priv check_buffers := proc(compiler: Str, work: Str) {
         for level in array(Str, "0", "2", "3") {
             build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "buffers.til")
             checked(build, work)
-            cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "buffer_caller.c", "gen/lib/libbuffers.a", "-o", "buffer_caller")
+            cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "buffer_caller.c", "gen/lib/libbuffers.a", "-lm", "-o", "buffer_caller")
             if width == "32" { cc.arg("-DCOUNT32") }
             checked(cc, work)
             run := Cmd.new("./buffer_caller")
             checked(run, work)
             consumer := Cmd.new(compiler, "run", flag, "--asan", "buffer_consumer.til")
             checked(consumer, work)
+        }
+    }
+}
+
+priv check_runtime := proc(compiler: Str, work: Str) {
+    File.writefile(format(work, "/runtime_strings.til"), format(
+        "mode lib\n",
+        "decorate:=func(s:Str) returns Str { return format(\"[\",s,\"]\") }\n",
+        "literal:=func() returns Str { return \"literal\" }\n",
+        "consume:=func(own s:Str) returns USize { return s.len() }\n",
+        "owned_length:=func(s:Str) returns USize { temp:=decorate(s); return consume(own temp) }\n",
+        "replace:=func(s:Str) returns Str { mut out:=s.clone(); out=format(out,\"!\"); return out }\n",
+        "pass_owned:=func(own s:Str) returns Str { return s }\nroundtrip:=func(s:Str) returns Str { copy:=s.clone(); return pass_owned(own copy) }\n",
+        "append:=func(mut s:Str) { s.push_str(\"!\") }\n"))
+    checks := "main:=proc(){mut s:=Str.with_capacity(64);s.push_str(\"one\");println(decorate(s));append(s);println(s);s=replace(s);println(s);println(owned_length(s).to_str());print(\"A\\0B\\t\\\"\\\\\");print_flush();eprint_single(\"stderr\\n\");println(literal());}\n"
+    File.writefile(format(work, "/runtime_reference.til"), format("mode cli\nimport(\"runtime_strings\")\n", checks))
+    File.writefile(format(work, "/runtime_local.til"), format(
+        "mode cli\n",
+        "decorate:=func(s:Str) returns Str {return format(\"[\",s,\"]\")}\n",
+        "literal:=func() returns Str {return \"literal\"}\n",
+        "consume:=func(own s:Str) returns USize {return s.len()}\n",
+        "owned_length:=func(s:Str) returns USize {temp:=decorate(s);return consume(own temp)}\n",
+        "replace:=func(s:Str) returns Str {mut out:=s.clone();out=format(out,\"!\");return out}\n",
+        "append:=func(mut s:Str){s.push_str(\"!\")}\n", checks))
+    File.writefile(format(work, "/runtime_consumer.til"), format(
+        "mode cli\nlink(\"gen/lib/libruntime_strings.so\")\n",
+        "decorate:=ext_func(s:Str) returns shallow Str {}\nliteral:=ext_func() returns shallow Str {}\n",
+        "replace:=ext_func(s:Str) returns shallow Str {}\nowned_length:=ext_func(s:Str) returns shallow USize {}\nappend:=ext_func(mut s:Str) {}\n", checks))
+    File.writefile(format(work, "/runtime_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct{char *data;Count count,cap;}Str;extern Str decorate(Str*),replace(Str*),roundtrip(Str*),literal(void);extern Count owned_length(Str*);extern void append(Str*);\n",
+        "int main(void){char input[32]=\"a\\0b\";Str s={input,3,31};for(int i=0;i<1000;i++){Str r=decorate(&s);assert(r.count==5 && memcmp(r.data,\"[a\\0b]\",5)==0);free(r.data);r=replace(&s);assert(r.count==4 && memcmp(r.data,\"a\\0b!\",4)==0);free(r.data);r=roundtrip(&s);assert(r.count==3 && memcmp(r.data,input,3)==0);free(r.data);assert(owned_length(&s)==5);r=literal();assert(r.count==7 && r.cap==(Count)-2 && memcmp(r.data,\"literal\",7)==0);}append(&s);assert(s.count==4 && input[3]=='!');return 0;}\n"))
+    File.writefile(format(work, "/runtime_panic.til"), "mode cli\nmain:=proc(){mut s:=Str.with_capacity(8);s.push_str(\"boom\");panic(\"user \",s,\"!\")}\n")
+    for width in array(Str, "32", "64") {
+        flag := format("--usize=", width)
+        reference := Cmd.new(compiler, "run", flag, "runtime_reference.til")
+        checked(reference, work)
+        interpreted := Cmd.new(compiler, "interpret", flag, "runtime_reference.til")
+        checked(interpreted, work)
+        assert_eq(Str, interpreted.out(), reference.out())
+        assert_eq(Str, interpreted.err(), reference.err())
+        panic_reference := Cmd.new(compiler, "run", flag, "runtime_panic.til")
+        panic_reference.cwd(work).capture()
+        panic_status := panic_reference.run()
+        expect(panic_status==1, panic_reference.out(), panic_reference.err())
+        for level in array(Str, "0", "2", "3") {
+            build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=",level), "runtime_strings.til")
+            checked(build, work)
+            cc := Cmd.new("clang-18", "-O2", "-fsanitize=address", "-Wall", "-Wextra", "-Werror", "runtime_caller.c", "gen/lib/libruntime_strings.a", "-lm", "-o", "runtime_caller")
+            if width=="32" {cc.arg("-DCOUNT32")}
+            checked(cc, work)
+            native := Cmd.new("./runtime_caller")
+            checked(native, work)
+            consumer := Cmd.new(compiler, "run", "--asan", flag, "runtime_consumer.til")
+            checked(consumer, work)
+            assert_eq(Str, consumer.out(), reference.out())
+            assert_eq(Str, consumer.err(), reference.err())
+            local := Cmd.new(compiler, "run", "--backend=mlir", flag, format("--opt=",level), "runtime_local.til")
+            checked(local, work)
+            assert_eq(Str, local.out(), reference.out())
+            assert_eq(Str, local.err(), reference.err())
+            failure := Cmd.new(compiler, "run", "--backend=mlir", flag, format("--opt=",level), "runtime_panic.til")
+            failure.cwd(work).capture()
+            status := failure.run()
+            expect(status==1, failure.out(), failure.err())
+            assert_eq(Str, failure.out(), panic_reference.out())
+            assert_eq(Str, failure.err(), panic_reference.err())
         }
     }
 }
@@ -240,7 +307,7 @@ priv check_lanes := proc(compiler: Str, work: Str) {
         for level in array(Str, "0", "2", "3") {
             build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "./lanes.til")
             checked(build, work)
-            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "lane_caller.c", "gen/lib/liblanes.a", "-o", "lane_caller")
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "lane_caller.c", "gen/lib/liblanes.a", "-lm", "-o", "lane_caller")
             if width=="32" { cc.arg("-DCOUNT32") }
             checked(cc, work)
             native := Cmd.new("./lane_caller")
@@ -309,7 +376,7 @@ priv check_masks := proc(compiler: Str, work: Str) {
         for level in array(Str, "0", "2", "3") {
             build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "masks.til")
             checked(build, work)
-            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "mask_caller.c", "gen/lib/libmasks.a", "-o", "mask_caller")
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "mask_caller.c", "gen/lib/libmasks.a", "-lm", "-o", "mask_caller")
             checked(cc, work)
             native := Cmd.new("./mask_caller")
             checked(native, work)
@@ -379,7 +446,7 @@ priv check_exceptions := proc(compiler: Str, work: Str) {
         for level in array(Str, "0", "2", "3") {
             build := Cmd.new(compiler, "build", "--backend=mlir", flag, format("--opt=", level), "./exceptions.til")
             checked(build, work)
-            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "exception_caller.c", "gen/lib/libexceptions.a", "-o", "exception_caller")
+            cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "exception_caller.c", "gen/lib/libexceptions.a", "-lm", "-o", "exception_caller")
             if width=="32" { cc.arg("-DCOUNT32") }
             checked(cc, work)
             native := Cmd.new("./exception_caller")
@@ -448,7 +515,7 @@ main := proc(compiler_arg: Str) {
     for level in array(Str, "0", "2", "3") {
         build := Cmd.new(compiler, "build", "--backend=mlir", format("--opt=", level), "arithmetic.til")
         checked(build, work)
-        cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "caller.c", "gen/lib/libarithmetic.a", "-o", "caller")
+        cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror", "caller.c", "gen/lib/libarithmetic.a", "-lm", "-o", "caller")
         checked(cc, work)
         run := Cmd.new("./caller")
         checked(run, work)
@@ -465,5 +532,6 @@ main := proc(compiler_arg: Str) {
     check_masks(compiler, work)
     check_lanes(compiler, work)
     check_float_arithmetic(compiler, work)
+    check_runtime(compiler, work)
     println("mlir PASS")
 }

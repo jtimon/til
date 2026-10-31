@@ -2193,6 +2193,12 @@ priv shared_core_from_imports := func(mut lp: LoadedProgram, core_top: Map(Str, 
             if member.eq("size").or(member.eq("delete")) { shared.add(own name.clone()) }
         }
     }
+    // MLIR calls core across a translation-unit boundary. Retain every accepted
+    // stable entrypoint, including print/numeric formatting, so its versioned
+    // support object does not depend on one user's set of direct call sites.
+    if lp.mlir_runtime {
+        for name : Str in accepted { shared.add(own name.clone()) }
+    }
     changed = true
     while changed {
         changed = false
@@ -2301,8 +2307,7 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
             scav_seed_reflect_roots(lp.ctx.imported[u.path].ast, hoisted_strs, worklist, lp.ctx.symbols)
         }
     }
-    if is_library {
-        seed_library_roots(lp, worklist)
+    if is_library || lp.mlir_runtime {
         for shared_core_name : Str in shared_core_from_imports(lp, core_top, top) {
             dot := shared_core_name.find(".")
             if dot >= 0 {
@@ -2313,6 +2318,9 @@ priv scavenge_visited_imported := func(mut lp: LoadedProgram) returns Set(Str) {
                 vec_push_str(worklist, shared_core_name)
             }
         }
+    }
+    if is_library {
+        seed_library_roots(lp, worklist)
     } else if is_cli {
         vec_push_str(worklist, "main")
         // The generated CLI entry wrapper parses typed argv into main()'s

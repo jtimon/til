@@ -743,6 +743,10 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         return 1
     }
     mut paths := derive_build_paths(lp, output, "", lp.target)
+    runtime_c := paths.c_path.clone()
+    runtime_header := paths.fwd_path.clone()
+    make_build_dirs(paths)
+    if c_codegen_translate_runtime(lp, runtime_c, runtime_header, paths.name) != 0 { return 1 }
     paths.c_path = format("gen/mlir/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".mlir")
     make_build_dirs(paths)
     result := mlir_codegen_translate(lp, paths.c_path, functions)
@@ -756,8 +760,23 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         return 1
     }
     mut destination := paths.bin_path.clone()
+    runtime_obj := format("gen/lib/", lp.runtime_stem(), ".o")
+    core_obj := format("gen/lib/", lp.core_stem(), ".o")
+    mkdir_p("gen/lib")
+    mkdir_p("tmp")
+    temporary_directory := realpath_str("tmp")
+    mut usize_flag := "-DTIL_USIZE32"
+    if lp.ctx.target_usize_pname == "U64" { usize_flag = "-DTIL_USIZE64" }
+    core := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_CORE_ONLY", "-c", runtime_c, "-o", core_obj)
+    core.arg(format("-O", lp.opt_level.to_str())).arg("-ffp-contract=off").env("TMPDIR", temporary_directory)
+    for flag : Str in lp.cpu.c_flags.split(" ") { if flag.len() > 0 { core.arg(flag) } }
+    if core.run() != 0 { return 1 }
+    runtime := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_LIBRARY_BUILD", "-include", runtime_header, "-c", lp.ext_c_path, "-o", runtime_obj)
+    runtime.arg(format("-O", lp.opt_level.to_str())).arg("-ffp-contract=off").env("TMPDIR", temporary_directory)
+    for flag : Str in lp.cpu.c_flags.split(" ") { if flag.len() > 0 { runtime.arg(flag) } }
+    if runtime.run() != 0 { return 1 }
     // LLVM may lower explicit FMA to fmaf on CPUs without a hardware FMA.
-    mut flags := " -lm"
+    mut flags := format(" -x none ", mlir_shell_quote(core_obj), " ", mlir_shell_quote(runtime_obj), " -lm")
     if paths.do_lib {
         destination = format("gen/lib/", paths.name, ".o")
         flags = " -c -fPIC"
@@ -771,6 +790,7 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         " -ffp-contract=off", flags, " -o ", mlir_shell_quote(destination))
     shell := Cmd.new()
     shell.args("bash", "-o", "pipefail", "-c", pipeline)
+    shell.env("TMPDIR", temporary_directory)
     if shell.run() != 0 {
         File.remove(destination)
         println("error: MLIR compilation failed (requires matching LLVM 18 tools)")
@@ -780,11 +800,11 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         shared := format("gen/lib/lib", paths.name, ".so")
         archive := format("gen/lib/lib", paths.name, ".a")
         linker := Cmd.new()
-        linker.args("clang-18", "-shared", destination, "-o", shared, "-lm")
+        linker.args("clang-18", "-shared", destination, core_obj, runtime_obj, "-o", shared, "-lm")
         if linker.run() != 0 { return 1 }
         File.remove(archive)
         archiver := Cmd.new()
-        archiver.args("ar", "rcs", archive, destination)
+        archiver.args("ar", "rcs", archive, destination, core_obj, runtime_obj)
         if archiver.run() != 0 { return 1 }
         println("Generated: ", shared)
         println("Generated: ", archive)
