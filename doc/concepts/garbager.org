@@ -80,6 +80,231 @@ The orchestrator is ~insert_free_calls~: collect per-binding facts
 ~promote_own_transferred_locals~, ~sink_conditional_transfer_deletes~,
 ~extend_hoist_view_lifetimes~), then rewrite the body statement list.
 
+** Borrow-lifetime policy inventory (#461)
+
+Source review at ~bac208501~ (2026-10-31). This records the current
+implementation and concrete compatibility dependencies, not a decision to
+change the language. The tests below were read, not rerun with protection
+disabled: several mechanisms overlap, so a listed test is not a claim that
+removing any single helper would necessarily make that test fail.
+
+*** Baseline and what an extension means
+
+~collect_scope_locals~ starts with a declaration index and the last
+non-directive statement whose ~BodyFacts.uses~ mentions the binding. Its
+~last_use~ is a statement position within this body, not a dynamic timestamp.
+Ordinary owned locals are candidates for automatic destruction there.
+~insert_free_calls~ then applies reference edges, transfer checks and view
+escape checks; later it applies hoist/view taint before scheduling cleanup.
+CFG liveness handles paths and exit cleanup, but does not make every borrow
+edge path-sensitive or erase all conservative lifetime extensions.
+
+~propagate_borrow_edges~ computes a monotone maximum: an owner's reach must
+cover the edge's fixed statement position and the borrower's propagated
+reach. Synthetic nodes represent nested reference declarations. This can
+retain several possible owners; it does not dynamically select one owner,
+count live references, or transfer ownership to a reference.
+
+~ref~ bindings themselves skip destruction. That is an ownership rule,
+separate from retaining the owner. Likewise, ~mut~ grants mutation and does
+not establish ownership. Neither rule should be changed merely because a
+different owner-lifetime policy is chosen.
+
+*** Extension mechanisms and their dependencies
+
+- *Direct references, fields and ref-returning calls.*
+  ~collect_borrow_edges~ rule 3 retains the root of ~ref x = src~ or
+  ~ref x = src.field~ through the reference's last textual/propagated use.
+  For a ref-initializing call it conservatively considers each argument's
+  identifier/field root, excluding transferred own arguments unless
+  ~keep_outer~ retains their storage. This is broader than proving which
+  single argument a call returns.
+  ~test/gc_audit.til::borrow_local~ pins the owner's extended last use and
+  the reference's ~skip=1~ in ~test/gc_audit.expected~. The field/getter cases
+  in ~test/ref.til~ exercise the addressing forms, but many are POD or use
+  string literals; their successful output alone is weaker evidence than
+  an owned-buffer test or the audit golden.
+
+- *Reference rebinding and nested scopes.*
+  ~collect_reference_loans~ resolves storage identity, tracks reference
+  sources and records loans acquired by subsequent assignments. Nested
+  names have synthetic identities and are restored on scope exit; loan
+  updates to outer references survive. Source sets accumulate: rebinding
+  does not remove the earlier owner's edge. The analysis may therefore keep
+  both old and new owners alive longer than the actual selected pointer
+  needs. Callable storage, Dynamic, payload aliases and borrowed interface
+  boxing are excluded from this walk's ordinary reference classification;
+  this is not the only retention mechanism for those values.
+  ~test/reference_rebinding.til::late_borrow~ reads the new owner's heap
+  string after its final direct use; ~scoped_borrow~ adds nested shadowing
+  and loans acquired inside a block. These are resource-bearing examples,
+  not just checks that an integer pointer retargets correctly.
+
+- *Ref fields and enum payloads.*
+  The direct ref-field assignment rule adds a body-end edge for a named
+  source. Its current syntactic gate is a ~FieldAssign~ with Ref field
+  ownership, an identifiable holder root and an Ident RHS. It is not a
+  universal field-sensitive alias solver. ~collect_enum_ref_payload_edges~
+  recursively finds ref-payload constructors and retains the Ident or
+  field-chain root to the end of the containing body. These conservative
+  bounds account for pointer-preserving copies of carriers.
+  ~test/option.til::test_safe_ref_extends_source_lifetime~ stores a heap-backed
+  ~SafeRefHeap~ in ~Option(ref SafeRefHeap)~ and later reads its text.
+  ~test/ref.til::test_ref_struct_field~ and
+  ~test/enums.til::test_ref_payload_field_chain_borrow~ cover pointer-copy
+  and field-root behavior; both also use the source later, so do not by
+  themselves isolate a lifetime extension.
+
+- *Borrows returned inside owned values, interfaces and callbacks.*
+  ~collect_call_ref_return_edges~ consumes the typer's ~ref_return_params~,
+  ~ref_return_into_params~ and ~ref_return_carried_params~ summaries for
+  borrow-carrying declarations/assignments/field assignments. A direct or
+  into-borrow retains argument storage; copying a carrier retains its
+  borrowed owners rather than automatically retaining the original carrier.
+  ~gc_ref_container~ identifies ref-qualified generic containers.
+  ~test/tilvm.til::callback_owner_lifetime~ is a concrete API dependency:
+  ~retain_callback(vm)~ returns a holder containing a callback; the VM has
+  no further direct use, but must survive two callback calls and cleanup.
+  This remains an owner-lifetime dependency even though the callback/holder
+  is an owned value rather than a local spelled ~ref~.
+  ~test/interfaces.til~ covers borrowed boxes and owned copies separately;
+  ~iface_payload_borrowed~ also prevents destroying a borrowed payload.
+
+- *Calls depositing borrows into other storage.*
+  ~gc_collect_deposits~ rebuilds call deposits after hoisting from
+  ~deposit_matrix~ and ~deposit_borrow_matrix~. It distinguishes borrowed
+  argument storage from references carried inside a copied value, then adds
+  source-to-sink edges. ~gc_carried_loan_start~ distinguishes stable ordinary
+  variable storage from an interface's replaceable payload allocation.
+  ~test/ref.til~'s ~bp393_*~ and ~bp398_*~ cases cover Vec/Map stores, field
+  stores and helper-to-helper propagation. Most assert mutability credit on
+  caller-owned POD values; they are essential provenance coverage, not
+  independent demonstrations of premature heap destruction.
+
+- *Closures and Body values.*
+  Ref captures in a declaration's FuncDef/BodyValue initializer add an edge
+  from the captured source to the callable binding's reach. Owned captures
+  instead transfer ownership into the environment. In addition, nested-use
+  facts can suppress owner cleanup altogether (below). ~test/closures.til~
+  covers Ref, mut-Ref, shallow and own capture modes; the
+  ~capture_*_escape_error.til~ fixtures cover escaping borrowed captures.
+  Removing just capture edges is not equivalent to making all captured
+  sources die at their last direct use.
+
+- *String views and compiler-generated temporaries.*
+  ~str_view_source_name~ contributes source-to-view edges. Separately,
+  ~extend_hoist_view_lifetimes~ follows initializer dependencies and closes
+  taint over statements using a tainted value, including transfers through
+  synthesized varargs arrays. It deliberately over-approximates dependencies
+  (even through some clones) and runs after use-after-transfer checking.
+  This protection is not limited to explicit Ref declarations.
+  ~test/strings.til::make_holder250~ evaluates
+  ~h.s = arg.substr(5, arg.len().sub(5)).clone()~ using a grown buffer;
+  ~test/bug350.til~ passes ~s.trim()~ / ~s.substr(...)~ through ~format~.
+  Their source-level expressions still use the owner, but hoisting splits
+  each expression into several statements. Destroying the owner between
+  those synthesized statements breaks evaluation of the expression itself.
+  ~test/bug258.til~ additionally covers retaining required clones for named
+  views; ~rhs_depends_on_var~ and assignment cleanup protect the old buffer
+  until the RHS has finished reading it.
+
+*** Cleanup suppression is different from a later last use
+
+~collect_scope_locals~ sets ~skip_scope_delete~ for several reasons:
+
+- Non-hoisted program-scope bindings are not automatically destroyed here;
+  a body must not destroy globals belonging to another import or REPL delta.
+- A nested closure use or a ~write_ptr~ escape suppresses automatic cleanup
+  because the value remains reachable beyond its textual use. This is not
+  merely a promise to insert a destructor at scope end.
+- Ref bindings and borrowed interface payloads own no data to destroy.
+- ~aliased_by_returned_ref~ suppresses cleanup for a local handed out through
+  a returned Ref alias, including the raw-allocator/~to_ptr~ bridge.
+  This is not blanket permission to return references to ordinary locals;
+  typer escape checks reject many such returns before cleanup insertion.
+
+~test/gc_audit.til::raw_alloc_escapes~ pins ~write_ptr~ suppression and
+explicitly documents the resulting deliberate leak. Turning suppression
+into ordinary cleanup would introduce dangling pointers in such shapes;
+keeping suppression while removing edge propagation would not implement
+a uniform "direct-use-only" policy either.
+
+*** Diagnostics and operation semantics that share the analysis
+
+- ~reference_assignment_rebinds~ distinguishes pointer retargeting from
+  write-through assignment. ~insert_assign_delete~ and
+  ~flag_outer_assign_rebinds~ avoid deleting a non-owning reference's old
+  pointee. Parameters/captured places are not ordinary retargetable locals.
+  These operation semantics must survive any retention-policy change.
+- ~check_reference_rebind_lifetime~ rejects borrowing a shorter-lived inner
+  owner into an outer reference (~reference_rebinding_escape_error.til~).
+  Read-only-source rejection (~reference_rebinding_readonly_error.til~) is a
+  separate mutability constraint, not owner retention.
+- ~report_local_return_roots~ / ~check_carried_borrow_of_local_return~ reject
+  escaping local-owned storage inside results. ~check_interface_deposit_lifetimes~
+  checks destinations outside the owner's lexical scope, and
+  ~ref_container_source_stable~ rejects unsuitable temporary storage.
+  These checks have explicit exemptions and are not a universal lifetime proof.
+- ~extend_ref_local_lifetimes~ also diagnoses replacement of storage while a
+  known later borrower remains live, using ~created_at~ and propagated reach.
+  Removing that function removes this diagnostic as well as retention.
+  ~test/tilvm_lifetime_error.til::replace_borrowed_vm~ and
+  ~test/view_escape_error.til::reassign_then_use~ exercise this boundary.
+  The latter file's loop/container cases also exercise ~check_view_escapes~,
+  which is a separate check. Explicit ~own vm.delete()~ with later callback
+  use is covered by ownership-transfer checks, not just reassignment checks.
+- Borrow roots and call/deposit summaries also credit writes through aliases
+  to the original mutable parameter. The ~bp344_*~, ~bp351_*~, ~bp393_*~ and
+  ~bp398_*~ tests in ~test/ref.til~ require this independently of when owners
+  are destroyed. Removing those summaries wholesale would change mutability
+  checking and return/deposit provenance, not merely shorten lifetimes.
+
+Dynamic, raw pointers, external calls and explicit cleanup remain boundaries
+of the proof. Known raw escape suppression is not general tracking of every
+pointer consumer; allocation lifetime and pointer validity must not be
+inferred solely from passing these checks.
+
+*** Consequences for the policy decision
+
+The proposed simplification needs a precise definition of "last use":
+last direct source use, last lowered statement use, or transitive borrower
+use. Today the last is approximated with the mechanisms above. Hoisting must
+not invalidate an otherwise valid source expression under any chosen rule.
+
+Under direct-source-use responsibility, ~borrow_local~'s owner could die
+after ~ref view = s~, and ~late_borrow~'s new owner could die before the later
+alias read. ~Option(ref T)~, borrowed interface boxes and retained VM callbacks
+need the same decision; restricting the change to locals spelled ~ref~ leaves
+most of the policy and analysis intact. Compiler-created borrows also occur
+in ordinary chained calls, field reads and varargs expressions.
+
+Keeping the current policy preserves those usages but also its conservative
+destructor timing: old rebinding sources can stay live, body-end edges can
+outlast a carrier, and taint can retain an owner past a deep clone. Destructors
+can release files/VM sessions or execute user logic, so timing differences
+are observable even when output strings and ASAN remain correct.
+
+Rejecting provably unsafe uses instead of extending owners still needs
+provenance, statement/path ordering and escape analysis; deleting an
+extension is not an implementation of that rejection policy. Transferring
+responsibility to programmers must specify how long owners must remain live
+and how that requirement is expressed. Lexical scope alone is not enough
+under ASAP destruction, and there is no keep-alive primitive introduced by
+this inventory. Independent owned copies can remove a dependency only when
+the copy is made while the source remains valid.
+
+Before a semantic change, select the affected mechanisms explicitly, preserve
+rebinding/non-owning deletion rules and source-expression evaluation, then
+review destructor-site diffs with the existing GC audit alongside resource
+and negative fixtures. Do not silently update golden output or remove failing
+diagnostics to make a new policy appear equivalent. Interpreter/C agreement
+alone is insufficient: constant evaluation can hide a lifetime defect, and
+POD/literal tests can pass despite an incorrect destruction boundary.
+
+The policy choice and an isolated historical timing comparison remain open
+in [[file:../../issues/open/461.org][#461]]. The measured implementation-only reductions are in
+[[file:../optimizations.org][Optimization measurements]].
+
 ** The output contract (today)
 
 Everything the pass produces, and who consumes it. This is the interface

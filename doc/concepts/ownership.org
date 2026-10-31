@@ -164,6 +164,13 @@ walks ~ref x := src~ and ~holder.f = src~ (ref-field assign) and pushes
 ~src~'s ~last_use~ out to cover the borrower. This is exactly Mojo's "if there
 are existing references to a value, Mojo extends the lifetime of the owner."
 
+This is til's current destruction policy, not ownership acquired by the
+reference. ~mut~ does not change that distinction. The
+[[file:./garbager.org::*Borrow-lifetime policy inventory (#461)][borrow-lifetime inventory]] separates direct references, carried borrows,
+string-view temporaries, cleanup suppression and the diagnostics sharing
+their provenance. Issue #461 is evaluating that policy; no replacement
+policy has been selected.
+
 **** Interface-typed locals (#432)
 
 An interface value is a fat box ~{iface_type_name, iface_val}~ whose

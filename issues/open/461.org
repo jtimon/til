@@ -89,7 +89,7 @@ is an additional analysis policy, not a consequence of reference ownership.
   - [X] Profile the new scoped reference-loan walk, string-keyed maps/vectors,
     scope-name cloning and reach propagation. Check for repeated traversal of
     nested bodies already processed by the destruction pass.
-  - [ ] Inventory existing borrow-driven lifetime extensions, not just the
+  - [X] Inventory existing borrow-driven lifetime extensions, not just the
     rebinding additions, and identify tests/programs that rely on them.
   - [ ] Decide whether programmers should keep owners live explicitly, whether
     provably unsafe uses should be rejected, or whether the current extension
@@ -109,3 +109,28 @@ is an additional analysis policy, not a consequence of reference ownership.
   ~src/self/typer.til~; ~test/reference_rebinding.til~ and its negative fixtures.
   This issue does not authorize a new flag, opt-in mode or alternate analysis
   path; settle the language policy and improve the existing path.
+
+*** Lifetime-policy inventory (2026-10-31)
+
+  Reviewed current sources at ~bac208501~. The implementation/test inventory
+  is in [[../../doc/concepts/garbager.org::*Borrow-lifetime policy inventory (#461)][Borrow-lifetime policy inventory]], with a link from the ownership contract.
+  It distinguishes extended last-use edges from cleanup suppression, direct
+  references from borrows carried by owned values, and user-written borrows
+  from temporary borrows introduced by hoisting. It also records overlapping
+  protection and limits of the tests: POD/mutability coverage is not proof
+  of resource-lifetime correctness, and no counterfactual removal was tested.
+
+  Concrete dependencies include the GC-audit ~borrow_local~ golden,
+  ~reference_rebinding~'s heap-backed late/nested borrows, ~Option(ref T)~,
+  retained TilVm callbacks, and string-view clones/varargs. In particular,
+  removing protection between hoisted statements can break a single source
+  expression that still directly uses its owner. Rebinding must still retarget
+  without destroying the old pointee. Provenance used for mutability, escape
+  and replacement diagnostics cannot be removed as if it only delayed deletes.
+
+  No lifetime-policy change is made or approved by this inventory. The next
+  decision must define last use at source-expression boundaries, identify
+  which carrier/suppression rules change, and distinguish rejecting unsafe
+  uses from making their validity the programmer's responsibility. Historical
+  isolated timing remains unverified; prior allocation reductions alone do
+  not establish an elapsed-time win from a semantic change.
