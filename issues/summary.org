@@ -17,6 +17,7 @@
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Medium
 *** [[./open/455.org][#455]] Replace --usize with source-level configuration while preserving cross-width use cases
+*** [[./open/464.org][#464]] Replace Str CAP_VIEW views with a typed borrowed slice
 ** Low
 *** [[./open/429.org][#429]] no-shell-antipatterns.sh: tail -f check has false positives
 *** [[./open/449.org][#449]] Map and set literal nodes have no type slot; the instance name lives on the Decl

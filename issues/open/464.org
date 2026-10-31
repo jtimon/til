@@ -1,0 +1,60 @@
+# priority: medium
+# category: cleanups
+** OPEN #464 Replace Str CAP_VIEW views with a typed borrowed slice
+
+  :DEPENDENCIES: [[./329.org][#329]] [[./330.org][#330]] [[./243.org][#243]]
+
+A ~Str~ view is a ~Str~ whose ~cap~ field holds the ~CAP_VIEW~ sentinel:
+same type as an owning ~Str~, different runtime meaning. ~substr~, ~trim~,
+~trim_start~, ~trim_end~, ~strip_prefix~, ~strip_suffix~, ~get_char~ and
+~borrowed_view~ return one. The type system and the garbager cannot see
+which ~Str~ values borrow, so every lifetime rule about them is a special
+case keyed on method names or a conservative taint:
+
+  - ~str_method_returns_view~ / ~str_view_source_name~ (src/self/typer.til):
+    the name list behind #447's receiver-to-view borrow edges (master
+    ~ec93a1d~) and #372's "returning a view of a local" check.
+  - ~extend_hoist_view_lifetimes~ / ~collect_hoist_taint~ (#250, #350) in
+    src/self/garbager.til: any binding computed from a local is treated as
+    a possible view of it.
+  - ~clone_arg_may_be_view~ (#258): clone-to-move elision is disabled for
+    every ~Str~, because a Str might be a view.
+  - ~Str.delete~ and every backend read ~cap~ to tell owned, literal and
+    view apart (66 ~CAP_VIEW~ mentions across src/self).
+  - doc/ffi.org: views are not NUL-terminated, so ~c_str~ needs a clone at
+    the C boundary.
+
+Once #329's ~Slice(T)~ exists, give views their own type instead: the
+view-returning methods return a borrowed slice of the receiver's bytes
+(~Slice(U8)~, or a ~StrSlice~ wrapper if Str-specific methods are wanted on
+views), and ~Str~ always owns or is a literal. #329's borrow rules then cover
+Str views through the general machinery: the owner must outlive the slice,
+the garbager extends the owner through every live slice, escaping a dead
+owner is a compile-time error. #330 / #243 supply the ~[]T~ spelling and
+literals.
+
+Mojo precedent: ~String.strip()~ returns
+~StringSlice[origin_of(self)._get_owned_interior["bytes"]]~
+(Mojo/stdlib/std/collections/string/string.mojo in the Modular repo), a
+distinct view type tied to its owner's origin; ~String~ itself always owns.
+
+*** Plan
+
+  - [ ] After #329: decide the view type (~Slice(U8)~ vs a Str-specific
+    slice) and how ~format~, ~println~, ~eq~ etc. accept it without
+    clones (overloads, an interface, or an implicit borrow conversion).
+  - [ ] Change the view-returning ~Str~ methods' return types; migrate
+    callers (owned results take an explicit ~.clone()~ / ~to_str()~).
+  - [ ] Delete ~str_method_returns_view~, ~str_view_source_name~, the #250/#350
+    hoisted-view taint and ~clone_arg_may_be_view~'s blanket ~Str~ rule
+    once nothing produces a view-carrying ~Str~; re-measure the garbager
+    (#461).
+  - [ ] Retire ~CAP_VIEW~ from ~Str~ and the backends; keep ~CAP_LIT~ only if
+    literals still need it. Update doc/ffi.org's view/NUL guidance.
+
+*** Acceptance
+
+  - No ~Str~ value is a view; ~CAP_VIEW~ is gone from src/.
+  - #447's reproducer, #372's return-a-view-of-a-local case and #350's
+    vararg case keep their behaviour through the generic Slice rules, with
+    no Str-specific lifetime code.
