@@ -387,9 +387,16 @@ typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbage
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
+typedef struct priv___src_self_garbager_til__ReferenceNameChange priv___src_self_garbager_til__ReferenceNameChange;
 typedef struct priv___src_self_garbager_til__ReferenceLoans priv___src_self_garbager_til__ReferenceLoans;
 typedef struct priv___src_self_garbager_til__GcDeposit priv___src_self_garbager_til__GcDeposit;
 typedef struct Array__Bool Array__Bool;
+typedef struct Vec__priv___src_self_garbager_til__ReferenceNameChange Vec__priv___src_self_garbager_til__ReferenceNameChange;
+enum {
+    Option__Str_TAG_None,
+    Option__Str_TAG_Some
+};
+typedef struct Option__Str Option__Str;
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
@@ -432,11 +439,6 @@ enum {
 };
 typedef struct Option__U64 Option__U64;
 typedef struct Map__Str_U64 Map__Str_U64;
-enum {
-    Option__Str_TAG_None,
-    Option__Str_TAG_Some
-};
-typedef struct Option__Str Option__Str;
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding Vec__priv___src_self_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_fasm_codegen_til__FasmDefinition priv___src_self_fasm_codegen_til__FasmDefinition;
 typedef struct priv___src_self_fasm_codegen_til__FasmProgram priv___src_self_fasm_codegen_til__FasmProgram;
@@ -1333,13 +1335,6 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
 } priv___src_self_garbager_til__GcBorrowEdge;
 
 
-typedef struct priv___src_self_garbager_til__ReferenceLoans {
-    Map__Str_call_Vec_Str sources;
-    Set__Str references;
-    USize next;
-} priv___src_self_garbager_til__ReferenceLoans;
-
-
 typedef struct priv___src_self_garbager_til__GcDeposit {
     BorrowRoot sink;
     BorrowRoot source;
@@ -1351,6 +1346,21 @@ typedef struct Array__Bool {
     USize cap;
 } Array__Bool;
 
+
+typedef struct Vec__priv___src_self_garbager_til__ReferenceNameChange {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_garbager_til__ReferenceNameChange;
+
+
+struct Option__Str {
+    U8 tag;
+    union {
+        Str Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge {
     U8 *data;
@@ -1553,14 +1563,6 @@ typedef struct Map__Str_U64 {
     Vec__U64 values;
 } Map__Str_U64;
 
-
-struct Option__Str {
-    U8 tag;
-    union {
-        Str Some;
-        void *_til_payload_align;
-    } data;
-};
 
 typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
     U8 *data;
@@ -2212,6 +2214,20 @@ typedef struct Map__Str_RootBits {
     Vec__Str keys;
     Vec__RootBits values;
 } Map__Str_RootBits;
+
+
+typedef struct priv___src_self_garbager_til__ReferenceNameChange {
+    Str name;
+    Option__Str previous;
+} priv___src_self_garbager_til__ReferenceNameChange;
+
+
+typedef struct priv___src_self_garbager_til__ReferenceLoans {
+    Map__Str_call_Vec_Str sources;
+    Set__Str references;
+    Vec__priv___src_self_garbager_til__ReferenceNameChange name_changes;
+    USize next;
+} priv___src_self_garbager_til__ReferenceLoans;
 
 
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {

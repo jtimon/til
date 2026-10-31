@@ -60,6 +60,18 @@ is an additional analysis policy, not a consequence of reference ownership.
   Verification: clean full suite 487/487; ASAN ~fasm_native~ and ~fasm_runtime~
   drivers pass against ~bin/til_asan~.
 
+  Follow-up (2026-10-30, base ~3515db554~): replace full name-map clones with
+  a scoped declaration undo stack, preserving shared loan updates. All
+  208,077 map clones disappear on the new frozen self-translation baseline;
+  measured helper totals save another 7,689,322 allocations and about
+  324 MiB cumulative allocation traffic, including the new stack's cost.
+  Timing pairs overlap; no elapsed-time speedup is established. Frozen C and
+  forward headers remain identical. ~reference_rebinding.til~ adds nested
+  shadow restoration and scope-surviving loans. Repeated subtree traversal
+  and the lifetime-policy inventory/decision remain open.
+  Verification: clean full suite 491/491; ASAN ~fasm_native~ and ~fasm_runtime~
+  drivers pass against ~bin/til_asan~, including the extended fixture.
+
   - [ ] Measure the regression against the parent of ~7a7ce5a51~, using the
     same builds, inputs and compiler settings. Record time, peak memory and
     profiles; the dominant cost has not yet been established.

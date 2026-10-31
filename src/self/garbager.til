@@ -2067,9 +2067,15 @@ priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrow
     edges.push(own e)
 }
 
+priv ReferenceNameChange := struct {
+    name := ""
+    previous := Option(Str).None
+}
+
 priv ReferenceLoans := struct {
     sources := Map(Str, Vec(Str)).new()
     references := Set(Str).new()
+    name_changes := Vec(ReferenceNameChange).new()
     next : USize = 0
 }
 
@@ -2112,6 +2118,9 @@ priv collect_reference_loans := func(e: Expr, scope: TypeScope, root_level: Bool
             // Internal graph nodes cannot collide with source identifiers.
             key = format("@", loans.next.to_str(), ":", dd.name)
             loans.next++
+            mut change := ReferenceNameChange(name = dd.name.clone())
+            if names.has(dd.name) { change.previous = Option(Str).Some(names[dd.name].clone()) }
+            loans.name_changes.push(own change)
         }
         mut roots := Vec(Str).new()
         if dd.own_type.is(OwnType.Ref) && type_is_callable_storage(dd.til_type).not() && dd.til_type.is(Type.Dynamic).not()
@@ -2151,8 +2160,19 @@ priv collect_reference_loans := func(e: Expr, scope: TypeScope, root_level: Bool
         }
         return
     case .Body:
-        mut nested_names := names.clone()
-        for child : Expr in e.children { collect_reference_loans(child, scope, false, step, nested_names, loans, edges, symbols) }
+        // Only declarations change lexical names. Undo those changes on exit
+        // instead of cloning every visible binding for each nested body.
+        // Loans acquired by outer references still survive the body's exit.
+        mark := loans.name_changes.len()
+        for child : Expr in e.children { collect_reference_loans(child, scope, false, step, names, loans, edges, symbols) }
+        while loans.name_changes.len() > mark {
+            index := loans.name_changes.len() - 1
+            ref change : ReferenceNameChange = loans.name_changes[index]
+            if change.previous.is_some() {
+                names.set(change.name, own change.previous.unwrap())
+            } else { names.remove(change.name) }
+            loans.name_changes.remove_at(index)!
+        }
         return
     case:
     }

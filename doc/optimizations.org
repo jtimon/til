@@ -5,6 +5,47 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Undo scoped reference names instead of cloning maps (2026-10-30, #461)
+
+Base: ~3515db554~, including the sparse-source change below. Nested loan-walk
+bodies now mark a shared name-change stack, record each declaration's prior
+binding (or absence), and restore changes in reverse order on exit. Loan
+sources and reference classifications remain shared across bodies: rebinding
+an outer reference inside a body must still retain the newly acquired loan.
+Synthetic identities and traversal order are unchanged.
+
+Same Linux/Ryzen/GCC 13.3.0 ~-O0~ setup and instrumented allocation wrappers
+as below. Before/after compiler C was emitted by the same seed compiler;
+both binaries translate a frozen ~3515db554~ tree with
+~translate --usize=32 -c tmp/check.c src/til.til~.
+All 208,077 ~Map(Str, Str).clone~ calls disappear. Allocation counts:
+
+| Allocating function                | Before     | After      | KiB before | KiB after |
+|------------------------------------+------------+------------+------------+-----------|
+| Str_clone                          | 30,162,128 | 22,913,553 |  502,078.7 | 363,324.8 |
+| Vec(Str).clone                     |    436,481 |     24,473 |  177,979.6 |   3,501.9 |
+| Map(Str, Str).open_slot             |    549,520 |    441,516 |   84,532.5 |  41,804.8 |
+| Vec(ReferenceNameChange).push       |          0 |     79,265 |          0 |  24,435.3 |
+
+Net across these helpers: 7,689,322 fewer allocations and about 324 MiB less
+cumulative allocation traffic. The stack records 686,797 declarations;
+restoration reads and removes its last element in place. An initial ~pop~
+implementation allocated a temporary box for every restoration; removing in
+place eliminates those additional 686,797 allocations (26,828 KiB).
+
+Three alternating-order wall-time pairs (before/after): 13.94/13.35s,
+12.87/13.26s (after ran first), and 13.26/13.23s. Peak RSS ranges from
+430,432 to 431,620 KiB. Timing overlaps and is not an established speedup;
+the demonstrated benefit is allocation traffic, not reduced peak memory.
+
+Emitted C and forward headers compare byte-for-byte for frozen self-source,
+~test/maps.til~, ~test/reference_rebinding.til~ and ~test/gc_audit.til~.
+The shared rebinding fixture additionally exercises two nested shadowing
+levels, restoration to the outer reference, and an outer reference's loan
+surviving the inner scope that acquired it.
+Clean full suite: 491/491 passed. Both optional FASM integration drivers
+pass with ASAN drivers and the ASAN compiler, including the extended fixture.
+
 ** Sparse reference-loan sources (2026-10-30, #461)
 
 Base: ~6eed1697a~. Ordinary locals were stored in ~ReferenceLoans.sources~

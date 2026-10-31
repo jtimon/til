@@ -29,6 +29,31 @@ late_borrow := proc(seed: I64) {
     println(alias.text)
 }
 
+scoped_borrow := func(seed: I64) {
+    mut first := make_cell(seed, "first")
+    mut second := make_cell(seed, "second")
+    mut third := make_cell(seed, "third")
+    ref mut source : Cell = borrow_cell(first)
+    source.number++
+    ref mut alias : Cell = source
+    {
+        ref mut source : Cell = borrow_cell(second)
+        source.number++
+        {
+            ref mut source : Cell = borrow_cell(third)
+            source.number++
+            alias = source
+        }
+        // The acquired loan survives scope exit, but the source name is
+        // restored to the immediately enclosing reference before rebinding.
+        assert(alias.text.eq("third"))
+        alias = source
+    }
+    assert(alias.text.eq("second"))
+    alias = source
+    assert(alias.text.eq("first"))
+}
+
 main := proc() {
     mut seed : I64 = 0
     seed++
@@ -109,5 +134,6 @@ main := proc() {
     assert(text.cap == 8)
 
     late_borrow(seed)
+    scoped_borrow(seed)
     println("reference rebinding passed")
 }
