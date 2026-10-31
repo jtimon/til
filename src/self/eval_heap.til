@@ -56,6 +56,15 @@ f64_bits_from_i64 := ext_func(shallow v: I64) returns shallow U64 {}
 // Ownership sink for an inline-scalar word: consumes the own Dynamic
 // without freeing (the word holds value bits, not a heap pointer).
 word_drop := ext_func(own w: Dynamic) {}
+// #313: the pointer in a pointer-field slot of the running binary's layout,
+// and the store back, given the slot's FieldLayout size. A --cptr=32 build
+// keeps an own field as a 4-byte cage offset (FieldLayout.is_cptr), so a slot
+// narrower than a pointer is one of those; a full-width slot is a native
+// pointer and these are deref / write_ptr. own_slot_store is write_ptr's
+// twin, value in the same argument position, and the typer's raw-store
+// escape rules name both.
+own_slot_load := ext_func(slot: Dynamic, shallow size: USize) returns ref Dynamic {}
+own_slot_store := ext_func(mut slot: Dynamic, p: Dynamic, shallow size: USize) {}
 // Fixed C-side arenas for the interpreter's scalar-word slots (stable
 // addresses, no allocation, no teardown).
 dispatch_scratch_base := ext_func() returns shallow Dynamic {}

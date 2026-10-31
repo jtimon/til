@@ -16,9 +16,12 @@ Str *greet(Str *name) {
     Str *result = malloc(sizeof(Str));
     result->count = hello_len + name->count;
     result->cap = result->count;
-    result->c_str = malloc(result->count);
-    memcpy(result->c_str, hello, hello_len);
-    memcpy(result->c_str + hello_len, name->c_str, name->count);
+    // Own pointer fields go through ext.h's accessors: under --cptr=32 they
+    // hold 32-bit cage offsets, not pointers (issue #313).
+    I8 *bytes = malloc(result->count);
+    memcpy(bytes, hello, hello_len);
+    memcpy(bytes + hello_len, TIL_OWN_GET(I8, name->c_str), name->count);
+    TIL_OWN_SET(result->c_str, bytes);
     return result;
 }
 
@@ -26,7 +29,7 @@ void greet_print(Str *name) {
     const char *hello = "hello ";
     int hello_len = 6;
     fwrite(hello, 1, hello_len, stdout);
-    fwrite(name->c_str, 1, name->count, stdout);
+    fwrite(TIL_OWN_GET(I8, name->c_str), 1, name->count, stdout);
     putchar('\n');
 }
 
@@ -43,7 +46,7 @@ I64 *sum_all(Array__I64 *args) {
     I64 *r = malloc(sizeof(I64));
     *r = 0;
     for (U64 i = 0; i < args->cap; i++) {
-        I64 *elem = (I64 *)(args->data + i * sizeof(I64));
+        I64 *elem = (I64 *)(TIL_OWN_GET(U8, args->data) + i * sizeof(I64));
         *r += *elem;
     }
     return r;

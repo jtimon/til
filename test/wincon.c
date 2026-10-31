@@ -39,7 +39,7 @@ static Str *wincon_str(const char *data, size_t len) {
     }
     if (len > 0) memcpy(buf, data, len);
     buf[len] = '\0';
-    s->c_str = (I8 *)buf;
+    TIL_OWN_SET(s->c_str, (I8 *)buf);
     s->count = (USize)len;
     s->cap = (USize)len;
     return s;

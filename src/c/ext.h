@@ -55,6 +55,67 @@ typedef U64 UPtr;
 #endif
 typedef struct Str Str;
 
+// Issue #313: TIL_CPTR32 confines every til allocation to one reserved
+// region (the cage), so a pointer into it can later be stored as a 32-bit
+// offset. Generated code and ext.c call malloc/calloc/realloc/free by name;
+// these macros route those calls to the cage allocator in ext.c. stdlib.h
+// comes first so the libc prototypes are seen before the names are taken
+// over (ext.c includes this header ahead of its own system includes).
+// Memory that libc allocates internally (realpath(p, NULL), ...) is still
+// libc's: release it with (free)(p), which the macro does not expand. The
+// cage never returns NULL (exhaustion panics), and says so to the compiler.
+#ifdef TIL_CPTR32
+#if UINTPTR_MAX == 0xffffffff
+#error "TIL_CPTR32 compresses 64-bit pointers; a 32-bit target already stores 32-bit pointers"
+#endif
+#include <stddef.h>
+#include <stdlib.h>
+void *til_malloc(size_t size) __attribute__((malloc, returns_nonnull));
+void *til_calloc(size_t nmemb, size_t size) __attribute__((malloc, returns_nonnull));
+void *til_realloc(void *ptr, size_t size) __attribute__((returns_nonnull));
+void til_free(void *ptr);
+#define malloc(size) til_malloc(size)
+#define calloc(nmemb, size) til_calloc(nmemb, size)
+#define realloc(ptr, size) til_realloc(ptr, size)
+#define free(ptr) til_free(ptr)
+#endif
+
+// Issue #313: storage of an own pointer field. Generated struct definitions
+// spell such a field TIL_OWN_PTR(T), so one header serves both builds.
+// Natively it is a T *. Under TIL_CPTR32 it is a 32-bit byte offset into the
+// cage (0 = NULL), wrapped in a struct so that a load or store that forgot
+// TIL_OWN_GET / TIL_OWN_SET is a compile error, never a silent truncation.
+// The offset counts bytes, not 16-byte units: a Str view (substr, trim)
+// points at any byte of its buffer.
+#ifdef TIL_CPTR32
+typedef struct { U32 off; } TilCPtr;
+extern U8 *til_cage_base;
+void til_cptr_encode_fail(const void *p) __attribute__((noreturn));
+static inline __attribute__((always_inline)) void *til_cptr_decode(U32 off) {
+    return off ? (void *)(til_cage_base + off) : (void *)0;
+}
+static inline __attribute__((always_inline)) U32 til_cptr_encode(const void *p) {
+    if (p == (const void *)0) return 0;
+    UPtr off = (UPtr)p - (UPtr)til_cage_base;
+    // Before the first allocation there is no cage: every pointer is foreign.
+    if (til_cage_base == (U8 *)0 || off == 0 || off > 0xffffffffULL) til_cptr_encode_fail(p);
+    return (U32)off;
+}
+// The cage offset of a NUL-terminated copy of a literal's n bytes.
+U32 til_cage_lit(const char *s, UPtr n);
+#define TIL_OWN_PTR(T) TilCPtr
+#define TIL_OWN_GET(T, field) ((T *)til_cptr_decode((field).off))
+#define TIL_OWN_SET(field, p) ((field).off = til_cptr_encode(p))
+#define TIL_OWN_ENC(p) ((TilCPtr){til_cptr_encode(p)})
+// A literal's bytes, copied into the cage once per use site.
+#define TIL_OWN_LIT(s, n) ({ static U32 til_lit_off; if (til_lit_off == 0) til_lit_off = til_cage_lit((s), (n)); (TilCPtr){til_lit_off}; })
+#else
+#define TIL_OWN_PTR(T) T *
+#define TIL_OWN_GET(T, field) (field)
+#define TIL_OWN_SET(field, p) ((field) = (p))
+#define TIL_OWN_ENC(p) (p)
+#endif
+
 // Generated code boxes size arguments through the alias-facing ABI rather than
 // the source expression's numeric type, so USize follows the target typedef.
 #define USIZE_REF(x) ((void *)&(USize){(USize)(x)})
@@ -207,6 +268,10 @@ Bool Bool_clone(const Bool *v);
 // use(buf) pattern; the analysis is correct in the abstract but
 // chases a real-world non-bug, so keep these non-const for now.
 void *to_ptr(void *a);
+// Str.from_c_str's storage (issue #313): the C string as is (a CAP_VIEW)
+// natively; an owned cage copy (capacity n) under TIL_CPTR32.
+void *c_str_borrow_bytes(void *s, USize n);
+USize c_str_borrow_cap(USize n);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);
 void til_closure_slot_take(void *slot, void *closure);
@@ -272,6 +337,10 @@ Str *f64_bits_to_str(U64 b);
 Str *f64_bits_to_repr(U64 b);
 U64 f64_bits_from_i64(I64 v);
 void word_drop(void *w);
+// #313: a pointer-field slot of this binary's own layout, `size` bytes wide:
+// a cage offset when narrower than a pointer (FieldLayout.is_cptr).
+void *own_slot_load(const void *slot, USize size);
+void own_slot_store(void *slot, const void *p, USize size);
 void *dispatch_scratch_base(void);
 void *word_ring_base(void);
 void eprint_single(const Str *s);

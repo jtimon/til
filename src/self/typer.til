@@ -1695,7 +1695,7 @@ priv validate_splat_elem_type := proc(scope: TypeScope, arg: Expr, want_name: St
 // dereferences it. Name-keyed like the existing pointer-builtin handling.
 priv builtin_first_arg_is_address := func(name: Str) returns Bool {
     return match name {
-    case "ptr_add", "deref", "write_ptr", "memset", "memcpy": true
+    case "ptr_add", "deref", "write_ptr", "own_slot_load", "own_slot_store", "memset", "memcpy": true
     case: false
     }
 }
@@ -12272,6 +12272,13 @@ priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps
     for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, caps, fi, base, out, symbols) }
 }
 
+// write_ptr and its #313 twin own_slot_store (a pointer-field slot that may
+// be a cage offset; same argument positions) store a til pointer into raw
+// memory.
+is_raw_ptr_store_name := func(name: Str) returns Bool {
+    return name.eq("write_ptr").or(name.eq("own_slot_store"))
+}
+
 // Names whose POINTER is stored into raw memory by write_ptr, the one
 // primitive that hands a til pointer to storage the ownership passes
 // cannot see. Such a local stays reachable through that storage after
@@ -12284,8 +12291,8 @@ expr_collect_ptr_escapes := func(e: Expr, fi: FactIndex, base: USize, mut out: V
     if e.node_type.is(NodeType.FCall).and(e.children.len() >= 3) {
         mut is_write_ptr := false
         switch e.children[0].node_type {
-        case .Ident(cn): is_write_ptr = cn.ident_name(symbols.names) == "write_ptr"
-        case .FieldAccess(cf): is_write_ptr = cf.field_access_name(symbols.names) == "write_ptr"
+        case .Ident(cn): is_write_ptr = is_raw_ptr_store_name(cn.ident_name(symbols.names))
+        case .FieldAccess(cf): is_write_ptr = is_raw_ptr_store_name(cf.field_access_name(symbols.names))
         case:
         }
         if is_write_ptr {
@@ -12488,8 +12495,8 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
     if e.node_type.is(NodeType.FCall).and(e.children.len() >= 3) {
         mut is_write_ptr := false
         switch e.children[0].node_type {
-        case .Ident(cn): is_write_ptr = cn.ident_name(symbols.names) == "write_ptr"
-        case .FieldAccess(cf): is_write_ptr = cf.field_access_name(symbols.names) == "write_ptr"
+        case .Ident(cn): is_write_ptr = is_raw_ptr_store_name(cn.ident_name(symbols.names))
+        case .FieldAccess(cf): is_write_ptr = is_raw_ptr_store_name(cf.field_access_name(symbols.names))
         case:
         }
         if is_write_ptr {
@@ -14199,7 +14206,7 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
         mut dest_i : USize = 0
         if hn == "adopt" { dest_i = 2 }
         if hn.eq("adopt_from").or(hn.starts_with("adopt__")) { dest_i = 1 }
-        if hn == "write_ptr" { dest_i = 1 }
+        if is_raw_ptr_store_name(hn) { dest_i = 1 }
         if hn.eq("memcpy").or(hn == "memmove") {
             for param : Declaration in params {
                 if aggregate_borrows_type(scope, param.til_type, "", ctx) { dest_i = 1 }
@@ -14223,7 +14230,7 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
                 src_bits.into = src_bits.into.band(carriers.bnot())
             }
             acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
-            if hn == "write_ptr" { acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias)) }
+            if is_raw_ptr_store_name(hn) { acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias)) }
             summary_note_deposit_target(e.children[dest_i], src_bits, roots, scope, self_type, receivers, symbols)
             return
         }

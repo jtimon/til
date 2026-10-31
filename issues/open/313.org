@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** WIP #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time
@@ -175,6 +175,108 @@ assumptions do not match the compiler:
 9. Out of scope: ~Vec(ref T)~ slots hold native pointers (slot_size =
    UPtr.size(), src/core/vec.til:33) and stay 8 bytes; Dynamic fields stay
    8 bytes (DynVec's payload etc.); closures stay ~TilClosure *~.
+
+*** Progress
+
+  - Step 0: the plan's proposals were taken as approved ("follow the plan"):
+    ~--cptr=32|64~, a hand-written allocator in ext.c, ~TIL_CPTR32~,
+    ~make check_cptr32~ + its CI job.
+  - Step 1 DONE. The cage (64GB reserve, 64KB pages, 44 size classes up to
+    32KB, coalescing page spans above, ASAN poisoning) lives in ext.c under
+    ~TIL_CPTR32~. The binding is by ext.h macros (~malloc(n)~ ->
+    ~til_malloc(n)~ ...) rather than renaming mem.til's ext_funcs: the
+    compiler names malloc/free in typer, desugarer, garbager and many emitted
+    C strings, so a rename would be a bootstrap ladder for no benefit. The
+    ~--cptr~ flag landed here too (step 2's plumbing), selecting only the
+    allocator for now. The plan's "exhaustion panics" is kept: the cage
+    functions are ~returns_nonnull~ (which also keeps ext.c -Werror clean at
+    -O2, where gcc otherwise sees dup_n's NULL path reach ~fprintf("%s")~).
+  - Step 1 audit result (full ASAN suite through a --cptr=32 compiler, 3
+    failures, all fixed): the interpreter resolved malloc/free with dlsym,
+    which finds libc's -- also through the user .so's handle, since that
+    searches the .so's dependencies. ~ffi_user_symbol~/~ffi_global_symbol~
+    now hand out the cage functions, and the FFI .so is compiled with
+    ~-DTIL_CPTR32~ when the interpreter is. ~realpath_str~ frees libc's
+    buffer with ~(free)~. Nothing else (crypto, closures) reached a foreign
+    free.
+  - Measured with -O0 builds, self-translate of src/til.til: cage 25.8s /
+    458MB RSS vs native 27.7s / 425MB (+8% RSS: size-class rounding above
+    256 bytes and small pages never returned; tune in step 4).
+
+  Decided after step 1 (human, 2026-10-31):
+
+  - Encoding: 32-bit BYTE offsets and a 4GB cage, no shift. ~substr~ /
+    ~trim~ views point at any byte of a block, so no shift can encode them,
+    and a second field for the view offset would undo the size win. Point
+    5's 4.3GB was the ASAN self-translate; a src/tests.til comment (#326's
+    numbers) records the real self-translate peak at ~262MB. --cptr=32 therefore
+    means a hard 4GB heap cap per process: fine as an opt-in flag; as the
+    default it becomes a language contract (the same cap 32-bit targets
+    already have, --cptr=64 the escape). That cap, not the memory numbers
+    alone, is what the step 4 default flip decides.
+  - Static literals: point 6 as planned (copied into the cage at startup).
+  - ~Str.from_c_str~ on argv/getenv copies under --cptr=32: the same
+    foreign-pointer class as point 6. The copy is owned (real cap), so the
+    garbager's delete frees it.
+  - The interpreter's host layout is a step of its own before the default
+    flip (new step 3b below).
+
+  - Steps 2 + 3 DONE (one Two-pass commit):
+    - ext.h: ~TIL_OWN_PTR(T)~ / ~TIL_OWN_GET~ / ~TIL_OWN_SET~ / ~TIL_OWN_ENC~
+      / ~TIL_OWN_LIT~. Under TIL_CPTR32 an own field is ~{U32 off}~, a
+      struct, so every access that misses the macros fails to compile --
+      gcc found every remaining site. Natively the macros are plain
+      accesses, and every generated struct spells own fields
+      ~TIL_OWN_PTR(T)~, so boot/til_forward.h (which ext.c includes for
+      programs too) serves both layouts.
+    - The cage is 4GB, byte offsets; page 0 and the last page are never
+      handed out (NULL; one-past-the-end of the top block still encodes).
+    - c_codegen: struct emitter, own-field loads (FieldAccess),
+      stores (FieldAssign, ctor fields), and the raw fragments that touch
+      ~c_str~ / ~data~ (dyn_* dispatch tables, print_single, TIL_CSTR, main's
+      argv arrays, SIMD load/store) go through the macros; under --cptr=32
+      literals use ~TIL_OWN_LIT~ (copied into the cage once per site), the
+      literal pool and the __LOC__ region are cage-resident structs built by
+      constructors (a macro per name redirects uses), immutable literal
+      locals lose ~static~ and box on own transfer, globals holding a Str
+      literal initialize at run time, and precomputed sequence templates
+      are built on first use (~<sym>_data_cptr()~ / ~<sym>_get()~).
+    - sizes: ~size_intrinsics_emit_sizeof~ (= width mismatch OR cptr32)
+      emits ~X.size()~ / ~dyn_size_of~ as C sizeof; the interpreter's FFI
+      marshaling still keys on ~size_intrinsics_use_sizeof~, since
+      compile-time FFI calls host code.
+    - ext.c: all Str field accesses through the macros; the
+      ~Str_clone(&(Str){.c_str = <C bytes>, ...})~ views over stack buffers,
+      literals and C library strings became ~ext_str_box_bytes~ (one copy,
+      no view). ~c_str_borrow_bytes~ / ~c_str_borrow_cap~ give
+      ~Str.from_c_str~ its per-build behavior.
+    - The library-namespace pass collected names from lines INSIDE braces
+      of ext.h and the forward header (struct fields, inline bodies), which
+      turned ~TIL_OWN_PTR~ and even ~return~ into prefixed macros: it now
+      tracks brace depth. --cptr=32 libraries build.
+    - examples/ffi/ext_module.c and test/wincon.c use the macros, as user C
+      touching own fields must.
+    - Tests: test/cptr32_sizes.til (Str/Vec 12, Map 24 at --usize=32, vec
+      stride, a mid-buffer substr view). ~make check_cptr32~ now runs the
+      whole suite with every compiled program built --cptr=32 under ASAN
+      (bin/tests and test_runner take --cptr=32): 506/507. The one failure
+      is test/interp_session.til, which compiles the INTERPRETER into a
+      --cptr=32 program -- exactly step 3b.
+    - Measured: with --usize=32, Str 16 -> 12, Vec 16 -> 12, Map 32 -> 24.
+      With USize64 there is no gain: a 4-byte offset next to 8-byte counts
+      is padded back to 24.
+
+  Remaining:
+
+  - Step 3b (new): the interpreter on a compressed host. A compiler built
+    with --cptr=32 must lay own fields out at 4 bytes in the interpreter
+    (a host own-field width next to host_uptr_pname, the #309 host/target
+    split again: initer.til ~2044's ~fsz = UPtr.size()~), and its pointer
+    writes/reads into value memory (make_str_value, write_ptr, deref of own
+    fields) must encode/decode through the same macros. Exit: test/
+    interp_session.til green under check_cptr32, and src/til.til built with
+    --cptr=32 self-translating byte-identically.
+  - Step 4 as planned, after 3b.
 
 *** Detailed plan
 

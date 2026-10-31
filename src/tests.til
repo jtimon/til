@@ -1023,13 +1023,15 @@ run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
 main := proc(args: ..Str) {
     wall_start := clock_ms()
 
-    // Parse args: -jN, -no-interp, -no-run, --no-gui, --til-bin <path>, --asan
+    // Parse args: -jN, -no-interp, -no-run, --no-gui, --til-bin <path>, --asan,
+    // --cptr=32
     mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
     mut en_gui := 1
     mut til_bin := TIL
     mut asan := 0
+    mut cptr32 := 0
     mut i : USize = 0
     while i < args.len() {
         ref arg : Str = args[i]
@@ -1046,6 +1048,7 @@ main := proc(args: ..Str) {
             til_bin = val.clone()
         }
         if arg == "--asan" { asan = 1 }
+        if arg == "--cptr=32" { cptr32 = 1 }
         if arg == "--regen" { REGEN = " --regen" }
         i++
     }
@@ -1056,6 +1059,9 @@ main := proc(args: ..Str) {
     // their own leaks when executed.
     mut asan_flag := ""
     if asan == 1 { asan_flag = " --asan" }
+    // #313: --cptr=32 rides along with the ASAN flag into every compiled
+    // program's build (make check_cptr32); interpretation is unaffected.
+    if cptr32 == 1 { asan_flag = format(asan_flag, " --cptr=32") }
 
     mut fail := 0
 
