@@ -322,7 +322,8 @@ rebind-then-transfer pattern).
 ** Relation to Mojo
 
 til's model is a deliberate close cousin of Mojo's. Re-checked against the
-Mojo manual 2026-07-09 (see Sources). Terminology note: Mojo renamed its
+Mojo manual 2026-07-09 (see Sources); the "Different" list was brought up to
+date with #344's borrow inference, #399 and #415 on 2026-10-31. Terminology note: Mojo renamed its
 conventions over 2024-2025 -- ~borrowed~ became ~read~, ~inout~ became
 ~mut~, ~owned~ became ~var~ -- and replaced the ~__copyinit__~ /
 ~__moveinit__~ dunders with the ~Copyable~/~Movable~ traits whose custom
@@ -386,13 +387,34 @@ cross-language terminology check is in [[file:./garbager.org][the garbager guide
     re-initialized before whole-object destruction). til's pass works per
     statement per binding, and fields die only via the parent's ~delete~.
     The #302 CFG pass narrows the statement-vs-path gap; field-sensitive
-    destruction stays out of scope.
+    destruction stays out of scope. Two consequences:
+    - Sub-expression timing comes from HOISTING: the desugarer lifts a
+      return operand that reads an owned local -- a call, a literal, a
+      field read (~return c.n~, #399) -- into its own statement, so the
+      per-statement pass can delete the local after the read. The garbager
+      then relies on an invariant the hoist establishes: the only owned
+      local a ~return~ operand may name is the one it MOVES (bare
+      ~return x~, under ~returns T~ or ~returns shallow T~). A hoist gap
+      shows up as a skipped delete (a leak), not an error; that gap was
+      ~return c.n~ on a plain local (fixed with #399's hoist, 2026-10-30).
+    - Moving a FIELD out of its holder (~own h.f~, or a field passed to a
+      consuming constructor) is REJECTED (#415): with whole-holder
+      destruction nothing could track the partially moved holder, so the
+      holder's delete would free the field again. Mojo allows it because
+      it destroys per field and only exempts ~deinit~ methods; til's
+      spellings are ~own h.f.clone()~ or ~swap~ (destructors and
+      compiler-generated members excepted).
   - Reference safety. Mojo validates references with an origin (lifetime)
     system and enforces argument EXCLUSIVITY ("if a function receives a
     mutable reference to a value ... it can't receive any other references
-    to the same value"). til has no origin checker: ~ref~ is trusted and
-    locally lifetime-extended; ~returns ref~ is the documented dangerous
-    case; there is no exclusivity rule.
+    to the same value"). til has no declared origins: a ~ref~ is locally
+    lifetime-extended, and borrows are tracked by INFERENCE instead -- per
+    function, which parameters a returned borrow can reach and which
+    parameter pairs it deposits between (#344, #351, #393, #398, in
+    [[file:./qualifiers.org][qualifiers.org]] "Mutability rule"), so a
+    borrow of a local returned or deposited into longer-lived storage is
+    rejected. ~returns ref~ into an owned parameter is rejected
+    (~check_ref_function_returns~); there is no exclusivity rule.
   - Destructor signature. Mojo's ~__del__(deinit self)~ has no ~call_free~:
     Mojo values live in place (fields inline, locals on the stack; the
     compiler moves the bytes), so a destructor never frees its own box.
