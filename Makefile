@@ -170,21 +170,18 @@ $(LIBFFI_HOST_DIR)/.built:
 # with git so no uncommitted edit can reach it, compiled here. .PHONY
 # because its input is a commit and make cannot stat one -- a new HEAD
 # has to reconstruct it, which worktree mtimes would not notice.
-#
-# REM Transitional: HEAD's C runtime is in src/c/ until the commit that
-# moves it into src/self/codegen/ lands on master; drop src/c/ here then.
 .PHONY: bin/til_boot
 bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 	mkdir -p bin tmp/boot/boot
 	rm -rf tmp/boot/src
+	mkdir -p tmp/boot/src/self/codegen
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	for f in $$(git ls-tree --name-only HEAD src/c/ src/self/codegen/ 2>/dev/null | grep '\.[ch]$$'); do \
-		mkdir -p "tmp/boot/$$(dirname $$f)"; \
+	for f in $$(git ls-tree --name-only HEAD src/self/codegen/ | grep '\.[ch]$$'); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" || exit 1; \
 	done
-	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/src/self/codegen -Itmp/boot/boot $$(ls tmp/boot/src/c/*.c tmp/boot/src/self/codegen/*.c 2>/dev/null) tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/self/codegen -Itmp/boot/boot tmp/boot/src/self/codegen/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
 
 # The build program itself: a generated artifact under the already
 # ignored bin/ tree, never committed and never installed. bin/til_boot
