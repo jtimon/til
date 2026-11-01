@@ -7,7 +7,7 @@ mode lib
 // injected their raw escape bytes into the source, and nothing survived
 // the session. This module is the editor: key bindings, history policy,
 // ANSI decoding, and the one-row redraw. Only what cannot be expressed
-// portably in til lives in C (src/c/ext.c, the repl_term_* /
+// portably in til lives in C (src/self/codegen/ext.c, the repl_term_* /
 // repl_history_* bridge below): console detection, the raw-mode
 // interval, one input event, the terminal width, and the atomic history
 // replacement. No readline, curses, terminfo, PTY, or extra link flag is
@@ -19,7 +19,7 @@ mode lib
 
 import("../std/sys")
 
-// --- Bridge to the platform terminal (src/c/ext.c) ---
+// --- Bridge to the platform terminal (src/self/codegen/ext.c) ---
 //
 // These are the module's private surface in spirit; they are not spelled
 // `priv` because that would mangle the name away from the C symbol the
@@ -37,7 +37,7 @@ repl_history_write := ext_proc(path: Str, contents: Str, mut err: Str) returns s
 //
 // One documented internal representation for an input event: ordinary
 // bytes are 0..255, everything else is a disjoint negative code. The
-// first block mirrors TIL_KEY_* in src/c/ext.h byte for byte (POSIX
+// first block mirrors TIL_KEY_* in src/self/codegen/ext.h byte for byte (POSIX
 // returns bytes and til decodes the escape sequences below; native
 // Windows maps its console key events onto the same codes). The second
 // block never crosses the bridge -- it is what the decoder tells the

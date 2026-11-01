@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * REPL_DOC_INDEX
@@ -95,6 +95,16 @@ namespace:
 }
 #+end_src
 
+* abi_layout_id
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.abi_layout_id
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func abi_layout_id(usize_pname: Str, cptr32: Bool) returns Str
+#+end_src
+
 * LoadedProgram
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.loader.LoadedProgram
@@ -122,9 +132,11 @@ struct LoadedProgram {
     mut link_c_paths : Str
     mut compiler_revision : Str
     mut asan_build : Bool
+    mut mlir_runtime : Bool
     mut run_tests : Bool
     mut load_errors : I32
     mut usize_override_bits : I64
+    mut cptr32 : Bool
 namespace:
     func uses_shared_runtime(self: LoadedProgram) returns Bool
     func runtime_abi_id(self: LoadedProgram) returns Str
@@ -159,6 +171,26 @@ func repl_clone_loaded_program(src: LoadedProgram) returns LoadedProgram
 
 #+begin_src til
 func retarget_loaded_aliases(mut lp: LoadedProgram)
+#+end_src
+
+* compiler_runtime_c_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.compiler_runtime_c_path
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func compiler_runtime_c_path(root: Str) returns Str
+#+end_src
+
+* compiler_root_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.compiler_root_of
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func compiler_root_of(ext_c_path: Str) returns Str
 #+end_src
 
 * load_program

@@ -1,6 +1,6 @@
 // Issue #347: the console driver behind test/repl_wincon.til.
 //
-// The Windows half of the REPL line editor (src/c/ext.c's `#if
+// The Windows half of the REPL line editor (src/self/codegen/ext.c's `#if
 // defined(_WIN32)` repl_term_* block) had never been executed. CI's
 // windows-host job runs til.exe's interpret / translate / build on a real
 // runner, but none of those opens a console, and piping into
@@ -17,7 +17,7 @@
 // ReadConsoleOutputCharacter.
 //
 // It is linked with link_c() into that one test rather than added to
-// src/c/ext.c: nothing but the test needs it, and the compiler runtime
+// src/self/codegen/ext.c: nothing but the test needs it, and the compiler runtime
 // should not grow a console-injection surface.
 //
 // Reporting deliberately keeps using the CRT's stdout. AllocConsole

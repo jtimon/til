@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -838,6 +838,16 @@ func fact_bit_record(mut mask: Vec__U64, base: U64, bit: U64)
 
 #+begin_src til
 func fact_record_name(fi: FactIndex, name: Str, base: U64, mut mask: Vec__U64)
+#+end_src
+
+* is_raw_ptr_store_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.is_raw_ptr_store_name
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func is_raw_ptr_store_name(name: Str) returns Bool
 #+end_src
 
 * expr_collect_ptr_escapes

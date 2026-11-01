@@ -12,7 +12,8 @@
 # compiles it -- plus handing the requested goals over:
 #
 #   1. build the vendored libffi that the checked-in compiler C links
-#   2. copy HEAD's boot/ and src/c/ out of git, compile bin/til_boot
+#   2. copy HEAD's boot/ and C runtime (src/self/codegen/) out of git,
+#      compile bin/til_boot
 #   3. compile make.til into bin/make with it
 #   4. run bin/make ONCE with every requested goal
 #
@@ -20,12 +21,12 @@
 # bin/make is the direct interface (and takes real options, e.g. -j4);
 # make stays the compatibility and clean-checkout interface.
 #
-# bin/til_boot  Built from the last commit via git (boot/ + src/c/ from
+# bin/til_boot  Built from the last commit via git (boot/ + the C runtime from
 #               HEAD). Completely isolated from uncommitted changes.
 #               Always safe. Rebuilt on every invocation, because its
 #               real input is a commit, not a file make can stat.
 # bin/til       Built by til_boot from ALL current sources (.til +
-#               src/c/). Most .til and C changes take effect
+#               src/self/codegen/). Most .til and C changes take effect
 #               immediately. Emit-side changes (e.g. new auto-gen
 #               methods) need a preparation commit -- see doc/self.org.
 # boot/         Generated C checked into the repo. Regenerated every
@@ -71,12 +72,12 @@ LIBFFI_FLAGS = -L$(LIBFFI_HOST_DIR)/.libs -lffi
 
 CORE := $(wildcard src/core/*.til)
 STD := $(wildcard src/std/*.til)
-EXT_C := $(wildcard src/c/*.c) $(wildcard src/c/*.h)
+EXT_C := $(wildcard src/self/codegen/*.c) $(wildcard src/self/codegen/*.h)
 
 # What bin/til_boot links, and all it links. The checked-in compiler C
 # calls libffi directly (the interpreter's ext_func dispatch), and
 # nothing else vendored: no raylib, tinyfd or nng function appears in
-# boot/til.c or src/c/, so their archives contribute nothing to this
+# boot/til.c or the C runtime, so their archives contribute nothing to this
 # link and their system dependencies (-lrt, -latomic, the macOS desktop
 # frameworks) are not needed either. Verified by linking without them.
 # make.til builds those libraries, because bin/til (which links nng)
@@ -165,20 +166,25 @@ $(LIBFFI_HOST_DIR)/.built:
 	$(LIBFFI_ENV) $(MAKE) -C $(LIBFFI_HOST_DIR)
 	touch $@
 
-# The recovery compiler: HEAD's committed boot/ and src/c/, extracted
+# The recovery compiler: HEAD's committed boot/ and C runtime, extracted
 # with git so no uncommitted edit can reach it, compiled here. .PHONY
 # because its input is a commit and make cannot stat one -- a new HEAD
 # has to reconstruct it, which worktree mtimes would not notice.
+#
+# REM Transitional: HEAD's C runtime is in src/c/ until the commit that
+# moves it into src/self/codegen/ lands on master; drop src/c/ here then.
 .PHONY: bin/til_boot
 bin/til_boot: $(LIBFFI_HOST_DIR)/.built
-	mkdir -p bin tmp/boot/boot tmp/boot/src/c
+	mkdir -p bin tmp/boot/boot
+	rm -rf tmp/boot/src
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
-		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
+	for f in $$(git ls-tree --name-only HEAD src/c/ src/self/codegen/ 2>/dev/null | grep '\.[ch]$$'); do \
+		mkdir -p "tmp/boot/$$(dirname $$f)"; \
+		git show "HEAD:$$f" > "tmp/boot/$$f" || exit 1; \
 	done
-	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/src/self/codegen -Itmp/boot/boot $$(ls tmp/boot/src/c/*.c tmp/boot/src/self/codegen/*.c 2>/dev/null) tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
 
 # The build program itself: a generated artifact under the already
 # ignored bin/ tree, never committed and never installed. bin/til_boot

@@ -82,7 +82,7 @@ main := proc(compiler_arg: Str) {
     // realloc's old block survives failure. Check this at the native ABI:
     // til's `own old` transfer deliberately prevents subsequent source uses.
     root := compiler.substr(0, compiler.rfind("/bin/").to_usize())
-    File.writefile(format(work, "/realloc.fasm"), format("format ELF64 executable 3\nentry start\nUSIZE_BYTES=8\nSTR_SIZE=24\nSTR_CAP=16\nCAP_VIEW=-2\nCAP_LIT=-1\nsegment readable executable\ninclude '", root, "/src/fasm/ext.fasm'\nsegment readable executable\nstart:\nmov edi,4\ncall rt_malloc\nmov r12,rax\nmov dword [rax],123456\nmov rdi,rax\nmov rsi,-1\ncall rt_realloc\ntest rax,rax\njnz bad\ncmp dword [r12],123456\njne bad\nmov rdi,r12\ncall rt_free\nxor edi,edi\njmp rt_exit\nbad:\nmov edi,1\njmp rt_exit\n"))
+    File.writefile(format(work, "/realloc.fasm"), format("format ELF64 executable 3\nentry start\nUSIZE_BYTES=8\nSTR_SIZE=24\nSTR_CAP=16\nCAP_VIEW=-2\nCAP_LIT=-1\nsegment readable executable\ninclude '", root, "/src/self/codegen/ext.fasm'\nsegment readable executable\nstart:\nmov edi,4\ncall rt_malloc\nmov r12,rax\nmov dword [rax],123456\nmov rdi,rax\nmov rsi,-1\ncall rt_realloc\ntest rax,rax\njnz bad\ncmp dword [r12],123456\njne bad\nmov rdi,r12\ncall rt_free\nxor edi,edi\njmp rt_exit\nbad:\nmov edi,1\njmp rt_exit\n"))
     assemble := Cmd.new(format(root, "/vendor/fasm/fasm"), format(work, "/realloc.fasm"), format(work, "/realloc"))
     assemble.capture()
     assembly_status := assemble.run()

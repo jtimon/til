@@ -65,7 +65,7 @@ wait_cmd := proc(pid: I64) returns I64 {
 }
 
 // Argv-based process execution (issue #345). The raw handle API behind
-// the Cmd struct below; see the header comment in src/c/ext.c for why a
+// the Cmd struct below; see the header comment in src/self/codegen/ext.c for why a
 // command is accumulated on the C side instead of passed as a Vec.
 ccmd_new := ext_proc() returns ref Dynamic {}
 ccmd_arg := ext_proc(handle: Dynamic, arg: Str) {}

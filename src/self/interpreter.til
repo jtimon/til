@@ -2,7 +2,7 @@ mode lib
 
 import("context")
 import("loader")
-import("c_codegen")
+import("codegen/c_codegen")
 import("../std/sys")
 import("../std/file")
 import("../../vendor/bindings/libffi")
@@ -11390,7 +11390,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
 // A scalar op call like `a.mul(b)` reaches ext_function_dispatch as the flat
 // name "U32_mul". Rather than dlsym'ing the ext.c symbol (a slow libffi round
 // trip) we compute the result directly on the operands' raw bytes, matching the
-// exact C semantics in src/c/ext.c: modular wrapping at the type width,
+// exact C semantics in src/self/codegen/ext.c: modular wrapping at the type width,
 // signed-vs-unsigned shifts, and direct scalar conversions. This is the
 // interpreter half of the core_func
 // ISA -- once src/core's scalar ops migrate ext_func -> core_func and their

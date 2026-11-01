@@ -3,7 +3,7 @@
 ** OPEN #457 til names that collide with C macros or keywords break the C backend
 
 The C codegen emits til identifiers into the generated C unchanged
-(~builder_resolve_c_ident_name~ in src/self/c_codegen.til returns the
+(~builder_resolve_c_ident_name~ in src/self/codegen/c_codegen.til returns the
 name as written unless it is a pooled string literal or an imported
 global). So a valid til name that C reserves -- a predefined macro, a
 keyword, or a libc identifier -- makes the generated C fail to compile,

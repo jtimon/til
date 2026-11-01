@@ -29,7 +29,7 @@ needing the Java SDK goes through generated JNI calls later
   1. Command-line programs on a device or emulator: an NDK cross target
      (aarch64-linux-android first; armv7 and x86_64 after) builds a til
      program as an executable, pushed and run with ~adb shell~. This proves
-     ~src/c/ext.c~ and core against bionic and gives a conformance check
+     ~src/self/codegen/ext.c~ and core against bionic and gives a conformance check
      comparing stdout with the interpreter, like the other cross targets.
   2. A ~NativeActivity~ app: a til program built as a shared library plus a
      manifest, packaged into a signed APK. The vendored raylib supports this

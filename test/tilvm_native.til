@@ -297,7 +297,7 @@ host_prelude_test := proc(root: Str) {
     source := prelude_source(" graph")
     sdk := realpath_str(root)
     cwd := realpath_str(".")
-    graph := load_program(path, sdk, cwd, format(sdk, "/src/c/ext.c"), Vec(Str).new(), "", true,
+    graph := load_program(path, sdk, cwd, format(sdk, "/src/self/codegen/ext.c"), Vec(Str).new(), "", true,
         source, "host-api", base)
     assert(graph.load_errors == 0)
     assert(graph.ctx.imported[path].prelude_import == "host-api")

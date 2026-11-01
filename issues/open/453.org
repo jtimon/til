@@ -61,7 +61,7 @@ existing C and MLIR backends.
 
 **** Native runtime follow-up
 
-  ~src/fasm/ext.fasm~ is now the separate native boundary, following ext.c
+  ~src/self/codegen/ext.fasm~ is now the separate native boundary, following ext.c
   and the core Str/io/exit contracts. Generated assembly includes it directly.
   Str and variadic Array(Str) layouts match C at USize32 and USize64; value
   slots retain their outer storage while runtime-returned wrappers are moved
@@ -100,7 +100,7 @@ existing C and MLIR backends.
   for C builds and survives clean/clean_vendor.
 
   Linux x86-64 installation copies the available assembler/license at
-  ~lib/til/vendor/fasm/~ and the runtime at ~lib/til/src/fasm/~. The installed
+  ~lib/til/vendor/fasm/~ and the runtime at ~lib/til/src/self/codegen/~. The installed
   compiler uses those read-only payloads, with no assembler build sources or
   temporary writes under the installation. Without a bootstrap, installation
   reports that only runtime sources are being installed.

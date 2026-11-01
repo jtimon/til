@@ -27,6 +27,6 @@ only after success. No binary download, manifest or cache is involved.
 clean and clean_vendor retain this bootstrap seed. Linux x86-64 installation
 ships an available assembler and LICENSE.TXT under lib/til/vendor/fasm/;
 assembler sources are not installed. The runtime is installed separately at
-lib/til/src/fasm/ext.fasm. An unbootstrapped compiler installation reports
+lib/til/src/self/codegen/ext.fasm. An unbootstrapped compiler installation reports
 that it is shipping runtime sources only; bootstrap and reinstall to add
 the executable. Ordinary C builds remain independent of the optional tool.

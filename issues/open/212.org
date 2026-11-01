@@ -46,7 +46,7 @@ Implementation map:
   type. The type argument stays a type-token identifier; it is not a runtime
   Type allocation. SIMD method-call lowering supplies the concrete vector
   target for lane-style calls such as ~v.cast(I64)~.
-- [[file:../../src/self/c_codegen.til][c_codegen.til]] emits integer casts, callable handling and lane-wise
+- [[file:../../src/self/codegen/c_codegen.til][c_codegen.til]] emits integer casts, callable handling and lane-wise
   SIMD conversion. For scalar casts it recovers the explicitly requested
   target from the type argument rather than trusting a result stamp that an
   enclosing argument coercion may have widened. ~fcall_return_ctype~ handles
@@ -75,7 +75,7 @@ The core arc is in master:
   - Same-size integer reinterpret pairs covered for ALL widths:
     I8<->U8 (added Value.Sbyte to the interpreter), I16<->U16 (added
     the U16 primitive end-to-end: Primitive.U16, Value.Ushort,
-    val_u16, src/core/u16.til, src/c/ext.h/c U16 typedef + functions,
+    val_u16, src/core/u16.til, src/self/codegen/ext.h/c U16 typedef + functions,
     the full compiler is_ext_h_type / is_scalar_method_type / etc.
     wiring), I32<->U32, I64<->U64.
   - cast(e, T) for same-size integer reinterpret: free C cast, no
@@ -154,8 +154,8 @@ Design notes:
 *** How til did it before (historical)
 
 Each numeric type carried a fan of `.to_<Type>()` methods (I64 had 9,
-U8 had 7, etc.), each declared in src/c/ext.h and defined in
-src/c/ext.c as a trivial `(T)a` C cast. Pairs nobody wrote routed
+U8 had 7, etc.), each declared in src/self/codegen/ext.h and defined in
+src/self/codegen/ext.c as a trivial `(T)a` C cast. Pairs nobody wrote routed
 through the I64 hub (e.g. `Str.to_i32 = self.to_i64().to_i32()`), and
 the typer carried an `is_self_conversion_method` guard
 (src/self/typer.til) purely to reject `x.to_u32()` when `x` was
@@ -199,7 +199,7 @@ algorithm. Those are not casts and should not masquerade as one.
   - `to_str` on every type -- it is FORMATTING, not reinterpretation: it
     allocates a heap Str, and for floats/uints runs real logic
     (F32_to_str uses sprintf, U64_to_str_ext is a divide-by-10 loop --
-    [[file:../../src/c/ext.c][src/c/ext.c]]). `42.cast(Str)` would be a lie. KEEP to_str.
+    [[file:../../src/self/codegen/ext.c][src/self/codegen/ext.c]]). `42.cast(Str)` would be a lie. KEEP to_str.
   - `Str.to_i64` / `to_f32` / `to_u8` ... -- PARSING with validation that
     panics on bad input ([[file:../../src/core/str.til][src/core/str.til]]). It is a fallible
     function, not a bit-level cast; `"123".cast(I64)` should not silently

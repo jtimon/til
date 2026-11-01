@@ -1,7 +1,7 @@
 mode lib
-import("loader")
-import("constfolder")
-import("../std/file")
+import("../loader")
+import("../constfolder")
+import("../../std/file")
 
 // Native scalar/string slice. Every live value has a frame slot, so nested
 // calls cannot clobber earlier operands. Frames preserve SysV alignment;
@@ -1169,7 +1169,7 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
     mut cap_view := "-2"
     mut cap_lit := "-1"
     if lp.ctx.target_usize_bytes == 4 { width = "4"; str_size = "16"; cap_offset = "12"; cap_view = "0xfffffffe"; cap_lit = "0xffffffff" }
-    runtime := format(lp.ctx.import_support_dir, "/src/fasm/ext.fasm")
+    runtime := format(lp.ctx.import_support_dir, "/src/self/codegen/ext.fasm")
     mut entry := "script_main"
     if script.not() { entry = fasm_request("main", program) }
     mut initialization := ""

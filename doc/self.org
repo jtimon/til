@@ -14,7 +14,7 @@
   produce the compiler that compiles it:
 
   1. build the vendored libffi that the checked-in compiler C links
-  2. copy HEAD's ~boot/~ and ~src/c/~ out of git, compile ~bin/til_boot~
+  2. copy HEAD's ~boot/~ and C runtime (~src/self/codegen/~) out of git, compile ~bin/til_boot~
   3. compile ~make.til~ into ~bin/make~ with it
   4. run ~bin/make~ once with every requested goal
 
@@ -32,14 +32,14 @@
   never installed.
 
   Note that ~bin/til_boot~ links libffi and nothing else vendored: no
-  raylib, tinyfd or nng function appears in ~boot/til.c~ or ~src/c/~.
+  raylib, tinyfd or nng function appears in ~boot/til.c~ or the C runtime.
   Those libraries are built by ~make.til~, for ~bin/til~, which does
   link them.
 
 ** Key concepts
 
   - ~bin/til_boot~: built entirely from the last commit via git.
-    Uses HEAD's boot/ AND HEAD's src/c/. Completely isolated from
+    Uses HEAD's boot/ AND HEAD's C runtime in src/self/codegen/. Completely isolated from
     any uncommitted changes. Always safe. Never fails.
   - ~bin/til~: built by til_boot from current sources. The resulting
     binary IS self-hosted (its compilation logic comes from the
@@ -136,14 +136,14 @@
   the whole thing is ONE "Two-pass: " commit verified with
   ~make clean && make test_two_pass~ plus the one remaining opt-out suite.
 
-  1. src/c/ext.h: derive the cage from the width. Replace the driver-fed
+  1. src/self/codegen/ext.h: derive the cage from the width. Replace the driver-fed
      TIL_CPTR32 / TIL_CPTR64 pair with
      ~#if defined(TIL_USIZE32) && UINTPTR_MAX != 0xffffffff~ ->
      ~#define TIL_CPTR32 1~, else nothing; keep every ~#ifdef TIL_CPTR32~
      below as it is (ext.c too), and drop the TIL_CPTR32/TIL_CPTR64
      mutual-exclusion error. The flag-less boot compile then needs only the
      USize pin.
-  2. src/self/c_codegen.til: ~emit_usize_width_pin~ writes the USize pin
+  2. src/self/codegen/c_codegen.til: ~emit_usize_width_pin~ writes the USize pin
      only (delete the cptr pin and its comment paragraph). Leave
      ~TIL_OWN_PTR~ / ~TIL_OWN_GET~ / ~TIL_OWN_SET~ emission untouched.
   3. src/til.til: delete ~--cptr~ (CliArgs.cptr_bits, its parsing, help
@@ -515,7 +515,7 @@
 
   MLIR translation also writes the normal ~gen/til/<source>.c~ and
   ~<source>_forward.h~ support files. Builds compile their ~TIL_CORE_ONLY~
-  partition and ~src/c/ext.c~ into the existing revision/target/USize-qualified
+  partition and ~src/self/codegen/ext.c~ into the existing revision/target/USize-qualified
   core/runtime object paths in ~gen/lib/~. Only user bodies are compiled from
   MLIR; they are not compiled again from the C support file. The linker includes
   both support objects in executables/shared libraries/static archives. Native
@@ -650,16 +650,16 @@
   ~vendor/fasm/fasm~ from its assembly/includes, using the existing executable.
   The replacement is built in checkout-local ~tmp/~ and renamed into place
   after success. Installed compilers carry the prebuilt assembler/license at
-  ~<prefix>/lib/til/vendor/fasm/~ and the runtime at ~<prefix>/lib/til/src/fasm/~.
+  ~<prefix>/lib/til/vendor/fasm/~ and the runtime at ~<prefix>/lib/til/src/self/codegen/~.
   The install phase is copy-only; it never rebuilds under sudo. If FASM has
   not been bootstrapped, installation reports runtime-sources-only support.
 
 *** Native runtime and ABI
 
-  Generated assembly includes ~src/fasm/ext.fasm~ at its absolute support-tree
+  Generated assembly includes ~src/self/codegen/ext.fasm~ at its absolute support-tree
   path. That file remains hand-written source, read directly by FASM on each
   assembly; it is not copied into generated files. Linux syscalls supply the
-  external boundary. ~src/c/ext.c~ is the behavioral reference, with
+  external boundary. ~src/self/codegen/ext.c~ is the behavioral reference, with
   ~src/core/str.til~, ~io.til~ and ~exit.til~ defining the language helpers.
 
   The ABI uses SysV integer argument registers, a 16-byte-aligned call stack
@@ -810,7 +810,7 @@
 
   This is uncommon -- most changes (new syntax desugaring that
   reuses existing emit paths, type-checker changes, runtime fixes,
-  src/c/ tweaks, library code) take effect in a single commit.
+  C runtime tweaks, library code) take effect in a single commit.
   Only changes that the BOOTSTRAP compiler must already understand
   in order to emit them need the two-commit dance.
 

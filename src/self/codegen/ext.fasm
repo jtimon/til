@@ -1,4 +1,4 @@
-; Linux x86-64 native runtime. Behavioral reference: src/c/ext.c and the
+; Linux x86-64 native runtime. Behavioral reference: src/self/codegen/ext.c and the
 ; core Str/Array(Str) definitions. SysV registers; rax is the result.
 ; The emitter defines USIZE_BYTES (4/8), STR_SIZE (16/24), STR_CAP (12/16).
 ; Str is {pointer, USize count, USize cap}; Array(Str) is {pointer,USize cap}.

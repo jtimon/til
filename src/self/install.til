@@ -70,12 +70,18 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     // boot.
     rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
     if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/holyc"), format(dst_root, "/src/holyc"), "install compiler HolyC sources")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/src/fasm"), format(dst_root, "/src/fasm"), "install compiler FASM runtime")
-    if rc != 0 { return rc }
+    // The backend runtimes live beside their codegen sources in
+    // src/self/codegen/; only the runtimes are installed, not the .til
+    // compiler sources next to them.
+    mut runtimes := Vec(Str).new()
+    runtimes.push(own "ext.c")
+    runtimes.push(own "ext.h")
+    runtimes.push(own "ext.HC")
+    runtimes.push(own "ext.fasm")
+    for runtime : Str in runtimes {
+        rc = install_file(format(root, "/src/self/codegen/", runtime), format(dst_root, "/src/self/codegen/", runtime), "install compiler backend runtime")
+        if rc != 0 { return rc }
+    }
     rc = install_file(format(root, "/vendor/fasm/LICENSE.TXT"), format(dst_root, "/vendor/fasm/LICENSE.TXT"), "install FASM license")
     if rc != 0 { return rc }
     if detect_current_target().is(Target.LinuxX64) {

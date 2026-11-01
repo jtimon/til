@@ -28,7 +28,7 @@ implementation recipe. The rstil checkout was not re-audited in this review.
   primitives. ~std/sys~ imports it, but a program can import ~std/file~
   directly. ~mkdir_p~, ~copy_file~, and ~copy_tree~ are ext_procs in
   ~std/sys~, not just til-level helper names as the old plan assumed.
-- [[file:../../src/c/ext.c][ext.c]] implements shell execution and the argv process boundary;
+- [[file:../../src/self/codegen/ext.c][ext.c]] implements shell execution and the argv process boundary;
   the POSIX ~Cmd~ path uses ~posix_spawnp~. ~Cmd~ avoids shell-string
   parsing, but still permits explicitly launching a shell and resolves bare
   executable names through PATH. It is an execution API, not a sandbox.

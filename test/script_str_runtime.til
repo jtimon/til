@@ -55,17 +55,17 @@ own reassigned.delete()
 own returned.delete()
 own mutable.delete()
 
-if File.exists("src/holyc/ext.HC") {
+if File.exists("src/self/codegen/ext.HC") {
     println("file exists")
-    if File.exists("src/holyc") { println("directory exists") }
-    host_fs_view := "src/holyc/ext.HC.trailing".substr(0, 16)
+    if File.exists("src/self/codegen") { println("directory exists") }
+    host_fs_view := "src/self/codegen/ext.HC.trailing".substr(0, 23)
     if File.exists(host_fs_view) { println("view exists") }
     if File.is_file(host_fs_view) { println("regular file") }
-    if File.is_dir("src/holyc") { println("directory kind") }
-    if File.is_dir(host_fs_view).not().and(File.is_file("src/holyc").not()) {
+    if File.is_dir("src/self/codegen") { println("directory kind") }
+    if File.is_dir(host_fs_view).not().and(File.is_file("src/self/codegen").not()) {
         println("kinds distinct")
     }
-    if cpath_is_file(host_fs_view).and(cpath_is_dir("src/holyc")) {
+    if cpath_is_file(host_fs_view).and(cpath_is_dir("src/self/codegen")) {
         println("primitive kinds")
     }
     host_read := File.readfile(host_fs_view)
@@ -100,7 +100,7 @@ if cpath_is_dir("missing.HC").not().and(cpath_is_file("missing.HC").not()) {
 }
 
 mut write_path := "TILWRITE.HC.trailing".substr(0, 11)
-if File.exists("src/holyc/ext.HC") {
+if File.exists("src/self/codegen/ext.HC") {
     write_path = "tmp/TILWRITE.HC.trailing".substr(0, 15)
 }
 File.writefile(write_path, "longer content")
@@ -117,7 +117,7 @@ own empty_written.delete()
 mut fs_dir := "TILFS"
 mut fs_data := "TILFS/DATA.HC"
 mut fs_moved := "TILFS/MOVED.HC"
-if File.exists("src/holyc/ext.HC") {
+if File.exists("src/self/codegen/ext.HC") {
     fs_dir = "tmp/TILFS"
     fs_data = "tmp/TILFS/DATA.HC"
     fs_moved = "tmp/TILFS/MOVED.HC"
@@ -194,7 +194,7 @@ mut tree_src := "TILFS/TREE"
 mut tree_dst := "TILFS/NEW"
 mut tree_leaf := "TILFS/TREE/LEAF.HC"
 mut moved_leaf := "TILFS/NEW/LEAF.HC"
-if File.exists("src/holyc/ext.HC") {
+if File.exists("src/self/codegen/ext.HC") {
     tree_src = "tmp/TILFS/TREE"
     tree_dst = "tmp/TILFS/NEW"
     tree_leaf = "tmp/TILFS/TREE/LEAF.HC"

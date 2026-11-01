@@ -1,10 +1,10 @@
-#+TITLE: src/self/fasm_codegen.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+TITLE: src/self/codegen/fasm_codegen.til
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * fasm_source_declarations
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.fasm_source_declarations
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.fasm_source_declarations
 :END:
 
 #+begin_src til
@@ -13,53 +13,53 @@ func fasm_source_declarations(lp: LoadedProgram) returns Set__Str
 
 * fasm_codegen_translate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.fasm_codegen_translate
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.fasm_codegen_translate
 :END:
 
 #+begin_src til
 proc fasm_codegen_translate(mut lp: LoadedProgram, path: Str, source_names: Set__Str) returns I32
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 :END:
 
 #+begin_src til
-struct Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition {
+struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     mut keys : Vec__Str
-    mut values : Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    mut values : Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 namespace:
-    func new() returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
-    func with_capacity(n: U64) returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
-    func len(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition) returns U64
-    func clear(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition)
-    func has(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
-    func get(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws KeyNotFound
-    func set(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
-    func remove(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
-    func delete(own self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
-    func clone(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition) returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+    func new() returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func with_capacity(n: U64) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func len(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns U64
+    func clear(mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func has(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+    func get(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str) returns ref priv___src_self_codegen_fasm_codegen_til__FasmDefinition throws KeyNotFound
+    func set(mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func remove(mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+    func delete(own self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
+    func clone(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
     func size() returns U64
-    func hash(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, hasher: HashFn) returns U64
+    func hash(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, hasher: HashFn) returns U64
 }
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.new
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.new
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.new
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
 The key type must implement ~cmp~.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.new() returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.new() returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.with_capacity
 :END:
 
 Create an empty Map pre-sized for ~n~ entries, so inserting up to
@@ -67,34 +67,34 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity(n: U64) returns Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.with_capacity(n: U64) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.clear
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.clear
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clear
 :END:
 
 Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.clear(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition)
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clear(mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.has
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.has
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.has
 :END:
 
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.has(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.has(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.get
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.get
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.get
 :END:
 
 Return a ref to the value for ~key~. Throws KeyNotFound if
@@ -102,35 +102,35 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.get(self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws KeyNotFound
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.get(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str) returns ref priv___src_self_codegen_fasm_codegen_til__FasmDefinition throws KeyNotFound
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.set
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.set
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.set
 :END:
 
 Insert or overwrite. Ref-qualified keys/values borrow their sources;
 other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.set(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.set(mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.remove
+* Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.remove
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.remove
 :END:
 
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition.remove(mut self: Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
+func Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition.remove(mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, key: Str) returns Bool
 #+end_src
 
 * Map__Str_Type
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type
 :END:
 
 #+begin_src til
@@ -155,7 +155,7 @@ namespace:
 
 * Map__Str_Type.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.new
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.new
 :END:
 
 Create an empty Map of the types provided for the key and values respectively.
@@ -167,7 +167,7 @@ func Map__Str_Type.new() returns Map__Str_Type
 
 * Map__Str_Type.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.with_capacity
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.with_capacity
 :END:
 
 Create an empty Map pre-sized for ~n~ entries, so inserting up to
@@ -180,7 +180,7 @@ func Map__Str_Type.with_capacity(n: U64) returns Map__Str_Type
 
 * Map__Str_Type.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.clear
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.clear
 :END:
 
 Drop all live keys and values but keep the allocated storage so the Map can be reused.
@@ -191,7 +191,7 @@ func Map__Str_Type.clear(mut self: Map__Str_Type)
 
 * Map__Str_Type.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.has
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.has
 :END:
 
 True if a value exists for the given key.
@@ -202,7 +202,7 @@ func Map__Str_Type.has(self: Map__Str_Type, key: Str) returns Bool
 
 * Map__Str_Type.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.get
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.get
 :END:
 
 Return a ref to the value for ~key~. Throws KeyNotFound if
@@ -215,7 +215,7 @@ func Map__Str_Type.get(self: Map__Str_Type, key: Str) returns ref Type throws Ke
 
 * Map__Str_Type.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.set
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.set
 :END:
 
 Insert or overwrite. Ref-qualified keys/values borrow their sources;
@@ -227,7 +227,7 @@ func Map__Str_Type.set(mut self: Map__Str_Type, key: Str, own val: Type)
 
 * Map__Str_Type.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Map__Str_Type.remove
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Map__Str_Type.remove
 :END:
 
 Remove ~key~, dropping its key and value. Returns false if absent.
@@ -236,45 +236,45 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 func Map__Str_Type.remove(mut self: Map__Str_Type, key: Str) returns Bool
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 :END:
 
 #+begin_src til
-struct Vec__priv___src_self_fasm_codegen_til__FasmDefinition {
+struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
-    func with_capacity(n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
-    func len(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns U64
-    func clear(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
-    func delete_marked(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, marks: Dynamic)
-    func push(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
-    func append(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
-    func take(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
-    func move_to(own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut dest: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
-    func move_from(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
-    func unsafe_get(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition
-    func get(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, shallow i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws OutOfBounds
-    func pop(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns priv___src_self_fasm_codegen_til__FasmDefinition
-    func remove_at(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
-    func truncate(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
-    func set(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut src: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64)
-    func delete(own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
-    func clone(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+    func new() returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func with_capacity(n: U64) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func len(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns U64
+    func clear(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func delete_marked(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func append(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func take(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func move_to(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, mut dest: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func move_from(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func unsafe_get(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64) returns ref priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func get(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, shallow i: U64) returns ref priv___src_self_codegen_fasm_codegen_til__FasmDefinition throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func remove_at(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, n: U64) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
+    func truncate(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
+    func set(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, mut src: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64)
+    func delete(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
     func size() returns U64
 }
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.new
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.new
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.new
 :END:
 
 Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -284,12 +284,12 @@ the many containers that stay empty (e.g. the unused maps in a fresh
 Scope) allocation-free, which is the dominant per-call interpreter cost.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.new() returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.new() returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.with_capacity
 :END:
 
 Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
@@ -300,24 +300,24 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.with_capacity(n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.with_capacity(n: U64) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clear
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clear
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clear
 :END:
 
 Drop all live elements via elem_delete but keep the allocated
 storage and element-type metadata so the Vec can be reused.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clear(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clear(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete_marked
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete_marked
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.delete_marked
 :END:
 
 Drop the elements flagged in ~marks~ (a byte-per-element buffer,
@@ -327,36 +327,36 @@ container home for the scavenger's mark/sweep/compact, which used
 to reach into data/count directly.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete_marked(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, marks: Dynamic)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.delete_marked(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, marks: Dynamic)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.push
 :END:
 
 Append an element to the end. ~val~ is owned: after this call the
 caller must not use the value passed -- clone it first if needed.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.push(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.append
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.append
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.append
 :END:
 
 Consume the contents of ~other~ by appending them to ~self~.
 ~other~ is taken by ownership and will be empty after the call.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.append(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.append(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.take
 :END:
 
 Take the contents out: the returned Vec owns self's buffer and
@@ -370,12 +370,12 @@ pointer" compiling itself. Everything the caller can give away
 uses the two move forms below instead.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.take(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_to
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_to
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.move_to
 :END:
 
 Give self's contents to ~dest~, which drops whatever it held.
@@ -391,12 +391,12 @@ a later push on it allocates afresh instead of reallocating a
 buffer that now belongs to someone else.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_to(own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut dest: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.move_to(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, mut dest: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_from
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_from
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.move_from
 :END:
 
 Take ~other~'s contents, dropping whatever self held. OTHER is
@@ -404,12 +404,12 @@ consumed -- it is the value being emptied, so it is the owned
 argument: ~dest.move_from(own src)~.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.move_from(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_fasm_codegen_til__FasmDefinition)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.move_from(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, own other: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_get
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_get
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.unsafe_get
 :END:
 
 Unchecked element access: return a reference to the element at
@@ -419,12 +419,12 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_get(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.unsafe_get(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64) returns ref priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.get
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.get
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.get
 :END:
 
 Return a reference to the element at index ~i~. Throws
@@ -433,47 +433,47 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.get(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, shallow i: U64) returns ref priv___src_self_fasm_codegen_til__FasmDefinition throws OutOfBounds
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.get(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, shallow i: U64) returns ref priv___src_self_codegen_fasm_codegen_til__FasmDefinition throws OutOfBounds
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.pop
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.pop
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.pop
 :END:
 
 Remove and return the last element. Panics if empty. The caller
 takes ownership of the returned value.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.pop(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.pop(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.remove_at
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.remove_at
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.remove_at
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.remove_at(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64) throws OutOfBounds
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.remove_at(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64) throws OutOfBounds
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take_prefix
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take_prefix
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.take_prefix
 :END:
 
 Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.take_prefix(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.take_prefix(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, n: U64) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.truncate
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.truncate
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.truncate
 :END:
 
 Drop the elements from index ~n~ to the end, freeing each via
@@ -482,12 +482,12 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.truncate(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, n: U64)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.truncate(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, n: U64)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_set
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_set
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.unsafe_set
 :END:
 
 Overwrite the element at index ~i~ without a bounds check, dropping
@@ -495,12 +495,12 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.unsafe_set(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.unsafe_set(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.set
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.set
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.set
 :END:
 
 Overwrite the element at index ~i~. ~val~ is owned. Throws
@@ -508,12 +508,12 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.set(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_fasm_codegen_til__FasmDefinition) throws OutOfBounds
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.set(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64, own val: priv___src_self_codegen_fasm_codegen_til__FasmDefinition) throws OutOfBounds
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push_take
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push_take
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.push_take
 :END:
 
 Move bytes of src[i] into self (push). Source slot is zeroed so that
@@ -521,35 +521,35 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.push_take(mut self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, mut src: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, i: U64)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.push_take(mut self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, mut src: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, i: U64)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.delete
 :END:
 
 Drop each element via elem_delete, free storage, then free self
 unless ~call_free~ is false.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.delete(own self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.delete(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
 #+end_src
 
-* Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clone
+* Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clone
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clone
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
-func Vec__priv___src_self_fasm_codegen_til__FasmDefinition.clone(self: Vec__priv___src_self_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_fasm_codegen_til__FasmDefinition
+func Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition.clone(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 #+end_src
 
 * Vec__Type
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type
 :END:
 
 #+begin_src til
@@ -585,7 +585,7 @@ namespace:
 
 * Vec__Type.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.new
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.new
 :END:
 
 Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -600,7 +600,7 @@ func Vec__Type.new() returns Vec__Type
 
 * Vec__Type.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.with_capacity
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.with_capacity
 :END:
 
 Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
@@ -616,7 +616,7 @@ func Vec__Type.with_capacity(n: U64) returns Vec__Type
 
 * Vec__Type.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.clear
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.clear
 :END:
 
 Drop all live elements via elem_delete but keep the allocated
@@ -628,7 +628,7 @@ func Vec__Type.clear(mut self: Vec__Type)
 
 * Vec__Type.delete_marked
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.delete_marked
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.delete_marked
 :END:
 
 Drop the elements flagged in ~marks~ (a byte-per-element buffer,
@@ -643,7 +643,7 @@ func Vec__Type.delete_marked(mut self: Vec__Type, marks: Dynamic)
 
 * Vec__Type.push
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.push
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.push
 :END:
 
 Append an element to the end. ~val~ is owned: after this call the
@@ -655,7 +655,7 @@ func Vec__Type.push(mut self: Vec__Type, own val: Type)
 
 * Vec__Type.append
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.append
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.append
 :END:
 
 Consume the contents of ~other~ by appending them to ~self~.
@@ -667,7 +667,7 @@ func Vec__Type.append(mut self: Vec__Type, own other: Vec__Type)
 
 * Vec__Type.take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.take
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.take
 :END:
 
 Take the contents out: the returned Vec owns self's buffer and
@@ -686,7 +686,7 @@ func Vec__Type.take(mut self: Vec__Type) returns Vec__Type
 
 * Vec__Type.move_to
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.move_to
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.move_to
 :END:
 
 Give self's contents to ~dest~, which drops whatever it held.
@@ -707,7 +707,7 @@ func Vec__Type.move_to(own self: Vec__Type, mut dest: Vec__Type)
 
 * Vec__Type.move_from
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.move_from
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.move_from
 :END:
 
 Take ~other~'s contents, dropping whatever self held. OTHER is
@@ -720,7 +720,7 @@ func Vec__Type.move_from(mut self: Vec__Type, own other: Vec__Type)
 
 * Vec__Type.unsafe_get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.unsafe_get
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.unsafe_get
 :END:
 
 Unchecked element access: return a reference to the element at
@@ -735,7 +735,7 @@ func Vec__Type.unsafe_get(self: Vec__Type, i: U64) returns ref Type
 
 * Vec__Type.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.get
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.get
 :END:
 
 Return a reference to the element at index ~i~. Throws
@@ -749,7 +749,7 @@ func Vec__Type.get(self: Vec__Type, shallow i: U64) returns ref Type throws OutO
 
 * Vec__Type.pop
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.pop
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.pop
 :END:
 
 Remove and return the last element. Panics if empty. The caller
@@ -761,7 +761,7 @@ func Vec__Type.pop(mut self: Vec__Type) returns Type
 
 * Vec__Type.remove_at
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.remove_at
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.remove_at
 :END:
 
 Remove and drop the element at ~i~, shifting later elements left.
@@ -772,7 +772,7 @@ func Vec__Type.remove_at(mut self: Vec__Type, i: U64) throws OutOfBounds
 
 * Vec__Type.take_prefix
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.take_prefix
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.take_prefix
 :END:
 
 Split off the first ~n~ elements into a new Vec. Panics if ~n~
@@ -784,7 +784,7 @@ func Vec__Type.take_prefix(mut self: Vec__Type, n: U64) returns Vec__Type
 
 * Vec__Type.truncate
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.truncate
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.truncate
 :END:
 
 Drop the elements from index ~n~ to the end, freeing each via
@@ -798,7 +798,7 @@ func Vec__Type.truncate(mut self: Vec__Type, n: U64)
 
 * Vec__Type.unsafe_set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.unsafe_set
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.unsafe_set
 :END:
 
 Overwrite the element at index ~i~ without a bounds check, dropping
@@ -811,7 +811,7 @@ func Vec__Type.unsafe_set(mut self: Vec__Type, i: U64, own val: Type)
 
 * Vec__Type.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.set
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.set
 :END:
 
 Overwrite the element at index ~i~. ~val~ is owned. Throws
@@ -824,7 +824,7 @@ func Vec__Type.set(mut self: Vec__Type, i: U64, own val: Type) throws OutOfBound
 
 * Vec__Type.push_take
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.push_take
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.push_take
 :END:
 
 Move bytes of src[i] into self (push). Source slot is zeroed so that
@@ -837,7 +837,7 @@ func Vec__Type.push_take(mut self: Vec__Type, mut src: Vec__Type, i: U64)
 
 * Vec__Type.delete
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.delete
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.delete
 :END:
 
 Drop each element via elem_delete, free storage, then free self
@@ -849,7 +849,7 @@ func Vec__Type.delete(own self: Vec__Type, call_free: Bool = true)
 
 * Vec__Type.clone
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.Vec__Type.clone
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.Vec__Type.clone
 :END:
 
 Deep-copy the Vec and all its elements via elem_clone.
@@ -858,18 +858,18 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__Type.clone(self: Vec__Type) returns Vec__Type
 #+end_src
 
-* adopt__priv___src_self_fasm_codegen_til__FasmDefinition
+* adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.adopt__priv___src_self_fasm_codegen_til__FasmDefinition
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 :END:
 
 #+begin_src til
-func adopt__priv___src_self_fasm_codegen_til__FasmDefinition(mut dest: Dynamic, own src: priv___src_self_fasm_codegen_til__FasmDefinition)
+func adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition(mut dest: Dynamic, own src: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 #+end_src
 
 * adopt__Type
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.fasm_codegen.adopt__Type
+:CUSTOM_ID: til.src.self.codegen.fasm_codegen.adopt__Type
 :END:
 
 #+begin_src til

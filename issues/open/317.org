@@ -108,7 +108,7 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
       Approve exact paths, any persisted intermediate artifacts, backend
       selection syntax and tool installation before implementing them. No
       second source of truth or persistent compilation cache is proposed.
-  3. Emitter skeleton alongside src/self/c_codegen.til:
+  3. Emitter skeleton alongside src/self/codegen/c_codegen.til:
       module header and signatures implementing the C ABI established by
       the probe, including return values and existing synthetic error
       out-parameters, plus declarations for reachable ~ext_func~ symbols.
@@ -372,7 +372,7 @@ x86-64-v3 and x86-64-v4 on the local host. No timing claims are made.
 *** Initial CPU value backend (2026-10-27)
 
 The approved ~--backend=mlir~ selector is independent of the CPU ~--target~.
-~src/self/mlir_codegen.til~ emits the prepared AST's straight-line F32 and
+~src/self/codegen/mlir_codegen.til~ emits the prepared AST's straight-line F32 and
 ~Simd(F32,4)~ addition, locals, calls and returns. Linux x86-64 aggregate
 arguments/results use the existing C ABI rather than assuming a native
 LLVM vector has the same calling convention as a four-float C struct.

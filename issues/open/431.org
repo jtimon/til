@@ -17,7 +17,7 @@ itself no longer builds for any 32-bit target.
 #+begin_example
 $ bin/til build --target=linux-x86 -o tmp/til_x86 src/til.til
 ./src/self/garbager.til:1038: error: cast only supports same-size integer reinterpret (any signedness) and same-signedness widening; cannot cast U64 to UPtr
-./src/self/c_codegen.til:11614: error: ... cannot cast U64 to UPtr
+./src/self/codegen/c_codegen.til:11614: error: ... cannot cast U64 to UPtr
 ./src/self/interpreter.til:47: error: ... cannot cast U64 to UPtr
 ... (36 type errors: 10 casts, the rest their cascade)
 #+end_example
@@ -36,7 +36,7 @@ link for want of a linux-x86 libffi archive, which #420 has since added
 
 - src/self/interpreter.til: 47, 1494, 1530, 1537, 1581, 3319, 3368,
   5216 (8e14656, 675a5bd, 37110a9 on 2026-09-25; 454093e on 2026-10-07)
-- src/self/c_codegen.til:11614 (639df92, 2026-10-03)
+- src/self/codegen/c_codegen.til:11614 (639df92, 2026-10-03)
 - src/self/garbager.til:1038 (c3efbec, 2026-10-09)
 
 The fix is not to relax the cast rule: on a 32-bit target the word's

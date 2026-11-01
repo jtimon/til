@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -274,6 +274,8 @@ func Str.with_capacity(n: U64) returns Str
 
 Wrap a NUL-terminated C string as a non-owning Str view (no copy).
 The view borrows ~s~; the caller keeps ownership of the buffer.
+Under ~--cptr=32~ a pointer the cage did not allocate cannot be
+stored, so the result is instead an owned copy of the bytes.
 
 #+begin_src til
 func Str.from_c_str(s: Dynamic) returns Str
@@ -742,6 +744,26 @@ ext_func str_parse_f32(s: Str) returns shallow F32
 
 #+begin_src til
 ext_func str_parse_f64(s: Str) returns shallow F64
+#+end_src
+
+* c_str_borrow_bytes
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.c_str_borrow_bytes
+:group: Core
+:END:
+
+#+begin_src til
+ext_func c_str_borrow_bytes(s: Dynamic, shallow n: U64) returns ref Dynamic
+#+end_src
+
+* c_str_borrow_cap
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.c_str_borrow_cap
+:group: Core
+:END:
+
+#+begin_src til
+ext_func c_str_borrow_cap(shallow n: U64) returns shallow U64
 #+end_src
 
 * c_str_len

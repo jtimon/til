@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -782,6 +782,7 @@ struct Context {
     mut target_uptr_pname : Str
     mut target_usize_bytes : USize
     mut target_simd_bits : USize
+    mut target_cptr32 : Bool
     mut comptime_requests : Set__Str
     mut comptime_preparation : Option__ComptimePreparation
     mut target_scalar64_align : USize
@@ -1121,6 +1122,26 @@ func host_usize_pname() returns Str
 func host_uptr_pname() returns Str
 #+end_src
 
+* field_is_own_ptr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.field_is_own_ptr
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func field_is_own_ptr(sd: StructDef, dd: Declaration) returns Bool
+#+end_src
+
+* host_own_ptr_compressed
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.host_own_ptr_compressed
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func host_own_ptr_compressed() returns Bool
+#+end_src
+
 * ENUM_PAYLOAD_OFFSET
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.ENUM_PAYLOAD_OFFSET
@@ -1139,6 +1160,16 @@ ENUM_PAYLOAD_OFFSET is a USize
 
 #+begin_src til
 func size_intrinsics_use_sizeof(ctx: Context) returns Bool
+#+end_src
+
+* size_intrinsics_emit_sizeof
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.size_intrinsics_emit_sizeof
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func size_intrinsics_emit_sizeof(ctx: Context) returns Bool
 #+end_src
 
 * constfolder_classify_stmt
@@ -1709,6 +1740,16 @@ func lazy_body_stmt_inlinable(body: Expr) returns Bool
 
 #+begin_src til
 func lazy_variadic_body_unrollable(body: Expr, vname: Str, symbols: SymbolPool) returns Bool
+#+end_src
+
+* numeric_literal_parse_text
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.numeric_literal_parse_text
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func numeric_literal_parse_text(text: Str) returns Str
 #+end_src
 
 * is_primitive

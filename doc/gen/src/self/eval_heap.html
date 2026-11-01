@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7d40494</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -73,11 +73,11 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
 <li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
 <li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
-<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
+<li><a href="../../src/self/codegen/c_codegen.html">src/self/codegen/c_codegen.til</a></li>
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
-<li><a class="current" href="../../src/self/eval_heap.html">src/self/eval_heap.til</a><ul><li><a href="#til.src.self.eval_heap.word_bits">word_bits</a></li><li><a href="#til.src.self.eval_heap.bits_word">bits_word</a></li><li><a href="#til.src.self.eval_heap.f32_word">f32_word</a></li><li><a href="#til.src.self.eval_heap.word_f32">word_f32</a></li><li><a href="#til.src.self.eval_heap.f32_bits_fma">f32_bits_fma</a></li><li><a href="#til.src.self.eval_heap.f64_bits_add">f64_bits_add</a></li><li><a href="#til.src.self.eval_heap.f64_bits_sub">f64_bits_sub</a></li><li><a href="#til.src.self.eval_heap.f64_bits_mul">f64_bits_mul</a></li><li><a href="#til.src.self.eval_heap.f64_bits_div">f64_bits_div</a></li><li><a href="#til.src.self.eval_heap.f64_bits_fma">f64_bits_fma</a></li><li><a href="#til.src.self.eval_heap.f64_bits_cmp">f64_bits_cmp</a></li><li><a href="#til.src.self.eval_heap.str_parse_f64_bits">str_parse_f64_bits</a></li><li><a href="#til.src.self.eval_heap.f64_bits_to_str">f64_bits_to_str</a></li><li><a href="#til.src.self.eval_heap.f64_bits_to_repr">f64_bits_to_repr</a></li><li><a href="#til.src.self.eval_heap.f64_bits_from_i64">f64_bits_from_i64</a></li><li><a href="#til.src.self.eval_heap.word_drop">word_drop</a></li><li><a href="#til.src.self.eval_heap.dispatch_scratch_base">dispatch_scratch_base</a></li><li><a href="#til.src.self.eval_heap.word_ring_base">word_ring_base</a></li><li><a href="#til.src.self.eval_heap.EvalHeap">EvalHeap</a></li></ul></li>
+<li><a class="current" href="../../src/self/eval_heap.html">src/self/eval_heap.til</a><ul><li><a href="#til.src.self.eval_heap.word_bits">word_bits</a></li><li><a href="#til.src.self.eval_heap.bits_word">bits_word</a></li><li><a href="#til.src.self.eval_heap.f32_word">f32_word</a></li><li><a href="#til.src.self.eval_heap.word_f32">word_f32</a></li><li><a href="#til.src.self.eval_heap.f32_bits_fma">f32_bits_fma</a></li><li><a href="#til.src.self.eval_heap.f64_bits_add">f64_bits_add</a></li><li><a href="#til.src.self.eval_heap.f64_bits_sub">f64_bits_sub</a></li><li><a href="#til.src.self.eval_heap.f64_bits_mul">f64_bits_mul</a></li><li><a href="#til.src.self.eval_heap.f64_bits_div">f64_bits_div</a></li><li><a href="#til.src.self.eval_heap.f64_bits_fma">f64_bits_fma</a></li><li><a href="#til.src.self.eval_heap.f64_bits_cmp">f64_bits_cmp</a></li><li><a href="#til.src.self.eval_heap.str_parse_f64_bits">str_parse_f64_bits</a></li><li><a href="#til.src.self.eval_heap.f64_bits_to_str">f64_bits_to_str</a></li><li><a href="#til.src.self.eval_heap.f64_bits_to_repr">f64_bits_to_repr</a></li><li><a href="#til.src.self.eval_heap.f64_bits_from_i64">f64_bits_from_i64</a></li><li><a href="#til.src.self.eval_heap.word_drop">word_drop</a></li><li><a href="#til.src.self.eval_heap.own_slot_load">own_slot_load</a></li><li><a href="#til.src.self.eval_heap.own_slot_store">own_slot_store</a></li><li><a href="#til.src.self.eval_heap.dispatch_scratch_base">dispatch_scratch_base</a></li><li><a href="#til.src.self.eval_heap.word_ring_base">word_ring_base</a></li><li><a href="#til.src.self.eval_heap.EvalHeap">EvalHeap</a></li></ul></li>
 <li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
@@ -89,10 +89,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
-<li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
-<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
+<li><a href="../../src/self/codegen/mlir_codegen.html">src/self/codegen/mlir_codegen.til</a></li>
+<li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
-<li><a href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a></li>
+<li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
 <li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
@@ -199,6 +199,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>word_drop</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">ext_func (own w: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.own_slot_load">
+<h2>own_slot_load</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func (slot: Dynamic, shallow size: U64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.own_slot_store">
+<h2>own_slot_store</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func (mut slot: Dynamic, p: Dynamic, shallow size: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.dispatch_scratch_base">

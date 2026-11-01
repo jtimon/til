@@ -175,7 +175,7 @@ has its own editor-theme writer.
 - Build:
   - [[file:../src/self/builder.til][src/self/builder.til]] owns output paths,
     toolchain invocation, install/run/test commands, and documentation.
-  - [[file:../src/self/c_codegen.til][src/self/c_codegen.til]] owns the C ABI,
+  - [[file:../src/self/codegen/c_codegen.til][src/self/codegen/c_codegen.til]] owns the C ABI,
     C/header emission, C library bindings, and C-only emit reachability.
   - `c_codegen_translate_outputs(...)` is the boundary between them.
   - its first step, ~builder_prepare_emit~, runs the C back end's own
@@ -201,8 +201,8 @@ has its own editor-theme writer.
   - then `compile_c(...)` / `compile_lib(...)` compiles the emitted C
 
 - HolyC:
-  - [[file:../src/self/holyc_codegen.til][src/self/holyc_codegen.til]], with
-    its own runtime (~src/holyc/~).
+  - [[file:../src/self/codegen/holyc_codegen.til][src/self/codegen/holyc_codegen.til]], with
+    its own runtime (~src/self/codegen/ext.HC~).
   - it answers the C pass's question for itself: the splicing rules are
     C's, not the language's, and only the reachability half above is
     shared. It holds its whole output in memory before writing, so the
@@ -210,13 +210,13 @@ has its own editor-theme writer.
     only when the rest of the file names it.
 
 - MLIR and FASM (~--backend=~):
-  - [[file:../src/self/mlir_codegen.til][src/self/mlir_codegen.til]] writes
+  - [[file:../src/self/codegen/mlir_codegen.til][src/self/codegen/mlir_codegen.til]] writes
     ~gen/mlir/<name>.mlir~, lowered through LLVM 18's ~mlir-opt~ /
     ~mlir-translate~ and linked by ~clang~.
-  - [[file:../src/self/fasm_codegen.til][src/self/fasm_codegen.til]] writes
+  - [[file:../src/self/codegen/fasm_codegen.til][src/self/codegen/fasm_codegen.til]] writes
     ~gen/fasm/<name>.fasm~, assembled by the vendored FASM
     ([[file:../src/self/fasm_build.til][src/self/fasm_build.til]]) with its
-    own runtime (~src/fasm/ext.fasm~).
+    own runtime (~src/self/codegen/ext.fasm~).
   - both use the Linux x86-64 SysV ABI of the C backend and grow their
     supported subset incrementally; unsupported constructs are
     translation errors.
@@ -231,7 +231,7 @@ has its own editor-theme writer.
 
 - A small set of primitives is still implemented in handwritten C and linked
   into the self-hosted pipeline:
-  - [[file:../src/c/ext.c][src/c/ext.c]]
+  - [[file:../src/self/codegen/ext.c][src/self/codegen/ext.c]]
 - Til sees these through `ext_func` / `ext_proc` declarations imported through
   `modes.til`, and handwritten C sees til declarations through generated
   `boot/til_forward.h`.
@@ -277,9 +277,9 @@ That is the current practical phase order to keep in mind when debugging:
   lowering: `src/self/desugarer.til`
 - missing/extra `delete`/`free` call, use-after-move: `src/self/garbager.til`
 - comptime folding issue: `src/self/constfolder.til`
-- generated C issue: `src/self/c_codegen.til`
+- generated C issue: `src/self/codegen/c_codegen.til`
 - generated-output path / compiler-link invocation issue: `src/self/builder.til`
 - cross-compile target/lang issue: `src/self/targets.til`
 - interpreter FFI call into native C: `src/self/interpreter.til`
-- runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`
+- runtime behavior mismatch: `src/self/interpreter.til` or `src/self/codegen/ext.c`
 - generated vendor bindings wrong: `src/self/binder.til`

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>src/self/holyc_codegen.til</title>
+<title>src/self/codegen/holyc_codegen.til</title>
 <style>
 :root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
 @media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
@@ -16,86 +16,86 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 .doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
 @media(max-width:760px){.doc-layout{display:block}.doc-sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);max-height:45vh}.doc-sidebar nav{columns:2;column-gap:1rem}main{padding-top:1.25rem}}@media(max-width:480px){.doc-sidebar nav{columns:1}}
 </style>
-<script src="../../search.js" defer></script>
+<script src="../../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7d40494</div><nav aria-label="Documentation"><h2>Core</h2><ul>
-<li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
-<li><a href="../../src/core/str.html">src/core/str.til</a></li>
-<li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
-<li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
-<li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
-<li><a href="../../src/core/map.html">src/core/map.til</a></li>
-<li><a href="../../src/core/option.html">src/core/option.til</a></li>
-<li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
-<li><a href="../../src/core/array.html">src/core/array.til</a></li>
-<li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
-<li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
-<li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
-<li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
-<li><a href="../../src/core/io.html">src/core/io.til</a></li>
-<li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
-<li><a href="../../src/core/range.html">src/core/range.til</a></li>
-<li><a href="../../src/core/set.html">src/core/set.til</a></li>
-<li><a href="../../src/core/core.html">src/core/core.til</a></li>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<li><a href="../../../src/core/vec.html">src/core/vec.til</a></li>
+<li><a href="../../../src/core/str.html">src/core/str.til</a></li>
+<li><a href="../../../src/core/dyn.html">src/core/dyn.til</a></li>
+<li><a href="../../../src/core/numbers.html">src/core/numbers.til</a></li>
+<li><a href="../../../src/core/bool.html">src/core/bool.til</a></li>
+<li><a href="../../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../../src/core/option.html">src/core/option.til</a></li>
+<li><a href="../../../src/core/ast.html">src/core/ast.til</a></li>
+<li><a href="../../../src/core/array.html">src/core/array.til</a></li>
+<li><a href="../../../src/core/cast.html">src/core/cast.til</a></li>
+<li><a href="../../../src/core/tuple.html">src/core/tuple.til</a></li>
+<li><a href="../../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
+<li><a href="../../../src/core/exit.html">src/core/exit.til</a></li>
+<li><a href="../../../src/core/io.html">src/core/io.til</a></li>
+<li><a href="../../../src/core/mem.html">src/core/mem.til</a></li>
+<li><a href="../../../src/core/range.html">src/core/range.til</a></li>
+<li><a href="../../../src/core/set.html">src/core/set.til</a></li>
+<li><a href="../../../src/core/core.html">src/core/core.til</a></li>
 </ul>
 <h2>Standard library</h2><ul>
-<li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
-<li><a href="../../src/std/file.html">src/std/file.til</a></li>
-<li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
-<li><a href="../../src/std/hash.html">src/std/hash.til</a></li>
-<li><a href="../../src/std/hashmap.html">src/std/hashmap.til</a></li>
-<li><a href="../../src/std/crypto.html">src/std/crypto.til</a></li>
-<li><a href="../../src/std/doc.html">src/std/doc.til</a></li>
-<li><a href="../../src/std/dyn_vec.html">src/std/dyn_vec.til</a></li>
-<li><a href="../../src/std/dyn_array.html">src/std/dyn_array.til</a></li>
-<li><a href="../../src/std/dyn_hashmap.html">src/std/dyn_hashmap.til</a></li>
-<li><a href="../../src/std/dyn_hashset.html">src/std/dyn_hashset.til</a></li>
-<li><a href="../../src/std/dyn_map.html">src/std/dyn_map.til</a></li>
-<li><a href="../../src/std/dyn_set.html">src/std/dyn_set.til</a></li>
-<li><a href="../../src/std/hashset.html">src/std/hashset.til</a></li>
-<li><a href="../../src/std/tilvm.html">src/std/tilvm.til</a></li>
-<li><a href="../../src/std/unicode/grapheme_data.html">src/std/unicode/grapheme_data.til</a></li>
-<li><a href="../../src/std/unicode.html">src/std/unicode.til</a></li>
+<li><a href="../../../src/std/mode_type.html">src/std/mode_type.til</a></li>
+<li><a href="../../../src/std/file.html">src/std/file.til</a></li>
+<li><a href="../../../src/std/sys.html">src/std/sys.til</a></li>
+<li><a href="../../../src/std/hash.html">src/std/hash.til</a></li>
+<li><a href="../../../src/std/hashmap.html">src/std/hashmap.til</a></li>
+<li><a href="../../../src/std/crypto.html">src/std/crypto.til</a></li>
+<li><a href="../../../src/std/doc.html">src/std/doc.til</a></li>
+<li><a href="../../../src/std/dyn_vec.html">src/std/dyn_vec.til</a></li>
+<li><a href="../../../src/std/dyn_array.html">src/std/dyn_array.til</a></li>
+<li><a href="../../../src/std/dyn_hashmap.html">src/std/dyn_hashmap.til</a></li>
+<li><a href="../../../src/std/dyn_hashset.html">src/std/dyn_hashset.til</a></li>
+<li><a href="../../../src/std/dyn_map.html">src/std/dyn_map.til</a></li>
+<li><a href="../../../src/std/dyn_set.html">src/std/dyn_set.til</a></li>
+<li><a href="../../../src/std/hashset.html">src/std/hashset.til</a></li>
+<li><a href="../../../src/std/tilvm.html">src/std/tilvm.til</a></li>
+<li><a href="../../../src/std/unicode/grapheme_data.html">src/std/unicode/grapheme_data.til</a></li>
+<li><a href="../../../src/std/unicode.html">src/std/unicode.til</a></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
-<li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
-<li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
-<li><a href="../../src/self/context.html">src/self/context.til</a></li>
-<li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
-<li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
-<li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
-<li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
-<li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
+<li><a href="../../../src/self/lexer.html">src/self/lexer.til</a></li>
+<li><a href="../../../src/self/parser.html">src/self/parser.til</a></li>
+<li><a href="../../../src/self/context.html">src/self/context.til</a></li>
+<li><a href="../../../src/self/modes.html">src/self/modes.til</a></li>
+<li><a href="../../../src/self/initer.html">src/self/initer.til</a></li>
+<li><a href="../../../src/self/typer.html">src/self/typer.til</a></li>
+<li><a href="../../../src/self/desugarer.html">src/self/desugarer.til</a></li>
+<li><a href="../../../src/self/loader.html">src/self/loader.til</a></li>
 </ul>
 <h2>Compiler backend</h2><ul>
-<li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
-<li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
-<li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
-<li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
-<li><a href="../../src/self/c_codegen.html">src/self/c_codegen.til</a></li>
-<li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
+<li><a href="../../../src/self/targets.html">src/self/targets.til</a></li>
+<li><a href="../../../src/self/garbager.html">src/self/garbager.til</a></li>
+<li><a href="../../../src/self/constfolder.html">src/self/constfolder.til</a></li>
+<li><a href="../../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../../src/self/codegen/c_codegen.html">src/self/codegen/c_codegen.til</a></li>
+<li><a href="../../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
-<li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
-<li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
-<li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
+<li><a href="../../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
+<li><a href="../../../src/self/interpreter.html">src/self/interpreter.til</a></li>
+<li><a href="../../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
 <h2>CLI</h2><ul>
-<li><a href="../../src/til.html">src/til.til</a></li>
+<li><a href="../../../src/til.html">src/til.til</a></li>
 </ul>
 <h2>Vendor bindings</h2><ul>
-<li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
-<li><a href="../../vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
+<li><a href="../../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+<li><a href="../../../vendor/bindings/secp256k1.html">vendor/bindings/secp256k1.til</a></li>
 </ul>
 <h2>Ungrouped</h2><ul>
-<li><a href="../../src/self/mlir_codegen.html">src/self/mlir_codegen.til</a></li>
-<li><a href="../../src/self/fasm_codegen.html">src/self/fasm_codegen.til</a></li>
-<li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
-<li><a class="current" href="../../src/self/holyc_codegen.html">src/self/holyc_codegen.til</a><ul><li><a href="#til.src.self.holyc_codegen.holyc_codegen_translate">holyc_codegen_translate</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool">Map__Str_call_Map_Str_Bool</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.new">Map__Str_call_Map_Str_Bool.new</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.with_capacity">Map__Str_call_Map_Str_Bool.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.clear">Map__Str_call_Map_Str_Bool.clear</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.has">Map__Str_call_Map_Str_Bool.has</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.get">Map__Str_call_Map_Str_Bool.get</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.set">Map__Str_call_Map_Str_Bool.set</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.remove">Map__Str_call_Map_Str_Bool.remove</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig">Map__Str_FuncSig</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.new">Map__Str_FuncSig.new</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.with_capacity">Map__Str_FuncSig.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.clear">Map__Str_FuncSig.clear</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.has">Map__Str_FuncSig.has</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.get">Map__Str_FuncSig.get</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.set">Map__Str_FuncSig.set</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_FuncSig.remove">Map__Str_FuncSig.remove</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str">Map__Str_call_Set_Str</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.new">Map__Str_call_Set_Str.new</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.with_capacity">Map__Str_call_Set_Str.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.clear">Map__Str_call_Set_Str.clear</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.has">Map__Str_call_Set_Str.has</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.get">Map__Str_call_Set_Str.get</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.set">Map__Str_call_Set_Str.set</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_Str.remove">Map__Str_call_Set_Str.remove</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize">Map__Str_call_Set_USize</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.new">Map__Str_call_Set_USize.new</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.with_capacity">Map__Str_call_Set_USize.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.clear">Map__Str_call_Set_USize.clear</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.has">Map__Str_call_Set_USize.has</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.get">Map__Str_call_Set_USize.get</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.set">Map__Str_call_Set_USize.set</a></li><li><a href="#til.src.self.holyc_codegen.Map__Str_call_Set_USize.remove">Map__Str_call_Set_USize.remove</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool">Vec__call_Map_Str_Bool</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.new">Vec__call_Map_Str_Bool.new</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.with_capacity">Vec__call_Map_Str_Bool.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.clear">Vec__call_Map_Str_Bool.clear</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.delete_marked">Vec__call_Map_Str_Bool.delete_marked</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.push">Vec__call_Map_Str_Bool.push</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.append">Vec__call_Map_Str_Bool.append</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.take">Vec__call_Map_Str_Bool.take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.move_to">Vec__call_Map_Str_Bool.move_to</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.move_from">Vec__call_Map_Str_Bool.move_from</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_get">Vec__call_Map_Str_Bool.unsafe_get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.get">Vec__call_Map_Str_Bool.get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.pop">Vec__call_Map_Str_Bool.pop</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.remove_at">Vec__call_Map_Str_Bool.remove_at</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.take_prefix">Vec__call_Map_Str_Bool.take_prefix</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.truncate">Vec__call_Map_Str_Bool.truncate</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_set">Vec__call_Map_Str_Bool.unsafe_set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.set">Vec__call_Map_Str_Bool.set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.push_take">Vec__call_Map_Str_Bool.push_take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.delete">Vec__call_Map_Str_Bool.delete</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.clone">Vec__call_Map_Str_Bool.clone</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig">Vec__FuncSig</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.new">Vec__FuncSig.new</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.with_capacity">Vec__FuncSig.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.clear">Vec__FuncSig.clear</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.delete_marked">Vec__FuncSig.delete_marked</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.push">Vec__FuncSig.push</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.append">Vec__FuncSig.append</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.take">Vec__FuncSig.take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.move_to">Vec__FuncSig.move_to</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.move_from">Vec__FuncSig.move_from</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.unsafe_get">Vec__FuncSig.unsafe_get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.get">Vec__FuncSig.get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.pop">Vec__FuncSig.pop</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.remove_at">Vec__FuncSig.remove_at</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.take_prefix">Vec__FuncSig.take_prefix</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.truncate">Vec__FuncSig.truncate</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.unsafe_set">Vec__FuncSig.unsafe_set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.set">Vec__FuncSig.set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.push_take">Vec__FuncSig.push_take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.delete">Vec__FuncSig.delete</a></li><li><a href="#til.src.self.holyc_codegen.Vec__FuncSig.clone">Vec__FuncSig.clone</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str">Vec__call_Set_Str</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.new">Vec__call_Set_Str.new</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.with_capacity">Vec__call_Set_Str.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.clear">Vec__call_Set_Str.clear</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.delete_marked">Vec__call_Set_Str.delete_marked</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.push">Vec__call_Set_Str.push</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.append">Vec__call_Set_Str.append</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.take">Vec__call_Set_Str.take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.move_to">Vec__call_Set_Str.move_to</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.move_from">Vec__call_Set_Str.move_from</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.unsafe_get">Vec__call_Set_Str.unsafe_get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.get">Vec__call_Set_Str.get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.pop">Vec__call_Set_Str.pop</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.remove_at">Vec__call_Set_Str.remove_at</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.take_prefix">Vec__call_Set_Str.take_prefix</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.truncate">Vec__call_Set_Str.truncate</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.unsafe_set">Vec__call_Set_Str.unsafe_set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.set">Vec__call_Set_Str.set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.push_take">Vec__call_Set_Str.push_take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.delete">Vec__call_Set_Str.delete</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_Str.clone">Vec__call_Set_Str.clone</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize">Vec__call_Set_USize</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.new">Vec__call_Set_USize.new</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.with_capacity">Vec__call_Set_USize.with_capacity</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.clear">Vec__call_Set_USize.clear</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.delete_marked">Vec__call_Set_USize.delete_marked</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.push">Vec__call_Set_USize.push</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.append">Vec__call_Set_USize.append</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.take">Vec__call_Set_USize.take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.move_to">Vec__call_Set_USize.move_to</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.move_from">Vec__call_Set_USize.move_from</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_get">Vec__call_Set_USize.unsafe_get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.get">Vec__call_Set_USize.get</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.pop">Vec__call_Set_USize.pop</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.remove_at">Vec__call_Set_USize.remove_at</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.take_prefix">Vec__call_Set_USize.take_prefix</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.truncate">Vec__call_Set_USize.truncate</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_set">Vec__call_Set_USize.unsafe_set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.set">Vec__call_Set_USize.set</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.push_take">Vec__call_Set_USize.push_take</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.delete">Vec__call_Set_USize.delete</a></li><li><a href="#til.src.self.holyc_codegen.Vec__call_Set_USize.clone">Vec__call_Set_USize.clone</a></li><li><a href="#til.src.self.holyc_codegen.adopt__Map__Str_Bool">adopt__Map__Str_Bool</a></li><li><a href="#til.src.self.holyc_codegen.adopt__FuncSig">adopt__FuncSig</a></li><li><a href="#til.src.self.holyc_codegen.adopt__Set__Str">adopt__Set__Str</a></li><li><a href="#til.src.self.holyc_codegen.adopt__Set__USize">adopt__Set__USize</a></li></ul></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
-<li><a href="../../src/self/install.html">src/self/install.til</a></li>
-<li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
+<li><a href="../../../src/self/codegen/mlir_codegen.html">src/self/codegen/mlir_codegen.til</a></li>
+<li><a href="../../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
+<li><a href="../../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
+<li><a class="current" href="../../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a><ul><li><a href="#til.src.self.codegen.holyc_codegen.holyc_codegen_translate">holyc_codegen_translate</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool">Map__Str_call_Map_Str_Bool</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.new">Map__Str_call_Map_Str_Bool.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.with_capacity">Map__Str_call_Map_Str_Bool.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.clear">Map__Str_call_Map_Str_Bool.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.has">Map__Str_call_Map_Str_Bool.has</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.get">Map__Str_call_Map_Str_Bool.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.set">Map__Str_call_Map_Str_Bool.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.remove">Map__Str_call_Map_Str_Bool.remove</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig">Map__Str_FuncSig</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.new">Map__Str_FuncSig.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.with_capacity">Map__Str_FuncSig.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.clear">Map__Str_FuncSig.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.has">Map__Str_FuncSig.has</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.get">Map__Str_FuncSig.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.set">Map__Str_FuncSig.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.remove">Map__Str_FuncSig.remove</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str">Map__Str_call_Set_Str</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.new">Map__Str_call_Set_Str.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.with_capacity">Map__Str_call_Set_Str.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.clear">Map__Str_call_Set_Str.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.has">Map__Str_call_Set_Str.has</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.get">Map__Str_call_Set_Str.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.set">Map__Str_call_Set_Str.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.remove">Map__Str_call_Set_Str.remove</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize">Map__Str_call_Set_USize</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.new">Map__Str_call_Set_USize.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.with_capacity">Map__Str_call_Set_USize.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.clear">Map__Str_call_Set_USize.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.has">Map__Str_call_Set_USize.has</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.get">Map__Str_call_Set_USize.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.set">Map__Str_call_Set_USize.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.remove">Map__Str_call_Set_USize.remove</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool">Vec__call_Map_Str_Bool</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.new">Vec__call_Map_Str_Bool.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.with_capacity">Vec__call_Map_Str_Bool.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.clear">Vec__call_Map_Str_Bool.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.delete_marked">Vec__call_Map_Str_Bool.delete_marked</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.push">Vec__call_Map_Str_Bool.push</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.append">Vec__call_Map_Str_Bool.append</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.take">Vec__call_Map_Str_Bool.take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.move_to">Vec__call_Map_Str_Bool.move_to</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.move_from">Vec__call_Map_Str_Bool.move_from</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_get">Vec__call_Map_Str_Bool.unsafe_get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.get">Vec__call_Map_Str_Bool.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.pop">Vec__call_Map_Str_Bool.pop</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.remove_at">Vec__call_Map_Str_Bool.remove_at</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.take_prefix">Vec__call_Map_Str_Bool.take_prefix</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.truncate">Vec__call_Map_Str_Bool.truncate</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_set">Vec__call_Map_Str_Bool.unsafe_set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.set">Vec__call_Map_Str_Bool.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.push_take">Vec__call_Map_Str_Bool.push_take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.delete">Vec__call_Map_Str_Bool.delete</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.clone">Vec__call_Map_Str_Bool.clone</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig">Vec__FuncSig</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.new">Vec__FuncSig.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.with_capacity">Vec__FuncSig.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.clear">Vec__FuncSig.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.delete_marked">Vec__FuncSig.delete_marked</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.push">Vec__FuncSig.push</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.append">Vec__FuncSig.append</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.take">Vec__FuncSig.take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.move_to">Vec__FuncSig.move_to</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.move_from">Vec__FuncSig.move_from</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.unsafe_get">Vec__FuncSig.unsafe_get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.get">Vec__FuncSig.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.pop">Vec__FuncSig.pop</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.remove_at">Vec__FuncSig.remove_at</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.take_prefix">Vec__FuncSig.take_prefix</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.truncate">Vec__FuncSig.truncate</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.unsafe_set">Vec__FuncSig.unsafe_set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.set">Vec__FuncSig.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.push_take">Vec__FuncSig.push_take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.delete">Vec__FuncSig.delete</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__FuncSig.clone">Vec__FuncSig.clone</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str">Vec__call_Set_Str</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.new">Vec__call_Set_Str.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.with_capacity">Vec__call_Set_Str.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.clear">Vec__call_Set_Str.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.delete_marked">Vec__call_Set_Str.delete_marked</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.push">Vec__call_Set_Str.push</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.append">Vec__call_Set_Str.append</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.take">Vec__call_Set_Str.take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.move_to">Vec__call_Set_Str.move_to</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.move_from">Vec__call_Set_Str.move_from</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.unsafe_get">Vec__call_Set_Str.unsafe_get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.get">Vec__call_Set_Str.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.pop">Vec__call_Set_Str.pop</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.remove_at">Vec__call_Set_Str.remove_at</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.take_prefix">Vec__call_Set_Str.take_prefix</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.truncate">Vec__call_Set_Str.truncate</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.unsafe_set">Vec__call_Set_Str.unsafe_set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.set">Vec__call_Set_Str.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.push_take">Vec__call_Set_Str.push_take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.delete">Vec__call_Set_Str.delete</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.clone">Vec__call_Set_Str.clone</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize">Vec__call_Set_USize</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.new">Vec__call_Set_USize.new</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.with_capacity">Vec__call_Set_USize.with_capacity</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.clear">Vec__call_Set_USize.clear</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.delete_marked">Vec__call_Set_USize.delete_marked</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.push">Vec__call_Set_USize.push</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.append">Vec__call_Set_USize.append</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.take">Vec__call_Set_USize.take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.move_to">Vec__call_Set_USize.move_to</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.move_from">Vec__call_Set_USize.move_from</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.unsafe_get">Vec__call_Set_USize.unsafe_get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.get">Vec__call_Set_USize.get</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.pop">Vec__call_Set_USize.pop</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.remove_at">Vec__call_Set_USize.remove_at</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.take_prefix">Vec__call_Set_USize.take_prefix</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.truncate">Vec__call_Set_USize.truncate</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.unsafe_set">Vec__call_Set_USize.unsafe_set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.set">Vec__call_Set_USize.set</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.push_take">Vec__call_Set_USize.push_take</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.delete">Vec__call_Set_USize.delete</a></li><li><a href="#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.clone">Vec__call_Set_USize.clone</a></li><li><a href="#til.src.self.codegen.holyc_codegen.adopt__Map__Str_Bool">adopt__Map__Str_Bool</a></li><li><a href="#til.src.self.codegen.holyc_codegen.adopt__FuncSig">adopt__FuncSig</a></li><li><a href="#til.src.self.codegen.holyc_codegen.adopt__Set__Str">adopt__Set__Str</a></li><li><a href="#til.src.self.codegen.holyc_codegen.adopt__Set__USize">adopt__Set__USize</a></li></ul></li>
+<li><a href="../../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../../src/self/install.html">src/self/install.til</a></li>
+<li><a href="../../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
 <section class="doc-search" aria-label="Documentation search">
@@ -103,14 +103,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
 <ol id="til-doc-search-results" class="doc-search-results"></ol>
 </section>
-<nav><a href="../../index.html">Index</a></nav>
-<h1>src/self/holyc_codegen.til</h1>
-<article class="doc-entry" id="til.src.self.holyc_codegen.holyc_codegen_translate">
+<nav><a href="../../../index.html">Index</a></nav>
+<h1>src/self/codegen/holyc_codegen.til</h1>
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.holyc_codegen_translate">
 <h2>holyc_codegen_translate</h2>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, output_path: Str) returns I32
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool">
 <h2>Map__Str_call_Map_Str_Bool</h2>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -131,7 +131,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.new">
 <h2>Map__Str_call_Map_Str_Bool.new</h2>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
@@ -140,7 +140,7 @@ The key type must implement <code>cmp</code>.</p>
 <pre><code class="language-til">func () returns Map__Str_call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.with_capacity">
 <h2>Map__Str_call_Map_Str_Bool.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
@@ -150,7 +150,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (n: U64) returns Map__Str_call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.clear">
 <h2>Map__Str_call_Map_Str_Bool.clear</h2>
 <div class="doc-body">
 <p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
@@ -158,7 +158,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Map_Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.has">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.has">
 <h2>Map__Str_call_Map_Str_Bool.has</h2>
 <div class="doc-body">
 <p>True if a value exists for the given key.</p>
@@ -166,7 +166,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.get">
 <h2>Map__Str_call_Map_Str_Bool.get</h2>
 <div class="doc-body">
 <p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
@@ -176,7 +176,7 @@ on a missing key.</p>
 <pre><code class="language-til">func (self: Map__Str_call_Map_Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.set">
 <h2>Map__Str_call_Map_Str_Bool.set</h2>
 <div class="doc-body">
 <p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
@@ -185,7 +185,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Map_Str_Bool, key: Str, own val: Map__Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Map_Str_Bool.remove">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.remove">
 <h2>Map__Str_call_Map_Str_Bool.remove</h2>
 <div class="doc-body">
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
@@ -193,7 +193,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig">
 <h2>Map__Str_FuncSig</h2>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -214,7 +214,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.new">
 <h2>Map__Str_FuncSig.new</h2>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
@@ -223,7 +223,7 @@ The key type must implement <code>cmp</code>.</p>
 <pre><code class="language-til">func () returns Map__Str_FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.with_capacity">
 <h2>Map__Str_FuncSig.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
@@ -233,7 +233,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (n: U64) returns Map__Str_FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.clear">
 <h2>Map__Str_FuncSig.clear</h2>
 <div class="doc-body">
 <p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
@@ -241,7 +241,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (mut self: Map__Str_FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.has">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.has">
 <h2>Map__Str_FuncSig.has</h2>
 <div class="doc-body">
 <p>True if a value exists for the given key.</p>
@@ -249,7 +249,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (self: Map__Str_FuncSig, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.get">
 <h2>Map__Str_FuncSig.get</h2>
 <div class="doc-body">
 <p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
@@ -259,7 +259,7 @@ on a missing key.</p>
 <pre><code class="language-til">func (self: Map__Str_FuncSig, key: Str) returns ref FuncSig throws KeyNotFound
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.set">
 <h2>Map__Str_FuncSig.set</h2>
 <div class="doc-body">
 <p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
@@ -268,7 +268,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_FuncSig, key: Str, own val: FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_FuncSig.remove">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_FuncSig.remove">
 <h2>Map__Str_FuncSig.remove</h2>
 <div class="doc-body">
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
@@ -276,7 +276,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_FuncSig, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str">
 <h2>Map__Str_call_Set_Str</h2>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -297,7 +297,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.new">
 <h2>Map__Str_call_Set_Str.new</h2>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
@@ -306,7 +306,7 @@ The key type must implement <code>cmp</code>.</p>
 <pre><code class="language-til">func () returns Map__Str_call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.with_capacity">
 <h2>Map__Str_call_Set_Str.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
@@ -316,7 +316,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (n: U64) returns Map__Str_call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.clear">
 <h2>Map__Str_call_Set_Str.clear</h2>
 <div class="doc-body">
 <p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
@@ -324,7 +324,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Set_Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.has">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.has">
 <h2>Map__Str_call_Set_Str.has</h2>
 <div class="doc-body">
 <p>True if a value exists for the given key.</p>
@@ -332,7 +332,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (self: Map__Str_call_Set_Str, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.get">
 <h2>Map__Str_call_Set_Str.get</h2>
 <div class="doc-body">
 <p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
@@ -342,7 +342,7 @@ on a missing key.</p>
 <pre><code class="language-til">func (self: Map__Str_call_Set_Str, key: Str) returns ref Set__Str throws KeyNotFound
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.set">
 <h2>Map__Str_call_Set_Str.set</h2>
 <div class="doc-body">
 <p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
@@ -351,7 +351,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_Str.remove">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.remove">
 <h2>Map__Str_call_Set_Str.remove</h2>
 <div class="doc-body">
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
@@ -359,7 +359,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Set_Str, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize">
 <h2>Map__Str_call_Set_USize</h2>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -380,7 +380,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.new">
 <h2>Map__Str_call_Set_USize.new</h2>
 <div class="doc-body">
 <p>Create an empty Map of the types provided for the key and values respectively.
@@ -389,7 +389,7 @@ The key type must implement <code>cmp</code>.</p>
 <pre><code class="language-til">func () returns Map__Str_call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.with_capacity">
 <h2>Map__Str_call_Set_USize.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Map pre-sized for <code>n</code> entries, so inserting up to
@@ -399,7 +399,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (n: U64) returns Map__Str_call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.clear">
 <h2>Map__Str_call_Set_USize.clear</h2>
 <div class="doc-body">
 <p>Drop all live keys and values but keep the allocated storage so the Map can be reused.</p>
@@ -407,7 +407,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Set_USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.has">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.has">
 <h2>Map__Str_call_Set_USize.has</h2>
 <div class="doc-body">
 <p>True if a value exists for the given key.</p>
@@ -415,7 +415,7 @@ counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 <pre><code class="language-til">func (self: Map__Str_call_Set_USize, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.get">
 <h2>Map__Str_call_Set_USize.get</h2>
 <div class="doc-body">
 <p>Return a ref to the value for <code>key</code>. Throws KeyNotFound if
@@ -425,7 +425,7 @@ on a missing key.</p>
 <pre><code class="language-til">func (self: Map__Str_call_Set_USize, key: Str) returns ref Set__USize throws KeyNotFound
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.set">
 <h2>Map__Str_call_Set_USize.set</h2>
 <div class="doc-body">
 <p>Insert or overwrite. Ref-qualified keys/values borrow their sources;
@@ -434,7 +434,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Map__Str_call_Set_USize.remove">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.remove">
 <h2>Map__Str_call_Set_USize.remove</h2>
 <div class="doc-body">
 <p>Remove <code>key</code>, dropping its key and value. Returns false if absent.</p>
@@ -442,7 +442,7 @@ other keys are cloned and other values are taken by ownership.</p>
 <pre><code class="language-til">func (mut self: Map__Str_call_Set_USize, key: Str) returns Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool">
 <h2>Vec__call_Map_Str_Bool</h2>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -474,7 +474,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.new">
 <h2>Vec__call_Map_Str_Bool.new</h2>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -486,7 +486,7 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <pre><code class="language-til">func () returns Vec__call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.with_capacity">
 <h2>Vec__call_Map_Str_Bool.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -499,7 +499,7 @@ no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 <pre><code class="language-til">func (n: U64) returns Vec__call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.clear">
 <h2>Vec__call_Map_Str_Bool.clear</h2>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
@@ -508,7 +508,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.delete_marked">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.delete_marked">
 <h2>Vec__call_Map_Str_Bool.delete_marked</h2>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -520,7 +520,7 @@ to reach into data/count directly.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.push">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.push">
 <h2>Vec__call_Map_Str_Bool.push</h2>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
@@ -529,7 +529,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, own val: Map__Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.append">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.append">
 <h2>Vec__call_Map_Str_Bool.append</h2>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
@@ -538,7 +538,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.take">
 <h2>Vec__call_Map_Str_Bool.take</h2>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -553,7 +553,7 @@ uses the two move forms below instead.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.move_to">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.move_to">
 <h2>Vec__call_Map_Str_Bool.move_to</h2>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -570,7 +570,7 @@ buffer that now belongs to someone else.</p>
 <pre><code class="language-til">func (own self: Vec__call_Map_Str_Bool, mut dest: Vec__call_Map_Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.move_from">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.move_from">
 <h2>Vec__call_Map_Str_Bool.move_from</h2>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
@@ -580,7 +580,7 @@ argument: <code>dest.move_from(own src)</code>.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_get">
 <h2>Vec__call_Map_Str_Bool.unsafe_get</h2>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -592,7 +592,7 @@ proves the index in bounds (issue #284).</p>
 <pre><code class="language-til">func (self: Vec__call_Map_Str_Bool, i: U64) returns ref Map__Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.get">
 <h2>Vec__call_Map_Str_Bool.get</h2>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -603,7 +603,7 @@ next mutation.</p>
 <pre><code class="language-til">func (self: Vec__call_Map_Str_Bool, shallow i: U64) returns ref Map__Str_Bool throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.pop">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.pop">
 <h2>Vec__call_Map_Str_Bool.pop</h2>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
@@ -612,7 +612,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool) returns Map__Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.remove_at">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.remove_at">
 <h2>Vec__call_Map_Str_Bool.remove_at</h2>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
@@ -620,7 +620,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, i: U64) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.take_prefix">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.take_prefix">
 <h2>Vec__call_Map_Str_Bool.take_prefix</h2>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
@@ -629,7 +629,7 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, n: U64) returns Vec__call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.truncate">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.truncate">
 <h2>Vec__call_Map_Str_Bool.truncate</h2>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -640,7 +640,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, n: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_set">
 <h2>Vec__call_Map_Str_Bool.unsafe_set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
@@ -650,7 +650,7 @@ mirror of unsafe_get (issue #284).</p>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, i: U64, own val: Map__Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.set">
 <h2>Vec__call_Map_Str_Bool.set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
@@ -660,7 +660,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, i: U64, own val: Map__Str_Bool) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.push_take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.push_take">
 <h2>Vec__call_Map_Str_Bool.push_take</h2>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
@@ -670,7 +670,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, i: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.delete">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.delete">
 <h2>Vec__call_Map_Str_Bool.delete</h2>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
@@ -679,7 +679,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (own self: Vec__call_Map_Str_Bool, call_free: Bool = true)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Map_Str_Bool.clone">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.clone">
 <h2>Vec__call_Map_Str_Bool.clone</h2>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
@@ -687,7 +687,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig">
 <h2>Vec__FuncSig</h2>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -719,7 +719,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.new">
 <h2>Vec__FuncSig.new</h2>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -731,7 +731,7 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <pre><code class="language-til">func () returns Vec__FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.with_capacity">
 <h2>Vec__FuncSig.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -744,7 +744,7 @@ no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 <pre><code class="language-til">func (n: U64) returns Vec__FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.clear">
 <h2>Vec__FuncSig.clear</h2>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
@@ -753,7 +753,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.delete_marked">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.delete_marked">
 <h2>Vec__FuncSig.delete_marked</h2>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -765,7 +765,7 @@ to reach into data/count directly.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.push">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.push">
 <h2>Vec__FuncSig.push</h2>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
@@ -774,7 +774,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, own val: FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.append">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.append">
 <h2>Vec__FuncSig.append</h2>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
@@ -783,7 +783,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, own other: Vec__FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.take">
 <h2>Vec__FuncSig.take</h2>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -798,7 +798,7 @@ uses the two move forms below instead.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig) returns Vec__FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.move_to">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.move_to">
 <h2>Vec__FuncSig.move_to</h2>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -815,7 +815,7 @@ buffer that now belongs to someone else.</p>
 <pre><code class="language-til">func (own self: Vec__FuncSig, mut dest: Vec__FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.move_from">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.move_from">
 <h2>Vec__FuncSig.move_from</h2>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
@@ -825,7 +825,7 @@ argument: <code>dest.move_from(own src)</code>.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, own other: Vec__FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.unsafe_get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.unsafe_get">
 <h2>Vec__FuncSig.unsafe_get</h2>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -837,7 +837,7 @@ proves the index in bounds (issue #284).</p>
 <pre><code class="language-til">func (self: Vec__FuncSig, i: U64) returns ref FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.get">
 <h2>Vec__FuncSig.get</h2>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -848,7 +848,7 @@ next mutation.</p>
 <pre><code class="language-til">func (self: Vec__FuncSig, shallow i: U64) returns ref FuncSig throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.pop">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.pop">
 <h2>Vec__FuncSig.pop</h2>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
@@ -857,7 +857,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig) returns FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.remove_at">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.remove_at">
 <h2>Vec__FuncSig.remove_at</h2>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
@@ -865,7 +865,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, i: U64) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.take_prefix">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.take_prefix">
 <h2>Vec__FuncSig.take_prefix</h2>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
@@ -874,7 +874,7 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, n: U64) returns Vec__FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.truncate">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.truncate">
 <h2>Vec__FuncSig.truncate</h2>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -885,7 +885,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, n: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.unsafe_set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.unsafe_set">
 <h2>Vec__FuncSig.unsafe_set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
@@ -895,7 +895,7 @@ mirror of unsafe_get (issue #284).</p>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, i: U64, own val: FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.set">
 <h2>Vec__FuncSig.set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
@@ -905,7 +905,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 <pre><code class="language-til">func (mut self: Vec__FuncSig, i: U64, own val: FuncSig) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.push_take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.push_take">
 <h2>Vec__FuncSig.push_take</h2>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
@@ -915,7 +915,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <pre><code class="language-til">func (mut self: Vec__FuncSig, mut src: Vec__FuncSig, i: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.delete">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.delete">
 <h2>Vec__FuncSig.delete</h2>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
@@ -924,7 +924,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (own self: Vec__FuncSig, call_free: Bool = true)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__FuncSig.clone">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__FuncSig.clone">
 <h2>Vec__FuncSig.clone</h2>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
@@ -932,7 +932,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__FuncSig) returns Vec__FuncSig
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str">
 <h2>Vec__call_Set_Str</h2>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -964,7 +964,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.new">
 <h2>Vec__call_Set_Str.new</h2>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -976,7 +976,7 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <pre><code class="language-til">func () returns Vec__call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.with_capacity">
 <h2>Vec__call_Set_Str.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -989,7 +989,7 @@ no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 <pre><code class="language-til">func (n: U64) returns Vec__call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.clear">
 <h2>Vec__call_Set_Str.clear</h2>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
@@ -998,7 +998,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.delete_marked">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.delete_marked">
 <h2>Vec__call_Set_Str.delete_marked</h2>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -1010,7 +1010,7 @@ to reach into data/count directly.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.push">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.push">
 <h2>Vec__call_Set_Str.push</h2>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
@@ -1019,7 +1019,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, own val: Set__Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.append">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.append">
 <h2>Vec__call_Set_Str.append</h2>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
@@ -1028,7 +1028,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.take">
 <h2>Vec__call_Set_Str.take</h2>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -1043,7 +1043,7 @@ uses the two move forms below instead.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str) returns Vec__call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.move_to">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.move_to">
 <h2>Vec__call_Set_Str.move_to</h2>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -1060,7 +1060,7 @@ buffer that now belongs to someone else.</p>
 <pre><code class="language-til">func (own self: Vec__call_Set_Str, mut dest: Vec__call_Set_Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.move_from">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.move_from">
 <h2>Vec__call_Set_Str.move_from</h2>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
@@ -1070,7 +1070,7 @@ argument: <code>dest.move_from(own src)</code>.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.unsafe_get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.unsafe_get">
 <h2>Vec__call_Set_Str.unsafe_get</h2>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -1082,7 +1082,7 @@ proves the index in bounds (issue #284).</p>
 <pre><code class="language-til">func (self: Vec__call_Set_Str, i: U64) returns ref Set__Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.get">
 <h2>Vec__call_Set_Str.get</h2>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -1093,7 +1093,7 @@ next mutation.</p>
 <pre><code class="language-til">func (self: Vec__call_Set_Str, shallow i: U64) returns ref Set__Str throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.pop">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.pop">
 <h2>Vec__call_Set_Str.pop</h2>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
@@ -1102,7 +1102,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str) returns Set__Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.remove_at">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.remove_at">
 <h2>Vec__call_Set_Str.remove_at</h2>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
@@ -1110,7 +1110,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, i: U64) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.take_prefix">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.take_prefix">
 <h2>Vec__call_Set_Str.take_prefix</h2>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
@@ -1119,7 +1119,7 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, n: U64) returns Vec__call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.truncate">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.truncate">
 <h2>Vec__call_Set_Str.truncate</h2>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -1130,7 +1130,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, n: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.unsafe_set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.unsafe_set">
 <h2>Vec__call_Set_Str.unsafe_set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
@@ -1140,7 +1140,7 @@ mirror of unsafe_get (issue #284).</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, i: U64, own val: Set__Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.set">
 <h2>Vec__call_Set_Str.set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
@@ -1150,7 +1150,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, i: U64, own val: Set__Str) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.push_take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.push_take">
 <h2>Vec__call_Set_Str.push_take</h2>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
@@ -1160,7 +1160,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <pre><code class="language-til">func (mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, i: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.delete">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.delete">
 <h2>Vec__call_Set_Str.delete</h2>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
@@ -1169,7 +1169,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (own self: Vec__call_Set_Str, call_free: Bool = true)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_Str.clone">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.clone">
 <h2>Vec__call_Set_Str.clone</h2>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
@@ -1177,7 +1177,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__call_Set_Str) returns Vec__call_Set_Str
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize">
 <h2>Vec__call_Set_USize</h2>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -1209,7 +1209,7 @@ namespace:
 }
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.new">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.new">
 <h2>Vec__call_Set_USize.new</h2>
 <div class="doc-body">
 <p>Create a new empty Vec for elements of type T. Lazy: no allocation
@@ -1221,7 +1221,7 @@ Scope) allocation-free, which is the dominant per-call interpreter cost.</p>
 <pre><code class="language-til">func () returns Vec__call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.with_capacity">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.with_capacity">
 <h2>Vec__call_Set_USize.with_capacity</h2>
 <div class="doc-body">
 <p>Create an empty Vec pre-sized for <code>n</code> elements, so pushing up to <code>n</code>
@@ -1234,7 +1234,7 @@ no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 <pre><code class="language-til">func (n: U64) returns Vec__call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.clear">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.clear">
 <h2>Vec__call_Set_USize.clear</h2>
 <div class="doc-body">
 <p>Drop all live elements via elem_delete but keep the allocated
@@ -1243,7 +1243,7 @@ storage and element-type metadata so the Vec can be reused.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.delete_marked">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.delete_marked">
 <h2>Vec__call_Set_USize.delete_marked</h2>
 <div class="doc-body">
 <p>Drop the elements flagged in <code>marks</code> (a byte-per-element buffer,
@@ -1255,7 +1255,7 @@ to reach into data/count directly.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, marks: Dynamic)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.push">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.push">
 <h2>Vec__call_Set_USize.push</h2>
 <div class="doc-body">
 <p>Append an element to the end. <code>val</code> is owned: after this call the
@@ -1264,7 +1264,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, own val: Set__USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.append">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.append">
 <h2>Vec__call_Set_USize.append</h2>
 <div class="doc-body">
 <p>Consume the contents of <code>other</code> by appending them to <code>self</code>.
@@ -1273,7 +1273,7 @@ caller must not use the value passed -- clone it first if needed.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.take">
 <h2>Vec__call_Set_USize.take</h2>
 <div class="doc-body">
 <p>Take the contents out: the returned Vec owns self's buffer and
@@ -1288,7 +1288,7 @@ uses the two move forms below instead.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.move_to">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.move_to">
 <h2>Vec__call_Set_USize.move_to</h2>
 <div class="doc-body">
 <p>Give self's contents to <code>dest</code>, which drops whatever it held.
@@ -1305,7 +1305,7 @@ buffer that now belongs to someone else.</p>
 <pre><code class="language-til">func (own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.move_from">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.move_from">
 <h2>Vec__call_Set_USize.move_from</h2>
 <div class="doc-body">
 <p>Take <code>other</code>'s contents, dropping whatever self held. OTHER is
@@ -1315,7 +1315,7 @@ argument: <code>dest.move_from(own src)</code>.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.unsafe_get">
 <h2>Vec__call_Set_USize.unsafe_get</h2>
 <div class="doc-body">
 <p>Unchecked element access: return a reference to the element at
@@ -1327,7 +1327,7 @@ proves the index in bounds (issue #284).</p>
 <pre><code class="language-til">func (self: Vec__call_Set_USize, i: U64) returns ref Set__USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.get">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.get">
 <h2>Vec__call_Set_USize.get</h2>
 <div class="doc-body">
 <p>Return a reference to the element at index <code>i</code>. Throws
@@ -1338,7 +1338,7 @@ next mutation.</p>
 <pre><code class="language-til">func (self: Vec__call_Set_USize, shallow i: U64) returns ref Set__USize throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.pop">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.pop">
 <h2>Vec__call_Set_USize.pop</h2>
 <div class="doc-body">
 <p>Remove and return the last element. Panics if empty. The caller
@@ -1347,7 +1347,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize) returns Set__USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.remove_at">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.remove_at">
 <h2>Vec__call_Set_USize.remove_at</h2>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
@@ -1355,7 +1355,7 @@ takes ownership of the returned value.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, i: U64) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.take_prefix">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.take_prefix">
 <h2>Vec__call_Set_USize.take_prefix</h2>
 <div class="doc-body">
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
@@ -1364,7 +1364,7 @@ exceeds self.len(). The remaining elements shift to the front.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, n: U64) returns Vec__call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.truncate">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.truncate">
 <h2>Vec__call_Set_USize.truncate</h2>
 <div class="doc-body">
 <p>Drop the elements from index <code>n</code> to the end, freeing each via
@@ -1375,7 +1375,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, n: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.unsafe_set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.unsafe_set">
 <h2>Vec__call_Set_USize.unsafe_set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code> without a bounds check, dropping
@@ -1385,7 +1385,7 @@ mirror of unsafe_get (issue #284).</p>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, i: U64, own val: Set__USize)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.set">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.set">
 <h2>Vec__call_Set_USize.set</h2>
 <div class="doc-body">
 <p>Overwrite the element at index <code>i</code>. <code>val</code> is owned. Throws
@@ -1395,7 +1395,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, i: U64, own val: Set__USize) throws OutOfBounds
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.push_take">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.push_take">
 <h2>Vec__call_Set_USize.push_take</h2>
 <div class="doc-body">
 <p>Move bytes of src[i] into self (push). Source slot is zeroed so that
@@ -1405,7 +1405,7 @@ count<code></code>0/data<code></code>NULL convention used by take_children and V
 <pre><code class="language-til">func (mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, i: U64)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.delete">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.delete">
 <h2>Vec__call_Set_USize.delete</h2>
 <div class="doc-body">
 <p>Drop each element via elem_delete, free storage, then free self
@@ -1414,7 +1414,7 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (own self: Vec__call_Set_USize, call_free: Bool = true)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.Vec__call_Set_USize.clone">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.clone">
 <h2>Vec__call_Set_USize.clone</h2>
 <div class="doc-body">
 <p>Deep-copy the Vec and all its elements via elem_clone.</p>
@@ -1422,22 +1422,22 @@ unless <code>call_free</code> is false.</p>
 <pre><code class="language-til">func (self: Vec__call_Set_USize) returns Vec__call_Set_USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.adopt__Map__Str_Bool">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.adopt__Map__Str_Bool">
 <h2>adopt__Map__Str_Bool</h2>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: Map__Str_Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.adopt__FuncSig">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.adopt__FuncSig">
 <h2>adopt__FuncSig</h2>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: FuncSig)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.adopt__Set__Str">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.adopt__Set__Str">
 <h2>adopt__Set__Str</h2>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: Set__Str)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.holyc_codegen.adopt__Set__USize">
+<article class="doc-entry" id="til.src.self.codegen.holyc_codegen.adopt__Set__USize">
 <h2>adopt__Set__USize</h2>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: Set__USize)
 </code></pre>

@@ -89,9 +89,9 @@ main := proc() returns I64 {
     require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/build-", target_to_str(detect_current_target()), "/libtinyfd.a"))
     require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/build-", target_to_str(detect_current_target()), "/libtinyfd.so"))
     require(format(PREFIX, "/lib/til/src/modes/gui.til"))
-    require(format(PREFIX, "/lib/til/src/c/ext.c"))
-    require(format(PREFIX, "/lib/til/src/holyc/ext.HC"))
-    require(format(PREFIX, "/lib/til/src/fasm/ext.fasm"))
+    require(format(PREFIX, "/lib/til/src/self/codegen/ext.c"))
+    require(format(PREFIX, "/lib/til/src/self/codegen/ext.HC"))
+    require(format(PREFIX, "/lib/til/src/self/codegen/ext.fasm"))
     require(format(PREFIX, "/lib/til/vendor/fasm/LICENSE.TXT"))
     require(format(PREFIX, "/lib/til/boot/til.c"))
     require(format(PREFIX, "/lib/til/doc/concepts/index.org"))
@@ -106,7 +106,7 @@ main := proc() returns I64 {
     installed_til := "../install_test/bin/til"
     if detect_current_target().is(Target.LinuxX64) && File.is_file("vendor/fasm/fasm") {
         assembler := format(PREFIX, "/lib/til/vendor/fasm/fasm")
-        runtime := format(PREFIX, "/lib/til/src/fasm/ext.fasm")
+        runtime := format(PREFIX, "/lib/til/src/self/codegen/ext.fasm")
         require(assembler)
         assembler_time := file_mtime(assembler)
         read_only := Cmd.new("chmod", "a-w", assembler, runtime)

@@ -50,7 +50,7 @@ explicitly rather than acquire silent substitutes.
 
 *** Progress
 
-  FASM (#453) now uses ~src/fasm/ext.fasm~, included directly by generated
+  FASM (#453) now uses ~src/self/codegen/ext.fasm~, included directly by generated
   assembly. It follows ext.c for the native memory/file boundary and the core
   definitions for output, panic and strings. Its Str layout matches C at both
   USize widths. The ABI, supported operations and diagnostic differences are
@@ -71,7 +71,7 @@ explicitly rather than acquire silent substitutes.
   is shared by all three execution paths, including pointee preservation and
   the lifetime of owners reached through later rebindings.
 
-  The TempleOS backend now uses ~src/holyc/ext.HC~ as its native boundary and
+  The TempleOS backend now uses ~src/self/codegen/ext.HC~ as its native boundary and
   documents the concrete ABI in #151. Its generated source includes the fixed
   guest path ~/Home/Ext.HC~; the runtime source remains separate support
   input, analogous to ~ext.c~, rather than copied into generated output. The

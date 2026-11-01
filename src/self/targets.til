@@ -186,7 +186,7 @@ toolchain_command := proc(target: Target, lang: Lang) returns Str {
         if host_os() == "windows" { return "gcc" }
         return "i686-w64-mingw32-gcc"
     case .MacosX64, .MacosArm64: return "clang"
-    // emscripten (issue #424): every til program includes src/c/ext.c,
+    // emscripten (issue #424): every til program includes src/self/codegen/ext.c,
     // which needs a libc, and bare clang --target=wasm32 has none. emcc
     // brings emscripten's; the vendored emsdk's emcc goes in with --cc, as
     // for the mode gui browser build.

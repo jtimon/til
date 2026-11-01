@@ -1,9 +1,9 @@
 mode lib
-import("context")
+import("../context")
 
-import("loader")
-import("../std/file")
-import("../std/hash")
+import("../loader")
+import("../../std/file")
+import("../../std/hash")
 
 
 priv closure_call_name := func(name: Str) returns Str {

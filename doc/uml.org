@@ -203,6 +203,7 @@
 *** is_str := false
 *** is_enum := false
 *** is_funcptr := false
+*** is_cptr := false
 ** StructLayout: StructDef
 *** total_size : USize = 0
 *** align : USize = 1
@@ -473,6 +474,7 @@
 *** target_uptr_pname := "U64"
 *** target_usize_bytes : USize = 8
 *** target_simd_bits : USize = 128
+*** target_cptr32 := false
 *** comptime_requests := Set(Str).new()
 *** comptime_preparation := Option(ComptimePreparation).None
 *** target_scalar64_align : USize = 8
@@ -487,8 +489,9 @@
 *** import_cwd := ""
 *** import_support_dir := ""
 *** check_unused_imports := false
-*** import_use_edges := Set(Str).new()
-*** ... (77 more)
+*** ... (78 more)
+** HostOwnPtrProbe: StructDef
+*** own p : U8 = 0
 * targets
 ** Lang: EnumDef
 *** C
@@ -539,9 +542,11 @@
 *** link_c_paths := ""
 *** compiler_revision := ""
 *** asan_build := false
+*** mlir_runtime := false
 *** run_tests := false
 *** load_errors : I32 = 0
 *** usize_override_bits : I64 = 0
+*** cptr32 := false
 ** DocMeta: StructDef
 *** body := ""
 *** group := ""
@@ -624,6 +629,7 @@
 *** nested := Vec(U64).new()
 *** transfers := Vec(U64).new()
 *** reassigns := Vec(U64).new()
+*** has_reference_decls := false
 *** escapes := Vec(U64).new()
 *** def_names := Vec(Str).new()
 *** def_bits := Vec(I64).new()
@@ -633,9 +639,13 @@
 *** borrower := ""
 *** fixed_reach : I64 = -1
 *** created_at : I64 = -1
+** ReferenceNameChange: StructDef
+*** name := ""
+*** previous := Option(Str).None
 ** ReferenceLoans: StructDef
 *** sources := Map(Str, Vec(Str)).new()
 *** references := Set(Str).new()
+*** name_changes := Vec(ReferenceNameChange).new()
 *** next : USize = 0
 ** GcDeposit: StructDef
 *** sink := BorrowRoot()
@@ -644,7 +654,27 @@
 ** DeclRef: StructDef
 *** path := ""
 *** idx : USize = 0
-* c_codegen
+* codegen/c_codegen
+** JniErrSlot: StructDef
+*** c_type := ""
+*** msg := ""
+*** free_stmt := ""
+** JniTypes: StructDef
+*** handles := Set(Str).new()
+*** enums := Set(Str).new()
+*** callbacks := Set(Str).new()
+*** class_path := ""
+*** has_strvec := false
+** JniInit: StructDef
+*** code := ""
+*** reason := ""
+** JniMember: StructDef
+*** owner := ""
+*** name := ""
+*** type_name := ""
+*** place := ""
+*** settable := false
+*** guard := ""
 ** CollectionInfo: StructDef
 *** ref type_name : Str
 *** is_vec : I32 = 0
@@ -664,6 +694,8 @@
 *** h_path := ""
 *** til_path := ""
 *** py_path := ""
+*** jni_c_path := ""
+*** java_path := ""
 *** theme_path := ""
 *** do_lib := false
 ** DocEntry: StructDef
@@ -737,7 +769,7 @@
 *** ref name : Str
 *** ref target : Str
 ** ExtStr: StructDef
-*** ref data : U8
+*** own data : U8 = 0
 *** count : USize = 0
 *** cap : USize = 0
 ** FFIEntry: StructDef
@@ -782,109 +814,6 @@
 * eval_heap
 ** EvalHeap: StructDef
 *** unused : U8 = 0
-* fasm_codegen
-** FasmDefinition: StructDef
-*** path := ""
-*** declaration : USize = 0
-*** member : I64 = -1
-** FasmProgram: StructDef
-*** definitions := Map(Str, FasmDefinition).new()
-*** labels := Map(Str, Str).new()
-*** pending := Vec(Str).new()
-*** source_names := Set(Str).new()
-** FasmState: StructDef
-*** ref program : FasmProgram
-*** text := ""
-*** slots : USize = 0
-*** labels : USize = 0
-*** values := Map(Str, Str).new()
-*** value_types := Map(Str, Type).new()
-*** addresses := Set(Str).new()
-*** pointers := Set(Str).new()
-*** boxes := Set(Str).new()
-*** no_free := Set(Str).new()
-*** references := Set(Str).new()
-*** parameters := Set(Str).new()
-*** return_type := Type.None
-*** return_ref := false
-*** data := ""
-*** prefix := ""
-*** literals : USize = 0
-*** break_label := ""
-*** continue_label := ""
-* holyc_codegen
-** HolyCEmitState: StructDef
-*** user_functions := Set(Str).new()
-*** user_return_types := Map(Str, Str).new()
-*** ref_return_functions := Set(Str).new()
-*** user_ref_params := Map(Str, Set(USize)).new()
-*** str_return_functions := Set(Str).new()
-*** struct_names := Set(Str).new()
-*** enum_types := Map(Str, Str).new()
-*** payload_enum_names := Set(Str).new()
-*** niche_ref_types := Map(Str, Str).new()
-*** collection_elements := Map(Str, Str).new()
-*** vec_names := Set(Str).new()
-*** set_elements := Map(Str, Str).new()
-*** map_keys := Map(Str, Str).new()
-*** map_values := Map(Str, Str).new()
-*** map_key_vecs := Map(Str, Str).new()
-*** map_value_vecs := Map(Str, Str).new()
-*** needed_methods := Map(Str, Map(Str, Bool)).new()
-*** method_prototypes := ""
-*** method_definitions := ""
-*** usize_ctype := "U64"
-*** switch_id : USize = 0
-*** temp_id : USize = 0
-*** needs_i64_div := false
-*** needs_i64_mod := false
-*** needs_str_array_clone := false
-*** needs_str_array_get := false
-*** needs_str_array_concat := false
-*** ... (27 more)
-** HolyCLocalState: StructDef
-*** ref_return_type := ""
-*** continue_label := ""
-*** param_pointer_names := Set(Str).new()
-*** payload_names := Map(Str, Str).new()
-*** pointer_types := Map(Str, Str).new()
-*** str_names := Set(Str).new()
-*** str_pointer_names := Set(Str).new()
-*** str_array_names := Set(Str).new()
-*** str_array_pointer_names := Set(Str).new()
-*** struct_types := Map(Str, Str).new()
-*** struct_pointer_types := Map(Str, Str).new()
-*** callable_sigs := Map(Str, Str).new()
-*** callable_slot_names := Set(Str).new()
-* mlir_codegen
-** MlirBinding: StructDef
-*** value := ""
-*** type_name := ""
-*** is_mut := false
-*** is_signed := false
-*** is_ref := false
-** MlirState: StructDef
-*** text := ""
-*** allocations := ""
-*** globals := ""
-*** symbol_prefix := ""
-*** needs_panic := false
-*** next : USize = 0
-*** next_block : USize = 0
-*** terminated := false
-*** break_label := ""
-*** continue_label := ""
-*** has_break := false
-*** values := Map(Str, MlirBinding).new()
-*** functions := Set(Str).new()
-*** error_parameter := ""
-*** error_known_clear := false
-*** error_version : USize = 0
-*** clear_conditions := Set(Str).new()
-*** set_conditions := Set(Str).new()
-*** bang_conditions := Set(Str).new()
-*** integers := Map(Str, U64).new()
-*** booleans := Map(Str, Bool).new()
 * repl_editor
 ** EditAction: EnumDef
 *** Continue

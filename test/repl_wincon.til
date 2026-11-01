@@ -8,7 +8,7 @@ import("../src/std/file")
 // Issue #347: the FIRST execution of the REPL's Windows console half.
 //
 // #332 gave `til repl` line editing and history on every host, and the
-// native Windows side of that bridge -- src/c/ext.c's `#if
+// native Windows side of that bridge -- src/self/codegen/ext.c's `#if
 // defined(_WIN32)` repl_term_* block, the SetConsoleCtrlHandler restore
 // path, the MoveFileExA history rename -- had never run. Not once, on
 // any machine. What was verified is that mingw compiles and links it

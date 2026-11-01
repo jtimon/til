@@ -261,13 +261,13 @@ main := proc() {
     // ext.h's signed-char guard #errors without it wherever plain char is
     // unsigned (aarch64/arm linux; a no-op on x86), which kept the
     // linux-arm64 (native) job red while every x86 job passed.
-    Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
+    Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/self/codegen", "test/library_namespace.c",
         "gen/lib/liblibrary_namespace_a.a", "gen/lib/liblibrary_namespace_b.a",
         "-lm", "-o", "tmp/library_namespace_static").run_checked()
     Cmd.new("tmp/library_namespace_static").run_checked()
     check_core_failures("tmp/library_namespace_static")
 
-    Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/c", "test/library_namespace.c",
+    Cmd.new("cc", "-Werror", "-fsigned-char", "-Igen/til", "-Isrc/self/codegen", "test/library_namespace.c",
         "-Lgen/lib", "-llibrary_namespace_a", "-llibrary_namespace_b",
         "-Wl,-rpath,gen/lib", "-lm", "-o", "tmp/library_namespace_shared").run_checked()
     Cmd.new("tmp/library_namespace_shared").run_checked()

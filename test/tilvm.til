@@ -115,7 +115,7 @@ checked_lookup := proc(root: Str) {
         "alias := binary\nnumber := 7\nGuestSig := func(I64) returns I64\n",
         "GuestRecord := struct { value := 0 }\nrecord := func(value: GuestRecord) returns I64 { return value.value }\n"))
     mut lp := load_program("lookup_guest.til", realpath_str(root), realpath_str("."),
-        format(realpath_str(root), "/src/c/ext.c"), Vec(Str).new(), "", true)
+        format(realpath_str(root), "/src/self/codegen/ext.c"), Vec(Str).new(), "", true)
     assert(lp.load_errors == 0)
     if init_and_type_program_errors(lp, false) != 0 {
         for diagnostic in lp.ctx.diagnostics { diagnostic.print() }
@@ -284,7 +284,7 @@ checked_lookup := proc(root: Str) {
     assert(after_owned_failure == "host value!?")
     File.writefile("other_call_guest.til", "mode lib\nmut calls := 100\ntick := proc() returns I64 { noop_proc(); calls = calls + 1; return calls }\n")
     mut other_lp := load_program("other_call_guest.til", realpath_str(root), realpath_str("."),
-        format(realpath_str(root), "/src/c/ext.c"), Vec(Str).new(), "", true)
+        format(realpath_str(root), "/src/self/codegen/ext.c"), Vec(Str).new(), "", true)
     assert(other_lp.load_errors == 0 && init_and_type_program_errors(other_lp, false) == 0)
     mut other_raw : Dynamic = interp_program_to_heap(own other_lp)
     ref mut other_program : LoadedProgram = to_ptr(other_raw)

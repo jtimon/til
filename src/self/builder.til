@@ -2,11 +2,11 @@ mode lib
 import("context")
 
 import("loader")
-import("c_codegen")
-import("mlir_codegen")
-import("fasm_codegen")
+import("codegen/c_codegen")
+import("codegen/mlir_codegen")
+import("codegen/fasm_codegen")
 import("fasm_build")
-import("holyc_codegen")
+import("codegen/holyc_codegen")
 import("theme_codegen")
 import("targets")
 import("install")
@@ -331,7 +331,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
 
     // --prof: -finstrument-functions makes gcc emit __cyg_profile_func_enter/
     // exit hooks at every function boundary; the runtime that accumulates and
-    // reports per-function counts/time lives in src/c/ext.c. Linux/-rdynamic
+    // reports per-function counts/time lives in src/self/codegen/ext.c. Linux/-rdynamic
     // only (the ext.c runtime is #ifndef _WIN32), so skip it for Windows.
     // The exit hook is appended on the return path, which used to make gcc
     // mis-fire -Werror=return-type ("control reaches end of non-void
@@ -393,9 +393,9 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
             // each other's bridges before the final linker reads them.
             user_obj := c_base.format("_user_", fi.to_str(), ".o")
 
-            // Skip -include forward.h for src/c/ files
+            // Skip -include forward.h for the compiler's own C runtime files
             mut fwd_flag := format(" -include ", fwd_path)
-            if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
+            if file.starts_with("src/self/codegen/") { fwd_flag = " -Isrc/self/codegen -Iboot" }
             obj_cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, " -I", ext_dir,
                 fwd_flag, ifl, " -c ", file,
                 " -o ", user_obj)
@@ -1119,7 +1119,7 @@ priv doc_default_group := func(unit_path: Str) returns Str {
          "src/self/desugarer.til", "src/self/typer.til": "Compiler frontend"
     case "src/self/garbager.til", "src/self/constfolder.til",
          "src/self/scavenger.til", "src/self/targets.til",
-         "src/self/c_codegen.til", "src/self/builder.til": "Compiler backend"
+         "src/self/codegen/c_codegen.til", "src/self/builder.til": "Compiler backend"
     case "src/self/interpreter.til", "src/self/binder.til",
          "src/self/eval_heap.til": "Compiler tools"
     case: ""

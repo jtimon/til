@@ -831,7 +831,7 @@ jobs:
       # translate. It needs a C toolchain -- `til.exe build` invokes
       # `gcc` (toolchain_command picks plain gcc on a windows host), so
       # ensure mingw's gcc is present. get_bin_dir walks up from
-      # winhost/ to the checkout root, so src/c/ext.c and boot/ resolve
+      # winhost/ to the checkout root, so src/self/codegen/ext.c and boot/ resolve
       # there; hello_script uses no runtime ext_func, so no libffi.
       - name: Build programs and check link_c isolation on windows
         shell: bash

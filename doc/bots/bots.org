@@ -170,7 +170,7 @@ just as exhausting as the option menus.
 The remedy is mechanical, not a matter of judgement:
 
 - Anything that touches how the compiler EMITS code, a hand-written C
-  boundary (~src/c/ext.*~), or a bootstrap-visible interface: READ
+  boundary (~src/self/codegen/ext.*~), or a bootstrap-visible interface: READ
   ~doc/self.org~ and ~doc/bots/lessons_learned.org~ FIRST. Almost every
   emit/ABI change that looks "impossible in one commit" is a documented
   staged migration (preparation + use; the ABC alias ladder). The pattern
@@ -476,7 +476,7 @@ Remote sessions may report ASAN numbers for context, but the full
 ASAN suite is part of `make test`; do not maintain a separate leak
 baseline.
 
-- NEVER edit boot/ files. Fix .til or src/c/ sources instead.
+- NEVER edit boot/ files. Fix .til or src/self/codegen/ sources instead.
 - Use the `tmp/` dir for ad-hoc test files.
 
 ## Issue Tracking

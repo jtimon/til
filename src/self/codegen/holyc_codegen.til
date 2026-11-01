@@ -1,9 +1,9 @@
 mode lib
-import("context")
+import("../context")
 
-import("loader")
-import("typer")
-import("../std/file")
+import("../loader")
+import("../typer")
+import("../../std/file")
 
 
 // HolyC shares the typed/lowered AST with C, but owns its textual syntax,
@@ -5584,7 +5584,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     }
 
     compiler_root := compiler_root_of(lp.ext_c_path)
-    runtime_path := format(compiler_root, "/src/holyc/ext.HC")
+    runtime_path := format(compiler_root, "/src/self/codegen/ext.HC")
     if File.is_file(runtime_path).not() {
         println(format("error: HolyC runtime source is missing: ", runtime_path))
         return 1

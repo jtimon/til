@@ -1,5 +1,5 @@
 #+TITLE: src/self/eval_heap.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * word_bits
@@ -160,6 +160,26 @@ ext_func f64_bits_from_i64(shallow v: I64) returns shallow U64
 
 #+begin_src til
 ext_func word_drop(own w: Dynamic)
+#+end_src
+
+* own_slot_load
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.own_slot_load
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func own_slot_load(slot: Dynamic, shallow size: U64) returns ref Dynamic
+#+end_src
+
+* own_slot_store
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.own_slot_store
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func own_slot_store(mut slot: Dynamic, p: Dynamic, shallow size: U64)
 #+end_src
 
 * dispatch_scratch_base

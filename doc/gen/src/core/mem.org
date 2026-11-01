@@ -1,5 +1,5 @@
 #+TITLE: src/core/mem.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * free
@@ -280,6 +280,21 @@ ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
 
 #+begin_src til
 core_func is_null(p: Dynamic) returns shallow Bool
+#+end_src
+
+* addr_in_loaded_image
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.addr_in_loaded_image
+:group: Core
+:END:
+
+Compiler-internal: is this address inside a loaded image (an
+executable's or shared object's own segments) rather than heap? The
+interpreter asks before freeing a library's Str box: a literal's box is
+static storage the constfolder hoisted (see addr_in_loaded_image in ext.c).
+
+#+begin_src til
+ext_func addr_in_loaded_image(p: Dynamic) returns shallow Bool
 #+end_src
 
 * to_ptr

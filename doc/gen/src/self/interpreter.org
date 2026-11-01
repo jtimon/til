@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -157,8 +157,8 @@ checker. The slot owns a clone in the existing evaluator representation.
 struct TilVmCallback {
 namespace:
     proc lookup(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
-    proc call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
-    proc invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
+    proc call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new(), keywords: KwargsMap = KwargsMap.new()) returns Tuple throws TilVmError
+    proc invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple, keywords: KwargsMap = KwargsMap.new()) returns Tuple throws TilVmError
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
     func size() returns U64
@@ -176,7 +176,7 @@ including on failure. Results are owned copies independent of the VM.
 Panic/exit preserve this handle and session; earlier effects remain.
 
 #+begin_src til
-proc TilVmCallback.call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new()) returns Tuple throws TilVmError
+proc TilVmCallback.call(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new(), keywords: KwargsMap = KwargsMap.new()) returns Tuple throws TilVmError
 #+end_src
 
 * TilVmCallback.invoke_throwing
@@ -189,7 +189,7 @@ Runtime bridge for call_throwing(E or Signature). error_payload must be empty;
 a declared throw fills it with one independently owned host value.
 
 #+begin_src til
-proc TilVmCallback.invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple) returns Tuple throws TilVmError
+proc TilVmCallback.invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple, keywords: KwargsMap = KwargsMap.new()) returns Tuple throws TilVmError
 #+end_src
 
 * call_throwing
@@ -622,7 +622,7 @@ proc interp_session_lookup_function(mut session: InterpSession, mut lp: LoadedPr
 :END:
 
 #+begin_src til
-proc interp_session_call_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig, mut arguments: Tuple) returns Option__Tuple
+proc interp_session_call_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig, mut arguments: Tuple, keywords: KwargsMap = KwargsMap.new()) returns Option__Tuple
 #+end_src
 
 * interp_session_start
@@ -898,6 +898,16 @@ ext_func ffi_global_symbol(name: Str) returns ref U8
 ext_proc ffi_last_error() returns Str
 #+end_src
 
+* get_exe_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.get_exe_path
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_proc get_exe_path() returns Str
+#+end_src
+
 * til_built_with_asan
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.til_built_with_asan
@@ -906,6 +916,16 @@ ext_proc ffi_last_error() returns Str
 
 #+begin_src til
 ext_proc til_built_with_asan() returns shallow Bool
+#+end_src
+
+* til_built_with_cptr32
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.til_built_with_cptr32
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_proc til_built_with_cptr32() returns shallow Bool
 #+end_src
 
 * ffi_init_struct_defs_append
@@ -3004,6 +3024,16 @@ func safe_ref__Dynamic(value: Dynamic) returns Option__ref_Dynamic
 
 #+begin_src til
 func safe_ref__Expr(value: Expr) returns Option__ref_Expr
+#+end_src
+
+* adopt__KwargsMap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.adopt__KwargsMap
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func adopt__KwargsMap(mut dest: Dynamic, own src: KwargsMap)
 #+end_src
 
 * adopt__LoadedProgram

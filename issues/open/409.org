@@ -708,28 +708,28 @@ selector apply only to this scratch executable.
 #+begin_src sh
 bin/til translate --force-rebuild -c tmp/reduce409.c tmp/reduce409.til
 gcc -std=gnu11 -Wall -Wextra -Werror -O2 -march=x86-64 -mtune=generic \
-  -DTIL_USIZE64 -Isrc/c tmp/reduce409_harness.c src/c/ext.c \
+  -DTIL_USIZE64 -Isrc/self/codegen tmp/reduce409_harness.c src/self/codegen/ext.c \
   -lm -ldl -lpthread -o tmp/reduce409-gcc-x86-64
 taskset -c 0 tmp/reduce409-gcc-x86-64 > tmp/reduce409-gcc-x86-64.log 2>&1
 objdump -d tmp/reduce409-gcc-x86-64 > tmp/reduce409-gcc-x86-64.asm.log
 # Repeat O2 with GCC/Clang and x86-64/v3/v4; use "small" for the GCC O0 run.
 
 gcc -std=gnu11 -Wall -Wextra -Werror -O1 -fsanitize=address,undefined \
-  -fno-omit-frame-pointer -DTIL_USIZE64 -Isrc/c \
-  tmp/reduce409_harness.c src/c/ext.c -lm -ldl -lpthread -o tmp/reduce409-sanitized
+  -fno-omit-frame-pointer -DTIL_USIZE64 -Isrc/self/codegen \
+  tmp/reduce409_harness.c src/self/codegen/ext.c -lm -ldl -lpthread -o tmp/reduce409-sanitized
 tmp/reduce409-sanitized check
 
 bin/til translate --force-rebuild --target=linux-arm64 \
   -c tmp/reduce409-arm.c tmp/reduce409.til
 aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 \
   -march=armv8-a -fsigned-char -DTIL_USIZE64 \
-  -DREDUCE409_SOURCE='"reduce409-arm.c"' -Isrc/c \
-  tmp/reduce409_harness.c src/c/ext.c -lm -ldl -lpthread -o tmp/reduce409-arm
+  -DREDUCE409_SOURCE='"reduce409-arm.c"' -Isrc/self/codegen \
+  tmp/reduce409_harness.c src/self/codegen/ext.c -lm -ldl -lpthread -o tmp/reduce409-arm
 qemu-aarch64 -L /usr/aarch64-linux-gnu tmp/reduce409-arm check
 aarch64-linux-gnu-objdump -d tmp/reduce409-arm > tmp/reduce409-arm.asm.log
 
-gcc -std=gnu11 -Wall -Wextra -Werror -O2 -DTIL_USIZE64 -Isrc/c \
-  tmp/reduce409.c src/c/ext.c -lm -ldl -lpthread -o tmp/reduce409-original
+gcc -std=gnu11 -Wall -Wextra -Werror -O2 -DTIL_USIZE64 -Isrc/self/codegen \
+  tmp/reduce409.c src/self/codegen/ext.c -lm -ldl -lpthread -o tmp/reduce409-original
 for n in 0 1 3 4 5 17 31 32 33 63 64 65 127 128 129; do
   bin/til interpret tmp/reduce409.til "$n" > "tmp/reduce409-interp-$n.log" 2>&1
   tmp/reduce409-original "$n" > "tmp/reduce409-native-$n.log" 2>&1
@@ -1057,8 +1057,8 @@ base compiler as ~tmp/simd409-before.c~ and from the changed compiler as
 
 #+begin_src sh
 gcc -std=gnu11 -Wall -Wextra -Werror -O2 -march=x86-64 -mtune=generic \
-  -DTIL_USIZE64 -DSIMD409_SOURCE='"simd409-after.c"' -Isrc/c \
-  tmp/simd409_harness.c src/c/ext.c -lm -ldl -lpthread \
+  -DTIL_USIZE64 -DSIMD409_SOURCE='"simd409-after.c"' -Isrc/self/codegen \
+  tmp/simd409_harness.c src/self/codegen/ext.c -lm -ldl -lpthread \
   -o tmp/simd409-after-gcc-x86-64
 taskset -c 0 tmp/simd409-after-gcc-x86-64 > tmp/simd409-after-gcc-x86-64.log 2>&1
 objdump -d tmp/simd409-after-gcc-x86-64 > tmp/simd409-after-gcc.asm.log
@@ -1255,7 +1255,7 @@ bin/til translate --force-rebuild -c tmp/simd409.c tmp/simd409.til
 # Repeat with GCC O2: x86-64, x86-64-v3, x86-64-v4;
 # Clang O2: x86-64, x86-64-v4. No -ffast-math or LTO.
 gcc -std=gnu11 -Wall -Wextra -Werror -O2 -march=x86-64 -mtune=generic \
-  -DTIL_USIZE64 -Isrc/c tmp/simd409_harness.c src/c/ext.c \
+  -DTIL_USIZE64 -Isrc/self/codegen tmp/simd409_harness.c src/self/codegen/ext.c \
   -lm -ldl -lpthread -o tmp/simd409-gcc-x86-64
 taskset -c 0 tmp/simd409-gcc-x86-64 > tmp/simd409-gcc-x86-64.log 2>&1
 objdump -d tmp/simd409-gcc-x86-64 > tmp/simd409-gcc-x86-64.asm.log
@@ -1266,13 +1266,13 @@ bin/til translate --force-rebuild --target=linux-arm64 \
   -c tmp/simd409-arm.c tmp/simd409.til
 aarch64-linux-gnu-gcc -std=gnu11 -Wall -Wextra -Werror -O2 \
   -march=armv8-a -fsigned-char -DTIL_USIZE64 \
-  -DSIMD409_SOURCE='"simd409-arm.c"' -Isrc/c \
-  tmp/simd409_harness.c src/c/ext.c -lm -ldl -lpthread -o tmp/simd409-arm
+  -DSIMD409_SOURCE='"simd409-arm.c"' -Isrc/self/codegen \
+  tmp/simd409_harness.c src/self/codegen/ext.c -lm -ldl -lpthread -o tmp/simd409-arm
 qemu-aarch64 -L /usr/aarch64-linux-gnu tmp/simd409-arm check
 aarch64-linux-gnu-objdump -d tmp/simd409-arm > tmp/simd409-arm.asm.log
 
 # Interpreter smoke checks use the original CLI entry point, not the harness.
-gcc -std=gnu11 -O2 -DTIL_USIZE64 -Isrc/c tmp/simd409.c src/c/ext.c \
+gcc -std=gnu11 -O2 -DTIL_USIZE64 -Isrc/self/codegen tmp/simd409.c src/self/codegen/ext.c \
   -lm -ldl -lpthread -o tmp/simd409-original
 for n in 0 1 3 4 5 17 33; do
   bin/til interpret tmp/simd409.til "$n" > "tmp/simd409-interp-$n.log" 2>&1

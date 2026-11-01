@@ -43,7 +43,7 @@ link_macos("OpenGL Cocoa IOKit CoreAudio CoreVideo")
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}
 
-// libc wrappers (implemented in src/c/ext.c). setenv mutates the process
+// libc wrappers (implemented in src/self/codegen/ext.c). setenv mutates the process
 // environment -- a side effect -- so it is ext_proc, never ext_func: the
 // const-folder folds ext_funcs (issue #136) and would run the effect at build
 // time (see #283).

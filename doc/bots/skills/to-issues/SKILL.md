@@ -55,11 +55,11 @@ Vertical-slice rules:
 
 - Each slice delivers a narrow but COMPLETE path through every
   relevant layer (parser, typer, codegen, tests; or .til source plus
-  src/c/ plus regenerated boot/, etc.).
+  src/self/codegen/ plus regenerated boot/, etc.).
 - A completed slice is demoable or verifiable on its own (a passing
   test, a working example, a measurable change).
 - Prefer many thin slices over few thick ones.
-- Bootstrap awareness: if a slice changes both ~src/c/~ and ~.til~
+- Bootstrap awareness: if a slice changes both ~src/self/codegen/~ C and ~.til~
   sources, that is fine -- the three-pass build handles it in one
   commit. Do NOT split a single semantic change into separate
   bootstrap-staged commits.

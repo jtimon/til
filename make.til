@@ -307,6 +307,7 @@ compiler_sources := proc() returns Vec(Str) {
     add_matching(out, "src/core", ".til")
     add_matching(out, "src/std", ".til")
     add_matching(out, "src/self", ".til")
+    add_matching(out, "src/self/codegen", ".til")
     add_matching(out, "examples/lib", ".til")
     add_matching(out, "vendor/bindings", ".til")
     out.push(own "src/til.til")
@@ -642,8 +643,8 @@ build_debug := proc(mut b: Build) {
     require_libffi(b)
     mut inputs := Vec(Str).new()
     inputs.push(own "boot/til.c")
-    add_matching(inputs, "src/c", ".c")
-    add_matching(inputs, "src/c", ".h")
+    add_matching(inputs, "src/self/codegen", ".c")
+    add_matching(inputs, "src/self/codegen", ".h")
     if needs_rebuild(DEBUG, inputs).not() { return }
 
     mut argv := Vec(Str).new()
@@ -656,9 +657,9 @@ build_debug := proc(mut b: Build) {
     argv.push(own "-fsigned-char")
     argv.push(own "-Iboot")
     argv.push(own "-Isrc")
-    argv.push(own "-Isrc/c")
+    argv.push(own "-Isrc/self/codegen")
     argv.push(own "boot/til.c")
-    add_matching(argv, "src/c", ".c")
+    add_matching(argv, "src/self/codegen", ".c")
     argv.push(own "-rdynamic")
     argv.push(own "-ldl")
     argv.push(own format("-L", LIBFFI_DIR, "/build-", b.host.target_name(), "/.libs"))
@@ -777,7 +778,7 @@ check_clang := proc(mut b: Build) {
         return
     }
     run("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Werror", "-fsigned-char",
-        "-Isrc", "-Isrc/c", "-Iboot", "boot/til.c")
+        "-Isrc", "-Isrc/self/codegen", "-Iboot", "boot/til.c")
     println("check_clang: generated C is clang-clean")
 }
 
@@ -2460,8 +2461,8 @@ self_sources := proc() returns Vec(Str) {
     out.push(own "src/self/install.til")
     add_matching(out, "src/core", ".til")
     add_matching(out, "src/std", ".til")
-    add_matching(out, "src/c", ".c")
-    add_matching(out, "src/c", ".h")
+    add_matching(out, "src/self/codegen", ".c")
+    add_matching(out, "src/self/codegen", ".h")
     return out
 }
 

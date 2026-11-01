@@ -444,7 +444,7 @@ main := proc() {
     digest := captured(container(identity, "sha256sum", "TempleOS.ISO"))
     if digest.starts_with(ISO_SHA).not() { panic("TempleOS ISO checksum mismatch: ", digest) }
     File.writefile(format(WORK, "/Once.HC"), File.readfile("test/templeos.HC"))
-    File.writefile(format(WORK, "/Ext.HC"), File.readfile("src/holyc/ext.HC"))
+    File.writefile(format(WORK, "/Ext.HC"), File.readfile("src/self/codegen/ext.HC"))
 
     sources := array(Str, "examples/hello_script.til", "examples/fizzbuzz.til",
         "examples/templeos_calls.til", "examples/templeos_scalars.til",

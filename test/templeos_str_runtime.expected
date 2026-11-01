@@ -1445,7 +1445,7 @@ I64 TilMain()
     TilStrDelete(&returned_212, FALSE);
     TilStrDelete(&mutable_237, FALSE);
     TilStr hoisted__Str_g699_251;
-    TilStrInitLit(&hoisted__Str_g699_251, "src/holyc/ext.HC", 16);
+    TilStrInitLit(&hoisted__Str_g699_251, "src/self/codegen/ext.HC", 23);
     Bool hoisted__Bool_g700_252 = TilFileExists(&hoisted__Str_g699_251);
     TilStrDelete(&hoisted__Str_g699_251, FALSE);
     if (hoisted__Bool_g700_252) {
@@ -1459,7 +1459,7 @@ I64 TilMain()
         TilStrArraySet(&_va_Array_g7_254, hoisted__U64_g45_256, &hoisted__Str_g46_257);
         TilPrintln(&_va_Array_g7_254);
         TilStr hoisted__Str_g47_258;
-        TilStrInitLit(&hoisted__Str_g47_258, "src/holyc", 9);
+        TilStrInitLit(&hoisted__Str_g47_258, "src/self/codegen", 16);
         Bool hoisted__Bool_g48_259 = TilFileExists(&hoisted__Str_g47_258);
         TilStrDelete(&hoisted__Str_g47_258, FALSE);
         if (hoisted__Bool_g48_259) {
@@ -1474,9 +1474,9 @@ I64 TilMain()
             TilPrintln(&_va_Array_g0_261);
         }
         TilStr hoisted__Str_g49_265;
-        TilStrInitLit(&hoisted__Str_g49_265, "src/holyc/ext.HC.trailing", 25);
+        TilStrInitLit(&hoisted__Str_g49_265, "src/self/codegen/ext.HC.trailing", 32);
         U64 hoisted__U64_g50_266 = 0;
-        U64 hoisted__U64_g51_267 = 16;
+        U64 hoisted__U64_g51_267 = 23;
         TilStr host_fs_view_268;
         TilStrSubstr(&host_fs_view_268, &hoisted__Str_g49_265, hoisted__U64_g50_266, hoisted__U64_g51_267);
         Bool hoisted__Bool_g52_269 = TilFileExists(&host_fs_view_268);
@@ -1504,7 +1504,7 @@ I64 TilMain()
             TilPrintln(&_va_Array_g2_277);
         }
         TilStr hoisted__Str_g54_281;
-        TilStrInitLit(&hoisted__Str_g54_281, "src/holyc", 9);
+        TilStrInitLit(&hoisted__Str_g54_281, "src/self/codegen", 16);
         Bool hoisted__Bool_g55_282 = TilFileIsDir(&hoisted__Str_g54_281);
         TilStrDelete(&hoisted__Str_g54_281, FALSE);
         if (hoisted__Bool_g55_282) {
@@ -1526,7 +1526,7 @@ I64 TilMain()
             Bool hoisted__Bool_g27_292 = (_sw_Bool_g20_290 == hoisted__Bool_g26_291);
             if (hoisted__Bool_g27_292) {
                 TilStr hoisted__Str_g21_293;
-                TilStrInitLit(&hoisted__Str_g21_293, "src/holyc", 9);
+                TilStrInitLit(&hoisted__Str_g21_293, "src/self/codegen", 16);
                 Bool hoisted__Bool_g22_294 = TilFileIsFile(&hoisted__Str_g21_293);
                 TilStrDelete(&hoisted__Str_g21_293, FALSE);
                 Bool hoisted__Bool_g23_295 = (!hoisted__Bool_g22_294);
@@ -1554,7 +1554,7 @@ I64 TilMain()
             Bool hoisted__Bool_g37_305 = (_sw_Bool_g32_303 == hoisted__Bool_g36_304);
             if (hoisted__Bool_g37_305) {
                 TilStr hoisted__Str_g33_306;
-                TilStrInitLit(&hoisted__Str_g33_306, "src/holyc", 9);
+                TilStrInitLit(&hoisted__Str_g33_306, "src/self/codegen", 16);
                 Bool hoisted__Bool_g34_307 = TilFileIsDir(&hoisted__Str_g33_306);
                 TilStrDelete(&hoisted__Str_g33_306, FALSE);
                 _m_Bool_g31_302 = hoisted__Bool_g34_307;
@@ -1870,7 +1870,7 @@ I64 TilMain()
     TilStr write_path_458;
     TilStrSubstr(&write_path_458, &hoisted__Str_g707_455, hoisted__U64_g708_456, hoisted__U64_g709_457);
     TilStr hoisted__Str_g710_459;
-    TilStrInitLit(&hoisted__Str_g710_459, "src/holyc/ext.HC", 16);
+    TilStrInitLit(&hoisted__Str_g710_459, "src/self/codegen/ext.HC", 23);
     Bool hoisted__Bool_g711_460 = TilFileExists(&hoisted__Str_g710_459);
     TilStrDelete(&hoisted__Str_g710_459, FALSE);
     if (hoisted__Bool_g711_460) {
@@ -1949,7 +1949,7 @@ I64 TilMain()
     TilStr fs_moved_492;
     TilStrInitLit(&fs_moved_492, "TILFS/MOVED.HC", 14);
     TilStr hoisted__Str_g723_493;
-    TilStrInitLit(&hoisted__Str_g723_493, "src/holyc/ext.HC", 16);
+    TilStrInitLit(&hoisted__Str_g723_493, "src/self/codegen/ext.HC", 23);
     Bool hoisted__Bool_g724_494 = TilFileExists(&hoisted__Str_g723_493);
     TilStrDelete(&hoisted__Str_g723_493, FALSE);
     if (hoisted__Bool_g724_494) {
@@ -2340,7 +2340,7 @@ I64 TilMain()
     TilStr moved_leaf_679;
     TilStrInitLit(&moved_leaf_679, "TILFS/NEW/LEAF.HC", 17);
     TilStr hoisted__Str_g757_680;
-    TilStrInitLit(&hoisted__Str_g757_680, "src/holyc/ext.HC", 16);
+    TilStrInitLit(&hoisted__Str_g757_680, "src/self/codegen/ext.HC", 23);
     Bool hoisted__Bool_g758_681 = TilFileExists(&hoisted__Str_g757_680);
     TilStrDelete(&hoisted__Str_g757_680, FALSE);
     if (hoisted__Bool_g758_681) {

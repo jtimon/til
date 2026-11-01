@@ -26,7 +26,7 @@
       instead of merely adding more string comparisons. Variadic parameters
       are checked by element type.
 
-   2. [[file:../../src/self/c_codegen.til][cli_box_expr(ttype, arg, by_value)]] is in ~c_codegen.til~, not
+   2. [[file:../../src/self/codegen/c_codegen.til][cli_box_expr(ttype, arg, by_value)]] is in ~c_codegen.til~, not
       ~builder.til~. ~emit_cli_parse_value~ selects value, stack-backed or
       boxed bindings for fixed/variadic arguments. New aggregate parsers
       must preserve that storage/ownership contract, rather than returning
@@ -96,7 +96,7 @@
 *** Hooks summary
 
    - ~src/self/loader.til~  : ~validate_cli_main~
-   - ~src/self/c_codegen.til~ : ~cli_box_expr~, ~emit_cli_parse_value~,
+   - ~src/self/codegen/c_codegen.til~ : ~cli_box_expr~, ~emit_cli_parse_value~,
      ~cli_view_scalar~, ~cli_view_value~, ~cli_view_box~
    - ~src/self/interpreter.til~ : ~parse_cli_arg~
    - ~src/self/scavenger.til~ : ~seed_cli_arg_helpers~, ~seed_cli_main_arg_roots~

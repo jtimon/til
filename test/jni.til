@@ -80,7 +80,7 @@ build_bridge := proc(java_home: Str, name: Str, asan: Bool) {
     cmd := Cmd.new("cc", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC")
     if asan { cmd.arg("-fsanitize=address") }
     cmd.args(format("-I", java_home, "/include"), format("-I", java_home, "/include/linux"),
-        "-Igen/til", "-Isrc/c", format("gen/til/", name, "_jni.c"), "-Lgen/lib", format("-l", name),
+        "-Igen/til", "-Isrc/self/codegen", format("gen/til/", name, "_jni.c"), "-Lgen/lib", format("-l", name),
         "-Wl,-rpath,$ORIGIN", "-o", format("gen/lib/lib", name, "_jni.so"))
     cmd.run_checked()
 }

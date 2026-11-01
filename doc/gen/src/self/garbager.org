@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-7d40494
+#+SUBTITLE: til 0.0.1-e302196
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -227,6 +227,407 @@ loop whose nodes no later pass would infer.
 
 #+begin_src til
 func Array__Bool.to_vec(self: Array__Bool) returns Vec__Bool
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_garbager_til__ReferenceNameChange {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+    func with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+    func len(self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns U64
+    func clear(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+    func delete_marked(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, own val: priv___src_self_garbager_til__ReferenceNameChange)
+    func append(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, own other: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+    func take(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+    func move_to(own self: Vec__priv___src_self_garbager_til__ReferenceNameChange, mut dest: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+    func move_from(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, own other: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+    func unsafe_get(self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64) returns ref priv___src_self_garbager_til__ReferenceNameChange
+    func get(self: Vec__priv___src_self_garbager_til__ReferenceNameChange, shallow i: U64) returns ref priv___src_self_garbager_til__ReferenceNameChange throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns priv___src_self_garbager_til__ReferenceNameChange
+    func remove_at(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, n: U64) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+    func truncate(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, n: U64)
+    func unsafe_set(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64, own val: priv___src_self_garbager_til__ReferenceNameChange)
+    func set(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64, own val: priv___src_self_garbager_til__ReferenceNameChange) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, mut src: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64)
+    func delete(own self: Vec__priv___src_self_garbager_til__ReferenceNameChange, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+    func size() returns U64
+}
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.new
+:group: Compiler backend
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.new() returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.with_capacity
+:group: Compiler backend
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.with_capacity(n: U64) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.clear
+:group: Compiler backend
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.clear(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.delete_marked
+:group: Compiler backend
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.delete_marked(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.push
+:group: Compiler backend
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.push(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, own val: priv___src_self_garbager_til__ReferenceNameChange)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.append
+:group: Compiler backend
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.append(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, own other: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.take
+:group: Compiler backend
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.take(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.move_to
+:group: Compiler backend
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.move_to(own self: Vec__priv___src_self_garbager_til__ReferenceNameChange, mut dest: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.move_from
+:group: Compiler backend
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.move_from(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, own other: Vec__priv___src_self_garbager_til__ReferenceNameChange)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.unsafe_get
+:group: Compiler backend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.unsafe_get(self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64) returns ref priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.get
+:group: Compiler backend
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.get(self: Vec__priv___src_self_garbager_til__ReferenceNameChange, shallow i: U64) returns ref priv___src_self_garbager_til__ReferenceNameChange throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.pop
+:group: Compiler backend
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.pop(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.remove_at
+:group: Compiler backend
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.remove_at(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.take_prefix
+:group: Compiler backend
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.take_prefix(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, n: U64) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.truncate
+:group: Compiler backend
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.truncate(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, n: U64)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.unsafe_set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.unsafe_set(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64, own val: priv___src_self_garbager_til__ReferenceNameChange)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.set
+:group: Compiler backend
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.set(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64, own val: priv___src_self_garbager_til__ReferenceNameChange) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.push_take
+:group: Compiler backend
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.push_take(mut self: Vec__priv___src_self_garbager_til__ReferenceNameChange, mut src: Vec__priv___src_self_garbager_til__ReferenceNameChange, i: U64)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.delete
+:group: Compiler backend
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.delete(own self: Vec__priv___src_self_garbager_til__ReferenceNameChange, call_free: Bool = true)
+#+end_src
+
+* Vec__priv___src_self_garbager_til__ReferenceNameChange.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__ReferenceNameChange.clone
+:group: Compiler backend
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_garbager_til__ReferenceNameChange.clone(self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
+#+end_src
+
+* Option__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Option__Str
+:group: Compiler backend
+:END:
+
+#+begin_src til
+enum Option__Str {
+    None
+    Some: Str
+namespace:
+    func is_some(self: Option__Str) returns Bool
+    func is_none(self: Option__Str) returns Bool
+    func unwrap_or(self: Option__Str, default_v: Str) returns Str
+    func unwrap(self: Option__Str) returns Str
+    func take(own self: Option__Str) returns Str
+    ext_func None() returns Option__Str
+    ext_func Some(own val: Str) returns Option__Str
+    core_func is(self: Option__Str, other: Option__Str) returns Bool
+    func eq(self: Option__Str, other: Option__Str) returns Bool
+    func delete(own self: Option__Str, call_free: Bool = true)
+    func cmp(a: Option__Str, b: Option__Str) returns I64
+    func to_str(self: Option__Str) returns Str
+    func clone(self: Option__Str) returns Option__Str
+    func size() returns U64
+    func lt(a: Option__Str, b: Option__Str) returns Bool
+    func gt(a: Option__Str, b: Option__Str) returns Bool
+    func neq(a: Option__Str, b: Option__Str) returns Bool
+    func lte(a: Option__Str, b: Option__Str) returns Bool
+    func gte(a: Option__Str, b: Option__Str) returns Bool
+}
+#+end_src
+
+* Option__Str.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Option__Str.unwrap
+:group: Compiler backend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__Str.unwrap(self: Option__Str) returns Str
+#+end_src
+
+* Option__Str.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Option__Str.take
+:group: Compiler backend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__Str.take(own self: Option__Str) returns Str
 #+end_src
 
 * Vec__priv___src_self_garbager_til__GcBorrowEdge
@@ -2214,6 +2615,16 @@ func Vec__U8.clone(self: Vec__U8) returns Vec__U8
 
 #+begin_src til
 func swap__priv___src_self_garbager_til__LocalInfo(mut a: priv___src_self_garbager_til__LocalInfo, mut b: priv___src_self_garbager_til__LocalInfo)
+#+end_src
+
+* adopt__priv___src_self_garbager_til__ReferenceNameChange
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.adopt__priv___src_self_garbager_til__ReferenceNameChange
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_garbager_til__ReferenceNameChange(mut dest: Dynamic, own src: priv___src_self_garbager_til__ReferenceNameChange)
 #+end_src
 
 * adopt__priv___src_self_garbager_til__GcBorrowEdge

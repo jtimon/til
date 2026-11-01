@@ -33,7 +33,7 @@ mode lib
 // no heap block, so scalar reads/temps/results allocate nothing (the old
 // Value box inlined scalars the same way; the raw model keeps that for
 // scalars while aggregates stay raw heap pointers). These reinterpret a
-// word's integer bits and back; implemented in src/c/ext.c.
+// word's integer bits and back; implemented in src/self/codegen/ext.c.
 word_bits := ext_func(w: Dynamic) returns shallow U64 {}
 bits_word := ext_func(shallow b: U64) returns shallow Dynamic {}
 f32_word := ext_func(shallow f: F32) returns shallow U64 {}

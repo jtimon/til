@@ -420,21 +420,21 @@ typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_load
 typedef struct Vec__TargetLink Vec__TargetLink;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
-typedef struct priv___src_self_c_codegen_til__JniErrSlot priv___src_self_c_codegen_til__JniErrSlot;
-typedef struct priv___src_self_c_codegen_til__JniTypes priv___src_self_c_codegen_til__JniTypes;
-typedef struct priv___src_self_c_codegen_til__JniInit priv___src_self_c_codegen_til__JniInit;
-typedef struct priv___src_self_c_codegen_til__JniMember priv___src_self_c_codegen_til__JniMember;
-typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
-typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
-typedef struct priv___src_self_c_codegen_til__BuilderFuncSites priv___src_self_c_codegen_til__BuilderFuncSites;
+typedef struct priv___src_self_codegen_c_codegen_til__JniErrSlot priv___src_self_codegen_c_codegen_til__JniErrSlot;
+typedef struct priv___src_self_codegen_c_codegen_til__JniTypes priv___src_self_codegen_c_codegen_til__JniTypes;
+typedef struct priv___src_self_codegen_c_codegen_til__JniInit priv___src_self_codegen_c_codegen_til__JniInit;
+typedef struct priv___src_self_codegen_c_codegen_til__JniMember priv___src_self_codegen_c_codegen_til__JniMember;
+typedef struct priv___src_self_codegen_c_codegen_til__CollectionInfo priv___src_self_codegen_c_codegen_til__CollectionInfo;
+typedef struct priv___src_self_codegen_c_codegen_til__DynCallInfo priv___src_self_codegen_c_codegen_til__DynCallInfo;
+typedef struct priv___src_self_codegen_c_codegen_til__BuilderFuncSites priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 typedef struct Set__USize Set__USize;
-typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo Vec__priv___src_self_c_codegen_til__CollectionInfo;
-typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo Vec__priv___src_self_c_codegen_til__DynCallInfo;
-typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
-typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
-typedef struct priv___src_self_mlir_codegen_til__MlirBinding priv___src_self_mlir_codegen_til__MlirBinding;
-typedef struct priv___src_self_mlir_codegen_til__MlirState priv___src_self_mlir_codegen_til__MlirState;
-typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
+typedef struct Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo;
+typedef struct Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo;
+typedef struct Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
+typedef struct Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding priv___src_self_codegen_mlir_codegen_til__MlirBinding;
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState priv___src_self_codegen_mlir_codegen_til__MlirState;
+typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct Map__Str_U64 Map__Str_U64;
 enum {
     Option__U64_TAG_None,
@@ -446,16 +446,16 @@ enum {
     Option__Bool_TAG_Some
 };
 typedef struct Option__Bool Option__Bool;
-typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding Vec__priv___src_self_mlir_codegen_til__MlirBinding;
-typedef struct priv___src_self_fasm_codegen_til__FasmDefinition priv___src_self_fasm_codegen_til__FasmDefinition;
-typedef struct priv___src_self_fasm_codegen_til__FasmProgram priv___src_self_fasm_codegen_til__FasmProgram;
-typedef struct priv___src_self_fasm_codegen_til__FasmState priv___src_self_fasm_codegen_til__FasmState;
-typedef struct Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition;
+typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram priv___src_self_codegen_fasm_codegen_til__FasmProgram;
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState priv___src_self_codegen_fasm_codegen_til__FasmState;
+typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 typedef struct Map__Str_Type Map__Str_Type;
-typedef struct Vec__priv___src_self_fasm_codegen_til__FasmDefinition Vec__priv___src_self_fasm_codegen_til__FasmDefinition;
+typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 typedef struct Vec__Type Vec__Type;
-typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState priv___src_self_holyc_codegen_til__HolyCEmitState;
-typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState priv___src_self_holyc_codegen_til__HolyCLocalState;
+typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;
+typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
 typedef struct Map__Str_FuncSig Map__Str_FuncSig;
 typedef struct Map__Str_call_Set_Str Map__Str_call_Set_Str;
@@ -1495,55 +1495,55 @@ typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry {
 } Vec__priv___src_self_loader_til__ImportCheckEntry;
 
 
-typedef struct priv___src_self_c_codegen_til__JniErrSlot {
+typedef struct priv___src_self_codegen_c_codegen_til__JniErrSlot {
     Str c_type;
     Str msg;
     Str free_stmt;
-} priv___src_self_c_codegen_til__JniErrSlot;
+} priv___src_self_codegen_c_codegen_til__JniErrSlot;
 
 
-typedef struct priv___src_self_c_codegen_til__JniTypes {
+typedef struct priv___src_self_codegen_c_codegen_til__JniTypes {
     Set__Str handles;
     Set__Str enums;
     Set__Str callbacks;
     Str class_path;
     Bool has_strvec;
-} priv___src_self_c_codegen_til__JniTypes;
+} priv___src_self_codegen_c_codegen_til__JniTypes;
 
 
-typedef struct priv___src_self_c_codegen_til__JniInit {
+typedef struct priv___src_self_codegen_c_codegen_til__JniInit {
     Str code;
     Str reason;
-} priv___src_self_c_codegen_til__JniInit;
+} priv___src_self_codegen_c_codegen_til__JniInit;
 
 
-typedef struct priv___src_self_c_codegen_til__JniMember {
+typedef struct priv___src_self_codegen_c_codegen_til__JniMember {
     Str owner;
     Str name;
     Str type_name;
     Str place;
     Bool settable;
     Str guard;
-} priv___src_self_c_codegen_til__JniMember;
+} priv___src_self_codegen_c_codegen_til__JniMember;
 
 
-typedef struct priv___src_self_c_codegen_til__CollectionInfo {
+typedef struct priv___src_self_codegen_c_codegen_til__CollectionInfo {
     Str *type_name;
     I32 is_vec;
-} priv___src_self_c_codegen_til__CollectionInfo;
+} priv___src_self_codegen_c_codegen_til__CollectionInfo;
 
 
-typedef struct priv___src_self_c_codegen_til__DynCallInfo {
+typedef struct priv___src_self_codegen_c_codegen_til__DynCallInfo {
     Str *method;
     I32 nargs;
     Bool has_return;
-} priv___src_self_c_codegen_til__DynCallInfo;
+} priv___src_self_codegen_c_codegen_til__DynCallInfo;
 
 
-typedef struct priv___src_self_c_codegen_til__BuilderFuncSites {
+typedef struct priv___src_self_codegen_c_codegen_til__BuilderFuncSites {
     Bool round_dependent;
     Set__Str sites;
-} priv___src_self_c_codegen_til__BuilderFuncSites;
+} priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 
 
 typedef struct Set__USize {
@@ -1553,35 +1553,35 @@ typedef struct Set__USize {
 } Set__USize;
 
 
-typedef struct Vec__priv___src_self_c_codegen_til__CollectionInfo {
+typedef struct Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__priv___src_self_c_codegen_til__CollectionInfo;
+} Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo;
 
 
-typedef struct Vec__priv___src_self_c_codegen_til__DynCallInfo {
+typedef struct Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__priv___src_self_c_codegen_til__DynCallInfo;
+} Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo;
 
 
-typedef struct Vec__priv___src_self_c_codegen_til__BuilderFuncSites {
+typedef struct Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__priv___src_self_c_codegen_til__BuilderFuncSites;
+} Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 
 
-typedef struct priv___src_self_mlir_codegen_til__MlirBinding {
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     Str value;
     Str type_name;
     Bool is_mut;
     Bool is_signed;
     Bool is_ref;
     Bool owns_wrapper;
-} priv___src_self_mlir_codegen_til__MlirBinding;
+} priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
 typedef struct Map__Str_U64 {
@@ -1606,25 +1606,25 @@ struct Option__Bool {
     } data;
 };
 
-typedef struct Vec__priv___src_self_mlir_codegen_til__MlirBinding {
+typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__priv___src_self_mlir_codegen_til__MlirBinding;
+} Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
-typedef struct priv___src_self_fasm_codegen_til__FasmDefinition {
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     Str path;
     USize declaration;
     I64 member;
-} priv___src_self_fasm_codegen_til__FasmDefinition;
+} priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 
 
-typedef struct Vec__priv___src_self_fasm_codegen_til__FasmDefinition {
+typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__priv___src_self_fasm_codegen_til__FasmDefinition;
+} Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 
 
 typedef struct Vec__Type {
@@ -1634,7 +1634,7 @@ typedef struct Vec__Type {
 } Vec__Type;
 
 
-typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
+typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState {
     Str ref_return_type;
     Str continue_label;
     Set__Str param_pointer_names;
@@ -1648,7 +1648,7 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCLocalState {
     Map__Str_Str struct_pointer_types;
     Map__Str_Str callable_sigs;
     Set__Str callable_slot_names;
-} priv___src_self_holyc_codegen_til__HolyCLocalState;
+} priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
 
 
 typedef struct Vec__call_Map_Str_Bool {
@@ -2281,22 +2281,22 @@ typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef {
 } Map__Str_priv___src_self_scavenger_til__DeclRef;
 
 
-typedef struct Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites {
+typedef struct Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites {
     Vec__UPtr keys;
-    Vec__priv___src_self_c_codegen_til__BuilderFuncSites values;
-} Map__UPtr_priv___src_self_c_codegen_til__BuilderFuncSites;
+    Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites values;
+} Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 
 
-typedef struct Map__Str_priv___src_self_mlir_codegen_til__MlirBinding {
+typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     Vec__Str keys;
-    Vec__priv___src_self_mlir_codegen_til__MlirBinding values;
-} Map__Str_priv___src_self_mlir_codegen_til__MlirBinding;
+    Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding values;
+} Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
-typedef struct Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition {
+typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     Vec__Str keys;
-    Vec__priv___src_self_fasm_codegen_til__FasmDefinition values;
-} Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition;
+    Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition values;
+} Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 
 
 typedef struct Map__Str_Type {
@@ -2589,7 +2589,7 @@ typedef struct LoadedProgram {
 } LoadedProgram;
 
 
-typedef struct priv___src_self_mlir_codegen_til__MlirState {
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState {
     Str text;
     Str allocations;
     Str globals;
@@ -2601,7 +2601,7 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
     Str break_label;
     Str continue_label;
     Bool has_break;
-    Map__Str_priv___src_self_mlir_codegen_til__MlirBinding values;
+    Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding values;
     Set__Str functions;
     Str error_parameter;
     Bool error_known_clear;
@@ -2610,19 +2610,19 @@ typedef struct priv___src_self_mlir_codegen_til__MlirState {
     Set__Str set_conditions;
     Map__Str_U64 integers;
     Map__Str_Bool booleans;
-} priv___src_self_mlir_codegen_til__MlirState;
+} priv___src_self_codegen_mlir_codegen_til__MlirState;
 
 
-typedef struct priv___src_self_fasm_codegen_til__FasmProgram {
-    Map__Str_priv___src_self_fasm_codegen_til__FasmDefinition definitions;
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram {
+    Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition definitions;
     Map__Str_Str labels;
     Vec__Str pending;
     Set__Str source_names;
-} priv___src_self_fasm_codegen_til__FasmProgram;
+} priv___src_self_codegen_fasm_codegen_til__FasmProgram;
 
 
-typedef struct priv___src_self_fasm_codegen_til__FasmState {
-    priv___src_self_fasm_codegen_til__FasmProgram *program;
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {
+    priv___src_self_codegen_fasm_codegen_til__FasmProgram *program;
     Str text;
     USize slots;
     USize labels;
@@ -2641,10 +2641,10 @@ typedef struct priv___src_self_fasm_codegen_til__FasmState {
     USize literals;
     Str break_label;
     Str continue_label;
-} priv___src_self_fasm_codegen_til__FasmState;
+} priv___src_self_codegen_fasm_codegen_til__FasmState;
 
 
-typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
+typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Set__Str user_functions;
     Map__Str_Str user_return_types;
     Set__Str ref_return_functions;
@@ -2697,11 +2697,11 @@ typedef struct priv___src_self_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str inline_call_sigs;
     Map__Str_call_Set_USize inline_cleanup;
     Set__Str inline_indirect;
-    priv___src_self_holyc_codegen_til__HolyCLocalState global_locals;
+    priv___src_self_codegen_holyc_codegen_til__HolyCLocalState global_locals;
     Set__Str source_functions;
     Bool needs_take_word;
     Bool gui_enabled;
-} priv___src_self_holyc_codegen_til__HolyCEmitState;
+} priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;
 
 
 typedef struct Scope {

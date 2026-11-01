@@ -53,7 +53,7 @@ an explicit request.
 
 ## Build model
 
-- Normal build: HEAD's boot/ and src/c/ produce bin/til_boot, which builds
+- Normal build: HEAD's boot/ and src/self/codegen/ C runtime produce bin/til_boot, which builds
   current sources into bin/til and regenerates boot/. Most changes need one
   pass and one commit.
 - Two-pass build: the new bin/til rebuilds the compiler so boot/ contains

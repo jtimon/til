@@ -27,7 +27,7 @@
   TempleOS has no normal C compiler path comparable to the Linux,
   Windows, or browser targets. It is an active dedicated backend, not
   one more clang cross target. As of the 2026-10-31 review,
-  [[file:../../src/self/holyc_codegen.til][holyc_codegen.til]] and [[file:../../src/holyc/ext.HC][the native runtime]] implement this boundary,
+  [[file:../../src/self/codegen/holyc_codegen.til][holyc_codegen.til]] and [[file:../../src/self/codegen/ext.HC][the native runtime]] implement this boundary,
   and [[file:../../.github/workflows/tests.yml][CI]] runs ~make test_templeos~. The progress and remaining
   acceptance work below supersede the original deferred-platform wording.
 
@@ -70,7 +70,7 @@
 
 *** HolyC ABI and runtime contract
 
-  ~src/holyc/ext.HC~ is the TempleOS-native external boundary. Generated
+  ~src/self/codegen/ext.HC~ is the TempleOS-native external boundary. Generated
   programs include it from the fixed guest path ~/Home/Ext.HC~; host and CI
   packaging must inject that file beside the generated program. The ABI is:
 
@@ -195,7 +195,7 @@
   ~TILTEST:PASS~.
 
   The fourth slice moves all HolyC textual emission into
-  ~src/self/holyc_codegen.til~. The builder dispatches directly to that
+  ~src/self/codegen/holyc_codegen.til~. The builder dispatches directly to that
   backend, and ~HolyCEmitState~ records user functions and I64 div/mod helper
   requirements instead of searching generated text. All HolyC goldens remain
   byte-identical. The current subset consumes no C-only preparation analysis,
@@ -211,7 +211,7 @@
   comparisons, bitwise operations, and nested calls. TempleOS 5.03 compiled
   and ran the generated file under QEMU TCG and reported ~TILTEST:PASS~.
 
-  The sixth slice adds ~src/holyc/ext.HC~, installs it with compiler support,
+  The sixth slice adds ~src/self/codegen/ext.HC~, installs it with compiler support,
   and makes every generated program include its fixed guest path. The runtime
   wraps allocation, counted and overlap-safe raw memory, counted output,
   pointer checks, and catchable panic/null-deref behavior under the contract
@@ -443,7 +443,7 @@
   unsupported external calls still fail explicitly. The shared
   ~test/script_str_runtime.til~ now checks existing files and directories,
   absent files, and non-NUL-terminated views. It uses the existing
-  ~src/holyc/ext.HC~ on the host and the injected ~/Home/Ext.HC~ in the
+  ~src/self/codegen/ext.HC~ on the host and the injected ~/Home/Ext.HC~ in the
   guest. Interpreter and compiled C output match; TempleOS 5.03 under
   QEMU TCG produced the same 13 lines and ~TILTEST:PASS~.
 
@@ -805,7 +805,7 @@
 
   examples/gui_rectangle.til is one unchanged mode-gui program for both
   backends. The hosted path uses raylib; HolyC maps the existing facade's
-  window/frame/rectangle and image-readback calls to src/holyc/ext.HC. This
+  window/frame/rectangle and image-readback calls to src/self/codegen/ext.HC. This
   sprint adds no new user-facing GUI API or target conditionals to the example.
 
   The program opens a 640x480 surface, draws an opaque rectangle for 30 frames,
@@ -1333,7 +1333,7 @@
 
   #+begin_src sh
   bin/til translate --target=templeos --usize=64 -c tmp/templeos/TILTEST.HC examples/gui_mouse.til
-  cp src/holyc/ext.HC tmp/templeos/Ext.HC
+  cp src/self/codegen/ext.HC tmp/templeos/Ext.HC
   cat >> tmp/templeos/TILTEST.HC <<'HC'
   Bool manual_old_ac=AutoComplete(OFF);
   I64 manual_again;

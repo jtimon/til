@@ -768,12 +768,12 @@ escaped as ~_x<hex>~; ~<Cls>~ is its alphanumeric runs capitalized
 
 #+begin_src sh
 cc -shared -fPIC -I$JAVA_HOME/include -I$JAVA_HOME/include/linux \
-   -Igen/til -Isrc/c gen/til/<name>_jni.c -Lgen/lib -l<name> \
+   -Igen/til -Isrc/self/codegen gen/til/<name>_jni.c -Lgen/lib -l<name> \
    -Wl,-rpath,'$ORIGIN' -o gen/lib/lib<name>_jni.so
 java -Djava.library.path=gen/lib -cp <classes> <Main>
 #+end_src
 
-~-Isrc/c~ is for ~ext.h~, which the library header includes. On Android the
+~-Isrc/self/codegen~ is for ~ext.h~, which the library header includes. On Android the
 same bridge source goes into the NDK build beside the library (#462).
 
 Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
@@ -923,7 +923,7 @@ how it is spelled:
 
 Two rules follow:
 
-1. *Writing a binding's C side* (~src/c/ext.c~ and any
+1. *Writing a binding's C side* (~src/self/codegen/ext.c~ and any
    ~link_c~ module): never cast ~s->c_str~ to a ~char *~.  Copy
    through ~dup_n(s->c_str, s->count)~ and ~free~ it, the way
    every path-taking function in ~ext.c~ does.  The callee cannot
@@ -1025,7 +1025,7 @@ frame_relative_x := func(world_x: F32) returns F32 {
 #+end_src
 
 ~noop_proc~ is a one-liner ~void noop_proc(void) {}~ in
-~src/c/ext.c~, declared as ~ext_proc() {}~ in
+~src/self/codegen/ext.c~, declared as ~ext_proc() {}~ in
 ~src/core/sys.til~ and listed in
 ~is_side_effecting_name~ inside ~src/self/constfolder.til~.  The
 call has zero runtime cost (the C body is empty) and exists

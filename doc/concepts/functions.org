@@ -7,7 +7,7 @@ call EMIT AS A REAL CALL or get inlined.
 | keyword               | body | compiled C          | interpreter          |
 |-----------------------+------+---------------------+----------------------|
 | ~func~ / ~proc~       | yes  | function + call     | runs the body        |
-| ~ext_func~/~ext_proc~ | no   | call to src/c/ sym  | FFI call             |
+| ~ext_func~/~ext_proc~ | no   | call to ext.c sym   | FFI call             |
 | ~core_func~/~core_proc~ | no | inlined natively    | registered handler   |
 | ~core_lazy_func~      | no   | inlined (lazy)      | lazy handler         |
 | ~lazy_func~/~lazy_proc~ | yes | inlined, lazy args | lazy body eval       |
@@ -61,7 +61,7 @@ the enclosing proc or test at compile time.
 ** ext_func / ext_proc
 
 No body (~{}~). The implementation is a hand-written C symbol in
-src/c/ (ext.c and friends) with the C signature the til qualifiers
+src/self/codegen/ (ext.c and friends) with the C signature the til qualifiers
 describe (see doc/concepts/qualifiers.org). The backend emits an ordinary call
 to that symbol; the interpreter reaches it through libffi
 (~ffi_register~ registers every ExtFunc/ExtProc it loads).
@@ -113,7 +113,7 @@ registered ~reg_dispatch~ handlers (~h_Bool_eq~, ~h_Bool_not~,
 pointers with ~value_c_arg_ptr~, which mirrors the FFI marshalling, so
 interp and compile modes agree.
 
-Bootstrap note: src/c/ may KEEP a symbol for an op that becomes a
+Bootstrap note: src/self/codegen/ext.c may KEEP a symbol for an op that becomes a
 core_func -- transiently. That is what lets the conversion land as a
 single "Two-pass: " commit: pass-1 til_boot predates the inline and
 emits real calls, which link against the kept symbol; pass 2 inlines

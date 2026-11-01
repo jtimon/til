@@ -1,6 +1,6 @@
 mode lib
-import("loader")
-import("../std/file")
+import("../loader")
+import("../../std/file")
 
 // Value/control-flow MLIR slice, with the Linux x86-64
 // SysV ABI used by the C backend. Vector registers are not the public ABI.
