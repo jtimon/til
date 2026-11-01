@@ -4,26 +4,30 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
-// Native-library integration has its own copy-only installation and fixture
-// directory so it can overlap the public-API host and rejection checks.
-PREFIX := "tmp/install_tilvm_native"
-WORK := "tmp/install_tilvm_native_work"
+// Each native-library family owns its installation, libraries and HOME so
+// it can overlap the other installed hosts without sharing mutable state.
 
 realpath_str := ext_proc(path: Str) returns Str {}
 
-main := proc() returns I64 {
-    File.remove_tree(PREFIX)
-    File.remove_tree(WORK)
-    mkdir_p(WORK)
-    if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
+main := proc(fixture: Str = "tilvm_native") returns I64 {
+    state_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_state"))
+    prelude_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_prelude"))
+    reload_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_reload"))
+    if state_family.or(prelude_family).or(reload_family).not() { panic("unknown native TilVm fixture: ", fixture) }
+    prefix := format("tmp/install_", fixture)
+    work := format(prefix, "_work")
+    File.remove_tree(prefix)
+    File.remove_tree(work)
+    mkdir_p(work)
+    if install_executable("bin/til", format(prefix, "/bin/til"), ".", prefix) != 0 {
         panic("copy-only TilVm compiler installation failed")
     }
-    installed_til := "../install_tilvm_native/bin/til"
+    installed_til := format("../install_", fixture, "/bin/til")
 
     // A prebuilt Til library, consumed through its generated bindings by BOTH
     // the compiled host and the guest. Library construction is a test setup
     // step; runtime loading must work with an empty PATH.
-    File.writefile(format(WORK, "/vm_native.til"), format(
+    File.writefile(format(work, "/vm_native.til"), format(
         "mode lib\nmut native_counter : I64 = 0\n",
         "native_set := proc(value: I64) { noop_proc(); native_counter = value }\n",
         "native_increment := proc() { noop_proc(); native_counter++ }\n",
@@ -53,49 +57,50 @@ main := proc() returns I64 {
         "NativeError := struct { code : I64 = 0 }\n",
         "native_fail := func() throws NativeError { throw NativeError(code = 7) }\n"))
     native_build := Cmd.new(installed_til, "build", "--asan", "vm_native.til")
-    native_build.cwd(WORK)
+    native_build.cwd(work)
     native_build.run_checked()
-    File.writefile(format(WORK, "/vm_plugin.til"),
+    File.writefile(format(work, "/vm_plugin.til"),
         "mode lib\nplugin_value := func() returns I64 { return 73 }\n")
     plugin_build := Cmd.new(installed_til, "build", "--asan", "vm_plugin.til")
-    plugin_build.cwd(WORK)
+    plugin_build.cwd(work)
     plugin_build.run_checked()
     // Force shared linking on platforms where a .a would otherwise take
     // precedence over the DLL; two static/dynamic copies are not shared state.
-    File.remove(format(WORK, "/gen/lib/libvm_native.a"))
-    library_dir := realpath_str(format(WORK, "/gen/lib"))
-    File.writefile(format(WORK, "/tilvm_native.til"), File.readfile("test/tilvm_native.til"))
+    File.remove(format(work, "/gen/lib/libvm_native.a"))
+    library_dir := realpath_str(format(work, "/gen/lib"))
+    File.writefile(format(work, "/tilvm_native_cases.til"), File.readfile("test/tilvm_native_cases.til"))
+    File.writefile(format(work, "/tilvm_native.til"), File.readfile(format("test/", fixture, ".til")))
     native_host := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_native", "tilvm_native.til")
-    native_host.cwd(WORK)
+    native_host.cwd(work)
     native_host.env("LIBRARY_PATH", library_dir)
     native_host.run_checked()
     // Windows searches the executable directory with PATH empty. Copy the
     // fixture's DLLs (and matching core/runtime dependencies) alongside it.
     if host_os() == "windows" {
-        assert_eq(I32, copy_tree(format(WORK, "/gen/lib"), format(WORK, "/bin")), 0)
+        assert_eq(I32, copy_tree(format(work, "/gen/lib"), format(work, "/bin")), 0)
     }
-    native_run := Cmd.new("./bin/tilvm_native", "../install_tilvm_native/lib/til")
-    native_run.cwd(WORK)
+    native_run := Cmd.new("./bin/tilvm_native", format("../install_", fixture, "/lib/til"))
+    native_run.cwd(work)
     native_run.env("PATH", "")
-    mkdir_p(format(WORK, "/home"))
-    native_run.env("HOME", realpath_str(format(WORK, "/home")))
+    mkdir_p(format(work, "/home"))
+    native_run.env("HOME", realpath_str(format(work, "/home")))
     native_run.env("LD_LIBRARY_PATH", library_dir)
     native_run.env("DYLD_LIBRARY_PATH", library_dir)
     native_run.capture()
     if native_run.run() != 0 { panic("installed native TilVm failed: ", native_run.out(), native_run.err()) }
-    if native_run.out().contains("installed native TilVm shared state PASS: 41 -> 48").not() {
+    if state_family.and(native_run.out().contains("installed native TilVm shared state PASS: 41 -> 48").not()) {
         panic("native TilVm did not finish: ", native_run.out(), native_run.err())
     }
-    if native_run.out().contains("installed TilVm text buffer and reload PASS").not() {
+    if reload_family.and(native_run.out().contains("installed TilVm text buffer and reload PASS").not()) {
         panic("native TilVm buffer/reload test did not finish: ", native_run.out(), native_run.err())
     }
-    if native_run.out().contains("installed TilVm mutable native config PASS").not() {
+    if state_family.and(native_run.out().contains("installed TilVm mutable native config PASS").not()) {
         panic("native TilVm config test did not finish: ", native_run.out(), native_run.err())
     }
-    if native_run.out().contains("installed TilVm host prelude PASS").not() {
+    if prelude_family.and(native_run.out().contains("installed TilVm host prelude PASS").not()) {
         panic("native TilVm prelude test did not finish: ", native_run.out(), native_run.err())
     }
-    if native_run.out().contains("installed TilVm native enum PASS").not() {
+    if prelude_family.and(native_run.out().contains("installed TilVm native enum PASS").not()) {
         panic("native TilVm enum test did not finish: ", native_run.out(), native_run.err())
     }
     println("install TilVm native PASS")

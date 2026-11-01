@@ -1,0 +1,9 @@
+mode cli
+
+import("./tilvm_native_cases")
+
+// Host-provided preludes, including the native enum API exposed through one.
+main := proc(root: Str) {
+    host_prelude_test(root)
+    native_enum_test(root)
+}

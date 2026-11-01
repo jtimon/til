@@ -4,29 +4,31 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
-// Installed SDK coverage has its own prefix so it can run alongside the
-// full compiler-install test. Reuse the compiler already built by the suite;
-// install.til separately exercises rebuilding it through `til install`.
-PREFIX := "tmp/install_tilvm"
-WORK := "tmp/install_tilvm_work"
+// Each semantic host has its own prefix and guest files, so the suite can
+// run the families independently. Reuse the compiler already built by the
+// suite; install.til separately exercises rebuilding it through `til install`.
 
-main := proc() returns I64 {
-    File.remove_tree(PREFIX)
-    File.remove_tree(WORK)
-    mkdir_p(WORK)
-    if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
+main := proc(fixture: Str = "tilvm") returns I64 {
+    prefix := format("tmp/install_", fixture)
+    work := format(prefix, "_work")
+    File.remove_tree(prefix)
+    File.remove_tree(work)
+    mkdir_p(work)
+    if install_executable("bin/til", format(prefix, "/bin/til"), ".", prefix) != 0 {
         panic("copy-only TilVm compiler installation failed")
     }
-    installed_til := "../install_tilvm/bin/til"
+    installed_til := format("../install_", fixture, "/bin/til")
 
-    // #370: the host imports only installed logical namespaces. Its config
-    // files do not exist until the compiled host creates them at runtime.
-    File.writefile(format(WORK, "/tilvm_host.til"), File.readfile("test/tilvm.til"))
+    // #370: SDK imports still resolve through installed logical namespaces.
+    // The local module is test code, copied alongside the selected host.
+    // Guest files do not exist until that compiled host creates them.
+    File.writefile(format(work, "/tilvm_cases.til"), File.readfile("test/tilvm_cases.til"))
+    File.writefile(format(work, "/tilvm_host.til"), File.readfile(format("test/", fixture, ".til")))
     vm_build := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_host", "tilvm_host.til")
-    vm_build.cwd(WORK)
+    vm_build.cwd(work)
     vm_build.run_checked()
-    vm_run := Cmd.new("./bin/tilvm_host", "../install_tilvm/lib/til")
-    vm_run.cwd(WORK)
+    vm_run := Cmd.new("./bin/tilvm_host", format("../install_", fixture, "/lib/til"))
+    vm_run.cwd(work)
     vm_run.env("PATH", "")
     vm_run.capture()
     if vm_run.run() != 0 { panic("installed TilVm host failed: ", vm_run.out(), vm_run.err()) }

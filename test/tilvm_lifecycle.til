@@ -1,0 +1,8 @@
+mode cli
+
+import("./tilvm_cases")
+
+// Loading diagnostics, recoverable exits, reuse after failure, and teardown.
+main := proc(root: Str) returns I64 {
+    return lifecycle_tests(root)
+}

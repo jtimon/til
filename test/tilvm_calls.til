@@ -1,0 +1,15 @@
+mode cli
+
+import("./tilvm_cases")
+
+// Callback contracts: lookup, lifetimes, typed calls, and declared errors.
+main := proc(root: Str) returns I64 {
+    multiple_error_callback_tests(root)
+    throwing_callback_tests(root)
+    throwing_schema_tests(root)
+    checked_lookup(root)
+    callback_tests(root)
+    typed_callback_tests(root)
+    println("TilVm host survived errors and teardown")
+    return 0
+}

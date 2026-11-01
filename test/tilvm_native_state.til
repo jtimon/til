@@ -1,0 +1,9 @@
+mode cli
+
+import("./tilvm_native_cases")
+
+// Keep shared-state and mutable config together: the config
+// checks deliberately consume the counter value established by the host/VMs.
+main := proc(root: Str) {
+    native_state_tests(root)
+}

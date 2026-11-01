@@ -1238,11 +1238,22 @@ main := proc(args: ..Str) {
     // examples/lib/ and the installer kept copying the old path.
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
 
-    // The installed TilVm checks are independent jobs with separate copy-only
-    // installations. Start both ASAN hosts and the rejection checks early;
-    // neither host needs to wait for the other, and both run with an empty PATH.
-    add_single(tests, "install_tilvm", "build", 0, "", format(TIL, " run test/install_tilvm.til"))
-    add_single(tests, "install_tilvm_native", "build", 0, "", format(TIL, " run test/install_tilvm_native.til"))
+    // Each installed TilVm family owns its copy-only installation and guest
+    // directory. Interpret the shared orchestration driver so simultaneous
+    // rows do not race while rebuilding the same driver binary. The tested
+    // hosts are still compiled with ASAN and run with an empty PATH.
+    for family : Str in array(Str, "lifecycle", "calls", "values") {
+        add_single(tests, format("install_tilvm_", family), "build", 0, "",
+            format(TIL, " interpret test/install_tilvm.til tilvm_", family))
+    }
+    // The native driver calls the host C ABI directly (realpath_str). Keep
+    // its original compiled execution, with distinct outputs for each row.
+    for family : Str in array(Str, "state", "prelude", "reload") {
+        add_single(tests, format("install_tilvm_native_", family), "build", 0, "",
+            format(TIL, " run -o bin/c/install_tilvm_native_", family,
+                " -c gen/c/install_tilvm_native_", family,
+                ".c test/install_tilvm_native.til tilvm_native_", family))
+    }
     // #313: the cage's leak report (LeakSanitizer cannot see the cage's
     // blocks). A compiled program that loses one allocation must exit 1,
     // under the cage from the cage's own report and under --cptr=64 from

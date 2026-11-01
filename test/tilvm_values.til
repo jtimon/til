@@ -1,0 +1,15 @@
+mode cli
+
+import("./tilvm_cases")
+
+// Values crossing the callback boundary: record/enum ownership and
+// variadic/keyword argument packing, mutation, and failure recovery.
+main := proc(root: Str) returns I64 {
+    kwargs_callback_tests(root)
+    variadic_callback_tests(root)
+    nested_callback_tests(root)
+    enum_callback_tests(root)
+    record_callback_tests(root)
+    println("TilVm host survived errors and teardown")
+    return 0
+}

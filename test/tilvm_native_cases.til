@@ -1,0 +1,534 @@
+mode lib
+
+import("std/tilvm")
+import("std/file")
+native := import("./gen/til/vm_native")
+
+// install_tilvm_native.til builds the native library and this host through an
+// installed compiler. The host creates every guest AFTER it was compiled,
+// and runs with no compiler executables on PATH.
+expect_load_error := proc(mut vm: TilVm, source: Str, detail: Str) {
+    File.writefile("native_bad.til", source)
+    mut failed := false
+    vm.load_file("native_bad.til")?
+    catch (err: TilVmError) {
+        failed = true
+        assert(err.phase == "load")
+        expect(err.to_str().contains(detail), err.to_str())
+        assert(err.diagnostics.len() > 0)
+        assert(err.diagnostics[0].path.len() > 0)
+    }
+    assert(failed)
+}
+
+expect_buffer := proc(expected: Str) {
+    actual := native.native_buffer_snapshot()
+    assert_eq(Str, actual, expected)
+}
+
+seed_buffer := proc() {
+    // The proc result keeps this allocation at runtime; literal-only format
+    // would fold to a static string and fail to exercise the input lifetime.
+    seed := format(native.native_buffer_snapshot(), "scratch")
+    native.native_buffer_set(seed)
+    // seed dies here. The library must own its copy, not retain the input.
+}
+
+write_editor_config := proc(label: Str) {
+    File.writefile("editor_config.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "KeyAction := proc()\n",
+        "make_action := func(label: Str) returns KeyAction {\n",
+        "    text := format(\" \", label)\n",
+        "    return proc() [own text] { native_buffer_insert(text); assert(native_buffer_snapshot().ends_with(text)) }\n",
+        "}\non_key := make_action(\"", label, "\")\n"))
+}
+
+check_reload_error := func(err: TilVmError, phase: Str, detail: Str) {
+    expect(err.phase == phase, err.to_str())
+    expect(err.to_str().contains(detail), err.to_str())
+    assert(err.diagnostics.len() > 0)
+    assert_eq(Str, err.diagnostics[0].path, "editor_config.til")
+    assert(err.diagnostics[0].line > 0)
+}
+
+failed_candidate := proc(root: Str, source: Str, phase: Str, detail: Str) returns TilVmError {
+    File.writefile("editor_config.til", source)
+    mut candidate := TilVm.new(root)
+    candidate.load_file("editor_config.til")?
+    catch (err: TilVmError) {
+        check_reload_error(err, phase, detail)
+        return err.clone()
+    }
+    callback := candidate.lookup("on_key")?
+    catch (err: TilVmError) {
+        check_reload_error(err, phase, detail)
+        return err.clone()
+    }
+    own callback.delete()
+    panic("bad candidate unexpectedly passed load and lookup")
+}
+
+editor_buffer_test := proc(root: Str) {
+    seed_buffer()
+    expect_buffer("scratch")
+    write_editor_config("old")
+    mut active := TilVm.new(root)
+    active.load_file("editor_config.til")!
+    mut old_key := active.lookup("on_key")!
+    old_key.call()!
+    old_key.call()!
+    expect_buffer("scratch old old")
+    before_reload := native.native_buffer_snapshot()
+    native.native_buffer_insert(" host")
+    expect_buffer("scratch old old host")
+
+    // Reuse the actual config pathname. Retained code/captures must survive
+    // replacing the file and destroying each rejected candidate session.
+    syntax_error := failed_candidate(root, "mode lib\non_key := proc( {\n", "load", "expected")
+    expect_buffer("scratch old old host")
+    old_key.call()!
+    expect_buffer("scratch old old host old")
+    type_error := failed_candidate(root,
+        "mode lib\nimport(\"./gen/til/vm_native\")\non_key := proc() { native_buffer_insert(42) }\n",
+        "type", "expected Str")
+    expect_buffer("scratch old old host old")
+    old_key.call()!
+    expect_buffer("scratch old old host old old")
+    lookup_error := failed_candidate(root,
+        "mode lib\non_key := func(value: I64) { assert(value >= 0) }\n", "lookup", "no arguments")
+    expect_buffer("scratch old old host old old")
+    old_key.call()!
+    expect_buffer("scratch old old host old old old")
+
+    // Reload preserves the active callback, not a transaction over native
+    // side effects. An insertion completed before the panic stays completed.
+    eval_error := failed_candidate(root,
+        "mode lib\nimport(\"./gen/til/vm_native\")\nnative_buffer_insert(\" candidate\")\npanic(\"reload rejected\")\n",
+        "eval", "reload rejected")
+    expect_buffer("scratch old old host old old old candidate")
+    old_key.call()!
+    expect_buffer("scratch old old host old old old candidate old")
+
+    // Publish only after both load and lookup succeed. Release the old key
+    // before its VM; the replacement borrows the separate candidate VM.
+    write_editor_config("new")
+    mut replacement := TilVm.new(root)
+    replacement.load_file("editor_config.til")!
+    mut new_key := replacement.lookup("on_key")!
+    expect_buffer("scratch old old host old old old candidate old")
+    own old_key.delete()
+    own active.delete()
+    new_key.call()!
+    new_key.call()!
+    final_snapshot := native.native_buffer_snapshot()
+    assert_eq(Str, final_snapshot, "scratch old old host old old old candidate old new new")
+    own new_key.delete()
+    own replacement.delete()
+    native.native_buffer_insert(" after")
+    expect_buffer("scratch old old host old old old candidate old new new after")
+    native.native_buffer_set("")
+    expect_buffer("")
+
+    // Host-owned snapshots and diagnostics outlive every VM and the native
+    // buffer allocation they were copied from.
+    assert_eq(Str, before_reload, "scratch old old")
+    assert_eq(Str, final_snapshot, "scratch old old host old old old candidate old new new")
+    check_reload_error(syntax_error, "load", "expected")
+    check_reload_error(type_error, "type", "expected Str")
+    check_reload_error(lookup_error, "lookup", "no arguments")
+    check_reload_error(eval_error, "eval", "reload rejected")
+    println("installed TilVm text buffer and reload PASS")
+}
+
+native_config_test := proc(root: Str) {
+    native.native_config_reset()
+    ref config : NativeConfig = native.native_config_ref()
+    original_title := config.title.clone()
+    assert_eq(I32, config.width, 640)
+    assert(config.enabled.not())
+    assert_eq(Str, config.title, "host title")
+    File.writefile("config_record.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "init := func(mut config: NativeConfig) {\n",
+        "    config.width = 1024\n    config.enabled = true\n",
+        "    config.title = format(\"guest \", config.width.to_str())\n}\n",
+        "run_init := proc() { ref mut config : NativeConfig = native_config_ref(); init(config) }\n",
+        "step := proc() { ref mut config : NativeConfig = native_config_ref(); config.width++; config.enabled = config.enabled.not(); config.title = format(config.title, \":\", config.width.to_str()) }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("config_record.til")!
+    // Loading declarations has not applied init. This remains the host's
+    // existing native object, not a marshalled guest-owned record copy.
+    assert_eq(Str, config.title, "host title")
+    mut init := vm.lookup("run_init")!
+    init.call()!
+    assert(ptr_eq(config, native.native_config_ref()))
+    assert_eq(I32, config.width, 1024)
+    assert(config.enabled)
+    assert_eq(Str, config.title, "guest 1024")
+    mut step := vm.lookup("step")!
+    step.call()!
+    assert_eq(I32, config.width, 1025)
+    assert(config.enabled.not())
+    assert_eq(Str, config.title, "guest 1024:1025")
+    snapshot := config.title.clone()
+    step.call()!
+    assert_eq(I32, config.width, 1026)
+    assert(config.enabled)
+    own step.delete()
+    own init.delete()
+    own vm.delete()
+    assert_eq(Str, config.title, "guest 1024:1025:1026")
+    native.native_config_reset()
+    assert_eq(Str, snapshot, "guest 1024:1025")
+    assert_eq(Str, original_title, "host title")
+
+    // A native function can return a reference into its borrowed argument.
+    // That remains guest storage, including normal guest string-view behavior.
+    File.writefile("config_alias.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "check_alias := proc() {\n",
+        "    mut direct := NativeConfig()\n    mut via := NativeConfig(width = 639)\n",
+        "    ref mut alias : NativeConfig = native_config_identity(via)\n",
+        "    assert(ptr_eq(alias, via)); assert(via.width == 640)\n",
+        "    mut backing := Str.with_capacity(8); backing.push_str(\"abcd\")\n",
+        "    direct.title = backing.substr(0, 3); alias.title = backing.substr(0, 3)\n",
+        "    ref mut first : I8 = backing.get(0); first = 'X'\n",
+        "    assert(alias.title == direct.title); assert(backing == \"Xbcd\")\n}\n"))
+    mut alias_vm := TilVm.new(root)
+    alias_vm.load_file("config_alias.til")!
+    mut check_alias := alias_vm.lookup("check_alias")!
+    check_alias.call()!
+
+    // Literal-backed strings belong to the VM's pool; views borrow a local
+    // allocation. Neither may escape into native-owned storage unchanged.
+    File.writefile("config_strings.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "literal := proc() { ref mut config : NativeConfig = native_config_ref(); config.title = \"literal title\" }\n",
+        "copy_title := func(mut config: NativeConfig, text: Str) { config.title = text }\n",
+        "borrowed := proc() { ref mut config : NativeConfig = native_config_ref(); copy_title(config, \"borrowed literal\") }\n",
+        "view := proc() { ref mut config : NativeConfig = native_config_ref(); backing := format(\"slice \", native_get().to_str(), \" suffix\"); config.title = backing.substr(0, 8) }\n",
+        "empty := proc() { ref mut config : NativeConfig = native_config_ref(); config.title = \"\" }\n",
+        "record := proc() { noop_proc(); native_config_state = NativeConfig(title = \"record literal\") }\n",
+        "taken := proc() { native_config_take(own \"taken literal\") }\n"))
+    methods := vec(Str, "literal", "borrowed", "view", "empty", "record", "taken")
+    expected := vec(Str, "literal title", "borrowed literal", "slice 48", "", "record literal", "taken literal")
+    for i in 0..methods.len() {
+        native.native_config_reset()
+        mut strings_vm := TilVm.new(root)
+        strings_vm.load_file("config_strings.til")!
+        mut set_title := strings_vm.lookup(methods[i])!
+        set_title.call()!
+        assert_eq(Str, config.title, expected[i])
+        own set_title.delete()
+        own strings_vm.delete()
+        assert_eq(Str, config.title, expected[i])
+        assert_eq(I8, config.title.unsafe_get(config.title.len()), 0)
+        assert_eq(I32, config.width, 640)
+        assert(config.enabled.not())
+        // Exercise native replacement/deletion of the transferred allocation,
+        // including the empty string.
+        native.native_config_take(own format(config.title, "!"))
+        assert_eq(Str, config.title, format(expected[i], "!"))
+    }
+    native.native_config_reset()
+    println("installed TilVm mutable native config PASS")
+}
+
+prelude_source := func(label: Str) returns Str {
+    return format("import(\"vm_native\")\nimport(\"prelude_support\")\n",
+        "ApiToken := struct { value: I64 = 7 }\n",
+        "prelude_text := \"", label, "\"\n",
+        "prelude_step := proc() { native_increment(); native_buffer_insert(prelude_text) }\n",
+        "native_increment()\n")
+}
+
+load_owned_prelude := proc(mut vm: TilVm, path: Str, base: Str, label: Str) {
+    source := prelude_source(label)
+    // Keep the logical name heap-owned too, rather than a folded literal.
+    name := format("host-api", label.substr(0, 0))
+    directory := base.clone()
+    vm.load_file(path, prelude_source = source, prelude_name = name, prelude_base = directory)!
+    own source.delete()
+    own name.delete()
+    own directory.delete()
+}
+
+prelude_error := proc(mut vm: TilVm, path: Str, source: Str, name: Str, base: Str,
+    origin: Str, line: U32, detail: Str) returns TilVmError {
+    vm.load_file(path, prelude_source = source, prelude_name = name, prelude_base = base)?
+    catch (err: TilVmError) {
+        expect(err.to_str().contains(detail), err.to_str())
+        mut located := false
+        for diagnostic : TilVmDiagnostic in err.diagnostics {
+            if diagnostic.path.eq(origin).and(diagnostic.line == line) { located = true }
+        }
+        expect(located, "wrong prelude diagnostic origin: ", err.to_str())
+        return err.clone()
+    }
+    panic("prelude load unexpectedly succeeded")
+}
+
+host_prelude_test := proc(root: Str) {
+    assert(get_env("PATH") == "")
+    home := get_env("HOME")
+    assert(home.len() > 0)
+    config_dir := format(home, "/.tiled")
+    mkdir_p(format(config_dir, "/helpers"))
+    path := format(config_dir, "/init.til")
+    base := realpath_str("gen/til")
+    File.writefile("gen/til/prelude_support.til",
+        "mode lib\nmut support_loads := 0\nsupport_loads++\nsupport_text := func() returns Str { assert(support_loads == 1); return \" shared\" }\n")
+    helper_source := format(
+        "mode lib\nimport(\"second\")\nimport(\"std/sys\")\n",
+        "HelperState := struct { token: ApiToken = ApiToken() }\n",
+        "helper_first := proc() { state := HelperState(); assert(state.token.value == 7); assert(process_id() > 0); prelude_step() }\n")
+    File.writefile(format(config_dir, "/helpers/first.til"), helper_source)
+    File.writefile(format(config_dir, "/helpers/second.til"), format(
+        "mode lib\nimport(\"first\")\nimport(\"../init\")\nimport(\"../../../gen/til/prelude_support\")\n",
+        "helper_second := proc() { native_buffer_insert(support_text()) }\n"))
+    guest := format("mode lib\nimport(\"helpers/first\")\nimport(\"helpers/second\")\n",
+        "init := proc() { native_set(80) }\n",
+        "on_key := proc() { helper_first(); helper_second() }\n")
+    File.writefile(path, guest)
+
+    // Inspect the same loader graph used by the installed public facade.
+    // Exclusion is about implicit edges, not a new module-visibility system.
+    source := prelude_source(" graph")
+    sdk := realpath_str(root)
+    cwd := realpath_str(".")
+    graph := load_program(path, sdk, cwd, format(sdk, "/src/self/codegen/ext.c"), Vec(Str).new(), "", true,
+        source, "host-api", base)
+    assert(graph.load_errors == 0)
+    assert(graph.ctx.imported[path].prelude_import == "host-api")
+    for helper in vec(Str, "first", "second") {
+        identity := display_path(format(config_dir, "/helpers/", helper, ".til"), cwd)
+        assert(graph.ctx.imported[identity].prelude_import == "host-api")
+    }
+    assert(graph.ctx.imported["host-api"].prelude_import == "")
+    assert(graph.ctx.imported["host-api"].host_source == source)
+    assert(graph.ctx.imported["host-api"].import_dir == base)
+    assert(graph.ctx.imported["./gen/til/prelude_support.til"].prelude_import == "")
+    assert(graph.ctx.imported["./gen/til/vm_native.til"].prelude_import == "")
+    assert(graph.ctx.imported[display_path(format(sdk, "/src/std/sys.til"), cwd)].prelude_import == "")
+    assert(graph.ctx.mode_registry["lib"].auto_import == "")
+    own graph.delete()
+
+    native.native_set(10)
+    native.native_buffer_set("")
+    entries := Dir.list(config_dir).len()
+    mut active := TilVm.new(root)
+    load_owned_prelude(active, path, base, " first")
+    assert(Dir.list(config_dir).len() == entries)
+    assert(native.native_get() == 11) // The prelude initialized exactly once.
+    mut init := active.lookup("init")!
+    init.call()!
+    own init.delete()
+    assert(native.native_get() == 80)
+    mut key := active.lookup("on_key")!
+    key.call()!
+    assert(native.native_get() == 81)
+    expect_buffer(" first shared")
+
+    File.writefile(path, "mode lib\n")
+    mut candidate := TilVm.new(root)
+    args_error := prelude_error(candidate, path, "", "host-api", base, path, 1, "supplied together")
+    assert(args_error.phase == "load")
+    prelude_error(candidate, path, source, "", base, path, 1, "supplied together")
+    prelude_error(candidate, path, source, "host-api", "", path, 1, "supplied together")
+    prelude_error(candidate, path, source, "host-api", path, "host-api", 1, "existing directory")
+    prelude_error(candidate, path, source, path, base, path, 1, "identity collides")
+    prelude_error(candidate, path, source, "./gen/til/prelude_support.til", base,
+        "./gen/til/prelude_support.til", 1, "identity collides")
+    syntax_error := prelude_error(candidate, path, "mode lib\nbroken := func( {\n", "host-api", base,
+        "host-api", 2, "expected")
+    assert(syntax_error.phase == "load")
+    type_error := prelude_error(candidate, path, "mode lib\nbad: I64 = \"wrong\"\n",
+        "host-api", base, "host-api", 2, "I64")
+    assert(type_error.phase == "type")
+    prelude_error(candidate, path, "mode lib\nimport(\"missing_prelude_dependency\")\n", "host-api", base,
+        "host-api", 2, "could not find import")
+    prelude_error(candidate, path, "mode lib\nlink(\"./missing_prelude_library.so\")\n", "host-api", base,
+        "host-api", 2, "missing_prelude_library")
+    File.writefile(format(base, "/invalid_prelude_library.so"), "not a library\n")
+    prelude_error(candidate, path, "mode lib\nlink(\"./invalid_prelude_library.so\")\n", "host-api", base,
+        "host-api", 2, "invalid_prelude_library")
+    prelude_error(candidate, path, "mode lib\nlink_c(\"./missing_prelude.c\")\n", "host-api", base,
+        "host-api", 2, "cannot compile link_c")
+    prelude_error(candidate, path, "mode cli\n", "host-api", base,
+        "host-api", 1, "requires mode lib")
+
+    File.writefile(path, guest)
+    helper_identity := display_path(format(config_dir, "/helpers/first.til"), cwd)
+    prelude_error(candidate, path, source, helper_identity, base, helper_identity, 1, "identity collides")
+    File.writefile(path, "mode lib\n\nbad: I64 = \"wrong\"\n")
+    user_error := prelude_error(candidate, path, source, "host-api", base, path, 3, "I64")
+    assert(user_error.phase == "type")
+    File.writefile(path, guest)
+    helper_path := format(config_dir, "/helpers/first.til")
+    File.writefile(helper_path, format(helper_source, "\nbad: I64 = \"wrong\"\n"))
+    prelude_error(candidate, path, source, "host-api", base, display_path(helper_path, cwd), 7, "I64")
+    File.writefile(helper_path, helper_source)
+    File.writefile(path, "mode lib\nApiToken := struct { different: Str = \"\" }\n")
+    prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
+    File.writefile(path, "mode lib\nprelude_text := \"user replacement\"\n")
+    prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
+    File.writefile(path, "mode lib\nprelude_step := proc() { noop_proc() }\n")
+    prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
+    File.writefile(path, "mode lib\n")
+    eval_error := prelude_error(candidate, path, "mode lib\npanic(\"prelude abort\")\n", "host-api", base,
+        "host-api", 2, "prelude abort")
+    assert(eval_error.phase == "eval")
+    File.writefile(path, guest)
+    key.call()!
+    expect_buffer(" first shared first shared")
+
+    // Same logical identity, independent VM/code, and retry after all failures.
+    load_owned_prelude(candidate, path, base, " second")
+    mut second := candidate.lookup("on_key")!
+    second.call()!
+    expect_buffer(" first shared first shared second shared")
+    own second.delete()
+    own candidate.delete()
+    key.call()!
+    snapshot := native.native_buffer_snapshot()
+    own key.delete()
+    own active.delete()
+    assert(snapshot == " first shared first shared second shared first shared")
+    expect(syntax_error.to_str().contains("host-api:2:"), syntax_error.to_str())
+    expect(user_error.to_str().contains(format(path, ":3:")), user_error.to_str())
+
+    // Direct generated declarations plus a relative link, without an import
+    // of the packaged binding. The logical name deliberately looks path-like.
+    mut extension := ".so"
+    if host_os() == "macos" { extension = ".dylib" }
+    if host_os() == "windows" { extension = ".dll" }
+    mkdir_p("api assets")
+    inline_base := realpath_str("api assets")
+    inline_source := File.readfile("gen/til/vm_native.til").replace("link(\"vm_native\")",
+        format("link(\"../gen/lib/libvm_native", extension, "\")"))
+    File.writefile(path, "mode lib\non_key := proc() { native_increment() }\n")
+    mut inline_vm := TilVm.new(root)
+    inline_vm.load_file(path, prelude_source = inline_source,
+        prelude_name = "logical/not/a/file", prelude_base = inline_base)!
+    own inline_source.delete()
+    own inline_base.delete()
+    mut inline_key := inline_vm.lookup("on_key")!
+    before := native.native_get()
+    inline_key.call()!
+    assert(native.native_get() == before + 1)
+    own inline_key.delete()
+    own inline_vm.delete()
+    println("installed TilVm host prelude PASS")
+}
+
+native_enum_test := proc(root: Str) {
+    File.writefile("enum_guest.til", format(
+        "mode lib\nmut guest_choice := NativeChoice.Empty\n",
+        "keep_guest := proc(own value: NativeChoice) { noop_proc(); guest_choice = value }\n",
+        "on_key := proc() {\n",
+        "    keep_guest(own native_choice_echo(NativeChoice.Text(\"guest global\")))\n",
+        "    switch guest_choice { case .Text(value): assert(value == \"guest global\"); case: assert(false) }\n",
+        "    text := native_choice_echo(NativeChoice.Text(\"enum text\"))\n",
+        "    switch text { case .Text(value): assert(value == \"enum text\"); case: assert(false) }\n",
+        "    real := native_choice_echo(NativeChoice.Real(2.5))\n",
+        "    switch real { case .Real(value): assert(value == 2.5); case: assert(false) }\n",
+        "    native_choice_store(own NativeChoice.Config(NativeConfig(title = \"VM enum literal\")))\n",
+        "    native_maybe_store(own NativeMaybeConfig.Some(NativeConfig(title = \"VM boxed literal\")))\n",
+        "    switch native_maybe_state { case .Some(value): assert(value.title == \"VM boxed literal\"); case: assert(false) }\n",
+        "    native_maybe_state = NativeMaybeConfig.Some(NativeConfig(title = \"guest replacement\"))\n",
+        "}\n",
+        "unsupported := proc() { noop_proc(); native_callable_choice() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("enum_guest.til", prelude_source = "import(\"vm_native\")\n",
+        prelude_name = "native-enum-api", prelude_base = realpath_str("gen/til"))!
+    mut key := vm.lookup("on_key")!
+    key.call()!
+    key.call()!
+    mut unsupported := vm.lookup("unsupported")!
+    mut rejected := false
+    unsupported.call()?
+    catch (err: TilVmError) {
+        rejected = true
+        expect(err.to_str().contains("native_callable_choice"), err.to_str())
+    }
+    assert(rejected)
+    own unsupported.delete()
+    own key.delete()
+    own vm.delete()
+    // Native-owned inline and niche-boxed records must not retain the VM's
+    // literal pool. Read and release both only after all guest code is gone.
+    assert_eq(Str, native.native_choice_title(), "VM enum literal")
+    assert_eq(Str, native.native_maybe_title(), "guest replacement")
+    native.native_enum_reset()
+    println("installed TilVm native enum PASS")
+}
+
+native_state_tests := proc(root: Str, with_reload: Bool = false) {
+    native.native_set(41)
+    // This library is NOT linked into the host. Its explicit path must load
+    // it at VM preparation time, rather than finding a host-preloaded symbol.
+    mut extension := ".so"
+    if host_os() == "macos" { extension = ".dylib" }
+    if host_os() == "windows" { extension = ".dll" }
+    File.writefile("plugin_guest.til", format(
+        "mode lib\nlink(\"./gen/lib/libvm_plugin", extension, "\")\n",
+        "til_vm_x5fplugin__plugin_value := ext_func() returns shallow I64 {}\n",
+        "verify := func() { assert(til_vm_x5fplugin__plugin_value() == 73) }\n"))
+    mut plugin := TilVm.new(root)
+    plugin.load_file("plugin_guest.til")!
+    mut verify := plugin.lookup("verify")!
+    verify.call()!
+
+    File.writefile("native_guest.til", format(
+        "mode lib\nimport(\"./gen/til/vm_native\")\n",
+        "on_key := proc() { native_increment(); native_counter = native_counter + 1; assert(native_echo(\"owned string\") == \"owned string\") }\n",
+        "fail := proc() { noop_proc(); native_fail()! }\n"))
+    mut first := TilVm.new(root)
+    // These failures must not publish a module or terminate the host. The
+    // same VM then accepts a repaired config and invokes native functions.
+    expect_load_error(first, "mode lib\nlink(\"tilvm_library_that_does_not_exist\")\n", "tilvm_library_that_does_not_exist")
+    expect_load_error(first, "mode lib\nlink(\"./missing_native.so\")\n", "missing_native.so")
+    expect_load_error(first, "mode lib\nlink(\"./missing_native.a\")\n", "missing_native")
+    File.writefile("invalid_native.so", "not a native library\n")
+    expect_load_error(first, "mode lib\nlink(\"./invalid_native.so\")\n", "invalid_native.so")
+    assert_eq(I64, native.native_get(), 41)
+    first.load_file("native_guest.til")!
+    assert_eq(I64, native.native_get(), 41)
+    mut key := first.lookup("on_key")!
+    key.call()!
+    assert_eq(I64, native.native_get(), 43)
+    assert_eq(I64, native.native_counter, 43)
+
+    mut second := TilVm.new(root)
+    second.load_file("native_guest.til")!
+    mut another_key := second.lookup("on_key")!
+    another_key.call()!
+    assert_eq(I64, native.native_get(), 45)
+    // A compiled throws contract becomes a guest error, not a native panic.
+    mut fail := first.lookup("fail")!
+    mut caught := false
+    fail.call()?
+    catch (err: TilVmError) {
+        caught = true
+        expect(err.to_str().contains("NativeError"), err.to_str())
+    }
+    assert(caught)
+    own fail.delete()
+    own key.delete()
+    own first.delete()
+    // Deleting one VM cannot unload code or reset state used by the host and
+    // another VM. The loaded native instance belongs to the process.
+    another_key.call()!
+    assert_eq(I64, native.native_get(), 47)
+    own another_key.delete()
+    own second.delete()
+    native.native_increment()
+    assert_eq(I64, native.native_get(), 48)
+    // The standalone all-cases host retains the original interleaving.
+    // In the suite, editor reload owns an independent native buffer.
+    if with_reload { editor_buffer_test(root) }
+    native_config_test(root)
+    assert_eq(I64, native.native_get(), 48)
+    println("installed native TilVm shared state PASS: 41 -> 48")
+}
