@@ -117,6 +117,82 @@
   headers, so a flag-less boot compile reproduces the layout its artifact
   was emitted at. The same two devices carried the cage (#313).
 
+** Decided: one layout flag (~--usize~ selects the own-pointer storage too)
+
+  Decision (2026-11-01): the two layout flags collapse into one. ~--usize=32~
+  means the compact layout -- U32 container widths AND, on a 64-bit C
+  target, own pointer fields stored as 32-bit cage offsets (#313);
+  ~--usize=64~ means the fully native layout -- U64 widths and native
+  pointers. Two layouts instead of four. The two combinations this drops
+  are worthless: U64 widths with compressed pointers pads back to the
+  native size, and U32 widths with native pointers was only ever the
+  transition state before the cage became the default. 32-bit targets are
+  untouched: their pointers are 32-bit already and the cage never applies
+  there, so ~--usize~ keeps its current meaning for them. ~--usize=32~ stays
+  the default on 64-bit C targets. ~--cptr~ disappears (it is days old and
+  the language is experimental); passing it is an unknown-flag error.
+
+  Plan, in order. Every step is mechanical; the emitted headers change, so
+  the whole thing is ONE "Two-pass: " commit verified with
+  ~make clean && make test_two_pass~ plus the one remaining opt-out suite.
+
+  1. src/c/ext.h: derive the cage from the width. Replace the driver-fed
+     TIL_CPTR32 / TIL_CPTR64 pair with
+     ~#if defined(TIL_USIZE32) && UINTPTR_MAX != 0xffffffff~ ->
+     ~#define TIL_CPTR32 1~, else nothing; keep every ~#ifdef TIL_CPTR32~
+     below as it is (ext.c too), and drop the TIL_CPTR32/TIL_CPTR64
+     mutual-exclusion error. The flag-less boot compile then needs only the
+     USize pin.
+  2. src/self/c_codegen.til: ~emit_usize_width_pin~ writes the USize pin
+     only (delete the cptr pin and its comment paragraph). Leave
+     ~TIL_OWN_PTR~ / ~TIL_OWN_GET~ / ~TIL_OWN_SET~ emission untouched.
+  3. src/til.til: delete ~--cptr~ (CliArgs.cptr_bits, its parsing, help
+     text, the mode-theme and target/backend validations). Resolve
+     ~lp.cptr32~ from the width: true iff the resolved USize is U32 and the
+     target is a 64-bit C target and the mode is not theme; keep the
+     resolution exactly where it is today (before prepare_program).
+     ~lp.ctx.target_cptr32~ follows as now.
+  4. src/self/builder.til: stop passing -DTIL_CPTR32 / -DTIL_CPTR64 (both
+     sites, and the --prof wrap-flag gate keeps reading ~cptr32~).
+     src/self/interpreter.til: the FFI .so compile passes only the USize
+     define (drop the ~til_built_with_cptr32~ branch; the ext_proc itself
+     can stay, ffi_lib_layout and the shadow code read the host).
+  5. src/self/loader.til: ~abi_layout_id~ and ~runtime_abi_id~ spell the
+     width alone ("U32" / "U64"): the cage follows from it, so "-cptr32"
+     leaves every runtime, core and library name. The exported
+     ~til_<lib>___til_abi_layout~ string changes with it; its check in
+     interpreter.til (ffi_load_link) names ~--usize~ alone in its message.
+  6. make.til: the compiler's own builds pass ~--usize=32~ only (drop
+     ~--cptr=32~ everywhere it was spelled beside it). ~check_cptr64~ and
+     ~check_native64~ go; ~check_usize64~ becomes the one opt-out suite:
+     build the compiler ~--usize=64 --asan~ (bin/til_usize64) and run the
+     whole suite through it with ~--til-bin bin/til_usize64 --asan
+     --usize=64~ (what check_native64 did), keeping its existing
+     usize64*.til program checks. Delete the CPTR64 / NATIVE64 constants.
+  7. .github/workflows/tests.yml: delete the ~linux-x64 (--cptr=64)~ and
+     ~linux-x64 (--usize=64 --cptr=64)~ jobs; the ~linux-x64 (--usize=64)~
+     job runs ~make check_usize64~ (it already does) and loses its manual
+     rebuild step, which the target now covers.
+  8. src/tests.til and src/test_runner.til: drop the ~--cptr=32|64~
+     passthrough (~cptr_flag~); ~--usize=32|64~ already rides the same way.
+     Rows that keyed on ~cptr_flag~ (self_translate's two-process reference,
+     enums_no_uncalled_size, ffi_pointer_field_width) key on ~usize_flag~.
+  9. Tests: fold test/cptr32_sizes.til into test/usize64_sizes.til's
+     counterpart for the default (Str 12, Vec 12, Map 24 at --usize=32; Str
+     24, Vec 24 at --usize=64 -- update usize64_sizes.til's expectations,
+     which assumed native pointers with U64 widths, unchanged) and delete
+     test/cptr64_sizes.til. test/ffi_lib_layout.til flips the one flag
+     instead of each half. Replace every other ~--cptr=64~ /
+     ~--cptr=32~ spelling in test/*.til (aggregate_control, dyn_vecs,
+     ffi_pointer_field_width, leak_report comments) with the ~--usize~ form.
+  10. Docs: this file's cage section (next) describes ~--usize=32~ as the
+      cage's switch and drops ~--cptr~; issues/fixed/313.org gets one
+      post-mortem line pointing here; the ~til --help~ text loses the flag.
+
+  Verification: ~make clean && make test_two_pass~, then
+  ~make check_usize64~ (now the full native suite). The ~self_translate~
+  row compares against boot/ in both.
+
 ** Pointer-compression cage (~--cptr~)
 
   ~--cptr=32~ (issue #313) stores every ~own~ pointer field as a 32-bit
