@@ -5,11 +5,11 @@
 #include <limits.h>
 #include <stddef.h>
 
-#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64) && !defined(TIL_USIZE32) && !defined(TIL_USIZE64)
-#define TIL_CPTR32 1
-#endif
 #if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)
 #define TIL_USIZE64 1
+#endif
+#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64)
+#define TIL_CPTR32 1
 #endif
 #include "ext.h"
 

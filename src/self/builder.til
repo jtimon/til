@@ -340,10 +340,11 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // emit_diverge_terminator), so gcc no longer needs to prove it and prof
     // builds keep the full -Werror -- return-type stays a hard error.
     //
-    // For the allocation profile, -DTIL_PROF_ALLOC turns on the wrap hooks in
-    // ext.c and -Wl,--wrap=malloc/calloc/realloc (link-only) routes heap
-    // allocation through them. asan owns malloc, so the wrap is skipped when
-    // both are set; CPU profiling still works.
+    // For the allocation profile, -DTIL_PROF_ALLOC turns on the byte
+    // accounting in ext.c. A cage program (#313) charges it from the cage's
+    // own entry points; a native one needs -Wl,--wrap=malloc/calloc/realloc
+    // (link-only) to route libc's through the wrap hooks. asan owns malloc,
+    // so the wrap is skipped when both are set; CPU profiling still works.
     mut prof_flags := ""
     mut prof_link_flags := ""
     if prof.and(is_windows_target(target).not()) {
@@ -355,7 +356,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         prof_mac := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
         if asan.or(prof_mac).not() {
             prof_flags = format(prof_flags, " -DTIL_PROF_ALLOC")
-            prof_link_flags = " -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc"
+            if cptr32.not() { prof_link_flags = " -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc" }
         }
     }
 

@@ -7957,24 +7957,17 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
 // #313: the own-pointer storage (TIL_CPTR32, the cage, the default on 64-bit
 // C targets / TIL_CPTR64, native) is pinned the same way: the boot compile
 // of a boot/til.c emitted for the cage must build ext.c for the cage too.
-// That pin also yields to an explicit USize flag ALONE (so it is written
-// first, before the USize pin defines one): a driver that passes a USize
-// flag but no cptr flag is one from before the cage was pinned -- the boot
-// compiler of the commit that made the cage the default -- and the C it
-// emits is native. Without this, that compiler's ext.c (which includes the
-// working tree's boot/til_forward.h) would take the cage pin a two-pass
-// regen just wrote there and mismatch its own native output: bin/make
-// died in free() the moment boot/ was regenerated. Every driver since
-// passes both flags, and a flag-less compile is the boot compile, which
-// must reproduce the artifact's layout.
+// (The commit that made the cage the default also let this pin yield to a
+// USize flag alone, for its own boot compiler, which passed no cptr flag;
+// every driver since passes both, so that clause is gone.)
 priv emit_usize_width_pin := proc(f: File, ctx: Context) {
-    f.write("#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64) && !defined(TIL_USIZE32) && !defined(TIL_USIZE64)\n")
-    if ctx.target_cptr32 { f.write("#define TIL_CPTR32 1\n") }
-    else { f.write("#define TIL_CPTR64 1\n") }
-    f.write("#endif\n")
     f.write("#if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)\n")
     if ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
     else { f.write("#define TIL_USIZE64 1\n") }
+    f.write("#endif\n")
+    f.write("#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64)\n")
+    if ctx.target_cptr32 { f.write("#define TIL_CPTR32 1\n") }
+    else { f.write("#define TIL_CPTR64 1\n") }
     f.write("#endif\n")
 }
 

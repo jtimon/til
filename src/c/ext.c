@@ -5087,10 +5087,6 @@ void __cyg_profile_func_exit(void *this_fn, void *call_site) {
 // instrumented function is on top of the call stack (allocations before the
 // first instrumented call, e.g. C runtime startup, are not attributed). free
 // is left unwrapped: __real_malloc'd pointers are released by the real free.
-extern void *__real_malloc(size_t size);
-extern void *__real_calloc(size_t nmemb, size_t size);
-extern void *__real_realloc(void *ptr, size_t size);
-
 static void til_prof_charge(unsigned long long bytes) __attribute__((no_instrument_function));
 static void til_prof_charge(unsigned long long bytes) {
     if (til_prof_depth == 0) return;
@@ -5098,6 +5094,14 @@ static void til_prof_charge(unsigned long long bytes) {
     til_prof_slots[idx].allocs++;
     til_prof_slots[idx].alloc_bytes += bytes;
 }
+
+// The wrap hooks exist for the native layout only: a cage program (#313)
+// charges from the cage's entry points and is linked without --wrap, so
+// __real_* would be undefined there.
+#ifndef TIL_CPTR32
+extern void *__real_malloc(size_t size);
+extern void *__real_calloc(size_t nmemb, size_t size);
+extern void *__real_realloc(void *ptr, size_t size);
 
 void *__wrap_malloc(size_t size) __attribute__((no_instrument_function));
 void *__wrap_malloc(size_t size) {
@@ -5116,6 +5120,7 @@ void *__wrap_realloc(void *ptr, size_t size) {
     til_prof_charge((unsigned long long)size);
     return __real_realloc(ptr, size);
 }
+#endif // !TIL_CPTR32
 #endif // TIL_PROF_ALLOC
 
 #else
