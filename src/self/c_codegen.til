@@ -8636,9 +8636,10 @@ priv emit_python_global := proc(f: File, api_name: Str, source_name: Str,
 // and the C bridge between it and the library's exported C ABI
 // (gen/til/<name>_jni.c). The bridge is compiled against the JDK's jni.h into
 // lib<name>_jni.so, which the class loads; see doc/ffi.org for the command.
-// Only scalar and Str signatures are bound in this first slice; every other
-// public function is listed in the class as a "not bound" comment with the
-// reason, so the gap is visible instead of silently missing.
+// Public functions, globals, structs and enums (as handle classes) and
+// FuncSigs (as callback interfaces) are bound; everything the binding cannot
+// express is listed in the class as a "not bound" comment with the reason,
+// so the gap is visible instead of silently missing.
 
 // Java's spelling of a scalar til type, or "" when the type is not a scalar
 // JNI primitive. Unsigned types reuse the signed Java type of the same width:
@@ -8792,9 +8793,204 @@ priv jni_err_slot := func(type_name: Str, var: Str, ctx: Context) returns JniErr
     return slot
 }
 
+// What the binding knows about the library's types. `handles`: public
+// structs and enums, each a nested Java handle class; `enums`: the enums
+// among them; `callbacks`: public FuncSigs a Java object can implement.
+priv JniTypes := struct {
+    handles := Set(Str).new()
+    enums := Set(Str).new()
+    callbacks := Set(Str).new()
+    class_path := ""
+    // Vec(Str) crosses as String[] when the library's header declares it.
+    has_strvec := false
+}
+
+// A type name as the binding sees it: aliases resolved to their target.
+priv jni_resolve := func(name: Str, ctx: Context) returns Str {
+    return resolve_type_alias_for_name(ctx.scope, name, ctx.symbols).clone()
+}
+
+priv jni_decl_type := func(d: Declaration, ctx: Context) returns Str {
+    return jni_resolve(decl_type_name_ref(d, ctx.symbols), ctx)
+}
+
+// How a til type crosses the JNI boundary: "scalar" (a JNI primitive),
+// "str" (UTF-8 byte[] across JNI, String in Java), "handle" (a jlong pointer
+// to the value, wrapped by its nested Java class), "strvec" (Vec(Str): byte[][]
+// across JNI, String[] in Java), "callback" (a Java object
+// implementing the FuncSig's interface), or "" when it is not bound.
+priv jni_kind := func(type_name: Str, types: JniTypes, ctx: Context) returns Str {
+    if type_name == "Str" { return "str" }
+    if type_name.eq("Vec__Str").and(types.has_strvec) { return "strvec" }
+    if jni_scalar_java(type_name, ctx).len() > 0 { return "scalar" }
+    if types.handles.has(type_name) { return "handle" }
+    if types.callbacks.has(type_name) { return "callback" }
+    return ""
+}
+
+// The Java array-region accessor infix of a JNI primitive (GetLongArrayRegion).
+priv jni_prim_infix := func(java: Str) returns Str {
+    switch java {
+    case "byte":    return "Byte"
+    case "short":   return "Short"
+    case "int":     return "Int"
+    case "long":    return "Long"
+    case "float":   return "Float"
+    case "double":  return "Double"
+    case "boolean": return "Boolean"
+    case:
+    }
+    panic(__LOC__, "not a JNI primitive: ", java)
+    return ""
+}
+
+// A JNI field descriptor for a native-side type spelled in Java.
+priv jni_descriptor := func(native: Str) returns Str {
+    switch native {
+    case "byte":    return "B"
+    case "short":   return "S"
+    case "int":     return "I"
+    case "long":    return "J"
+    case "float":   return "F"
+    case "double":  return "D"
+    case "boolean": return "Z"
+    case "void":    return "V"
+    case "byte[]":  return "[B"
+    case "byte[][]": return "[[B"
+    case:
+    }
+    panic(__LOC__, "no JNI descriptor for ", native)
+    return ""
+}
+
+// The jvalue union member holding a JNI primitive.
+priv jni_jvalue_field := func(java: Str) returns Str {
+    switch java {
+    case "byte":    return "b"
+    case "short":   return "s"
+    case "int":     return "i"
+    case "long":    return "j"
+    case "float":   return "f"
+    case "double":  return "d"
+    case "boolean": return "z"
+    case:
+    }
+    panic(__LOC__, "not a JNI primitive: ", java)
+    return ""
+}
+
+priv jni_java_type := func(type_name: Str, types: JniTypes, ctx: Context) returns Str {
+    kind := jni_kind(type_name, types, ctx)
+    if kind == "str" { return "String" }
+    if kind == "strvec" { return "String[]" }
+    if kind.eq("handle").or(kind.eq("callback")) { return jni_java_ident(type_name) }
+    return jni_scalar_java(type_name, ctx)
+}
+
+priv jni_native_type := func(type_name: Str, types: JniTypes, ctx: Context) returns Str {
+    kind := jni_kind(type_name, types, ctx)
+    if kind == "str" { return "byte[]" }
+    if kind == "strvec" { return "byte[][]" }
+    if kind == "handle" { return "long" }
+    if kind == "callback" { return jni_java_ident(type_name) }
+    return jni_scalar_java(type_name, ctx)
+}
+
+priv jni_c_type := func(type_name: Str, types: JniTypes, ctx: Context) returns Str {
+    kind := jni_kind(type_name, types, ctx)
+    if kind == "str" { return "jbyteArray" }
+    if kind == "strvec" { return "jobjectArray" }
+    if kind == "handle" { return "jlong" }
+    if kind == "callback" { return "jobject" }
+    return format("j", jni_scalar_java(type_name, ctx))
+}
+
+// The C type of a til value of a scalar, Str or handle type.
+priv jni_til_c_type := func(type_name: Str, types: JniTypes, ctx: Context) returns Str {
+    kind := jni_kind(type_name, types, ctx)
+    if kind == "str" { return "TilJniStr" }
+    if kind == "strvec" { return "TilJniVecStr" }
+    if kind == "handle" { return lib_c_resolved_name(type_name, ctx) }
+    return type_name.clone()
+}
+
+// Str and Vec(Str) are copied across the boundary: these spell the copies
+// and the release of the til side's value.
+priv jni_is_copied := func(kind: Str) returns Bool { return kind.eq("str").or(kind.eq("strvec")) }
+
+priv jni_java_in := func(kind: Str, e: Str) returns Str {
+    if kind == "str" { return format("tilUtf8(", e, ")") }
+    if kind == "strvec" { return format("tilUtf8All(", e, ")") }
+    return e.clone()
+}
+
+priv jni_java_out := func(kind: Str, e: Str) returns Str {
+    if kind == "str" { return format("tilStr(", e, ")") }
+    if kind == "strvec" { return format("tilStrAll(", e, ")") }
+    return e.clone()
+}
+
+priv jni_c_out := func(kind: Str, ptr: Str) returns Str {
+    if kind == "strvec" { return format("til_jni_strvec_out(env, ", ptr, ")") }
+    return format("til_jni_str_out(env, ", ptr, ")")
+}
+
+priv jni_c_in := func(kind: Str, a: Str) returns Str {
+    if kind == "strvec" { return format("til_jni_strvec_in(env, ", a, ")") }
+    return format("til_jni_str_in(env, ", a, ")")
+}
+
+priv jni_c_delete := func(kind: Str, lvalue: Str) returns Str {
+    if kind == "strvec" { return format("TIL_JNI_VECSTR_DELETE(&", lvalue, ", 0);") }
+    return format("TIL_JNI_STR_DELETE(&", lvalue, ", 0);")
+}
+
+// C converting the JNI value `a` of a scalar or Str type to til's C value.
+priv jni_c_value_in := func(type_name: Str, a: Str) returns Str {
+    if type_name == "Str" { return format("til_jni_str_in(env, ", a, ")") }
+    if type_name == "Vec__Str" { return format("til_jni_strvec_in(env, ", a, ")") }
+    if type_name == "Bool" { return format("(Bool)(", a, " != JNI_FALSE)") }
+    return format("(", type_name, ")", a)
+}
+
+// C converting the til scalar value `v` to its JNI value.
+priv jni_c_scalar_out := func(type_name: Str, v: Str, types: JniTypes, ctx: Context) returns Str {
+    if type_name == "Bool" { return format("(", v, " ? JNI_TRUE : JNI_FALSE)") }
+    return format("(", jni_c_type(type_name, types, ctx), ")", v)
+}
+
+// C statement returning the til lvalue `v` of a scalar, Str or handle type
+// as its JNI value; a handle is returned as the address of `v`.
+priv jni_c_return_out := func(type_name: Str, v: Str, types: JniTypes, ctx: Context) returns Str {
+    kind := jni_kind(type_name, types, ctx)
+    if jni_is_copied(kind) { return format("return ", jni_c_out(kind, format("&", v)), ";") }
+    if kind == "handle" { return format("return (jlong)(intptr_t)&", v, ";") }
+    return format("return ", jni_c_scalar_out(type_name, v, types, ctx), ";")
+}
+
+// The JNI entry point's opening line.
+priv emit_jni_c_head := proc(cf: File, c_ret: Str, class_path: Str, native_name: Str, params: Str) {
+    cf.write("JNIEXPORT ").write(c_ret).write(" JNICALL Java_").write(jni_mangle(class_path))
+        .write("_").write(jni_mangle(native_name)).write("(JNIEnv *env, jclass cls").write(params)
+        .write(") {\n    (void)env;\n    (void)cls;\n")
+}
+
+priv emit_jni_alloc_box := proc(cf: File, var: Str, c_type: Str) {
+    cf.write("    ").write(c_type).write(" *").write(var).write(" = (").write(c_type).write(" *)malloc(TIL_JNI_BOX(")
+        .write(c_type).write("));\n")
+    cf.write("    if (").write(var).write(" == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+}
+
+priv emit_jni_delete_proto := proc(cf: File, type_name: Str, ctx: Context) {
+    cf.write("void ").write(lib_c_resolved_name(format(type_name, "_delete"), ctx)).write("(")
+        .write(lib_c_resolved_name(type_name, ctx)).write(" *self, Bool call_free);\n")
+}
+
 // Why `fd` cannot be bound, or "" when it can.
-priv jni_unbound_reason := func(fd: FunctionDef, ctx: Context) returns Str {
-    if fd.sig.func_type.is(FuncType.Func).or(fd.sig.func_type.is(FuncType.Proc)).not() {
+priv jni_unbound_reason := func(fd: FunctionDef, types: JniTypes, ctx: Context) returns Str {
+    // A variant constructor is a generated ext_func the library exports.
+    is_callable := fd.sig.func_type.is(FuncType.Func).or(fd.sig.func_type.is(FuncType.Proc))
+    if is_callable.or(fd.is_enum_variant_ctor).not() {
         return "only func and proc are bound"
     }
     if fd.sig.variadic_index >= 0 { return "variadic parameter" }
@@ -8802,20 +8998,20 @@ priv jni_unbound_reason := func(fd: FunctionDef, ctx: Context) returns Str {
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         if jni_param_is_err_slot(p) { continue }
-        if p.is_mut { return format("mut parameter '", p.name, "'") }
-        ref tn : Str = decl_type_name_ref(p, ctx.symbols)
-        if tn == "Str" {
-            if p.own_type.is(OwnType.Shallow) { return format("shallow Str parameter '", p.name, "'") }
-            continue
+        tn := jni_decl_type(p, ctx)
+        kind := jni_kind(tn, types, ctx)
+        if kind.len() == 0 { return format("parameter '", p.name, "' of type ", tn) }
+        if jni_is_copied(kind).and(p.own_type.is(OwnType.Shallow)) {
+            return format("shallow ", tn, " parameter '", p.name, "'")
         }
-        if jni_scalar_java(tn, ctx).len() == 0 {
-            return format("parameter '", p.name, "' of type ", tn)
-        }
+        if kind.eq("callback").and(p.is_mut) { return format("mut callback parameter '", p.name, "'") }
     }
     if fd.sig.return_type.len() > 0 {
-        if func_returns_c_value(fd).not() { return format("returns ref ", fd.sig.return_type) }
-        if fd.sig.return_type.neq("Str").and(jni_scalar_java(fd.sig.return_type, ctx).len().eq(0)) {
-            return format("return type ", fd.sig.return_type)
+        rt := jni_resolve(fd.sig.return_type, ctx)
+        rkind := jni_kind(rt, types, ctx)
+        if rkind.len().eq(0).or(rkind.eq("callback")) { return format("return type ", rt) }
+        if func_returns_c_value(fd).not().and(fd.sig.return_own_type.is(OwnType.Ref).not()) {
+            return format("return type ", rt)
         }
     }
     for tt : Str in fd.sig.throw_types {
@@ -8829,24 +9025,9 @@ priv jni_unbound_reason := func(fd: FunctionDef, ctx: Context) returns Str {
     return ""
 }
 
-priv jni_java_type := func(type_name: Str, ctx: Context) returns Str {
-    if type_name == "Str" { return "String" }
-    return jni_scalar_java(type_name, ctx)
-}
-
-priv jni_native_type := func(type_name: Str, ctx: Context) returns Str {
-    if type_name == "Str" { return "byte[]" }
-    return jni_scalar_java(type_name, ctx)
-}
-
-priv jni_c_type := func(type_name: Str, ctx: Context) returns Str {
-    if type_name == "Str" { return "jbyteArray" }
-    return format("j", jni_scalar_java(type_name, ctx))
-}
-
 priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: Str, c_symbol: Str,
-        java_class_path: Str, ctx: Context) {
-    reason := jni_unbound_reason(fd, ctx)
+        types: JniTypes, ctx: Context) {
+    reason := jni_unbound_reason(fd, types, ctx)
     if reason.len() > 0 {
         jf.write("    // ").write(api_name).write(": not bound: ").write(reason).write("\n\n")
         return
@@ -8855,31 +9036,71 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
     native_name := format("n_", java_name)
     can_throw := fd.sig.throw_types.len() > 0
     has_ret := fd.sig.return_type.len() > 0
-    ret_is_str := fd.sig.return_type == "Str"
+    ret_ref := has_ret.and(fd.sig.return_own_type.is(OwnType.Ref))
+    mut rt := ""
+    mut ret_kind := ""
+    if has_ret {
+        rt = jni_resolve(fd.sig.return_type, ctx)
+        ret_kind = jni_kind(rt, types, ctx)
+    }
 
-    // Java: the private native method and its public wrapper.
+    // Java: the private native method and its public wrapper. A mut scalar
+    // or Str parameter is a one-element array the call writes back to.
     mut native_ret := "void"
     mut java_ret := "void"
     if has_ret {
-        native_ret = jni_native_type(fd.sig.return_type, ctx)
-        java_ret = jni_java_type(fd.sig.return_type, ctx)
+        native_ret = jni_native_type(rt, types, ctx)
+        java_ret = jni_java_type(rt, types, ctx)
     }
     mut native_params := ""
     mut java_params := ""
     mut java_args := ""
+    mut java_pre := ""
+    mut java_post := ""
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         if jni_param_is_err_slot(p) { continue }
-        ref tn : Str = decl_type_name_ref(p, ctx.symbols)
+        tn := jni_decl_type(p, ctx)
+        kind := jni_kind(tn, types, ctx)
         pname := jni_java_ident(p.name)
         if java_params.len() > 0 {
             native_params = format(native_params, ", ")
             java_params = format(java_params, ", ")
             java_args = format(java_args, ", ")
         }
-        native_params = format(native_params, format(jni_native_type(tn, ctx), " ", pname))
-        java_params = format(java_params, format(jni_java_type(tn, ctx), " ", pname))
-        if tn == "Str" { java_args = format(java_args, format("tilUtf8(", pname, ")")) }
+        holder := p.is_mut.and(kind.eq("scalar").or(jni_is_copied(kind)))
+        if holder {
+            java_pre = format(java_pre, "        if (", pname, ".length != 1) { throw new IllegalArgumentException(\"",
+                pname, ": a mut parameter takes a one-element array\"); }\n")
+        }
+        if holder.and(jni_is_copied(kind)) {
+            hv := format("tilMut", i.to_str())
+            nt := jni_native_type(tn, types, ctx)
+            native_params = format(native_params, nt, "[] ", pname)
+            java_params = format(java_params, jni_java_type(tn, types, ctx), "[] ", pname)
+            java_pre = format(java_pre, "        ", nt, "[] ", hv, " = { ", jni_java_in(kind, format(pname, "[0]")), " };\n")
+            java_post = format(java_post, "            ", pname, "[0] = ", jni_java_out(kind, format(hv, "[0]")), ";\n")
+            java_args = format(java_args, hv)
+            continue
+        }
+        if holder {
+            native_params = format(native_params, jni_native_type(tn, types, ctx), "[] ", pname)
+            java_params = format(java_params, jni_java_type(tn, types, ctx), "[] ", pname)
+            java_args = format(java_args, pname)
+            continue
+        }
+        native_params = format(native_params, jni_native_type(tn, types, ctx), " ", pname)
+        java_params = format(java_params, jni_java_type(tn, types, ctx), " ", pname)
+        if jni_is_copied(kind) { java_args = format(java_args, jni_java_in(kind, pname)) }
+        else if kind == "handle" {
+            // `own` moves the value into the library: the Java object is
+            // spent, and using it again throws.
+            if p.own_type.is(OwnType.Own).and(p.is_mut.not()) { java_args = format(java_args, pname, ".tilTake()") }
+            else { java_args = format(java_args, pname, ".tilHandle()") }
+        }
+        else if kind == "callback" {
+            java_args = format(java_args, "java.util.Objects.requireNonNull(", pname, ", \"", pname, "\")")
+        }
         else { java_args = format(java_args, pname) }
     }
     mut throws_clause := ""
@@ -8887,45 +9108,59 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
     jf.write("    private static native ").write(native_ret).write(" ").write(native_name)
         .write("(").write(native_params).write(")").write(throws_clause).write(";\n")
     jf.write("    public static ").write(java_ret).write(" ").write(java_name)
-        .write("(").write(java_params).write(")").write(throws_clause).write(" {\n        ")
-    if has_ret { jf.write("return ") }
-    if ret_is_str { jf.write("tilStr(") }
-    jf.write(native_name).write("(").write(java_args).write(")")
-    if ret_is_str { jf.write(")") }
-    jf.write(";\n    }\n\n")
+        .write("(").write(java_params).write(")").write(throws_clause).write(" {\n")
+    jf.write(java_pre)
+    mut call := jni_java_out(ret_kind, format(native_name, "(", java_args, ")"))
+    if ret_kind == "handle" {
+        mut owned := "true"
+        if ret_ref { owned = "false" }
+        call = format("new ", java_ret, "(", call, ", ", owned, ")")
+    }
+    mut stmt := format(call, ";")
+    if has_ret { stmt = format("return ", stmt) }
+    if java_post.len() > 0 {
+        jf.write("        try {\n            ").write(stmt).write("\n        } finally {\n").write(java_post).write("        }\n")
+    } else {
+        jf.write("        ").write(stmt).write("\n")
+    }
+    jf.write("    }\n\n")
 
     // C: the JNI entry point.
     mut c_ret := "void"
-    if has_ret { c_ret = jni_c_type(fd.sig.return_type, ctx) }
+    if has_ret { c_ret = jni_c_type(rt, types, ctx) }
     mut zero := "0"
-    if ret_is_str { zero = "NULL" }
+    if jni_is_copied(ret_kind) { zero = "NULL" }
     mut ret_stmt := format("return ", zero, ";")
     if has_ret.not() { ret_stmt = "return;" }
 
-    // Payload deletes are declared here: core-mapped ones may have no
-    // prototype in the library header.
+    // Deletes are declared here: core-mapped ones may have no prototype in
+    // the library header.
     for tt : Str in fd.sig.throw_types {
         for p : Declaration in fd.sig.params {
             if p.name != format("_err_", tt) { continue }
             if tt == "Str" { continue }
             if jni_scalar_java(tt, ctx).len() > 0 { continue }
             if init_delete_is_noop(tt, ctx.scope, ctx.symbols) { continue }
-            cf.write("void ").write(lib_c_resolved_name(format(tt, "_delete"), ctx)).write("(")
-                .write(lib_c_resolved_name(tt, ctx)).write(" *self, Bool call_free);\n")
+            emit_jni_delete_proto(cf, tt, ctx)
         }
     }
-    cf.write("JNIEXPORT ").write(c_ret).write(" JNICALL Java_").write(jni_mangle(java_class_path))
-        .write("_").write(jni_mangle(native_name)).write("(JNIEnv *env, jclass cls")
+    mut head_params := ""
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         if jni_param_is_err_slot(p) { continue }
-        cf.write(", ").write(jni_c_type(decl_type_name_ref(p, ctx.symbols), ctx)).write(" a").write(i.to_str())
+        tn := jni_decl_type(p, ctx)
+        kind := jni_kind(tn, types, ctx)
+        mut ct := jni_c_type(tn, types, ctx)
+        if p.is_mut.and(jni_is_copied(kind)) { ct = "jobjectArray" }
+        else if p.is_mut.and(kind.eq("scalar")) { ct = format(ct, "Array") }
+        head_params = format(head_params, ", ", ct, " a", i.to_str())
     }
-    cf.write(") {\n    (void)env;\n    (void)cls;\n")
+    emit_jni_c_head(cf, c_ret, types.class_path, native_name, head_params)
 
-    // Arguments in til's C representation.
+    // Arguments in til's C representation; `after` runs right after the
+    // call on every path: write-backs, then releases.
     mut call_args := ""
-    mut str_temps := Vec(Str).new()
+    mut after := ""
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         if i > 0 { call_args = format(call_args, ", ") }
@@ -8937,54 +9172,99 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
             continue
         }
         if jni_param_is_err_slot(p) {
-            ref tt : Str = decl_type_name_ref(p, ctx.symbols)
+            tt := jni_decl_type(p, ctx)
             e := format("err_", i.to_str())
             slot := jni_err_slot(tt, e, ctx)
             cf.write("    ").write(slot.c_type).write(" ").write(e).write(";\n")
             cf.write("    memset(&").write(e).write(", 0, sizeof ").write(e).write(");\n")
-            call_args = format(call_args, format("&", e))
+            call_args = format(call_args, "&", e)
             continue
         }
-        ref tn : Str = decl_type_name_ref(p, ctx.symbols)
+        tn := jni_decl_type(p, ctx)
+        kind := jni_kind(tn, types, ctx)
         by_value := func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
-        heap_box := p.own_type.is(OwnType.Own)
-            .and(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
-        mut c_value := ""
-        if tn == "Str" {
-            c_value = format("til_jni_str_in(env, ", a, ")")
-        } else if tn == "Bool" {
-            c_value = format("(Bool)(", a, " != JNI_FALSE)")
-        } else {
-            c_value = format("(", tn, ")", a)
+        is_own := p.own_type.is(OwnType.Own).and(p.is_mut.not())
+        stack_outer := func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        if kind == "callback" {
+            cf.write("    TilJniClosure *").write(t).write(" = til_jni_cb_new_").write(tn).write("(env, ").write(a).write(");\n")
+            call_args = format(call_args, t)
+            // A borrowed callback is dropped after the call; an `own` one
+            // now belongs to the library, which drops it.
+            if is_own.not() {
+                after = format(after, "    ", t, "->drop(", t, "->env);\n    free(", t, ");\n")
+            }
+            continue
         }
-        mut c_type := tn.clone()
-        if tn == "Str" { c_type = "TilJniStr" }
+        if kind == "handle" {
+            c_type := lib_c_resolved_name(tn, ctx)
+            pv := format("p", i.to_str())
+            cf.write("    ").write(c_type).write(" *").write(pv).write(" = (").write(c_type).write(" *)(intptr_t)")
+                .write(a).write(";\n")
+            if by_value { call_args = format(call_args, "*", pv) }
+            else if is_own.and(stack_outer) {
+                // The callee consumes the contents but not the outer
+                // storage: move them to a local and free the Java box.
+                cf.write("    ").write(c_type).write(" ").write(t).write(" = *").write(pv).write(";\n")
+                cf.write("    free(").write(pv).write(");\n")
+                call_args = format(call_args, "&", t)
+            }
+            // `own`: the callee frees the box. Borrowed and mut: a pointer.
+            else { call_args = format(call_args, pv) }
+            continue
+        }
+        if p.is_mut.and(jni_is_copied(kind)) {
+            ev := format("e", i.to_str())
+            cf.write("    ").write(jni_c_type(tn, types, ctx)).write(" ").write(ev).write(" = (").write(jni_c_type(tn, types, ctx))
+                .write(")(*env)->GetObjectArrayElement(env, ").write(a).write(", 0);\n")
+            cf.write("    ").write(jni_til_c_type(tn, types, ctx)).write(" ").write(t).write(" = ").write(jni_c_in(kind, ev)).write(";\n")
+            cf.write("    (*env)->DeleteLocalRef(env, ").write(ev).write(");\n")
+            call_args = format(call_args, "&", t)
+            mut write_back := "til_jni_str_write_back"
+            if kind == "strvec" { write_back = "til_jni_strvec_write_back" }
+            after = format(after, "    ", write_back, "(env, ", a, ", &", t, ");\n")
+            continue
+        }
+        if p.is_mut {
+            jt := jni_scalar_java(tn, ctx)
+            infix := jni_prim_infix(jt)
+            vv := format("v", i.to_str())
+            cf.write("    j").write(jt).write(" ").write(vv).write(";\n")
+            cf.write("    (*env)->Get").write(infix).write("ArrayRegion(env, ").write(a).write(", 0, 1, &").write(vv).write(");\n")
+            cf.write("    ").write(tn).write(" ").write(t).write(" = ").write(jni_c_value_in(tn, vv)).write(";\n")
+            call_args = format(call_args, "&", t)
+            after = format(after, "    ", vv, " = ", jni_c_scalar_out(tn, t, types, ctx), ";\n",
+                "    (*env)->Set", infix, "ArrayRegion(env, ", a, ", 0, 1, &", vv, ");\n")
+            continue
+        }
+        c_value := jni_c_value_in(tn, a)
+        c_type := jni_til_c_type(tn, types, ctx)
         if by_value {
-            if tn == "Str" { panic(__LOC__, "Str parameter passed by value: ", p.name) }
+            if jni_is_copied(kind) { panic(__LOC__, "Str or Vec(Str) parameter passed by value: ", p.name) }
             call_args = format(call_args, c_value)
-        } else if heap_box {
+        } else if is_own.and(stack_outer.not()) {
             // `own` at the library boundary: the callee frees the box.
-            cf.write("    ").write(c_type).write(" *").write(t).write(" = (").write(c_type).write(" *)malloc(sizeof *")
-                .write(t).write(");\n")
-            cf.write("    if (").write(t).write(" == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+            emit_jni_alloc_box(cf, t, c_type)
             cf.write("    *").write(t).write(" = ").write(c_value).write(";\n")
             call_args = format(call_args, t)
         } else {
             cf.write("    ").write(c_type).write(" ").write(t).write(" = ").write(c_value).write(";\n")
-            call_args = format(call_args, format("&", t))
-            if tn == "Str" { str_temps.push(own t.clone()) }
+            call_args = format(call_args, "&", t)
+            if jni_is_copied(kind).and(is_own.not()) { after = format(after, "    ", jni_c_delete(kind, t), "\n") }
         }
     }
 
-    cf.write("    ")
     if has_ret {
-        if ret_is_str { cf.write("TilJniStr r = ") }
-        else { cf.write(fd.sig.return_type).write(" r = ") }
+        rct := jni_til_c_type(rt, types, ctx)
+        if ret_ref { cf.write("    ").write(rct).write(" *r = ") }
+        else if ret_kind == "handle" {
+            emit_jni_alloc_box(cf, "r", rct)
+            cf.write("    *r = ")
+        } else { cf.write("    ").write(rct).write(" r = ") }
+    } else {
+        cf.write("    ")
     }
     cf.write(c_symbol).write("(").write(call_args).write(");\n")
-    for t2 : Str in str_temps {
-        cf.write("    TIL_JNI_STR_DELETE(&").write(t2).write(", 0);\n")
-    }
+    cf.write(after)
 
     // Payload slot deletes, run on both paths.
     mut slot_deletes := ""
@@ -8992,8 +9272,8 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         ref p : Declaration = fd.sig.params[i]
         if p.name == "_err_kind" { continue }
         if jni_param_is_err_slot(p).not() { continue }
-        slot := jni_err_slot(decl_type_name_ref(p, ctx.symbols), format("err_", i.to_str()), ctx)
-        if slot.free_stmt.len() > 0 { slot_deletes = format(slot_deletes, format("        ", slot.free_stmt, "\n")) }
+        slot := jni_err_slot(jni_decl_type(p, ctx), format("err_", i.to_str()), ctx)
+        if slot.free_stmt.len() > 0 { slot_deletes = format(slot_deletes, "        ", slot.free_stmt, "\n") }
     }
 
     if can_throw {
@@ -9019,31 +9299,634 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         cf.write("            abort();\n")
         cf.write("        }\n")
         cf.write(slot_deletes)
-        if ret_is_str { cf.write("        TIL_JNI_STR_DELETE(&r, 0);\n") }
+        // The error path's result is zero-initialized storage (a NULL
+        // reference): it owns nothing, so only the bridge's own box goes.
+        if ret_ref.not().and(jni_is_copied(ret_kind)) { cf.write("        ").write(jni_c_delete(ret_kind, "r")).write("\n") }
+        if ret_ref.not().and(ret_kind.eq("handle")) { cf.write("        free(r);\n") }
         cf.write("        ").write(ret_stmt).write("\n")
         cf.write("    }\n")
         cf.write(slot_deletes.replace("        ", "    "))
     }
     if has_ret {
-        if ret_is_str {
-            cf.write("    jbyteArray out = til_jni_str_out(env, &r);\n")
-            cf.write("    TIL_JNI_STR_DELETE(&r, 0);\n")
+        if ret_ref {
+            // A borrowed result: a handle views the library's storage, a
+            // scalar or Str is copied out of it.
+            if ret_kind == "handle" { cf.write("    return (jlong)(intptr_t)r;\n") }
+            else { cf.write("    ").write(jni_c_return_out(rt, "(*r)", types, ctx)).write("\n") }
+        } else if jni_is_copied(ret_kind) {
+            cf.write("    ").write(c_ret).write(" out = ").write(jni_c_out(ret_kind, "&r")).write(";\n")
+            cf.write("    ").write(jni_c_delete(ret_kind, "r")).write("\n")
             cf.write("    return out;\n")
-        } else if fd.sig.return_type == "Bool" {
-            cf.write("    return r ? JNI_TRUE : JNI_FALSE;\n")
+        } else if ret_kind == "handle" {
+            cf.write("    return (jlong)(intptr_t)r;\n")
         } else {
-            cf.write("    return (").write(c_ret).write(")r;\n")
+            cf.write("    return ").write(jni_c_scalar_out(rt, "r", types, ctx)).write(";\n")
         }
     }
     cf.write("}\n\n")
 }
 
+// A Java name that keeps the handle class's and Object's own methods.
+priv jni_member_java_name := func(name: Str) returns Str {
+    switch name {
+    case "close", "tilHandle", "tilTake", "tag", "hashCode", "toString", "equals", "getClass",
+        "notify", "notifyAll", "wait", "clone", "finalize":
+        return format(name, "_")
+    case:
+    }
+    return jni_java_ident(name)
+}
+
+// C statements building a default value in the bridge, or the reason it
+// cannot (the first default that is not reproducible).
+priv JniInit := struct {
+    code := ""
+    reason := ""
+}
+
+// Sets the lvalue `place` of type `tn` to the til expression `e`: a
+// literal, or a constructor call of a public struct (recursively).
+priv jni_init_value := proc(place: Str, tn: Str, e: Expr, types: JniTypes, ctx: Context,
+        mut seq: I64, mut out: JniInit) {
+    if out.reason.len() > 0 { return }
+    kind := jni_kind(tn, types, ctx)
+    switch e.node_type {
+    case .Literal(Literal.Num(num)):
+        if kind == "scalar" {
+            mut text := typed_num_lit_to_c(num.literal_num_text(), e.til_type())
+            if type_is_primitive(e.til_type(), Primitive.U64) { text = format(text, "ULL") }
+            out.code = format(out.code, "    ", place, " = ", text, ";\n")
+            return
+        }
+    case .Literal(Literal.Bool(b)):
+        if kind == "scalar" {
+            mut bit := "0"
+            if b { bit = "1" }
+            out.code = format(out.code, "    ", place, " = ", bit, ";\n")
+            return
+        }
+    case .Literal(Literal.Str(lit)):
+        if kind == "str" {
+            out.code = format(out.code, "    ", place, " = til_jni_str_lit(\"", lit, "\", ",
+                c_lit_byte_count(lit).to_str(), ");\n")
+            return
+        }
+    case .FCall:
+        if kind.eq("handle").and(types.enums.has(tn).not()).and(e.children.len().gt(0)) {
+            mut callee_is_tn := false
+            switch e.children[0].node_type {
+            case .Ident(id): callee_is_tn = id.ident_name(ctx.symbols.names).eq(tn)
+            case:
+            }
+            if callee_is_tn {
+                def_o := ctx.scope.get_struct(tn, ctx.symbols)
+                if def_o.is_none() { panic(__LOC__, "public struct without a definition: ", tn) }
+                ref def : Expr = def_o.unwrap()
+                switch def.node_type {
+                case .StructDef(sdd):
+                    jni_init_fields(sdd, place, e, true, types, ctx, seq, out)
+                    return
+                case:
+                }
+            }
+        }
+    case:
+    }
+    out.reason = format("a default of type ", tn, " is not a literal or a constructor call")
+}
+
+// Sets each field of the struct lvalue `place` from the constructor call
+// `call` (when `has_call`) or the field's own default; an own field gets a
+// box from the runtime's allocator.
+priv jni_init_fields := proc(sdd: StructDef, place: Str, call: Expr, has_call: Bool, types: JniTypes,
+        ctx: Context, mut seq: I64, mut out: JniInit) {
+    for fi in 0..sdd.fields.len() {
+        if out.reason.len() > 0 { return }
+        ref fdd : Declaration = sdd.fields[fi]
+        ref fname : Str = sdd.field_name_at(fi)
+        ftn := jni_decl_type(fdd, ctx)
+        // The argument for this field: named, or in its positional slot.
+        mut arg_ci : USize = 0
+        mut arg_named := false
+        if has_call {
+            for ci in 1..call.children.len() {
+                switch call.children[ci].node_type {
+                case .NamedArg(an):
+                    if an == fname {
+                        arg_ci = ci
+                        arg_named = true
+                    }
+                case:
+                    if ci - 1 == fi { arg_ci = ci }
+                }
+            }
+        }
+        mut target := format(place, ".", fname)
+        mut box := ""
+        if fdd.own_type.is(OwnType.Ref) {
+            out.reason = format("field '", fname, "' is a reference")
+            return
+        }
+        if fdd.own_type.is(OwnType.Own).and(field_is_own_ptr(sdd, fdd)) {
+            // `own data: U8 = 0` is a raw buffer that starts out absent,
+            // not a boxed scalar.
+            if jni_kind(ftn, types, ctx) == "scalar" {
+                out.reason = format("field '", fname, "' is an own ", ftn, " buffer")
+                return
+            }
+            seq = seq + 1
+            box = format("b", seq.to_str())
+            bt := jni_til_c_type(ftn, types, ctx)
+            out.code = format(out.code, "    ", bt, " *", box, " = (", bt, " *)malloc(TIL_JNI_BOX(", bt, "));\n",
+                "    if (", box, " == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n",
+                "    memset(", box, ", 0, sizeof *", box, ");\n")
+            target = format("(*", box, ")")
+        } else if fdd.own_type.is(OwnType.Shallow).not() {
+            out.reason = format("field '", fname, "' is behind a pointer")
+            return
+        }
+        if arg_ci > 0 {
+            ref arg : Expr = call.children[arg_ci]
+            if arg_named { jni_init_value(target, ftn, arg.children[0], types, ctx, seq, out) }
+            else { jni_init_value(target, ftn, arg, types, ctx, seq, out) }
+        } else if fdd.default_value.is_some() {
+            jni_init_value(target, ftn, fdd.default_expr(), types, ctx, seq, out)
+        } else {
+            out.reason = format("field '", fname, "' has no default")
+            return
+        }
+        if box.len() > 0 { out.code = format(out.code, "    TIL_OWN_SET(", place, ".", fname, ", ", box, ");\n") }
+    }
+}
+
+// A getter (and a setter when `settable`) for one member of a handle class:
+// a struct field or an enum payload, reached in C as the lvalue `place`
+// built from the box pointer `P`. A scalar or Str is copied in and out; a
+// handle-typed member is a borrowed handle onto the containing value.
+priv JniMember := struct {
+    owner := ""
+    name := ""
+    type_name := ""
+    place := ""
+    settable := false
+    guard := ""
+}
+
+priv emit_jni_member := proc(jf: File, cf: File, m: JniMember, types: JniTypes, ctx: Context) returns Str {
+    kind := jni_kind(m.type_name, types, ctx)
+    jname := jni_member_java_name(m.name)
+    jt := jni_java_type(m.type_name, types, ctx)
+    nt := jni_native_type(m.type_name, types, ctx)
+    ct := jni_c_type(m.type_name, types, ctx)
+    getter := format("h_", m.owner, "_get_", m.name)
+    setter := format("h_", m.owner, "_set_", m.name)
+    owner_c := lib_c_resolved_name(m.owner, ctx)
+    place := m.place.replace("P->", format("((", owner_c, " *)(intptr_t)h)->"))
+    mut natives := format("    private static native ", nt, " ", getter, "(long h);\n")
+    mut get_expr := jni_java_out(kind, format(getter, "(tilHandle())"))
+    if kind == "handle" { get_expr = format("new ", jt, "(", get_expr, ", false)") }
+    jf.write("        public ").write(jt).write(" ").write(jname).write("() {\n")
+    if m.guard.len() > 0 { jf.write("            ").write(m.guard).write("\n") }
+    jf.write("            return ").write(get_expr).write(";\n        }\n")
+    emit_jni_c_head(cf, ct, types.class_path, getter, ", jlong h")
+    cf.write("    ").write(jni_c_return_out(m.type_name, place, types, ctx)).write("\n}\n\n")
+    if m.settable.and(kind.eq("handle").not()) {
+        natives = format(natives, "    private static native void ", setter, "(long h, ", nt, " v);\n")
+        arg := jni_java_in(kind, "v")
+        jf.write("        public void ").write(jname).write("(").write(jt).write(" v) { ").write(setter)
+            .write("(tilHandle(), ").write(arg).write("); }\n")
+        emit_jni_c_head(cf, "void", types.class_path, setter, format(", jlong h, ", ct, " v"))
+        if jni_is_copied(kind) {
+            cf.write("    ").write(jni_til_c_type(m.type_name, types, ctx)).write(" nv = ").write(jni_c_in(kind, "v")).write(";\n")
+            cf.write("    ").write(jni_c_delete(kind, place)).write("\n")
+            cf.write("    ").write(place).write(" = nv;\n}\n\n")
+        } else {
+            cf.write("    ").write(place).write(" = ").write(jni_c_value_in(m.type_name, "v")).write(";\n}\n\n")
+        }
+    }
+    return natives
+}
+
+// One public struct or enum as a nested Java handle class: an AutoCloseable
+// owner (or borrowed view) of the value in a heap box.
+priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, types: JniTypes, ctx: Context) {
+    jcls := jni_java_ident(name)
+    c_type := lib_c_resolved_name(name, ctx)
+    hp := format("h_", name, "_")
+
+    jf.write("    /** Handle to a til ").write(name).write(": close() releases what it owns. */\n")
+    jf.write("    public static final class ").write(jcls).write(" implements AutoCloseable {\n")
+    jf.write("        private long handle;\n")
+    jf.write("        private final boolean owned;\n")
+    jf.write("        ").write(jcls).write("(long handle, boolean owned) {\n")
+    jf.write("            this.handle = handle;\n")
+    jf.write("            this.owned = owned;\n")
+    jf.write("        }\n")
+    jf.write("        long tilHandle() {\n")
+    jf.write("            if (handle == 0) { throw new IllegalStateException(\"").write(name)
+        .write(" handle is closed or moved\"); }\n")
+    jf.write("            return handle;\n")
+    jf.write("        }\n")
+    jf.write("        long tilTake() {\n")
+    jf.write("            if (!owned) { throw new IllegalStateException(\"cannot move a borrowed ").write(name).write("\"); }\n")
+    jf.write("            long h = tilHandle();\n")
+    jf.write("            handle = 0;\n")
+    jf.write("            return h;\n")
+    jf.write("        }\n")
+    jf.write("        @Override public void close() {\n")
+    jf.write("            long h = handle;\n")
+    jf.write("            handle = 0;\n")
+    jf.write("            if (owned && h != 0) { ").write(hp).write("free(h); }\n")
+    jf.write("        }\n")
+
+    // close(): the type's delete frees contents and box.
+    noop := init_delete_is_noop(name, ctx.scope, ctx.symbols)
+    if noop.not() { emit_jni_delete_proto(cf, name, ctx) }
+    emit_jni_c_head(cf, "void", types.class_path, format(hp, "free"), ", jlong h")
+    if noop { cf.write("    free((void *)(intptr_t)h);\n}\n\n") }
+    else {
+        cf.write("    ").write(lib_c_resolved_name(format(name, "_delete"), ctx)).write("((").write(c_type)
+            .write(" *)(intptr_t)h, 1);\n}\n\n")
+    }
+    mut natives := format("    private static native void ", hp, "free(long h);\n")
+
+    switch def.node_type {
+    case .StructDef(sdd):
+        // Default constructor: what til's `T()` builds, when the bridge can
+        // reproduce every default.
+        mut init := JniInit()
+        mut seq : I64 = 0
+        jni_init_fields(sdd, "(*p)", def, false, types, ctx, seq, init)
+        if init.reason.len() > 0 {
+            jf.write("        // ").write(jcls).write("(): not bound: ").write(init.reason).write("\n")
+        } else {
+            jf.write("        public ").write(jcls).write("() { this(").write(hp).write("new(), true); }\n")
+            natives = format(natives, "    private static native long ", hp, "new();\n")
+            emit_jni_c_head(cf, "jlong", types.class_path, format(hp, "new"), "")
+            emit_jni_alloc_box(cf, "p", c_type)
+            cf.write("    memset(p, 0, sizeof *p);\n").write(init.code)
+            cf.write("    return (jlong)(intptr_t)p;\n}\n\n")
+        }
+        for fi in 0..sdd.fields.len() {
+            ref fdd : Declaration = sdd.fields[fi]
+            if fdd.is_priv { continue }
+            ref fname : Str = sdd.field_name_at(fi)
+            ftn := jni_decl_type(fdd, ctx)
+            kind := jni_kind(ftn, types, ctx)
+            if kind.len().eq(0).or(kind.eq("callback")) {
+                jf.write("        // field ").write(fname).write(": not bound: type ").write(ftn).write("\n")
+                continue
+            }
+            // The field's storage, as emit_struct_typedef lays it out.
+            mut m := JniMember(owner = name.clone(), name = fname.clone(), type_name = ftn.clone())
+            if fdd.own_type.is(OwnType.Shallow) {
+                m.place = format("P->", fname)
+                m.settable = true
+            } else if fdd.own_type.is(OwnType.Own).and(field_is_own_ptr(sdd, fdd)) {
+                m.place = format("(*TIL_OWN_GET(", jni_til_c_type(ftn, types, ctx), ", P->", fname, "))")
+                m.settable = true
+            } else {
+                // A ref field borrows its pointee: readable, not rebound here.
+                m.place = format("(*P->", fname, ")")
+                m.settable = fdd.own_type.is(OwnType.Own)
+            }
+            natives = format(natives, emit_jni_member(jf, cf, m, types, ctx))
+        }
+    case .EnumDef(edd):
+        niche := enum_is_niche(def)
+        mut tag_java := "long"
+        if niche.not() { tag_java = jni_scalar_java(enum_tag_type(def), ctx) }
+        for vd : VariantDef in edd.variants {
+            jf.write("        public static final ").write(tag_java).write(" TAG_").write(vd.name).write(" = (")
+                .write(tag_java).write(")").write(vd.tag_value.to_str()).write(";\n")
+        }
+        // Without payloads the library exports no constructors (variants
+        // are tag constants): the bridge builds the value.
+        if enum_has_payloads(def).not() {
+            for fvd : VariantDef in edd.variants {
+                fnative := format(hp, "new_", fvd.name)
+                natives = format(natives, "    public static ", jcls, " ", name, "_", fvd.name, "() { return new ", jcls,
+                    "(", fnative, "(), true); }\n", "    private static native long ", fnative, "();\n")
+                emit_jni_c_head(cf, "jlong", types.class_path, fnative, "")
+                emit_jni_alloc_box(cf, "p", c_type)
+                cf.write("    memset(p, 0, sizeof *p);\n    p->tag = ").write(fvd.tag_value.to_str())
+                    .write(";\n    return (jlong)(intptr_t)p;\n}\n\n")
+            }
+        }
+        tag_native := format(hp, "tag")
+        natives = format(natives, "    private static native ", tag_java, " ", tag_native, "(long h);\n")
+        jf.write("        public ").write(tag_java).write(" tag() { return ").write(tag_native).write("(tilHandle()); }\n")
+        emit_jni_c_head(cf, format("j", tag_java), types.class_path, tag_native, ", jlong h")
+        tag_place := format("((", c_type, " *)(intptr_t)h)")
+        if niche {
+            some_i := enum_niche_some_index(def)
+            mut none_tag := ""
+            mut some_tag := ""
+            for vi in 0..edd.variants.len() {
+                ref nvd : VariantDef = edd.variants[vi]
+                if vi.to_i32() == some_i { some_tag = nvd.tag_value.to_str() } else { none_tag = nvd.tag_value.to_str() }
+            }
+            cf.write("    return ").write(tag_place).write("->data == NULL ? (jlong)").write(none_tag)
+                .write(" : (jlong)").write(some_tag).write(";\n}\n\n")
+        } else {
+            cf.write("    return (j").write(tag_java).write(")").write(tag_place).write("->tag;\n}\n\n")
+        }
+        for vi in 0..edd.variants.len() {
+            ref pvd : VariantDef = edd.variants[vi]
+            if pvd.payload_type.len() == 0 { continue }
+            vtn := jni_resolve(enum_variant_type(def, vi.to_i32()), ctx)
+            kind := jni_kind(vtn, types, ctx)
+            if kind.len().eq(0).or(kind.eq("callback")) {
+                jf.write("        // payload ").write(pvd.name).write(": not bound: type ").write(vtn).write("\n")
+                continue
+            }
+            mut m := JniMember(owner = name.clone(), name = pvd.name.clone(), type_name = vtn.clone())
+            if niche { m.place = "(*P->data)" }
+            else if enum_variant_payload_ref(def, vi.to_i32()) { m.place = format("(*P->data.", pvd.name, ")") }
+            else { m.place = format("P->data.", pvd.name) }
+            m.guard = format("if (tag() != TAG_", pvd.name, ") { throw new IllegalStateException(\"", name,
+                " is not ", pvd.name, "\"); }")
+            natives = format(natives, emit_jni_member(jf, cf, m, types, ctx))
+        }
+    case:
+        panic(__LOC__, "handle class for a non-struct, non-enum ", name)
+    }
+    jf.write("    }\n")
+    jf.write(natives).write("\n")
+}
+
+// Why a FuncSig cannot be implemented from Java, or "" when it can. Its
+// parameters arrive as borrowed values (scalars, Str copies, borrowed
+// handles valid during the call); its result is handed to til by value.
+priv jni_callback_reason := func(sfd: FunctionDef, types: JniTypes, ctx: Context) returns Str {
+    if sfd.sig.throw_types.len() > 0 { return "throws" }
+    if sfd.sig.variadic_index.gte(0).or(sfd.sig.kwargs_index.gte(0)) { return "variadic parameter" }
+    for p : Declaration in sfd.sig.params {
+        tn := jni_decl_type(p, ctx)
+        kind := jni_kind(tn, types, ctx)
+        if kind.len().eq(0).or(kind.eq("callback")) { return format("parameter of type ", tn) }
+        if p.is_mut { return "mut parameter" }
+        if p.own_type.is(OwnType.Own).and(kind.neq("scalar")) { return format("own parameter of type ", tn) }
+    }
+    if sfd.sig.return_type.len() > 0 {
+        rt := jni_resolve(sfd.sig.return_type, ctx)
+        rkind := jni_kind(rt, types, ctx)
+        if rkind.len().eq(0).or(rkind.eq("callback")) { return format("return type ", rt) }
+        if func_returns_c_value(sfd).not() { return format("returns ref ", rt) }
+    }
+    return ""
+}
+
+// A public FuncSig as a Java functional interface, plus the C trampoline a
+// TilClosure calls and the Java adapter it calls back through. The adapter
+// does the Java-side conversions (String, handle wrapping), so C only
+// passes primitives, byte[] and jlong.
+priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, types: JniTypes, ctx: Context) {
+    jname := jni_java_ident(name)
+    adapter := format("cb_", name)
+    has_ret := sfd.sig.return_type.len() > 0
+    mut rt := ""
+    mut rkind := ""
+    mut java_ret := "void"
+    mut native_ret := "void"
+    if has_ret {
+        rt = jni_resolve(sfd.sig.return_type, ctx)
+        rkind = jni_kind(rt, types, ctx)
+        java_ret = jni_java_type(rt, types, ctx)
+        native_ret = jni_native_type(rt, types, ctx)
+    }
+    mut iface_params := ""
+    mut adapter_params := format(jname, " f")
+    mut adapter_args := ""
+    mut descriptor := format("(L", types.class_path, "$", jname, ";")
+    mut c_params := "void *envp"
+    mut c_pre := ""
+    mut c_args := "    args[0].l = cb->fn;\n"
+    mut c_post := ""
+    for i in 0..sfd.sig.params.len() {
+        ref p : Declaration = sfd.sig.params[i]
+        tn := jni_decl_type(p, ctx)
+        kind := jni_kind(tn, types, ctx)
+        a := format("a", i.to_str())
+        x := format("x", i.to_str())
+        if i > 0 {
+            iface_params = format(iface_params, ", ")
+            adapter_args = format(adapter_args, ", ")
+        }
+        nt := jni_native_type(tn, types, ctx)
+        iface_params = format(iface_params, jni_java_type(tn, types, ctx), " ", a)
+        adapter_params = format(adapter_params, ", ", nt, " ", a)
+        descriptor = format(descriptor, jni_descriptor(nt))
+        by_value := func_param_passes_c_value(sfd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        ctv := jni_til_c_type(tn, types, ctx)
+        if by_value { c_params = format(c_params, ", ", ctv, " ", x) }
+        else { c_params = format(c_params, ", ", ctv, " *", x) }
+        mut xv := x.clone()
+        if by_value.not() { xv = format("(*", x, ")") }
+        slot := format("args[", (i + 1).to_str(), "]")
+        if jni_is_copied(kind) {
+            adapter_args = format(adapter_args, jni_java_out(kind, a))
+            c_pre = format(c_pre, "    ", jni_c_type(tn, types, ctx), " s", i.to_str(), " = ", jni_c_out(kind, format("&", xv)), ";\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n")
+            c_args = format(c_args, "    ", slot, ".l = s", i.to_str(), ";\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, s", i.to_str(), ");\n")
+        } else if kind == "handle" {
+            // A borrowed view, valid only during the callback.
+            adapter_args = format(adapter_args, "new ", jni_java_type(tn, types, ctx), "(", a, ", false)")
+            c_args = format(c_args, "    ", slot, ".j = (jlong)(intptr_t)&", xv, ";\n")
+        } else {
+            adapter_args = format(adapter_args, a)
+            c_args = format(c_args, "    ", slot, ".", jni_jvalue_field(nt), " = ",
+                jni_c_scalar_out(tn, xv, types, ctx), ";\n")
+        }
+    }
+    descriptor = format(descriptor, ")", jni_descriptor(native_ret))
+
+    jf.write("    /** Implements the til callback type ").write(name).write(". */\n")
+    jf.write("    @FunctionalInterface\n")
+    jf.write("    public interface ").write(jname).write(" {\n")
+    jf.write("        ").write(java_ret).write(" call(").write(iface_params).write(");\n")
+    jf.write("    }\n")
+    mut adapter_call := jni_java_in(rkind, format("f.call(", adapter_args, ")"))
+    if rkind == "handle" { adapter_call = format(adapter_call, ".tilTake()") }
+    jf.write("    private static ").write(native_ret).write(" ").write(adapter).write("(").write(adapter_params).write(") {\n")
+    if has_ret { jf.write("        return ").write(adapter_call).write(";\n") }
+    else { jf.write("        ").write(adapter_call).write(";\n") }
+    jf.write("    }\n\n")
+
+    mut c_ret := "void"
+    if has_ret { c_ret = jni_til_c_type(rt, types, ctx) }
+    nargs := sfd.sig.params.len() + 1
+    cf.write("static inline ").write(c_ret).write(" til_jni_cb_call_").write(name).write("(").write(c_params).write(") {\n")
+    cf.write("    TilJniCallback *cb = (TilJniCallback *)envp;\n")
+    cf.write("    JNIEnv *env = til_jni_cb_env(cb->vm);\n")
+    cf.write(c_pre)
+    cf.write("    jvalue args[").write(nargs.to_str()).write("];\n")
+    cf.write(c_args)
+    mut call_kind := "Void"
+    if has_ret {
+        if jni_is_copied(rkind) { call_kind = "Object" }
+        else if rkind == "handle" { call_kind = "Long" }
+        else { call_kind = jni_prim_infix(native_ret) }
+    }
+    cf.write("    ")
+    if has_ret {
+        if jni_is_copied(rkind) { cf.write(jni_c_type(rt, types, ctx)).write(" r = (").write(jni_c_type(rt, types, ctx)).write(")") }
+        else { cf.write("j").write(native_ret).write(" r = ") }
+    }
+    cf.write("(*env)->CallStatic").write(call_kind).write("MethodA(env, cb->cls, cb->adapter, args);\n")
+    cf.write("    til_jni_cb_check(env, \"").write(name).write("\");\n")
+    cf.write(c_post)
+    if has_ret {
+        if jni_is_copied(rkind) {
+            cf.write("    ").write(c_ret).write(" out = ").write(jni_c_in(rkind, "r")).write(";\n")
+            cf.write("    (*env)->DeleteLocalRef(env, r);\n")
+            cf.write("    return out;\n")
+        } else if rkind == "handle" {
+            // The adapter moved an owned handle out of Java: its value is
+            // the result, its box is the bridge's to free.
+            cf.write("    ").write(c_ret).write(" *box = (").write(c_ret).write(" *)(intptr_t)r;\n")
+            cf.write("    ").write(c_ret).write(" out = *box;\n")
+            cf.write("    free(box);\n")
+            cf.write("    return out;\n")
+        } else {
+            cf.write("    return ").write(jni_c_value_in(rt, "r")).write(";\n")
+        }
+    }
+    cf.write("}\n\n")
+    cf.write("static inline TilJniClosure *til_jni_cb_new_").write(name).write("(JNIEnv *env, jobject fn) {\n")
+    cf.write("    return til_jni_closure(env, fn, \"").write(adapter).write("\", \"").write(descriptor)
+        .write("\", (void *)til_jni_cb_call_").write(name).write(");\n")
+    cf.write("}\n\n")
+}
+
+// A public global or namespace datum: getter (and setter when `mut`) for a
+// scalar or Str, a borrowed handle for a struct or enum. A `ref` global is
+// a C pointer object, read through on every access.
+priv emit_jni_global := proc(jf: File, cf: File, api_name: Str, symbol: Str, d: Declaration,
+        types: JniTypes, ctx: Context) {
+    tn := jni_decl_type(d, ctx)
+    kind := jni_kind(tn, types, ctx)
+    is_ref := d.own_type.is(OwnType.Ref)
+    if kind.len().eq(0).or(kind.eq("callback")).or(is_ref.or(d.own_type.is(OwnType.Shallow)).not()) {
+        jf.write("    // ").write(api_name).write(": not bound: global of type ").write(tn).write("\n\n")
+        return
+    }
+    c_type := jni_til_c_type(tn, types, ctx)
+    cf.write("extern ").write(c_type).write(" ")
+    if is_ref { cf.write("*") }
+    cf.write(symbol).write(";\n")
+    mut place := symbol.clone()
+    if is_ref { place = format("(*", symbol, ")") }
+    java_name := jni_java_ident(api_name)
+    getter := format("g_", api_name, "_get")
+    setter := format("g_", api_name, "_set")
+    nt := jni_native_type(tn, types, ctx)
+    ct := jni_c_type(tn, types, ctx)
+    jt := jni_java_type(tn, types, ctx)
+    jf.write("    private static native ").write(nt).write(" ").write(getter).write("();\n")
+    mut get_expr := jni_java_out(kind, format(getter, "()"))
+    // The global's storage lives as long as the library: a borrowed handle
+    // that close() never frees.
+    if kind == "handle" { get_expr = format("new ", jt, "(", get_expr, ", false)") }
+    jf.write("    public static ").write(jt).write(" ").write(java_name).write("() { return ").write(get_expr).write("; }\n")
+    emit_jni_c_head(cf, ct, types.class_path, getter, "")
+    cf.write("    ").write(jni_c_return_out(tn, place, types, ctx)).write("\n}\n\n")
+    if d.is_mut.and(kind.eq("handle").not()) {
+        jf.write("    private static native void ").write(setter).write("(").write(nt).write(" v);\n")
+        arg := jni_java_in(kind, "v")
+        jf.write("    public static void ").write(java_name).write("(").write(jt).write(" v) { ").write(setter)
+            .write("(").write(arg).write("); }\n")
+        emit_jni_c_head(cf, "void", types.class_path, setter, format(", ", ct, " v"))
+        if jni_is_copied(kind) {
+            cf.write("    ").write(c_type).write(" nv = ").write(jni_c_in(kind, "v")).write(";\n")
+            cf.write("    ").write(jni_c_delete(kind, place)).write("\n")
+            cf.write("    ").write(place).write(" = nv;\n}\n\n")
+        } else {
+            cf.write("    ").write(place).write(" = ").write(jni_c_value_in(tn, "v")).write(";\n}\n\n")
+        }
+    }
+    jf.write("\n")
+}
+
+priv emit_jni_alloc_alias := proc(cf: File, name: Str, ctx: Context) {
+    resolved := lib_c_resolved_name(name, ctx)
+    if resolved != name { cf.write("#define ").write(name).write(" ").write(resolved).write("\n") }
+}
+
+// Binds `alias := f` for a public top-level function f; false when `rhs`
+// does not name one.
+priv emit_jni_alias := proc(jf: File, cf: File, lp: LoadedProgram, alias: Str, rhs: Expr, lib_name: Str,
+        types: JniTypes) returns Bool {
+    mut target := ""
+    switch rhs.node_type {
+    case .Ident(id): target = id.ident_name(lp.ctx.symbols.names).clone()
+    case: return false
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { continue }
+            ref dd : Declaration = decl_of(stmt)
+            if dd.name.neq(target).or(dd.is_priv) { continue }
+            switch stmt.children[0].node_type {
+            case .FuncDef(fd):
+                if stmt.children[0].children.len().eq(0).or(fd.sig.func_type.is_bodyless()) { return false }
+                emit_jni_function(jf, cf, fd, alias, c_lib_symbol(lib_name, func_to_c(target)), types, lp.ctx)
+                return true
+            case:
+                return false
+            }
+        }
+    }
+    return false
+}
+
+priv jni_is_funcsig := func(name: Str, ctx: Context) returns Bool {
+    sym_o := ctx.symbols.lookup(name)
+    return sym_o.is_some().and(ctx.funcsig_names.has(sym_o.unwrap()))
+}
+
 priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: Str, lib_name: Str) returns I32 {
     pkg := jni_package_name(lib_name)
     cls := jni_class_name(lib_name)
-    java_class_path := format("til/", pkg, "/", cls)
+    mut types := JniTypes(class_path = format("til/", pkg, "/", cls))
+    types.has_strvec = lib_c_resolved_name("Vec__Str", lp.ctx).neq("Vec__Str")
+        .and(lib_c_resolved_name("Vec__Str_delete", lp.ctx).neq("Vec__Str_delete"))
     jf := File.new(java_path, true)
     cf := File.new(jni_c_path, true)
+
+    // Public structs and enums become handle classes, public FuncSigs
+    // callback interfaces; these names are what signatures may mention.
+    for su : ProgramUnit in lp.units {
+        ref siu : ImportUnit = lp.ctx.imported[su.path]
+        for sstmt : Expr in siu.ast.children {
+            if sstmt.node_type.is(NodeType.Decl).not().or(sstmt.children.len().eq(0)) { continue }
+            ref sd : Declaration = decl_of(sstmt)
+            if sd.is_priv { continue }
+            ref srhs : Expr = sstmt.children[0]
+            if srhs.node_type.is(NodeType.StructDef) { types.handles.add(own sd.name.clone()) }
+            if srhs.node_type.is(NodeType.EnumDef) {
+                types.handles.add(own sd.name.clone())
+                types.enums.add(own sd.name.clone())
+            }
+        }
+    }
+    // A FuncSig may take or return another's type only through handles, so
+    // one pass over the FuncSigs decides them all.
+    for cu : ProgramUnit in lp.units {
+        ref ciu : ImportUnit = lp.ctx.imported[cu.path]
+        for cstmt : Expr in ciu.ast.children {
+            if cstmt.node_type.is(NodeType.Decl).not().or(cstmt.children.len().eq(0)) { continue }
+            ref cd : Declaration = decl_of(cstmt)
+            if cd.is_priv.or(jni_is_funcsig(cd.name, lp.ctx).not()) { continue }
+            switch cstmt.children[0].node_type {
+            case .FuncDef(csfd):
+                if jni_callback_reason(csfd, types, lp.ctx).len() == 0 { types.callbacks.add(own cd.name.clone()) }
+            case:
+            }
+        }
+    }
 
     jf.write("// Auto-generated JNI binding for ").write(lib_name).write(". Do not edit.\n")
     jf.write("// Native side: ").write(lib_name).write("_jni.c, built into lib").write(lib_name)
@@ -9064,55 +9947,93 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
     jf.write("        public String type() { return type; }\n")
     jf.write("    }\n\n")
     jf.write("    private static byte[] tilUtf8(String s) { return s.getBytes(StandardCharsets.UTF_8); }\n")
-    jf.write("    private static String tilStr(byte[] b) { return new String(b, StandardCharsets.UTF_8); }\n\n")
+    jf.write("    private static String tilStr(byte[] b) { return new String(b, StandardCharsets.UTF_8); }\n")
+    jf.write("    private static byte[][] tilUtf8All(String[] s) {\n")
+    jf.write("        byte[][] b = new byte[s.length][];\n")
+    jf.write("        for (int i = 0; i < s.length; i++) { b[i] = tilUtf8(s[i]); }\n")
+    jf.write("        return b;\n")
+    jf.write("    }\n")
+    jf.write("    private static String[] tilStrAll(byte[][] b) {\n")
+    jf.write("        String[] s = new String[b.length];\n")
+    jf.write("        for (int i = 0; i < b.length; i++) { s[i] = tilStr(b[i]); }\n")
+    jf.write("        return s;\n")
+    jf.write("    }\n\n")
 
     cf.write("// Auto-generated JNI bridge for ").write(lib_name).write(". Do not edit.\n")
     cf.write("// Java side: til.").write(pkg).write(".").write(cls).write(". Build it with doc/ffi.org's command.\n")
     cf.write("#include <jni.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n")
     cf.write("#include \"").write(lib_name).write(".h\"\n\n")
+    // ext.h routes malloc/calloc/realloc/free to the runtime's allocator
+    // (the cage under TIL_CPTR32) by its short names, which the header
+    // #undefs at its end. Til frees what the bridge hands it, so the bridge
+    // allocates through the same runtime.
+    emit_jni_alloc_alias(cf, "til_malloc", lp.ctx)
+    emit_jni_alloc_alias(cf, "til_calloc", lp.ctx)
+    emit_jni_alloc_alias(cf, "til_realloc", lp.ctx)
+    emit_jni_alloc_alias(cf, "til_free", lp.ctx)
+    cf.write("\n")
     cf.write("typedef ").write(lib_c_resolved_name("Str", lp.ctx)).write(" TilJniStr;\n")
+    cf.write("typedef ").write(lib_c_resolved_name("TilClosure", lp.ctx)).write(" TilJniClosure;\n")
     cf.write("void ").write(lib_c_resolved_name("Str_delete", lp.ctx)).write("(TilJniStr *self, Bool call_free);\n")
     cf.write("#define TIL_JNI_STR_DELETE ").write(lib_c_resolved_name("Str_delete", lp.ctx)).write("\n\n")
-    cf.write("static inline TilJniStr til_jni_str_in(JNIEnv *env, jbyteArray a) {\n")
-    cf.write("    jsize n = (*env)->GetArrayLength(env, a);\n")
-    cf.write("    TilJniStr s;\n")
-    cf.write("    s.c_str = (I8 *)malloc((size_t)n + 1);\n")
-    cf.write("    if (s.c_str == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
-    cf.write("    (*env)->GetByteArrayRegion(env, a, 0, n, (jbyte *)s.c_str);\n")
-    cf.write("    s.c_str[n] = 0;\n")
-    cf.write("    s.count = (USize)n;\n")
-    cf.write("    s.cap = (USize)n + 1;\n")
-    cf.write("    return s;\n")
-    cf.write("}\n\n")
-    cf.write("static inline jbyteArray til_jni_str_out(JNIEnv *env, const TilJniStr *s) {\n")
-    cf.write("    if ((uint64_t)s->count > (uint64_t)INT32_MAX) {\n")
-    cf.write("        fprintf(stderr, \"til jni: Str of %llu bytes does not fit a Java array\\n\", (unsigned long long)s->count);\n")
-    cf.write("        abort();\n")
-    cf.write("    }\n")
-    cf.write("    jbyteArray a = (*env)->NewByteArray(env, (jsize)s->count);\n")
-    cf.write("    // REM: NULL leaves OutOfMemoryError pending; the JVM raises it on return.\n")
-    cf.write("    if (a == NULL) return NULL;\n")
-    cf.write("    (*env)->SetByteArrayRegion(env, a, 0, (jsize)s->count, (const jbyte *)s->c_str);\n")
-    cf.write("    return a;\n")
-    cf.write("}\n\n")
-    cf.write("// Raises TilError(type, msg) in the JVM. A failing JNI call leaves its own\n")
-    cf.write("// exception pending instead, which the JVM raises when the native returns.\n")
-    cf.write("static inline void til_jni_throw(JNIEnv *env, const char *type, const TilJniStr *msg) {\n")
-    cf.write("    jclass ec = (*env)->FindClass(env, \"").write(java_class_path).write("$TilError\");\n")
-    cf.write("    if (ec == NULL) return;\n")
-    cf.write("    jmethodID ctor = (*env)->GetMethodID(env, ec, \"<init>\", \"(Ljava/lang/String;[B)V\");\n")
-    cf.write("    if (ctor == NULL) return;\n")
-    cf.write("    jstring jt = (*env)->NewStringUTF(env, type);\n")
-    cf.write("    if (jt == NULL) return;\n")
-    cf.write("    jbyteArray jm = NULL;\n")
-    cf.write("    if (msg != NULL) {\n")
-    cf.write("        jm = til_jni_str_out(env, msg);\n")
-    cf.write("        if (jm == NULL) return;\n")
-    cf.write("    }\n")
-    cf.write("    jobject ex = (*env)->NewObject(env, ec, ctor, jt, jm);\n")
-    cf.write("    if (ex == NULL) return;\n")
-    cf.write("    (*env)->Throw(env, (jthrowable)ex);\n")
-    cf.write("}\n\n")
+    emit_jni_bridge_prelude(cf, types.class_path)
+    if types.has_strvec { emit_jni_strvec_prelude(cf, lp.ctx) }
+
+    for hu : ProgramUnit in lp.units {
+        ref hiu : ImportUnit = lp.ctx.imported[hu.path]
+        for hstmt : Expr in hiu.ast.children {
+            if hstmt.node_type.is(NodeType.Decl).not().or(hstmt.children.len().eq(0)) { continue }
+            ref hd : Declaration = decl_of(hstmt)
+            if types.handles.has(hd.name).not() { continue }
+            emit_jni_handle_class(jf, cf, hd.name, hstmt.children[0], types, lp.ctx)
+        }
+    }
+
+    for fu : ProgramUnit in lp.units {
+        ref fiu : ImportUnit = lp.ctx.imported[fu.path]
+        for fstmt : Expr in fiu.ast.children {
+            if fstmt.node_type.is(NodeType.Decl).not().or(fstmt.children.len().eq(0)) { continue }
+            ref fsd : Declaration = decl_of(fstmt)
+            if fsd.is_priv.or(jni_is_funcsig(fsd.name, lp.ctx).not()) { continue }
+            switch fstmt.children[0].node_type {
+            case .FuncDef(sfd):
+                reason := jni_callback_reason(sfd, types, lp.ctx)
+                if reason.len() > 0 {
+                    jf.write("    // ").write(fsd.name).write(": callback not bound: ").write(reason).write("\n\n")
+                } else {
+                    emit_jni_callback(jf, cf, fsd.name, sfd, types, lp.ctx)
+                }
+            case:
+            }
+        }
+    }
+
+    // Public value storage, as in the Python binding.
+    for gu : ProgramUnit in lp.units {
+        ref giu : ImportUnit = lp.ctx.imported[gu.path]
+        for gstmt : Expr in giu.ast.children {
+            if gstmt.node_type.is(NodeType.Decl).not().or(gstmt.children.len().eq(0)) { continue }
+            ref gd : Declaration = decl_of(gstmt)
+            if gd.is_priv { continue }
+            if is_exported_top_level_global(gstmt) {
+                // A function alias is the target's API under another name.
+                if emit_jni_alias(jf, cf, lp, gd.name, gstmt.children[0], lib_name, types) { continue }
+                emit_jni_global(jf, cf, gd.name, binding_global_symbol(gd, lib_name, gd.name), gd, types, lp.ctx)
+                continue
+            }
+            if is_struct_or_enum(gstmt).not() { continue }
+            ref gdef : Expr = gstmt.children[0]
+            ref gns : Vec(Declaration) = def_ns_decls(gdef)
+            for gi in 0..gns.len() {
+                if ns_member_is_data(gdef, gi).not() { continue }
+                ref gmember : Declaration = gns.unsafe_get(gi)
+                if gmember.is_priv { continue }
+                source_name := gd.name.concat3("_", def_ns_name_at(gdef, gi))
+                emit_jni_global(jf, cf, source_name, binding_global_symbol(gmember, lib_name, source_name), gmember,
+                    types, lp.ctx)
+            }
+        }
+    }
 
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -9130,13 +10051,24 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
                     if nsd.default_value.is_none() { continue }
                     switch nsd.default_expr().node_type {
                     case .FuncDef(nfd):
+                        api_name := dd.name.concat3("_", def_ns_name_at(rhs, ni))
+                        // An enum's variant constructors are its API.
+                        if nfd.is_enum_variant_ctor {
+                            vidx := enum_variant_index(rhs, def_ns_name_at(rhs, ni))
+                            // The enum would keep a ref payload's pointer to
+                            // the bridge's argument storage past the call.
+                            if enum_variant_payload_ref(rhs, vidx) {
+                                jf.write("    // ").write(api_name).write(": not bound: the payload is a reference\n\n")
+                                continue
+                            }
+                            emit_jni_function(jf, cf, nfd, api_name, c_lib_symbol(lib_name, api_name), types, lp.ctx)
+                            continue
+                        }
                         if nfd.sig.func_type.is_bodyless() { continue }
                         // Compiler-generated members (size, clone, delete,
                         // eq, ...) are the type's plumbing, not its API.
                         if nfd.auto_generated { continue }
-                        api_name := dd.name.concat3("_", def_ns_name_at(rhs, ni))
-                        emit_jni_function(jf, cf, nfd, api_name, c_lib_symbol(lib_name, api_name),
-                            java_class_path, lp.ctx)
+                        emit_jni_function(jf, cf, nfd, api_name, c_lib_symbol(lib_name, api_name), types, lp.ctx)
                     case:
                     }
                 }
@@ -9147,14 +10079,213 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
                 if rhs.children.len() == 0 { continue }
                 if fd.sig.func_type.is_bodyless() { continue }
                 if fd.sig.func_type.is(FuncType.Test) { continue }
-                emit_jni_function(jf, cf, fd, dd.name, c_lib_symbol(lib_name, func_to_c(dd.name)),
-                    java_class_path, lp.ctx)
+                if jni_is_funcsig(dd.name, lp.ctx) { continue }
+                emit_jni_function(jf, cf, fd, dd.name, c_lib_symbol(lib_name, func_to_c(dd.name)), types, lp.ctx)
             case:
             }
         }
     }
     jf.write("}\n")
     return 0
+}
+
+// Vec(Str) conversions: a til Vec(Str) is {data, count, cap} with `count`
+// Str values inline in a buffer from the runtime's allocator.
+priv emit_jni_strvec_prelude := proc(cf: File, ctx: Context) {
+    cf.write("typedef ").write(lib_c_resolved_name("Vec__Str", ctx)).write(" TilJniVecStr;\n")
+    cf.write("void ").write(lib_c_resolved_name("Vec__Str_delete", ctx)).write("(TilJniVecStr *self, Bool call_free);\n")
+    cf.write("#define TIL_JNI_VECSTR_DELETE ").write(lib_c_resolved_name("Vec__Str_delete", ctx)).write("\n\n")
+    cf.write("static inline TilJniVecStr til_jni_strvec_in(JNIEnv *env, jobjectArray a) {\n")
+    cf.write("    jsize n = (*env)->GetArrayLength(env, a);\n")
+    cf.write("    TilJniVecStr v;\n")
+    cf.write("    memset(&v, 0, sizeof v);\n")
+    cf.write("    if (n > 0) {\n")
+    cf.write("        TilJniStr *data = (TilJniStr *)malloc((size_t)n * sizeof(TilJniStr));\n")
+    cf.write("        if (data == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("        for (jsize i = 0; i < n; i++) {\n")
+    cf.write("            jbyteArray e = (jbyteArray)(*env)->GetObjectArrayElement(env, a, i);\n")
+    cf.write("            data[i] = til_jni_str_in(env, e);\n")
+    cf.write("            (*env)->DeleteLocalRef(env, e);\n")
+    cf.write("        }\n")
+    cf.write("        TIL_OWN_SET(v.data, (U8 *)data);\n")
+    cf.write("    }\n")
+    cf.write("    v.count = (USize)n;\n")
+    cf.write("    v.cap = (USize)n;\n")
+    cf.write("    return v;\n")
+    cf.write("}\n\n")
+    cf.write("static inline jobjectArray til_jni_strvec_out(JNIEnv *env, const TilJniVecStr *v) {\n")
+    cf.write("    if ((uint64_t)v->count > (uint64_t)INT32_MAX) {\n")
+    cf.write("        fprintf(stderr, \"til jni: Vec(Str) of %llu elements does not fit a Java array\\n\", (unsigned long long)v->count);\n")
+    cf.write("        abort();\n")
+    cf.write("    }\n")
+    cf.write("    jclass bc = (*env)->FindClass(env, \"[B\");\n")
+    cf.write("    // REM: NULL from a JNI call leaves its exception pending for the JVM.\n")
+    cf.write("    if (bc == NULL) return NULL;\n")
+    cf.write("    jobjectArray a = (*env)->NewObjectArray(env, (jsize)v->count, bc, NULL);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, bc);\n")
+    cf.write("    if (a == NULL) return NULL;\n")
+    cf.write("    const TilJniStr *data = (const TilJniStr *)TIL_OWN_GET(U8, v->data);\n")
+    cf.write("    for (jsize i = 0; i < (jsize)v->count; i++) {\n")
+    cf.write("        jbyteArray e = til_jni_str_out(env, &data[i]);\n")
+    cf.write("        if (e == NULL) return NULL;\n")
+    cf.write("        (*env)->SetObjectArrayElement(env, a, i, e);\n")
+    cf.write("        (*env)->DeleteLocalRef(env, e);\n")
+    cf.write("    }\n")
+    cf.write("    return a;\n")
+    cf.write("}\n\n")
+    cf.write("static inline void til_jni_strvec_write_back(JNIEnv *env, jobjectArray holder, TilJniVecStr *v) {\n")
+    cf.write("    jobjectArray o = til_jni_strvec_out(env, v);\n")
+    cf.write("    if (o != NULL) {\n")
+    cf.write("        (*env)->SetObjectArrayElement(env, holder, 0, o);\n")
+    cf.write("        (*env)->DeleteLocalRef(env, o);\n")
+    cf.write("    }\n")
+    cf.write("    TIL_JNI_VECSTR_DELETE(v, 0);\n")
+    cf.write("}\n\n")
+}
+
+// The bridge's fixed helpers, after the library header; class_path is the
+// Java class's binary name.
+priv emit_jni_bridge_prelude := proc(cf: File, class_path: Str) {
+    cf.write("// Heap boxes match the library's own: never smaller than a pointer.\n")
+    cf.write("#define TIL_JNI_BOX(T) (sizeof(T) < sizeof(void *) ? sizeof(void *) : sizeof(T))\n")
+    cf.write("\n")
+    cf.write("static inline TilJniStr til_jni_str_lit(const char *bytes, USize n) {\n")
+    cf.write("    I8 *buf = (I8 *)malloc((size_t)n + 1);\n")
+    cf.write("    if (buf == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    memcpy(buf, bytes, (size_t)n);\n")
+    cf.write("    buf[n] = 0;\n")
+    cf.write("    TilJniStr s;\n")
+    cf.write("    TIL_OWN_SET(s.c_str, buf);\n")
+    cf.write("    s.count = n;\n")
+    cf.write("    s.cap = n + 1;\n")
+    cf.write("    return s;\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("static inline TilJniStr til_jni_str_in(JNIEnv *env, jbyteArray a) {\n")
+    cf.write("    jsize n = (*env)->GetArrayLength(env, a);\n")
+    cf.write("    I8 *buf = (I8 *)malloc((size_t)n + 1);\n")
+    cf.write("    if (buf == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    (*env)->GetByteArrayRegion(env, a, 0, n, (jbyte *)buf);\n")
+    cf.write("    buf[n] = 0;\n")
+    cf.write("    TilJniStr s;\n")
+    cf.write("    TIL_OWN_SET(s.c_str, buf);\n")
+    cf.write("    s.count = (USize)n;\n")
+    cf.write("    s.cap = (USize)n + 1;\n")
+    cf.write("    return s;\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("static inline jbyteArray til_jni_str_out(JNIEnv *env, const TilJniStr *s) {\n")
+    cf.write("    if ((uint64_t)s->count > (uint64_t)INT32_MAX) {\n")
+    cf.write("        fprintf(stderr, \"til jni: Str of %llu bytes does not fit a Java array\\n\", (unsigned long long)s->count);\n")
+    cf.write("        abort();\n")
+    cf.write("    }\n")
+    cf.write("    jbyteArray a = (*env)->NewByteArray(env, (jsize)s->count);\n")
+    cf.write("    // REM: NULL leaves OutOfMemoryError pending; the JVM raises it on return.\n")
+    cf.write("    if (a == NULL) return NULL;\n")
+    cf.write("    (*env)->SetByteArrayRegion(env, a, 0, (jsize)s->count, (const jbyte *)TIL_OWN_GET(I8, s->c_str));\n")
+    cf.write("    return a;\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("// A mut Str argument: the til value goes back into the caller's one-element\n")
+    cf.write("// array, then the bridge's copy is released.\n")
+    cf.write("static inline void til_jni_str_write_back(JNIEnv *env, jobjectArray holder, TilJniStr *s) {\n")
+    cf.write("    jbyteArray o = til_jni_str_out(env, s);\n")
+    cf.write("    if (o != NULL) {\n")
+    cf.write("        (*env)->SetObjectArrayElement(env, holder, 0, o);\n")
+    cf.write("        (*env)->DeleteLocalRef(env, o);\n")
+    cf.write("    }\n")
+    cf.write("    TIL_JNI_STR_DELETE(s, 0);\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("// Raises TilError(type, msg) in the JVM. A failing JNI call leaves its own\n")
+    cf.write("// exception pending instead, which the JVM raises when the native returns.\n")
+    cf.write("static inline void til_jni_throw(JNIEnv *env, const char *type, const TilJniStr *msg) {\n")
+    cf.write("    jclass ec = (*env)->FindClass(env, \"").write(class_path).write("$TilError\");\n")
+    cf.write("    if (ec == NULL) return;\n")
+    cf.write("    jmethodID ctor = (*env)->GetMethodID(env, ec, \"<init>\", \"(Ljava/lang/String;[B)V\");\n")
+    cf.write("    if (ctor == NULL) return;\n")
+    cf.write("    jstring jt = (*env)->NewStringUTF(env, type);\n")
+    cf.write("    if (jt == NULL) return;\n")
+    cf.write("    jbyteArray jm = NULL;\n")
+    cf.write("    if (msg != NULL) {\n")
+    cf.write("        jm = til_jni_str_out(env, msg);\n")
+    cf.write("        if (jm == NULL) return;\n")
+    cf.write("    }\n")
+    cf.write("    jobject ex = (*env)->NewObject(env, ec, ctor, jt, jm);\n")
+    cf.write("    if (ex == NULL) return;\n")
+    cf.write("    (*env)->Throw(env, (jthrowable)ex);\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("// A Java object implementing a callback interface, as a TilClosure's env:\n")
+    cf.write("// global references keep it and the class (whose static adapter the\n")
+    cf.write("// trampoline calls) alive until til drops the closure.\n")
+    cf.write("typedef struct {\n")
+    cf.write("    JavaVM *vm;\n")
+    cf.write("    jobject fn;\n")
+    cf.write("    jclass cls;\n")
+    cf.write("    jmethodID adapter;\n")
+    cf.write("} TilJniCallback;\n")
+    cf.write("\n")
+    cf.write("// The calling thread's JNIEnv; a thread til started is attached first.\n")
+    cf.write("static inline JNIEnv *til_jni_cb_env(JavaVM *vm) {\n")
+    cf.write("    JNIEnv *env = NULL;\n")
+    cf.write("    if ((*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6) == JNI_OK) return env;\n")
+    cf.write("    if ((*vm)->AttachCurrentThread(vm, (void **)&env, NULL) != JNI_OK) {\n")
+    cf.write("        fprintf(stderr, \"til jni: cannot attach a thread to the JVM for a callback\\n\");\n")
+    cf.write("        abort();\n")
+    cf.write("    }\n")
+    cf.write("    return env;\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("// Til code cannot unwind a Java exception: one thrown by a callback ends the\n")
+    cf.write("// process with its stack trace.\n")
+    cf.write("static inline void til_jni_cb_check(JNIEnv *env, const char *name) {\n")
+    cf.write("    if ((*env)->ExceptionCheck(env)) {\n")
+    cf.write("        (*env)->ExceptionDescribe(env);\n")
+    cf.write("        fprintf(stderr, \"til jni: exception in callback %s\\n\", name);\n")
+    cf.write("        abort();\n")
+    cf.write("    }\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("static inline void til_jni_cb_drop(void *envp) {\n")
+    cf.write("    TilJniCallback *cb = (TilJniCallback *)envp;\n")
+    cf.write("    JNIEnv *env = til_jni_cb_env(cb->vm);\n")
+    cf.write("    (*env)->DeleteGlobalRef(env, cb->fn);\n")
+    cf.write("    (*env)->DeleteGlobalRef(env, cb->cls);\n")
+    cf.write("    free(cb);\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("static inline void *til_jni_cb_clone(void *envp) {\n")
+    cf.write("    TilJniCallback *cb = (TilJniCallback *)envp;\n")
+    cf.write("    JNIEnv *env = til_jni_cb_env(cb->vm);\n")
+    cf.write("    TilJniCallback *copy = (TilJniCallback *)malloc(sizeof *copy);\n")
+    cf.write("    if (copy == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    *copy = *cb;\n")
+    cf.write("    copy->fn = (*env)->NewGlobalRef(env, cb->fn);\n")
+    cf.write("    copy->cls = (jclass)(*env)->NewGlobalRef(env, cb->cls);\n")
+    cf.write("    return copy;\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("static inline TilJniClosure *til_jni_closure(JNIEnv *env, jobject fn, const char *adapter, const char *sig, void *call) {\n")
+    cf.write("    TilJniCallback *cb = (TilJniCallback *)malloc(sizeof *cb);\n")
+    cf.write("    if (cb == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    if ((*env)->GetJavaVM(env, &cb->vm) != JNI_OK) { fprintf(stderr, \"til jni: no JavaVM\\n\"); abort(); }\n")
+    cf.write("    jclass local = (*env)->FindClass(env, \"").write(class_path).write("\");\n")
+    cf.write("    til_jni_cb_check(env, adapter);\n")
+    cf.write("    cb->adapter = (*env)->GetStaticMethodID(env, local, adapter, sig);\n")
+    cf.write("    til_jni_cb_check(env, adapter);\n")
+    cf.write("    cb->cls = (jclass)(*env)->NewGlobalRef(env, local);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, local);\n")
+    cf.write("    cb->fn = (*env)->NewGlobalRef(env, fn);\n")
+    cf.write("    TilJniClosure *c = (TilJniClosure *)malloc(sizeof *c);\n")
+    cf.write("    if (c == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    c->call = call;\n")
+    cf.write("    c->env = cb;\n")
+    cf.write("    c->drop = til_jni_cb_drop;\n")
+    cf.write("    c->clone = til_jni_cb_clone;\n")
+    cf.write("    return c;\n")
+    cf.write("}\n")
+    cf.write("\n")
 }
 
 priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {

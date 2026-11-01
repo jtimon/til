@@ -2,7 +2,8 @@
 # category: features
 ** WIP #463 Call til from the JVM and BEAM through generated bindings
 
-Make til libraries usable from the JVM (Java, Kotlin, Android) and from BEAM
+Make til libraries usable from the JVM (Java and every JVM language, Android
+included) and from BEAM
 (Erlang, Elixir) the way Python already uses them: a native ~mode lib~
 library plus generated bindings, without translating til to those VMs. The
 managed backends are cancelled (JVM #375, BEAM #374): til's raw-memory and
@@ -17,8 +18,9 @@ time, nothing compiled. Neither VM has a portable equivalent:
 - JVM: JNI is the bridge that works on desktop JVMs and Android alike (the
   JDK's FFM, ~java.lang.foreign~, is desktop-only; ART has none). JNI needs a
   small C bridge compiled against ~jni.h~, which only a JDK or the Android
-  NDK provides. The Kotlin-facing part is [[./454.org][#454]]; Java callers
-  use the same JNI classes, and Kotlin calls Java directly.
+  NDK provides. The generated side is plain Java, which every JVM language
+  (Kotlin, Scala, Clojure, ...) calls natively, so no language gets wrappers
+  of its own ([[../cancelled/454.org][#454]], cancelled).
 - BEAM: NIFs (native implemented functions), a C bridge compiled against
   ERTS's ~erl_nif.h~ and loaded by an Erlang module. NIFs run on scheduler
   threads, so long calls must be marked dirty or yield, and a crash takes
@@ -55,13 +57,31 @@ compiling it does.
     "Calling a library from the JVM"). Unbound signatures are listed in the
     class as ~// <name>: not bound: <reason>~. ~test/jni.til~ checks the
     generated text in the suite; ~test/jni.til jvm~ runs a Java caller
-    through a JDK. Open: aggregates, enums, ~mut~ parameters, callbacks;
-    whether to compile the bridge from ~til build~ and add a ~make~ goal for
-    the JDK run.
+    through a JDK.
+  - JNI, second slice: public structs as AutoCloseable handle classes
+    (owned results, borrowed / ~mut~ / ~own~ parameters, inline scalar and
+    Str field accessors, a default constructor from literal defaults),
+    public globals and namespace data (getters, setters when ~mut~, borrowed
+    handles for struct globals), and the cage ABI (~TIL_CPTR32~, now the
+    default) in the bridge. ~test/jni.til jvm~ also drives
+    library_namespace_a, the library the Python binding test checks, which
+    completes the first JVM acceptance item.
+  - JNI, third slice: enums (tags, payload getters, variant constructors),
+    ~mut~ scalar / Str / Vec(Str) parameters as one-element arrays,
+    ~returns ref~, ~own~ and ~ref~ fields, Vec(Str) as String[], function
+    aliases, default constructors through nested constructor calls and own
+    boxes, and FuncSigs as Java functional interfaces (callbacks through a
+    TilClosure over a JNI global reference). ~test/jni.til jvm~ also reruns
+    both callers with ~--asan~ libraries and bridges, so the cage's leak
+    report covers every bridge path. What stays unbound is listed in
+    doc/ffi.org and in each generated class.
+  - Open: the BEAM half (NIFs); whether to compile the bridge from
+    ~til build~ and add a ~make~ goal for the JDK run; Android packaging
+    (#462).
 
 *** Acceptance
 
-  - [ ] A JVM caller (desktop) loads a til ~mode lib~ library through the
+  - [X] A JVM caller (desktop) loads a til ~mode lib~ library through the
     generated JNI bridge and exercises values, ownership/release and errors
     against the same interface the Python bindings test.
   - [ ] An Erlang caller does the same through a generated NIF module,

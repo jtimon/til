@@ -43,3 +43,82 @@ jni_safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero, JniBad {
 jni_noop := func() {}
 
 jni_bump := func(mut n: I64) { n = n + 1 }
+
+JniPerson := struct {
+    name : Str = "anon"
+    age : I64 = 0
+    active : Bool = true
+}
+
+jni_person := func(name: Str, age: I64) returns JniPerson {
+    return JniPerson(name = name.clone(), age = age)
+}
+
+jni_person_describe := func(p: JniPerson) returns Str {
+    return format(p.name, ":", p.age.to_str())
+}
+
+jni_person_consume := func(own p: JniPerson) returns I64 { return p.age }
+
+jni_person_birthday := func(mut p: JniPerson) { p.age = p.age + 1 }
+
+jni_append := func(mut s: Str, suffix: Str) { s = format(s, suffix) }
+
+jni_flip := func(mut b: Bool) { b = b.not() }
+
+JniShape := enum {
+    Empty,
+    Circle: I64,
+    Label: Str,
+    Owner: JniPerson,
+}
+
+jni_shape_area := func(s: JniShape) returns I64 {
+    switch s {
+    case .Circle(r): return r * r
+    case .Owner(p): return p.age
+    case: return 0
+    }
+}
+
+JniHolder := struct {
+    own person : JniPerson = JniPerson()
+    count : I64 = 0
+}
+
+jni_holder := func(name: Str) returns JniHolder {
+    return JniHolder(person = JniPerson(name = name.clone(), age = 1), count = 2)
+}
+
+jni_holder_person := func(h: JniHolder) returns ref JniPerson { return h.person }
+
+jni_holder_name := func(h: JniHolder) returns ref Str { return h.person.name }
+
+JniMapFn := func(I64) returns I64
+JniStrFn := func(Str) returns Str
+JniPersonFn := func(JniPerson) returns I64
+JniMakeFn := func(I64) returns JniPerson
+
+jni_apply := func(f: JniMapFn, x: I64) returns I64 { return f(x) + f(x + 1) }
+
+jni_apply_str := func(f: JniStrFn, s: Str) returns Str { return f(s) }
+
+jni_apply_person := func(f: JniPersonFn, p: JniPerson) returns I64 { return f(p) }
+
+jni_make := func(f: JniMakeFn, age: I64) returns Str {
+    p := f(age)
+    return jni_person_describe(p)
+}
+
+jni_join := func(parts: Vec(Str), sep: Str) returns Str { return join(parts, sep) }
+
+jni_split := func(text: Str) returns Vec(Str) { return text.split(",") }
+
+jni_push := func(mut parts: Vec(Str), value: Str) { parts.push(own value.clone()) }
+
+JniVecFn := func(Vec(Str)) returns I64
+
+jni_count := func(f: JniVecFn, text: Str) returns I64 {
+    parts := text.split(",")
+    return f(parts)
+}

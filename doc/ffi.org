@@ -745,6 +745,15 @@ Every ~mode lib~ build writes, next to the Python binding, a JNI binding
 (#463): a Java class and the C bridge between it and the library's exported
 C ABI. Generating them needs no JDK; compiling the bridge does.
 
+The binding targets the Java world as a whole rather than any one JVM
+language: the class is plain Java at the Java 8 source level (it compiles
+with ~javac --release 8~, so Android's toolchain takes it too) over standard
+JNI, and Kotlin, Scala, Clojure, Groovy and the rest call it the way they
+call any Java library -- handles are ~AutoCloseable~, callback types are
+~@FunctionalInterface~ interfaces their lambdas convert to, ~mut~
+parameters are ordinary Java arrays. No language gets generated wrappers of
+its own.
+
 | File | Contents |
 |------+----------|
 | ~gen/til/java/til/<pkg>/<Cls>.java~ | ~til.<pkg>.<Cls>~: one public static method per bound function |
@@ -767,8 +776,11 @@ java -Djava.library.path=gen/lib -cp <classes> <Main>
 ~-Isrc/c~ is for ~ext.h~, which the library header includes. On Android the
 same bridge source goes into the NDK build beside the library (#462).
 
-Bound: public top-level ~func~ / ~proc~ and user-written struct/enum
-namespace functions (as ~<Type>_<name>~), with parameters and results of
+Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
+struct/enum namespace functions and enum variant constructors (as
+~<Type>_<name>~), public globals and namespace data, public structs and
+enums (as handle classes), and public FuncSigs (as callback interfaces).
+Values cross as
 
 | til | Java |
 |-----+------|
@@ -780,22 +792,86 @@ namespace functions (as ~<Type>_<name>~), with parameters and results of
 | ~F32~ / ~F64~ | ~float~ / ~double~ |
 | ~Bool~ | ~boolean~ |
 | ~Str~ | ~String~ (UTF-8 bytes across JNI) |
+| ~Vec(Str)~ | ~String[]~ |
+| a public struct or enum ~T~ | the nested handle class ~<Cls>.T~ |
+| a public FuncSig ~F~ | the nested functional interface ~<Cls>.F~ |
 
 Unsigned values cross bit for bit; read them with ~Byte.toUnsignedInt~,
-~Long.toUnsignedString~ and friends. A borrowed ~Str~ argument becomes a
-bridge temporary the bridge deletes after the call; an ~own Str~ argument is
-a heap box the library frees, as for C callers; a returned ~Str~ is copied
-into a Java ~String~ and deleted. A function that ~throws~ raises the
-checked ~<Cls>.TilError~, whose ~type()~ is the til throw type name and whose
-message carries the payload's ~msg: Str~ field (or a ~Str~ payload) when it
-has one. An error kind the function does not declare aborts the process.
+~Long.toUnsignedString~ and friends.
 
-Anything else -- ~mut~ and ~shallow Str~ parameters, structs, enums,
-callbacks, variadics, ~returns ref~ -- is listed in the class as a
-~// <name>: not bound: <reason>~ comment, so the gap is visible in the
-generated source. ~bin/til run test/jni.til~ checks the generated text;
-~bin/til run test/jni.til jvm~ (with ~JAVA_HOME~ set) compiles the bridge and
-runs ~test/JniLibTest.java~ through it.
+*Parameters.* A borrowed ~Str~ / ~Vec(Str)~ argument becomes a bridge copy
+the bridge deletes after the call; an ~own~ one is a heap box the library
+frees, as for C callers. A ~mut~ scalar, ~Str~ or ~Vec(Str)~ parameter takes a
+one-element array (~long[]~, ~String[]~, ~String[][]~): the call reads
+element 0 and writes the library's result back into it, also when the call
+throws. A struct or enum argument passes its handle's box: borrowed and
+~mut~ parameters see and keep the library's writes; ~own~ moves the box into
+the library, so the Java object is spent and using it again throws
+~IllegalStateException~, as does any use after ~close()~.
+
+*Results.* A returned ~Str~ / ~Vec(Str)~ is copied to Java and deleted; a
+returned struct or enum is an owned handle. ~returns ref~ copies a scalar or
+~Str~ out of the library's storage and gives a struct or enum as a borrowed
+handle onto it, valid while that storage lives. A function that ~throws~
+raises the checked ~<Cls>.TilError~, whose ~type()~ is the til throw type name
+and whose message carries the payload's ~msg: Str~ field (or a ~Str~
+payload) when it has one. An error kind the function does not declare aborts
+the process.
+
+*Handles.* Each public struct or enum ~T~ becomes ~<Cls>.T implements
+AutoCloseable~, a handle to a heap box holding the til value. ~close()~ (or
+try-with-resources) runs ~T.delete~ on an owned handle, freeing contents and
+box; an unclosed one leaks, as an undeleted value does in C. A borrowed
+handle -- a global, a ~ref~ result, a field or payload of another handle --
+frees nothing and cannot be moved.
+
+  - ~new T()~ exists when the bridge can build what til's ~T()~ does: literal
+    defaults, constructor calls of public structs (nested, with their named
+    or positional arguments), and a fresh box for each ~own~ field. A ~ref~
+    field, an ~own~ scalar buffer (~own data: U8 = 0~), or any other default
+    leaves it out, and the class says why.
+  - Every public field gets a getter ~f()~: a scalar, ~Str~ or ~Vec(Str)~ is
+    copied out, a struct or enum is a borrowed handle onto the field.
+    Inline and ~own~ fields of the copied kinds also get a setter ~f(v)~;
+    ~ref~ fields are read-only.
+  - An enum has ~TAG_<Variant>~ constants, ~tag()~, a getter per payload
+    variant (throwing ~IllegalStateException~ when the value is another
+    variant), and its variant constructors as ~<Enum>_<Variant>(...)~,
+    except one whose payload is ~ref~: the enum would keep a pointer to the
+    bridge's argument storage.
+
+*Globals.* Public globals and namespace data get a getter, plus a setter
+when ~mut~ and of a copied kind; a struct or enum global (or a ~ref~
+global) returns a borrowed handle onto the library's storage.
+
+*Callbacks.* A public FuncSig whose parameters are borrowed scalars, ~Str~,
+~Vec(Str)~ or handles and whose result (if any) is one of those by value
+becomes a ~@FunctionalInterface~, so a Java lambda can be passed where til
+takes the FuncSig. The bridge wraps the Java object in a ~TilClosure~ holding
+a JNI global reference: a borrowed callback is dropped after the call, an
+~own~ one when the library drops it. Handles a callback receives are borrowed
+for the duration of the call; a handle it returns is moved into til. A
+thread til starts is attached to the JVM on its first callback. Til cannot
+unwind a Java exception, so one thrown by a callback prints its stack trace
+and aborts.
+
+*Memory.* The bridge allocates the boxes, strings and vectors it hands to
+til with the library runtime's allocator -- the cage under ~TIL_CPTR32~, the
+default on 64-bit targets -- and reaches own pointers through
+~TIL_OWN_GET~ / ~TIL_OWN_SET~, so the same bridge source compiles for either
+layout.
+
+Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
+parameters, other collections, variadics, callbacks that throw or take
+~own~ / ~mut~ parameters, ~mut~ callback parameters -- is listed in the
+class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
+in the generated source. ~bin/til run test/jni.til~ checks the generated
+text; ~bin/til run test/jni.til jvm~ (with ~JAVA_HOME~ set) compiles the
+bridges and runs ~test/JniLibTest.java~ and
+~test/LibraryNamespaceAJniTest.java~ through them -- the latter against the
+same library and globals test/library_namespace.til checks from Python --
+then repeats both with the libraries and bridges built with ~--asan~, where
+the cage's exit-time leak report fails the run if the bridge leaks.
 
 ** Passing a Str to a C string parameter
 

@@ -421,6 +421,9 @@ typedef struct Vec__TargetLink Vec__TargetLink;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
 typedef struct priv___src_self_c_codegen_til__JniErrSlot priv___src_self_c_codegen_til__JniErrSlot;
+typedef struct priv___src_self_c_codegen_til__JniTypes priv___src_self_c_codegen_til__JniTypes;
+typedef struct priv___src_self_c_codegen_til__JniInit priv___src_self_c_codegen_til__JniInit;
+typedef struct priv___src_self_c_codegen_til__JniMember priv___src_self_c_codegen_til__JniMember;
 typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct priv___src_self_c_codegen_til__BuilderFuncSites priv___src_self_c_codegen_til__BuilderFuncSites;
@@ -1497,6 +1500,31 @@ typedef struct priv___src_self_c_codegen_til__JniErrSlot {
     Str msg;
     Str free_stmt;
 } priv___src_self_c_codegen_til__JniErrSlot;
+
+
+typedef struct priv___src_self_c_codegen_til__JniTypes {
+    Set__Str handles;
+    Set__Str enums;
+    Set__Str callbacks;
+    Str class_path;
+    Bool has_strvec;
+} priv___src_self_c_codegen_til__JniTypes;
+
+
+typedef struct priv___src_self_c_codegen_til__JniInit {
+    Str code;
+    Str reason;
+} priv___src_self_c_codegen_til__JniInit;
+
+
+typedef struct priv___src_self_c_codegen_til__JniMember {
+    Str owner;
+    Str name;
+    Str type_name;
+    Str place;
+    Bool settable;
+    Str guard;
+} priv___src_self_c_codegen_til__JniMember;
 
 
 typedef struct priv___src_self_c_codegen_til__CollectionInfo {

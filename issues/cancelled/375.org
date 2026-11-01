@@ -15,10 +15,9 @@ master changes broke it unnoticed twice. Android, the strongest practical
 reason for it, is better served natively: the C backend through the NDK
 ([[../open/462.org][#462]]).
 
-JVM (and Kotlin/Android) callers reach til the way Python does: a native
-library plus generated bindings, without translating til to Java
-([[../open/463.org][#463]], [[../open/454.org][#454]] for the Kotlin/JNI
-part). Backend independence stays exercised by the interpreter and the
+JVM callers (any JVM language, Android included) reach til the way Python
+does: a native library plus generated bindings, without translating til to
+Java ([[../open/463.org][#463]]). Backend independence stays exercised by the interpreter and the
 HolyC, assembly and MLIR efforts.
 
 State when cancelled: 17 programs of the JVM corpus passed at both USize
