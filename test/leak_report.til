@@ -1,0 +1,24 @@
+mode script
+
+// Issue #313 regression: the cage's leak report. LeakSanitizer cannot see
+// the cage's blocks, so the cage itself reports, at exit, every live block
+// nothing reaches any more. This program loses raw allocations through a
+// Dynamic field (asap destruction does not free Dynamic) and must exit 1
+// with "til cage: detected memory leaks" -- or, built --cptr=64, with
+// LeakSanitizer's own report. Several blocks, not one: the scan is
+// conservative, and a stale stack frame can still hold the last one's
+// address. Registered by src/tests.til on Linux ASAN runs only (macOS runs
+// with detect_leaks=0).
+
+S := struct { p: Dynamic = 0 }
+keep := proc(s: S) returns I64 { noop_proc(); if s.p.is_null() { return 0 }; return 1 }
+lose := proc(n: I64) returns I64 {
+    mut kept : I64 = 0
+    for _ in 0..n {
+        mut s := S()
+        s.p = malloc(1000)
+        kept = kept + keep(s)
+    }
+    return kept
+}
+println(lose(8).to_str())

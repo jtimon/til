@@ -65,6 +65,35 @@
     ~h_get_payload~ re-walks a foreign enum first. (4) The runtime/core
     identity now spells ~-cptr32~ before the CPU profile, which
     cpu_options expects last.
+  - Leak detection (follow-up commit): the default flip silently blinded
+    LeakSanitizer to every til allocation (the totals' drop in self_mem and
+    self_ms after the flip is mostly ASAN's per-allocation bookkeeping gone,
+    not the cage's own ~5% win). The cage now counts live bytes (literal
+    copies apart) and, in an ASAN build on Linux, reports at exit the live
+    blocks nothing reaches: a conservative scan of every loaded image's
+    writable segments, the exiting thread's stack and its spilled registers,
+    then of every reached block, for native pointers and 4-byte offsets --
+    LeakSanitizer's semantics, since a strict live count flagged the literal
+    copies, the globals' storage and the compiler's own globals (7,512
+    blocks), all reachable. It exits 1 like LeakSanitizer under ASAN and
+    honours detect_leaks=0. ASAN's fake stack (use-after-return detection)
+    would hide the locals of a program that exits from deep inside, so a cage
+    program turns it off through __asan_default_options (ASAN_OPTIONS still
+    overrides). test/leak_report.til loses eight blocks and must exit 1 in
+    both layouts (several, because a stale stack frame can keep one
+    reachable). TIL_LEAK_PROBE adds the cage's never-freed bytes.
+  - Reviewing 6d271c1 and 8d21d22 (the FFI pointer-field width fix and its
+    test) found the native opt-outs broken for a library struct with an
+    own Str field: between differing widths the pointee was never converted
+    (the interpreter read a U64 Str's count as its own cap and freed through
+    it), and at equal widths the interpreter freed the library's STATIC
+    literal box. ffi_copy_struct_into now converts an own aggregate field's
+    box like a niche payload's (ffi_struct_layout builds the pointee layouts
+    with the struct's), ffi_release_conversion_storage frees converted boxes
+    but not a literal's (ffi_str_box_is_literal), and heap_drop_struct skips
+    a CAP_LIT box that addr_in_loaded_image (dladdr / VirtualQuery) places
+    inside a loaded image. test/ffi_pointer_field_width.til runs under every
+    layout again.
   - Regression tests: test/cptr32_sizes.til (Str/Vec 12, Map 24, mid-buffer
     view) and test/cptr64_sizes.til (16 / 32, the opt-out); the
     ~self_compiler_cptr32~ pin count; and ~make check_cptr64~ (CI job

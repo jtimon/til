@@ -106,6 +106,17 @@
   overrides, need to be specified before implementing the directives.
   Native-width defaults should remain usable without configuration calls.
 
+  History: the first attempt at a 32-bit USize (the ~wip_u32~ branch, when
+  the compiler was still C) changed every container width atomically and
+  could not bootstrap: the committed compiler folded ~Str.size()~ from its
+  own U64 layout into literals that failed to typecheck against the U32
+  sources, and no single commit could be self-consistent. What delivered it
+  was making the width target-driven (#192), then overridable (#309), with
+  the two devices this file describes: the preparation/use split (or the
+  two-pass build) for emit-side changes, and the width pin in the generated
+  headers, so a flag-less boot compile reproduces the layout its artifact
+  was emitted at. The same two devices carried the cage (#313).
+
 ** Pointer-compression cage (~--cptr~)
 
   ~--cptr=32~ (issue #313) stores every ~own~ pointer field as a 32-bit
@@ -156,6 +167,22 @@
   share the allocator; a magic word rejects a cage laid out by another
   revision. Library copies keep their per-library symbol names, so a
   process holds one definition of the plain name.
+
+  Leaks. LeakSanitizer knows only libc's chunks, so it cannot see a leaked
+  til object any more. The cage keeps its own live count (block bytes handed
+  out and not freed, the literal copies apart), and in an ASAN build the copy
+  that owns the cage reports at exit the live blocks nothing reaches: on
+  Linux it scans every loaded image's writable segments, the exiting
+  thread's stack and registers, and the reached blocks, for native pointers
+  and 4-byte offsets, interior ones included -- the conservative
+  reachability LeakSanitizer applies, so a global's storage or a template
+  built on first use is not a leak but a lost allocation is. The report
+  exits 1 like LeakSanitizer under ASAN and is silenced by the same
+  ~detect_leaks=0~ (test/leak_report.til). A cage program turns ASAN's fake
+  stack off (~__asan_default_options~; the environment still overrides):
+  the locals of a program that exits from deep inside would otherwise sit
+  in fake frames the scan cannot list. ~TIL_LEAK_PROBE~'s never-freed total
+  adds the cage's live bytes to the sanitizer's.
 
   The compiler itself is a cage build: make.til spells ~--cptr=32~ beside
   ~--usize=32~ on every build of src/til.til, so the compiler's own layout

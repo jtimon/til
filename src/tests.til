@@ -1218,6 +1218,15 @@ main := proc(args: ..Str) {
     // neither host needs to wait for the other, and both run with an empty PATH.
     add_single(tests, "install_tilvm", "build", 0, "", format(TIL, " run test/install_tilvm.til"))
     add_single(tests, "install_tilvm_native", "build", 0, "", format(TIL, " run test/install_tilvm_native.til"))
+    // #313: the cage's leak report (LeakSanitizer cannot see the cage's
+    // blocks). A compiled program that loses one allocation must exit 1,
+    // under the cage from the cage's own report and under --cptr=64 from
+    // LeakSanitizer's. Only where leaks are detected at all: an ASAN run
+    // on Linux (macOS forces detect_leaks=0, see builder.til).
+    if asan == 1 && host_os() == "linux" {
+        add_single(tests, "leak_report", "cli", 1, "",
+            format(TIL, " run", asan_flag, " -o bin/c/leak_report -c gen/c/leak_report.c test/leak_report.til"))
+    }
     add_single(tests, "install_tilvm_errors", "build", 0, "", format(TIL, " run test/install_tilvm_errors.til"))
 
     // #90: independently generated libraries own separate C namespaces.
@@ -1225,20 +1234,17 @@ main := proc(args: ..Str) {
     add_single(tests, "library_namespace", "build", 0, "",
         format(TIL, " run test/library_namespace.til"))
     // #313: an interpreted call marshals a returned library struct whose
-    // last field is a 4-byte own pointer without running past it. A cage
-    // row: under the native opt-out (make check_cptr64 / check_native64)
-    // there is no 4-byte field to overrun, and the interpreter cannot drop a
-    // native-pointer library's struct at all when an own Str field points at
-    // the library's literal pool -- compiled code skips those boxes by
-    // address range (TIL_LIT_GUARD), the interpreter has no such range for
-    // a foreign image and frees the static box (ASAN bad-free on
-    // hoisted__Str_tail_make_N). The cage copies literals in (til_cage_lit),
-    // which is what makes the default layout free of that gap.
-    if cptr_flag.eq(" --cptr=64").not() {
-        add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
-            format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
-                til_bin, asan_flag))
-    }
+    // last field is a 4-byte own pointer without running past it. Under
+    // the native opt-outs (make check_cptr64 / check_native64) the same row
+    // covers the other half: the struct's `own tail : Str` points at a box
+    // laid out like the LIBRARY (a U64 Str, or the literal pool's static
+    // box), which the interpreter now converts into one of its own layout
+    // on the way in and never frees when it is a literal's
+    // (ffi_copy_struct_into / ffi_str_box_is_literal); before that the
+    // native opt-out read a U64 count as its own cap and freed through it.
+    add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
+            til_bin, asan_flag))
 
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`

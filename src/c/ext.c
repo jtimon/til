@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
 #include <time.h>
 #include <limits.h>
 #include <stdint.h>
@@ -232,7 +233,14 @@ static void *ffi_handle;
 // reaching til's ownership. til programs are single-threaded, so there is no
 // lock. ASAN cannot see a custom allocator, so the cage poisons every byte it
 // has not handed out: overflows past a block, use after free and reads of
-// uncarved memory still fault. --prof's byte accounting (TIL_PROF_ALLOC) is
+// uncarved memory still fault. Nor can LeakSanitizer see it: it knows only
+// libc's chunks, so a leaked til object would go unreported. The cage keeps
+// its own live count (block bytes handed out and not freed; the copies of
+// string literals counted apart, since they live as long as the process),
+// and in an ASAN build the copy that owns the cage reports, when the process
+// exits, the live blocks nothing reaches any more -- the same conservative
+// reachability LeakSanitizer applies, the same exit status, silenced by the
+// same detect_leaks=0 (til_cage_leak_report). --prof's byte accounting (TIL_PROF_ALLOC) is
 // charged here, since the -Wl,--wrap'd libc entry points are never reached;
 // the allocator's own functions stay out of the instrumented set, as libc's
 // malloc was.
@@ -274,10 +282,10 @@ static void til_prof_charge(unsigned long long bytes) TIL_CAGE_FN;
 #define TIL_CAGE_META_PAGES ((UPtr)8)
 // Pages that can be handed out: all but the bookkeeping and the last page.
 #define TIL_CAGE_USABLE_PAGES (TIL_CAGE_PAGES - 1)
-// "tilcage1": the layout of TilCageState and of the page map. Bump it with
+// "tilcage2": the layout of TilCageState and of the page map. Bump it with
 // any change to either, so copies of this allocator from two til revisions
 // in one process refuse to share a cage instead of corrupting it.
-#define TIL_CAGE_MAGIC 0x74696c6361676531ULL
+#define TIL_CAGE_MAGIC 0x74696c6361676532ULL
 // Page kinds. 1..TIL_CAGE_CLASSES: a small page of class (kind - 1).
 #define TIL_CAGE_UNUSED 0     // at or above the top: never handed out
 #define TIL_CAGE_SPAN 0xFF    // first page of an allocated span
@@ -293,6 +301,10 @@ typedef struct {
     U64 magic;
     UPtr top;          // first page that was never handed out
     UPtr committed;    // bytes from the base that are read/write
+    UPtr live_bytes;   // block bytes handed out and not yet freed
+    UPtr live_allocs;  // blocks handed out and not yet freed
+    UPtr lit_bytes;    // of those, the literal copies (til_cage_lit): process-lifetime
+    UPtr lit_allocs;
     TilCageSpan *free_spans;
     void *free_list[TIL_CAGE_CLASSES];
     U8 *cursor[TIL_CAGE_CLASSES];
@@ -517,6 +529,9 @@ static unsigned til_cage_class_of(size_t n) {
 
 static void *til_cage_small(unsigned c) TIL_CAGE_FN;
 static void *til_cage_small(unsigned c) {
+    UPtr size = til_cage_class_size[c];
+    til_cage->live_bytes += size;
+    til_cage->live_allocs++;
     U8 *p = til_cage->free_list[c];
     if (p) {
         TIL_CAGE_UNPOISON(p, sizeof(void *));
@@ -524,7 +539,6 @@ static void *til_cage_small(unsigned c) {
         TIL_CAGE_POISON(p, sizeof(void *));
         return p;
     }
-    UPtr size = til_cage_class_size[c];
     p = til_cage->cursor[c];
     if (p == NULL || p + size > til_cage->cursor_end[c]) {
         UPtr page = til_cage_take_pages(1);
@@ -540,6 +554,8 @@ static void *til_cage_large(size_t n) TIL_CAGE_FN;
 static void *til_cage_large(size_t n) {
     UPtr pages = ((UPtr)n + TIL_CAGE_PAGE - 1) >> TIL_CAGE_PAGE_SHIFT;
     UPtr head = til_cage_take_pages(pages);
+    til_cage->live_bytes += pages << TIL_CAGE_PAGE_SHIFT;
+    til_cage->live_allocs++;
     til_cage->kind[head] = TIL_CAGE_SPAN;
     for (UPtr i = 1; i < pages; i++) til_cage->kind[head + i] = TIL_CAGE_INNER;
     til_cage->span_len[head] = (U32)pages;
@@ -590,6 +606,8 @@ void til_free(void *ptr) {
     UPtr size = til_cage_block_size(ptr, "free of a pointer the cage did not allocate");
     UPtr page = til_cage_page_of(ptr);
     U8 kind = til_cage->kind[page];
+    til_cage->live_bytes -= size;
+    til_cage->live_allocs--;
     if (kind == TIL_CAGE_SPAN) {
         til_cage_release(page, size >> TIL_CAGE_PAGE_SHIFT);
         return;
@@ -633,6 +651,7 @@ void *til_realloc(void *ptr, size_t n) {
         if (grown) {
             for (UPtr i = end; i < page + want; i++) til_cage->kind[i] = TIL_CAGE_INNER;
             til_cage->span_len[page] = (U32)want;
+            til_cage->live_bytes += extra << TIL_CAGE_PAGE_SHIFT;
             TIL_CAGE_UNPOISON(ptr, n);
             return ptr;
         }
@@ -655,8 +674,235 @@ U32 til_cage_lit(const char *s, UPtr n) {
     char *copy = til_malloc((size_t)n + 1);
     memcpy(copy, s, (size_t)n);
     copy[n] = '\0';
+    til_cage->lit_bytes += til_cage_block_size(copy, "literal copy");
+    til_cage->lit_allocs++;
     return til_cptr_encode(copy);
 }
+
+// Live blocks other than the literal copies: what a program leaked.
+static inline UPtr til_cage_leaked_bytes(void) TIL_CAGE_FN;
+static inline UPtr til_cage_leaked_bytes(void) { return til_cage->live_bytes - til_cage->lit_bytes; }
+static inline UPtr til_cage_leaked_allocs(void) TIL_CAGE_FN;
+static inline UPtr til_cage_leaked_allocs(void) { return til_cage->live_allocs - til_cage->lit_allocs; }
+
+#ifdef TIL_CAGE_ASAN
+// ASAN's use-after-return detection moves address-taken locals into fake
+// frames on its own heap, which the leak scan below cannot enumerate (the
+// sanitizer's API checks one address, it does not list frames). A program
+// that exits from deep inside -- a panic, exit(n), a compiler propagating
+// its child's status -- then hides every live local from the scan and
+// every one of them reports as a leak. So a cage program runs with the
+// fake stack off: ASAN's own hook, which ASAN_OPTIONS in the environment
+// still overrides (CI's arm64 job sets exactly this for speed). The
+// typer's ref rules, not this check, are what keep a ref from outliving
+// its local; leaks are what the suite hunts.
+const char *__asan_default_options(void) __attribute__((no_instrument_function));
+const char *__asan_default_options(void) { return "detect_stack_use_after_return=0"; }
+
+// LeakSanitizer's switch silences this report too.
+static Bool til_cage_leak_check_off(void) TIL_CAGE_FN;
+static Bool til_cage_leak_check_off(void) {
+    const char *options = getenv("ASAN_OPTIONS");
+    return options != NULL && strstr(options, "detect_leaks=0") != NULL;
+}
+
+#if defined(__linux__)
+// LeakSanitizer parity. A live block nothing reaches at exit is a leak; one
+// still reachable -- a global's storage, a sequence template built on first
+// use, a literal copy -- is not, and LeakSanitizer never reported those
+// either. The scan is conservative the way LeakSanitizer's is: an aligned
+// 8-byte word that addresses a live block, or an aligned 4-byte word that is
+// a live block's offset, reaches it, interior addresses included (a Str view
+// points inside its buffer); a reached block's bytes are scanned the same
+// way. Roots are the writable PT_LOAD segments (data and bss) of every
+// loaded image, the stack of the thread that is exiting (a program that
+// calls exit() from deep inside still has every frame's locals there) and
+// the callee-saved registers, spilled into a jmp_buf. dl_iterate_phdr is
+// declared by hand because glibc's link.h exposes it and dl_phdr_info only
+// under _GNU_SOURCE, which this file avoids (see the dladdr note); the four
+// leading fields read here are the stable part of that ABI.
+struct til_phdr_info { Elf64_Addr addr; const char *name; const Elf64_Phdr *phdr; Elf64_Half phnum; };
+extern int dl_iterate_phdr(int (*cb)(struct til_phdr_info *info, size_t size, void *data), void *data);
+
+// One bit per 16-byte unit of the committed cage.
+static U8 *til_cage_free_bits;   // the block at this unit is on a free list
+static U8 *til_cage_mark_bits;   // the block at this unit was reached
+static U8 **til_cage_work;       // blocks reached and not yet scanned
+static UPtr til_cage_work_len, til_cage_work_cap;
+
+static UPtr til_cage_unit_of(const U8 *p) TIL_CAGE_FN;
+static UPtr til_cage_unit_of(const U8 *p) { return (UPtr)(p - til_cage_base) >> 4; }
+static Bool til_cage_bit(const U8 *bits, UPtr unit) TIL_CAGE_FN;
+static Bool til_cage_bit(const U8 *bits, UPtr unit) { return (bits[unit >> 3] >> (unit & 7)) & 1; }
+static void til_cage_set_bit(U8 *bits, UPtr unit) TIL_CAGE_FN;
+static void til_cage_set_bit(U8 *bits, UPtr unit) { bits[unit >> 3] |= (U8)(1u << (unit & 7)); }
+
+// The start and size of the live block holding address p, or NULL.
+static U8 *til_cage_live_block_of(const U8 *p, UPtr *size_out) TIL_CAGE_FN;
+static U8 *til_cage_live_block_of(const U8 *p, UPtr *size_out) {
+    if (p < til_cage_base || p >= til_cage_base + til_cage->committed) return NULL;
+    UPtr page = til_cage_page_of(p);
+    if (page < TIL_CAGE_META_PAGES) return NULL;
+    U8 kind = til_cage->kind[page];
+    if (kind >= 1 && kind <= TIL_CAGE_CLASSES) {
+        unsigned c = (unsigned)kind - 1u;
+        UPtr size = til_cage_class_size[c];
+        U8 *page_start = til_cage_page_addr(page);
+        U8 *block = page_start + ((UPtr)(p - page_start) / size) * size;
+        // The uncarved tail of the class's current page.
+        if (page_start + TIL_CAGE_PAGE == til_cage->cursor_end[c] && block >= til_cage->cursor[c]) return NULL;
+        if (til_cage_bit(til_cage_free_bits, til_cage_unit_of(block))) return NULL;
+        *size_out = size;
+        return block;
+    }
+    if (kind == TIL_CAGE_SPAN || kind == TIL_CAGE_INNER) {
+        // Back to the span's first page: SPAN for an allocated one, FREE for
+        // a free one (its inner pages are INNER too).
+        while (til_cage->kind[page] == TIL_CAGE_INNER) page--;
+        if (til_cage->kind[page] != TIL_CAGE_SPAN) return NULL;
+        *size_out = (UPtr)til_cage->span_len[page] << TIL_CAGE_PAGE_SHIFT;
+        return til_cage_page_addr(page);
+    }
+    return NULL;
+}
+
+static void til_cage_reach(const U8 *p) TIL_CAGE_FN;
+static void til_cage_reach(const U8 *p) {
+    UPtr size;
+    U8 *block = til_cage_live_block_of(p, &size);
+    if (block == NULL) return;
+    UPtr unit = til_cage_unit_of(block);
+    if (til_cage_bit(til_cage_mark_bits, unit)) return;
+    til_cage_set_bit(til_cage_mark_bits, unit);
+    if (til_cage_work_len == til_cage_work_cap) {
+        til_cage_work_cap = til_cage_work_cap ? til_cage_work_cap * 2 : 1024;
+        til_cage_work = (realloc)(til_cage_work, til_cage_work_cap * sizeof(U8 *));
+        if (!til_cage_work) til_cage_die("leak scan out of memory", NULL);
+    }
+    til_cage_work[til_cage_work_len++] = block;
+}
+
+// Not instrumented: a block's bytes past what was requested are poisoned,
+// and the scan must read them -- it reads nothing that is not mapped.
+static void til_cage_scan_range(const U8 *lo, const U8 *hi) TIL_CAGE_FN __attribute__((no_sanitize_address));
+static void til_cage_scan_range(const U8 *lo, const U8 *hi) {
+    const U8 *p = (const U8 *)(((UPtr)lo + 3) & ~(UPtr)3);
+    for (; p + 4 <= hi; p += 4) {
+        U32 off = *(const U32 *)p;
+        if (off != 0 && off < til_cage->committed) til_cage_reach(til_cage_base + off);
+        if (((UPtr)p & 7) == 0 && p + 8 <= hi) til_cage_reach(*(const U8 *const *)p);
+    }
+}
+
+static int til_cage_scan_image(struct til_phdr_info *info, size_t size, void *data) TIL_CAGE_FN;
+static int til_cage_scan_image(struct til_phdr_info *info, size_t size, void *data) {
+    (void)size; (void)data;
+    for (Elf64_Half i = 0; i < info->phnum; i++) {
+        const Elf64_Phdr *ph = &info->phdr[i];
+        if (ph->p_type != PT_LOAD || (ph->p_flags & PF_W) == 0) continue;
+        const U8 *lo = (const U8 *)(info->addr + ph->p_vaddr);
+        til_cage_scan_range(lo, lo + ph->p_memsz);
+    }
+    return 0;
+}
+
+// Leaked blocks: live, not reached from any image's data. Sets *bytes.
+static UPtr til_cage_unreached(UPtr *bytes) TIL_CAGE_FN;
+static UPtr til_cage_unreached(UPtr *bytes) {
+    UPtr bitmap_bytes = (til_cage->committed >> 7) + 1;
+    til_cage_free_bits = (calloc)(bitmap_bytes, 1);
+    til_cage_mark_bits = (calloc)(bitmap_bytes, 1);
+    if (!til_cage_free_bits || !til_cage_mark_bits) til_cage_die("leak scan out of memory", NULL);
+    for (unsigned c = 0; c < TIL_CAGE_CLASSES; c++) {
+        for (U8 *f = til_cage->free_list[c]; f; ) {
+            til_cage_set_bit(til_cage_free_bits, til_cage_unit_of(f));
+            TIL_CAGE_UNPOISON(f, sizeof(void *));
+            U8 *next = *(U8 **)f;
+            TIL_CAGE_POISON(f, sizeof(void *));
+            f = next;
+        }
+    }
+    dl_iterate_phdr(til_cage_scan_image, NULL);
+    // Registers, then the stack from this frame to its top ([stack] in
+    // /proc/self/maps: the exiting thread is the main one, til being
+    // single-threaded).
+    jmp_buf regs;
+    if (setjmp(regs) == 0) til_cage_scan_range((const U8 *)&regs, (const U8 *)&regs + sizeof(regs));
+    FILE *maps = fopen("/proc/self/maps", "r");
+    if (maps) {
+        char line[512];
+        while (fgets(line, sizeof(line), maps)) {
+            if (strstr(line, "[stack]") == NULL) continue;
+            unsigned long long lo = 0, hi = 0;
+            if (sscanf(line, "%llx-%llx", &lo, &hi) != 2) break;
+            const U8 *frame = (const U8 *)&regs;
+            if (frame >= (const U8 *)lo && frame < (const U8 *)hi) til_cage_scan_range(frame, (const U8 *)hi);
+            break;
+        }
+        fclose(maps);
+    }
+    while (til_cage_work_len > 0) {
+        U8 *block = til_cage_work[--til_cage_work_len];
+        UPtr size;
+        til_cage_live_block_of(block, &size);
+        til_cage_scan_range(block, block + size);
+    }
+    UPtr count = 0;
+    *bytes = 0;
+    for (UPtr page = TIL_CAGE_META_PAGES; page < til_cage->top; page++) {
+        U8 kind = til_cage->kind[page];
+        U8 *page_start = til_cage_page_addr(page);
+        if (kind >= 1 && kind <= TIL_CAGE_CLASSES) {
+            unsigned c = (unsigned)kind - 1u;
+            UPtr size = til_cage_class_size[c];
+            U8 *end = page_start + TIL_CAGE_PAGE;
+            if (end == til_cage->cursor_end[c]) end = til_cage->cursor[c];
+            for (U8 *block = page_start; block + size <= end; block += size) {
+                UPtr unit = til_cage_unit_of(block);
+                if (til_cage_bit(til_cage_free_bits, unit) || til_cage_bit(til_cage_mark_bits, unit)) continue;
+                count++;
+                *bytes += size;
+            }
+        } else if (kind == TIL_CAGE_SPAN) {
+            if (!til_cage_bit(til_cage_mark_bits, til_cage_unit_of(page_start))) {
+                count++;
+                *bytes += (UPtr)til_cage->span_len[page] << TIL_CAGE_PAGE_SHIFT;
+            }
+        }
+    }
+    (free)(til_cage_free_bits);
+    (free)(til_cage_mark_bits);
+    (free)(til_cage_work);
+    return count;
+}
+#endif // __linux__
+
+// Defined before til_leak_probe and til_flush_stdout: same-priority
+// destructors run in reverse order of definition, so this runs after both,
+// once the probe has measured and stdout is flushed. Only the copy that owns
+// the process's slot reports, so a program and its library runtimes report
+// the shared cage once. Exit status 1 is LeakSanitizer's under ASAN. Off Linux there
+// is no reachability scan: the report counts every live block but the
+// literal copies, so a global's storage would count (macOS runs with
+// detect_leaks=0 anyway, see builder.til).
+static void til_cage_leak_report(void) __attribute__((destructor)) TIL_CAGE_FN;
+static void til_cage_leak_report(void) {
+    if (til_cage == NULL || til_cage_slot() != &til_cage_base) return;
+    if (til_cage_leaked_allocs() == 0 || til_cage_leak_check_off()) return;
+    UPtr bytes = til_cage_leaked_bytes();
+    UPtr allocs = til_cage_leaked_allocs();
+#if defined(__linux__)
+    allocs = til_cage_unreached(&bytes);
+    if (allocs == 0) return;
+#endif
+    fflush(NULL);
+    fprintf(stderr, "\n==ERROR: til cage: detected memory leaks\n\n"
+        "SUMMARY: til cage: %llu byte(s) leaked in %llu allocation(s) "
+        "(block sizes; LeakSanitizer cannot see til's allocations).\n",
+        (unsigned long long)bytes, (unsigned long long)allocs);
+    _exit(1);
+}
+#endif // TIL_CAGE_ASAN
 #endif // TIL_CPTR32
 
 // Portable strndup replacement -- MSVC toolchains don't ship one and mingw's
@@ -4487,6 +4733,22 @@ typedef struct {
 
 typedef int (*TilDladdrFn)(const void *, TilDlInfo *);
 
+// Is p inside a loaded image (an executable's or shared object's mapped
+// segments: its code, data, bss), as opposed to heap or stack? dladdr,
+// looked up like the profiler's below so this file stays off _GNU_SOURCE,
+// answers nonzero for any address a loaded object maps. The interpreter
+// asks before freeing a library struct's own Str box whose cap is CAP_LIT:
+// the constfolder hoists a literal into a STATIC box (`tail =
+// &hoisted__Str_...`), which no one frees, while a heap box holding a
+// literal value is freed like any other (test/ffi_pointer_field_width.til
+// under make check_native64, where no layout conversion stands in between).
+Bool addr_in_loaded_image(void *p) {
+    void *pd = dlsym(RTLD_DEFAULT, "dladdr");
+    TilDladdrFn pdladdr = (TilDladdrFn)pd;
+    TilDlInfo info;
+    return pdladdr != NULL && pdladdr(p, &info) != 0;
+}
+
 #ifdef __linux__
 #if UINTPTR_MAX == UINT64_MAX
 typedef Elf64_Ehdr TilElfEhdr;
@@ -4810,6 +5072,18 @@ void *__wrap_realloc(void *ptr, size_t size) {
 }
 #endif // TIL_PROF_ALLOC
 
+#else
+// The Windows and wasm halves of addr_in_loaded_image above.
+Bool addr_in_loaded_image(void *p) {
+#ifdef _WIN32
+    MEMORY_BASIC_INFORMATION info;
+    if (VirtualQuery(p, &info, sizeof(info)) == 0) return false;
+    return info.Type == MEM_IMAGE;
+#else
+    (void)p;
+    return false;
+#endif
+}
 #endif // !_WIN32 && !__EMSCRIPTEN__
 
 // Leak measurement. Runs as a destructor -- after main() returns, i.e. after
@@ -4854,8 +5128,15 @@ static void til_leak_probe(void) {
     // It frees ONLY glibc-internal allocations, never til's, so real til leaks
     // still count. stderr is unbuffered, so the print below survives it.
     if (&__libc_freeres) __libc_freeres();
-    if (&__sanitizer_get_current_allocated_bytes)
-        fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
+    if (&__sanitizer_get_current_allocated_bytes) {
+        unsigned long live = __sanitizer_get_current_allocated_bytes();
+#ifdef TIL_CPTR32
+        // #313: the sanitizer counts libc's chunks; til's own live bytes are
+        // the cage's (block sizes, see til_cage_leak_report).
+        if (til_cage != NULL) live += (unsigned long)til_cage_leaked_bytes();
+#endif
+        fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", live);
+    }
 }
 
 // A program's real output can still be sitting in libc's stdout buffer when

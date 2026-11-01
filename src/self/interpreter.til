@@ -4762,6 +4762,13 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
             if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
                 ref mut own_hdr : DynPtrBox = ptr_add(data, foff)
                 if own_hdr.p.is_null().not() {
+                    // A library's literal Str sits in a STATIC box the
+                    // constfolder hoisted (`tail = &hoisted__Str_...`): a
+                    // struct adopted from a same-layout library carries that
+                    // address, and compiled code skips it by its pool's
+                    // range (TIL_LIT_GUARD). Here the image answers.
+                    if fl.struct_name.eq("Str").and(str_cap_at(own_hdr.p, ctx) == CAP_LIT)
+                        .and(addr_in_loaded_image(own_hdr.p)) { continue }
                     heap_drop_struct(fl.struct_name, own_hdr.p, ctx)
                     EvalHeap.heap_free(own own_hdr.p)
                 }
@@ -9491,6 +9498,15 @@ priv ffi_struct_layout := proc(type_name: Str, mut ctx: Context, host_layout: Bo
         box := FFITypePtrBox(ptr = st, offsets = offsets, layout_status = status)
         ctx.ffi.type_cache.set(key, own box)
         if type_name == "Vec__Str" { build_struct_ffi_type("Str", ctx, host_layout) }
+        // An own aggregate field's box converts with the struct
+        // (ffi_copy_struct_into), so its layout is built here, after this
+        // one is cached: a recursive shape (Node -> own next: Node) reuses it.
+        for own_field : Declaration in bsf_sdd.fields {
+            if own_field.own_type.is(OwnType.Own).not() { continue }
+            if is_aggregate(declaration_resolved_type(own_field, ctx.scope, ctx.symbols)).not() { continue }
+            if ctx.ffi.struct_defs.has(decl_type_name_ref(own_field, ctx.symbols)).not() { continue }
+            build_struct_ffi_type(decl_type_name_ref(own_field, ctx.symbols), ctx, host_layout)
+        }
         return ctx.ffi.type_cache[key]
     case:
         panic(__LOC__, "build_struct_ffi_type: node is not a StructDef")
@@ -10430,6 +10446,21 @@ priv ffi_vec_str_usize_field := func(header: Dynamic, field_name: Str,
     panic("FFI Vec(Str) has invalid USize field width")
 }
 
+// Is this Str box a literal's (cap == CAP_LIT at the layout's width)? Such
+// a box is static storage the constfolder hoisted, never heap.
+priv ffi_str_box_is_literal := func(box: Dynamic, host_layout: Bool, ctx: Context) returns Bool {
+    ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Str"].ptr)
+    ref index : USize = sd.fields_index["cap"]
+    ref layout : FFITypePtrBox = ffi_cached_layout("Str", ctx, host_layout)
+    ref offset : U64 = ptr_add(layout.offsets, index.mul(8))
+    ref field_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.mul(8)))
+    ref slot : Dynamic = ptr_add(box, offset.to_uptr())
+    // CAP_LIT is all ones at either width.
+    if field_type.size == 4 { ref n : U32 = to_ptr(slot); return n.add(1) == 0 }
+    if field_type.size == 8 { ref n : U64 = to_ptr(slot); return n.add(1) == 0 }
+    panic("FFI Str has invalid cap field width")
+}
+
 // Free only the vector's outer element buffer: its Str c_str pointers have
 // been transferred to the converted buffer (or are still borrowed there).
 priv ffi_release_vec_str_buffer := func(header: Dynamic, host_layout: Bool, ctx: Context) {
@@ -10567,7 +10598,37 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
                 // both sides. Copying 8 clobbered the next host field, or ran
                 // past the end of a struct whose last field it was.
                 ref pointer_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
-                memcpy(dst_field, src_field, pointer_type.size.to_usize())
+                width := pointer_type.size.to_usize()
+                if fd.own_type.is(OwnType.Own).and(src_host.neq(dst_host))
+                    .and(is_aggregate(declaration_resolved_type(fd, ctx.scope, ctx.symbols))) {
+                    // An OWN aggregate field points at a box laid out like its
+                    // side (an `own tail : Str` of a U64 library read by the
+                    // U32 interpreter): the box converts into one of the
+                    // destination's layout, the way a niche enum's payload box
+                    // does above, and ffi_release_conversion_storage frees it.
+                    // Copying the pointer alone left the pointee in the other
+                    // layout: the interpreter then read a U64 Str's count as its
+                    // own cap and freed through garbage (the native half of
+                    // test/ffi_pointer_field_width.til).
+                    pointee := decl_type_name_ref(fd, ctx.symbols).clone()
+                    ref source_box : Dynamic = own_slot_load(src_field, width)
+                    if source_box.is_null() {
+                        if reuse_owned { ffi_release_conversion_storage(type_name, dst, dst_host, ctx) }
+                        own_slot_store(dst_field, bits_word(0), width)
+                    } else {
+                        mut destination_box : Dynamic = 0
+                        if reuse_owned { destination_box = own_slot_load(dst_field, width) }
+                        reused := destination_box.is_null().not()
+                        if reused.not() {
+                            ref box_layout : FFITypePtrBox = ffi_cached_layout(pointee, ctx, dst_host)
+                            destination_box = calloc(1, box_layout.ptr.size.to_usize())
+                        }
+                        ffi_copy_struct_into(pointee, source_box, src_host, destination_box, dst_host, ctx, transfer_owned, reused)
+                        own_slot_store(dst_field, destination_box, width)
+                    }
+                } else {
+                    memcpy(dst_field, src_field, width)
+                }
             } else if decl_type_name_ref(fd, ctx.symbols).eq("USize").or(decl_type_name_ref(fd, ctx.symbols).eq("UPtr")) {
                 ffi_copy_width_field(type_name, decl_type_name_ref(fd, ctx.symbols), sd.field_name_at(i), src_field, src_host, dst_field, dst_host, ctx)
             } else {
@@ -10632,11 +10693,26 @@ priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, h
         ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
         for i in 0..sd.fields.len() {
             ref field : Declaration = sd.fields[i]
-            if field.own_type.is(OwnType.Shallow)
-                .and(is_aggregate(declaration_resolved_type(field, ctx.scope, ctx.symbols))) {
-                ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
+            if is_aggregate(declaration_resolved_type(field, ctx.scope, ctx.symbols)).not() { continue }
+            ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
+            if field.own_type.is(OwnType.Shallow) {
                 ffi_release_conversion_storage(decl_type_name_ref(field, ctx.symbols),
                     ptr_add(data, offset.to_uptr()), host_layout, ctx)
+            } else if field.own_type.is(OwnType.Own) {
+                // The converted box of an own aggregate field (see
+                // ffi_copy_struct_into), like a niche payload's -- or, on the
+                // raw side, the library's own box, now transferred. Not a
+                // literal's: the constfolder hoists a literal Str into a
+                // STATIC box (`tail = &hoisted__Str_...`), which no one frees.
+                ref slot_type : ffi_type = deref(ptr_add(layout.ptr.elements, i.mul(8)))
+                width := slot_type.size.to_usize()
+                ref stored_box : Dynamic = own_slot_load(ptr_add(data, offset.to_uptr()), width)
+                if stored_box.is_null() { continue }
+                if decl_type_name_ref(field, ctx.symbols).eq("Str").and(ffi_str_box_is_literal(stored_box, host_layout, ctx)) { continue }
+                mut box : Dynamic = stored_box
+                ffi_release_conversion_storage(decl_type_name_ref(field, ctx.symbols), box, host_layout, ctx)
+                free(own box)
+                own_slot_store(ptr_add(data, offset.to_uptr()), bits_word(0), width)
             }
         }
     case: UNREACHABLE("conversion storage without aggregate definition")

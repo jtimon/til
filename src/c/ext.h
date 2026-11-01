@@ -328,6 +328,7 @@ I32 mkdir_p(const Str *path);
 I32 copy_file(const Str *src, const Str *dst);
 I32 copy_tree(const Str *src, const Str *dst);
 Bool ptr_eq(void *a, void *b);
+Bool addr_in_loaded_image(void *p);
 U64 word_bits(const void *w);
 void *bits_word(U64 b);
 U64 f32_word(F32 f);

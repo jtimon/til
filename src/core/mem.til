@@ -50,6 +50,12 @@ ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 // `aaa.is_null()` on any Dynamic-typed value.
 is_null := core_func(p: Dynamic) returns shallow Bool {}
 
+/// Compiler-internal: is this address inside a loaded image (an
+/// executable's or shared object's own segments) rather than heap? The
+/// interpreter asks before freeing a library's Str box: a literal's box is
+/// static storage the constfolder hoisted (see addr_in_loaded_image in ext.c).
+addr_in_loaded_image := ext_func(p: Dynamic) returns shallow Bool {}
+
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
 /// Compiler-internal raw byte swap: the desugarer lowers ~param = rhs~
