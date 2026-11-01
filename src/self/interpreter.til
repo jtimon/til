@@ -6574,6 +6574,19 @@ priv InterpAlias := struct {
     ref target : Str
 }
 
+// The target an alias declaration names, as the typer resolved it rather
+// than as the source spells it: the loader retargets the width aliases
+// (core's `USize := U64` is U32 under --usize=32), and `USize.size()`
+// answered U64's 8 here while compiled code and the typer said 4 -- a
+// Vec(USize) a compiled TilVm host filled was then read at an 8-byte
+// stride. A declaration the typer does not hold as an alias (a value
+// `x := y`) keeps its source right-hand side.
+priv interp_alias_target := func(name: Str, rhs: Str, ctx: Context) returns ref Str {
+    ref resolved : Str = resolve_type_alias(ctx.scope, name, ctx.symbols)
+    if resolved != name { return resolved }
+    return rhs
+}
+
 // Appends one entry to `aliases` per alias actually registered, in walk
 // order, so interpret_copy_alias_ns can iterate that (tiny) list instead of
 // re-walking every top-level statement of every unit to re-apply this exact
@@ -6586,24 +6599,25 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
         else {
             switch stmt.children[0].node_type {
             case .Ident(rhs_ident):
-                // A value RHS is not a type alias: it carries no def, and
-                // reading its slot as one is the wild-pointer bug hb_func_def
-                // exists to stop.
-                ref src_hb : HeapBinding = scope_lookup_heap_binding(global, rhs_ident.ident_name(ctx.symbols.names)).unwrap()
-                sdef_o := hb_func_def(src_hb)
-                if sdef_o.is_some() {
-                    ref sdef : Expr = sdef_o.unwrap()
-                    if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                        switch stmt.node_type {
-                        case .Decl(dd):
+                switch stmt.node_type {
+                case .Decl(dd):
+                    ref target_name : Str = interp_alias_target(dd.name, rhs_ident.ident_name(ctx.symbols.names), ctx)
+                    // A value RHS is not a type alias: it carries no def, and
+                    // reading its slot as one is the wild-pointer bug hb_func_def
+                    // exists to stop.
+                    ref src_hb : HeapBinding = scope_lookup_heap_binding(global, target_name).unwrap()
+                    sdef_o := hb_func_def(src_hb)
+                    if sdef_o.is_some() {
+                        ref sdef : Expr = sdef_o.unwrap()
+                        if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
                             mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                             write_ptr(raw, sdef)
                             scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
-                            mut ia := InterpAlias(name = dd.name, target = rhs_ident.ident_name(ctx.symbols.names))
+                            mut ia := InterpAlias(name = dd.name, target = target_name)
                             aliases.push(own ia)
-                        case:
                         }
                     }
+                case:
                 }
             case:
             }
@@ -6706,6 +6720,20 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
 // input transfer, or a genuinely borrowed result.
 priv interp_callback_contract := func(sig: FuncSig, ctx: Context) returns FuncSig {
     mut out := sig.clone()
+    // A host contract (func_sig_of) keeps the declaration's spelling, so a
+    // width alias arrives as `USize` (declaration_type_from_name leaves it
+    // Custom) while the guest's own signature is resolved (interp_lookup_type:
+    // U32). Comparing is the semantic use that resolves them: both sides
+    // pass through here, so both name the same type the same way.
+    for mut alias_param : Declaration in out.params {
+        switch alias_param.til_type {
+        case .Custom(alias_name):
+            ref resolved : Str = resolve_type_alias(ctx.scope, alias_name, ctx.symbols)
+            if resolved != alias_name { alias_param.til_type = declaration_type_from_name(resolved) }
+        case:
+        }
+    }
+    if out.return_type.len() > 0 { out.return_type = resolve_type_alias(ctx.scope, out.return_type, ctx.symbols).clone() }
     returns_borrow := sig.return_own_type.is(OwnType.Ref)
     if out.return_own_type.is(OwnType.Own).and(out.return_type.len() > 0) {
         def := ctx.scope.get_struct(out.return_type, ctx.symbols)
@@ -7858,7 +7886,7 @@ cmd_interpret := proc(mut lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
 
 // Raw marshal mirror of the C Str layout; never built via the ctor.
 priv ExtStr := struct {
-    // own, like Str.c_str: under --cptr=32 a cage offset (#313).
+    // own, like Str.c_str: under --usize=32 a cage offset (#313).
     own data : U8 = 0
     count : USize = 0
     cap : USize = 0
@@ -8062,8 +8090,6 @@ get_exe_path := ext_proc() returns Str {}
 // folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold
 // bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
 til_built_with_asan := ext_proc() returns shallow Bool {}
-// #313: true when this compiler's own C was built with -DTIL_CPTR32.
-til_built_with_cptr32 := ext_proc() returns shallow Bool {}
 
 // `link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")` puts a
 // PATH in link_flags. A COMPILED program links that archive and stays
@@ -8132,25 +8158,33 @@ priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context, origin: Str =
 
 // Embedded loads still have individual source directives. Load one resolved
 // target directly so a base directory containing spaces is not tokenized.
-// Values cross a library call in this interpreter's library layout: the
-// target USize, and own pointers as its own cage's offsets or native -- the
-// library and the interpreter share one allocator, so that half follows the
-// running binary, whatever --cptr says. A til library exports the layout it
-// was built for (c_lib_abi_layout_symbol); any other is refused here, before
-// a call reads a native pointer as a cage offset or a U32 count as a U64
-// one (both segfaulted). A C library has no such symbol: nothing to check.
+// Values cross a library call in this interpreter's library layout, the
+// target USize -- and the library shares the running binary's allocator, so
+// its layout must also be the one this binary was built with: a cage
+// interpreter frees into the cage what a native library allocated with libc.
+// With one layout flag the two halves go together (--usize=32 is the cage
+// on a 64-bit host), so a library loads only at the binary's own layout, and
+// only into a program interpreted at it. A til library exports the layout
+// it was built for (c_lib_abi_layout_symbol); any other is refused here,
+// before a call reads a native pointer as a cage offset or a U32 count as a
+// U64 one (both segfaulted). A C library has no such symbol: nothing to
+// check.
 priv ffi_check_lib_layout := proc(lib: Str, soname: Str, mut ctx: Context, origin: Str, line: U32, col: U32) returns I32 {
     ref built_addr : U8 = ffi_global_symbol(c_lib_abi_layout_symbol(lib))
     if built_addr.is_null() { return 0 }
     built := Str.from_c_str(built_addr)
-    cptr32 := til_built_with_cptr32()
-    want := abi_layout_id(ctx.target_usize_pname, cptr32)
-    if built == want { return 0 }
-    mut flags := "--usize=64"
-    if ctx.target_usize_pname == "U32" { flags = "--usize=32" }
-    if cptr32 { flags = format(flags, " --cptr=32") } else { flags = format(flags, " --cptr=64") }
-    ffi_link_error(soname, format("built for layout ", built, ", but this interpreter loads libraries laid out ",
-        want, " -- rebuild it with ", flags), ctx, origin, line, col)
+    host := abi_layout_id(host_usize_pname())
+    want := abi_layout_id(ctx.target_usize_pname)
+    if built.eq(want).and(want.eq(host)) { return 0 }
+    host_flag := format("--usize=", host.strip_prefix("U"))
+    if want != host {
+        ffi_link_error(soname, format("this interpreter (built ", host_flag, ") loads only ", host_flag,
+            " libraries, and this program is interpreted at --usize=", want.strip_prefix("U"),
+            " -- interpret it with ", host_flag), ctx, origin, line, col)
+        return 1
+    }
+    ffi_link_error(soname, format("built for layout ", built, ", but this interpreter loads ", host_flag,
+        " libraries -- rebuild it with ", host_flag), ctx, origin, line, col)
     return 1
 }
 
@@ -8205,9 +8239,8 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     mut usize_define := " -DTIL_USIZE64"
     if host_usize_pname() == "U32" { usize_define = " -DTIL_USIZE32" }
     // #313: a cage-built interpreter frees what the user .so allocates (and
-    // vice versa), so the .so must allocate from the same cage.
-    if til_built_with_cptr32() { usize_define = format(usize_define, " -DTIL_CPTR32") }
-    else { usize_define = format(usize_define, " -DTIL_CPTR64") }
+    // vice versa), so the .so must allocate from the same cage: the host's
+    // USize define selects it (ext.h).
     // The user .so refers to the interpreter's runtime: ext.h spells
     // malloc( as til_malloc and TIL_OWN_GET reads til_cage_base, so the
     // module has undefined symbols that resolve against the executable at
@@ -9459,8 +9492,9 @@ priv shallow_ffi_type := proc(type_name: Str, mut ctx: Context, host_layout: Boo
 }
 
 priv field_ffi_type := proc(sd: StructDef, dd: Declaration, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
-    // #313: a --cptr=32 interpreter compiles its FFI libraries with the same
-    // define, so an own field is a 4-byte cage offset on both sides.
+    // #313: a cage interpreter loads only cage libraries (--usize=32, see
+    // ffi_check_lib_layout), so an own field is a 4-byte cage offset on both
+    // sides.
     if field_is_own_ptr(sd, dd).and(host_own_ptr_compressed()) { return ffi_type_ref("ffi_type_uint32") }
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.til_type.is(Type.Unknown) { return ffi_type_ref("ffi_type_sint64") }
@@ -10455,7 +10489,7 @@ priv ffi_vec_str_field_slot := func(header: Dynamic, field_name: Str,
 }
 
 // #313: Vec(Str).data's slot width in that layout -- a cage offset (4)
-// when a --cptr=32 interpreter lays own fields out compressed.
+// when a cage (--usize=32) interpreter lays own fields out compressed.
 priv ffi_vec_str_data_size := func(host_layout: Bool, ctx: Context) returns USize {
     ref sd : StructDef = structdef_of(ctx.ffi.struct_defs["Vec__Str"].ptr)
     ref index : USize = sd.fields_index["data"]

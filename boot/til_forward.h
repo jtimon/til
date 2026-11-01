@@ -2,9 +2,6 @@
 #if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)
 #define TIL_USIZE32 1
 #endif
-#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64)
-#define TIL_CPTR32 1
-#endif
 #include "ext.h"
 
 typedef struct TilClosure TilClosure;
@@ -1941,7 +1938,6 @@ typedef struct CliArgs {
     Bool asan;
     Bool prof;
     I64 usize_bits;
-    I64 cptr_bits;
     Bool check_unused_imports;
     TIL_OWN_PTR(Vec__Str) extra_modes;
 } CliArgs;

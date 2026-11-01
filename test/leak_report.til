@@ -4,7 +4,7 @@ mode script
 // the cage's blocks, so the cage itself reports, at exit, every live block
 // nothing reaches any more. This program loses raw allocations through a
 // Dynamic field (asap destruction does not free Dynamic) and must exit 1
-// with "til cage: detected memory leaks" -- or, built --cptr=64, with
+// with "til cage: detected memory leaks" -- or, built --usize=64, with
 // LeakSanitizer's own report. Several blocks, not one: the scan is
 // conservative, and a stale stack frame can still hold the last one's
 // address. Registered by src/tests.til on Linux ASAN runs only (macOS runs

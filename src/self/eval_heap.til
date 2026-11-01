@@ -57,7 +57,7 @@ f64_bits_from_i64 := ext_func(shallow v: I64) returns shallow U64 {}
 // without freeing (the word holds value bits, not a heap pointer).
 word_drop := ext_func(own w: Dynamic) {}
 // #313: the pointer in a pointer-field slot of the running binary's layout,
-// and the store back, given the slot's FieldLayout size. A --cptr=32 build
+// and the store back, given the slot's FieldLayout size. A --usize=32 build
 // keeps an own field as a 4-byte cage offset (FieldLayout.is_cptr), so a slot
 // narrower than a pointer is one of those; a full-width slot is a native
 // pointer and these are deref / write_ptr. own_slot_store is write_ptr's

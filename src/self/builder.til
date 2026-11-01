@@ -49,7 +49,7 @@ priv core_gc_link_args := func(target: Target) returns Str {
 
 priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         user_c_path: Str, link_flags: Str, include_flags: Str, target: Target,
-        cc_override: Str, asan: Bool, usize64: Bool, cptr32: Bool, shared_runtime: Bool,
+        cc_override: Str, asan: Bool, usize64: Bool, shared_runtime: Bool,
         runtime_stem: Str, runtime_basename: Str, core_stem: Str,
         core_basename: Str, build_flags: Str) returns I32 {
     mut uc := user_c_path
@@ -81,9 +81,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // also cover --usize overrides that differ from the target pointer width.
     mut usize_flags := " -DTIL_USIZE32"
     if usize64 { usize_flags = " -DTIL_USIZE64" }
-    // #313: the own-pointer storage is part of the same C ABI pin.
-    if cptr32 { usize_flags = format(usize_flags, " -DTIL_CPTR32") }
-    else { usize_flags = format(usize_flags, " -DTIL_CPTR64") }
+    // #313: the own-pointer storage follows from it (ext.h).
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -364,9 +362,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // .c and ext.c are compiled in one invocation, so one define covers both.
     mut usize_flags := " -DTIL_USIZE32"
     if usize64 { usize_flags = " -DTIL_USIZE64" }
-    // #313: the own-pointer storage is part of the same C ABI pin.
-    if cptr32 { usize_flags = format(usize_flags, " -DTIL_CPTR32") }
-    else { usize_flags = format(usize_flags, " -DTIL_CPTR64") }
+    // #313: the own-pointer storage follows from it (ext.h).
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -661,7 +657,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
             lp.link_c_paths, link_flags, include_flags, target,
-            cc_override, asan, usize64, lp.cptr32, lp.uses_shared_runtime(),
+            cc_override, asan, usize64, lp.uses_shared_runtime(),
             lp.runtime_stem(), lp.runtime_shared_basename(),
             lp.core_stem(), lp.core_shared_basename(), build_flags)
     }

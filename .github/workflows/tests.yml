@@ -53,60 +53,23 @@ jobs:
           file bin/hello_script_x64 | grep -q "x86-64"
           ./bin/hello_script_x64
 
-  # Issue #309: USize now defaults to U32, so every other job exercises the
-  # U32 width. This job keeps U64 coverage on Linux: it runs the --usize=64
-  # opt-out regression AND rebuilds the whole compiler at --usize=64 (a U32
-  # host folding U64-target code -- the reverse of the default divergence),
-  # then uses that U64 compiler to build and run a program.
+  # One layout flag (doc/self.org): --usize=32, the compact layout (U32
+  # widths, own pointers in the #313 cage), is the default on 64-bit C
+  # targets, so every other job runs on it. This job keeps the native
+  # layout alive: make check_usize64 runs the --usize=64 regressions, then
+  # the whole suite through a compiler built --usize=64 (under ASAN), with
+  # every program built --usize=64 too.
   linux-x64-usize64:
     name: linux-x64 (--usize=64)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
       - name: Create test tmp directory
         run: mkdir -p tmp
-      - name: Build compiler (default U32)
-        run: make
-      - name: usize=64 opt-out regression
+      - name: Suite through the native-layout compiler
         run: make check_usize64
-      - name: Rebuild the compiler at --usize=64 and use it
-        run: |
-          ./bin/til build --usize=64 -o bin/til_u64 src/til.til
-          ./bin/til_u64 build -o bin/hello_via_u64 examples/hello_script.til
-          ./bin/hello_via_u64 | grep -q "Hello World"
-
-  # Issue #313: the pointer-compression cage is the default, so every other
-  # job runs on it. This one keeps the native opt-out alive: the whole suite
-  # through a compiler built with --cptr=64 (under ASAN), with every program
-  # built --cptr=64 too, after the struct sizes of both layouts.
-  linux-x64-cptr64:
-    name: linux-x64 (--cptr=64)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
-      - name: Create test tmp directory
-        run: mkdir -p tmp
-      - name: Suite through the native compiler
-        run: make check_cptr64
-
-  # Both opt-outs together, the fully native layout: 64-bit USize (#309) on
-  # native own pointers (#313). The whole suite through a compiler built
-  # --usize=64 --cptr=64 and every program built the same way.
-  linux-x64-native64:
-    name: linux-x64 (--usize=64 --cptr=64)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
-      - name: Create test tmp directory
-        run: mkdir -p tmp
-      - name: Suite through the native 64-bit compiler
-        run: make check_native64
 
   # Issue #25: aarch64-linux as a native HOST (GitHub's free arm64
   # runners), running the full suite. Blocking like every other linux

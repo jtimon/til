@@ -26,7 +26,7 @@ check_text := proc() {
     require_contains(java, "public final class JniLib {")
     require_contains(java, "static { System.loadLibrary(\"jni_lib_jni\"); }")
     require_contains(java, "public static byte jni_add_u8(byte a, byte b) {")
-    require_contains(java, "public static long jni_add_usize(long a, long b) {")
+    require_contains(java, "public static int jni_add_usize(int a, int b) {")
     require_contains(java, "public static boolean jni_not(boolean a) {")
     require_contains(java, "public static long JniCounter_twice(long x) {")
     require_contains(java, "public static String jni_greet(String name) {")

@@ -175,7 +175,7 @@ main := proc(args: ..Str) {
     // both subcommand: compare interpret output with compiled-run output.
     if subcmd == "both" {
         if args.len() < 2 {
-            println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan] [--cptr=32|64] [--usize=32|64]")
+            println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan] [--usize=32|64]")
             exit(1)
         }
 
@@ -191,9 +191,7 @@ main := proc(args: ..Str) {
             if arg == "-no-run" { en_run = 0 }
             if arg == "-no-match" { en_match = 0 }
             if arg == "--asan" { asan_flag = format(asan_flag, " --asan") }
-            // #313: an explicit own-pointer storage for the compiled programs;
-            // #309: an explicit USize width the same way (make check_native64).
-            if arg.eq("--cptr=32").or(arg.eq("--cptr=64")) { asan_flag = format(asan_flag, " ", arg) }
+            // An explicit layout for the compiled programs (make check_usize64).
             if arg.eq("--usize=32").or(arg.eq("--usize=64")) { asan_flag = format(asan_flag, " ", arg) }
             if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
                 ref val : Str = args[i + 1]

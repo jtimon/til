@@ -1031,14 +1031,13 @@ main := proc(args: ..Str) {
     wall_start := clock_ms()
 
     // Parse args: -jN, -no-interp, -no-run, --no-gui, --til-bin <path>, --asan,
-    // --cptr=32|64
+    // --usize=32|64
     mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
     mut en_gui := 1
     mut til_bin := TIL
     mut asan := 0
-    mut cptr_flag := ""
     mut usize_flag := ""
     mut i : USize = 0
     while i < args.len() {
@@ -1056,7 +1055,6 @@ main := proc(args: ..Str) {
             til_bin = val.clone()
         }
         if arg == "--asan" { asan = 1 }
-        if arg.eq("--cptr=32").or(arg.eq("--cptr=64")) { cptr_flag = format(" ", arg) }
         if arg.eq("--usize=32").or(arg.eq("--usize=64")) { usize_flag = format(" ", arg) }
         if arg == "--regen" { REGEN = " --regen" }
         i++
@@ -1068,13 +1066,13 @@ main := proc(args: ..Str) {
     // their own leaks when executed.
     mut asan_flag := ""
     if asan == 1 { asan_flag = " --asan" }
-    // #313: an explicit --cptr=32|64 rides along with the ASAN flag into
-    // every compiled program's build (make check_cptr64 passes --cptr=64,
-    // the opt-out of the default cage); interpretation is unaffected. An
-    // explicit --usize=32|64 rides the same way (make check_native64 passes
-    // both opt-outs: 64-bit USize on native pointers). A row that spells
-    // its own width writes it AFTER these flags, since the last one wins.
-    asan_flag = format(asan_flag, cptr_flag, usize_flag)
+    // An explicit --usize=32|64 -- the whole layout, one flag (doc/self.org)
+    // -- rides along with the ASAN flag into every compiled program's build
+    // (make check_usize64 passes --usize=64, the native opt-out of the
+    // default compact layout); interpretation is unaffected. A row that
+    // spells its own width writes it AFTER these flags, since the last one
+    // wins.
+    asan_flag = format(asan_flag, usize_flag)
 
     mut fail := 0
 
@@ -1140,17 +1138,15 @@ main := proc(args: ..Str) {
     // fixed-point break that did not happen. Removing the artifacts is what
     // makes the row test what it says it tests.
     //
-    // #313: under an explicit --cptr=64 (make check_cptr64) the compiler
-    // under test was itself built native, while boot/ comes from a cage
-    // compiler (the default). Its interpreter needs host (native) sizes, so
-    // for this cage target it leaves size() unfolded -- like #309's --usize
-    // cross-width builds, a different translation, not a fixed-point break.
-    // There the row keeps the repeatability half: two processes must emit
-    // identical bytes. (The same holds for a --cptr=32 run against a native
-    // boot/, the shape this row had before the cage became the default.)
+    // Under an explicit --usize (make check_usize64) the compiler under test
+    // was itself built --usize=64, native, while boot/ comes from a compact
+    // (--usize=32) compiler. Its interpreter needs host (native) sizes, so
+    // for this compact target it leaves size() unfolded -- a cross-layout
+    // translation, not a fixed-point break. There the row keeps the
+    // repeatability half: two processes must emit identical bytes.
     mut self_reference := "boot/til"
     mut self_reference_cmd := ""
-    if cptr_flag.len().gt(0).or(usize_flag.len().gt(0)) {
+    if usize_flag.len().gt(0) {
         self_reference = "tmp/self_det_ref"
         self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
@@ -1256,7 +1252,7 @@ main := proc(args: ..Str) {
     }
     // #313: the cage's leak report (LeakSanitizer cannot see the cage's
     // blocks). A compiled program that loses one allocation must exit 1,
-    // under the cage from the cage's own report and under --cptr=64 from
+    // under the cage from the cage's own report and under --usize=64 from
     // LeakSanitizer's. Only where leaks are detected at all: an ASAN run
     // on Linux (macOS forces detect_leaks=0, see builder.til).
     if asan == 1 && host_os() == "linux" {
@@ -1271,7 +1267,7 @@ main := proc(args: ..Str) {
         format(TIL, " run test/library_namespace.til"))
     // #313: an interpreted call marshals a returned library struct whose
     // last field is a 4-byte own pointer without running past it. Under
-    // the native opt-outs (make check_cptr64 / check_native64) the same row
+    // the native opt-out (make check_usize64) the same row
     // covers the other half: the struct's `own tail : Str` points at a box
     // laid out like the LIBRARY (a U64 Str, or the literal pool's static
     // box), which the interpreter now converts into one of its own layout
@@ -1281,9 +1277,9 @@ main := proc(args: ..Str) {
     add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
         format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
             til_bin, asan_flag))
-    // #313: a library built for another layout (the other own-pointer
-    // storage, or a U32 USize) is refused when the interpreter loads it,
-    // instead of segfaulting on the first struct it returns.
+    // #313: a library built for the other layout (--usize) is refused when
+    // the interpreter loads it, instead of segfaulting on the first struct
+    // it returns.
     add_count(tests, "ffi_lib_layout", "build", "ffi lib layout passed", 1,
         format(til_bin, " run", asan_flag, " -o bin/c/ffi_lib_layout -c gen/c/ffi_lib_layout.c test/ffi_lib_layout.til ",
             til_bin, asan_flag))
@@ -1613,9 +1609,9 @@ main := proc(args: ..Str) {
         CountCheck(needle = "Shelf209 *_oa = malloc", expected_count = 0))
     structs_checks = structs_checks.concat(array(CountCheck, CountCheck(needle = "StackValue346 *_oa = malloc(TIL_BOX(StackValue346))", expected_count = 1)))
     fn_ptr_checks = fn_ptr_checks.concat(array(CountCheck,
-        CountCheck(needle = "static U64 consume_owned_box346(ReturnBox346 * box)", expected_count = 2),
+        CountCheck(needle = "static USize consume_owned_box346(ReturnBox346 * box)", expected_count = 2),
         CountCheck(needle = "static I64 consume_owned_i64(I64 value)", expected_count = 2)))
-    closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "static U64 closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", expected_count = 1)))
+    closures_checks = closures_checks.concat(array(CountCheck, CountCheck(needle = "static USize closure_make_closure_owned_box_consumer346_0(void *til_env_raw, ClosureBox346 * box)", expected_count = 1)))
     add_count(tests, "self_method_own_param_pointer_abi", "build",
         "static void Expr_add_child(Expr * self, Expr * child)", 2,
         "cat boot/til.c")
@@ -1939,13 +1935,10 @@ main := proc(args: ..Str) {
     // USize-to-UPtr widening in container byte arithmetic is a native cast,
     // not an out-of-line call at every generated Vec/Array/Map access.
     vecs_checks = vecs_checks.concat(array(CountCheck, CountCheck(needle = "U64_to_uptr(", expected_count = 0)))
-    // The self-compiler keeps compact U32 collection metadata even though
-    // programs it compiles remain target-width (U64 on this host) by default.
+    // The self-compiler's header pins the compact layout (U32 widths; ext.h
+    // derives the cage from it, #313) so the flag-less boot compile builds
+    // ext.c to match.
     add_count(tests, "self_compiler_usize32", "build", "#define TIL_USIZE32 1", 1,
-        "cat boot/til_forward.h")
-    // #313: the self-compiler's own fields are cage offsets, and the header
-    // pins that layout so the flag-less boot compile builds ext.c to match.
-    add_count(tests, "self_compiler_cptr32", "build", "#define TIL_CPTR32 1", 1,
         "cat boot/til_forward.h")
     hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "static void println(Array__Str * parts)", expected_count = 2)))
     // The GENERATED families join the audit too: a dyn wrapper exists
@@ -2149,12 +2142,11 @@ main := proc(args: ..Str) {
     add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern USize CAP_LIT;", 1,
         "cat gen/til/til_forward.h")
     // #313: a compiler folds sizes only for a target laid out like itself,
-    // so under make check_cptr64 the translation targets --cptr=64 too, and
-    // under make check_native64 its 64-bit USize as well (#309).
+    // so under make check_usize64 the translation targets --usize=64 too.
     mut enums_size_width := " --usize=32"
     if usize_flag.len() > 0 { enums_size_width = usize_flag.clone() }
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
-        format(til_bin, " translate", enums_size_width, cptr_flag, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
+        format(til_bin, " translate", enums_size_width, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     first_class_checks = first_class_checks.concat(array(CountCheck,
         CountCheck(needle = "unused_default_op", expected_count = 0),
         CountCheck(needle = "__attribute__((unused))", expected_count = 0)))

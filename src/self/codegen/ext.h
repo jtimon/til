@@ -64,17 +64,15 @@ typedef struct Str Str;
 // Memory that libc allocates internally (realpath(p, NULL), ...) is still
 // libc's: release it with (free)(p), which the macro does not expand. The
 // cage never returns NULL (exhaustion panics), and says so to the compiler.
-// The driver pins one of TIL_CPTR32 / TIL_CPTR64 on every compile, and the
-// generated headers default to the one they were emitted for (like the
-// USize pin), so a flag-less compile of a checked-in artifact reproduces
-// its layout; TIL_CPTR32 is the default on 64-bit C targets.
-#if defined(TIL_CPTR32) && defined(TIL_CPTR64)
-#error "TIL_CPTR32 and TIL_CPTR64 are mutually exclusive"
+// The cage follows the USize width (one layout flag, doc/self.org): a
+// 32-bit USize on a 64-bit target is the compact layout, own pointers
+// included; a 32-bit target's pointers are 32 bits already. So the driver's
+// USize define -- or the generated headers' USize pin, for a flag-less
+// compile of a checked-in artifact -- is the whole layout.
+#if defined(TIL_USIZE32) && UINTPTR_MAX != 0xffffffff
+#define TIL_CPTR32 1
 #endif
 #ifdef TIL_CPTR32
-#if UINTPTR_MAX == 0xffffffff
-#error "TIL_CPTR32 compresses 64-bit pointers; a 32-bit target already stores 32-bit pointers"
-#endif
 #include <stddef.h>
 #include <stdlib.h>
 // no_instrument_function: --prof profiles the program, not its allocator,

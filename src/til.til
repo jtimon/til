@@ -765,11 +765,10 @@ usage := proc() {
     println("              Controls SIMD width queries and C ISA flags; no host probing.")
     println("  --opt=0|2|3  C optimization level for build/run/test/install (default 0).")
     println("              CPU/optimization selections override --cc's -march/-O options.")
-    println("  --usize=32|64  Override the target-native USize container width;")
+    println("  --usize=32|64  Container width (USize) and layout. 32, the default on")
+    println("              64-bit C targets, also stores own pointer fields as 32-bit")
+    println("              offsets into a 4GB allocation cage; 64 is the native layout.")
     println("              UPtr always follows pointer width.")
-    println("  --cptr=32|64  64-bit targets only: 32 stores own pointer fields as 32-bit")
-    println("              offsets into a 4GB allocation cage (the default there);")
-    println("              64 keeps native pointers.")
     println("  --force-rebuild  Accepted for compatibility; translate/build/run")
     println("              always regenerate their outputs.")
     println("")
@@ -821,10 +820,6 @@ CliArgs := struct {
     // #309: --usize overrides the target-native USize alias. 0 follows the
     // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
-    // #313: --cptr selects how owned pointers are stored. 32 = allocate from
-    // the compression cage (-DTIL_CPTR32), the default on 64-bit C targets;
-    // 64 = native pointers; 0 = not given (resolved against the target).
-    cptr_bits : I64 = 0
     // #154: unused-import type errors, on by default;
     // --check-unused-imports=false disables for one invocation.
     check_unused_imports := true
@@ -981,17 +976,6 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
                 exit(1)
             }
             cli.path_idx++
-        } else if flag.starts_with("--cptr=") {
-            cval := flag.strip_prefix("--cptr=")
-            if cval == "32" {
-                cli.cptr_bits = 32
-            } else if cval == "64" {
-                cli.cptr_bits = 64
-            } else {
-                println(format("error: --cptr expects 32 or 64, got '", cval, "'"))
-                exit(1)
-            }
-            cli.path_idx++
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
             ref pval : Str = args[cli.path_idx + 1]
             cli.install_prefix = pval.clone()
@@ -1076,10 +1060,6 @@ priv validate_theme_cli := proc(cli: CliArgs, lp: LoadedProgram) {
     }
     if cli.usize_bits != 0 {
         println("error: --usize is not supported with mode theme")
-        exit(1)
-    }
-    if cli.cptr_bits != 0 {
-        println("error: --cptr is not supported with mode theme")
         exit(1)
     }
     if cli.command.eq("ast").or(cli.command.eq("doc")) { return }
@@ -1180,22 +1160,6 @@ main := proc(args: ..Str) {
         }
     }
     cpu := resolve_target_cpu(target, cli.cpu_profile)
-    // #313: compression shrinks 64-bit pointers; a 32-bit target's pointers
-    // already are 32 bits, and only the C backend implements the cage.
-    if cli.cptr_bits != 0 {
-        if target_uptr_name(target) != "U64" {
-            println("error: --cptr applies to 64-bit targets only; this target's pointers are already 32-bit")
-            exit(1)
-        }
-        if cli.backend_set && cli.backend != "c" {
-            println("error: --cptr is supported by the C backend only")
-            exit(1)
-        }
-        if target_lang(target).is(Lang.C).not() {
-            println("error: --cptr is supported by the C backend only; this target emits HolyC")
-            exit(1)
-        }
-    }
 
     if cli.backend == "fasm" {
         if target.is(Target.LinuxX64).not() || detect_current_target().is(Target.LinuxX64).not() {
@@ -1232,21 +1196,39 @@ main := proc(args: ..Str) {
     lp.opt_level = cli.opt_level
     // #309: --usize override must be set before prepare_program stamps the
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
-    lp.usize_override_bits = cli.usize_bits
-    // #313: the cage is the default wherever it applies -- a 64-bit target,
-    // the C backend, a program (mode theme emits Elisp, not C). --cptr=64
-    // opts out; --cptr=32 on a target it cannot apply to was rejected above.
-    lp.cptr32 = cli.cptr_bits == 32
-    if cli.cptr_bits == 0 {
-        // The target's LANGUAGE, not just cli.backend: --backend defaults to
-        // "c" for every target, TempleOS included, whose 64-bit pointers are
-        // what UPtr reports -- so the cage defaulted on for HolyC output, and
-        // the folder sized own fields at 4 bytes (`sizeof(IntegerOverflow)`
-        // became 12) against a HolyC runtime of 8-byte pointers: the guest
-        // corpus panicked (CI run 2877, test/holyc_primitives.til at --usize=32).
-        lp.cptr32 = target_uptr_name(target).eq("U64").and(target_lang(target).is(Lang.C))
-            .and(cli.backend.eq("c")).and(lp.mode_str.neq("theme"))
+    //
+    // One layout flag (doc/self.org): --usize picks the whole layout. On a
+    // 64-bit C target the default is --usize=32, the compact one. The target's
+    // LANGUAGE, not just cli.backend: --backend defaults to "c" for every
+    // target, TempleOS included, whose HolyC runtime has 8-byte pointers (the
+    // cage once defaulted on there and the guest corpus panicked, CI run
+    // 2877). Mode theme emits Elisp, and a 32-bit target's widths follow the
+    // target (0).
+    c_target64 := target_uptr_name(target).eq("U64").and(target_lang(target).is(Lang.C))
+        .and(lp.mode_str.neq("theme"))
+    mut usize_bits := cli.usize_bits
+    if cli.backend == "mlir" {
+        // MLIR code lays a Str out as {ptr, i32, i32} and allocates with
+        // libc: it cannot share a caged runtime, so it has the native
+        // layout only.
+        if usize_bits == 32 {
+            println("error: the MLIR backend supports --usize=64 only: --usize=32 stores own pointers in the allocation cage, which MLIR does not implement")
+            exit(1)
+        }
+        usize_bits = 64
+    } else if usize_bits.eq(0).and(c_target64) {
+        usize_bits = 32
+        // Interpretation runs in this binary's own layout, and a library it
+        // loads shares this binary's allocator (ffi_check_lib_layout): it
+        // defaults to the running compiler's layout -- the compact one,
+        // unless this compiler was itself built --usize=64.
+        if cli.command.eq("interpret").and(host_usize_pname().eq("U64")) { usize_bits = 64 }
     }
+    lp.usize_override_bits = usize_bits
+    // #313: the compact layout's own pointer fields are 32-bit offsets into
+    // the cage -- under the C backend; FASM emits its own native layout at
+    // either width, without ext.c.
+    lp.cptr32 = usize_bits.eq(32).and(c_target64).and(cli.backend.eq("c"))
     lp.ctx.target_cptr32 = lp.cptr32
     // #154 prototype: unused-import type errors, opt-in per invocation.
     lp.ctx.check_unused_imports = cli.check_unused_imports

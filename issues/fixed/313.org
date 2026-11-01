@@ -117,18 +117,19 @@
     ~abi_layout_id~ (~til_<lib>___til_abi_layout~) and the interpreter
     refuses a mismatch at load, naming the flags to rebuild with
     (test/ffi_lib_layout.til).
+  - One layout flag (Two-pass commit): ~--cptr~ folded into ~--usize~, two
+    layouts instead of four -- ~--usize=32~ (the default on 64-bit C
+    targets, programs included) is U32 widths with the cage, ~--usize=64~
+    is native. MLIR has the native layout only. Details in doc/self.org,
+    "Decided: one layout flag".
 
 *** Open follow-ups
 
-  To revisit after the transition to two layouts only (USize and pointers
-  both 32 bits, or both 64): several of these exist only because the two
-  widths could differ, and may shrink or disappear with it.
-
-  - ~interpret --cptr=64~ is accepted but has no effect on library calls:
-    the interpreter and a library share one allocator, so the own-pointer
-    half of the layout always follows the running binary. A cage
-    interpreter can never load a native library; the flag could be refused
-    there instead of silently meaning nothing.
+  - With one layout, the interpreter loads a til library only at its own
+    layout (ffi_check_lib_layout), so ffi_copy_struct_into's cross-width
+    conversions (an own aggregate field's pointee, U32/U64 counts) have no
+    library caller left. Check whether anything else reaches them, and
+    remove them if nothing does.
   - Only ~own~ fields are compressed. ~ref~ fields, Dynamic values and UPtr
     variables are still 64-bit in the cage build, so the issue's goal --
     32-bit pointers -- is only partly met. Needs a plan before code.

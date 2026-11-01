@@ -25,7 +25,9 @@ main := proc(compiler_arg: Str) {
         File.writefile(format(work, "/strings.til"), "mode lib\ndecorate:=func(s:Str) returns Str {return format(\"[\",s,\"]\")}\n")
         File.writefile(format(work, "/extrema.til"), "mode pure\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nfmin:=func(a:F4) returns F32 {return a.reduce_min()}\nfmax:=func(a:F4) returns F32 {return a.reduce_max()}\nsmin:=func(a:S4) returns I32 {return a.reduce_min()}\nsmax:=func(a:S4) returns I32 {return a.reduce_max()}\numin:=func(a:U4) returns U32 {return a.reduce_min()}\numax:=func(a:U4) returns U32 {return a.reduce_max()}\n")
         File.writefile(format(work, "/integer_vectors.til"), "mode pure\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nM4:=Simd(Bool,4)\nsigned_div:=func(a:S4,b:S4) returns S4 {return a/b}\nunsigned_div:=func(a:U4,b:U4) returns U4 {return a/b}\nsigned_less:=func(a:S4,b:S4) returns M4 {return a<b}\nunsigned_less:=func(a:U4,b:U4) returns M4 {return a<b}\nload:=func(a:Array(I32),i:USize) returns S4 throws OutOfBounds {return S4.load(a,i)?}\n")
-        for width in array(Str, "32", "64") {
+        // MLIR has the native layout only (one layout flag, doc/self.org):
+        // --usize=64, its default; --usize=32 is refused below.
+        for width in array(Str, "64") {
             extrema := Cmd.new(compiler, "translate", "--backend=mlir", format("--usize=", width), "extrema.til")
             extrema.cwd(work).capture()
             extrema_status := extrema.run()
@@ -79,8 +81,11 @@ main := proc(compiler_arg: Str) {
             expect(memory_ir.contains("arith.cmpi ule") && memory_ir.contains("arith.cmpi uge"), memory_ir)
             expect(memory_ir.contains("alignment = 4 : i64} : !llvm.ptr -> vector<4xf32>"), memory_ir)
             expect(memory_ir.contains("inbounds").or(memory_ir.contains("noalias")).not(), memory_ir)
-            if width == "32" { expect(memory_ir.contains("arith.extui"), memory_ir) }
         }
+        compact := Cmd.new(compiler, "translate", "--backend=mlir", "--usize=32", "flow.til")
+        compact.cwd(work).capture()
+        expect(compact.run() != 0, "MLIR accepted --usize=32")
+        expect(compact.out().contains("MLIR backend supports --usize=64 only"), compact.out(), compact.err())
         File.writefile(format(work, "/buffer_bang.til"), "mode pure\nF4:=Simd(F32,4)\nload_bang := func(a: Array(F32),i: USize) returns F4 { return F4.load(a,i)! }\n")
         buffer_bang := Cmd.new(compiler, "translate", "--backend=mlir", "buffer_bang.til")
         buffer_bang.cwd(work).capture()

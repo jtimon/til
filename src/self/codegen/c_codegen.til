@@ -437,7 +437,7 @@ priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) 
 }
 
 // #313: the pointee C type when `sname.fname` is an own field stored as a
-// cage offset (--cptr=32), else "" -- a native pointer, or no such field.
+// cage offset (--usize=32), else "" -- a native pointer, or no such field.
 priv cptr_field_pointee := func(sname: Str, fname: Str, ctx: Context) returns Str {
     if ctx.target_cptr32.not() { return "" }
     def_o := find_struct_def(sname, ctx)
@@ -455,7 +455,7 @@ priv cptr_field_pointee := func(sname: Str, fname: Str, ctx: Context) returns St
 }
 
 // #313: open/close an own-field load: TIL_OWN_GET(T, (<lvalue>)) under
-// --cptr=32 when `pointee` is non-empty, the bare lvalue otherwise. The
+// --usize=32 when `pointee` is non-empty, the bare lvalue otherwise. The
 // argument is parenthesized because it may hold top-level commas (a
 // compound literal), which would split a macro argument.
 priv emit_cptr_get_open := proc(f: File, pointee: Str) {
@@ -1432,7 +1432,7 @@ priv emit_stack_outer_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context
 }
 
 // A borrowed argument for a C value parameter. An own/ref field holds a
-// pointer (a cage offset TIL_OWN_GET decodes, under --cptr=32), and
+// pointer (a cage offset TIL_OWN_GET decodes, under --usize=32), and
 // emit_deref leaves a field access as written -- the `ref p : U8` fields
 // read into Dynamic locals rely on that -- so `show(t.tail)` passed the
 // pointer where the callee takes the struct.
@@ -1937,7 +1937,7 @@ priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns B
 }
 
 // #313: a Str literal's `.c_str = ...` designated initializer. Under
-// --cptr=32 the field is a cage offset, so the bytes are copied into the cage
+// --usize=32 the field is a cage offset, so the bytes are copied into the cage
 // once per use site (TIL_OWN_LIT, a function-scope expression).
 priv emit_lit_c_str_init := proc(f: File, s: Str, ctx: Context) {
     if ctx.target_cptr32 {
@@ -1950,7 +1950,7 @@ priv emit_lit_c_str_init := proc(f: File, s: Str, ctx: Context) {
 }
 
 // #313: a CAP_LIT Str value whose bytes are copied into the cage, for the
-// --cptr=32 initializers that run before main (a statement, `;` included).
+// --usize=32 initializers that run before main (a statement, `;` included).
 priv emit_cptr_static_str_lit := proc(f: File, s: Str) {
     n := c_lit_byte_count(s)
     f.write("(Str){.c_str = {til_cage_lit(\"").write(s).write("\", ")
@@ -2359,7 +2359,7 @@ priv builder_emit_loc_region := proc(f: File, ctx: Context) {
         // #313: same as the literal pool -- the wrappers and bytes live in
         // the cage, built before main, and each name is a macro for its
         // cage member (a macro does not re-expand inside itself).
-        f.write("/* til source locations, in the --cptr=32 cage */\nstatic struct {\n")
+        f.write("/* til source locations, in the --usize=32 cage */\nstatic struct {\n")
         for iname : Str in sorted_locs.keys { f.write("    Str ").write(iname).write(";\n") }
         f.write("} *_til_loc_lits_cage;\n")
         for iname : Str in sorted_locs.keys {
@@ -2604,7 +2604,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         // emit_stmt skipped the indent for this shape.
                     } else {
                         // #313: a static initializer cannot hold a cage
-                        // offset, so --cptr=32 initializes it every time.
+                        // offset, so --usize=32 initializes it every time.
                         if dd.is_mut.not().and(ctx.target_cptr32.not()) { f.write("static ") }
                         f.write(ctype).write(" ").write(dd.name).write(" = (Str){")
                         switch rhs.node_type {
@@ -3691,7 +3691,7 @@ priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
     id := ctx.builder_func.ctor_seq
     if ctx.target_cptr32 {
         // #313: the wrapper's address may land in an own field, so under
-        // --cptr=32 it lives in the cage too, built on first use.
+        // --usize=32 it lives in the cage too, built on first use.
         f.write("({ static Str *_lit")
         emit_i32(f, id)
         f.write("; if (_lit")
@@ -3961,7 +3961,7 @@ priv expr_has_c_initializer := func(e: Expr, allow_sequences: Bool, mut ctx: Con
 }
 
 priv expr_has_c_static_initializer := func(e: Expr, mut ctx: Context) returns Bool {
-    // #313: a cage offset is not a link-time constant, so under --cptr=32 a
+    // #313: a cage offset is not a link-time constant, so under --usize=32 a
     // global holding a Str literal is initialized at run time instead.
     if ctx.target_cptr32.and(expr_holds_str_literal(e)) { return false }
     return expr_has_c_initializer(e, false, ctx)
@@ -3990,7 +3990,7 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
     case .Literal(Literal.Bool(b)):
         if b { f.write("1") } else { f.write("0") }
     case .Literal(Literal.Str(s)):
-        // #313: under --cptr=32 only sequence templates reach here, and they
+        // #313: under --usize=32 only sequence templates reach here, and they
         // are built at run time (emit_cptr_sequence_template), in a function.
         f.write("{")
         if ctx.target_cptr32 { emit_lit_c_str_init(f, s, ctx) }
@@ -4134,7 +4134,7 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, owner: S
     }
 }
 
-// #313: under --cptr=32 a template's data pointer and its literals are cage
+// #313: under --usize=32 a template's data pointer and its literals are cage
 // offsets, which no static initializer can hold. Each template is instead
 // built on first use: `<sym>_data_cptr()` returns the element buffer (nested
 // templates are built by their parents' element initializers through the same
@@ -5669,7 +5669,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     else { emit_expr(f, e, depth, ctx) }
                     f.write(" }")
                 } else if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_sym(), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not())
-                    // #313: that literal is static only natively; --cptr=32
+                    // #313: that literal is static only natively; --usize=32
                     // re-initializes it on the stack, so it boxes like the rest.
                     .and(ctx.target_cptr32.not()) {
                     f.write("&")
@@ -5858,7 +5858,7 @@ priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool, cptr32: Bool) re
     switch ttype {
     case "Str":
         if cptr32 {
-            // #313: argv is not cage memory, so --cptr=32 copies the bytes
+            // #313: argv is not cage memory, so --usize=32 copies the bytes
             // into the cage directly as an owned Str (no view to clone from).
             owned := format("(Str){.c_str = {til_cage_lit(", arg, ", strlen(", arg, "))}, .count = strlen(",
                 arg, "), .cap = strlen(", arg, ")}")
@@ -6355,7 +6355,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
             pointee := field_pointee_ctype(dd, symbols)
             if field_is_own_ptr(sdd, dd) {
                 // #313: spelled through ext.h so one header serves the
-                // native and the --cptr=32 (compressed) layout alike.
+                // native and the --usize=32 (compressed) layout alike.
                 f.write("    TIL_OWN_PTR(").write(pointee).write(") ").write(sb_name).write(";\n")
             } else {
                 f.write("    ").write(pointee).write(" *").write(sb_name).write(";\n")
@@ -7187,9 +7187,9 @@ priv c_lib_symbol := func(lib_name: Str, name: Str) returns Str {
 
 // Every library exports its abi_layout_id as a C string under its own
 // prefix, so the interpreter can refuse a library laid out unlike itself
-// (a --cptr=64 or --usize=32 one) instead of misreading its values. The
-// leading underscore keeps it in codegen's names, apart from any user
-// declaration's.
+// (a --usize=64 one under a cage interpreter) instead of misreading its
+// values. The leading underscore keeps it in codegen's names, apart from
+// any user declaration's.
 C_LIB_ABI_LAYOUT := "_til_abi_layout"
 
 c_lib_abi_layout_symbol := func(lib_name: Str) returns Str {
@@ -7965,20 +7965,12 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
 // for a 32-bit target with -DTIL_USIZE32, an unguarded pin left BOTH macros
 // defined and ext.h's mutual-exclusion #error broke every 32-bit-target job
 // (linux-x86/arm32/riscv32, windows cross).
-// #313: the own-pointer storage (TIL_CPTR32, the cage, the default on 64-bit
-// C targets / TIL_CPTR64, native) is pinned the same way: the boot compile
-// of a boot/til.c emitted for the cage must build ext.c for the cage too.
-// (The commit that made the cage the default also let this pin yield to a
-// USize flag alone, for its own boot compiler, which passed no cptr flag;
-// every driver since passes both, so that clause is gone.)
+// #313: the own-pointer storage needs no pin of its own: ext.h derives the
+// cage from the USize width (one layout flag, doc/self.org).
 priv emit_usize_width_pin := proc(f: File, ctx: Context) {
     f.write("#if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)\n")
     if ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
     else { f.write("#define TIL_USIZE64 1\n") }
-    f.write("#endif\n")
-    f.write("#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64)\n")
-    if ctx.target_cptr32 { f.write("#define TIL_CPTR32 1\n") }
-    else { f.write("#define TIL_CPTR64 1\n") }
     f.write("#endif\n")
 }
 
@@ -13458,7 +13450,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
                 // namespace (no binding written), so no interpreter loads it.
                 if lp.ctx.builder_lib_c_prefix.len() > 0 {
                     f.write("const char ").write(lp.ctx.builder_lib_c_prefix).write(C_LIB_ABI_LAYOUT)
-                        .write("[] = \"").write(abi_layout_id(lp.ctx.target_usize_pname, lp.cptr32)).write("\";\n")
+                        .write("[] = \"").write(abi_layout_id(lp.ctx.target_usize_pname)).write("\";\n")
                 }
             }
         }

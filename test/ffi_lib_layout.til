@@ -4,12 +4,13 @@ import("../src/std/sys")
 import("../src/std/file")
 
 // #313 follow-up: a library's values cross an interpreted call in the
-// interpreter's layout -- its target USize and its own cage (or native own
-// pointers). A library built for another layout used to segfault the first
-// call that read one of its structs (a native pointer read as a cage
+// interpreter's layout, and the library shares the interpreter's allocator.
+// A library built for the other layout (--usize=64 under the default
+// compact interpreter, --usize=32 under a native one) used to segfault the
+// first call that read one of its structs (a native pointer read as a cage
 // offset, a U32 count read as a U64 one); it now exports the layout it was
-// built for and the interpreter refuses it at load. Built twice, each time
-// flipping one half of the suite's own layout, and each must be refused.
+// built for and the interpreter refuses it at load. Built flipping the
+// suite's own layout, and it must be refused.
 //
 // args: the compiler, then the flags the suite builds its programs with.
 
@@ -54,10 +55,9 @@ main := proc(args: ..Str) {
         "made := layout_make()\n",
         "assert(made.count == 4)\n",
         "println(\"layout probe loaded\")\n"))
-    mut cptr_flip := "--cptr=64"
-    if has_flag(args, "--cptr=64") { cptr_flip = "--cptr=32" }
-    expect_refused(args, cptr_flip)
-    // The interpreter's target USize is its default here (no --usize).
-    expect_refused(args, "--usize=32")
+    // The interpreter runs at its own layout here (no --usize): the suite's.
+    mut flip := "--usize=64"
+    if has_flag(args, "--usize=64") { flip = "--usize=32" }
+    expect_refused(args, flip)
     println("ffi lib layout passed")
 }

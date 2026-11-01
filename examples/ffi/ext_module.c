@@ -16,7 +16,7 @@ Str *greet(Str *name) {
     Str *result = malloc(sizeof(Str));
     result->count = hello_len + name->count;
     result->cap = result->count;
-    // Own pointer fields go through ext.h's accessors: under --cptr=32 they
+    // Own pointer fields go through ext.h's accessors: under --usize=32 they
     // hold 32-bit cage offsets, not pointers (issue #313).
     I8 *bytes = malloc(result->count);
     memcpy(bytes, hello, hello_len);

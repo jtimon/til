@@ -135,7 +135,7 @@ test_dyn_vec_size := test() {
 }
 
 // DynVec's field shapes, to check its size against. (Str * 2 + Dynamic only
-// matched while an own pointer was 8 bytes; --cptr=32 makes it 4, #313.)
+// matched while an own pointer was 8 bytes; --usize=32 makes it 4, #313.)
 DynVecShape := struct {
     own data : U8 = 0
     count : USize = 0

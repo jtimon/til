@@ -37,8 +37,7 @@ BOOT := "bin/til_boot"
 TIL := "bin/til"
 ASAN := "bin/til_asan"
 DEBUG := "bin/til_debug"
-CPTR64 := "bin/til_cptr64"
-NATIVE64 := "bin/til_native64"
+USIZE64 := "bin/til_usize64"
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -583,12 +582,11 @@ build_vendor := proc(mut b: Build) {
 // of a dependency graph -- explicit edges, laziness, and one run per
 // invocation -- without a scheduler to build first.
 
-/// bin/til, and the committed C it regenerates. The compiler uses compact
-/// U32 container metadata internally; programs it builds remain target-width
-/// by default because --usize=32 applies only while compiling src/til.til.
-/// --cptr=32 (#313) is spelled out beside it although it is the default:
-/// the compiler's own layout is pinned explicitly, whatever compiler runs
-/// this line (the first boot of the cage default needed exactly that).
+/// bin/til, and the committed C it regenerates. --usize=32 -- the compact
+/// layout: U32 container widths and own pointers in the cage (#313) -- is
+/// spelled out although it is the default on 64-bit C targets: the
+/// compiler's own layout is pinned explicitly, whatever compiler runs this
+/// line.
 /// The single-pass build: HEAD's compiler translates the current sources.
 build_til := proc(mut b: Build) {
     if b.begin("til").not() { return }
@@ -597,7 +595,7 @@ build_til := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own BOOT.clone())
     if needs_rebuild(TIL, inputs).not() { return }
-    run(BOOT, "build", "--usize=32", "--cptr=32", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
+    run(BOOT, "build", "--usize=32", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
 }
 
@@ -614,7 +612,7 @@ build_two_pass := proc(mut b: Build) {
     build_til(b)
     // Keep --force-rebuild for older compilers that still implement #170's
     // timestamp shortcut. The bootstrap C path is explicit in both passes.
-    run(TIL, "build", "--usize=32", "--cptr=32", "--force-rebuild", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
+    run(TIL, "build", "--usize=32", "--force-rebuild", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
 }
 
@@ -632,7 +630,7 @@ build_asan := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     if needs_rebuild(ASAN, inputs).not() { return }
-    run(TIL, "build", "--usize=32", "--cptr=32", "--asan", "-o", ASAN, "src/til.til")
+    run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
 }
 
 /// The gdb build: the one link of the compiler that does not go
@@ -704,11 +702,11 @@ build_tests := proc(mut b: Build) {
     build_program(b, "tests", "src/tests.til", "bin/tests")
 }
 
-/// Explicit USize-width regressions (issue #309), interpreted and compiled,
-/// including compile-time interpreter folding and cross-width self-translation
-/// under ASAN.
-check_usize64 := proc(mut b: Build) {
-    if b.begin("check_usize64").not() { return }
+/// Explicit layout regressions (issues #309, #313), interpreted and compiled,
+/// including compile-time interpreter folding and cross-width
+/// self-translation under ASAN. Part of every suite target.
+layout_regressions := proc(mut b: Build) {
+    if b.begin("layout_regressions").not() { return }
     build_til(b)
     build_asan(b)
     mkdir_p("tmp")
@@ -717,51 +715,28 @@ check_usize64 := proc(mut b: Build) {
     run("tmp/usize64")
     run(TIL, "build", "--usize=64", "-o", "tmp/usize64_sizes", "test/usize64_sizes.til")
     run("tmp/usize64_sizes")
+    run(TIL, "build", "--usize=32", "-o", "tmp/usize32_sizes", "test/usize32_sizes.til")
+    run("tmp/usize32_sizes")
     run(ASAN, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
     run("tmp/usize64_comptime")
-    run(TIL, "build", "--asan", "--usize=32", "--cptr=32", "-o", "tmp/til_usize32_asan", "src/til.til")
-    run("tmp/til_usize32_asan", "translate", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
+    run(TIL, "build", "--asan", "--usize=32", "-o", "tmp/til_usize32_asan", "src/til.til")
+    run("tmp/til_usize32_asan", "translate", "--usize=64", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
 }
 
-/// The native opt-out of the pointer-compression cage (issue #313; the cage
-/// is the default, so `test` covers it): the whole suite through a compiler
-/// itself built --cptr=64 under ASAN -- its interpreter and constfolder work
-/// on native own fields while building cage programs' sizes as sizeof --
-/// with every compiled program built --cptr=64 too, after the struct sizes
-/// of both layouts and an optimized native program. Not part of `test`: it
-/// is a second full suite run.
-check_cptr64 := proc(mut b: Build) {
-    if b.begin("check_cptr64").not() { return }
-    build_til(b)
+/// The native layout, the one opt-out (#309, #313; one layout flag,
+/// doc/self.org; the compact layout is the default, so `test` covers it):
+/// the width regressions, then the whole suite through a compiler built
+/// --usize=64 under ASAN (U64 widths, native own pointers), with every
+/// compiled program built --usize=64 too. Not part of `test`: it is a
+/// second full suite run.
+check_usize64 := proc(mut b: Build) {
+    if b.begin("check_usize64").not() { return }
+    layout_regressions(b)
     build_test_runner(b)
     build_plot(b)
     build_tests(b)
-    mkdir_p("tmp")
-    run(TIL, "build", "--usize=32", "--cptr=32", "-o", "tmp/cptr32_sizes", "test/cptr32_sizes.til")
-    run("tmp/cptr32_sizes")
-    run(TIL, "build", "--usize=32", "--cptr=64", "-o", "tmp/cptr64_sizes", "test/cptr64_sizes.til")
-    run("tmp/cptr64_sizes")
-    run(TIL, "build", "--cptr=64", "--opt=2", "-o", "tmp/cptr64_strings", "test/strings.til")
-    run("tmp/cptr64_strings")
-    run(TIL, "build", "--usize=32", "--cptr=64", "--asan", "-o", CPTR64, "src/til.til")
-    c := suite_cmd(b, "--til-bin", CPTR64, "--asan", "--cptr=64")
-    c.run_checked()
-}
-
-/// Both opt-outs at once, the fully native layout: 64-bit USize (#309) on
-/// native own pointers (#313). The whole suite through a compiler built
-/// --usize=64 --cptr=64 under ASAN, with every compiled program built the
-/// same way; interpretation runs on that compiler's host widths. Not part
-/// of `test`: a second full suite run, like check_cptr64.
-check_native64 := proc(mut b: Build) {
-    if b.begin("check_native64").not() { return }
-    build_til(b)
-    build_test_runner(b)
-    build_plot(b)
-    build_tests(b)
-    mkdir_p("tmp")
-    run(TIL, "build", "--usize=64", "--cptr=64", "--asan", "-o", NATIVE64, "src/til.til")
-    c := suite_cmd(b, "--til-bin", NATIVE64, "--asan", "--cptr=64", "--usize=64")
+    run(TIL, "build", "--usize=64", "--asan", "-o", USIZE64, "src/til.til")
+    c := suite_cmd(b, "--til-bin", USIZE64, "--asan", "--usize=64")
     c.run_checked()
 }
 
@@ -830,7 +805,7 @@ run_test_asan := proc(mut b: Build) {
     build_test_runner(b)
     build_plot(b)
     build_tests(b)
-    check_usize64(b)
+    layout_regressions(b)
     check_clang(b)
     c := suite_cmd(b, "--til-bin", ASAN, "--asan")
     c.run_checked()
@@ -845,7 +820,7 @@ run_test_fast := proc(mut b: Build) {
     build_test_runner(b)
     build_plot(b)
     build_tests(b)
-    check_usize64(b)
+    layout_regressions(b)
     check_clang(b)
     c := suite_cmd(b)
     c.run_checked()
@@ -890,10 +865,10 @@ run_test_two_pass := proc(mut b: Build) {
     // compiler is deliberately not built through build_asan here: pass 2
     // replaced bin/til after the mtime check that step would make, so when
     // #464 restores ASAN it must come from the self-applied one:
-    //   run(TIL, "build", "--usize=32", "--cptr=32", "--asan", "-o", ASAN, "src/til.til")
+    //   run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
     //   b.begin("asan")
     // and the suite below takes "--til-bin", ASAN, "--asan".
-    check_usize64(b)
+    layout_regressions(b)
     check_clang(b)
     run(TIL, "build", "-o", "bin/test_runner", "src/test_runner.til")
     run(TIL, "build", "-o", "bin/plot", "examples/plot.til")
@@ -1907,7 +1882,7 @@ build_win_host := proc(mut b: Build) {
     inputs.push(own libffi_lib("windows-x64"))
     inputs.push(own nng_lib("windows-x64"))
     if needs_rebuild("bin/til.exe", inputs).not() { return }
-    run(TIL, "build", "--target=windows-x64", "--usize=32", "--cptr=32", "-o", "bin/til.exe", "src/til.til")
+    run(TIL, "build", "--target=windows-x64", "--usize=32", "-o", "bin/til.exe", "src/til.til")
 }
 
 // --- macOS cross ---
@@ -2229,11 +2204,7 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = "test_templeos", go = run_test_templeos,
         about = "Run the TempleOS guest corpus at both USize widths (Docker)"))
     out.push(own Command(name = "check_usize64", go = check_usize64,
-        about = "Run the explicit --usize=64 regression"))
-    out.push(own Command(name = "check_cptr64", go = check_cptr64,
-        about = "Run the full suite through a --cptr=64 compiler, --cptr=64 programs"))
-    out.push(own Command(name = "check_native64", go = check_native64,
-        about = "Run the full suite through a --usize=64 --cptr=64 compiler and programs"))
+        about = "Run the full suite through a --usize=64 (native layout) compiler and programs"))
     out.push(own Command(name = "check_clang", go = check_clang,
         about = "Check the emitted C compiles clean under clang"))
     out.push(own Command(name = "build_win", go = build_win,

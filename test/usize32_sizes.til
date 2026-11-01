@@ -1,13 +1,15 @@
 mode script
 
-// Issue #313 regression, COMPILE-ONLY. Built with --usize=32 --cptr=32, every
-// own pointer field is a 4-byte cage offset (ext.h TIL_OWN_PTR), so on a
-// 64-bit host Str = c_str(4)+count(4)+cap(4) = 12 and Vec has the same
-// layout; a native build is 16. Map holds two Vecs inline: 24.
+// Issues #309 / #313 regression, COMPILE-ONLY: the default, compact layout.
+// Built with --usize=32, containers use U32 widths and every own pointer
+// field is a 4-byte cage offset (ext.h TIL_OWN_PTR), so on a 64-bit host
+// Str = c_str(4)+count(4)+cap(4) = 12 and Vec has the same layout; the
+// native layout (--usize=64) is 24 (test/usize64_sizes.til). Map holds two
+// Vecs inline: 24.
 //
-// Driven ONLY as a compiled binary by make.til's check_cptr64 target -- NOT
-// interpreted: the compile-time interpreter manipulates the compiler's own
-// native HOST structs, so X.size() is the host width under the interpreter.
+// Driven ONLY as a compiled binary by make.til's layout_regressions step --
+// NOT interpreted: the compile-time interpreter manipulates the compiler's
+// own HOST structs, so X.size() is the host width under the interpreter.
 
 check := proc(label: Str, got: USize, want: USize) {
     if got.neq(want) {
@@ -38,4 +40,4 @@ whole := format("abc", "defgh")
 mid := whole.substr(3, 4)
 if mid.eq("defg").not() { println("FAIL: substr view"); exit(1) }
 
-println("cptr32 sizes OK")
+println("usize32 sizes OK")

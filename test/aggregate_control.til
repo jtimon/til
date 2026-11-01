@@ -97,7 +97,7 @@ assert(first.number == 8)
 assert(nested.prefix == 9)
 assert(nested.tail == 17)
 // mark (padded to number's 8-byte alignment), number, text; the total
-// rounds up to 8. Not `Str.size() + 16`: a --cptr=32 Str (#313) is 12 bytes.
+// rounds up to 8. Not `Str.size() + 16`: a --usize=32 Str (#313) is 12 bytes.
 assert(Record.size() == (Str.size() + 16 + 7) / 8 * 8)
 mut boxed := Owned(record=make_record(seed, "owned"))
 boxed_copy := boxed.clone()

@@ -2045,7 +2045,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                 // interpreter walks; UPtr.size() is the host width.
                 fsz = UPtr.size()
                 falign = UPtr.size()
-                // #313: unless that binary was built --cptr=32, which keeps
+                // #313: unless that binary was built --usize=32, which keeps
                 // an own field as a 4-byte cage offset (TIL_OWN_PTR).
                 if field_is_own_ptr(struct_meta, fd).and(host_own_ptr_compressed()) {
                     fsz = 4

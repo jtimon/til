@@ -1,5 +1,6 @@
 mode cli
 // Opt-in LLVM 18 integration test. Not part of the tool-independent suite.
+// MLIR has the native layout only (--usize=64; one layout flag, doc/self.org).
 // bin/til run test/mlir.til bin/til
 import("../src/std/sys")
 import("../src/std/file")
@@ -63,7 +64,7 @@ priv check_control_flow := proc(compiler: Str, work: Str) {
         "repeat := ext_func(shallow v: F4,shallow n: USize) returns shallow F4 {}\nearly := ext_func(shallow n: I64) returns shallow I64 {}\nsigned_wrap := ext_func(shallow n: I32) returns shallow I32 {}\n",
         "choose := ext_func(shallow a: I64,shallow b: I64) returns shallow Bool {}\nunsigned_choice := ext_func(shallow a: U64,shallow b: U64) returns shallow Bool {}\ncombined := ext_func(shallow a: I64,shallow b: I64) returns shallow Bool {}\n",
         "flip := ext_func(shallow a: Bool,shallow b: Bool) returns shallow Bool {}\nbranch_local := ext_func(shallow a: Bool) returns shallow I64 {}\n", checks))
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         width_flag := format("--usize=", width)
         for command in array(Str, "interpret", "run") {
             reference := Cmd.new(compiler, command, width_flag, "flow_reference.til")
@@ -130,7 +131,7 @@ priv check_buffers := proc(compiler: Str, work: Str) {
         "add_buffers := ext_func(a: Array(F32),b: Array(F32),mut out: Array(F32)) throws OutOfBounds {}\n",
         "dot_buffers := ext_func(a: Array(F32),b: Array(F32)) returns shallow F32 throws OutOfBounds {}\n",
         "load4_checked := ext_func(a: Array(F32),shallow i: USize) returns shallow F4 throws OutOfBounds {}\n", checks))
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         flag := format("--usize=", width)
         for command in array(Str, "interpret", "run") {
             reference := Cmd.new(compiler, command, flag, "buffer_reference.til")
@@ -181,7 +182,7 @@ priv check_extrema := proc(compiler: Str, work: Str) {
         "f_min:=ext_func(shallow a:F4) returns shallow F32 {}\nf_max:=ext_func(shallow a:F4) returns shallow F32 {}\ns_min:=ext_func(shallow a:S4) returns shallow I32 {}\ns_max:=ext_func(shallow a:S4) returns shallow I32 {}\nu_min:=ext_func(shallow a:U4) returns shallow U32 {}\nu_max:=ext_func(shallow a:U4) returns shallow U32 {}\n",
         "make_f:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32,shallow d:F32) returns shallow F4 {}\nmake_s:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32) returns shallow S4 {}\nmake_u:=ext_func(shallow a:U32,shallow b:U32,shallow c:U32,shallow d:U32) returns shallow U4 {}\n",
         "min_once:=ext_func(mut trace:Array(I32)) returns shallow F32 throws OutOfBounds {}\nmax_once:=ext_func(mut trace:Array(I32)) returns shallow F32 throws OutOfBounds {}\n",checks))
-    for width in array(Str,"32","64") {
+    for width in array(Str,"64") {
         flag:=format("--usize=",width)
         for command in array(Str,"interpret","run") {reference:=Cmd.new(compiler,command,flag,"extrema_reference.til");checked(reference,work)}
         for level in array(Str,"0","2","3") {
@@ -243,7 +244,7 @@ priv check_integer_vectors := proc(compiler: Str, work: Str) {
         "s_new:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32) returns shallow S4 {}\ns_div:=ext_func(shallow a:S4,shallow b:S4) returns shallow S4 {}\ns_add:=ext_func(shallow a:S4,shallow b:S4) returns shallow S4 {}\ns_lane:=ext_func(shallow a:S4,shallow i:USize) returns shallow I32 throws OutOfBounds {}\n",
         "u_new:=ext_func(shallow a:U32,shallow b:U32,shallow c:U32,shallow d:U32) returns shallow U4 {}\nu_splat:=ext_func(shallow a:U32) returns shallow U4 {}\nu_add:=ext_func(shallow a:U4,shallow b:U4) returns shallow U4 {}\nu_lane:=ext_func(shallow a:U4,shallow i:USize) returns shallow U32 throws OutOfBounds {}\nu_sum:=ext_func(shallow a:U4) returns shallow U32 {}\n",
         "s_read:=ext_func(a:Array(I32),shallow i:USize) returns shallow I64 throws OutOfBounds {}\ns_load:=ext_func(a:Array(I32),shallow i:USize) returns shallow S4 throws OutOfBounds {}\ns_store:=ext_func(mut a:Array(I32),shallow i:USize,shallow v:S4) throws OutOfBounds {}\n",checks))
-    for width in array(Str,"32","64") {
+    for width in array(Str,"64") {
         flag:=format("--usize=",width)
         for command in array(Str,"interpret","run") { reference:=Cmd.new(compiler,command,flag,"integer_reference.til");checked(reference,work) }
         for level in array(Str,"0","2","3") {
@@ -285,7 +286,7 @@ priv check_runtime := proc(compiler: Str, work: Str) {
         "typedef struct{char *data;Count count,cap;}Str;extern Str decorate(Str*),replace(Str*),roundtrip(Str*),literal(void);extern Count owned_length(Str*);extern void append(Str*);\n",
         "int main(void){char input[32]=\"a\\0b\";Str s={input,3,31};for(int i=0;i<1000;i++){Str r=decorate(&s);assert(r.count==5 && memcmp(r.data,\"[a\\0b]\",5)==0);free(r.data);r=replace(&s);assert(r.count==4 && memcmp(r.data,\"a\\0b!\",4)==0);free(r.data);r=roundtrip(&s);assert(r.count==3 && memcmp(r.data,input,3)==0);free(r.data);assert(owned_length(&s)==5);r=literal();assert(r.count==7 && r.cap==(Count)-2 && memcmp(r.data,\"literal\",7)==0);}append(&s);assert(s.count==4 && input[3]=='!');return 0;}\n"))
     File.writefile(format(work, "/runtime_panic.til"), "mode cli\nmain:=proc(){mut s:=Str.with_capacity(8);s.push_str(\"boom\");panic(\"user \",s,\"!\")}\n")
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         flag := format("--usize=", width)
         reference := Cmd.new(compiler, "run", flag, "runtime_reference.til")
         checked(reference, work)
@@ -350,7 +351,7 @@ priv check_float_arithmetic := proc(compiler: Str, work: Str) {
         "divide:=ext_func(shallow a:F32,shallow b:F32) returns shallow F32 {}\nfused:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32) returns shallow F32 {}\nseparate:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32) returns shallow F32 {}\n",
         "divide4:=ext_func(shallow a:F4,shallow b:F4) returns shallow F4 {}\nfused4:=ext_func(shallow a:F4,shallow b:F4,shallow c:F4) returns shallow F4 {}\nseparate4:=ext_func(shallow a:F4,shallow b:F4,shallow c:F4) returns shallow F4 {}\nbroadcast:=ext_func(shallow a:F32) returns shallow F4 {}\n", checks))
     File.writefile(format(work, "/float_main.til"), "mode cli\nF4:=Simd(F32,4)\nmain:=proc(){mut a:F32=4097;a=a+0;if a.fma(a,-16785408)!=1 { F4.zero().get(4)! }}\n")
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         flag := format("--usize=", width)
         for command in array(Str, "interpret", "run") {
             reference := Cmd.new(compiler, command, flag, "float_reference.til")
@@ -396,7 +397,7 @@ priv check_lanes := proc(compiler: Str, work: Str) {
         "int main(int argc,char **argv){const uint32_t bits[]={0x7f800001,0xffc12345,0x80000000,1};F4 a;memcpy(&a,bits,16);M4 m={{1,0,1,0}};if(argc>1){switch(atoi(argv[1])){case 0:bang_float(a,4);break;case 1:bang_mask(m,4);break;case 2:bang_set_float(a,4);break;default:bang_set_mask(m,4);}return 99;}assert(repeated(a)==4);\n",
         "const Count indices[]={0,1,2,3,4,7,(Count)-1};for(unsigned q=0;q<7;q++){Count i=indices[q];int64_t error=0;float f=read_float(a,i,&error);assert(error==(i>=4));if(i<4){uint32_t got;memcpy(&got,&f,4);assert(got==bits[i]);}F4 out=write_float(a,i,a.v[1]);uint32_t got[4],seventeen;float value=17;memcpy(&seventeen,&value,4);memcpy(got,&out,16);for(unsigned k=0;k<4;k++)assert(got[k]==(i==k?bits[1]:(k==0?seventeen:bits[k])));\n",
         "for(unsigned pattern=0;pattern<16;pattern++){for(unsigned k=0;k<4;k++)m.v[k]=(pattern>>k)&1;error=0;uint8_t b=read_mask(m,i,&error);assert(error==(i>=4));if(i<4)assert(b==m.v[i]);for(unsigned x=0;x<2;x++){M4 n=write_mask(m,i,x);for(unsigned k=0;k<4;k++)assert(n.v[k]==(i==k?x:(k==0?1:m.v[k])));}}}return 0;}\n"))
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         flag := format("--usize=", width)
         for command in array(Str, "interpret", "run") {
             reference := Cmd.new(compiler, command, flag, "lane_reference.til")
@@ -473,7 +474,7 @@ priv check_masks := proc(compiler: Str, work: Str) {
         "same_mask:=ext_func(shallow a:M4,shallow b:M4) returns shallow M4 {}\ndifferent_mask:=ext_func(shallow a:M4,shallow b:M4) returns shallow M4 {}\n",
         "invert:=ext_func(shallow a:M4) returns shallow M4 {}\nsome:=ext_func(shallow a:M4) returns shallow Bool {}\nevery:=ext_func(shallow a:M4) returns shallow Bool {}\n",
         "construct:=ext_func(shallow a:Bool,shallow b:Bool,shallow c:Bool,shallow d:Bool) returns shallow M4 {}\n", checks))
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         flag := format("--usize=", width)
         for command in array(Str, "interpret", "run") {
             reference := Cmd.new(compiler, command, flag, "mask_reference.til")
@@ -535,7 +536,7 @@ priv check_exceptions := proc(compiler: Str, work: Str) {
         "assert(count_failures(&a,7)==3 && count_failures(&empty,3)==3);assert(recover_add(&a,&short_b,&out)==2);assert(output[0]==-99 && output[1]==2 && output[2]==4 && output[3]==-99 && output[5]==-99);\n",
         "assert(recover_add(&a,&a,&out)==4 && output[4]==8);assert(recover_forward(&empty,0)==17 && recover_forward(&a,0)==1);int64_t error=0;rethrow_read(&empty,0,&error);assert(error==1);\n",
         "assert(nested_bang(&empty,&out)==23 && output[1]==2);assert(nested_bang(&a,&out)==0 && output[1]==1);assert(read_bang(&a,2)==3);F4 v=load_bang(&a,0);assert(v.x==1 && v.w==4);return 0;}\n"))
-    for width in array(Str, "32", "64") {
+    for width in array(Str, "64") {
         flag := format("--usize=", width)
         for command in array(Str, "interpret", "run") {
             reference := Cmd.new(compiler, command, flag, "exception_reference.til")

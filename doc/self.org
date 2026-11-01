@@ -73,17 +73,18 @@
 ** USize defaults and source-level configuration direction
 
   ~USize~ describes counts, lengths, capacities and indices; ~UPtr~ describes
-  pointer-width arithmetic. Keep these roles separate, with
-  ~USize.size() == UPtr.size()~ as the normal target default. Compiled user
-  programs already follow this policy: both are U32 on 32-bit targets and
-  U64 on 64-bit targets unless an explicit ~--usize~ override is supplied.
+  pointer-width arithmetic and always follows the target's pointer width.
+  ~--usize~ selects the whole layout (one layout flag, below). On a 64-bit C
+  target the default is ~--usize=32~, the compact layout: U32 container
+  widths and own pointers in the #313 cage; ~--usize=64~ is the native
+  layout. 32-bit targets are U32 either way. Mode theme and HolyC output
+  (TempleOS) follow the target, the MLIR backend has the native layout only,
+  and interpretation defaults to the running compiler's own layout (a
+  compiler built ~--usize=64~ interprets at 64).
 
-  The compiler's own build is currently an exception: ~make.til~ explicitly
-  selects ~--usize=32~ for compact internal container metadata, including
-  on 64-bit hosts. That choice does not change the default for programs the
-  compiler builds. Whether to remove that internal override is a separate
-  decision. The independent-width experiment can remain available for later
-  work without making unequal widths the normal language contract.
+  The compiler's own build spells ~--usize=32~ in make.til although it is
+  the default, so the compiler's layout does not depend on the default of
+  whichever compiler runs that line.
 
   The agreed design direction is to express project configuration through
   source-level calls, analogous to ~link(...)~, rather than requiring users
@@ -128,90 +129,54 @@
   native size, and U32 widths with native pointers was only ever the
   transition state before the cage became the default. 32-bit targets are
   untouched: their pointers are 32-bit already and the cage never applies
-  there, so ~--usize~ keeps its current meaning for them. ~--usize=32~ stays
-  the default on 64-bit C targets. ~--cptr~ disappears (it is days old and
-  the language is experimental); passing it is an unknown-flag error.
+  there, so ~--usize~ keeps its current meaning for them. ~--usize=32~ is
+  the default on 64-bit C targets -- for programs too, which had defaulted
+  to U64 widths (only the compiler's own build was U32), so the cage stays
+  their default. ~--cptr~ is gone (it was days old and the language is
+  experimental); like any unknown flag, the driver now reads it as the
+  source path and fails to open it.
 
-  Plan, in order. Every step is mechanical; the emitted headers change, so
-  the whole thing is ONE "Two-pass: " commit verified with
-  ~make clean && make test_two_pass~ plus the one remaining opt-out suite.
+  Implemented in one "Two-pass: " commit:
 
-  1. src/self/codegen/ext.h: derive the cage from the width. Replace the driver-fed
-     TIL_CPTR32 / TIL_CPTR64 pair with
-     ~#if defined(TIL_USIZE32) && UINTPTR_MAX != 0xffffffff~ ->
-     ~#define TIL_CPTR32 1~, else nothing; keep every ~#ifdef TIL_CPTR32~
-     below as it is (ext.c too), and drop the TIL_CPTR32/TIL_CPTR64
-     mutual-exclusion error. The flag-less boot compile then needs only the
-     USize pin.
-  2. src/self/codegen/c_codegen.til: ~emit_usize_width_pin~ writes the USize pin
-     only (delete the cptr pin and its comment paragraph). Leave
-     ~TIL_OWN_PTR~ / ~TIL_OWN_GET~ / ~TIL_OWN_SET~ emission untouched.
-  3. src/til.til: delete ~--cptr~ (CliArgs.cptr_bits, its parsing, help
-     text, the mode-theme and target/backend validations). Resolve
-     ~lp.cptr32~ from the width: true iff the resolved USize is U32 and the
-     target is a 64-bit C target and the mode is not theme; keep the
-     resolution exactly where it is today (before prepare_program).
-     ~lp.ctx.target_cptr32~ follows as now.
-  4. src/self/builder.til: stop passing -DTIL_CPTR32 / -DTIL_CPTR64 (both
-     sites, and the --prof wrap-flag gate keeps reading ~cptr32~).
-     src/self/interpreter.til: the FFI .so compile passes only the USize
-     define (drop the ~til_built_with_cptr32~ branch; the ext_proc itself
-     can stay, ffi_lib_layout and the shadow code read the host).
-  5. src/self/loader.til: ~abi_layout_id~ and ~runtime_abi_id~ spell the
-     width alone ("U32" / "U64"): the cage follows from it, so "-cptr32"
-     leaves every runtime, core and library name. The exported
-     ~til_<lib>___til_abi_layout~ string changes with it; its check in
-     interpreter.til (ffi_load_link) names ~--usize~ alone in its message.
-  6. make.til: the compiler's own builds pass ~--usize=32~ only (drop
-     ~--cptr=32~ everywhere it was spelled beside it). ~check_cptr64~ and
-     ~check_native64~ go; ~check_usize64~ becomes the one opt-out suite:
-     build the compiler ~--usize=64 --asan~ (bin/til_usize64) and run the
-     whole suite through it with ~--til-bin bin/til_usize64 --asan
-     --usize=64~ (what check_native64 did), keeping its existing
-     usize64*.til program checks. Delete the CPTR64 / NATIVE64 constants.
-  7. .github/workflows/tests.yml: delete the ~linux-x64 (--cptr=64)~ and
-     ~linux-x64 (--usize=64 --cptr=64)~ jobs; the ~linux-x64 (--usize=64)~
-     job runs ~make check_usize64~ (it already does) and loses its manual
-     rebuild step, which the target now covers.
-  8. src/tests.til and src/test_runner.til: drop the ~--cptr=32|64~
-     passthrough (~cptr_flag~); ~--usize=32|64~ already rides the same way.
-     Rows that keyed on ~cptr_flag~ (self_translate's two-process reference,
-     enums_no_uncalled_size, ffi_pointer_field_width) key on ~usize_flag~.
-  9. Tests: fold test/cptr32_sizes.til into test/usize64_sizes.til's
-     counterpart for the default (Str 12, Vec 12, Map 24 at --usize=32; Str
-     24, Vec 24 at --usize=64 -- update usize64_sizes.til's expectations,
-     which assumed native pointers with U64 widths, unchanged) and delete
-     test/cptr64_sizes.til. test/ffi_lib_layout.til flips the one flag
-     instead of each half. Replace every other ~--cptr=64~ /
-     ~--cptr=32~ spelling in test/*.til (aggregate_control, dyn_vecs,
-     ffi_pointer_field_width, leak_report comments) with the ~--usize~ form.
-  10. Docs: this file's cage section (next) describes ~--usize=32~ as the
-      cage's switch and drops ~--cptr~; issues/fixed/313.org gets one
-      post-mortem line pointing here; the ~til --help~ text loses the flag.
+  - ext.h defines ~TIL_CPTR32~ from ~TIL_USIZE32~ on a 64-bit target, so
+    the headers pin the USize width alone and the driver passes only the
+    USize define (programs, libraries, the interpreter's FFI .so).
+  - src/til.til resolves the width: an unset ~--usize~ on a 64-bit C
+    target (not mode theme, not HolyC) is 32; ~lp.cptr32~ is a 32-bit
+    width there under the C backend (FASM lays out its own native pointers
+    at either width, without ext.c).
+  - The MLIR backend emits U32 widths with native pointers and allocates
+    with libc, so it cannot share a caged runtime: it has the native layout
+    only. It defaults to ~--usize=64~ and refuses an explicit ~--usize=32~.
+  - Interpretation defaults to the running compiler's layout: a library it
+    loads shares its allocator, so ~ffi_check_lib_layout~ accepts only a
+    library, and a program, at the binary's own layout.
+  - ~abi_layout_id~ is the width alone (~U32~ / ~U64~), in runtime, core
+    and library names and in the exported ~til_<lib>___til_abi_layout~.
+  - make.til: ~check_cptr64~ and ~check_native64~ are gone. The width
+    regressions (test/usize64*.til, test/usize32_sizes.til -- the old
+    cptr32_sizes -- and the cross-width self-translate) run in every suite
+    target as ~layout_regressions~; ~check_usize64~ adds the whole suite
+    through a compiler built ~--usize=64 --asan~ (bin/til_usize64), every
+    program built ~--usize=64~. CI keeps that one opt-out job.
 
-  Verification: ~make clean && make test_two_pass~, then
-  ~make check_usize64~ (now the full native suite). The ~self_translate~
-  row compares against boot/ in both.
+** Pointer-compression cage (~--usize=32~)
 
-** Pointer-compression cage (~--cptr~)
+  The compact layout (~--usize=32~, the default on 64-bit C targets; issue
+  #313) stores every ~own~ pointer field as a 32-bit byte offset into one
+  4GB allocation region, the cage. ~--usize=64~ is the native layout; a
+  32-bit target, mode theme, HolyC output and the FASM backend are native
+  at any width, and MLIR has the native layout only. ~ref~, ~Dynamic~ and
+  callable fields stay native pointers. Str and Vec are 12 bytes instead of
+  24. The 4GB is a hard per-process heap cap: a program that needs more
+  builds ~--usize=64~. The language is experimental, so this default is
+  chosen by measurement and can change again before a versioned release.
 
-  ~--cptr=32~ (issue #313) stores every ~own~ pointer field as a 32-bit
-  byte offset into one 4GB allocation region, the cage. It is the DEFAULT on
-  64-bit C targets; ~--cptr=64~ opts out to native pointers, and a 32-bit
-  target, another backend or mode theme is native without a flag (an
-  explicit ~--cptr~ there is an error). ~ref~, ~Dynamic~ and callable fields
-  stay native pointers. With ~--usize=32~ that makes Str and Vec 12 bytes
-  instead of 16; with a 64-bit USize the saving disappears into alignment
-  padding. The 4GB is a hard per-process heap cap: a program that needs more
-  builds ~--cptr=64~. The language is experimental, so this default -- like
-  the USize one -- is chosen by measurement and can change again before a
-  versioned release.
-
-  The driver pins ~TIL_CPTR32~ or ~TIL_CPTR64~ on every C compile, and the
-  generated headers carry the same pin as a default (next to the USize one),
-  so a flag-less compile of a checked-in artifact -- the boot compile of
-  boot/til.c -- builds ext.c for the layout it was emitted at. Under
-  ~TIL_CPTR32~ ext.h then:
+  The driver passes ~-DTIL_USIZE32~ or ~-DTIL_USIZE64~ on every C compile,
+  and the generated headers carry the same pin as a default, so a flag-less
+  compile of a checked-in artifact -- the boot compile of boot/til.c --
+  builds ext.c for the layout it was emitted at. ext.h derives ~TIL_CPTR32~
+  from ~TIL_USIZE32~ on a 64-bit target, and under it:
 
   - routes ~malloc~, ~calloc~, ~realloc~ and ~free~ -- the names generated
     code, ext.c and link_c code call -- to the cage allocator in ext.c.
@@ -249,14 +214,15 @@
   (test/ffi_cage_shadow.til).
 
   The layout is not negotiable across a library boundary: a library's
-  values cross an interpreted call in the interpreter's layout -- the
-  target USize, and the running binary's own-pointer storage, since the
-  two share one allocator. Every library exports the layout it was built
-  for (~til_<lib>___til_abi_layout~, a string like ~U64-cptr32~, the same
-  ~abi_layout_id~ that names its shared runtime), and the interpreter
-  refuses another one when it loads the library, naming the flags to
-  rebuild it with (test/ffi_lib_layout.til). A library without the symbol
-  is a C library, or one from a compiler before the check.
+  values cross an interpreted call in the interpreter's layout, and the
+  library shares the running binary's allocator, so a library loads only
+  at the binary's own layout, into a program interpreted at it. Every
+  library exports the layout it was built for (~til_<lib>___til_abi_layout~,
+  ~U32~ or ~U64~, the same ~abi_layout_id~ that names its shared runtime),
+  and the interpreter refuses another one when it loads the library, naming
+  the ~--usize~ to rebuild it with (test/ffi_lib_layout.til). A library
+  without the symbol is a C library, or one from a compiler before the
+  check.
 
   Leaks. LeakSanitizer knows only libc's chunks, so it cannot see a leaked
   til object any more. The cage keeps its own live count (block bytes handed
@@ -275,10 +241,10 @@
   each and gives the frame's bounds). ~TIL_LEAK_PROBE~'s never-freed total
   adds the cage's live bytes to the sanitizer's.
 
-  The compiler itself is a cage build: make.til spells ~--cptr=32~ beside
-  ~--usize=32~ on every build of src/til.til, so the compiler's own layout
-  is pinned whatever compiler runs that line (the commit that made the cage
-  the default needed exactly that: pass 1 of its two-pass build ran under a
+  The compiler itself is a cage build: make.til spells ~--usize=32~ on
+  every build of src/til.til, so the compiler's own layout is pinned
+  whatever compiler runs that line (the commit that made the cage the
+  default needed exactly that: pass 1 of its two-pass build ran under a
   native boot compiler whose default was still native). Its interpreter's
   value memory uses the running binary's own layout (initer marks compressed
   own fields ~FieldLayout.is_cptr~, 4 bytes), and reads/writes a
@@ -286,16 +252,16 @@
   twins of ~deref~ / ~write_ptr~ that the typer's raw-store rules name
   alongside ~write_ptr~. ~ext_struct~ fields mirror C library structs and
   always stay native. Like #309's width split, sizes fold only when host and
-  target agree; a native (~--cptr=64~) compiler building a cage program (or
-  the reverse) emits ~X.size()~ as C ~sizeof~, so that translation is not
-  byte-identical to a same-layout one.
+  target agree; a native (~--usize=64~) compiler building a compact program
+  (or the reverse) emits ~X.size()~ as C ~sizeof~, so that translation is
+  not byte-identical to a same-layout one.
 
-  ~make check_cptr64~ (and its CI job) keeps the native opt-out alive: the
-  whole suite through an ASAN compiler built ~--cptr=64~, with every
-  compiled program built ~--cptr=64~ too, after the struct sizes of both
-  layouts (test/cptr32_sizes.til, test/cptr64_sizes.til). Measured on the
-  self-translate before the flip (-O0, ~--usize=32~): -4.8% peak RSS, -3.9%
-  time for the cage.
+  ~make check_usize64~ (and its CI job) keeps the native layout alive: the
+  whole suite through an ASAN compiler built ~--usize=64~, with every
+  compiled program built ~--usize=64~ too, after the struct sizes of both
+  layouts (test/usize32_sizes.til, test/usize64_sizes.til). Measured on the
+  self-translate before the cage became the default (-O0, U32 widths):
+  -4.8% peak RSS, -3.9% time for the cage.
 
 ** CPU profiles and C optimization
 

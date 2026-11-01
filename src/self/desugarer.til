@@ -1048,6 +1048,12 @@ make_default_value_expr := func(type_name: Str, line: U32, col: U32, mut symbols
     for prim_name : Str in PRIM_NAMES {
         if type_name == prim_name { return Expr.new(own literal_num_node("0"), line, col) }
     }
+    // USize / UPtr are integer primitives too. As a `USize()` call they only
+    // typechecked while the alias resolved to U64: at U32 the typer refused
+    // to construct the builtin (`x = f()?` in a func returning USize).
+    for alias_name : Str in WIDTH_ALIAS_NAMES {
+        if type_name == alias_name { return Expr.new(own literal_num_node("0"), line, col) }
+    }
     mut tident := Expr.new(own ident_node(symbols.intern(type_name)), line, col)
     // Error payload slots, as well as failed-result placeholders, need raw
     // zero storage. An enum has no ordinary T() constructor.

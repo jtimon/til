@@ -328,12 +328,12 @@ TargetLink := struct {
     written := ""
 }
 
-// The part of a library's ABI that decides how its values are laid out:
-// the USize width, and own pointers as 4-byte cage offsets (#313) or native.
-// It names the shared runtime (runtime_abi_id) and is what a library
-// exports for the interpreter to check (C_LIB_ABI_LAYOUT).
-abi_layout_id := func(usize_pname: Str, cptr32: Bool) returns Str {
-    if cptr32 { return format(usize_pname, "-cptr32") }
+// The part of a library's ABI that decides how its values are laid out: the
+// USize width, which on a 64-bit C target also decides the own-pointer
+// storage (U32: 4-byte cage offsets, #313; U64: native) -- one layout flag,
+// doc/self.org. It names the shared runtime (runtime_abi_id) and is what a
+// library exports for the interpreter to check (C_LIB_ABI_LAYOUT).
+abi_layout_id := func(usize_pname: Str) returns Str {
     return usize_pname.clone()
 }
 
@@ -375,10 +375,11 @@ LoadedProgram := struct {
     // never affected. Set from the CLI in src/til.til before prepare_program
     // stamps the alias widths.
     usize_override_bits : I64 = 0
-    // The cage (issue #313, the default on 64-bit C targets; --cptr=64 opts
-    // out): allocate every til block from the 32-bit
-    // offset cage in ext.c (-DTIL_CPTR32). A separate C ABI, so it is part
-    // of the shared runtime/core identity below.
+    // The cage (issue #313): allocate every til block from the 32-bit offset
+    // cage in ext.c and store own pointer fields as offsets into it. Set in
+    // src/til.til from the layout: --usize=32 (the default) on a 64-bit C
+    // target under the C backend; ext.h derives TIL_CPTR32 from the same
+    // width.
     cptr32 := false
 namespace:
     uses_shared_runtime := func(self: LoadedProgram) returns Bool {
@@ -401,11 +402,10 @@ namespace:
         case .Wasm32: target_name = "wasm32"
         case .TempleosX86: target_name = "templeos-x86"
         }
-        // #313: the own-pointer storage is part of the layout, like the
-        // USize width it follows; the ISA and sanitizer qualifiers come after
-        // it (a CPU-qualified name ends with its profile, as cpu_options checks).
+        // The layout, then the ISA and sanitizer qualifiers (a CPU-qualified
+        // name ends with its profile, as cpu_options checks).
         mut out := format(self.compiler_revision, "-", target_name, "-",
-            abi_layout_id(self.ctx.target_usize_pname, self.cptr32))
+            abi_layout_id(self.ctx.target_usize_pname))
         // ISA variants must not replace a baseline runtime/core used by
         // already-built libraries. Optimization alone does not change the ABI.
         if self.cpu.name != "baseline" { out = format(out, "-", self.cpu.name) }
@@ -1169,6 +1169,16 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut lp := LoadedProgram()
     lp.ctx.collect_diagnostics = embedded
     lp.ctx.eval.embedded = embedded
+    // The layout defaults to this binary's own: the programs loaded without
+    // the driver (the REPL, help, a TilVm session) are interpreted, and an
+    // interpreter exchanges values with the code it runs in -- a TilVm's
+    // compiled host -- and with the libraries it loads, at its own layout
+    // (one layout flag, doc/self.org). src/til.til resolves the width of a
+    // file it is asked to build after this.
+    lp.usize_override_bits = 64
+    if host_usize_pname() == "U32" { lp.usize_override_bits = 32 }
+    lp.cptr32 = host_own_ptr_compressed()
+    lp.ctx.target_cptr32 = lp.cptr32
     has_prelude := prelude_source.len() > 0
     if has_prelude != (prelude_name.len() > 0)
         || has_prelude != (prelude_base.len() > 0) {

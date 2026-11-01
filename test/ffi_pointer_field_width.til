@@ -6,14 +6,13 @@ import("../src/std/file")
 // #313: the interpreter's FFI struct copy moved every pointer field 8 bytes
 // wide. An own field stored as a 4-byte cage offset then clobbered the next
 // host field -- or, as the LAST field, ran past the end of the host struct.
-// The interpreter (U32 USize) and the library (U64 USize) lay ProbeTail out
-// differently, so returning one is marshaled field by field. Driven with the
-// ASAN compiler and an ASAN library, where the overrun is a hard error.
+// Returning a ProbeTail is marshaled field by field. Driven with the ASAN
+// compiler and an ASAN library, where the overrun is a hard error.
 //
 // args: the compiler, then the flags the suite builds its programs with
-// (--asan, and the layout opt-outs --cptr=64 / --usize=64 of make
-// check_cptr64 and check_native64), forwarded to the library build so the
-// library is laid out like the compiler that will interpret against it.
+// (--asan, and the native layout --usize=64 of make check_usize64),
+// forwarded to the library build so the library is laid out like the
+// compiler that will interpret against it.
 
 WORK := "tmp/ffi_pointer_field_width"
 

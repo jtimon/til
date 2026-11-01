@@ -4709,17 +4709,6 @@ void own_slot_store(void *slot, const void *p, USize size) {
     exit(1);
 }
 
-/* Issue #313: whether this binary allocates from the TIL_CPTR32 cage. A
- * cage-built interpreter compiles the user's FFI .so with the same define,
- * for the same reason as the sanitizer above. */
-Bool til_built_with_cptr32(void) {
-#ifdef TIL_CPTR32
-    return 1;
-#else
-    return 0;
-#endif
-}
-
 Bool til_built_with_asan(void) {
 #if defined(__SANITIZE_ADDRESS__)
     return 1;
@@ -4789,7 +4778,7 @@ typedef int (*TilDladdrFn)(const void *, TilDlInfo *);
 // the constfolder hoists a literal into a STATIC box (`tail =
 // &hoisted__Str_...`), which no one frees, while a heap box holding a
 // literal value is freed like any other (test/ffi_pointer_field_width.til
-// under make check_native64, where no layout conversion stands in between).
+// under make check_usize64, where no layout conversion stands in between).
 Bool addr_in_loaded_image(void *p) {
     void *pd = dlsym(RTLD_DEFAULT, "dladdr");
     TilDladdrFn pdladdr = (TilDladdrFn)pd;
