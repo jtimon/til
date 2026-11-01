@@ -7185,6 +7185,17 @@ priv c_lib_symbol := func(lib_name: Str, name: Str) returns Str {
     return format(c_lib_prefix(lib_name), name)
 }
 
+// Every library exports its abi_layout_id as a C string under its own
+// prefix, so the interpreter can refuse a library laid out unlike itself
+// (a --cptr=64 or --usize=32 one) instead of misreading its values. The
+// leading underscore keeps it in codegen's names, apart from any user
+// declaration's.
+C_LIB_ABI_LAYOUT := "_til_abi_layout"
+
+c_lib_abi_layout_symbol := func(lib_name: Str) returns Str {
+    return c_lib_symbol(lib_name, C_LIB_ABI_LAYOUT)
+}
+
 priv c_lib_shared_primitive := func(name: Str) returns Bool {
     return name.eq("I8").or(name.eq("U8")).or(name.eq("I16")).or(name.eq("U16"))
         .or(name.eq("I32")).or(name.eq("U32")).or(name.eq("I64")).or(name.eq("U64"))
@@ -12311,6 +12322,12 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
             if is_lib {
                 if lp.ctx.script_globals.len() > 0 {
                     emit_lib_init(f, lp)
+                }
+                // REM: an empty prefix is a library translated without its
+                // namespace (no binding written), so no interpreter loads it.
+                if lp.ctx.builder_lib_c_prefix.len() > 0 {
+                    f.write("const char ").write(lp.ctx.builder_lib_c_prefix).write(C_LIB_ABI_LAYOUT)
+                        .write("[] = \"").write(abi_layout_id(lp.ctx.target_usize_pname, lp.cptr32)).write("\";\n")
                 }
             }
         }

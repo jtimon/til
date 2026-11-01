@@ -328,6 +328,15 @@ TargetLink := struct {
     written := ""
 }
 
+// The part of a library's ABI that decides how its values are laid out:
+// the USize width, and own pointers as 4-byte cage offsets (#313) or native.
+// It names the shared runtime (runtime_abi_id) and is what a library
+// exports for the interpreter to check (C_LIB_ABI_LAYOUT).
+abi_layout_id := func(usize_pname: Str, cptr32: Bool) returns Str {
+    if cptr32 { return format(usize_pname, "-cptr32") }
+    return usize_pname.clone()
+}
+
 LoadedProgram := struct {
     own core_units := Vec(ProgramUnit).new()
     own units := Vec(ProgramUnit).new()
@@ -392,11 +401,11 @@ namespace:
         case .Wasm32: target_name = "wasm32"
         case .TempleosX86: target_name = "templeos-x86"
         }
-        mut out := format(self.compiler_revision, "-", target_name, "-", self.ctx.target_usize_pname)
         // #313: the own-pointer storage is part of the layout, like the
         // USize width it follows; the ISA and sanitizer qualifiers come after
         // it (a CPU-qualified name ends with its profile, as cpu_options checks).
-        if self.cptr32 { out = format(out, "-cptr32") }
+        mut out := format(self.compiler_revision, "-", target_name, "-",
+            abi_layout_id(self.ctx.target_usize_pname, self.cptr32))
         // ISA variants must not replace a baseline runtime/core used by
         // already-built libraries. Optimization alone does not change the ABI.
         if self.cpu.name != "baseline" { out = format(out, "-", self.cpu.name) }

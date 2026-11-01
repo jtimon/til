@@ -1,0 +1,63 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #313 follow-up: a library's values cross an interpreted call in the
+// interpreter's layout -- its target USize and its own cage (or native own
+// pointers). A library built for another layout used to segfault the first
+// call that read one of its structs (a native pointer read as a cage
+// offset, a U32 count read as a U64 one); it now exports the layout it was
+// built for and the interpreter refuses it at load. Built twice, each time
+// flipping one half of the suite's own layout, and each must be refused.
+//
+// args: the compiler, then the flags the suite builds its programs with.
+
+WORK := "tmp/ffi_lib_layout"
+
+has_flag := func(args: Array(Str), flag: Str) returns Bool {
+    for i in 1..args.len() {
+        if args[i] == flag { return true }
+    }
+    return false
+}
+
+expect_refused := proc(args: Array(Str), flip: Str) {
+    ref compiler : Str = args[0]
+    build := Cmd.new(compiler, "build")
+    for i in 1..args.len() { build.arg(args[i]) }
+    // The last layout flag wins.
+    build.arg(flip)
+    build.arg(format(WORK, "/ffi_lib_layout_probe.til"))
+    build.run_checked()
+    consumer := Cmd.new(compiler, "interpret", format(WORK, "/consumer.til"))
+    consumer.env("LIBRARY_PATH", "gen/lib")
+    consumer.env("LD_LIBRARY_PATH", "gen/lib")
+    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    consumer.capture()
+    status := consumer.run()
+    if status == 0 { panic("library built ", flip, " was loaded: ", consumer.out()) }
+    if consumer.err().contains("built for layout").not() {
+        panic("library built ", flip, " was not refused for its layout (status ", status.to_str(), "): ",
+            consumer.out(), consumer.err())
+    }
+}
+
+main := proc(args: ..Str) {
+    mkdir_p(WORK)
+    File.writefile(format(WORK, "/ffi_lib_layout_probe.til"), format(
+        "mode lib\n",
+        "LayoutProbe := struct { count: USize = 3; own tail : Str = \"\" }\n",
+        "layout_make := func() returns LayoutProbe { return LayoutProbe(count = 4, tail = format(\"tail \", \"seven\")) }\n"))
+    File.writefile(format(WORK, "/consumer.til"), format(
+        "import(\"../../gen/til/ffi_lib_layout_probe\")\n",
+        "made := layout_make()\n",
+        "assert(made.count == 4)\n",
+        "println(\"layout probe loaded\")\n"))
+    mut cptr_flip := "--cptr=64"
+    if has_flag(args, "--cptr=64") { cptr_flip = "--cptr=32" }
+    expect_refused(args, cptr_flip)
+    // The interpreter's target USize is its default here (no --usize).
+    expect_refused(args, "--usize=32")
+    println("ffi lib layout passed")
+}

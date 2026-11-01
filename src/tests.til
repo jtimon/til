@@ -1245,6 +1245,12 @@ main := proc(args: ..Str) {
     add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
         format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
             til_bin, asan_flag))
+    // #313: a library built for another layout (the other own-pointer
+    // storage, or a U32 USize) is refused when the interpreter loads it,
+    // instead of segfaulting on the first struct it returns.
+    add_count(tests, "ffi_lib_layout", "build", "ffi lib layout passed", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/ffi_lib_layout -c gen/c/ffi_lib_layout.c test/ffi_lib_layout.til ",
+            til_bin, asan_flag))
     // #313: an ASAN interpreter and a non-ASAN library share one cage; the
     // library's copy of the allocator keeps the cage's ASAN shadow too.
     if asan == 1 {

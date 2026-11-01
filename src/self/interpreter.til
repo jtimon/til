@@ -8132,6 +8132,28 @@ priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context, origin: Str =
 
 // Embedded loads still have individual source directives. Load one resolved
 // target directly so a base directory containing spaces is not tokenized.
+// Values cross a library call in this interpreter's library layout: the
+// target USize, and own pointers as its own cage's offsets or native -- the
+// library and the interpreter share one allocator, so that half follows the
+// running binary, whatever --cptr says. A til library exports the layout it
+// was built for (c_lib_abi_layout_symbol); any other is refused here, before
+// a call reads a native pointer as a cage offset or a U32 count as a U64
+// one (both segfaulted). A C library has no such symbol: nothing to check.
+priv ffi_check_lib_layout := proc(lib: Str, soname: Str, mut ctx: Context, origin: Str, line: U32, col: U32) returns I32 {
+    ref built_addr : U8 = ffi_global_symbol(c_lib_abi_layout_symbol(lib))
+    if built_addr.is_null() { return 0 }
+    built := Str.from_c_str(built_addr)
+    cptr32 := til_built_with_cptr32()
+    want := abi_layout_id(ctx.target_usize_pname, cptr32)
+    if built == want { return 0 }
+    mut flags := "--usize=64"
+    if ctx.target_usize_pname == "U32" { flags = "--usize=32" }
+    if cptr32 { flags = format(flags, " --cptr=32") } else { flags = format(flags, " --cptr=64") }
+    ffi_link_error(soname, format("built for layout ", built, ", but this interpreter loads libraries laid out ",
+        want, " -- rebuild it with ", flags), ctx, origin, line, col)
+    return 1
+}
+
 priv ffi_load_link := proc(target: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {
     if target.starts_with("-l") {
         lib := target.substr(2, target.len() - 2)
@@ -8145,6 +8167,7 @@ priv ffi_load_link := proc(target: Str, mut ctx: Context, origin: Str = "", line
                 ffi_link_error(soname, ffi_last_error(), ctx, origin, line, col)
                 return 1
             }
+            if loaded { return ffi_check_lib_layout(lib, soname, ctx, origin, line, col) }
         }
     } else if target.ends_with(".a") {
         return ffi_load_archive_twin(target, ctx, origin, line, col)

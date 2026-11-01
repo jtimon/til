@@ -172,6 +172,16 @@
   the sanitizer's entry points it finds in the process
   (test/ffi_cage_shadow.til).
 
+  The layout is not negotiable across a library boundary: a library's
+  values cross an interpreted call in the interpreter's layout -- the
+  target USize, and the running binary's own-pointer storage, since the
+  two share one allocator. Every library exports the layout it was built
+  for (~til_<lib>___til_abi_layout~, a string like ~U64-cptr32~, the same
+  ~abi_layout_id~ that names its shared runtime), and the interpreter
+  refuses another one when it loads the library, naming the flags to
+  rebuild it with (test/ffi_lib_layout.til). A library without the symbol
+  is a C library, or one from a compiler before the check.
+
   Leaks. LeakSanitizer knows only libc's chunks, so it cannot see a leaked
   til object any more. The cage keeps its own live count (block bytes handed
   out and not freed, the literal copies apart), and in an ASAN build the copy
