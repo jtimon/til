@@ -6,6 +6,11 @@ mode sender
 // and no timing. The suite runs it natively on both backends.
 url := "inproc://til-nng-pair"
 
+// #313: read_cstr over a string nng OWNS (its image's version string, not a
+// recv buffer); the hand-built view it used to make could not be stored
+// under the cage, which only the real-winsock CI step ever reached.
+assert(read_cstr(nng_version()).len() > 0)
+
 mut srv := nng_socket(id = 0)
 check(nng_pair0_open(srv), "pair0_open srv")
 mut lst := nng_listener(id = 0)

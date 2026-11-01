@@ -704,6 +704,7 @@ static inline UPtr til_cage_leaked_allocs(void) TIL_CAGE_FN __attribute__((unuse
 static inline UPtr til_cage_leaked_allocs(void) { return til_cage->live_allocs - til_cage->lit_allocs; }
 
 #ifdef TIL_CAGE_ASAN
+#if defined(__linux__)
 // LeakSanitizer's switch silences this report too.
 static Bool til_cage_leak_check_off(void) TIL_CAGE_FN;
 static Bool til_cage_leak_check_off(void) {
@@ -711,7 +712,6 @@ static Bool til_cage_leak_check_off(void) {
     return options != NULL && strstr(options, "detect_leaks=0") != NULL;
 }
 
-#if defined(__linux__)
 // LeakSanitizer parity. A live block nothing reaches at exit is a leak; one
 // still reachable -- a global's storage, a sequence template built on first
 // use, a literal copy -- is not, and LeakSanitizer never reported those
@@ -910,26 +910,23 @@ static UPtr til_cage_unreached(UPtr *bytes) {
     (free)(til_cage_fake_seen);
     return count;
 }
-#endif // __linux__
 
 // Defined before til_leak_probe and til_flush_stdout: same-priority
 // destructors run in reverse order of definition, so this runs after both,
 // once the probe has measured and stdout is flushed. Only the copy that owns
 // the process's slot reports, so a program and its library runtimes report
-// the shared cage once. Exit status 1 is LeakSanitizer's under ASAN. Off Linux there
-// is no reachability scan: the report counts every live block but the
-// literal copies, so a global's storage would count (macOS runs with
-// detect_leaks=0 anyway, see builder.til).
+// the shared cage once. Exit status 1 is LeakSanitizer's under ASAN. Linux
+// only, with the scan: without reachability a live count would flag every
+// global's storage, so no other host reports (macOS runs with
+// detect_leaks=0 anyway, see builder.til; a Windows ASAN build does not
+// exist).
 static void til_cage_leak_report(void) __attribute__((destructor)) TIL_CAGE_FN;
 static void til_cage_leak_report(void) {
     if (til_cage == NULL || til_cage_slot() != &til_cage_base) return;
     if (til_cage_leaked_allocs() == 0 || til_cage_leak_check_off()) return;
-    UPtr bytes = til_cage_leaked_bytes();
-    UPtr allocs = til_cage_leaked_allocs();
-#if defined(__linux__)
-    allocs = til_cage_unreached(&bytes);
+    UPtr bytes = 0;
+    UPtr allocs = til_cage_unreached(&bytes);
     if (allocs == 0) return;
-#endif
     fflush(NULL);
     fprintf(stderr, "\n==ERROR: til cage: detected memory leaks\n\n"
         "SUMMARY: til cage: %llu byte(s) leaked in %llu allocation(s) "
@@ -937,6 +934,7 @@ static void til_cage_leak_report(void) {
         (unsigned long long)bytes, (unsigned long long)allocs);
     _exit(1);
 }
+#endif // __linux__
 #endif // TIL_CAGE_ASAN
 #endif // TIL_CPTR32
 

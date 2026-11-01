@@ -123,16 +123,16 @@ init_window := proc(w: I32, h: I32, title: Str) {
 save_file_dialog := proc(title: Str, default_path: Str) returns Str {
     switch tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, Option(ref Dynamic).None, Option(ref I8).None) {
     case .Some(result):
-        view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
-        return view.clone()
+        // Str.from_c_str, not a hand-built view: the dialog's string lives
+        // in tinyfiledialogs, outside the cage (#313), and from_c_str copies.
+        return Str.from_c_str(result).clone()
     case .None: return ""
     }
 }
 open_file_dialog := proc(title: Str, default_path: Str) returns Str {
     switch tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, Option(ref Dynamic).None, Option(ref I8).None, 0) {
     case .Some(result):
-        view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
-        return view.clone()
+        return Str.from_c_str(result).clone()
     case .None: return ""
     }
 }

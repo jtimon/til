@@ -22,17 +22,14 @@ link("advapi32", "windows-x64 windows-x86")
 link("pthread")
 link("atomic")
 
-// Read a NUL-terminated C nng_recv_buffer into an owned til Str.
+// Read a NUL-terminated C string (nng's own, such as nng_version() and
+// nng_strerror(), or a recv buffer) into an owned til Str. Through
+// Str.from_c_str, never a hand-built view: a Str's c_str is an own field,
+// and under the cage (#313) it cannot hold a pointer into nng's image --
+// the first real-winsock run died on nng_version() with "an own pointer
+// outside the cage cannot be compressed". from_c_str copies there.
 read_cstr := func(p: Dynamic) returns Str {
-    mut n : USize = 0
-    while true {
-        ref b : I8 = ptr_add(p, n.to_uptr())
-        if b.eq(0) { break }
-        n++
-    }
-    ref start : I8 = ptr_add(p, 0)
-    view := Str(c_str = start, count = n, cap = CAP_VIEW)
-    return view.clone()
+    return Str.from_c_str(p).clone()
 }
 
 // Abort with the nng error string if rc is non-zero.
