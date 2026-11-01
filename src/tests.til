@@ -1219,6 +1219,11 @@ main := proc(args: ..Str) {
     // The driver checks combined headers, static/shared links, and both Til bindings.
     add_single(tests, "library_namespace", "build", 0, "",
         format(TIL, " run test/library_namespace.til"))
+    // #313: an interpreted call marshals a returned library struct whose
+    // last field is a 4-byte own pointer without running past it.
+    add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
+        format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
+            til_bin, asan_flag))
 
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`

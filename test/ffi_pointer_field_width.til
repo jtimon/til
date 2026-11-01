@@ -1,0 +1,42 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #313: the interpreter's FFI struct copy moved every pointer field 8 bytes
+// wide. An own field stored as a 4-byte cage offset then clobbered the next
+// host field -- or, as the LAST field, ran past the end of the host struct.
+// The interpreter (U32 USize) and the library (U64 USize) lay ProbeTail out
+// differently, so returning one is marshaled field by field. Driven with the
+// ASAN compiler and an ASAN library, where the overrun is a hard error.
+//
+// args: the compiler, then an optional --asan for the library build.
+
+WORK := "tmp/ffi_pointer_field_width"
+
+main := proc(args: ..Str) {
+    ref compiler : Str = args[0]
+    mkdir_p(WORK)
+    File.writefile(format(WORK, "/ffi_width_tail.til"), format(
+        "mode lib\n",
+        "ProbeTail := struct { count: USize = 3; own tail : Str = \"\" }\n",
+        "tail_make := func() returns ProbeTail { return ProbeTail(count = 4, tail = format(\"tail \", \"seven\")) }\n"))
+    File.writefile(format(WORK, "/consumer.til"), format(
+        "import(\"../../gen/til/ffi_width_tail\")\n",
+        "made := tail_make()\n",
+        "assert(made.count == 4)\n",
+        "println(\"pointer field width ok\")\n"))
+    mut build := Cmd.new(compiler, "build", format(WORK, "/ffi_width_tail.til"))
+    if args.len() > 1 { build = Cmd.new(compiler, "build", "--asan", format(WORK, "/ffi_width_tail.til")) }
+    build.run_checked()
+    consumer := Cmd.new(compiler, "interpret", format(WORK, "/consumer.til"))
+    consumer.env("LIBRARY_PATH", "gen/lib")
+    consumer.env("LD_LIBRARY_PATH", "gen/lib")
+    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    consumer.capture()
+    consumer.run_checked()
+    if consumer.out().contains("pointer field width ok").not() {
+        panic("consumer did not finish: ", consumer.out(), consumer.err())
+    }
+    println("ffi pointer field width passed")
+}

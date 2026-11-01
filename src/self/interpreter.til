@@ -10553,7 +10553,12 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             ref src_field : Dynamic = ptr_add(src, src_offset.to_usize())
             ref mut dst_field : Dynamic = ptr_add(dst, dst_offset.to_usize())
             if fd.own_type.is(OwnType.Shallow).not() {
-                memcpy(dst_field, src_field, Dynamic.size())
+                // A pointer field moves at its layout width: 8 bytes, or 4 for
+                // an own field stored as a cage offset (#313) -- the same on
+                // both sides. Copying 8 clobbered the next host field, or ran
+                // past the end of a struct whose last field it was.
+                ref pointer_type : ffi_type = deref(ptr_add(src_layout.ptr.elements, i.mul(8)))
+                memcpy(dst_field, src_field, pointer_type.size.to_usize())
             } else if decl_type_name_ref(fd, ctx.symbols).eq("USize").or(decl_type_name_ref(fd, ctx.symbols).eq("UPtr")) {
                 ffi_copy_width_field(type_name, decl_type_name_ref(fd, ctx.symbols), sd.field_name_at(i), src_field, src_host, dst_field, dst_host, ctx)
             } else {
