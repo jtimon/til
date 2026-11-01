@@ -8054,6 +8054,9 @@ ffi_close_user_so := ext_proc() {}
 ffi_user_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_last_error := ext_proc() returns Str {}
+// The running executable's path, "" when the host cannot say; the macos
+// FFI module link names it as its -bundle_loader (ffi_init_user_so).
+get_exe_path := ext_proc() returns Str {}
 // ext_proc, NOT ext_func: this reads a build-time property of the RUNNING
 // binary, so it must be evaluated at runtime. As an ext_func the constfolder
 // folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold
@@ -8188,10 +8191,14 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // dlopen (every til program links -rdynamic). ELF leaves them undefined
     // in a shared object by default; Apple's ld rejects them at link time
     // ("Undefined symbols for architecture", CI run 2877's ffi_interp on
-    // both macs) unless told to look them up dynamically.
-    mut undefined_flags := ""
-    if host_os() == "macos" { undefined_flags = " -Wl,-undefined,dynamic_lookup" }
-    cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, usize_define, undefined_flags, " -I", ext_dir,
+    // both macs). There the module is a bundle linked against this very
+    // executable (-bundle_loader): the runtime's names resolve at link
+    // time, and a name nothing defines is still refused by the linker --
+    // ffi_dlopen_fail_interp asserts that shape on macos, which a blanket
+    // -undefined dynamic_lookup broke (run 2879).
+    mut link_kind := " -shared"
+    if host_os() == "macos" { link_kind = format(" -bundle -bundle_loader ", get_exe_path()) }
+    cmd := format("cc -Wall -Wextra -fsigned-char", link_kind, " -fPIC", san, usize_define, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
         " ", user_c_path, lf)

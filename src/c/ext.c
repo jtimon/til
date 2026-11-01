@@ -3111,33 +3111,48 @@ I32 system_cmd(const Str *cmd) {
 #endif
 }
 
-Str *get_bin_dir(void) {
-    char buf[PATH_MAX];
+// The running executable's absolute path into buf (PATH_MAX bytes, '/'
+// separators on every host); 0 when the host cannot say (wasm has no
+// executable to speak of).
+static int til_exe_path(char *buf, size_t size) {
 #ifdef _WIN32
-    DWORD len = GetModuleFileNameA(NULL, buf, (DWORD)sizeof(buf));
-    if (len == 0 || len >= sizeof(buf)) {
-        return ext_str_box_bytes((const char *)".", (size_t)(1));
-    }
+    DWORD len = GetModuleFileNameA(NULL, buf, (DWORD)size);
+    if (len == 0 || len >= size) return 0;
     for (DWORD i = 0; i < len; i++) if (buf[i] == '\\') buf[i] = '/';
+    return 1;
 #elif defined(__EMSCRIPTEN__)
-    return ext_str_box_bytes((const char *)".", (size_t)(1));
+    (void)buf; (void)size;
+    return 0;
 #elif defined(__APPLE__)
     // No /proc on macOS; _NSGetExecutablePath may return a path with
     // symlinks or relative components, so resolve it before use.
-    uint32_t bufsize = sizeof(buf);
-    if (_NSGetExecutablePath(buf, &bufsize) != 0) {
-        return ext_str_box_bytes((const char *)".", (size_t)(1));
-    }
+    uint32_t bufsize = (uint32_t)size;
+    if (_NSGetExecutablePath(buf, &bufsize) != 0) return 0;
     char resolved[PATH_MAX];
-    if (realpath(buf, resolved) == NULL) {
-        return ext_str_box_bytes((const char *)".", (size_t)(1));
-    }
-    snprintf(buf, sizeof(buf), "%s", resolved);
+    if (realpath(buf, resolved) == NULL) return 0;
+    snprintf(buf, size, "%s", resolved);
+    return 1;
 #else
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len <= 0) return ext_str_box_bytes((const char *)".", (size_t)(1));
+    ssize_t len = readlink("/proc/self/exe", buf, size - 1);
+    if (len <= 0) return 0;
     buf[len] = '\0';
+    return 1;
 #endif
+}
+
+// The running executable itself, "" when unknown. The interpreter's FFI
+// module link on macOS names it as the -bundle_loader the module's
+// undefined runtime references (til_malloc, til_cage_base, ...) resolve
+// against at link time.
+Str *get_exe_path(void) {
+    char buf[PATH_MAX];
+    if (!til_exe_path(buf, sizeof(buf))) return ext_str_box_bytes((const char *)"", (size_t)(0));
+    return ext_str_box_bytes((const char *)(buf), (size_t)((USize)strlen((const char*)(buf))));
+}
+
+Str *get_bin_dir(void) {
+    char buf[PATH_MAX];
+    if (!til_exe_path(buf, sizeof(buf))) return ext_str_box_bytes((const char *)".", (size_t)(1));
     char *slash = strrchr(buf, '/');
     if (slash) *slash = '\0';
     for (int i = 0; i < 5; i++) {
