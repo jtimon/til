@@ -103,6 +103,44 @@
     linux-x64 (--cptr=64)): the whole suite through an ASAN compiler built
     --cptr=64, every program built --cptr=64. The default suite covers the
     cage.
+  - Follow-ups after the flip (three more commits): an own field whose
+    struct travels by C value (one I64) reached a value parameter or the
+    generated clone as the field's pointer, a C type error at both widths
+    (emit_value_arg; test_own_small_struct_field_by_value in
+    test/own_fields.til); an ASAN interpreter loading a non-ASAN library
+    aborted with use-after-poison, since only the ASAN copy of the
+    allocator kept the shared cage's shadow -- a non-ASAN copy now uses
+    the sanitizer's entry points when the process has them
+    (test/ffi_cage_shadow.til); and a library built for another layout
+    (--cptr=64, or --usize=32 under the default interpreter) segfaulted on
+    the first struct it returned -- every library now exports its
+    ~abi_layout_id~ (~til_<lib>___til_abi_layout~) and the interpreter
+    refuses a mismatch at load, naming the flags to rebuild with
+    (test/ffi_lib_layout.til).
+
+*** Open follow-ups
+
+  To revisit after the transition to two layouts only (USize and pointers
+  both 32 bits, or both 64): several of these exist only because the two
+  widths could differ, and may shrink or disappear with it.
+
+  - ~interpret --cptr=64~ is accepted but has no effect on library calls:
+    the interpreter and a library share one allocator, so the own-pointer
+    half of the layout always follows the running binary. A cage
+    interpreter can never load a native library; the flag could be refused
+    there instead of silently meaning nothing.
+  - Only ~own~ fields are compressed. ~ref~ fields, Dynamic values and UPtr
+    variables are still 64-bit in the cage build, so the issue's goal --
+    32-bit pointers -- is only partly met. Needs a plan before code.
+  - A missing ~-l~ library is ignored at load outside embedded sessions
+    (~ffi_load_link~; some ~-l~ names, like ~-lm~, resolve from the process
+    itself), so the user sees only "ext function is not registered ...
+    til_<lib>__<fn>" at the first call, with no word of which library
+    failed to load or the loader's error.
+  - Libraries built by a compiler from before the layout export carry no
+    ~til_<lib>___til_abi_layout~ and are loaded unchecked, as C libraries
+    are; such a library with the other layout still segfaults until it is
+    rebuilt.
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time
