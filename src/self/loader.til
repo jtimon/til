@@ -624,7 +624,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         // Scan per-file ASTs directly to avoid merged-AST cloning.
         ffi_reset(lp.ctx)
         runtime_ext_path := realpath_str(lp.ext_c_path)
-        runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
+        runtime_src_prefix := format(compiler_root_of(runtime_ext_path), "/src/")
         for upath : Str in lp.unit_paths() {
             ref iu : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu.ast, lp.ctx)
@@ -705,7 +705,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
 
         ffi_reset(lp.ctx)
         runtime_ext_path := realpath_str(lp.ext_c_path)
-        runtime_src_prefix := runtime_ext_path.strip_suffix("c/ext.c")
+        runtime_src_prefix := format(compiler_root_of(runtime_ext_path), "/src/")
         for upath : Str in lp.unit_paths() {
             ref iu6 : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu6.ast, lp.ctx)
@@ -920,11 +920,29 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
     }
 }
 
+// REM Transitional: the C runtime is moving from src/c/ext.c to
+// src/self/codegen/ext.c. The bootstrap compiler built from this commit
+// must find it in either place so the commit that moves the files still
+// builds; that commit drops the old spelling (doc/self.org "Staged
+// migration across master merges").
+compiler_runtime_c_path := proc(root: Str) returns Str {
+    moved := format(root, "/src/self/codegen/ext.c")
+    if File.is_file(moved) { return moved }
+    return format(root, "/src/c/ext.c")
+}
+
+// The compiler root (checkout or <prefix>/lib/til) that holds ext_c_path.
+compiler_root_of := func(ext_c_path: Str) returns Str {
+    if ext_c_path.ends_with("/src/self/codegen/ext.c") { return ext_c_path.strip_suffix("/src/self/codegen/ext.c") }
+    if ext_c_path.ends_with("/src/c/ext.c") { return ext_c_path.strip_suffix("/src/c/ext.c") }
+    panic(__LOC__, ": ext_c_path is not a compiler runtime path: '", ext_c_path, "'")
+}
+
 // Scan program AST for link()/link_macos()/link_c() directives; fill
 // link_flags, include_flags, target_links, macos_frameworks and
 // link_c_paths on the given LoadedProgram.
 priv extract_link_info := proc(mut lp: LoadedProgram) {
-    root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+    root_dir := compiler_root_of(lp.ext_c_path)
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them. Move iu.ast.children into a local Vec
     // and move directives to their module's non-executable directive list.

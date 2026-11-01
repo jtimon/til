@@ -44,7 +44,7 @@ namespace:
             err.diagnostics.push(own TilVmDiagnostic(path = self.support_root.clone(), message = "TilVm support_root is not an installed Til SDK"))
             throw err
         }
-        mut lp := load_program(path, root, realpath_str("."), format(root, "/src/c/ext.c"), Vec(Str).new(), "", true,
+        mut lp := load_program(path, root, realpath_str("."), compiler_runtime_c_path(root), Vec(Str).new(), "", true,
             prelude_source, prelude_name, prelude_base)
         if lp.load_errors > 0 { throw tilvm_error("load", lp.ctx) }
         if lp.link_c_paths.len() > 0 {

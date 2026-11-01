@@ -257,7 +257,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 // A user mode may import gui through another support file, and an unrelated
 // support file named gui must not turn a wasm program into an HTML build.
 priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
-    root := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+    root := compiler_root_of(lp.ext_c_path)
     gui_path := realpath_str(format(root, "/src/modes/gui.til"))
     for unit_path : Str in lp.unit_paths() {
         if realpath_str(unit_path) == gui_path { return true }
@@ -276,7 +276,7 @@ priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
 // tokens are touched; -l flags pass through.
 priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
     if flags.find(".a").lt(0) { return flags }
-    root := ext_c_path.strip_suffix("/src/c/ext.c")
+    root := compiler_root_of(ext_c_path)
     mut out := ""
     for tok : Str in flags.split(" ") {
         if tok.len() == 0 { continue }
@@ -883,7 +883,7 @@ cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target:
 }
 
 priv builder_compiler_root := func(lp: LoadedProgram) returns Str {
-    return lp.ext_c_path.strip_suffix("/src/c/ext.c")
+    return compiler_root_of(lp.ext_c_path)
 }
 
 priv is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns Bool {

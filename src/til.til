@@ -413,7 +413,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
-    ext_c_path := bin_dir.format("/src/c/ext.c")
+    ext_c_path := compiler_runtime_c_path(bin_dir)
     // std/doc no longer lives in core, but help() must stay ambient in the
     // REPL, so every program the REPL loads imports it explicitly. The path
     // is absolute (the loader resolves those as-is) because tmp_path's
@@ -1160,7 +1160,7 @@ main := proc(args: ..Str) {
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
-    ext_c_path := bin_dir.format("/src/c/ext.c")
+    ext_c_path := compiler_runtime_c_path(bin_dir)
 
     mut target := detect_current_target()
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }

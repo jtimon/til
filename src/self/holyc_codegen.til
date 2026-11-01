@@ -5583,7 +5583,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         return 1
     }
 
-    compiler_root := lp.ext_c_path.strip_suffix("/src/c/ext.c")
+    compiler_root := compiler_root_of(lp.ext_c_path)
     runtime_path := format(compiler_root, "/src/holyc/ext.HC")
     if File.is_file(runtime_path).not() {
         println(format("error: HolyC runtime source is missing: ", runtime_path))
