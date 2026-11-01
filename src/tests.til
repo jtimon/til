@@ -13,7 +13,7 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
-TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 0 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:self-mem:right --series peak_mem:peak-mem:right --series self_native_ms:self-native:left --series self_native_mem:self-native-mem:right"
+TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 0 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series self_asan_ms:self-asan:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:mem-self:right --series peak_mem:peak-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
@@ -866,11 +866,11 @@ add_cli_pair := func(mut tests: Vec(Test), name: Str, file: Str,
 
 // --- Blind parallel runner ---
 
-// The self-translate benchmarks ("self": the ASAN compiler, self_ms /
-// self_mem; "self_native": bin/til, self_native_ms / self_native_mem) run
-// alongside the suite but are not part of its wall or its peak memory.
+// The self-translate benchmarks ("self": bin/til as built, self_ms /
+// self_mem; "self_asan": the ASAN compiler, self_asan_ms / self_asan_mem)
+// run alongside the suite but are not part of its wall or its peak memory.
 is_benchmark_category := func(category: Str) returns Bool {
-    return category.eq("self").or(category.eq("self_native"))
+    return category.eq("self").or(category.eq("self_asan"))
 }
 
 run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
@@ -1090,13 +1090,14 @@ main := proc(args: ..Str) {
     // its own source, the largest input it handles and the single slowest job.
     // Registered FIRST so run_all_parallel spawns it in the first batch; it then
     // holds one of the j parallel slots for the whole run (usually the long
-    // pole). Its time is collected via the "self" category into self_ms and is
-    // deliberately EXCLUDED from wall_ms (run_all_parallel marks the suite end
-    // from the last non-"self" test), so the benchmark does not inflate wall.
+    // pole). Its time is collected via the "self_asan" category into
+    // self_asan_ms and is deliberately EXCLUDED from wall_ms (run_all_parallel
+    // marks the suite end from the last non-benchmark test), so the benchmark
+    // does not inflate wall.
     // Exit must be 0: the compiler has to be able to translate itself.
     //
     // Issue #101: it is also the determinism guard, and ONE translation buys
-    // both halves of it, so self_ms stays a single self-translate. The
+    // both halves of it, so self_asan_ms stays a single self-translate. The
     // comparison is against the pass-1 boot/ artifacts the build just
     // produced, which were written by a DIFFERENT compiler binary in a
     // DIFFERENT process (til_boot under `make test`, the self-applied
@@ -1154,23 +1155,25 @@ main := proc(args: ..Str) {
         self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
     }
-    add_single(tests, "self_translate", "self", 0, "",
+    add_single(tests, "self_translate", "self_asan", 0, "",
         format("rm -f tmp/self_det.c tmp/self_det_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det.c src/til.til",
             self_reference_cmd,
             " '&&' cmp tmp/self_det.c ", self_reference, ".c",
             " '&&' cmp tmp/self_det_forward.h ", self_reference, "_forward.h"))
     // The same self-translate WITHOUT ASAN (#313): the suite's compiler is
-    // the ASAN build, so self_ms / self_mem measure the sanitizer's
+    // the ASAN build, so self_asan_ms / self_asan_mem measure the sanitizer's
     // bookkeeping as much as the compiler -- the cage's default flip showed
     // as a halving there that was ASAN's per-allocation cost disappearing,
     // not the cage's own ~5%. This row runs bin/til, the compiler as built,
-    // and lands in self_native_ms / self_native_mem: the numbers to judge a
-    // layout change by. Its own category, so it joins the "self" benchmark
-    // in staying out of wall and the peak but never sums into self_ms. The
-    // comparison is against boot/, which this very compiler's layout
-    // produced under every suite (the opt-outs change til_bin, not TIL).
-    add_single(tests, "self_translate_native", "self_native", 0, "",
+    // and is THE self-translate benchmark: self_ms / self_mem, the numbers to
+    // judge a layout change by (the ASAN row's time is plotted beside it for
+    // the sanitizer's cost; its memory is kept in the csv, not plotted). Its
+    // own category, so it joins the ASAN row in staying out of wall and the
+    // peak. The comparison is against boot/, which this very compiler's
+    // layout produced under every suite (the opt-outs change til_bin, not
+    // TIL).
+    add_single(tests, "self_translate_native", "self", 0, "",
         format("rm -f tmp/self_native.c tmp/self_native_forward.h",
             " '&&' ", TIL, " translate --usize=32 -c tmp/self_native.c src/til.til",
             " '&&' cmp tmp/self_native.c boot/til.c",
@@ -1554,8 +1557,8 @@ main := proc(args: ..Str) {
     // unused param spelling issue #86 defines. The shared translation uses
     // its own -c path so it and the `both` compile never race on one file.
     //
-    // Category "build", NOT "self": self_ms/self_mem are reserved for the
-    // self-translate BENCHMARK. Any extra test filed under "self" lands
+    // Category "build", NOT "self" / "self_asan": those are reserved for the
+    // self-translate BENCHMARKS. Any extra test filed under them lands
     // in doc/totals.csv and img/totals.svg as a benchmark regression that
     // did not happen -- these three cost ~3 x 2s and ~3 x 1.1GB of peak RSS,
     // which is what made self_mem jump 11.8GB -> 15.1GB when they were first
@@ -3601,8 +3604,8 @@ main := proc(args: ..Str) {
     mut build_mem := 0
     mut self_ms := 0
     mut self_mem := 0
-    mut self_native_ms := 0
-    mut self_native_mem := 0
+    mut self_asan_ms := 0
+    mut self_asan_mem := 0
     mut other_passed : USize = 0
     mut other_total : USize = 0
     pi = 0
@@ -3618,9 +3621,9 @@ main := proc(args: ..Str) {
                 self_ms = self_ms + t.ms
                 self_mem = self_mem + t.mem
             }
-            if t.category == "self_native" {
-                self_native_ms = self_native_ms + t.ms
-                self_native_mem = self_native_mem + t.mem
+            if t.category == "self_asan" {
+                self_asan_ms = self_asan_ms + t.ms
+                self_asan_mem = self_asan_mem + t.mem
             }
             if t.category == "build" {
                 build_ms = build_ms + t.ms
@@ -3719,7 +3722,7 @@ main := proc(args: ..Str) {
     total_tests := both_total.add(other_total) + 1
 
     // Wall excludes the self-translate benchmark: suite_end_ms is when the last
-    // non-"self" test finished, so self_ms stands on its own without inflating
+    // non-benchmark test finished, so self_ms stands on its own without inflating
     // wall (self runs in parallel and is usually the long pole).
     wall_ms := suite_end_ms - wall_start
 
@@ -3736,7 +3739,7 @@ main := proc(args: ..Str) {
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Build tests:  ", ms_to_str(build_ms))
     println("Self-translate: ", ms_to_str(self_ms))
-    println("Self-translate (native): ", ms_to_str(self_native_ms))
+    println("Self-translate (ASAN): ", ms_to_str(self_asan_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Peak memory:  ", suite_peak_mem.to_str(), " bytes")
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
@@ -3798,11 +3801,11 @@ main := proc(args: ..Str) {
             total_mem_comp.to_str(), ",",
             total_mem_run.to_str(), ",",
             total_mem_total.to_str(), ",",
-            self_ms.to_str(), ",",
-            self_mem.to_str(), ",",
+            self_asan_ms.to_str(), ",",
+            self_asan_mem.to_str(), ",",
             suite_peak_mem.to_str(), ",",
-            self_native_ms.to_str(), ",",
-            self_native_mem.to_str())
+            self_ms.to_str(), ",",
+            self_mem.to_str())
 
         totals_path := "doc/totals.csv"
         // tests.til owns the header so the column set (incl self / peak memory)
@@ -3811,7 +3814,10 @@ main := proc(args: ..Str) {
         // header only persists if it is regenerated here.
         // Columns are only ever appended (examples/plot.til reads an older
         // row's missing trailing columns as absent), so the history stays.
-        header := "commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem,peak_mem,self_native_ms,self_native_mem"
+        // Columns 15-16 held the ASAN self-translate from the start and were
+        // renamed in place when the native row became THE self-translate
+        // (18-19): every old row keeps plotting under self-asan.
+        header := "commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_asan_ms,self_asan_mem,peak_mem,self_ms,self_mem"
         existing := File.readfile(totals_path)
         mut totals_content := format(header, NL)
         lines := existing.split(NL)
