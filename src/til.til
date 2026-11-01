@@ -1191,6 +1191,10 @@ main := proc(args: ..Str) {
             println("error: --cptr is supported by the C backend only")
             exit(1)
         }
+        if target_lang(target).is(Lang.C).not() {
+            println("error: --cptr is supported by the C backend only; this target emits HolyC")
+            exit(1)
+        }
     }
 
     if cli.backend == "fasm" {
@@ -1234,7 +1238,14 @@ main := proc(args: ..Str) {
     // opts out; --cptr=32 on a target it cannot apply to was rejected above.
     lp.cptr32 = cli.cptr_bits == 32
     if cli.cptr_bits == 0 {
-        lp.cptr32 = target_uptr_name(target).eq("U64").and(cli.backend.eq("c")).and(lp.mode_str.neq("theme"))
+        // The target's LANGUAGE, not just cli.backend: --backend defaults to
+        // "c" for every target, TempleOS included, whose 64-bit pointers are
+        // what UPtr reports -- so the cage defaulted on for HolyC output, and
+        // the folder sized own fields at 4 bytes (`sizeof(IntegerOverflow)`
+        // became 12) against a HolyC runtime of 8-byte pointers: the guest
+        // corpus panicked (CI run 2877, test/holyc_primitives.til at --usize=32).
+        lp.cptr32 = target_uptr_name(target).eq("U64").and(target_lang(target).is(Lang.C))
+            .and(cli.backend.eq("c")).and(lp.mode_str.neq("theme"))
     }
     lp.ctx.target_cptr32 = lp.cptr32
     // #154 prototype: unused-import type errors, opt-in per invocation.

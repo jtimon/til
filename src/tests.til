@@ -1032,6 +1032,7 @@ main := proc(args: ..Str) {
     mut til_bin := TIL
     mut asan := 0
     mut cptr_flag := ""
+    mut usize_flag := ""
     mut i : USize = 0
     while i < args.len() {
         ref arg : Str = args[i]
@@ -1049,6 +1050,7 @@ main := proc(args: ..Str) {
         }
         if arg == "--asan" { asan = 1 }
         if arg.eq("--cptr=32").or(arg.eq("--cptr=64")) { cptr_flag = format(" ", arg) }
+        if arg.eq("--usize=32").or(arg.eq("--usize=64")) { usize_flag = format(" ", arg) }
         if arg == "--regen" { REGEN = " --regen" }
         i++
     }
@@ -1061,8 +1063,11 @@ main := proc(args: ..Str) {
     if asan == 1 { asan_flag = " --asan" }
     // #313: an explicit --cptr=32|64 rides along with the ASAN flag into
     // every compiled program's build (make check_cptr64 passes --cptr=64,
-    // the opt-out of the default cage); interpretation is unaffected.
-    asan_flag = format(asan_flag, cptr_flag)
+    // the opt-out of the default cage); interpretation is unaffected. An
+    // explicit --usize=32|64 rides the same way (make check_native64 passes
+    // both opt-outs: 64-bit USize on native pointers). A row that spells
+    // its own width writes it AFTER these flags, since the last one wins.
+    asan_flag = format(asan_flag, cptr_flag, usize_flag)
 
     mut fail := 0
 
@@ -1137,7 +1142,7 @@ main := proc(args: ..Str) {
     // boot/, the shape this row had before the cage became the default.)
     mut self_reference := "boot/til"
     mut self_reference_cmd := ""
-    if cptr_flag.len() > 0 {
+    if cptr_flag.len().gt(0).or(usize_flag.len().gt(0)) {
         self_reference = "tmp/self_det_ref"
         self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
@@ -1220,10 +1225,20 @@ main := proc(args: ..Str) {
     add_single(tests, "library_namespace", "build", 0, "",
         format(TIL, " run test/library_namespace.til"))
     // #313: an interpreted call marshals a returned library struct whose
-    // last field is a 4-byte own pointer without running past it.
-    add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
-        format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
-            til_bin, asan_flag))
+    // last field is a 4-byte own pointer without running past it. A cage
+    // row: under the native opt-out (make check_cptr64 / check_native64)
+    // there is no 4-byte field to overrun, and the interpreter cannot drop a
+    // native-pointer library's struct at all when an own Str field points at
+    // the library's literal pool -- compiled code skips those boxes by
+    // address range (TIL_LIT_GUARD), the interpreter has no such range for
+    // a foreign image and frees the static box (ASAN bad-free on
+    // hoisted__Str_tail_make_N). The cage copies literals in (til_cage_lit),
+    // which is what makes the default layout free of that gap.
+    if cptr_flag.eq(" --cptr=64").not() {
+        add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
+            format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
+                til_bin, asan_flag))
+    }
 
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`
@@ -2074,9 +2089,12 @@ main := proc(args: ..Str) {
     add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern USize CAP_LIT;", 1,
         "cat gen/til/til_forward.h")
     // #313: a compiler folds sizes only for a target laid out like itself,
-    // so under make check_cptr64 the translation targets --cptr=64 too.
+    // so under make check_cptr64 the translation targets --cptr=64 too, and
+    // under make check_native64 its 64-bit USize as well (#309).
+    mut enums_size_width := " --usize=32"
+    if usize_flag.len() > 0 { enums_size_width = usize_flag.clone() }
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
-        format(til_bin, " translate --usize=32", cptr_flag, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
+        format(til_bin, " translate", enums_size_width, cptr_flag, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     first_class_checks = first_class_checks.concat(array(CountCheck,
         CountCheck(needle = "unused_default_op", expected_count = 0),
         CountCheck(needle = "__attribute__((unused))", expected_count = 0)))
@@ -2485,14 +2503,14 @@ main := proc(args: ..Str) {
     // The same accessor must narrow before its bounds check/address math.
     // A 64-bit-only run cannot expose loss of the USize32 parameter boundary.
     add_counts(tests, "accessor_conversions_usize32", "build",
-        format(til_bin, " test --usize=32", asan_flag,
+        format(til_bin, " test", asan_flag, " --usize=32",
             " -c gen/c/accessor_conversions32.c -o bin/c/accessor_conversions32 test/arrays.til"),
         CountCheck(needle = "pass: test_array_accessor_conversions", expected_count = 2),
         CountCheck(needle = "pass: test_size_reference_identity_and_conversion", expected_count = 2))
     add_count(tests, "size_ref_storage_error_interp", "typer", "mutable size parameter 'value' requires matching storage type", 1,
         format(til_bin, " interpret --usize=64 test/size_ref_errors.til"))
     add_count(tests, "size_ref_storage_error_build", "typer", "mutable size parameter 'value' requires matching storage type", 1,
-        format(til_bin, " build --usize=64", asan_flag, " test/size_ref_errors.til"))
+        format(til_bin, " build", asan_flag, " --usize=64 test/size_ref_errors.til"))
     add_count(tests, "size_ref_storage_error_usize32", "typer", "mutable size parameter 'value' requires matching storage type", 2,
         format(til_bin, " interpret --usize=32 test/size_ref_errors.til"))
     add_both(tests, "test/dyn_arrays.til", flags)

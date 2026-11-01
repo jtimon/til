@@ -8175,7 +8175,16 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // vice versa), so the .so must allocate from the same cage.
     if til_built_with_cptr32() { usize_define = format(usize_define, " -DTIL_CPTR32") }
     else { usize_define = format(usize_define, " -DTIL_CPTR64") }
-    cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, usize_define, " -I", ext_dir,
+    // The user .so refers to the interpreter's runtime: ext.h spells
+    // malloc( as til_malloc and TIL_OWN_GET reads til_cage_base, so the
+    // module has undefined symbols that resolve against the executable at
+    // dlopen (every til program links -rdynamic). ELF leaves them undefined
+    // in a shared object by default; Apple's ld rejects them at link time
+    // ("Undefined symbols for architecture", CI run 2877's ffi_interp on
+    // both macs) unless told to look them up dynamically.
+    mut undefined_flags := ""
+    if host_os() == "macos" { undefined_flags = " -Wl,-undefined,dynamic_lookup" }
+    cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, usize_define, undefined_flags, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
         " ", user_c_path, lf)

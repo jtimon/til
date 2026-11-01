@@ -10,7 +10,10 @@ import("../src/std/file")
 // differently, so returning one is marshaled field by field. Driven with the
 // ASAN compiler and an ASAN library, where the overrun is a hard error.
 //
-// args: the compiler, then an optional --asan for the library build.
+// args: the compiler, then the flags the suite builds its programs with
+// (--asan, and the layout opt-outs --cptr=64 / --usize=64 of make
+// check_cptr64 and check_native64), forwarded to the library build so the
+// library is laid out like the compiler that will interpret against it.
 
 WORK := "tmp/ffi_pointer_field_width"
 
@@ -26,8 +29,9 @@ main := proc(args: ..Str) {
         "made := tail_make()\n",
         "assert(made.count == 4)\n",
         "println(\"pointer field width ok\")\n"))
-    mut build := Cmd.new(compiler, "build", format(WORK, "/ffi_width_tail.til"))
-    if args.len() > 1 { build = Cmd.new(compiler, "build", "--asan", format(WORK, "/ffi_width_tail.til")) }
+    build := Cmd.new(compiler, "build")
+    for i in 1..args.len() { build.arg(args[i]) }
+    build.arg(format(WORK, "/ffi_width_tail.til"))
     build.run_checked()
     consumer := Cmd.new(compiler, "interpret", format(WORK, "/consumer.til"))
     consumer.env("LIBRARY_PATH", "gen/lib")

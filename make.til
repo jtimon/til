@@ -38,6 +38,7 @@ TIL := "bin/til"
 ASAN := "bin/til_asan"
 DEBUG := "bin/til_debug"
 CPTR64 := "bin/til_cptr64"
+NATIVE64 := "bin/til_native64"
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -743,6 +744,23 @@ check_cptr64 := proc(mut b: Build) {
     run("tmp/cptr64_strings")
     run(TIL, "build", "--usize=32", "--cptr=64", "--asan", "-o", CPTR64, "src/til.til")
     c := suite_cmd(b, "--til-bin", CPTR64, "--asan", "--cptr=64")
+    c.run_checked()
+}
+
+/// Both opt-outs at once, the fully native layout: 64-bit USize (#309) on
+/// native own pointers (#313). The whole suite through a compiler built
+/// --usize=64 --cptr=64 under ASAN, with every compiled program built the
+/// same way; interpretation runs on that compiler's host widths. Not part
+/// of `test`: a second full suite run, like check_cptr64.
+check_native64 := proc(mut b: Build) {
+    if b.begin("check_native64").not() { return }
+    build_til(b)
+    build_test_runner(b)
+    build_plot(b)
+    build_tests(b)
+    mkdir_p("tmp")
+    run(TIL, "build", "--usize=64", "--cptr=64", "--asan", "-o", NATIVE64, "src/til.til")
+    c := suite_cmd(b, "--til-bin", NATIVE64, "--asan", "--cptr=64", "--usize=64")
     c.run_checked()
 }
 
@@ -2199,6 +2217,8 @@ commands := func() returns Vec(Command) {
         about = "Run the explicit --usize=64 regression"))
     out.push(own Command(name = "check_cptr64", go = check_cptr64,
         about = "Run the full suite through a --cptr=64 compiler, --cptr=64 programs"))
+    out.push(own Command(name = "check_native64", go = check_native64,
+        about = "Run the full suite through a --usize=64 --cptr=64 compiler and programs"))
     out.push(own Command(name = "check_clang", go = check_clang,
         about = "Check the emitted C compiles clean under clang"))
     out.push(own Command(name = "build_win", go = build_win,
