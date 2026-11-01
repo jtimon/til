@@ -420,6 +420,7 @@ typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_load
 typedef struct Vec__TargetLink Vec__TargetLink;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
+typedef struct priv___src_self_c_codegen_til__JniErrSlot priv___src_self_c_codegen_til__JniErrSlot;
 typedef struct priv___src_self_c_codegen_til__CollectionInfo priv___src_self_c_codegen_til__CollectionInfo;
 typedef struct priv___src_self_c_codegen_til__DynCallInfo priv___src_self_c_codegen_til__DynCallInfo;
 typedef struct priv___src_self_c_codegen_til__BuilderFuncSites priv___src_self_c_codegen_til__BuilderFuncSites;
@@ -1491,6 +1492,13 @@ typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry {
 } Vec__priv___src_self_loader_til__ImportCheckEntry;
 
 
+typedef struct priv___src_self_c_codegen_til__JniErrSlot {
+    Str c_type;
+    Str msg;
+    Str free_stmt;
+} priv___src_self_c_codegen_til__JniErrSlot;
+
+
 typedef struct priv___src_self_c_codegen_til__CollectionInfo {
     Str *type_name;
     I32 is_vec;
@@ -1665,6 +1673,8 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str h_path;
     Str til_path;
     Str py_path;
+    Str jni_c_path;
+    Str java_path;
     Str theme_path;
     Bool do_lib;
 } priv___src_self_builder_til__BuildPaths;

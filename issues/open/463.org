@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #463 Call til from the JVM and BEAM through generated bindings
+** WIP #463 Call til from the JVM and BEAM through generated bindings
 
 Make til libraries usable from the JVM (Java, Kotlin, Android) and from BEAM
 (Erlang, Elixir) the way Python already uses them: a native ~mode lib~
@@ -46,6 +46,18 @@ compiling it does.
   Generated file names and layout, package/module naming, which builds
   generate which bindings by default, how the bridge is compiled and where
   the result is installed, and the tools each step requires.
+
+*** Progress
+
+  - JNI, first slice (scalars of every width, Bool, Str, throws): every
+    ~mode lib~ build writes ~gen/til/java/til/<pkg>/<Cls>.java~ and
+    ~gen/til/<name>_jni.c~ (layout and bridge command in doc/ffi.org,
+    "Calling a library from the JVM"). Unbound signatures are listed in the
+    class as ~// <name>: not bound: <reason>~. ~test/jni.til~ checks the
+    generated text in the suite; ~test/jni.til jvm~ runs a Java caller
+    through a JDK. Open: aggregates, enums, ~mut~ parameters, callbacks;
+    whether to compile the bridge from ~til build~ and add a ~make~ goal for
+    the JDK run.
 
 *** Acceptance
 

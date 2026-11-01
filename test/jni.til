@@ -1,0 +1,77 @@
+mode cli
+
+// #463: the JNI binding generated for every `mode lib` library. Without
+// arguments this checks the generated Java class and C bridge as text, so
+// the default suite needs no JDK. With `jvm` it also compiles the bridge
+// against $JAVA_HOME and runs test/JniLibTest.java through it; that half
+// requires a JDK and fails when JAVA_HOME is unset.
+
+import("../src/std/sys")
+import("../src/std/file")
+
+JAVA := "gen/til/java/til/jni_lib/JniLib.java"
+BRIDGE := "gen/til/jni_lib_jni.c"
+
+require_contains := func(text: Str, expected: Str) returns Bool {
+    if text.contains(expected).not() { panic("missing generated JNI text: ", expected) }
+    return true
+}
+
+check_text := proc() {
+    java := File.readfile(JAVA)
+    c := File.readfile(BRIDGE)
+    require_contains(java, "package til.jni_lib;")
+    require_contains(java, "public final class JniLib {")
+    require_contains(java, "static { System.loadLibrary(\"jni_lib_jni\"); }")
+    require_contains(java, "public static byte jni_add_u8(byte a, byte b) {")
+    require_contains(java, "public static long jni_add_usize(long a, long b) {")
+    require_contains(java, "public static boolean jni_not(boolean a) {")
+    require_contains(java, "public static long JniCounter_twice(long x) {")
+    require_contains(java, "public static String jni_greet(String name) {")
+    require_contains(java, "return tilStr(n_jni_greet(tilUtf8(name)));")
+    require_contains(java, "public static long jni_safe_div(long a, long b) throws TilError {")
+    require_contains(java, "// jni_bump: not bound: mut parameter 'n'")
+    if java.contains("JniCounter_delete") { panic("generated lifecycle member bound through JNI") }
+
+    require_contains(c, "#include \"jni_lib.h\"")
+    require_contains(c, "JNICALL Java_til_jni_1lib_JniLib_n_1jni_1greet(JNIEnv *env, jclass cls, jbyteArray a0)")
+    // Borrowed Str: a bridge temporary, deleted after the call.
+    require_contains(c, "TilJniStr r = til_jni_x5flib__jni_greet(&t0);\n    TIL_JNI_STR_DELETE(&t0, 0);")
+    // Owned Str: a heap box the library frees.
+    require_contains(c, "TilJniStr r = til_jni_x5flib__jni_take(t0);\n    jbyteArray out")
+    require_contains(c, "    Bool r = til_jni_x5flib__jni_not((Bool)(a0 != JNI_FALSE));")
+    require_contains(c, "if (err_kind == 3LL) {")
+    require_contains(c, "til_jni_throw(env, \"DivideByZero\", &err_3.msg);")
+    require_contains(c, "til_jni_throw(env, \"JniBad\", NULL);")
+    require_contains(c, "abort();")
+}
+
+EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nloop ok\n"
+
+check_jvm := proc() {
+    java_home := get_env("JAVA_HOME")
+    if java_home.len() == 0 { panic("test/jni.til jvm: set JAVA_HOME to a JDK") }
+    Cmd.new("cc", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+        format("-I", java_home, "/include"), format("-I", java_home, "/include/linux"),
+        "-Igen/til", "-Isrc/c", BRIDGE, "-Lgen/lib", "-ljni_lib", "-Wl,-rpath,$ORIGIN",
+        "-o", "gen/lib/libjni_lib_jni.so").run_checked()
+    File.remove_tree("tmp/jni_classes")
+    Cmd.new(format(java_home, "/bin/javac"), "-Xlint:all", "-Werror", "-d", "tmp/jni_classes",
+        JAVA, "test/JniLibTest.java").run_checked()
+    run := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-Djava.library.path=gen/lib",
+        "-cp", "tmp/jni_classes", "JniLibTest")
+    run.capture_out()
+    if run.run() != 0 { panic("JniLibTest failed:\n", run.out()) }
+    if run.out() != EXPECTED { panic("JniLibTest output mismatch:\n", run.out()) }
+    println("jni jvm ok")
+}
+
+main := proc(args: ..Str) {
+    Cmd.new("bin/til", "build", "test/jni_lib.til").run_checked()
+    check_text()
+    println("jni text ok")
+    if args.len() > 0 {
+        if args[0] != "jvm" { panic("test/jni.til: unknown argument ", args[0]) }
+        check_jvm()
+    }
+}

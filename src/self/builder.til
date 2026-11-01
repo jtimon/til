@@ -489,6 +489,8 @@ priv BuildPaths := struct {
     h_path := ""
     til_path := ""
     py_path := ""
+    jni_c_path := ""
+    java_path := ""
     theme_path := ""
     do_lib := false
 }
@@ -544,6 +546,8 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
     paths.h_path = format("gen/til/", name, ".h")
     paths.til_path = format("gen/til/", name, ".til")
     paths.py_path = format("gen/til/", name, ".py")
+    paths.jni_c_path = format("gen/til/", name, "_jni.c")
+    paths.java_path = format("gen/til/java/til/", jni_package_name(name), "/", jni_class_name(name), ".java")
     paths.do_lib = lp.cur_mode.is_library
     return paths
 }
@@ -574,6 +578,8 @@ priv make_build_dirs := proc(paths: BuildPaths) {
     if paths.do_lib {
         if mkdir_p("gen/til") != 0 { panic("failed to create gen/til") }
         if mkdir_p("gen/lib") != 0 { panic("failed to create gen/lib") }
+        java_dir := paths.java_path.substr(0, paths.java_path.rfind("/").to_usize())
+        if mkdir_p(java_dir) != 0 { panic("failed to create ", java_dir) }
     } else {
         bp_slash := paths.bin_path.rfind("/")
         mut bp_dir := "bin"
@@ -610,7 +616,7 @@ priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Tar
         return holyc_codegen_translate(lp, paths.c_path)
     }
     return c_codegen_translate_outputs(lp, paths.c_path, paths.fwd_path,
-        paths.h_path, paths.til_path, paths.py_path, paths.name, paths.do_lib)
+        paths.h_path, paths.til_path, paths.py_path, paths.jni_c_path, paths.java_path, paths.name, paths.do_lib)
 }
 
 priv print_translate_success := proc(paths: BuildPaths) {
@@ -624,6 +630,8 @@ priv print_translate_success := proc(paths: BuildPaths) {
         println(format("Generated: ", paths.h_path))
         println(format("Generated: ", paths.til_path))
         println(format("Generated: ", paths.py_path))
+        println(format("Generated: ", paths.jni_c_path))
+        println(format("Generated: ", paths.java_path))
     }
 }
 
@@ -901,6 +909,8 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         h_dst := format(install_prefix, "/include/", paths.name, ".h")
         til_dst := format(support_root(install_prefix), "/lib/", paths.name, ".til")
         py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
+        jni_c_dst := format(support_root(install_prefix), "/lib/", paths.name, "_jni.c")
+        java_dst := format(support_root(install_prefix), "/lib/java/", paths.java_path.strip_prefix("gen/til/java/"))
         runtime_dst := format(install_prefix, "/lib/", lp.runtime_shared_basename())
         core_dst := format(install_prefix, "/lib/", lp.core_shared_basename())
 
@@ -917,12 +927,16 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         if result == 0 { result = install_file(paths.h_path, h_dst, "install C header") }
         if result == 0 { result = install_file(paths.til_path, til_dst, "install til binding") }
         if result == 0 { result = install_file(paths.py_path, py_dst, "install Python binding") }
+        if result == 0 { result = install_file(paths.jni_c_path, jni_c_dst, "install JNI bridge source") }
+        if result == 0 { result = install_file(paths.java_path, java_dst, "install Java binding") }
         if result == 0 {
             print_install_success(so_dst)
             print_install_success(a_dst)
             print_install_success(h_dst)
             print_install_success(til_dst)
             print_install_success(py_dst)
+            print_install_success(jni_c_dst)
+            print_install_success(java_dst)
             if lp.uses_shared_runtime() { print_install_success(runtime_dst) }
             if lp.uses_shared_runtime() { print_install_success(core_dst) }
         }

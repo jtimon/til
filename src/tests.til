@@ -1246,6 +1246,11 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
             til_bin, asan_flag))
 
+    // #463: every library also gets a JNI bridge and Java class. The suite
+    // checks them as generated text; `til run test/jni.til jvm` runs them
+    // through a JDK.
+    add_single(tests, "jni", "build", 0, "", format(TIL, " run test/jni.til"))
+
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`
     // always did this; the interpreter used to discard the value and

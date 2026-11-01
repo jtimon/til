@@ -1,0 +1,45 @@
+mode lib
+
+// Fixture for the generated JNI binding (issue #463): one exported function
+// per supported parameter/return shape, plus throwing and unsupported ones.
+
+JniBad := struct {}
+
+JniCounter := struct {
+    n : I64 = 0
+namespace:
+    twice := func(x: I64) returns I64 { return x * 2 }
+}
+
+jni_add_i8 := func(a: I8, b: I8) returns I8 { return a + b }
+jni_add_u8 := func(a: U8, b: U8) returns U8 { return a + b }
+jni_add_i16 := func(a: I16, b: I16) returns I16 { return a + b }
+jni_add_u16 := func(a: U16, b: U16) returns U16 { return a + b }
+jni_add_i32 := func(a: I32, b: I32) returns I32 { return a + b }
+jni_add_u32 := func(a: U32, b: U32) returns U32 { return a + b }
+jni_add_i64 := func(a: I64, b: I64) returns I64 { return a + b }
+jni_add_u64 := func(a: U64, b: U64) returns U64 { return a + b }
+jni_add_usize := func(a: USize, b: USize) returns USize { return a + b }
+jni_half_f32 := func(a: F32) returns F32 { return a / 2.0 }
+jni_half_f64 := func(a: F64) returns F64 { return a / 2.0 }
+jni_not := func(a: Bool) returns Bool { return a.not() }
+
+jni_str_len := func(s: Str) returns I64 { return s.len().to_i64() }
+
+jni_greet := func(name: Str) returns Str {
+    return format("hello, ", name)
+}
+
+jni_take := func(own s: Str) returns Str {
+    return format("<", s, ">")
+}
+
+jni_safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero, JniBad {
+    if b == 0 { throw DivideByZero(msg = "b is zero") }
+    if b < 0 { throw JniBad() }
+    return a / b
+}
+
+jni_noop := func() {}
+
+jni_bump := func(mut n: I64) { n = n + 1 }

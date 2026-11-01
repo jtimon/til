@@ -739,6 +739,64 @@ declaration. ~ref mut~ writes through the pointer. Generated library bindings
 spell a library's own ~ref~ globals this way, and the Python binding exposes
 them as ~ctypes.POINTER(T).in_dll~ views read through ~.contents~.
 
+** Calling a library from the JVM (JNI)
+
+Every ~mode lib~ build writes, next to the Python binding, a JNI binding
+(#463): a Java class and the C bridge between it and the library's exported
+C ABI. Generating them needs no JDK; compiling the bridge does.
+
+| File | Contents |
+|------+----------|
+| ~gen/til/java/til/<pkg>/<Cls>.java~ | ~til.<pkg>.<Cls>~: one public static method per bound function |
+| ~gen/til/<name>_jni.c~ | the ~JNIEXPORT~ functions behind the class's ~native~ methods |
+
+~<pkg>~ is the library name with bytes other than alphanumerics and ~_~
+escaped as ~_x<hex>~; ~<Cls>~ is its alphanumeric runs capitalized
+(~jni_lib~ -> ~til.jni_lib.JniLib~). ~til install~ copies both under
+~<support>/lib/~, beside the ~.py~. Build the bridge into
+~lib<name>_jni.so~ next to ~lib<name>.so~, which the class loads with
+~System.loadLibrary("<name>_jni")~:
+
+#+begin_src sh
+cc -shared -fPIC -I$JAVA_HOME/include -I$JAVA_HOME/include/linux \
+   -Igen/til -Isrc/c gen/til/<name>_jni.c -Lgen/lib -l<name> \
+   -Wl,-rpath,'$ORIGIN' -o gen/lib/lib<name>_jni.so
+java -Djava.library.path=gen/lib -cp <classes> <Main>
+#+end_src
+
+~-Isrc/c~ is for ~ext.h~, which the library header includes. On Android the
+same bridge source goes into the NDK build beside the library (#462).
+
+Bound: public top-level ~func~ / ~proc~ and user-written struct/enum
+namespace functions (as ~<Type>_<name>~), with parameters and results of
+
+| til | Java |
+|-----+------|
+| ~I8~ / ~U8~ | ~byte~ |
+| ~I16~ / ~U16~ | ~short~ |
+| ~I32~ / ~U32~ | ~int~ |
+| ~I64~ / ~U64~ | ~long~ |
+| ~USize~ / ~UPtr~ | the target's width (~long~ on 64-bit) |
+| ~F32~ / ~F64~ | ~float~ / ~double~ |
+| ~Bool~ | ~boolean~ |
+| ~Str~ | ~String~ (UTF-8 bytes across JNI) |
+
+Unsigned values cross bit for bit; read them with ~Byte.toUnsignedInt~,
+~Long.toUnsignedString~ and friends. A borrowed ~Str~ argument becomes a
+bridge temporary the bridge deletes after the call; an ~own Str~ argument is
+a heap box the library frees, as for C callers; a returned ~Str~ is copied
+into a Java ~String~ and deleted. A function that ~throws~ raises the
+checked ~<Cls>.TilError~, whose ~type()~ is the til throw type name and whose
+message carries the payload's ~msg: Str~ field (or a ~Str~ payload) when it
+has one. An error kind the function does not declare aborts the process.
+
+Anything else -- ~mut~ and ~shallow Str~ parameters, structs, enums,
+callbacks, variadics, ~returns ref~ -- is listed in the class as a
+~// <name>: not bound: <reason>~ comment, so the gap is visible in the
+generated source. ~bin/til run test/jni.til~ checks the generated text;
+~bin/til run test/jni.til jvm~ (with ~JAVA_HOME~ set) compiles the bridge and
+runs ~test/JniLibTest.java~ through it.
+
 ** Passing a Str to a C string parameter
 
 A til ~Str~ is ~{c_str, count, cap}~ -- length-counted, like a Go

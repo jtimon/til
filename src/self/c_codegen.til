@@ -7352,17 +7352,31 @@ priv c_lib_collect_c_source_names := func(content: Str, mut names: Vec(Str), mut
     }
 }
 
+// The symbol a library header maps `name` to: its external global, the
+// shared runtime's or core's qualified name, or the library's own prefix.
+priv lib_c_mapped_name := func(name: Str, ctx: Context) returns Str {
+    if ctx.builder_external_globals.has(name) { return ctx.builder_external_globals[name].clone() }
+    if ctx.builder_runtime_c_names.has(name) { return format(ctx.builder_runtime_c_prefix, name) }
+    if ctx.builder_core_c_names.has(name) {
+        return format(ctx.builder_core_c_prefix, ctx.builder_core_c_names[name])
+    }
+    return format(ctx.builder_lib_c_prefix, name)
+}
+
+// What `name` means to C code including a library header: the header #undefs
+// its short names at its end, so a consumer spells the mapped symbol.
+priv lib_c_resolved_name := func(name: Str, ctx: Context) returns Str {
+    if ctx.builder_lib_c_prefix.len() == 0 { return name.clone() }
+    for mapped : Str in ctx.builder_lib_c_names {
+        if mapped == name { return lib_c_mapped_name(name, ctx) }
+    }
+    return name.clone()
+}
+
 priv emit_lib_c_name_map := proc(f: File, ctx: Context) {
     if ctx.builder_lib_c_prefix.len() == 0 { return }
     for name : Str in ctx.builder_lib_c_names {
-        f.write("#define ").write(name).write(" ")
-        if ctx.builder_external_globals.has(name) { f.write(ctx.builder_external_globals[name]) }
-        else if ctx.builder_runtime_c_names.has(name) { f.write(ctx.builder_runtime_c_prefix).write(name) }
-        else if ctx.builder_core_c_names.has(name) {
-            f.write(ctx.builder_core_c_prefix).write(ctx.builder_core_c_names[name])
-        }
-        else { f.write(ctx.builder_lib_c_prefix).write(name) }
-        f.write("\n")
+        f.write("#define ").write(name).write(" ").write(lib_c_mapped_name(name, ctx)).write("\n")
     }
     f.write("\n")
 }
@@ -8597,6 +8611,533 @@ priv emit_python_global := proc(f: File, api_name: Str, source_name: Str,
     if d.own_type.is(OwnType.Ref) { f.write(type_name_to_ctypes_pointer(decl_type_name_ref(d, ctx.symbols), ctx)) }
     else { f.write(type_name_to_ctypes_value(decl_type_name_ref(d, ctx.symbols), ctx)) }
     f.write(".in_dll(_lib, \"").write(binding_global_symbol(d, lib_name, source_name)).write("\")\n")
+}
+
+// --- #463: JNI binding for `mode lib` ---
+//
+// Every library build also writes a Java class (gen/til/java/til/<pkg>/<Cls>.java)
+// and the C bridge between it and the library's exported C ABI
+// (gen/til/<name>_jni.c). The bridge is compiled against the JDK's jni.h into
+// lib<name>_jni.so, which the class loads; see doc/ffi.org for the command.
+// Only scalar and Str signatures are bound in this first slice; every other
+// public function is listed in the class as a "not bound" comment with the
+// reason, so the gap is visible instead of silently missing.
+
+// Java's spelling of a scalar til type, or "" when the type is not a scalar
+// JNI primitive. Unsigned types reuse the signed Java type of the same width:
+// the bits cross unchanged, so Java code reads them with Byte.toUnsignedInt,
+// Long.toUnsignedString and friends.
+priv jni_scalar_java := func(name: Str, ctx: Context) returns Str {
+    switch name {
+    case "I8", "U8":   return "byte"
+    case "I16", "U16": return "short"
+    case "I32", "U32": return "int"
+    case "I64", "U64": return "long"
+    case "F32":        return "float"
+    case "F64":        return "double"
+    case "Bool":       return "boolean"
+    case "USize":      return jni_scalar_java(ctx.target_usize_pname, ctx)
+    case "UPtr":       return jni_scalar_java(ctx.target_uptr_pname, ctx)
+    case:
+    }
+    return ""
+}
+
+priv jni_java_keyword := func(name: Str) returns Bool {
+    switch name {
+    case "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+        "class", "const", "continue", "default", "do", "double", "else", "enum",
+        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
+        "import", "instanceof", "int", "interface", "long", "native", "new",
+        "package", "private", "protected", "public", "return", "short", "static",
+        "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
+        "transient", "try", "void", "volatile", "while", "true", "false", "null",
+        "var", "yield", "record", "sealed", "permits", "non", "_":
+        return true
+    case:
+    }
+    return false
+}
+
+priv jni_java_ident := func(name: Str) returns Str {
+    if jni_java_keyword(name) { return format(name, "_") }
+    return name.clone()
+}
+
+priv jni_is_alnum := func(c: I8) returns Bool {
+    alpha := c.gte('a').and(c.lte('z')).or(c.gte('A').and(c.lte('Z')))
+    return alpha.or(c.gte('0').and(c.lte('9')))
+}
+
+// The Java package segment under `til.`: alphanumerics and '_' stay, every
+// other byte of the artifact name is escaped as _x<hex> (as in c_lib_prefix).
+jni_package_name := func(lib_name: Str) returns Str {
+    mut out := Str.with_capacity(lib_name.len().mul(4) + 2)
+    if lib_name.len() > 0 {
+        ref c0 : I8 = lib_name.get(0)
+        if c0.gte('0').and(c0.lte('9')) { out.push_str("l") }
+    }
+    for i in 0..lib_name.len() {
+        ref c : I8 = lib_name.get(i)
+        if jni_is_alnum(c).or(c.eq('_')) {
+            out.push_str(Str.from_byte(c.cast(U8)))
+        } else {
+            out.push_str("_x")
+            out.push_str(c_lib_hex_byte(c.cast(U8)))
+        }
+    }
+    if jni_java_keyword(out) { out.push_str("_") }
+    return out
+}
+
+// The class name: the artifact name's alphanumeric runs, each capitalized.
+jni_class_name := func(lib_name: Str) returns Str {
+    mut out := Str.with_capacity(lib_name.len() + 4)
+    mut upper_next := true
+    for i in 0..lib_name.len() {
+        ref c : I8 = lib_name.get(i)
+        if jni_is_alnum(c).not() {
+            upper_next = true
+            continue
+        }
+        if out.len().eq(0).and(c.gte('0')).and(c.lte('9')) { out.push_str("Lib") }
+        if upper_next.and(c.gte('a')).and(c.lte('z')) {
+            out.push_str(Str.from_byte(c.cast(U8).sub(32)))
+        } else {
+            out.push_str(Str.from_byte(c.cast(U8)))
+        }
+        upper_next = false
+    }
+    if out.len() == 0 { out.push_str("Lib") }
+    return out
+}
+
+// JNI's short-name mangling of a binary name: '/' separates packages, '_'
+// escapes as _1. Package, class and method names here are ASCII
+// alphanumerics and '_' by construction.
+priv jni_mangle := func(name: Str) returns Str {
+    mut out := Str.with_capacity(name.len().mul(2))
+    for i in 0..name.len() {
+        ref c : I8 = name.get(i)
+        if c.eq('_') { out.push_str("_1") }
+        else if c.eq('/') { out.push_str("_") }
+        else if jni_is_alnum(c) { out.push_str(Str.from_byte(c.cast(U8))) }
+        else { panic(__LOC__, "jni_mangle: unexpected byte in ", name) }
+    }
+    return out
+}
+
+priv jni_param_is_err_slot := func(p: Declaration) returns Bool {
+    return p.name.starts_with("_err_")
+}
+
+// A throw type's error-payload slot in the bridge: its C type, how to reach a
+// Str message in it ("" when it has none), and the statement deleting it (""
+// when deleting is a no-op).
+priv JniErrSlot := struct {
+    c_type := ""
+    msg := ""
+    free_stmt := ""
+}
+
+priv jni_err_slot := func(type_name: Str, var: Str, ctx: Context) returns JniErrSlot {
+    mut slot := JniErrSlot()
+    if type_name == "Str" {
+        slot.c_type = "TilJniStr"
+        slot.msg = format("&", var)
+        slot.free_stmt = format("TIL_JNI_STR_DELETE(&", var, ", 0);")
+        return slot
+    }
+    if jni_scalar_java(type_name, ctx).len() > 0 {
+        slot.c_type = type_name.clone()
+        return slot
+    }
+    def_o := ctx.scope.get_struct(type_name, ctx.symbols)
+    if def_o.is_none() { return slot }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sdd):
+        slot.c_type = lib_c_resolved_name(type_name, ctx)
+        for fi in 0..sdd.fields.len() {
+            ref fdd : Declaration = sdd.fields[fi]
+            if sdd.field_name_at(fi) != "msg" { continue }
+            if decl_type_name_ref(fdd, ctx.symbols) != "Str" { continue }
+            // Shallow fields are inline in the C struct (see
+            // declaration_to_ctypes_field); others are boxes.
+            if fdd.own_type.is(OwnType.Shallow) { slot.msg = format("&", var, ".msg") }
+            else { slot.msg = format(var, ".msg") }
+        }
+        if init_delete_is_noop(type_name, ctx.scope, ctx.symbols).not() {
+            slot.free_stmt = format(lib_c_resolved_name(format(type_name, "_delete"), ctx), "(&", var, ", 0);")
+        }
+    case:
+    }
+    return slot
+}
+
+// Why `fd` cannot be bound, or "" when it can.
+priv jni_unbound_reason := func(fd: FunctionDef, ctx: Context) returns Str {
+    if fd.sig.func_type.is(FuncType.Func).or(fd.sig.func_type.is(FuncType.Proc)).not() {
+        return "only func and proc are bound"
+    }
+    if fd.sig.variadic_index >= 0 { return "variadic parameter" }
+    if fd.sig.kwargs_index >= 0 { return "keyword-arguments parameter" }
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        if jni_param_is_err_slot(p) { continue }
+        if p.is_mut { return format("mut parameter '", p.name, "'") }
+        ref tn : Str = decl_type_name_ref(p, ctx.symbols)
+        if tn == "Str" {
+            if p.own_type.is(OwnType.Shallow) { return format("shallow Str parameter '", p.name, "'") }
+            continue
+        }
+        if jni_scalar_java(tn, ctx).len() == 0 {
+            return format("parameter '", p.name, "' of type ", tn)
+        }
+    }
+    if fd.sig.return_type.len() > 0 {
+        if func_returns_c_value(fd).not() { return format("returns ref ", fd.sig.return_type) }
+        if fd.sig.return_type.neq("Str").and(jni_scalar_java(fd.sig.return_type, ctx).len().eq(0)) {
+            return format("return type ", fd.sig.return_type)
+        }
+    }
+    for tt : Str in fd.sig.throw_types {
+        slot := jni_err_slot(tt, "e", ctx)
+        mut has_slot := false
+        for p : Declaration in fd.sig.params {
+            if p.name == format("_err_", tt) { has_slot = true }
+        }
+        if has_slot.and(slot.c_type.len().eq(0)) { return format("throw type ", tt) }
+    }
+    return ""
+}
+
+priv jni_java_type := func(type_name: Str, ctx: Context) returns Str {
+    if type_name == "Str" { return "String" }
+    return jni_scalar_java(type_name, ctx)
+}
+
+priv jni_native_type := func(type_name: Str, ctx: Context) returns Str {
+    if type_name == "Str" { return "byte[]" }
+    return jni_scalar_java(type_name, ctx)
+}
+
+priv jni_c_type := func(type_name: Str, ctx: Context) returns Str {
+    if type_name == "Str" { return "jbyteArray" }
+    return format("j", jni_scalar_java(type_name, ctx))
+}
+
+priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: Str, c_symbol: Str,
+        java_class_path: Str, ctx: Context) {
+    reason := jni_unbound_reason(fd, ctx)
+    if reason.len() > 0 {
+        jf.write("    // ").write(api_name).write(": not bound: ").write(reason).write("\n\n")
+        return
+    }
+    java_name := jni_java_ident(api_name)
+    native_name := format("n_", java_name)
+    can_throw := fd.sig.throw_types.len() > 0
+    has_ret := fd.sig.return_type.len() > 0
+    ret_is_str := fd.sig.return_type == "Str"
+
+    // Java: the private native method and its public wrapper.
+    mut native_ret := "void"
+    mut java_ret := "void"
+    if has_ret {
+        native_ret = jni_native_type(fd.sig.return_type, ctx)
+        java_ret = jni_java_type(fd.sig.return_type, ctx)
+    }
+    mut native_params := ""
+    mut java_params := ""
+    mut java_args := ""
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        if jni_param_is_err_slot(p) { continue }
+        ref tn : Str = decl_type_name_ref(p, ctx.symbols)
+        pname := jni_java_ident(p.name)
+        if java_params.len() > 0 {
+            native_params = format(native_params, ", ")
+            java_params = format(java_params, ", ")
+            java_args = format(java_args, ", ")
+        }
+        native_params = format(native_params, format(jni_native_type(tn, ctx), " ", pname))
+        java_params = format(java_params, format(jni_java_type(tn, ctx), " ", pname))
+        if tn == "Str" { java_args = format(java_args, format("tilUtf8(", pname, ")")) }
+        else { java_args = format(java_args, pname) }
+    }
+    mut throws_clause := ""
+    if can_throw { throws_clause = " throws TilError" }
+    jf.write("    private static native ").write(native_ret).write(" ").write(native_name)
+        .write("(").write(native_params).write(")").write(throws_clause).write(";\n")
+    jf.write("    public static ").write(java_ret).write(" ").write(java_name)
+        .write("(").write(java_params).write(")").write(throws_clause).write(" {\n        ")
+    if has_ret { jf.write("return ") }
+    if ret_is_str { jf.write("tilStr(") }
+    jf.write(native_name).write("(").write(java_args).write(")")
+    if ret_is_str { jf.write(")") }
+    jf.write(";\n    }\n\n")
+
+    // C: the JNI entry point.
+    mut c_ret := "void"
+    if has_ret { c_ret = jni_c_type(fd.sig.return_type, ctx) }
+    mut zero := "0"
+    if ret_is_str { zero = "NULL" }
+    mut ret_stmt := format("return ", zero, ";")
+    if has_ret.not() { ret_stmt = "return;" }
+
+    // Payload deletes are declared here: core-mapped ones may have no
+    // prototype in the library header.
+    for tt : Str in fd.sig.throw_types {
+        for p : Declaration in fd.sig.params {
+            if p.name != format("_err_", tt) { continue }
+            if tt == "Str" { continue }
+            if jni_scalar_java(tt, ctx).len() > 0 { continue }
+            if init_delete_is_noop(tt, ctx.scope, ctx.symbols) { continue }
+            cf.write("void ").write(lib_c_resolved_name(format(tt, "_delete"), ctx)).write("(")
+                .write(lib_c_resolved_name(tt, ctx)).write(" *self, Bool call_free);\n")
+        }
+    }
+    cf.write("JNIEXPORT ").write(c_ret).write(" JNICALL Java_").write(jni_mangle(java_class_path))
+        .write("_").write(jni_mangle(native_name)).write("(JNIEnv *env, jclass cls")
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        if jni_param_is_err_slot(p) { continue }
+        cf.write(", ").write(jni_c_type(decl_type_name_ref(p, ctx.symbols), ctx)).write(" a").write(i.to_str())
+    }
+    cf.write(") {\n    (void)env;\n    (void)cls;\n")
+
+    // Arguments in til's C representation.
+    mut call_args := ""
+    mut str_temps := Vec(Str).new()
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        if i > 0 { call_args = format(call_args, ", ") }
+        a := format("a", i.to_str())
+        t := format("t", i.to_str())
+        if p.name == "_err_kind" {
+            cf.write("    I64 err_kind = 0;\n")
+            call_args = format(call_args, "&err_kind")
+            continue
+        }
+        if jni_param_is_err_slot(p) {
+            ref tt : Str = decl_type_name_ref(p, ctx.symbols)
+            e := format("err_", i.to_str())
+            slot := jni_err_slot(tt, e, ctx)
+            cf.write("    ").write(slot.c_type).write(" ").write(e).write(";\n")
+            cf.write("    memset(&").write(e).write(", 0, sizeof ").write(e).write(");\n")
+            call_args = format(call_args, format("&", e))
+            continue
+        }
+        ref tn : Str = decl_type_name_ref(p, ctx.symbols)
+        by_value := func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        heap_box := p.own_type.is(OwnType.Own)
+            .and(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
+        mut c_value := ""
+        if tn == "Str" {
+            c_value = format("til_jni_str_in(env, ", a, ")")
+        } else if tn == "Bool" {
+            c_value = format("(Bool)(", a, " != JNI_FALSE)")
+        } else {
+            c_value = format("(", tn, ")", a)
+        }
+        mut c_type := tn.clone()
+        if tn == "Str" { c_type = "TilJniStr" }
+        if by_value {
+            if tn == "Str" { panic(__LOC__, "Str parameter passed by value: ", p.name) }
+            call_args = format(call_args, c_value)
+        } else if heap_box {
+            // `own` at the library boundary: the callee frees the box.
+            cf.write("    ").write(c_type).write(" *").write(t).write(" = (").write(c_type).write(" *)malloc(sizeof *")
+                .write(t).write(");\n")
+            cf.write("    if (").write(t).write(" == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+            cf.write("    *").write(t).write(" = ").write(c_value).write(";\n")
+            call_args = format(call_args, t)
+        } else {
+            cf.write("    ").write(c_type).write(" ").write(t).write(" = ").write(c_value).write(";\n")
+            call_args = format(call_args, format("&", t))
+            if tn == "Str" { str_temps.push(own t.clone()) }
+        }
+    }
+
+    cf.write("    ")
+    if has_ret {
+        if ret_is_str { cf.write("TilJniStr r = ") }
+        else { cf.write(fd.sig.return_type).write(" r = ") }
+    }
+    cf.write(c_symbol).write("(").write(call_args).write(");\n")
+    for t2 : Str in str_temps {
+        cf.write("    TIL_JNI_STR_DELETE(&").write(t2).write(", 0);\n")
+    }
+
+    // Payload slot deletes, run on both paths.
+    mut slot_deletes := ""
+    for i in 0..fd.sig.params.len() {
+        ref p : Declaration = fd.sig.params[i]
+        if p.name == "_err_kind" { continue }
+        if jni_param_is_err_slot(p).not() { continue }
+        slot := jni_err_slot(decl_type_name_ref(p, ctx.symbols), format("err_", i.to_str()), ctx)
+        if slot.free_stmt.len() > 0 { slot_deletes = format(slot_deletes, format("        ", slot.free_stmt, "\n")) }
+    }
+
+    if can_throw {
+        cf.write("    if (err_kind != 0) {\n")
+        mut first := true
+        for tt : Str in fd.sig.throw_types {
+            mut msg := "NULL"
+            for i in 0..fd.sig.params.len() {
+                if fd.sig.params[i].name == format("_err_", tt) {
+                    slot := jni_err_slot(tt, format("err_", i.to_str()), ctx)
+                    if slot.msg.len() > 0 { msg = slot.msg.clone() }
+                }
+            }
+            if first { cf.write("        if") } else { cf.write(" else if") }
+            first = false
+            cf.write(" (err_kind == ").write(throw_type_tag(tt).to_str()).write("LL) {\n")
+            cf.write("            til_jni_throw(env, \"").write(tt).write("\", ").write(msg).write(");\n")
+            cf.write("        }")
+        }
+        cf.write(" else {\n")
+        cf.write("            fprintf(stderr, \"til jni: unknown error kind %lld from ").write(api_name)
+            .write("\\n\", (long long)err_kind);\n")
+        cf.write("            abort();\n")
+        cf.write("        }\n")
+        cf.write(slot_deletes)
+        if ret_is_str { cf.write("        TIL_JNI_STR_DELETE(&r, 0);\n") }
+        cf.write("        ").write(ret_stmt).write("\n")
+        cf.write("    }\n")
+        cf.write(slot_deletes.replace("        ", "    "))
+    }
+    if has_ret {
+        if ret_is_str {
+            cf.write("    jbyteArray out = til_jni_str_out(env, &r);\n")
+            cf.write("    TIL_JNI_STR_DELETE(&r, 0);\n")
+            cf.write("    return out;\n")
+        } else if fd.sig.return_type == "Bool" {
+            cf.write("    return r ? JNI_TRUE : JNI_FALSE;\n")
+        } else {
+            cf.write("    return (").write(c_ret).write(")r;\n")
+        }
+    }
+    cf.write("}\n\n")
+}
+
+priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: Str, lib_name: Str) returns I32 {
+    pkg := jni_package_name(lib_name)
+    cls := jni_class_name(lib_name)
+    java_class_path := format("til/", pkg, "/", cls)
+    jf := File.new(java_path, true)
+    cf := File.new(jni_c_path, true)
+
+    jf.write("// Auto-generated JNI binding for ").write(lib_name).write(". Do not edit.\n")
+    jf.write("// Native side: ").write(lib_name).write("_jni.c, built into lib").write(lib_name)
+        .write("_jni (see doc/ffi.org).\n")
+    jf.write("package til.").write(pkg).write(";\n\n")
+    jf.write("import java.nio.charset.StandardCharsets;\n\n")
+    jf.write("public final class ").write(cls).write(" {\n")
+    jf.write("    private ").write(cls).write("() {}\n\n")
+    jf.write("    static { System.loadLibrary(\"").write(lib_name).write("_jni\"); }\n\n")
+    jf.write("    /** A til error thrown through the binding; type() is its til throw type. */\n")
+    jf.write("    public static final class TilError extends Exception {\n")
+    jf.write("        private static final long serialVersionUID = 1L;\n")
+    jf.write("        private final String type;\n")
+    jf.write("        TilError(String type, byte[] msg) {\n")
+    jf.write("            super(msg == null ? type : type + \": \" + tilStr(msg));\n")
+    jf.write("            this.type = type;\n")
+    jf.write("        }\n")
+    jf.write("        public String type() { return type; }\n")
+    jf.write("    }\n\n")
+    jf.write("    private static byte[] tilUtf8(String s) { return s.getBytes(StandardCharsets.UTF_8); }\n")
+    jf.write("    private static String tilStr(byte[] b) { return new String(b, StandardCharsets.UTF_8); }\n\n")
+
+    cf.write("// Auto-generated JNI bridge for ").write(lib_name).write(". Do not edit.\n")
+    cf.write("// Java side: til.").write(pkg).write(".").write(cls).write(". Build it with doc/ffi.org's command.\n")
+    cf.write("#include <jni.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n")
+    cf.write("#include \"").write(lib_name).write(".h\"\n\n")
+    cf.write("typedef ").write(lib_c_resolved_name("Str", lp.ctx)).write(" TilJniStr;\n")
+    cf.write("void ").write(lib_c_resolved_name("Str_delete", lp.ctx)).write("(TilJniStr *self, Bool call_free);\n")
+    cf.write("#define TIL_JNI_STR_DELETE ").write(lib_c_resolved_name("Str_delete", lp.ctx)).write("\n\n")
+    cf.write("static inline TilJniStr til_jni_str_in(JNIEnv *env, jbyteArray a) {\n")
+    cf.write("    jsize n = (*env)->GetArrayLength(env, a);\n")
+    cf.write("    TilJniStr s;\n")
+    cf.write("    s.c_str = (I8 *)malloc((size_t)n + 1);\n")
+    cf.write("    if (s.c_str == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    (*env)->GetByteArrayRegion(env, a, 0, n, (jbyte *)s.c_str);\n")
+    cf.write("    s.c_str[n] = 0;\n")
+    cf.write("    s.count = (USize)n;\n")
+    cf.write("    s.cap = (USize)n + 1;\n")
+    cf.write("    return s;\n")
+    cf.write("}\n\n")
+    cf.write("static inline jbyteArray til_jni_str_out(JNIEnv *env, const TilJniStr *s) {\n")
+    cf.write("    if ((uint64_t)s->count > (uint64_t)INT32_MAX) {\n")
+    cf.write("        fprintf(stderr, \"til jni: Str of %llu bytes does not fit a Java array\\n\", (unsigned long long)s->count);\n")
+    cf.write("        abort();\n")
+    cf.write("    }\n")
+    cf.write("    jbyteArray a = (*env)->NewByteArray(env, (jsize)s->count);\n")
+    cf.write("    // REM: NULL leaves OutOfMemoryError pending; the JVM raises it on return.\n")
+    cf.write("    if (a == NULL) return NULL;\n")
+    cf.write("    (*env)->SetByteArrayRegion(env, a, 0, (jsize)s->count, (const jbyte *)s->c_str);\n")
+    cf.write("    return a;\n")
+    cf.write("}\n\n")
+    cf.write("// Raises TilError(type, msg) in the JVM. A failing JNI call leaves its own\n")
+    cf.write("// exception pending instead, which the JVM raises when the native returns.\n")
+    cf.write("static inline void til_jni_throw(JNIEnv *env, const char *type, const TilJniStr *msg) {\n")
+    cf.write("    jclass ec = (*env)->FindClass(env, \"").write(java_class_path).write("$TilError\");\n")
+    cf.write("    if (ec == NULL) return;\n")
+    cf.write("    jmethodID ctor = (*env)->GetMethodID(env, ec, \"<init>\", \"(Ljava/lang/String;[B)V\");\n")
+    cf.write("    if (ctor == NULL) return;\n")
+    cf.write("    jstring jt = (*env)->NewStringUTF(env, type);\n")
+    cf.write("    if (jt == NULL) return;\n")
+    cf.write("    jbyteArray jm = NULL;\n")
+    cf.write("    if (msg != NULL) {\n")
+    cf.write("        jm = til_jni_str_out(env, msg);\n")
+    cf.write("        if (jm == NULL) return;\n")
+    cf.write("    }\n")
+    cf.write("    jobject ex = (*env)->NewObject(env, ec, ctor, jt, jm);\n")
+    cf.write("    if (ex == NULL) return;\n")
+    cf.write("    (*env)->Throw(env, (jthrowable)ex);\n")
+    cf.write("}\n\n")
+
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len() == 0 { continue }
+            ref dd : Declaration = decl_of(stmt)
+            if dd.is_priv { continue }
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+                ref ns : Vec(Declaration) = def_ns_decls(rhs)
+                for ni in 0..ns.len() {
+                    ref nsd : Declaration = ns.unsafe_get(ni)
+                    if nsd.is_priv { continue }
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
+                    case .FuncDef(nfd):
+                        if nfd.sig.func_type.is_bodyless() { continue }
+                        // Compiler-generated members (size, clone, delete,
+                        // eq, ...) are the type's plumbing, not its API.
+                        if nfd.auto_generated { continue }
+                        api_name := dd.name.concat3("_", def_ns_name_at(rhs, ni))
+                        emit_jni_function(jf, cf, nfd, api_name, c_lib_symbol(lib_name, api_name),
+                            java_class_path, lp.ctx)
+                    case:
+                    }
+                }
+                continue
+            }
+            switch rhs.node_type {
+            case .FuncDef(fd):
+                if rhs.children.len() == 0 { continue }
+                if fd.sig.func_type.is_bodyless() { continue }
+                if fd.sig.func_type.is(FuncType.Test) { continue }
+                emit_jni_function(jf, cf, fd, dd.name, c_lib_symbol(lib_name, func_to_c(dd.name)),
+                    java_class_path, lp.ctx)
+            case:
+            }
+        }
+    }
+    jf.write("}\n")
+    return 0
 }
 
 priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {
@@ -11978,7 +12519,8 @@ c_codegen_translate_runtime := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
     return result
 }
 
-c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
+c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path: Str, h_path: Str, til_path: Str, py_path: Str,
+        jni_c_path: Str, java_path: Str, lib_name: Str, do_lib: Bool) returns I32 {
     builder_prepare_emit(lp)
     mut result := build_forward_header_lp(fwd_path, lp)
     if result.eq(0).and(do_lib) {
@@ -11998,6 +12540,9 @@ c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
         }
         if result == 0 {
             result = build_python_binding(lp, py_path, lib_name)
+        }
+        if result == 0 {
+            result = build_jni_binding(lp, jni_c_path, java_path, lib_name)
         }
     }
     return result
