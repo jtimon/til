@@ -178,10 +178,11 @@
   reachability LeakSanitizer applies, so a global's storage or a template
   built on first use is not a leak but a lost allocation is. The report
   exits 1 like LeakSanitizer under ASAN and is silenced by the same
-  ~detect_leaks=0~ (test/leak_report.til). A cage program turns ASAN's fake
-  stack off (~__asan_default_options~; the environment still overrides):
-  the locals of a program that exits from deep inside would otherwise sit
-  in fake frames the scan cannot list. ~TIL_LEAK_PROBE~'s never-freed total
+  ~detect_leaks=0~ (test/leak_report.til). ASAN's use-after-return
+  detection stays on: the locals of a program that exits from deep inside
+  sit in ASAN's fake frames, which the scan reaches through the frame
+  addresses the real stack holds (~__asan_addr_is_in_fake_stack~ confirms
+  each and gives the frame's bounds). ~TIL_LEAK_PROBE~'s never-freed total
   adds the cage's live bytes to the sanitizer's.
 
   The compiler itself is a cage build: make.til spells ~--cptr=32~ beside

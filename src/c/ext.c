@@ -686,19 +686,6 @@ static inline UPtr til_cage_leaked_allocs(void) TIL_CAGE_FN;
 static inline UPtr til_cage_leaked_allocs(void) { return til_cage->live_allocs - til_cage->lit_allocs; }
 
 #ifdef TIL_CAGE_ASAN
-// ASAN's use-after-return detection moves address-taken locals into fake
-// frames on its own heap, which the leak scan below cannot enumerate (the
-// sanitizer's API checks one address, it does not list frames). A program
-// that exits from deep inside -- a panic, exit(n), a compiler propagating
-// its child's status -- then hides every live local from the scan and
-// every one of them reports as a leak. So a cage program runs with the
-// fake stack off: ASAN's own hook, which ASAN_OPTIONS in the environment
-// still overrides (CI's arm64 job sets exactly this for speed). The
-// typer's ref rules, not this check, are what keep a ref from outliving
-// its local; leaks are what the suite hunts.
-const char *__asan_default_options(void) __attribute__((no_instrument_function));
-const char *__asan_default_options(void) { return "detect_stack_use_after_return=0"; }
-
 // LeakSanitizer's switch silences this report too.
 static Bool til_cage_leak_check_off(void) TIL_CAGE_FN;
 static Bool til_cage_leak_check_off(void) {
@@ -716,8 +703,13 @@ static Bool til_cage_leak_check_off(void) {
 // points inside its buffer); a reached block's bytes are scanned the same
 // way. Roots are the writable PT_LOAD segments (data and bss) of every
 // loaded image, the stack of the thread that is exiting (a program that
-// calls exit() from deep inside still has every frame's locals there) and
-// the callee-saved registers, spilled into a jmp_buf. dl_iterate_phdr is
+// calls exit() from deep inside still has every frame's locals there), the
+// callee-saved registers, spilled into a jmp_buf, and ASAN's fake frames:
+// with use-after-return detection on, an address-taken local lives in a
+// frame on ASAN's own heap, which the API does not list -- but the real
+// frame keeps that fake frame's address in a slot, so the stack scan asks
+// __asan_addr_is_in_fake_stack about each word it finds and scans the
+// live frame it names (and the frames those name). dl_iterate_phdr is
 // declared by hand because glibc's link.h exposes it and dl_phdr_info only
 // under _GNU_SOURCE, which this file avoids (see the dladdr note); the four
 // leading fields read here are the stable part of that ABI.
@@ -784,13 +776,34 @@ static void til_cage_reach(const U8 *p) {
 
 // Not instrumented: a block's bytes past what was requested are poisoned,
 // and the scan must read them -- it reads nothing that is not mapped.
-static void til_cage_scan_range(const U8 *lo, const U8 *hi) TIL_CAGE_FN __attribute__((no_sanitize_address));
-static void til_cage_scan_range(const U8 *lo, const U8 *hi) {
+// follow_fake: this range is stack (real or fake), so a word may be the
+// address of a live fake frame to scan in turn; heap and data never hold
+// one. Frames already scanned are remembered so a cycle ends.
+static const U8 **til_cage_fake_seen;
+static UPtr til_cage_fake_seen_len, til_cage_fake_seen_cap;
+static void til_cage_scan_range(const U8 *lo, const U8 *hi, Bool follow_fake) TIL_CAGE_FN __attribute__((no_sanitize_address));
+static void til_cage_scan_range(const U8 *lo, const U8 *hi, Bool follow_fake) {
+    void *fake_stack = follow_fake ? __asan_get_current_fake_stack() : NULL;
     const U8 *p = (const U8 *)(((UPtr)lo + 3) & ~(UPtr)3);
     for (; p + 4 <= hi; p += 4) {
         U32 off = *(const U32 *)p;
         if (off != 0 && off < til_cage->committed) til_cage_reach(til_cage_base + off);
-        if (((UPtr)p & 7) == 0 && p + 8 <= hi) til_cage_reach(*(const U8 *const *)p);
+        if (((UPtr)p & 7) != 0 || p + 8 > hi) continue;
+        const U8 *word = *(const U8 *const *)p;
+        til_cage_reach(word);
+        if (fake_stack == NULL) continue;
+        void *beg, *end;
+        if (__asan_addr_is_in_fake_stack(fake_stack, (void *)word, &beg, &end) == NULL) continue;
+        Bool seen = false;
+        for (UPtr i = 0; i < til_cage_fake_seen_len; i++) if (til_cage_fake_seen[i] == (const U8 *)beg) { seen = true; break; }
+        if (seen) continue;
+        if (til_cage_fake_seen_len == til_cage_fake_seen_cap) {
+            til_cage_fake_seen_cap = til_cage_fake_seen_cap ? til_cage_fake_seen_cap * 2 : 256;
+            til_cage_fake_seen = (realloc)(til_cage_fake_seen, til_cage_fake_seen_cap * sizeof(const U8 *));
+            if (!til_cage_fake_seen) til_cage_die("leak scan out of memory", NULL);
+        }
+        til_cage_fake_seen[til_cage_fake_seen_len++] = (const U8 *)beg;
+        til_cage_scan_range((const U8 *)beg, (const U8 *)end, true);
     }
 }
 
@@ -801,13 +814,16 @@ static int til_cage_scan_image(struct til_phdr_info *info, size_t size, void *da
         const Elf64_Phdr *ph = &info->phdr[i];
         if (ph->p_type != PT_LOAD || (ph->p_flags & PF_W) == 0) continue;
         const U8 *lo = (const U8 *)(info->addr + ph->p_vaddr);
-        til_cage_scan_range(lo, lo + ph->p_memsz);
+        til_cage_scan_range(lo, lo + ph->p_memsz, false);
     }
     return 0;
 }
 
 // Leaked blocks: live, not reached from any image's data. Sets *bytes.
-static UPtr til_cage_unreached(UPtr *bytes) TIL_CAGE_FN;
+// Uninstrumented, so its own locals (the jmp_buf) stay on the real stack
+// instead of a fake frame; the real stack's extent is taken from the frame
+// address, which is on it whatever ASAN does with the locals.
+static UPtr til_cage_unreached(UPtr *bytes) TIL_CAGE_FN __attribute__((no_sanitize_address));
 static UPtr til_cage_unreached(UPtr *bytes) {
     UPtr bitmap_bytes = (til_cage->committed >> 7) + 1;
     til_cage_free_bits = (calloc)(bitmap_bytes, 1);
@@ -827,7 +843,7 @@ static UPtr til_cage_unreached(UPtr *bytes) {
     // /proc/self/maps: the exiting thread is the main one, til being
     // single-threaded).
     jmp_buf regs;
-    if (setjmp(regs) == 0) til_cage_scan_range((const U8 *)&regs, (const U8 *)&regs + sizeof(regs));
+    if (setjmp(regs) == 0) til_cage_scan_range((const U8 *)&regs, (const U8 *)&regs + sizeof(regs), true);
     FILE *maps = fopen("/proc/self/maps", "r");
     if (maps) {
         char line[512];
@@ -835,8 +851,8 @@ static UPtr til_cage_unreached(UPtr *bytes) {
             if (strstr(line, "[stack]") == NULL) continue;
             unsigned long long lo = 0, hi = 0;
             if (sscanf(line, "%llx-%llx", &lo, &hi) != 2) break;
-            const U8 *frame = (const U8 *)&regs;
-            if (frame >= (const U8 *)lo && frame < (const U8 *)hi) til_cage_scan_range(frame, (const U8 *)hi);
+            const U8 *frame = (const U8 *)__builtin_frame_address(0);
+            if (frame >= (const U8 *)lo && frame < (const U8 *)hi) til_cage_scan_range(frame, (const U8 *)hi, true);
             break;
         }
         fclose(maps);
@@ -845,7 +861,7 @@ static UPtr til_cage_unreached(UPtr *bytes) {
         U8 *block = til_cage_work[--til_cage_work_len];
         UPtr size;
         til_cage_live_block_of(block, &size);
-        til_cage_scan_range(block, block + size);
+        til_cage_scan_range(block, block + size, false);
     }
     UPtr count = 0;
     *bytes = 0;
@@ -873,6 +889,7 @@ static UPtr til_cage_unreached(UPtr *bytes) {
     (free)(til_cage_free_bits);
     (free)(til_cage_mark_bits);
     (free)(til_cage_work);
+    (free)(til_cage_fake_seen);
     return count;
 }
 #endif // __linux__

@@ -77,9 +77,12 @@
     copies, the globals' storage and the compiler's own globals (7,512
     blocks), all reachable. It exits 1 like LeakSanitizer under ASAN and
     honours detect_leaks=0. ASAN's fake stack (use-after-return detection)
-    would hide the locals of a program that exits from deep inside, so a cage
-    program turns it off through __asan_default_options (ASAN_OPTIONS still
-    overrides). test/leak_report.til loses eight blocks and must exit 1 in
+    holds the locals of a program that exits from deep inside; the stack
+    scan follows the fake frame addresses the real frames keep, so that
+    detection stays on (a first cut turned it off through
+    __asan_default_options, which also halved the ASAN suite's time: the
+    speed-up in the totals after that commit was the fake stack, not the
+    cage). test/leak_report.til loses eight blocks and must exit 1 in
     both layouts (several, because a stale stack frame can keep one
     reachable). TIL_LEAK_PROBE adds the cage's never-freed bytes.
   - Reviewing 6d271c1 and 8d21d22 (the FFI pointer-field width fix and its
