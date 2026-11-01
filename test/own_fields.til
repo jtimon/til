@@ -205,3 +205,28 @@ test_generated_value_methods_preserve_overrides := test() {
     assert(a.eq(b))
     assert_eq(Str, a.to_str(), "custom:one")
 }
+
+# An own field whose struct is small enough to travel by C value: passing it
+# to a value parameter (a user func, or the generated clone) must pass the
+# pointee, not the field's pointer.
+Leaf := struct {
+    value := 0
+}
+
+Stem := struct {
+    count := 3
+    own leaf := Leaf()
+}
+
+leaf_value := func(l: Leaf) returns I64 {
+    return l.value
+}
+
+test_own_small_struct_field_by_value := test() {
+    stem := Stem(count=4, leaf=Leaf(value=7))
+    assert_eq(I64, leaf_value(stem.leaf), 7)
+    copy := stem.leaf.clone()
+    assert_eq(I64, copy.value, 7)
+    stem2 := stem.clone()
+    assert_eq(I64, stem2.leaf.value, 7)
+}

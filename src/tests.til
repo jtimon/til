@@ -1245,6 +1245,13 @@ main := proc(args: ..Str) {
     add_count(tests, "ffi_pointer_field_width", "build", "ffi pointer field width passed", 1,
         format(til_bin, " run", asan_flag, " -o bin/c/ffi_pointer_field_width -c gen/c/ffi_pointer_field_width.c test/ffi_pointer_field_width.til ",
             til_bin, asan_flag))
+    // #313: an ASAN interpreter and a non-ASAN library share one cage; the
+    // library's copy of the allocator keeps the cage's ASAN shadow too.
+    if asan == 1 {
+        add_count(tests, "ffi_cage_shadow", "build", "ffi cage shadow passed", 1,
+            format(til_bin, " run", asan_flag, " -o bin/c/ffi_cage_shadow -c gen/c/ffi_cage_shadow.c test/ffi_cage_shadow.til ",
+                til_bin, asan_flag))
+    }
 
     // #463: every library also gets a JNI bridge and Java class. The suite
     // checks them as generated text; `til run test/jni.til jvm` runs them

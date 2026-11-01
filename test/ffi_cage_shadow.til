@@ -1,0 +1,47 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #313: one cage per process, shared by every copy of the allocator -- and
+// so is its ASAN shadow. An ASAN interpreter loading a library built WITHOUT
+// --asan holds two copies: the library's handed out blocks still poisoned
+// (it had no sanitizer to unpoison them with), and the interpreter's first
+// read of one -- the library's literal copy, its returned Str -- aborted
+// with use-after-poison. The library is built with the suite's layout flags
+// but never --asan; the interpreter is the suite's (ASAN) compiler.
+//
+// args: the compiler, then the flags the suite builds its programs with.
+
+WORK := "tmp/ffi_cage_shadow"
+
+main := proc(args: ..Str) {
+    ref compiler : Str = args[0]
+    mkdir_p(WORK)
+    File.writefile(format(WORK, "/ffi_cage_shadow_lib.til"), format(
+        "mode lib\n",
+        "ShadowProbe := struct { count: USize = 3; own tail : Str = \"\" }\n",
+        "shadow_make := func() returns ShadowProbe { return ShadowProbe(count = 4, tail = format(\"tail \", \"seven\")) }\n"))
+    File.writefile(format(WORK, "/consumer.til"), format(
+        "import(\"../../gen/til/ffi_cage_shadow_lib\")\n",
+        "made := shadow_make()\n",
+        "assert(made.count == 4)\n",
+        "assert(made.tail == \"tail seven\")\n",
+        "println(\"cage shadow ok\")\n"))
+    build := Cmd.new(compiler, "build")
+    for i in 1..args.len() {
+        if args[i] != "--asan" { build.arg(args[i]) }
+    }
+    build.arg(format(WORK, "/ffi_cage_shadow_lib.til"))
+    build.run_checked()
+    consumer := Cmd.new(compiler, "interpret", format(WORK, "/consumer.til"))
+    consumer.env("LIBRARY_PATH", "gen/lib")
+    consumer.env("LD_LIBRARY_PATH", "gen/lib")
+    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    consumer.capture()
+    consumer.run_checked()
+    if consumer.out().contains("cage shadow ok").not() {
+        panic("consumer did not finish: ", consumer.out(), consumer.err())
+    }
+    println("ffi cage shadow passed")
+}

@@ -260,8 +260,18 @@ static void *ffi_handle;
 #define TIL_CAGE_POISON(p, n) ASAN_POISON_MEMORY_REGION((p), (n))
 #define TIL_CAGE_UNPOISON(p, n) ASAN_UNPOISON_MEMORY_REGION((p), (n))
 #else
-#define TIL_CAGE_POISON(p, n) ((void)(p), (void)(n))
-#define TIL_CAGE_UNPOISON(p, n) ((void)(p), (void)(n))
+// The shadow belongs to the cage, not to the copy of this file that touches
+// it: a copy built without ASAN shares the cage of an ASAN process (an ASAN
+// interpreter loading a non-ASAN library's runtime), and a block it hands
+// out still poisoned faults the instrumented copy's first access. So it
+// keeps the shadow through the sanitizer's own entry points, which
+// til_cage_attach looks up in the process; NULL -- no ASAN runtime loaded,
+// nobody reads the shadow -- is the ordinary case.
+typedef void (*TilCageShadowFn)(void const volatile *, size_t);
+static TilCageShadowFn til_cage_poison_fn;
+static TilCageShadowFn til_cage_unpoison_fn;
+#define TIL_CAGE_POISON(p, n) (til_cage_poison_fn ? til_cage_poison_fn((p), (n)) : (void)0)
+#define TIL_CAGE_UNPOISON(p, n) (til_cage_unpoison_fn ? til_cage_unpoison_fn((p), (n)) : (void)0)
 #endif
 #define TIL_CAGE_FN __attribute__((no_instrument_function))
 #ifdef TIL_PROF_ALLOC
@@ -400,6 +410,10 @@ static void til_cage_attach(void) {
     // hosts a shared runtime's til_cage_base reference binds to the
     // executable's variable, already set by the executable's own attach.
     if (til_cage != NULL) return;
+#if !defined(TIL_CAGE_ASAN) && !defined(_WIN32)
+    til_cage_poison_fn = (TilCageShadowFn)dlsym(RTLD_DEFAULT, "__asan_poison_memory_region");
+    til_cage_unpoison_fn = (TilCageShadowFn)dlsym(RTLD_DEFAULT, "__asan_unpoison_memory_region");
+#endif
     U8 **slot = til_cage_slot();
     if (*slot == NULL) *slot = til_cage_reserve();
     til_cage_base = *slot;

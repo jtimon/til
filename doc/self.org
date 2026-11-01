@@ -166,7 +166,11 @@
   bookkeeping lives inside the cage, at the base, so copies sharing a base
   share the allocator; a magic word rejects a cage laid out by another
   revision. Library copies keep their per-library symbol names, so a
-  process holds one definition of the plain name.
+  process holds one definition of the plain name. The ASAN shadow belongs
+  to the cage too: a copy built without ASAN in an ASAN process (an ASAN
+  interpreter loading a non-ASAN library) poisons and unpoisons through
+  the sanitizer's entry points it finds in the process
+  (test/ffi_cage_shadow.til).
 
   Leaks. LeakSanitizer knows only libc's chunks, so it cannot see a leaked
   til object any more. The cage keeps its own live count (block bytes handed

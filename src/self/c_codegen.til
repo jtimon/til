@@ -1431,6 +1431,19 @@ priv emit_stack_outer_arg := proc(f: File, e: Expr, depth: I32, mut ctx: Context
     f.write(" })[0]")
 }
 
+// A borrowed argument for a C value parameter. An own/ref field holds a
+// pointer (a cage offset TIL_OWN_GET decodes, under --cptr=32), and
+// emit_deref leaves a field access as written -- the `ref p : U8` fields
+// read into Dynamic locals rely on that -- so `show(t.tail)` passed the
+// pointer where the callee takes the struct.
+priv emit_value_arg := proc(f: File, arg: Expr, depth: I32, mut ctx: Context) {
+    if arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(arg, ctx)) {
+        f.write("DEREF(").emit_expr(arg, depth, ctx).write(")")
+        return
+    }
+    emit_deref(f, arg, depth, ctx)
+}
+
 priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, mut ctx: Context, wrap_inline_closures: Bool) {
     for i in 1..e.children.len() {
         if i > 1 { f.write(", ") }
@@ -1463,7 +1476,7 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             if callee_param_is_own(callee_name, i - 1, ctx) {
                 emit_own_value_arg(f, arg, depth, get_keep_outer_arg(e, i), ctx)
             } else {
-                emit_deref(f, arg, depth, ctx)
+                emit_value_arg(f, arg, depth, ctx)
             }
         } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).or(callee_param_writes_back(callee_name, i - 1, ctx)).not()) {
             f.write("USIZE_REF(").emit_deref(arg, depth, ctx).write(")")
@@ -3595,7 +3608,7 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
         if arg_value.and(arg_own) {
             emit_own_value_arg(f, e.children[i], depth, get_keep_outer_arg(e, i), ctx)
         } else if arg_value {
-            emit_deref(f, e.children[i], depth, ctx)
+            emit_value_arg(f, e.children[i], depth, ctx)
         } else if arg_stack_outer {
             emit_stack_outer_arg(f, e.children[i], depth, ctx)
         } else {
@@ -4655,7 +4668,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                         if callee_param_is_own(flat, i - 1, ctx) {
                             emit_own_value_arg(f, e.children[i], depth, get_keep_outer_arg(e, i), ctx)
                         } else {
-                            emit_deref(f, e.children[i], depth, ctx)
+                            emit_value_arg(f, e.children[i], depth, ctx)
                         }
                     } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).or(callee_param_writes_back(flat, i - 1, ctx)).not()) {
                         f.write("USIZE_REF(").emit_deref(e.children[i], depth, ctx).write(")")
