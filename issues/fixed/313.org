@@ -4,9 +4,10 @@
 
 *** Post-mortem
 
-  Delivered as an opt-in flag: ~--cptr=32~ (64-bit C targets) stores every
-  ~own~ pointer field as a 32-bit byte offset into a 4GB allocation cage;
-  ~--cptr=64~, native pointers, stays the default.
+  Delivered as ~--cptr=32~ (64-bit C targets): every ~own~ pointer field is
+  stored as a 32-bit byte offset into a 4GB allocation cage. It is the
+  DEFAULT there since the follow-up commit below; ~--cptr=64~ opts out to
+  native pointers.
 
   - Root of the design: the plan's premises were half right. UPtr was never
     the pointer representation (own-field storage is), there is no tracing
@@ -22,16 +23,54 @@
     rule (step 3b prep); the interpreter on a compressed host, ~ext_struct~
     fields kept native, and sizes folded only when host and target agree
     (step 3b + 4).
-  - Step 4's decision: the compressed compiler self-translates src/til.til in
-    -3.9% time and -4.8% peak RSS (-O0, --usize=32, 3 runs each, native
+  - Step 4's measurement: the compressed compiler self-translates src/til.til
+    in -3.9% time and -4.8% peak RSS (-O0, --usize=32, 3 runs each, native
     25.3-27.5s / 433MB vs 24.3-26.4s / 412MB). Below #309's -6% / -7% bar,
-    and a default flip would turn the 4GB heap cap into a language contract,
-    so the default is unchanged. Finer allocator size classes (8 per
-    doubling) were measured and did not move RSS; they were not kept.
+    so the commit that landed step 4 kept native as the default. Finer
+    allocator size classes (8 per doubling) were measured and did not move
+    RSS; they were not kept.
+  - The default flip (follow-up commit, the human's call: the cage is
+    faster and smaller, and an experimental language picks its defaults by
+    measurement, not by the cap's permanence -- the 4GB heap cap is a
+    default, with ~--cptr=64~ as the way out, not a promise). A Two-pass
+    commit: the driver resolves an unset ~--cptr~ to 32 on 64-bit C targets
+    (mode theme, other backends and 32-bit targets stay native), the
+    generated headers pin ~TIL_CPTR32~ / ~TIL_CPTR64~ next to the USize pin
+    so the flag-less boot compile builds ext.c for the emitted layout, the
+    driver passes ~-DTIL_CPTR64~ explicitly for the opt-out, and make.til
+    spells ~--cptr=32~ on every build of src/til.til beside ~--usize=32~ --
+    which is what let pass 1 (run by the still-native boot compiler) already
+    produce a cage compiler, so pass 2 reached the self-translate fixed
+    point. ~check_cptr32~ became ~check_cptr64~, the native opt-out
+    regression, mirroring ~check_usize64~.
+    The default suite then covered what the opt-in run never had, shared
+    runtimes under the cage, and found four bugs, all fixed in the same
+    commit: (1) a process held one cage PER COPY of ext.c (the program's
+    own and each mode-lib runtime it loads), so a Str crossing a TilVm
+    plugin boundary decoded against the wrong base -- the cage is now per
+    process: the executable's plain ~til_cage_base~ is the slot every copy
+    attaches to through dlsym (a module walk on Windows) when its image
+    loads, and the allocator's bookkeeping lives inside the cage so every
+    copy shares it (a magic word rejects another revision's layout);
+    library copies keep their per-library names, so ASAN's ODR check sees
+    one definition. (2) The library ~.c~'s name-map pruner dropped the
+    aliases of names only ext.h's macros spell (~malloc(~ expands to
+    til_malloc, TIL_OWN_GET reads til_cage_base), leaving core.so with
+    unrenamed references: it now counts ext.h's macro bodies and inline
+    bodies. (3) The interpreter bound a library enum's payload without
+    registering it as a foreign place (the enum was registered at its
+    first borrow, with its tag of that moment), so a struct payload's Str
+    field was read at the interpreter's own offset; harmless while Str was
+    8-aligned on both sides, garbage once own fields were 4 bytes:
+    ~h_get_payload~ re-walks a foreign enum first. (4) The runtime/core
+    identity now spells ~-cptr32~ before the CPU profile, which
+    cpu_options expects last.
   - Regression tests: test/cptr32_sizes.til (Str/Vec 12, Map 24, mid-buffer
-    view), and ~make check_cptr32~ (CI job linux-x64 (--cptr=32)): the whole
-    suite through an ASAN compiler built --cptr=32, every program built
-    --cptr=32.
+    view) and test/cptr64_sizes.til (16 / 32, the opt-out); the
+    ~self_compiler_cptr32~ pin count; and ~make check_cptr64~ (CI job
+    linux-x64 (--cptr=64)): the whole suite through an ASAN compiler built
+    --cptr=64, every program built --cptr=64. The default suite covers the
+    cage.
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time

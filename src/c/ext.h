@@ -64,16 +64,25 @@ typedef struct Str Str;
 // Memory that libc allocates internally (realpath(p, NULL), ...) is still
 // libc's: release it with (free)(p), which the macro does not expand. The
 // cage never returns NULL (exhaustion panics), and says so to the compiler.
+// The driver pins one of TIL_CPTR32 / TIL_CPTR64 on every compile, and the
+// generated headers default to the one they were emitted for (like the
+// USize pin), so a flag-less compile of a checked-in artifact reproduces
+// its layout; TIL_CPTR32 is the default on 64-bit C targets.
+#if defined(TIL_CPTR32) && defined(TIL_CPTR64)
+#error "TIL_CPTR32 and TIL_CPTR64 are mutually exclusive"
+#endif
 #ifdef TIL_CPTR32
 #if UINTPTR_MAX == 0xffffffff
 #error "TIL_CPTR32 compresses 64-bit pointers; a 32-bit target already stores 32-bit pointers"
 #endif
 #include <stddef.h>
 #include <stdlib.h>
-void *til_malloc(size_t size) __attribute__((malloc, returns_nonnull));
-void *til_calloc(size_t nmemb, size_t size) __attribute__((malloc, returns_nonnull));
-void *til_realloc(void *ptr, size_t size) __attribute__((returns_nonnull));
-void til_free(void *ptr);
+// no_instrument_function: --prof profiles the program, not its allocator,
+// as it never profiled libc's malloc.
+void *til_malloc(size_t size) __attribute__((malloc, returns_nonnull, no_instrument_function));
+void *til_calloc(size_t nmemb, size_t size) __attribute__((malloc, returns_nonnull, no_instrument_function));
+void *til_realloc(void *ptr, size_t size) __attribute__((returns_nonnull, no_instrument_function));
+void til_free(void *ptr) __attribute__((no_instrument_function));
 #define malloc(size) til_malloc(size)
 #define calloc(nmemb, size) til_calloc(nmemb, size)
 #define realloc(ptr, size) til_realloc(ptr, size)
@@ -89,20 +98,24 @@ void til_free(void *ptr);
 // points at any byte of its buffer.
 #ifdef TIL_CPTR32
 typedef struct { U32 off; } TilCPtr;
+// This copy's cage base: one cage per process, shared by every copy of ext.c
+// loaded into it (see the cage in ext.c). A program keeps this plain name,
+// which is the process-wide slot; a library runtime renames its copy and
+// attaches to the program's slot when its image loads.
 extern U8 *til_cage_base;
-void til_cptr_encode_fail(const void *p) __attribute__((noreturn));
-static inline __attribute__((always_inline)) void *til_cptr_decode(U32 off) {
+void til_cptr_encode_fail(const void *p) __attribute__((noreturn, no_instrument_function));
+static inline __attribute__((always_inline, no_instrument_function)) void *til_cptr_decode(U32 off) {
     return off ? (void *)(til_cage_base + off) : (void *)0;
 }
-static inline __attribute__((always_inline)) U32 til_cptr_encode(const void *p) {
+static inline __attribute__((always_inline, no_instrument_function)) U32 til_cptr_encode(const void *p) {
     if (p == (const void *)0) return 0;
     UPtr off = (UPtr)p - (UPtr)til_cage_base;
-    // Before the first allocation there is no cage: every pointer is foreign.
+    // Before this image attached there is no cage: every pointer is foreign.
     if (til_cage_base == (U8 *)0 || off == 0 || off > 0xffffffffULL) til_cptr_encode_fail(p);
     return (U32)off;
 }
 // The cage offset of a NUL-terminated copy of a literal's n bytes.
-U32 til_cage_lit(const char *s, UPtr n);
+U32 til_cage_lit(const char *s, UPtr n) __attribute__((no_instrument_function));
 #define TIL_OWN_PTR(T) TilCPtr
 #define TIL_OWN_GET(T, field) ((T *)til_cptr_decode((field).off))
 #define TIL_OWN_SET(field, p) ((field).off = til_cptr_encode(p))

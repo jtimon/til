@@ -7927,7 +7927,24 @@ priv emit_header_global_decls_lp := proc(f: File, mut lp: LoadedProgram) {
 // for a 32-bit target with -DTIL_USIZE32, an unguarded pin left BOTH macros
 // defined and ext.h's mutual-exclusion #error broke every 32-bit-target job
 // (linux-x86/arm32/riscv32, windows cross).
+// #313: the own-pointer storage (TIL_CPTR32, the cage, the default on 64-bit
+// C targets / TIL_CPTR64, native) is pinned the same way: the boot compile
+// of a boot/til.c emitted for the cage must build ext.c for the cage too.
+// That pin also yields to an explicit USize flag ALONE (so it is written
+// first, before the USize pin defines one): a driver that passes a USize
+// flag but no cptr flag is one from before the cage was pinned -- the boot
+// compiler of the commit that made the cage the default -- and the C it
+// emits is native. Without this, that compiler's ext.c (which includes the
+// working tree's boot/til_forward.h) would take the cage pin a two-pass
+// regen just wrote there and mismatch its own native output: bin/make
+// died in free() the moment boot/ was regenerated. Every driver since
+// passes both flags, and a flag-less compile is the boot compile, which
+// must reproduce the artifact's layout.
 priv emit_usize_width_pin := proc(f: File, ctx: Context) {
+    f.write("#if !defined(TIL_CPTR32) && !defined(TIL_CPTR64) && !defined(TIL_USIZE32) && !defined(TIL_USIZE64)\n")
+    if ctx.target_cptr32 { f.write("#define TIL_CPTR32 1\n") }
+    else { f.write("#define TIL_CPTR64 1\n") }
+    f.write("#endif\n")
     f.write("#if !defined(TIL_USIZE32) && !defined(TIL_USIZE64)\n")
     if ctx.target_usize_pname == "U32" { f.write("#define TIL_USIZE32 1\n") }
     else { f.write("#define TIL_USIZE64 1\n") }
@@ -11822,6 +11839,28 @@ priv c_count_identifiers := func(src: Str, mut counts: Map(Str, USize)) {
     }
 }
 
+// #313: the finished text of a translation unit also includes ext.h, whose
+// macro bodies and inline function bodies spell names the .c itself never
+// does -- `malloc(` expands to til_malloc, TIL_OWN_GET reads til_cage_base
+// -- and an alias for one of those is live in every unit that includes the
+// header. Count exactly those spellings: `#define` lines and the lines
+// inside braces. A prototype at file scope injects nothing, so its alias
+// stays prunable (test/library_namespace.til checks one is).
+priv c_count_injected_identifiers := func(src: Str, mut counts: Map(Str, USize)) {
+    mut depth : I64 = 0
+    for raw : Str in src.split("\n") {
+        line := raw.trim()
+        if line.len() == 0 { continue }
+        depth_before := depth
+        for ci in 0..line.len() {
+            ref ch : I8 = line.unsafe_get(ci)
+            if ch.eq('{') { depth++ }
+            if ch.eq('}') { depth-- }
+        }
+        if line.starts_with("#define ").or(depth_before > 0) { c_count_identifiers(line, counts) }
+    }
+}
+
 // The name a library name-map line renames, or "" when the line is not
 // one. The map is `#define <name> <prefix><name>`, one per exported
 // symbol. Returns a VIEW into `line`.
@@ -11876,7 +11915,7 @@ priv c_dead_macro_prefix := func(src: Str, name: Str, mut dead: Vec(Str)) return
     return true
 }
 
-priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str,
+priv c_drop_dead_defines := proc(c_path: Str, ext_h_path: Str, lib_prefix: Str,
         runtime_prefix: Str, core_prefix: Str) {
     src := File.readfile(c_path)
     mut dead_macros := Vec(Str).new()
@@ -11886,7 +11925,10 @@ priv c_drop_dead_defines := proc(c_path: Str, lib_prefix: Str,
     if c_dead_macro_prefix(src, "TIL_LIT_GUARD", dead_macros) { any = true }
     if any.not().and(lib_prefix.len().eq(0)) { return }
     mut counts := Map(Str, USize).new()
-    if lib_prefix.len() > 0 { c_count_identifiers(src, counts) }
+    if lib_prefix.len() > 0 {
+        c_count_identifiers(src, counts)
+        c_count_injected_identifiers(File.readfile(ext_h_path), counts)
+    }
     n := src.len()
     mut out := Str.with_capacity(n)
     mut dropped := false
@@ -11945,7 +11987,7 @@ c_codegen_translate_outputs := proc(mut lp: LoadedProgram, c_path: Str, fwd_path
     if result == 0 {
         result = build(lp.cur_mode, lp.run_tests, c_path, lp)
         if result == 0 {
-            c_drop_dead_defines(c_path, lp.ctx.builder_lib_c_prefix,
+            c_drop_dead_defines(c_path, format(lp.ext_c_path.strip_suffix(".c"), ".h"), lp.ctx.builder_lib_c_prefix,
                 lp.ctx.builder_runtime_c_prefix, lp.ctx.builder_core_c_prefix)
         }
     }

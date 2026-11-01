@@ -8174,6 +8174,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // #313: a cage-built interpreter frees what the user .so allocates (and
     // vice versa), so the .so must allocate from the same cage.
     if til_built_with_cptr32() { usize_define = format(usize_define, " -DTIL_CPTR32") }
+    else { usize_define = format(usize_define, " -DTIL_CPTR64") }
     cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, usize_define, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
@@ -9914,9 +9915,10 @@ priv h_get_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     mut gp_off : USize = ENUM_PAYLOAD_OFFSET
     mut gp_is_niche := false
     mut gp_def_o := Option(ref Expr).None
+    mut gp_tname := ""
     gp_tname_o := expr_type_name_ref(e.children[1], ctx.symbols)
     if gp_tname_o.is_some() {
-        ref gp_tname : Str = gp_tname_o.unwrap()
+        gp_tname = gp_tname_o.unwrap().clone()
         gp_def_o = lookup_interp_type_def(gp_tname, ctx)
     }
     if gp_def_o.is_some() {
@@ -9927,18 +9929,45 @@ priv h_get_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     }
     fa_payload : Dynamic = get_payload_field_addr(s, e.children[1], ctx)
     if fa_payload.is_null().not() {
+        rewalk_foreign_enum(gp_tname, fa_payload, ctx)
         // #321: for a niche the slot HOLDS the payload's address, so load it.
         if gp_is_niche { write_ptr(r, deref(fa_payload)) return true }
-        write_ptr(r, ptr_add(fa_payload, gp_off))
+        write_ptr(r, tagged_payload_place(gp_tname, fa_payload, gp_off, ctx))
         return true
     }
     ref mut arg : Expr = e.children[1]
     mut info := raw_result_info_new()
     mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
-    if gp_is_niche { write_ptr(r, deref(raw_arg_pointer(raw, info, ctx))) return true }
-    write_ptr(r, ptr_add(raw_arg_pointer(raw, info, ctx), gp_off))
+    place : Dynamic = raw_arg_pointer(raw, info, ctx)
+    rewalk_foreign_enum(gp_tname, place, ctx)
+    if gp_is_niche { write_ptr(r, deref(place)) return true }
+    write_ptr(r, tagged_payload_place(gp_tname, place, gp_off, ctx))
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
+}
+
+// #313: an enum that lives in a LIBRARY's memory (an ext_global, a borrowed
+// native place) was registered as a foreign place at its first borrow, with
+// whatever tag it held then, and ffi_refresh_external_place does not walk it
+// again. The payload the CURRENT tag selects -- a niche's box, a tagged
+// payload's slot, the fields of a struct payload -- may therefore be
+// unregistered, and place_field_layout would then read them at the
+// interpreter's own offsets instead of the library's. Walk the enum again
+// before anything binds its payload. Unnoticed until own fields became
+// 4-byte cage offsets: with 8-byte pointers a Str field sat at the same
+// offset in both layouts.
+priv rewalk_foreign_enum := proc(enum_name: Str, data: Dynamic, mut ctx: Context) {
+    if enum_name.len().eq(0).or(ffi_place_is_foreign(data, ctx).not()) { return }
+    ffi_borrow_place(enum_name, data, ctx)
+}
+
+// The payload place of a tagged (non-niche) enum at `data`: host_off past
+// the tag in the interpreter's own layout, the library's payload offset for
+// a foreign place (rewalk_foreign_enum registered it first).
+priv tagged_payload_place := func(enum_name: Str, data: Dynamic, host_off: USize, ctx: Context) returns Dynamic {
+    if enum_name.len().eq(0).or(ffi_place_is_foreign(data, ctx).not()) { return ptr_add(data, host_off) }
+    ref slot : Dynamic = ffi_enum_payload_slot(enum_name, data, false, ctx)
+    return ptr_add(slot, 0)
 }
 
 priv h_cfile_read_all := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {

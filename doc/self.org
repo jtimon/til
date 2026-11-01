@@ -108,14 +108,23 @@
 
 ** Pointer-compression cage (~--cptr~)
 
-  ~--cptr=32~ (issue #313, 64-bit C targets only; default ~--cptr=64~ is
-  native) stores every ~own~ pointer field as a 32-bit byte offset into one
-  4GB allocation region, the cage. ~ref~, ~Dynamic~ and callable fields stay
-  native pointers. With ~--usize=32~ that makes Str and Vec 12 bytes instead
-  of 16; with a 64-bit USize the saving disappears into alignment padding.
-  The 4GB is a hard per-process heap cap.
+  ~--cptr=32~ (issue #313) stores every ~own~ pointer field as a 32-bit
+  byte offset into one 4GB allocation region, the cage. It is the DEFAULT on
+  64-bit C targets; ~--cptr=64~ opts out to native pointers, and a 32-bit
+  target, another backend or mode theme is native without a flag (an
+  explicit ~--cptr~ there is an error). ~ref~, ~Dynamic~ and callable fields
+  stay native pointers. With ~--usize=32~ that makes Str and Vec 12 bytes
+  instead of 16; with a 64-bit USize the saving disappears into alignment
+  padding. The 4GB is a hard per-process heap cap: a program that needs more
+  builds ~--cptr=64~. The language is experimental, so this default -- like
+  the USize one -- is chosen by measurement and can change again before a
+  versioned release.
 
-  The build defines ~TIL_CPTR32~, and ext.h then:
+  The driver pins ~TIL_CPTR32~ or ~TIL_CPTR64~ on every C compile, and the
+  generated headers carry the same pin as a default (next to the USize one),
+  so a flag-less compile of a checked-in artifact -- the boot compile of
+  boot/til.c -- builds ext.c for the layout it was emitted at. Under
+  ~TIL_CPTR32~ ext.h then:
 
   - routes ~malloc~, ~calloc~, ~realloc~ and ~free~ -- the names generated
     code, ext.c and link_c code call -- to the cage allocator in ext.c.
@@ -136,22 +145,39 @@
   on first use. ~Str.from_c_str~ copies the C string into an owned Str, since
   argv, getenv results and C library strings are not cage memory.
 
-  A compiler built ~--cptr=32~ works too. Its interpreter's value memory uses
-  the running binary's own layout (initer marks compressed own fields
-  ~FieldLayout.is_cptr~, 4 bytes), and reads/writes a pointer-field slot with
-  ~own_slot_load~ / ~own_slot_store~, size-aware twins of ~deref~ /
-  ~write_ptr~ that the typer's raw-store rules name alongside ~write_ptr~.
-  ~ext_struct~ fields mirror C library structs and always stay native. Like
-  #309's width split, sizes fold only when host and target agree; a
-  ~--cptr=32~ compiler building a native program (or the reverse) emits
-  ~X.size()~ as C ~sizeof~, so that translation is not byte-identical to a
-  same-layout one.
+  One cage per process. A process can hold several copies of ext.c -- the
+  program's own and the shared runtime of every mode-lib library it loads
+  (a TilVm plugin, a library-namespaced .so) -- and they exchange values,
+  so an offset must mean the same everywhere: the executable's plain
+  ~til_cage_base~ is the slot every copy attaches to (dlsym(RTLD_DEFAULT),
+  a module walk on Windows) when its image loads; a copy with no til
+  executable around it (a .so Python loaded) uses its own. The allocator's
+  bookkeeping lives inside the cage, at the base, so copies sharing a base
+  share the allocator; a magic word rejects a cage laid out by another
+  revision. Library copies keep their per-library symbol names, so a
+  process holds one definition of the plain name.
 
-  ~make check_cptr32~ (and its CI job) runs the whole suite through an ASAN
-  compiler built ~--cptr=32~, with every compiled program built ~--cptr=32~
-  too. Measured on the self-translate (-O0, ~--usize=32~): -4.8% peak RSS,
-  -3.9% time. That is below #309's bar, so the default stays ~--cptr=64~:
-  making it the default would also make the 4GB heap cap a language contract.
+  The compiler itself is a cage build: make.til spells ~--cptr=32~ beside
+  ~--usize=32~ on every build of src/til.til, so the compiler's own layout
+  is pinned whatever compiler runs that line (the commit that made the cage
+  the default needed exactly that: pass 1 of its two-pass build ran under a
+  native boot compiler whose default was still native). Its interpreter's
+  value memory uses the running binary's own layout (initer marks compressed
+  own fields ~FieldLayout.is_cptr~, 4 bytes), and reads/writes a
+  pointer-field slot with ~own_slot_load~ / ~own_slot_store~, size-aware
+  twins of ~deref~ / ~write_ptr~ that the typer's raw-store rules name
+  alongside ~write_ptr~. ~ext_struct~ fields mirror C library structs and
+  always stay native. Like #309's width split, sizes fold only when host and
+  target agree; a native (~--cptr=64~) compiler building a cage program (or
+  the reverse) emits ~X.size()~ as C ~sizeof~, so that translation is not
+  byte-identical to a same-layout one.
+
+  ~make check_cptr64~ (and its CI job) keeps the native opt-out alive: the
+  whole suite through an ASAN compiler built ~--cptr=64~, with every
+  compiled program built ~--cptr=64~ too, after the struct sizes of both
+  layouts (test/cptr32_sizes.til, test/cptr64_sizes.til). Measured on the
+  self-translate before the flip (-O0, ~--usize=32~): -4.8% peak RSS, -3.9%
+  time for the cage.
 
 ** CPU profiles and C optimization
 

@@ -37,7 +37,7 @@ BOOT := "bin/til_boot"
 TIL := "bin/til"
 ASAN := "bin/til_asan"
 DEBUG := "bin/til_debug"
-CPTR32 := "bin/til_cptr32"
+CPTR64 := "bin/til_cptr64"
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -584,6 +584,9 @@ build_vendor := proc(mut b: Build) {
 /// bin/til, and the committed C it regenerates. The compiler uses compact
 /// U32 container metadata internally; programs it builds remain target-width
 /// by default because --usize=32 applies only while compiling src/til.til.
+/// --cptr=32 (#313) is spelled out beside it although it is the default:
+/// the compiler's own layout is pinned explicitly, whatever compiler runs
+/// this line (the first boot of the cage default needed exactly that).
 /// The single-pass build: HEAD's compiler translates the current sources.
 build_til := proc(mut b: Build) {
     if b.begin("til").not() { return }
@@ -592,7 +595,7 @@ build_til := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own BOOT.clone())
     if needs_rebuild(TIL, inputs).not() { return }
-    run(BOOT, "build", "--usize=32", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
+    run(BOOT, "build", "--usize=32", "--cptr=32", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
 }
 
@@ -609,7 +612,7 @@ build_two_pass := proc(mut b: Build) {
     build_til(b)
     // Keep --force-rebuild for older compilers that still implement #170's
     // timestamp shortcut. The bootstrap C path is explicit in both passes.
-    run(TIL, "build", "--usize=32", "--force-rebuild", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
+    run(TIL, "build", "--usize=32", "--cptr=32", "--force-rebuild", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
 }
 
@@ -627,7 +630,7 @@ build_asan := proc(mut b: Build) {
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     if needs_rebuild(ASAN, inputs).not() { return }
-    run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
+    run(TIL, "build", "--usize=32", "--cptr=32", "--asan", "-o", ASAN, "src/til.til")
 }
 
 /// The gdb build: the one link of the compiler that does not go
@@ -714,18 +717,19 @@ check_usize64 := proc(mut b: Build) {
     run("tmp/usize64_sizes")
     run(ASAN, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
     run("tmp/usize64_comptime")
-    run(TIL, "build", "--asan", "--usize=32", "-o", "tmp/til_usize32_asan", "src/til.til")
+    run(TIL, "build", "--asan", "--usize=32", "--cptr=32", "-o", "tmp/til_usize32_asan", "src/til.til")
     run("tmp/til_usize32_asan", "translate", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
 }
 
-/// The pointer-compression cage (issue #313): the whole suite through a
-/// compiler itself built --cptr=32 under ASAN -- its interpreter and
-/// constfolder work on compressed own fields -- with every compiled program
-/// built --cptr=32 too, after an optimized --cptr=32 program and the struct
-/// sizes the flag exists for. Not part of `test`: it is a second full suite
-/// run.
-check_cptr32 := proc(mut b: Build) {
-    if b.begin("check_cptr32").not() { return }
+/// The native opt-out of the pointer-compression cage (issue #313; the cage
+/// is the default, so `test` covers it): the whole suite through a compiler
+/// itself built --cptr=64 under ASAN -- its interpreter and constfolder work
+/// on native own fields while building cage programs' sizes as sizeof --
+/// with every compiled program built --cptr=64 too, after the struct sizes
+/// of both layouts and an optimized native program. Not part of `test`: it
+/// is a second full suite run.
+check_cptr64 := proc(mut b: Build) {
+    if b.begin("check_cptr64").not() { return }
     build_til(b)
     build_test_runner(b)
     build_plot(b)
@@ -733,10 +737,12 @@ check_cptr32 := proc(mut b: Build) {
     mkdir_p("tmp")
     run(TIL, "build", "--usize=32", "--cptr=32", "-o", "tmp/cptr32_sizes", "test/cptr32_sizes.til")
     run("tmp/cptr32_sizes")
-    run(TIL, "build", "--cptr=32", "--opt=2", "-o", "tmp/cptr32_strings", "test/strings.til")
-    run("tmp/cptr32_strings")
-    run(TIL, "build", "--usize=32", "--cptr=32", "--asan", "-o", CPTR32, "src/til.til")
-    c := suite_cmd(b, "--til-bin", CPTR32, "--asan", "--cptr=32")
+    run(TIL, "build", "--usize=32", "--cptr=64", "-o", "tmp/cptr64_sizes", "test/cptr64_sizes.til")
+    run("tmp/cptr64_sizes")
+    run(TIL, "build", "--cptr=64", "--opt=2", "-o", "tmp/cptr64_strings", "test/strings.til")
+    run("tmp/cptr64_strings")
+    run(TIL, "build", "--usize=32", "--cptr=64", "--asan", "-o", CPTR64, "src/til.til")
+    c := suite_cmd(b, "--til-bin", CPTR64, "--asan", "--cptr=64")
     c.run_checked()
 }
 
@@ -853,7 +859,7 @@ run_test_two_pass := proc(mut b: Build) {
     // Deliberately not build_asan: pass 2 replaced bin/til after the
     // mtime check that step would make, and this ASAN compiler has to
     // come from the self-applied one.
-    run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
+    run(TIL, "build", "--usize=32", "--cptr=32", "--asan", "-o", ASAN, "src/til.til")
     b.begin("asan")
     check_usize64(b)
     check_clang(b)
@@ -1869,7 +1875,7 @@ build_win_host := proc(mut b: Build) {
     inputs.push(own libffi_lib("windows-x64"))
     inputs.push(own nng_lib("windows-x64"))
     if needs_rebuild("bin/til.exe", inputs).not() { return }
-    run(TIL, "build", "--target=windows-x64", "--usize=32", "-o", "bin/til.exe", "src/til.til")
+    run(TIL, "build", "--target=windows-x64", "--usize=32", "--cptr=32", "-o", "bin/til.exe", "src/til.til")
 }
 
 // --- macOS cross ---
@@ -2191,8 +2197,8 @@ commands := func() returns Vec(Command) {
         about = "Run the TempleOS guest corpus at both USize widths (Docker)"))
     out.push(own Command(name = "check_usize64", go = check_usize64,
         about = "Run the explicit --usize=64 regression"))
-    out.push(own Command(name = "check_cptr32", go = check_cptr32,
-        about = "Run the full suite through a --cptr=32 compiler, --cptr=32 programs"))
+    out.push(own Command(name = "check_cptr64", go = check_cptr64,
+        about = "Run the full suite through a --cptr=64 compiler, --cptr=64 programs"))
     out.push(own Command(name = "check_clang", go = check_clang,
         about = "Check the emitted C compiles clean under clang"))
     out.push(own Command(name = "build_win", go = build_win,

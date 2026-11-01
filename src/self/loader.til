@@ -366,7 +366,8 @@ LoadedProgram := struct {
     // never affected. Set from the CLI in src/til.til before prepare_program
     // stamps the alias widths.
     usize_override_bits : I64 = 0
-    // --cptr=32 (issue #313): allocate every til block from the 32-bit
+    // The cage (issue #313, the default on 64-bit C targets; --cptr=64 opts
+    // out): allocate every til block from the 32-bit
     // offset cage in ext.c (-DTIL_CPTR32). A separate C ABI, so it is part
     // of the shared runtime/core identity below.
     cptr32 := false
@@ -392,10 +393,13 @@ namespace:
         case .TempleosX86: target_name = "templeos-x86"
         }
         mut out := format(self.compiler_revision, "-", target_name, "-", self.ctx.target_usize_pname)
+        // #313: the own-pointer storage is part of the layout, like the
+        // USize width it follows; the ISA and sanitizer qualifiers come after
+        // it (a CPU-qualified name ends with its profile, as cpu_options checks).
+        if self.cptr32 { out = format(out, "-cptr32") }
         // ISA variants must not replace a baseline runtime/core used by
         // already-built libraries. Optimization alone does not change the ABI.
         if self.cpu.name != "baseline" { out = format(out, "-", self.cpu.name) }
-        if self.cptr32 { out = format(out, "-cptr32") }
         if self.asan_build { out = format(out, "-asan") }
         return out
     }

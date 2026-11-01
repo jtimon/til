@@ -81,8 +81,9 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // also cover --usize overrides that differ from the target pointer width.
     mut usize_flags := " -DTIL_USIZE32"
     if usize64 { usize_flags = " -DTIL_USIZE64" }
-    // #313: --cptr=32 is part of the same C ABI pin.
+    // #313: the own-pointer storage is part of the same C ABI pin.
     if cptr32 { usize_flags = format(usize_flags, " -DTIL_CPTR32") }
+    else { usize_flags = format(usize_flags, " -DTIL_CPTR64") }
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -362,8 +363,9 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // .c and ext.c are compiled in one invocation, so one define covers both.
     mut usize_flags := " -DTIL_USIZE32"
     if usize64 { usize_flags = " -DTIL_USIZE64" }
-    // #313: --cptr=32 is part of the same C ABI pin.
+    // #313: the own-pointer storage is part of the same C ABI pin.
     if cptr32 { usize_flags = format(usize_flags, " -DTIL_CPTR32") }
+    else { usize_flags = format(usize_flags, " -DTIL_CPTR64") }
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."

@@ -1024,14 +1024,14 @@ main := proc(args: ..Str) {
     wall_start := clock_ms()
 
     // Parse args: -jN, -no-interp, -no-run, --no-gui, --til-bin <path>, --asan,
-    // --cptr=32
+    // --cptr=32|64
     mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
     mut en_gui := 1
     mut til_bin := TIL
     mut asan := 0
-    mut cptr32 := 0
+    mut cptr_flag := ""
     mut i : USize = 0
     while i < args.len() {
         ref arg : Str = args[i]
@@ -1048,7 +1048,7 @@ main := proc(args: ..Str) {
             til_bin = val.clone()
         }
         if arg == "--asan" { asan = 1 }
-        if arg == "--cptr=32" { cptr32 = 1 }
+        if arg.eq("--cptr=32").or(arg.eq("--cptr=64")) { cptr_flag = format(" ", arg) }
         if arg == "--regen" { REGEN = " --regen" }
         i++
     }
@@ -1059,9 +1059,10 @@ main := proc(args: ..Str) {
     // their own leaks when executed.
     mut asan_flag := ""
     if asan == 1 { asan_flag = " --asan" }
-    // #313: --cptr=32 rides along with the ASAN flag into every compiled
-    // program's build (make check_cptr32); interpretation is unaffected.
-    if cptr32 == 1 { asan_flag = format(asan_flag, " --cptr=32") }
+    // #313: an explicit --cptr=32|64 rides along with the ASAN flag into
+    // every compiled program's build (make check_cptr64 passes --cptr=64,
+    // the opt-out of the default cage); interpretation is unaffected.
+    asan_flag = format(asan_flag, cptr_flag)
 
     mut fail := 0
 
@@ -1126,15 +1127,17 @@ main := proc(args: ..Str) {
     // fixed-point break that did not happen. Removing the artifacts is what
     // makes the row test what it says it tests.
     //
-    // #313: under --cptr=32 (make check_cptr32) the compiler under test was
-    // itself built --cptr=32, while boot/ comes from a native one. Its
-    // interpreter needs host (compressed) sizes, so for this native target
-    // it leaves size() unfolded -- like #309's --usize cross-width builds,
-    // a different translation, not a fixed-point break. There the row keeps
-    // the repeatability half: two processes must emit identical bytes.
+    // #313: under an explicit --cptr=64 (make check_cptr64) the compiler
+    // under test was itself built native, while boot/ comes from a cage
+    // compiler (the default). Its interpreter needs host (native) sizes, so
+    // for this cage target it leaves size() unfolded -- like #309's --usize
+    // cross-width builds, a different translation, not a fixed-point break.
+    // There the row keeps the repeatability half: two processes must emit
+    // identical bytes. (The same holds for a --cptr=32 run against a native
+    // boot/, the shape this row had before the cage became the default.)
     mut self_reference := "boot/til"
     mut self_reference_cmd := ""
-    if cptr32 == 1 {
+    if cptr_flag.len() > 0 {
         self_reference = "tmp/self_det_ref"
         self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
@@ -1860,6 +1863,10 @@ main := proc(args: ..Str) {
     // programs it compiles remain target-width (U64 on this host) by default.
     add_count(tests, "self_compiler_usize32", "build", "#define TIL_USIZE32 1", 1,
         "cat boot/til_forward.h")
+    // #313: the self-compiler's own fields are cage offsets, and the header
+    // pins that layout so the flag-less boot compile builds ext.c to match.
+    add_count(tests, "self_compiler_cptr32", "build", "#define TIL_CPTR32 1", 1,
+        "cat boot/til_forward.h")
     hello_script_checks = hello_script_checks.concat(array(CountCheck, CountCheck(needle = "static void println(Array__Str * parts)", expected_count = 2)))
     // The GENERATED families join the audit too: a dyn wrapper exists
     // only to fill the closure value beside it, and the print prelude is
@@ -2061,12 +2068,10 @@ main := proc(args: ..Str) {
     // ...while the ext.c boundary globals stay: ext.c reads CAP_LIT.
     add_count(tests, "til_header_keeps_ext_c_globals", "build", "extern USize CAP_LIT;", 1,
         "cat gen/til/til_forward.h")
-    // #313: a --cptr=32 compiler folds sizes only for a target laid out like
-    // itself, so under make check_cptr32 the translation targets --cptr=32.
-    mut size_fold_flag := ""
-    if cptr32 == 1 { size_fold_flag = " --cptr=32" }
+    // #313: a compiler folds sizes only for a target laid out like itself,
+    // so under make check_cptr64 the translation targets --cptr=64 too.
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
-        format(til_bin, " translate --usize=32", size_fold_flag, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
+        format(til_bin, " translate --usize=32", cptr_flag, " -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     first_class_checks = first_class_checks.concat(array(CountCheck,
         CountCheck(needle = "unused_default_op", expected_count = 0),
         CountCheck(needle = "__attribute__((unused))", expected_count = 0)))

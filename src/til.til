@@ -768,7 +768,8 @@ usage := proc() {
     println("  --usize=32|64  Override the target-native USize container width;")
     println("              UPtr always follows pointer width.")
     println("  --cptr=32|64  64-bit targets only: 32 stores own pointer fields as 32-bit")
-    println("              offsets into a 4GB allocation cage (default 64, native).")
+    println("              offsets into a 4GB allocation cage (the default there);")
+    println("              64 keeps native pointers.")
     println("  --force-rebuild  Accepted for compatibility; translate/build/run")
     println("              always regenerate their outputs.")
     println("")
@@ -820,8 +821,9 @@ CliArgs := struct {
     // #309: --usize overrides the target-native USize alias. 0 follows the
     // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
-    // #313: --cptr selects how owned pointers are stored. 0/64 = native
-    // pointers; 32 = allocate from the compression cage (-DTIL_CPTR32).
+    // #313: --cptr selects how owned pointers are stored. 32 = allocate from
+    // the compression cage (-DTIL_CPTR32), the default on 64-bit C targets;
+    // 64 = native pointers; 0 = not given (resolved against the target).
     cptr_bits : I64 = 0
     // #154: unused-import type errors, on by default;
     // --check-unused-imports=false disables for one invocation.
@@ -1227,7 +1229,13 @@ main := proc(args: ..Str) {
     // #309: --usize override must be set before prepare_program stamps the
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
     lp.usize_override_bits = cli.usize_bits
+    // #313: the cage is the default wherever it applies -- a 64-bit target,
+    // the C backend, a program (mode theme emits Elisp, not C). --cptr=64
+    // opts out; --cptr=32 on a target it cannot apply to was rejected above.
     lp.cptr32 = cli.cptr_bits == 32
+    if cli.cptr_bits == 0 {
+        lp.cptr32 = target_uptr_name(target).eq("U64").and(cli.backend.eq("c")).and(lp.mode_str.neq("theme"))
+    }
     lp.ctx.target_cptr32 = lp.cptr32
     // #154 prototype: unused-import type errors, opt-in per invocation.
     lp.ctx.check_unused_imports = cli.check_unused_imports
