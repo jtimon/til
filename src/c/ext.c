@@ -694,9 +694,13 @@ U32 til_cage_lit(const char *s, UPtr n) {
 }
 
 // Live blocks other than the literal copies: what a program leaked.
-static inline UPtr til_cage_leaked_bytes(void) TIL_CAGE_FN;
+// Read by the ASAN leak report below and by --prof's glibc-only byte
+// accounting; a plain build on another host reads neither, and clang
+// (every macOS job) rejects an unused static function under -Werror where
+// gcc stays quiet -- hence the attribute.
+static inline UPtr til_cage_leaked_bytes(void) TIL_CAGE_FN __attribute__((unused));
 static inline UPtr til_cage_leaked_bytes(void) { return til_cage->live_bytes - til_cage->lit_bytes; }
-static inline UPtr til_cage_leaked_allocs(void) TIL_CAGE_FN;
+static inline UPtr til_cage_leaked_allocs(void) TIL_CAGE_FN __attribute__((unused));
 static inline UPtr til_cage_leaked_allocs(void) { return til_cage->live_allocs - til_cage->lit_allocs; }
 
 #ifdef TIL_CAGE_ASAN
