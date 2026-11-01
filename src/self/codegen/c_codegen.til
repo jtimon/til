@@ -15025,7 +15025,7 @@ priv builder_fill_emit_inventory := proc(mut lp: LoadedProgram) {
     mut inv_func_sites := Map(UPtr, BuilderFuncSites).new()
     while true {
         mut inv_round_sites := Set(Str).new()
-        // The hand-written C runtime (src/c/ext.c) is linked into every
+        // The hand-written C runtime (src/self/codegen/ext.c) is linked into every
         // program and calls Str_clone directly -- the cwd, env and blob
         // helpers each return an owned empty Str that way. That is a real
         // call site, just one written in C instead of til, so it seeds the
