@@ -1022,8 +1022,10 @@
   lists all of them, the artifact paths that can be named directly, and
   the options.
 
-  - ~make test~ builds + runs the full ASAN test suite (uses xvfb-run and
-    ~bin/til_asan~). Commit includes boot/.
+  - ~make test~ builds + runs the full test suite (uses xvfb-run). Commit
+    includes boot/. TEMPORARY (issue #464): without ASAN until #313 is
+    settled; ~make test_asan~ is the ASAN suite (~bin/til_asan~, ASAN
+    programs, the cage's leak report), which CI's native linux jobs run.
   - ~make two_pass~ builds, then rebuilds with the freshly-built ~bin/til~
     so ~boot/til.c~ reflects the new compiler self-applied. Use for
     "Two-pass: "-prefixed commits.

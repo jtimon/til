@@ -46,7 +46,7 @@ jobs:
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build and run tests
-        run: make test
+        run: make test_asan
       - name: Test target build
         run: |
           ./bin/til build --target=linux-x64 -o bin/hello_script_x64 examples/hello_script.til
@@ -134,7 +134,7 @@ jobs:
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build and run tests
-        run: make test
+        run: make test_asan
       - name: Test target build
         run: |
           ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64_native examples/hello_script.til

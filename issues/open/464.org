@@ -1,0 +1,27 @@
+# priority: medium
+# category: cleanups
+** OPEN #464 Restore ASAN as the default of make test (temporarily off since #313)
+
+TEMPORARY state, introduced on purpose: ~make test~ (and ~make test_two_pass~,
+which the merge script runs for "Two-pass: " commits) runs the suite WITHOUT
+ASAN. With the cage (#313) the sanitizer's bookkeeping became the dominant
+cost of every merge-time run (the "self-asan" line in img/totals.svg against
+"self"), and the merge loop needed the time back while #313's follow-ups
+settle (the one-flag layout, doc/self.org "Decided: one layout flag").
+
+What is lost meanwhile, locally: ASAN's heap and stack checks on the compiler
+and on every compiled test program, and the cage's exit-time leak report
+(test/leak_report.til and the other rows gated on the ASAN run are skipped).
+CI keeps all of it: the linux-x64 and linux-arm64 native jobs run
+~make test_asan~, and the opt-out suites build ASAN compilers as before.
+
+The revert, once #313 is settled:
+
+- make.til: ~run_test~ calls ~run_test_asan~'s body again (or simply
+  ~run_test_asan(b)~), and ~run_test_two_pass~ builds the ASAN compiler from
+  the self-applied bin/til and runs the suite with ~--til-bin bin/til_asan
+  --asan~ (the commented lines there).
+- .github/workflows/tests.yml: the two native linux jobs go back to
+  ~make test~ (or keep ~test_asan~, same thing then).
+- doc/self.org "Commands": drop the TEMPORARY note.
+- Close this issue in that commit.
