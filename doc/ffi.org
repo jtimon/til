@@ -99,8 +99,9 @@ instead converts an error into a host panic. Guest output uses host stdio.
 The call boundary supports core scalars, Str, and nested shared records
 and enums, with at most 63 declared parameters. Variadic and kwargs calls are
 supported; variadic element and keyword entry counts are not limited to 63.
-Pointer/reference-bearing record fields remain
-unsupported. Declared guest errors are supported through the typed
+Fixed record inputs can also carry ~ref I64~ fields pointing to the VM-owned
+cell described below; other pointer/reference-bearing fields remain unsupported.
+Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
 reference route described below.
@@ -262,8 +263,8 @@ callback.call(arguments)!
 
 The guest declares the identical enum schema and may retain its reference in
 guest globals between calls. Both sides read/write the SAME scalar; this
-payload is not a snapshot. Only fixed top-level enum inputs can use this
-contract, with ~ref I64~ variants pointing exactly to the receiving VM's cell.
+payload is not a snapshot. Fixed top-level enum and record inputs can use this
+contract, with ~ref I64~ variants/fields pointing exactly to the receiving VM's cell.
 Both pointer-niche and tagged enums are supported. Empty variants need no
 pointer; other owning variants retain their ordinary snapshot semantics.
 Arbitrary host pointers and another VM's cell are rejected before invocation.
@@ -283,11 +284,42 @@ different borrowed address, invocation reports ~TilVmError~ and leaves that
 host Tuple element unchanged, rather than exporting a guest-owned borrow.
 Earlier shared-cell effects and other ordinary copy-back effects remain.
 
+Fixed record inputs may combine one or more direct ~ref I64~ fields with
+ordinary snapshot fields, including nested values. Every reference field is
+checked against the same receiving VM cell before execution. Repeated fields
+preserve their aliasing: writing through one is immediately visible through
+the others and to the host. Bind a field as a typed reference to read/write
+its pointee using normal til reference semantics.
+
+#+begin_src til
+SharedRequest := struct { label := ""; ref count: I64 }
+UseRequest := proc(mut SharedRequest)
+ref mut cell: I64 = vm.shared_i64()
+mut arguments := Tuple.new()
+arguments.push(SharedRequest, own SharedRequest(label = format("host", " label"), count = cell))
+mut callback := vm.lookup("use_request", UseRequest)!
+callback.call(arguments)!
+#+end_src
+
+The record shell and its ordinary value fields still cross by deep snapshot.
+The guest may clone/retain that record without retaining host-owned string
+buffers. An owned record argument consumes only its guest snapshot, so its
+ordinary field changes do not copy back; its cell writes are shared regardless
+of argument ownership. A mutable record copies back its ordinary fields and
+validated reference pointers. Replacing any reference with a different address
+reports ~TilVmError~ and leaves that entire host Tuple element unchanged.
+Reference-bearing records remain rejected as results/errors, nested inputs,
+typed/heterogeneous variadic elements and keyword values.
+
 ~test/tilvm_cases.til::shared_cell_callback_tests~ runs in the installed
 ~tilvm_values~ ASAN host with empty PATH. It covers retained guest borrows,
 cross-VM/native-pointer rejection, nested/erased rejection, failed-load retry,
 mutation on error paths and recovery. ~test/tilvm_lifetime_error.til~ verifies
 host escape, destruction and replacement rejection for the cell reference.
+~test/tilvm_cases.til::shared_record_callback_tests~ adds mixed-layout record
+inputs, aliasing fields, retained record clones, owned-input isolation,
+copy-back on failures, invalid replacement, native/cross-VM pointer rejection,
+and schema/erased-input rejection in the same installed ASAN host.
 
 **** Nested values
 
@@ -579,8 +611,9 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- ~TilVmCallback.call(Tuple)~ does not marshal records with pointer/reference
-  fields. Typed and heterogeneous variadic calls, keyword maps and nested
+- ~TilVmCallback.call(Tuple)~ only admits direct ~ref I64~ fields in fixed
+  record inputs when they reference its VM-owned cell; other pointer/reference
+  fields remain unsupported. Typed and heterogeneous variadic calls, keyword maps and nested
   shared records/enums are
   supported. A fixed ~ref I64~ enum input may borrow the VM-owned shared cell;
   other borrowed and callable enum payloads remain outside this boundary.

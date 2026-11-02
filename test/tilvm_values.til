@@ -5,6 +5,8 @@ import("./tilvm_cases")
 // Values crossing the callback boundary: record/enum ownership and
 // variadic/keyword argument packing, mutation, and failure recovery.
 main := proc(root: Str) returns I64 {
+    record_error := shared_record_callback_tests(root)
+    assert(record_error.message == "record borrow error")
     shared_error := shared_cell_callback_tests(root)
     assert(shared_error.code == 21 && shared_error.message == "shared error")
     kwargs_callback_tests(root)

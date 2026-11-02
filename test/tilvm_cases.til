@@ -152,6 +152,161 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     return kept_error
 }
 
+SharedRecordData := struct { text := ""; marker: I32 = 0 }
+SharedRecord := struct { label := ""; byte: U8 = 0; ref first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }
+SharedRecordError := struct { message := "" }
+SharedRecordRetain := proc(SharedRecord)
+SharedRecordBorrow := proc(mut SharedRecord, I64) returns I64 throws SharedRecordError
+SharedRecordOwned := proc(own mut SharedRecord) returns Str
+SharedRecordReturn := func() returns SharedRecord
+SharedRecordThrow := proc() throws SharedRecord
+SharedRecordTail := func(values: ..SharedRecord) returns I64
+SharedRecordNested := struct { record: SharedRecord }
+SharedRecordNestedInput := proc(mut SharedRecordNested)
+
+retain_shared_record := proc(mut callback: TilVmCallback, mut vm: TilVm) {
+    ref mut cell: I64 = vm.shared_i64()
+    mut input := Tuple.new()
+    input.push(SharedRecord, own SharedRecord(label = format("retained ", "label"), first = cell,
+        data = SharedRecordData(text = format("retained ", "data")), second = cell))
+    callback.call(input)!
+}
+
+shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
+    schema := "SharedRecordData := struct { text := \"\"; marker: I32 = 0 }\nSharedRecord := struct { label := \"\"; byte: U8 = 0; ref first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }\n"
+    File.writefile("guest.til", format("mode lib\n", schema,
+        "SharedRecordError := struct { message := \"\" }\nother := vec(I64, 123)\nmut calls := 0\n",
+        "mut saved := SharedRecord(first = other.unsafe_get(0), second = other.unsafe_get(0))\n",
+        "retain_record := proc(value: SharedRecord) { noop_proc(); calls = calls + 1; saved = value.clone() }\n",
+        "read_calls := proc() returns I64 { noop_proc(); return calls }\n",
+        "tick_record := proc() returns I64 { noop_proc(); assert(saved.label == \"retained label\" && saved.data.text == \"retained data\"); ref mut first: I64 = saved.first; ref second: I64 = saved.second; first = first + 1; return second.clone() }\n",
+        "borrow_record := proc(mut value: SharedRecord, action: I64) returns I64 throws SharedRecordError {\n",
+        "noop_proc(); calls = calls + 1; ref mut first: I64 = value.first; ref second: I64 = value.second; first = first + 2; assert(first == second);\n",
+        "value.label = \"updated label\"; value.data.text = \"updated data\"; value.count = 19;\n",
+        "if action == 1 { throw SharedRecordError(message = \"record borrow error\") }; if action == 2 { panic(\"record borrow panic\") }; if action == 3 { exit(0) };\n",
+        "if action == 4 { value = SharedRecord(label = \"invalid replacement\", first = saved.first, second = other.unsafe_get(0)) }; return second.clone() }\n",
+        "consume_record := proc(own mut value: SharedRecord) returns Str { noop_proc(); ref mut first: I64 = value.first; first = first + 3; value.label = \"owned label\"; value.data.text = \"owned data\"; return value.label.clone() }\n",
+        "return_record := func() returns SharedRecord { return saved.clone() }\n",
+        "throw_record := proc() throws SharedRecord { noop_proc(); error: SharedRecord = saved.clone(); throw error }\n",
+        "tail_record := func(values: ..SharedRecord) returns I64 { return values.len().to_i64() }\n",
+        "SharedRecordNested := struct { record: SharedRecord }\nnested_record := proc(mut value: SharedRecordNested) { noop_proc(); value.record.count = 7 }\n",
+        "dynamic := proc(values: ..Dynamic) { noop_proc(); calls = calls + values.len().to_i64() }\n",
+        "keywords := proc(options: ...) { noop_proc(); calls = calls + options.len().to_i64() }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    ref mut cell: I64 = vm.shared_i64()
+    cell = 10
+    mut retain := vm.lookup("retain_record", SharedRecordRetain)!
+    mut borrow := vm.lookup("borrow_record", SharedRecordBorrow)!
+    mut consume := vm.lookup("consume_record", SharedRecordOwned)!
+    mut reader := vm.lookup("read_calls", SharedTick)!
+    mut tick := vm.lookup("tick_record", SharedTick)!
+    expect_lookup_failure(vm, "return_record", "result schema", signature = SharedRecordReturn)
+    expect_lookup_failure(vm, "throw_record", "error schema", signature = SharedRecordThrow)
+    expect_lookup_failure(vm, "tail_record", "argument schema", signature = SharedRecordTail)
+    expect_lookup_failure(vm, "nested_record", "argument schema", signature = SharedRecordNestedInput)
+    mut native_values := Tuple.new()
+    native_values.push(I64, own 20)
+    ref native: I64 = native_values.get(0)
+    mut other_vm := TilVm.new(root)
+    ref mut other_cell: I64 = other_vm.shared_i64()
+    other_cell = 30
+    mut invalid := Tuple.new()
+    invalid.push(SharedRecord, own SharedRecord(first = cell, second = native))
+    invalid_error := expect_call_failure(retain, invalid, "this VM's shared_i64", path = "guest.til")
+    assert(invalid_error.exit_status.is_none())
+    mut foreign := Tuple.new()
+    foreign.push(SharedRecord, own SharedRecord(first = cell, second = other_cell))
+    foreign_error := expect_call_failure(retain, foreign, "this VM's shared_i64", path = "guest.til")
+    assert(foreign_error.exit_status.is_none())
+    mut dynamic := vm.lookup("dynamic", SharedDynamic)!
+    mut keywords := vm.lookup("keywords", SharedKeywords)!
+    mut erased := Tuple.new()
+    erased.push(SharedRecord, own SharedRecord(first = cell, second = cell))
+    erased_error := expect_call_failure(dynamic, erased, "unsupported variadic element schema", path = "guest.til")
+    assert(erased_error.exit_status.is_none())
+    mut options := KwargsMap.new()
+    options.set("record", "SharedRecord", SharedRecord.size(), own SharedRecord(first = cell, second = cell))
+    mut empty := Tuple.new()
+    keyword_error := expect_call_failure(keywords, empty, "unsupported keyword schema", path = "guest.til", keywords = options)
+    assert(keyword_error.exit_status.is_none())
+    before := reader.call()!
+    ref count: I64 = before.get(0)
+    assert(count == 0 && cell == 10 && native == 20 && other_cell == 30)
+    retain_shared_record(retain, vm)
+    own retain.delete()
+    observed := tick.call()!
+    ref observed_value: I64 = observed.get(0)
+    assert(observed_value == 11 && cell == 11)
+    cell = 40
+    tick.call()!
+    assert(cell == 41)
+    mut kept_error := SharedRecordError()
+    for action in 0..5 {
+        mut args := Tuple.new()
+        args.push(SharedRecord, own SharedRecord(label = format("host ", "label"), first = cell,
+            data = SharedRecordData(text = format("host ", "data")), second = cell))
+        args.push(I64, own action.clone())
+        mut caught := false
+        call_throwing(SharedRecordBorrow)(borrow, args)?
+        catch (error: SharedRecordError) { assert(action == 1); kept_error = error; caught = true }
+        catch (error: TilVmError) {
+            assert(action >= 2)
+            if action == 2 { assert(error.to_str().contains("record borrow panic")) }
+            if action == 3 { assert(error.exit_status.unwrap() == 0) }
+            if action == 4 { assert(error.to_str().contains("guest replaced")) }
+            caught = true
+        }
+        if action != 0 { assert(caught) }
+        ref updated: SharedRecord = args.get(0)
+        ref updated_first: I64 = updated.first
+        ref updated_second: I64 = updated.second
+        assert(updated_first == updated_second)
+        if action == 4 {
+            assert(updated.label == "host label" && updated.data.text == "host data" && updated.count == 0)
+        } else {
+            assert(updated.label == "updated label" && updated.data.text == "updated data" && updated.count == 19)
+        }
+    }
+    assert(cell == 51)
+    mut owned_input := Tuple.new()
+    owned_input.push(SharedRecord, own SharedRecord(label = format("host ", "owned"), first = cell,
+        data = SharedRecordData(text = format("original ", "data")), second = cell))
+    owned_result := consume.call(owned_input)!
+    ref original: SharedRecord = owned_input.get(0)
+    assert(original.label == "host owned" && original.data.text == "original data")
+    ref original_first: I64 = original.first
+    ref original_second: I64 = original.second
+    assert(original_first == 54 && original_second == 54 && cell == 54)
+    tick.call()!
+    assert(cell == 55)
+    own owned_input.delete()
+    own erased.delete()
+    own options.delete()
+    own dynamic.delete()
+    own keywords.delete()
+    own invalid.delete()
+    own foreign.delete()
+    own consume.delete()
+    own tick.delete()
+    own reader.delete()
+    own borrow.delete()
+    ref owned_text: Str = owned_result.get(0)
+    assert(owned_text == "owned label")
+    // Each schema mismatch must be caught before the guest is invoked.
+    for fields: Str in array(Str,
+        schema.replace("ref first: I64", "ref first: U64"),
+        schema.replace("ref first: I64", "first: I64 = 0")) {
+        File.writefile("guest.til", format("mode lib\n", fields,
+            "retain_record := proc(value: SharedRecord) { noop_proc(); assert(value.count == 0) }\n"))
+        mut bad_schema := TilVm.new(root)
+        bad_schema.load_file("guest.til")!
+        expect_lookup_failure(bad_schema, "retain_record", "argument schema", signature = SharedRecordRetain)
+    }
+    return kept_error
+}
+
 // Shared cases for the installed SDK hosts. Each host runs in its own
 // directory with an empty PATH. All guest files are created AFTER host
 // compilation; neither the Til nor C compiler is needed at runtime.

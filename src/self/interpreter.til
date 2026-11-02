@@ -6916,7 +6916,12 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
         gn := interp_lookup_type(decl_type_name(gf, ctx.symbols), ctx, true)
         if gn.len() == 0 { return false }
         if hf.name != gf.name || hf.type_name() != gn || hf.is_mut != gf.is_mut { return false }
-        if hf.own_type.is(OwnType.Shallow).and(gf.own_type.is(OwnType.Shallow)).not() { return false }
+        if hf.own_type != gf.own_type { return false }
+        if gf.own_type.is(OwnType.Ref) {
+            if allow_shared.not().or(gn != "I64") { return false }
+            continue
+        }
+        if gf.own_type.is(OwnType.Shallow).not() { return false }
         if interp_callback_schema_visit(gn, visited, ctx).not() { return false }
     }
     ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
@@ -6968,6 +6973,12 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
     for i in 0..sd.fields.len() {
         ref field : Declaration = sd.fields[i]
         ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
+        if field.own_type.is(OwnType.Ref) {
+            // This fixed input's ref I64 address was validated against the
+            // VM-owned cell before invocation (and before mutable copy-back).
+            memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), Dynamic.size())
+            continue
+        }
         field_type := type_from_name_init_name(decl_type_name(field, ctx.symbols), ctx.scope, ctx.symbols)
         copied : Dynamic = interp_callback_error_copy(decl_type_name(field, ctx.symbols), ptr_add(source, offset.to_usize()), ctx, to_guest)
         // A narrow enum's interpreter scratch slot is wider than its inline
@@ -7098,7 +7109,7 @@ priv interp_callback_pack_keywords := proc(keywords: KwargsMap, mut ctx: Context
     return storage
 }
 
-// Fixed enum arguments may borrow exactly this session's scalar cell. Check
+// Fixed enum/record arguments may borrow exactly this session's scalar cell. Check
 // the address before copying/dereferencing it; no arbitrary native pointer
 // becomes a guest borrow. Results, errors and nested/erased inputs still use
 // the ordinary snapshot-only schema validation.
@@ -7106,7 +7117,21 @@ priv interp_callback_shared_input_valid := proc(name: Str, data: Dynamic, mut se
     def_o := ctx.scope.get_struct(name, ctx.symbols)
     if def_o.is_none() { return true } // Scalar/Str input, already schema-checked.
     ref def : Expr = def_o.unwrap()
-    if def.node_type.is(NodeType.EnumDef).not() { return true }
+    if def.node_type.is(NodeType.StructDef) {
+        ref sd : StructDef = structdef_of(def)
+        for index in 0..sd.fields.len() {
+            ref field : Declaration = sd.fields[index]
+            if field.own_type.is(OwnType.Ref).not() { continue }
+            ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
+            // Use the schema's field index, not a packed sequence of ref
+            // fields: inline value fields can add padding between pointers.
+            ref offset : U64 = ptr_add(layout.offsets, index.mul(8))
+            ref pointer : Dynamic = deref(ptr_add(data, offset.to_usize()))
+            if session.shared_i64_storage.is_none() { return false }
+            if pointer.ptr_eq(session.shared_i64()).not() { return false }
+        }
+        return true
+    }
     index := enum_variant_index_for_tag(def, enum_data_tag_key(data, def))
     if index < 0 { panic("callback enum input has an invalid tag: ", name) }
     ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
@@ -7196,7 +7221,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         if param_index.to_i32() != expected.variadic_index {
             if interp_callback_shared_input_valid(want, arguments.get(i), session, lp.ctx).not() {
                 context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-                    "borrowed I64 enum input must reference this VM's shared_i64 cell")
+                    "borrowed I64 input must reference this VM's shared_i64 cell")
                 return Option(Tuple).None
             }
         }
@@ -7320,7 +7345,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
             ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
             if interp_callback_shared_input_valid(expected.params[i].type_name(), source.ptr, session, lp.ctx).not() {
                 context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-                    "guest replaced a borrowed I64 enum input with a reference outside this VM's shared_i64 cell")
+                    "guest replaced a borrowed I64 input with a reference outside this VM's shared_i64 cell")
                 invalid_copyback = true
                 continue
             }
