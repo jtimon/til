@@ -2378,7 +2378,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
                 if view_source.len() > 0 {
                     gc_add_borrow_edge(edges, view_source, dd.name, si.to_i64(), si.to_i64())
                 }
-                if dd.own_type.is(OwnType.Ref).not().and(type_carries_borrow_t(scope, dd.til_type, symbols)) {
+                if dd.own_type.is(OwnType.Ref).or(type_carries_borrow_t(scope, dd.til_type, symbols)) {
                     collect_call_ref_return_edges(stmt.children[0], dd.name, si.to_i64(), edges, scope, symbols, ctx)
                 }
             }

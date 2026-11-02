@@ -22,6 +22,13 @@ namespace:
         return vm
     }
 
+    /// This VM's stable shared scalar, initially zero and allocated lazily.
+    /// Guest callbacks can retain ref I64 enum inputs pointing to this cell.
+    /// Access is serialized with VM operations; the reference borrows the VM.
+    shared_i64 := func(mut self: TilVm) returns ref I64 {
+        return self.session.shared_i64()
+    }
+
     /// Load one mode lib module and evaluate its initializers in this process.
     /// A failed load can be retried on the same VM. A successful load seals the
     /// first-slice session; reload uses a fresh VM. No compiler is run.

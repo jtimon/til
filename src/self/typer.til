@@ -11915,7 +11915,16 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
                 }
                 if fd.ref_return_params.band(bit) != 0 {
                     ref p : Declaration = fd.sig.params[pi]
-                    if type_carries_borrow_t(scope, p.til_type, symbols) {
+                    mut carries := type_carries_borrow_t(scope, p.til_type, symbols)
+                    if fd.sig.return_own_type.is(OwnType.Ref) {
+                        // Unwrapping a borrowed enum payload forwards its
+                        // pointee, not the local enum shell. Other direct ref
+                        // results still need the argument owner's storage.
+                        pdef := scope.get_struct(decl_type_name(p, symbols), symbols)
+                        carries = false
+                        if pdef.is_some() { carries = enum_has_ref_payload(pdef.unwrap()) }
+                    }
+                    if carries {
                         roots := carried_roots_of(scope, expr_borrow_roots(scope, arg_o.unwrap(), symbols), "", symbols)
                         for r : BorrowRoot in roots {
                             mut cr := r.clone()
@@ -11923,6 +11932,9 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
                             push_root_unique(out.indirect, cr)
                         }
                     } else {
+                        // A direct ref result aliases argument storage even
+                        // when the owner also contains unrelated borrows.
+                        // Carried results have their own summary relation.
                         collect_direct_return_borrow_source(scope, arg_o.unwrap(), symbols, out)
                     }
                 }

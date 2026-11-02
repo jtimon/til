@@ -59,3 +59,24 @@ replace_borrowed_vm := proc(root: Str) {
     vm = TilVm.new(root)
     callback.call()!
 }
+
+escape_shared_cell := func(root: Str) returns ref I64 {
+    mut shared_vm := TilVm.new(root)
+    return shared_vm.shared_i64()
+}
+
+destroy_before_shared_cell := proc(root: Str) {
+    mut shared_vm := TilVm.new(root)
+    ref mut cell: I64 = shared_vm.shared_i64()
+    own shared_vm.delete()
+    cell = 7
+    println(cell.to_str())
+}
+
+replace_shared_cell_vm := proc(root: Str) {
+    mut shared_vm := TilVm.new(root)
+    ref mut cell: I64 = shared_vm.shared_i64()
+    shared_vm = TilVm.new(root)
+    cell = 9
+    println(cell.to_str())
+}

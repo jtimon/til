@@ -475,6 +475,7 @@ typedef struct _ffi_type ffi_type;
 typedef struct InterpCallableBox InterpCallableBox;
 typedef struct HeapBinding HeapBinding;
 typedef struct Scope Scope;
+typedef struct priv___src_self_interpreter_til__InterpSharedI64 priv___src_self_interpreter_til__InterpSharedI64;
 typedef struct InterpSession InterpSession;
 typedef struct priv___src_self_interpreter_til__RawResultInfo priv___src_self_interpreter_til__RawResultInfo;
 typedef struct priv___src_self_interpreter_til__InterfaceCallBox priv___src_self_interpreter_til__InterfaceCallBox;
@@ -484,6 +485,7 @@ typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpret
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
+typedef struct Option__priv___src_self_interpreter_til__InterpSharedI64 Option__priv___src_self_interpreter_til__InterpSharedI64;
 typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
@@ -1776,6 +1778,11 @@ typedef struct InterpCallableBox {
 } InterpCallableBox;
 
 
+typedef struct priv___src_self_interpreter_til__InterpSharedI64 {
+    I64 value;
+} priv___src_self_interpreter_til__InterpSharedI64;
+
+
 typedef struct priv___src_self_interpreter_til__RawResultInfo {
     U8 *source_type_p;
     Bool is_ref;
@@ -1837,6 +1844,10 @@ typedef struct FFITypePtrBox {
     I32 layout_status;
 } FFITypePtrBox;
 
+
+struct Option__priv___src_self_interpreter_til__InterpSharedI64 {
+    priv___src_self_interpreter_til__InterpSharedI64 *data;
+};
 
 struct Option__ref_U8 {
     U8 *data;
@@ -2399,6 +2410,7 @@ typedef struct InterpSession {
     Bool is_repl;
     Bool capture_output;
     Set__Str evaluated_units;
+    Option__priv___src_self_interpreter_til__InterpSharedI64 shared_i64_storage;
 } InterpSession;
 
 

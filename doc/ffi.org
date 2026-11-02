@@ -220,8 +220,9 @@ recovery after failure. Throwing record callbacks use the same
 Shared enums can cross as arguments, results or declared errors. Supported
 variants are payload-free, scalar/Str-bearing, or carry another shared record
 or enum. Both tagged unions and owned-box niche enums (such
-as an optional record) retain their normal representation. Borrowed-reference
-and callable payloads are rejected at every depth.
+as an optional record) retain their normal representation. Callable payloads
+remain rejected. Borrowed-reference payloads are rejected except for the fixed
+~ref I64~ enum inputs described below.
 
 Checked lookup compares tag type/width, ordered variant names, discriminant
 values, payload types and qualifiers, and each record payload's schema. A
@@ -240,6 +241,54 @@ enums, scalar/Str/record variants, optional records, borrowed results, enum
 errors, variant replacement, teardown and incompatible-schema rejection in
 the installed ASAN host with empty PATH.
 
+**** VM-owned shared scalar
+
+~vm.shared_i64() returns ref I64~ exposes one shared scalar per VM, initially
+zero and allocated lazily. Repeated calls return the same storage. The host
+reference borrows its VM; it cannot escape a local VM, survive deletion or
+remain live across replacement of that VM. Serialize host access with all
+VM/callback operations, as for the rest of the embedding API.
+
+#+begin_src til
+SharedScalar := enum { None, Some: ref I64 }
+Retain := proc(SharedScalar)
+ref mut cell: I64 = vm.shared_i64()
+cell = 10
+mut callback := vm.lookup("retain_cell", Retain)!
+mut arguments := Tuple.new()
+arguments.push(SharedScalar, own SharedScalar.Some(cell))
+callback.call(arguments)!
+#+end_src
+
+The guest declares the identical enum schema and may retain its reference in
+guest globals between calls. Both sides read/write the SAME scalar; this
+payload is not a snapshot. Only fixed top-level enum inputs can use this
+contract, with ~ref I64~ variants pointing exactly to the receiving VM's cell.
+Both pointer-niche and tagged enums are supported. Empty variants need no
+pointer; other owning variants retain their ordinary snapshot semantics.
+Arbitrary host pointers and another VM's cell are rejected before invocation.
+Nested inputs, variadic tails, keyword maps, returned values and declared
+errors continue to reject reference-bearing schemas.
+
+The cell stays alive until its VM object is destroyed, including across a
+failed load and retry; guest state is torn down before the cell. Destroying an
+input Tuple or a callback does not invalidate guest references already retained
+by that VM. Constructing a candidate VM for reload creates an independent
+cell; references cannot be transferred to that candidate.
+
+Guest mutations remain visible after a declared throw, panic or exit, and
+the callback remains usable. A mutable enum argument may copy back the shared
+cell reference or an owning/empty variant. If the guest replaces it with a
+different borrowed address, invocation reports ~TilVmError~ and leaves that
+host Tuple element unchanged, rather than exporting a guest-owned borrow.
+Earlier shared-cell effects and other ordinary copy-back effects remain.
+
+~test/tilvm_cases.til::shared_cell_callback_tests~ runs in the installed
+~tilvm_values~ ASAN host with empty PATH. It covers retained guest borrows,
+cross-VM/native-pointer rejection, nested/erased rejection, failed-load retry,
+mutation on error paths and recovery. ~test/tilvm_lifetime_error.til~ verifies
+host escape, destruction and replacement rejection for the cell reference.
+
 **** Nested values
 
 Records in records, enums in records, records in enums and enums in enums all
@@ -253,7 +302,7 @@ Recursive type graphs through owned optional boxes are supported. Validation
 visits each distinct schema once per traversal and checks all its members; this
 does not create a persistent schema cache. Copying follows the finite owned
 value tree. Explicit pointer/reference fields and borrowed/callable enum
-payloads remain outside this contract.
+payloads remain outside this nested snapshot contract.
 
 ~test/tilvm.til::nested_callback_tests~ covers mixed nesting, a recursive
 owned-node schema, mutable copy-back on success/throw/panic/exit, owned-input
@@ -533,7 +582,8 @@ possible extensions:
 - ~TilVmCallback.call(Tuple)~ does not marshal records with pointer/reference
   fields. Typed and heterogeneous variadic calls, keyword maps and nested
   shared records/enums are
-  supported; borrowed and callable enum payloads remain outside this boundary.
+  supported. A fixed ~ref I64~ enum input may borrow the VM-owned shared cell;
+  other borrowed and callable enum payloads remain outside this boundary.
   The ~call_throwing(E)~ adapter supports the same nested error schemas,
   including multiple declared errors
   through its signature-based form. Extending

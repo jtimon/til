@@ -3,6 +3,155 @@ mode lib
 import("std/tilvm")
 import("std/file")
 
+SharedScalar := enum { None, Some: ref I64 }
+SharedTagged := enum(U8) { Empty = 5, Cell: ref I64 = 7, Number: I64 = 9 }
+SharedRetain := proc(SharedScalar)
+SharedBorrow := proc(mut SharedScalar, I64) returns I64 throws TransformError
+SharedTaggedRead := func(SharedTagged) returns I64
+SharedReturn := func() returns SharedScalar
+SharedThrow := func() throws SharedScalar
+SharedTail := func(values: ..SharedScalar) returns I64
+SharedTick := proc() returns I64
+SharedNested := struct { value := SharedScalar.None }
+SharedNestedInput := proc(mut SharedNested)
+SharedDynamic := proc(values: ..Dynamic)
+SharedKeywords := proc(options: ...)
+SharedCycle := enum { Empty, Cell: ref I64, Next: SharedCycleLink }
+SharedCycleLink := enum { None, Some: SharedCycleNode }
+SharedCycleNode := struct { value := SharedCycle.Empty }
+SharedCycleInput := proc(SharedCycle)
+
+shared_cell_callback_tests := proc(root: Str) returns TransformError {
+    mut vm := TilVm.new(root)
+    ref mut cell : I64 = vm.shared_i64()
+    assert(cell == 0)
+    cell = 10
+    // A failed initial load resets guest state, not the cell or its host borrow.
+    expect_failure(vm, "mode lib\npanic(\"retry cell\")\n", "eval", "retry cell", 2)
+    assert(cell == 10 && vm.shared_i64().ptr_eq(cell))
+    File.writefile("guest.til", format(
+        "mode lib\nSharedScalar := enum { None, Some: ref I64 }\n",
+        "SharedTagged := enum(U8) { Empty = 5, Cell: ref I64 = 7, Number: I64 = 9 }\n",
+        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "mut saved := SharedScalar.None\nmut calls := 0\nother := vec(I64, 123)\n",
+        "retain_cell := proc(value: SharedScalar) { noop_proc(); calls = calls + 1; saved = value.clone() }\n",
+        "read_calls := proc() returns I64 { noop_proc(); return calls }\n",
+        "tick := proc() returns I64 { noop_proc(); switch saved { case .Some(n): n = n + 1; return n; case: return -1 } }\n",
+        "borrow_cell := proc(mut value: SharedScalar, action: I64) returns I64 throws TransformError {\n",
+        "noop_proc(); calls = calls + 1; switch value { case .Some(n): n = n + 2; case: };\n",
+        "if action == 1 { throw TransformError(code = 21, message = \"shared error\") };\n",
+        "if action == 2 { panic(\"shared panic\") }; if action == 3 { exit(0) };\n",
+        "if action == 4 { value = SharedScalar.Some(other.unsafe_get(0)) }; return calls }\n",
+        "tagged := func(value: SharedTagged) returns I64 { switch value { case .Cell(n): return n; case .Number(n): return n; case: return -1 } }\n",
+        "return_cell := func() returns SharedScalar { return saved.clone() }\n",
+        "throw_cell := func() throws SharedScalar { throw SharedScalar.Some(other.unsafe_get(0)) }\n",
+        "tail := func(values: ..SharedScalar) returns I64 { return values.len().to_i64() }\n",
+        "SharedNested := struct { value := SharedScalar.None }\n",
+        "nested := proc(mut value: SharedNested) { noop_proc(); value.value = SharedScalar.None }\n",
+        "dynamic := proc(values: ..Dynamic) { noop_proc(); calls = calls + values.len().to_i64() }\n",
+        "keywords := proc(options: ...) { noop_proc(); calls = calls + options.len().to_i64() }\n",
+        "SharedCycle := enum { Empty, Cell: ref I64, Next: SharedCycleLink }\nSharedCycleLink := enum { None, Some: SharedCycleNode }\nSharedCycleNode := struct { value := SharedCycle.Empty }\n",
+        "cycle := proc(value: SharedCycle) { noop_proc(); assert(value.is(SharedCycle.Empty)) }\n"))
+    vm.load_file("guest.til")?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut retain := vm.lookup("retain_cell", SharedRetain)!
+    mut borrow := vm.lookup("borrow_cell", SharedBorrow)!
+    mut tagged := vm.lookup("tagged", SharedTaggedRead)!
+    mut reader := vm.lookup("read_calls", SharedTick)?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut tick := vm.lookup("tick", SharedTick)!
+    expect_lookup_failure(vm, "return_cell", "result schema", signature = SharedReturn)
+    expect_lookup_failure(vm, "throw_cell", "error schema", signature = SharedThrow)
+    expect_lookup_failure(vm, "tail", "argument schema", signature = SharedTail)
+    expect_lookup_failure(vm, "nested", "argument schema", signature = SharedNestedInput)
+    expect_lookup_failure(vm, "cycle", "argument schema", signature = SharedCycleInput)
+    mut erased := vm.lookup("dynamic", SharedDynamic)!
+    mut keyword := vm.lookup("keywords", SharedKeywords)!
+    mut erased_args := Tuple.new()
+    erased_args.push(SharedScalar, own SharedScalar.Some(cell))
+    erased_error := expect_call_failure(erased, erased_args, "unsupported variadic element schema", path = "guest.til")
+    assert(erased_error.exit_status.is_none())
+    mut keyword_args := KwargsMap.new()
+    keyword_args.set("cell", "SharedScalar", SharedScalar.size(), own SharedScalar.Some(cell))
+    mut empty_args := Tuple.new()
+    keyword_error := expect_call_failure(keyword, empty_args, "unsupported keyword schema", path = "guest.til", keywords = keyword_args)
+    assert(keyword_error.exit_status.is_none())
+    mut native_input := Tuple.new()
+    native_input.push(I64, own 20)
+    ref mut native: I64 = native_input.get(0)
+    mut invalid := Tuple.new()
+    invalid.push(SharedScalar, own SharedScalar.Some(native))
+    invalid_error := expect_call_failure(retain, invalid, "this VM's shared_i64", path = "guest.til")
+    assert(invalid_error.exit_status.is_none())
+    mut other_vm := TilVm.new(root)
+    ref mut other_cell: I64 = other_vm.shared_i64()
+    other_cell = 30
+    mut foreign := Tuple.new()
+    foreign.push(SharedScalar, own SharedScalar.Some(other_cell))
+    foreign_error := expect_call_failure(retain, foreign, "this VM's shared_i64", path = "guest.til")
+    assert(foreign_error.exit_status.is_none())
+    before := reader.call()!
+    ref count: I64 = before.get(0)
+    assert(count == 0 && native == 20 && other_cell == 30)
+    // Guest retention survives destruction of the input Tuple and callback.
+    mut input := Tuple.new()
+    input.push(SharedScalar, own SharedScalar.Some(cell))
+    retain.call(input)!
+    own input.delete()
+    own retain.delete()
+    tick.call()!
+    assert(cell == 11)
+    cell = 40
+    observed := tick.call()!
+    ref observed_value: I64 = observed.get(0)
+    assert(observed_value == 41 && cell == 41)
+    mut kept_error := TransformError()
+    for action in 0..5 {
+        mut args := Tuple.new()
+        args.push(SharedScalar, own SharedScalar.Some(cell))
+        args.push(I64, own action.clone())
+        mut caught := false
+        call_throwing(SharedBorrow)(borrow, args)?
+        catch (error: TransformError) { assert(action == 1); kept_error = error; caught = true }
+        catch (error: TilVmError) {
+            assert(action >= 2)
+            if action == 2 { assert(error.to_str().contains("shared panic")) }
+            if action == 3 { assert(error.exit_status.unwrap() == 0) }
+            if action == 4 { assert(error.to_str().contains("guest replaced")) }
+            caught = true
+        }
+        if action != 0 { assert(caught) }
+    }
+    assert(cell == 51)
+    tick.call()!
+    assert(cell == 52)
+    mut tagged_args := Tuple.new()
+    tagged_args.push(SharedTagged, own SharedTagged.Cell(cell))
+    tagged_result := tagged.call(tagged_args)!
+    ref tagged_value: I64 = tagged_result.get(0)
+    assert(tagged_value == 52)
+    // None has no pointer and is a normal legal input.
+    mut none := Tuple.new()
+    none.push(SharedScalar, own SharedScalar.None)
+    none.push(I64, own 0)
+    call_throwing(TransformError)(borrow, none)!
+    own tagged_args.delete()
+    own erased_args.delete()
+    own keyword_args.delete()
+    own erased.delete()
+    own keyword.delete()
+    own none.delete()
+    own foreign.delete()
+    own invalid.delete()
+    own tick.delete()
+    own reader.delete()
+    own tagged.delete()
+    own borrow.delete()
+    assert(kept_error.code == 21 && kept_error.message == "shared error")
+    assert(tagged_value == 52)
+    return kept_error
+}
+
 // Shared cases for the installed SDK hosts. Each host runs in its own
 // directory with an empty PATH. All guest files are created AFTER host
 // compilation; neither the Til nor C compiler is needed at runtime.

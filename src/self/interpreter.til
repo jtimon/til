@@ -373,6 +373,8 @@ Scope := struct {
     is_call_scope := false
 }
 
+priv InterpSharedI64 := struct { value: I64 = 0 }
+
 InterpSession := struct {
     // #321/#324: the session's root scope, OWNED. It was `ref ... = NULL`
     // -- an owned pointer wearing a borrow label, freed through the #324
@@ -406,6 +408,19 @@ InterpSession := struct {
     // core_evaluated plays for core_units. Keyed by path so a mid-session
     // import (added via the full-load path) is picked up on its first turn.
     evaluated_units := Set(Str).new()
+    // Allocated only on shared_i64 access. Session resets tear down guest
+    // borrowers, not this cell: host references remain valid until VM deletion.
+    shared_i64_storage := Option(InterpSharedI64).None
+namespace:
+    shared_i64 := func(mut self: InterpSession) returns ref I64 {
+        if self.shared_i64_storage.is_none() {
+            self.shared_i64_storage = Option(InterpSharedI64).Some(InterpSharedI64())
+        }
+        switch self.shared_i64_storage {
+        case .Some(cell): return cell.value
+        case: panic("shared I64 cell was not initialized")
+        }
+    }
 }
 
 // Shared by the installed facade and its callback implementation. These are
@@ -6831,7 +6846,8 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
         // Kwargs likewise validate each concrete entry at invocation.
         if i.to_i32() == expected.kwargs_index { continue }
         if i.to_i32() == expected.variadic_index && expected.params[i].type_name() == "Dynamic" { continue }
-        if interp_callback_error_schema(expected.params[i].type_name(), lp.ctx).not() {
+        allow_shared := i.to_i32() != expected.variadic_index
+        if interp_callback_error_schema(expected.params[i].type_name(), lp.ctx, allow_shared).not() {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
                 declaration.path, declaration.line, declaration.col,
                 format("unsupported or mismatched shared callback argument schema: ", expected.params[i].type_name()))
@@ -6853,17 +6869,19 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
 // The visited set belongs to this one validation, not to the VM. An owned
 // niche can close a type-graph cycle; every distinct schema still has all its
 // fields/variants checked before the root succeeds.
-priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns Bool {
+priv interp_callback_error_schema := proc(name: Str, mut ctx: Context, allow_shared: Bool = false) returns Bool {
     mut visited := Set(Str).new()
-    return interp_callback_schema_visit(name, visited, ctx)
+    return interp_callback_schema_visit(name, visited, ctx, allow_shared)
 }
 
-priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut ctx: Context) returns Bool {
+priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut ctx: Context, allow_shared: Bool = false) returns Bool {
     if is_scalar_type_name(name).or(name == "Str") { return true }
     if visited.has(name) { return true }
     guest_o := ctx.scope.get_struct(name, ctx.symbols)
     if guest_o.is_none() { return false }
-    visited.add(own name.clone())
+    // A root-only shared-reference allowance is not proof that the same
+    // schema is legal nested inside another variant/field.
+    if allow_shared.not() { visited.add(own name.clone()) }
     if guest_o.unwrap().node_type.is(NodeType.EnumDef) {
         ref def : Expr = guest_o.unwrap()
         ref guest : EnumDef = enumdef_of(def)
@@ -6874,7 +6892,12 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
             ref hv : VariantDef = host.variants[i]
             if gv.name != hv.name || gv.tag_value != hv.tag_value || gv.payload_type != hv.payload_type { return false }
             if gv.payload_const != hv.payload_const { return false }
-            if gv.payload_ref.or(hv.payload_ref).or(gv.payload_funcsig).or(hv.payload_funcsig) { return false }
+            if gv.payload_funcsig.or(hv.payload_funcsig) { return false }
+            if gv.payload_ref != hv.payload_ref { return false }
+            if gv.payload_ref {
+                if allow_shared.not().or(gv.payload_type != "I64") { return false }
+                continue
+            }
             if gv.payload_type.len() == 0 { continue }
             if interp_callback_schema_visit(gv.payload_type, visited, ctx).not() { return false }
             pt := type_from_name_init_name(gv.payload_type, ctx.scope, ctx.symbols)
@@ -6917,6 +6940,7 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
             ref box : Dynamic = deref(source)
             if box.is_null() { return out }
             ref variant : VariantDef = enumdef_of(def).variants[enum_niche_some_index(def).to_usize()]
+            if variant.payload_ref { write_ptr(out, box); return out }
             copied : Dynamic = interp_callback_error_copy(variant.payload_type, box, ctx, to_guest)
             write_ptr(out, copied)
             return out
@@ -6928,6 +6952,10 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
         if variant.payload_type.len() > 0 {
             ref offset : U64 = ptr_add(layout.offsets, 8)
+            if variant.payload_ref {
+                memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), Dynamic.size())
+                return out
+            }
             copied : Dynamic = interp_callback_error_copy(variant.payload_type, ptr_add(source, offset.to_usize()), ctx, to_guest)
             memcpy(ptr_add(out, offset.to_usize()), copied, dyn_size_of(variant.payload_type))
             EvalHeap.heap_free(own copied)
@@ -7070,6 +7098,30 @@ priv interp_callback_pack_keywords := proc(keywords: KwargsMap, mut ctx: Context
     return storage
 }
 
+// Fixed enum arguments may borrow exactly this session's scalar cell. Check
+// the address before copying/dereferencing it; no arbitrary native pointer
+// becomes a guest borrow. Results, errors and nested/erased inputs still use
+// the ordinary snapshot-only schema validation.
+priv interp_callback_shared_input_valid := proc(name: Str, data: Dynamic, mut session: InterpSession, mut ctx: Context) returns Bool {
+    def_o := ctx.scope.get_struct(name, ctx.symbols)
+    if def_o.is_none() { return true } // Scalar/Str input, already schema-checked.
+    ref def : Expr = def_o.unwrap()
+    if def.node_type.is(NodeType.EnumDef).not() { return true }
+    index := enum_variant_index_for_tag(def, enum_data_tag_key(data, def))
+    if index < 0 { panic("callback enum input has an invalid tag: ", name) }
+    ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
+    if variant.payload_ref.not() { return true }
+    if session.shared_i64_storage.is_none() { return false }
+    ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
+    mut slot : Dynamic = data
+    if enum_is_niche(def).not() {
+        ref offset : U64 = ptr_add(layout.offsets, 8)
+        slot = ptr_add(data, offset.to_usize())
+    }
+    ref pointer : Dynamic = deref(slot)
+    return pointer.ptr_eq(session.shared_i64())
+}
+
 // Internal call boundary using the existing typed Tuple storage. Host inputs
 // stay owned by arguments: the guest receives independent snapshots, transfers
 // those snapshots to own parameters, and writes borrowed mut snapshots back to the Tuple
@@ -7140,6 +7192,13 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
                 format("guest argument ", (i + 1).to_str(), " type/width mismatch: expected ", want, ", received ", got))
             return Option(Tuple).None
+        }
+        if param_index.to_i32() != expected.variadic_index {
+            if interp_callback_shared_input_valid(want, arguments.get(i), session, lp.ctx).not() {
+                context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+                    "borrowed I64 enum input must reference this VM's shared_i64 cell")
+                return Option(Tuple).None
+            }
         }
     }
     for key, value in keywords.items {
@@ -7252,12 +7311,19 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         heap_drop_by_type(ret_type, destination, lp.ctx)
         EvalHeap.heap_free(own destination)
     }
+    mut invalid_copyback := false
     for i in 0..expected.params.len() {
         if i.to_i32() == expected.variadic_index || i.to_i32() == expected.kwargs_index { continue }
         ref param : Declaration = fd.sig.params[interp_callback_param_index(fd, i)]
         if param.is_mut.and(param.own_type.is(OwnType.Ref)) {
             arg_name := format("TilVm.argument.", i.to_str())
             ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
+            if interp_callback_shared_input_valid(expected.params[i].type_name(), source.ptr, session, lp.ctx).not() {
+                context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
+                    "guest replaced a borrowed I64 enum input with a reference outside this VM's shared_i64 cell")
+                invalid_copyback = true
+                continue
+            }
             copied : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), source.ptr, lp.ctx)
             input_index := interp_callback_param_argument(expected, arguments.len(), i)
             ref mut slot : Dynamic = arguments.get(input_index)
@@ -7268,7 +7334,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     }
     scope_drop_owned_bindings(temps)
     scope_free(own temps)
-    if lp.ctx.eval.eval_aborted { return Option(Tuple).None }
+    if lp.ctx.eval.eval_aborted.or(invalid_copyback) { return Option(Tuple).None }
     return Option(Tuple).Some(own values)
 }
 

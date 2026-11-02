@@ -5,6 +5,8 @@ import("./tilvm_cases")
 // Keep the standalone all-cases host. The suite runs the semantic families
 // separately through install_tilvm.til, each with its own installation.
 main := proc(root: Str) returns I64 {
+    shared_error := shared_cell_callback_tests(root)
+    assert(shared_error.code == 21 && shared_error.message == "shared error")
     kwargs_callback_tests(root)
     variadic_callback_tests(root)
     nested_callback_tests(root)
