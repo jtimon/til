@@ -1238,7 +1238,7 @@ main := proc(args: ..Str) {
     // directory. Interpret the shared orchestration driver so simultaneous
     // rows do not race while rebuilding the same driver binary. The tested
     // hosts are still compiled with ASAN and run with an empty PATH.
-    for family : Str in array(Str, "lifecycle", "calls", "values") {
+    for family : Str in array(Str, "lifecycle", "calls", "lookup", "values") {
         add_single(tests, format("install_tilvm_", family), "build", 0, "",
             format(TIL, " interpret test/install_tilvm.til tilvm_", family))
     }
