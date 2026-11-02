@@ -1244,7 +1244,7 @@ main := proc(args: ..Str) {
     }
     // The native driver calls the host C ABI directly (realpath_str). Keep
     // its original compiled execution, with distinct outputs for each row.
-    for family : Str in array(Str, "state", "prelude", "reload") {
+    for family : Str in array(Str, "state", "config", "prelude", "reload") {
         add_single(tests, format("install_tilvm_native_", family), "build", 0, "",
             format(TIL, " run -o bin/c/install_tilvm_native_", family,
                 " -c gen/c/install_tilvm_native_", family,

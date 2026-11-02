@@ -464,7 +464,7 @@ native_enum_test := proc(root: Str) {
     println("installed TilVm native enum PASS")
 }
 
-native_state_tests := proc(root: Str, with_reload: Bool = false) {
+native_state_tests := proc(root: Str, with_config_and_reload: Bool = false) {
     native.native_set(41)
     // This library is NOT linked into the host. Its explicit path must load
     // it at VM preparation time, rather than finding a host-preloaded symbol.
@@ -526,9 +526,19 @@ native_state_tests := proc(root: Str, with_reload: Bool = false) {
     native.native_increment()
     assert_eq(I64, native.native_get(), 48)
     // The standalone all-cases host retains the original interleaving.
-    // In the suite, editor reload owns an independent native buffer.
-    if with_reload { editor_buffer_test(root) }
-    native_config_test(root)
+    // In the suite, reload and config each have their own native state.
+    if with_config_and_reload {
+        editor_buffer_test(root)
+        native_config_test(root)
+    }
     assert_eq(I64, native.native_get(), 48)
     println("installed native TilVm shared state PASS: 41 -> 48")
+}
+
+native_config_tests := proc(root: Str) {
+    // The string-view case expects "slice 48". Seed that fixture explicitly
+    // instead of depending on another scenario's VM calls to establish it.
+    native.native_set(48)
+    native_config_test(root)
+    assert_eq(I64, native.native_get(), 48)
 }

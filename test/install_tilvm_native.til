@@ -13,7 +13,8 @@ main := proc(fixture: Str = "tilvm_native") returns I64 {
     state_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_state"))
     prelude_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_prelude"))
     reload_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_reload"))
-    if state_family.or(prelude_family).or(reload_family).not() { panic("unknown native TilVm fixture: ", fixture) }
+    config_family := fixture.eq("tilvm_native").or(fixture.eq("tilvm_native_config"))
+    if state_family.or(prelude_family).or(reload_family).or(config_family).not() { panic("unknown native TilVm fixture: ", fixture) }
     prefix := format("tmp/install_", fixture)
     work := format(prefix, "_work")
     File.remove_tree(prefix)
@@ -94,7 +95,7 @@ main := proc(fixture: Str = "tilvm_native") returns I64 {
     if reload_family.and(native_run.out().contains("installed TilVm text buffer and reload PASS").not()) {
         panic("native TilVm buffer/reload test did not finish: ", native_run.out(), native_run.err())
     }
-    if state_family.and(native_run.out().contains("installed TilVm mutable native config PASS").not()) {
+    if config_family.and(native_run.out().contains("installed TilVm mutable native config PASS").not()) {
         panic("native TilVm config test did not finish: ", native_run.out(), native_run.err())
     }
     if prelude_family.and(native_run.out().contains("installed TilVm host prelude PASS").not()) {

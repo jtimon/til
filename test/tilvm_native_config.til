@@ -1,0 +1,8 @@
+mode cli
+
+import("./tilvm_native_cases")
+
+// Mutable native records, borrowed aliases, and string ownership across VMs.
+main := proc(root: Str) {
+    native_config_tests(root)
+}
