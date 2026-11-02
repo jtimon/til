@@ -1968,15 +1968,24 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
 
 priv sort_locals_by_name := func(mut locals: Vec(LocalInfo)) {
     if locals.len() < 2 { return }
+    elem_size := LocalInfo.size().to_uptr()
+    // Raw scratch owns only its buffer. Each rotation moves an element out
+    // and back with adopt_from, leaving scratch blank; no owned name/type
+    // is cloned or destroyed while changing its slot.
+    mut scratch : U8 = malloc(elem_size)
     for i in 1..locals.len() {
+        ref mut cur : LocalInfo = locals.unsafe_get(i)
         mut j := i
         while j > 0 {
             ref prev : LocalInfo = locals.unsafe_get(j - 1)
-            ref cur : LocalInfo = locals.unsafe_get(j)
             if Str.cmp(prev.name, cur.name) <= 0 { break }
-            swap(LocalInfo, locals[j - 1], locals[j])
             j = j - 1
         }
+        if j == i { continue }
+        ref mut dest : U8 = ptr_add(locals.data, j.to_uptr().mul(elem_size))
+        adopt_from(scratch, cur, elem_size)
+        memmove(ptr_add(dest, elem_size), dest, i.sub(j).to_uptr().mul(elem_size))
+        adopt_from(dest, scratch, elem_size)
     }
 }
 
