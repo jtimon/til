@@ -6,7 +6,7 @@ realpath_str := ext_proc(path: Str) returns Str {}
 // Optional runtime conformance. The SAME sources run through interpretation,
 // C and FASM; assembly/compiler output is separate from program output.
 check := proc(compiler: Str, work: Str, name: Str, source: Str,
-    output: Str, errors: Str = "", result: I64 = 0, interpret_source: Bool = true) {
+    output: Str, errors: Str = "", result: I64 = 0, interpret_source: Bool = true, cage_allocation_failure: Bool = false) {
     File.writefile(format(work, "/", name, ".til"), source)
     for width in array(Str, "32", "64") {
         if interpret_source {
@@ -26,6 +26,12 @@ check := proc(compiler: Str, work: Str, name: Str, source: Str,
             run := Cmd.new(format("./", artifact))
             run.cwd(work).capture()
             code := run.run()
+            if cage_allocation_failure && backend == "c" && width == "32" {
+                // --usize=32 now selects the C allocation cage. Oversized
+                // allocations fail loudly instead of returning a null pointer.
+                expect(code == 1 && run.out() == "" && run.err().contains("allocation larger than the cage"), name, code, run.out(), run.err())
+                continue
+            }
             expect(code == result, name, backend, width, code, run.out(), run.err())
             expect(run.out() == output, name, backend, width, " stdout mismatch", run.out())
             expect(run.err() == errors, name, backend, width, " stderr mismatch", run.err())
@@ -51,10 +57,73 @@ failure := proc(compiler: Str, work: Str, name: Str, source: Str) {
     }
 }
 
+check_globals := proc(compiler: Str, work: Str) {
+    // A diamond import must initialize the shared state once, before either
+    // dependent module. Resource-bearing values must outlive the init frames.
+    File.writefile(format(work, "/globals_base.til"), format(
+        "mode lib\nmut init_count : I64 = 0\n",
+        "initialize := proc() returns I64 { init_count++; println(\"base\"); return 7 }\n",
+        "mut counter : I64 = initialize()\nmut narrow : U8 = 250\nmut width : USize = 0\n",
+        "mut text := Str.with_capacity(32)\n",
+        "Cell := struct { mark: U8 = 0; number: I64 = 0; text: Str = \"\"\nnamespace:\n",
+        "mut drops : I64 = 0\n",
+        "delete := func(own self: Cell, call_free: Bool = true) { Cell.drops++; Str.delete(own self.text,false); if call_free { free(own self) } }\n}\n",
+        "mut cell := Cell(mark=3, number=counter, text=format(\"old\",\"!\"))\n",
+        "read_count := func() returns I64 { return counter }\n",
+        "bump := func() { counter++; narrow++; width++; text.push_str(\"x\"); cell.number = counter }\n",
+        "replace_cell := func() { cell = Cell(mark=4, number=counter, text=text.clone()) }\n",
+        "borrow_cell := func() returns ref Cell { return cell }\n",
+        "write_narrow := func(mut value: U8) { value++ }\n",
+        "Stats := struct {\nnamespace:\nmut total : I64 = 5\nmut label := \"\"\n}\n",
+        "namespace_bump := func() { Stats.total++; Stats.label = format(Stats.label,\"n\") }\n"))
+    File.writefile(format(work, "/globals_left.til"), "mode lib\nimport(\"./globals_base\")\nleft_init := proc() returns I64 { println(\"left\"); bump(); return read_count() }\nleft_value := left_init()\n")
+    File.writefile(format(work, "/globals_right.til"), "mode lib\nimport(\"./globals_base\")\nright_init := proc() returns I64 { println(\"right\"); bump(); return read_count() }\nright_value := right_init()\n")
+    declarations := format(
+        "import(\"./globals_left\")\nimport(\"./globals_right\")\n",
+        "mut root_count : I64 = 0\nroot_init := proc() returns I64 { println(\"root\"); root_count++; return read_count() }\n",
+        "root_value := root_init()\n",
+        "shadow := func(counter: I64) returns I64 { return counter + 1 }\n",
+        "shadow_aggregate := func(text: I64) returns I64 { return text + 1 }\n",
+        "recurse := func(n: I64) { if n > 0 { bump(); recurse(n-1) } }\n",
+        "verify := proc() { assert(init_count == 1); assert(root_count == 1); assert(left_value == 8); assert(right_value == 9); assert(root_value == 9);\n",
+        "assert(text.eq(\"xx\")); assert(cell.text.eq(\"old!\")); recurse(2); assert(shadow(100) == 101); assert(shadow_aggregate(40) == 41); assert(read_count() == 11);\n",
+        "write_narrow(narrow); assert(narrow == 255); bump(); assert(narrow == 0); assert(width == 5);\n",
+        "ref mut alias : Cell = borrow_cell(); alias.number = 90; assert(cell.number == 90);\n",
+        "copy := cell.clone(); replace_cell(); assert(Cell.drops == 1); assert(copy.text.eq(\"old!\")); assert(cell.text.eq(\"xxxxx\"));\n",
+        "namespace_bump(); namespace_bump(); assert(Stats.total == 7); assert(Stats.label.eq(\"nn\"));\n",
+        "{ mut text := Str.with_capacity(8); text.push_str(\"local\"); assert(text.eq(\"local\")) }\n",
+        "assert(text.eq(\"xxxxx\")); println(read_count().to_str(),\":\",text,\":\",Stats.label) }\n")
+    expected := "base\nleft\nright\nroot\n12:xxxxx:nn\n"
+    check(compiler, work, "globals_cli", format("mode cli\n", declarations, "main := proc() { verify() }\n"), expected)
+    check(compiler, work, "globals_script", format("mode script\n", declarations, "verify()\n"), expected)
+    check(compiler, work, "globals_references", format(
+        "mode cli\nmut first : I64 = 1\nmut second : I64 = 2\n",
+        "borrow_number := func(value: I64) returns ref I64 { return value }\n",
+        "ref mut target : I64 = borrow_number(first)\nref mut source : I64 = borrow_number(second)\n",
+        "mut raw : I8 = calloc(8,1)\nref mut byte : I8 = ptr_add(raw,0)\n",
+        "change := func() { target = source; target = 9; byte = 65 }\n",
+        "main := proc() { change(); assert(first == 1); assert(second == 9); assert(raw == 65); assert(byte == 65); free(own raw); println(target.to_str()) }\n"), "9\n")
+    check(compiler, work, "empty_script", "mode script\n", "")
+    // Namespace dependency order is independent of member declaration order.
+    check(compiler, work, "globals_namespace_init", format(
+        "mode cli\ninitialize := func() returns I64 { return 9 }\n",
+        "Values := struct {\nnamespace:\nmut earlier : I64 = Values.later + 1\nmut later : I64 = initialize()\n}\n",
+        "root_init := proc() returns I64 { println(\"root\"); return Values.earlier }\nmut runtime : I64 = root_init()\n",
+        "main := proc() { assert(Values.earlier == 10); assert(Values.later == 9); assert(runtime == 10); println(\"namespace globals passed\") }\n"),
+        "root\nnamespace globals passed\n")
+    // The interpreter currently resolves the nested call through the caller's
+    // shadow (200). Native functions must still read their lexical global (111).
+    check(compiler, work, "globals_lexical_calls", format(
+        "mode cli\nmut counter : I64 = 11\nread_count := func() returns I64 { return counter }\n",
+        "shadow := func(counter: I64) returns I64 { return counter + read_count() }\n",
+        "main := proc() { println(shadow(100).to_str()) }\n"), "111\n", interpret_source = false)
+}
+
 main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/fasm_runtime"
     mkdir_p(work)
+    check_globals(compiler, work)
     // Use the existing hello-world source unchanged, rather than a FASM copy.
     check(compiler, work, "hello", File.readfile("examples/hello_script.til"), "Hello World!\n")
     check(compiler, work, "output", "mode cli\nmain := proc() { print_single(\"a\\x00Z\\x80Z\"); eprint_single(\"err%\\n\"); println(\"x\",\"y\") }\n", "a\x00Z\x80Zxy\n", "err%\n")
@@ -66,7 +135,7 @@ main := proc(compiler_arg: Str) {
     check(compiler, work, "pointer_values", "mode cli\nmain := proc() { mut slot : I64 = malloc(8); slot = 123; ref mut alias : I64 = ptr_add(slot,0); alias = alias + 1; println(slot.to_str()); free(own slot); mut value : I64 = 7; memset(to_ptr(value),0,8); assert(value == 0); mut s := Str.with_capacity(2); s.push_str(\"Z\"); assert(c_str_len(s.c_str) == 1); mut signed_value : I32 = -1; signed_value = signed_value + 0; unsigned_value := signed_value.cast(U32); println(unsigned_value.to_str()) }\n", "124\n4294967295\n")
     // ASAN deliberately aborts rather than returning NULL for huge requests.
     // Compare the two native allocator contracts without ASAN's interposition.
-    check(compiler, work, "allocation_failure", "mode cli\nfails := func(n: UPtr) returns Bool { p : I8 = malloc(n); mut failed := p.is_null(); free(own p); q : I8 = calloc(n,2); if q.is_null().not() { failed = false } free(own q); return failed }\nmain := proc() { mut n : UPtr = 0; n = n - 1; assert(fails(n)) }\n", "", interpret_source = false)
+    check(compiler, work, "allocation_failure", "mode cli\nfails := func(n: UPtr) returns Bool { p : I8 = malloc(n); mut failed := p.is_null(); free(own p); q : I8 = calloc(n,2); if q.is_null().not() { failed = false } free(own q); return failed }\nmain := proc() { mut n : UPtr = 0; n = n - 1; assert(fails(n)) }\n", "", interpret_source = false, cage_allocation_failure = true)
     check(compiler, work, "counted_path", "mode cli\nimport(\"std/file\")\nmain := proc() { mut path := Str.with_capacity(16); path.push_str(\"sampleZZ\"); view := path.substr(0,6); ref h : Dynamic = cfile_open(view,true); cfile_write_str(h,\"ok\"); cfile_close(h); assert(cfile_exists(\"sample\")); assert(cfile_exists(\"sampleZZ\").not()); cfile_remove(view) }\n", "")
     mut large := "x"
     for _ in 0..17 { large = format(large, large) }

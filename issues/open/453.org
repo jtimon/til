@@ -191,6 +191,49 @@ existing C and MLIR backends.
   500/500. Both FASM native drivers also passed with the ASAN compiler and
   driver; emitted native assembly is not ASAN-instrumented.
 
+**** Persistent module and namespace globals
+
+  On base ~8fafc8219~, supported globals now have writable executable storage,
+  with stable scalar/aggregate addresses and pointer slots for references/raw
+  allocations. Initializer temporaries stay on their frames. The emitter indexes
+  all globals before emitting functions/initializers, so calls can read and
+  mutate persistent state. Parameter/local binding replaces all global storage
+  flags when shadowing; the aggregate differential driver caught a stale-address
+  flag on a scalar parameter and now passes with this corrected binding.
+
+  Literal initialization precedes namespace runtime initialization; namespace
+  members use ~ns_const_eval_order~, and ordinary module initializers retain
+  canonical dependency order. Shared units in diamond imports execute once.
+  CLI roots and script roots both participate. Reassignment preserves shared
+  old-value cleanup and custom deletes; globals are not destroyed on returning
+  from an initializer and no process-exit cleanup policy is introduced.
+
+  ~test/fasm_runtime.til::check_globals~ compares identical CLI/script, imported,
+  reference/raw-pointer and namespace-dependency sources through interpreter,
+  C and FASM at USize32/USize64. It exercises persistent heap strings, aggregate
+  fields/returns/replacement, destructor counts, recursion, scalar/aggregate-name
+  shadowing and narrow writes. ~test/fasm_options.til~ covers assembler-free
+  emission and unsupported global-type diagnostics.
+
+  The frontend's eager namespace evaluation still limits defaults involving
+  runtime allocation or not-yet-bound module state. An initial allocating
+  namespace-default probe failed in the interpreter's native registration
+  (and during C preparation), before FASM emission. A separate probe where a
+  shadowing parameter calls a global-reading function returned 200 rather than
+  C's 111 under interpretation: the interpreter found the caller's shadow.
+  The shared fixture checks shadowing without that dynamic-lookup shape; a
+  separate C/FASM-only fixture pins the correct 111 result. Neither
+  frontend/interpreter limitation is claimed fixed by this backend change.
+
+  The runtime allocation-failure check also now asserts the current C/USize32
+  cage diagnostic explicitly; FASM's syscall allocator and C/USize64 retain
+  their null-return checks. Native assembly is not ASAN-instrumented.
+
+  Verification: ~make clean && make test~ passed 515/515 on this base, including
+  the assembler-free options and installed-compiler tests. Both optional native
+  drivers passed against the freshly built ~bin/til~, exercising both USize
+  widths. These runs used master's current non-ASAN test configuration (#464).
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

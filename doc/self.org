@@ -663,9 +663,28 @@
 
   PrecomputedSequence values become read-only templates in the existing
   assembly output. The ordinary til clone method creates each runtime value,
-  so nested owned buffers are not shared with the template. Imported module
-  initializer statements execute before main; persistent runtime globals are
-  still rejected rather than placed in an initializer's temporary frame.
+  so nested owned buffers are not shared with the template.
+
+  Supported module and namespace globals have stable, zero-filled storage in
+  the executable's writable segment. Scalars use addressable slots; aggregates
+  use target-sized inline storage or pointer slots according to their prepared
+  ownership/storage metadata. Ref globals retain pointer identity. Function
+  parameters and nested locals shadow global bindings without inheriting their
+  address, reference or ownership flags.
+
+  Literal globals are initialized before namespace runtime values; namespace
+  members follow the shared dependency order. Ordinary module initializers then
+  run in canonical import order, once per unit, before main (or the root script's
+  statements). Hoisted expression/error/varargs temporaries remain local to the
+  initializer frame. Initializer calls can read or mutate globals without
+  capturing those temporary frames. The shared frontend still determines which
+  namespace defaults can be prepared; this does not defer its eager namespace
+  evaluation or broaden the supported value types.
+
+  Global replacement follows the existing save_old_delete/move decisions,
+  including custom destructors. Merely returning from an initializer does not
+  destroy a global; no new implicit process-exit destruction is added.
+  Unsupported global types and external-symbol globals remain diagnostics.
 
   Implemented services:
 
@@ -733,9 +752,19 @@
   in ~tmp/fasm_runtime/~ during the test. Coverage includes counted bytes,
   panic text/streams/status, ownership cleanup, raw memory, file update/append,
   growing reads, counted path views, /proc and failed writes to /dev/full.
-  Nullable allocation failures compare native C and FASM (ASAN intentionally
-  intercepts huge allocations); a small assembly ABI check verifies that a
-  failed realloc preserves the old allocation. ASAN runs cover the compiler
+  Global coverage includes CLI/script entry, diamond imports and once-only
+  initialization, recursion, narrow mut-parameter writes, USize storage,
+  heap strings, aggregate replacement/custom deletes, ref-returning accessors,
+  reference and raw-allocation globals, namespace data/dependencies and local
+  shadowing. All those fixtures use the same source for interpretation, C and
+  FASM at both USize widths; the options test also translates globals without
+  requiring an assembler and checks unsupported global diagnostics.
+  A separate lexical-global lookup through a shadowing caller is compared
+  between C and FASM only: the interpreter currently reads the caller's shadow.
+  Nullable allocation failures compare native C/USize64 and FASM; C/USize32's
+  allocation cage instead must reject an oversized allocation with its diagnostic
+  (ASAN intentionally intercepts huge allocations). A small assembly ABI check
+  verifies that a failed realloc preserves the old allocation. ASAN runs cover the compiler
   and test driver, not the generated syscall-only executable.
 
   Independent execution is useful for differential testing. This backend

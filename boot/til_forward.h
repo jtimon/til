@@ -445,11 +445,14 @@ enum {
 typedef struct Option__Bool Option__Bool;
 typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmGlobal priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram priv___src_self_codegen_fasm_codegen_til__FasmProgram;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState priv___src_self_codegen_fasm_codegen_til__FasmState;
 typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
+typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 typedef struct Map__Str_Type Map__Str_Type;
 typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
+typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 typedef struct Vec__Type Vec__Type;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
@@ -1617,11 +1620,28 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
 } priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 
 
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
+    Str label;
+    Type til_type;
+    Bool address;
+    Bool pointer;
+    Bool boxed;
+    Bool reference;
+} priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
+
+
 typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
+
+
+typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 
 
 typedef struct Vec__Type {
@@ -2295,6 +2315,12 @@ typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
 } Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 
 
+typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
+    Vec__Str keys;
+    Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal values;
+} Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
+
+
 typedef struct Map__Str_Type {
     Vec__Str keys;
     Vec__Type values;
@@ -2614,6 +2640,8 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram {
     Map__Str_Str labels;
     Vec__Str pending;
     Set__Str source_names;
+    Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal globals;
+    Str global_data;
 } priv___src_self_codegen_fasm_codegen_til__FasmProgram;
 
 

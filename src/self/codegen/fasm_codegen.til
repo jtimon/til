@@ -3,13 +3,22 @@ import("../loader")
 import("../constfolder")
 import("../../std/file")
 
-// Native scalar/string slice. Every live value has a frame slot, so nested
-// calls cannot clobber earlier operands. Frames preserve SysV alignment;
-// aggregate value slots follow the C layout and keep their own outer storage.
+// Locals and temporaries have frame slots, so nested calls cannot clobber
+// earlier operands; globals have process-lifetime writable slots. Frames
+// preserve SysV alignment; aggregates keep their target-sized outer storage.
 priv FasmDefinition := struct {
     path := ""
     declaration : USize = 0
     member : I64 = -1
+}
+
+priv FasmGlobal := struct {
+    label := ""
+    til_type := Type.None
+    address := false
+    pointer := false
+    boxed := false
+    reference := false
 }
 
 priv FasmProgram := struct {
@@ -17,6 +26,101 @@ priv FasmProgram := struct {
     labels := Map(Str, Str).new()
     pending := Vec(Str).new()
     source_names := Set(Str).new()
+    globals := Map(Str, FasmGlobal).new()
+    global_data := ""
+}
+
+// Globals use the same value/pointer distinction as frame bindings. Their
+// slots live in the executable's writable segment, never an init frame.
+priv fasm_bind_globals := func(mut state: FasmState) {
+    for i in 0..state.program.globals.len() {
+        ref name : Str = state.program.globals.keys[i]
+        ref global : FasmGlobal = state.program.globals.values[i]
+        fasm_bind(name, global.til_type, own format("qword [", global.label, "]"),
+            global.address, global.pointer, global.boxed, global.reference, state)
+    }
+}
+
+priv fasm_temporary_global := func(name: Str) returns Bool {
+    return name.starts_with("hoisted__").or(name.starts_with("_va_")).or(name.starts_with("_err_"))
+}
+
+priv fasm_collect_global := proc(stmt: Expr, mut program: FasmProgram, mut lp: LoadedProgram) {
+    ref dd : Declaration = decl_of(stmt)
+    if fasm_temporary_global(dd.name) { return }
+    t := declaration_resolved_type(dd, lp.ctx.scope, lp.ctx.symbols)
+    if stmt.children.len() != 1 || fasm_scalar(t).or(fasm_aggregate(t, lp)).not() {
+        fasm_error(stmt, "unsupported global type or initializer", lp)
+        return
+    }
+    if dd.external_symbol.len() > 0 { fasm_error(stmt, "external globals are not supported", lp); return }
+    boxed := dd.gc_storage.is(GcStorage.HeapBox).or(rhs_is_allocator_call(stmt.children[0], lp.ctx.symbols))
+    reference := dd.own_type.is(OwnType.Ref)
+    address := fasm_aggregate(t, lp).and(reference.or(boxed).not())
+    pointer := fasm_scalar(t).and(t.is(Type.Dynamic).not()).and(reference.or(boxed))
+    label := format("global", program.globals.len().to_str())
+    mut bytes : USize = 8
+    if address { bytes = fasm_type_size(t, lp); if bytes == 0 { bytes = 1 } }
+    program.global_data = format(program.global_data, "align 8\n", label, ": rb ", bytes.to_str(), "\n")
+    program.globals.set(dd.name, own FasmGlobal(label=label, til_type=t.clone(),
+        address=address, pointer=pointer, boxed=boxed, reference=reference))
+}
+
+// Keep the canonical unit order and lowered initializer statements. Namespace
+// data has a flattened symbol, like namespace methods, but is stored once.
+priv fasm_global_body := proc(root: Expr, phase: USize, mut program: FasmProgram, mut lp: LoadedProgram) returns Expr {
+    mut body := Expr.new(own NodeType.Body, root.line, root.col)
+    for stmt : Expr in root.children {
+        if stmt.node_type.is(NodeType.Decl) {
+            if stmt.children.len() == 1 {
+                ref value : Expr = stmt.children[0]
+                if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
+                    ref members : Vec(Declaration) = def_ns_decls(value)
+                    for position : I64 in ns_const_eval_order(decl_of(stmt).name, value, lp.ctx.symbols) {
+                        i := position.to_usize()
+                        ref member : Declaration = members[i]
+                        if member.default_value.is_none() { continue }
+                        ref initial : Expr = member.default_expr()
+                        if initial.node_type.is(NodeType.FuncDef).or(initial.node_type.is(NodeType.StructDef)).or(initial.node_type.is(NodeType.EnumDef)) { continue }
+                        if phase == 2 { continue }
+                        if initial.node_type.is(NodeType.Literal) != (phase == 0) { continue }
+                        mut declaration := member.clone()
+                        declaration.name = format(decl_of(stmt).name, "_", def_ns_name_at(value, i))
+                        declaration.default_value = Option(Expr).None
+                        mut global := Expr.new(own NodeType.Decl(own declaration), stmt.line, stmt.col)
+                        global.add_child(own initial.clone())
+                        fasm_collect_global(global, program, lp)
+                        body.add_child(own global)
+                    }
+                    continue
+                }
+                if value.node_type.is(NodeType.FuncDef) { continue }
+                if stmt.til_type().is(Type.None) && value.node_type.is(NodeType.Ident) { continue }
+            }
+            if stmt.til_type().is(Type.StructDef).or(stmt.til_type().is(Type.EnumDef)) { continue }
+            if phase == 1 { continue }
+            if fasm_temporary_global(decl_of(stmt).name).not() && stmt.children.len() == 1 && stmt.children[0].node_type.is(NodeType.Literal) {
+                if phase != 0 { continue }
+            } else if phase != 2 { continue }
+            fasm_collect_global(stmt, program, lp)
+        } else if phase != 2 { continue }
+        body.add_child(own stmt.clone())
+    }
+    return body
+}
+
+priv fasm_namespace_name := func(e: Expr, lp: LoadedProgram) returns Str {
+    if fa_is_ns(e, lp.ctx.scope, lp.ctx.symbols).not() { return "" }
+    ref owner : Expr = e.children[0]
+    mut owner_name := ""
+    if is_named_type(owner.til_type()) { owner_name = type_name_ref(owner.til_type(), lp.ctx.symbols).clone() }
+    else { owner_name = ident_of(owner).ident_name(lp.ctx.symbols.names).clone() }
+    ref name : Str = resolve_type_alias_for_name(lp.ctx.scope, owner_name, lp.ctx.symbols)
+    switch e.node_type {
+    case .FieldAccess(field): return format(name, "_", field.field_access_name(lp.ctx.symbols.names))
+    case .FieldAssign(field): return format(name, "_", field.name)
+    case: UNREACHABLE("namespace global without a field"); return ""
+    }
 }
 
 priv FasmState := struct {
@@ -161,6 +265,8 @@ priv fasm_callee_name := func(e: Expr, lp: LoadedProgram) returns Str {
 // True only for an owned outer wrapper. References and inline field storage
 // must not be released merely because their address carries an aggregate.
 priv fasm_boxed := func(e: Expr, state: FasmState, lp: LoadedProgram) returns Bool {
+    global_name := fasm_namespace_name(e, lp)
+    if global_name.len() > 0 { return state.boxes.has(global_name) }
     switch e.node_type {
     case .Ident(id): return state.boxes.has(id.ident_name(lp.ctx.symbols.names))
     case .PrecomputedSequence: return true
@@ -293,6 +399,13 @@ priv fasm_box_copy := func(shallow t: Type, mut state: FasmState, lp: LoadedProg
 priv fasm_owned := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
     if fasm_boxed(e, state, lp) { fasm_pointer(e, state, lp); return }
     mut t := e.til_type().clone()
+    global_name := fasm_namespace_name(e, lp)
+    if global_name.len() > 0 {
+        fasm_pointer(e, state, lp)
+        ref global : FasmGlobal = state.program.globals[global_name]
+        if global.pointer.or(global.reference).or(t.is(Type.Dynamic)).not() { fasm_box_copy(t, state, lp) }
+        return
+    }
     switch e.node_type {
     case .Ident(id):
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
@@ -514,6 +627,12 @@ priv fasm_load_scalar := func(shallow t: Type, mut state: FasmState) {
 }
 
 priv fasm_pointer := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    global_name := fasm_namespace_name(e, lp)
+    if global_name.len() > 0 {
+        if state.values.has(global_name).not() { fasm_error(e, "unsupported namespace global", lp); return }
+        fasm_binding_pointer(global_name, state)
+        return
+    }
     switch e.node_type {
     case .Ident(id):
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
@@ -718,20 +837,17 @@ priv fasm_register := func(index: USize) returns Str {
 }
 
 priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_pointer: Bool = false) {
+    global_name := fasm_namespace_name(e, lp)
+    if global_name.len() > 0 {
+        if state.values.has(global_name).not() { fasm_error(e, "unsupported namespace global", lp); return }
+        fasm_binding_value(global_name, e.til_type(), as_pointer, state)
+        return
+    }
     switch e.node_type {
     case .Ident(id):
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
         if state.values.has(name).not() { fasm_error(e, format("unsupported value '", name, "'"), lp); return }
-        if state.addresses.has(name) { fasm_emit(state, format("lea rax, ", state.values[name].strip_prefix("qword "))) }
-        else { fasm_emit(state, format("mov rax, ", state.values[name])) }
-        if state.pointers.has(name) {
-            if e.til_type().is(Type.Dynamic).not().and(as_pointer.not()) { fasm_load_scalar(state.value_types[name], state) }
-        } else if state.addresses.has(name).not() {
-            // A mut/ref call may have written only the declared byte width.
-            // Read that width, not stale high bytes in the eight-byte slot or
-            // an argument-position widening stamped on this identifier.
-            fasm_narrow(state.value_types[name], state)
-        }
+        fasm_binding_value(name, e.til_type(), as_pointer, state)
     case .Literal(Literal.Num(n)):
         if fasm_scalar(e.til_type()).not() { fasm_error(e, "only integer numeric values are supported", lp); return }
         fasm_emit(state, format("mov rax, ", n.to_u64().to_str()))
@@ -906,7 +1022,24 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
     }
 }
 
-priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+priv fasm_binding_pointer := func(name: Str, mut state: FasmState) {
+    if state.addresses.has(name).or(fasm_scalar(state.value_types[name]).and(state.value_types[name].is(Type.Dynamic).not()).and(state.pointers.has(name).not())) {
+        fasm_emit(state, format("lea rax, ", state.values[name].strip_prefix("qword ")))
+    } else { fasm_emit(state, format("mov rax, ", state.values[name])) }
+}
+
+priv fasm_binding_value := func(name: Str, shallow t: Type, as_pointer: Bool, mut state: FasmState) {
+    if state.addresses.has(name) { fasm_emit(state, format("lea rax, ", state.values[name].strip_prefix("qword "))) }
+    else { fasm_emit(state, format("mov rax, ", state.values[name])) }
+    if state.pointers.has(name) {
+        if t.is(Type.Dynamic).not().and(as_pointer.not()) { fasm_load_scalar(state.value_types[name], state) }
+    } else if state.addresses.has(name).not() {
+        // Mut/ref writes touch only the declared width, including globals.
+        fasm_narrow(state.value_types[name], state)
+    }
+}
+
+priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, global_scope: Bool = false) {
     saved_values := state.values.clone()
     saved_types := state.value_types.clone()
     saved_addresses := state.addresses.clone()
@@ -928,19 +1061,27 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) 
             raw := rhs_is_allocator_call(stmt.children[0], lp.ctx.symbols)
             boxed := dd.gc_storage.is(GcStorage.HeapBox).or(raw)
             pointer := aggregate.not().and(t.is(Type.Dynamic).not()).and(dd.own_type.is(OwnType.Ref).or(boxed))
+            persistent := global_scope.and(state.program.globals.has(dd.name))
             if aggregate && dd.own_type.is(OwnType.Ref).or(boxed).not() {
-                slot := fasm_snapshot(stmt.children[0], t, state, lp)
+                mut slot := fasm_snapshot(stmt.children[0], t, state, lp)
+                if persistent {
+                    destination := format("qword [", state.program.globals[dd.name].label, "]")
+                    fasm_emit(state, format("lea rsi, ", slot.strip_prefix("qword "), "\n    lea rdi, ", destination.strip_prefix("qword "),
+                        "\n    mov rdx, ", fasm_type_size(t, lp).to_str(), "\n    call rt_memcpy"))
+                    slot = destination.clone()
+                }
                 fasm_bind(dd.name, t, own slot, true, false, false, false, state)
                 continue
             }
             if boxed { fasm_owned(stmt.children[0], state, lp) }
             else if pointer.or(dd.own_type.is(OwnType.Ref)) { fasm_pointer(stmt.children[0], state, lp) }
             else { fasm_expr(stmt.children[0], state, lp) }
-            slot := fasm_slot(state)
+            mut slot := fasm_slot(state)
+            if persistent { slot = format("qword [", state.program.globals[dd.name].label, "]") }
             fasm_emit(state, format("mov ", slot, ", rax"))
             fasm_bind(dd.name, t, own slot, false, pointer, boxed, dd.own_type.is(OwnType.Ref), state)
         case .Assign(dd):
-            if state.values.has(dd.name).not() { fasm_error(stmt, "only local assignments are supported", lp); continue }
+            if state.values.has(dd.name).not() { fasm_error(stmt, "unknown assignment storage", lp); continue }
             ref mut rhs : Expr = stmt.children[0]
             if dd.is_move && rhs_is_clone_fcall(rhs, lp.ctx.symbols) { rhs = rhs.children[1] }
             t := state.value_types[dd.name].clone()
@@ -986,6 +1127,18 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram) 
                 fasm_store_scalar(stmt.til_type(), state)
             } else { fasm_emit(state, format("mov ", state.values[dd.name], ", rax")) }
         case .FieldAssign(fd):
+            global_name := fasm_namespace_name(stmt, lp)
+            if global_name.len() > 0 {
+                mut assignment := stmt.clone()
+                assignment.node_type = NodeType.Assign(AssignData(name=global_name.clone(),
+                    save_old_delete=fd.save_old_delete, is_move=fd.is_move))
+                assignment.children.clear()
+                assignment.add_child(own stmt.children[1].clone())
+                mut block := Expr.new(own NodeType.Body, stmt.line, stmt.col)
+                block.add_child(own assignment)
+                fasm_body(block, state, lp)
+                continue
+            }
             ref owner : Expr = stmt.children[0]
             ref mut rhs : Expr = stmt.children[1]
             if fd.is_move && rhs_is_clone_fcall(rhs, lp.ctx.symbols) { rhs = rhs.children[1] }
@@ -1107,6 +1260,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
     }
     if fd.sig.params.len() > 6 { fasm_error(expr, "at most six parameters are supported", lp); return "" }
     mut state := FasmState(program = program)
+    fasm_bind_globals(state)
     state.prefix = program.labels[name].clone()
     state.return_type = ret.clone()
     state.return_ref = fd.sig.return_own_type.is(OwnType.Ref)
@@ -1131,17 +1285,15 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
             slot = fasm_value_slot(t, state, lp)
             fasm_emit(state, format("mov rsi, ", incoming[i], "\n    lea rdi, ", slot.strip_prefix("qword "),
                 "\n    mov rdx, ", fasm_type_size(t, lp).to_str(), "\n    call rt_memcpy"))
-            state.addresses.add(own p.name.clone())
         }
-        state.values.set(p.name, own slot)
-        state.value_types.set(p.name, own t.clone())
+        no_free := by_value.or(stack_outer).or(p.own_type.is(OwnType.Own).and(t.is(Type.Primitive)))
+        fasm_bind(p.name, t, own slot, aggregate.and(by_value),
+            by_value.or(aggregate).or(t.is(Type.Dynamic)).not(),
+            p.own_type.is(OwnType.Own).and(no_free.not()), false, state)
         state.parameters.add(own p.name.clone())
-        if by_value.not() && aggregate.not() && t.is(Type.Dynamic).not() {
-            state.pointers.add(own p.name.clone())
-        }
-        if by_value || stack_outer || (p.own_type.is(OwnType.Own) && t.is(Type.Primitive)) {
+        if no_free {
             state.no_free.add(own p.name.clone())
-        } else if p.own_type.is(OwnType.Own) { state.boxes.add(own p.name.clone()) }
+        }
     }
     fasm_body(expr.children[0], state, lp)
     // A non-void fallthrough is a compiler invariant violation, not a value.
@@ -1174,32 +1326,28 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
     if script.not() { entry = fasm_request("main", program) }
     mut initialization := ""
     mut initializers := ""
-    for i in 0..lp.units.len() - 1 {
-        ref unit : ProgramUnit = lp.units[i]
-        ref root : Expr = lp.ctx.imported[unit.path].ast
-        mut body := Expr.new(own NodeType.Body, 0, 0)
-        context_enter_file(lp.ctx, unit.path)
-        for stmt : Expr in root.children {
-            if stmt.node_type.is(NodeType.Decl) {
-                if stmt.children.len() == 1 && stmt.children[0].node_type.is(NodeType.FuncDef).or(stmt.children[0].node_type.is(NodeType.StructDef)).or(stmt.children[0].node_type.is(NodeType.EnumDef)) { continue }
-                if stmt.til_type().is(Type.StructDef).or(stmt.til_type().is(Type.EnumDef)) { continue }
-                if stmt.til_type().is(Type.None) && stmt.children.len() == 1 && stmt.children[0].node_type.is(NodeType.Ident) { continue }
-                ref name : Str = decl_of(stmt).name
-                // These slots exist only for the initializer's expression
-                // evaluation. Persistent user globals need a separate ABI.
-                if name.starts_with("hoisted__").or(name.starts_with("_va_")).or(name.starts_with("_err_")).not() {
-                    fasm_error(stmt, "persistent module globals are not supported", lp)
-                    continue
-                }
-            }
-            body.children.push(own stmt.clone())
+    paths := lp.unit_paths()
+    mut bodies := Vec(Expr).new()
+    // Static literals are available to every initializer. Namespace runtime
+    // values precede ordinary module initializers, matching the shared order.
+    for phase in 0..3 {
+        for unit_path : Str in paths {
+            context_enter_file(lp.ctx, unit_path)
+            bodies.push(own fasm_global_body(lp.ctx.imported[unit_path].ast, phase.to_usize(), program, lp))
         }
-        if body.children.len() == 0 { continue }
+    }
+    if lp.ctx.errors > 0 { return 1 }
+    for i in 0..bodies.len() {
+        ref body : Expr = bodies[i]
+        if body.children.len() == 0 && script.and(i == bodies.len() - 1).not() { continue }
+        context_enter_file(lp.ctx, paths[i.mod(paths.len())])
         mut state := FasmState(program=program)
+        fasm_bind_globals(state)
         state.prefix = format("init", i.to_str())
-        fasm_body(body, state, lp)
+        fasm_body(body, state, lp, true)
         bytes := ((state.slots * 8 + 15) / 16) * 16
-        initialization = format(initialization, "    call ", state.prefix, "\n")
+        if script && i == bodies.len() - 1 { entry = state.prefix.clone() }
+        else { initialization = format(initialization, "    call ", state.prefix, "\n") }
         initializers = format(initializers, state.prefix, ":\n    push rbp\n    mov rbp, rsp\n    sub rsp, ", bytes.to_str(),
             "\n", state.text, "    leave\n    ret\n", state.data)
     }
@@ -1208,35 +1356,6 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
         "\nCAP_VIEW = ", cap_view, "\nCAP_LIT = ", cap_lit,
         "\nsegment readable executable\ninclude '", runtime.replace("'", "''"), "'\nsegment readable executable\nstart:\n", initialization,
         "    call ", entry, "\n    xor edi, edi\n    jmp rt_exit\n", initializers)
-    mut script_body := Expr.new(own NodeType.Body, 0, 0)
-    for stmt : Expr in fasm_root(lp).children {
-        if script {
-            if stmt.node_type.is(NodeType.Decl) && stmt.children.len() == 1 {
-                if stmt.children[0].node_type.is(NodeType.FuncDef) {
-                    continue
-                }
-                if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)) { continue }
-                if stmt.til_type().is(Type.StructDef).or(stmt.til_type().is(Type.EnumDef)) { continue }
-            }
-            script_body.children.push(own stmt.clone())
-            continue
-        }
-        switch stmt.node_type {
-        case .Decl:
-            if stmt.children.len() == 1 && stmt.children[0].node_type.is(NodeType.FuncDef).or(stmt.children[0].node_type.is(NodeType.StructDef)).or(stmt.children[0].node_type.is(NodeType.EnumDef)) { continue }
-            if stmt.til_type().is(Type.StructDef).or(stmt.til_type().is(Type.EnumDef)) { continue }
-            if stmt.til_type().is(Type.None) && stmt.children.len() == 1 && stmt.children[0].node_type.is(NodeType.Ident) { continue }
-            fasm_error(stmt, "unsupported runtime global declaration", lp)
-        case: fasm_error(stmt, "unsupported top-level statement", lp)
-        }
-    }
-    if script {
-        mut state := FasmState(program = program)
-        state.prefix = "script_main"
-        fasm_body(script_body, state, lp)
-        size := ((state.slots * 8 + 15) / 16) * 16
-        text = format(text, "script_main:\n    push rbp\n    mov rbp, rsp\n    sub rsp, ", size.to_str(), "\n", state.text, "    leave\n    ret\n", state.data)
-    }
     mut next : USize = 0
     while next < program.pending.len() {
         name := program.pending[next].clone()
@@ -1244,6 +1363,7 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
         next++
     }
     if lp.ctx.errors > 0 { return 1 }
+    text = format(text, "segment readable writeable\n", program.global_data)
     File.writefile(path, text)
     return 0
 }
