@@ -43,13 +43,33 @@ binding_dependency := func(binding: Str, field: Str) returns Str {
     panic("missing binding dependency: ", field)
 }
 
-main := proc() returns I64 {
+rebuild_install := proc(prefix: Str) {
+    install := Cmd.new("bin/til", "install", "--usize=32", format("--prefix=", prefix), "src/til.til")
+    install.run_checked()
+}
+
+main := proc(phases: ..Str) returns I64 {
+    if phases.len() > 1 { panic("expected at most one install test phase") }
+    mut phase := "all"
+    if phases.len() == 1 { phase = phases[0].borrowed_view() }
+    if phase.eq("all").or(phase.eq("rebuild")).or(phase.eq("support")).not() {
+        panic("unknown install test phase: ", phase)
+    }
+    if phase == "rebuild" {
+        // The support checks below reinstall from bin/til, independently of
+        // this rebuild. A separate prefix lets both phases run concurrently.
+        prefix := "tmp/install_rebuild_test"
+        File.remove_tree(prefix)
+        rebuild_install(prefix)
+        println("install rebuild PASS")
+        return 0
+    }
     File.remove_tree(PREFIX)
     File.remove_tree(WORK)
     mkdir_p(WORK)
 
-    install := Cmd.new("bin/til", "install", "--usize=32", format("--prefix=", PREFIX), "src/til.til")
-    install.run_checked()
+    // Preserve the standalone all-in-one command's original sequence.
+    if phase == "all" { rebuild_install(PREFIX) }
 
     // make install uses the same copy-only phase after its unprivileged
     // build. Reinstall from those existing artifacts, then exercise that

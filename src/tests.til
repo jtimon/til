@@ -1232,7 +1232,12 @@ main := proc(args: ..Str) {
     // the installed std and C runtime. Nothing covered install before,
     // which is how it stayed broken for two weeks after lib/ moved to
     // examples/lib/ and the installer kept copying the old path.
-    add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
+    // The rebuilding CLI install and copy-only support checks share no
+    // products: the latter deliberately reinstalls from the suite's bin/til.
+    // Keep their driver outputs separate as well as their install prefixes.
+    add_single(tests, "install_rebuild", "build", 0, "",
+        format(TIL, " run -o bin/c/install_rebuild -c gen/c/install_rebuild.c test/install.til rebuild"))
+    add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til support"))
 
     // One installed ASAN host build serves all public-API families. The
     // driver runs each in its own process/guest directory with an empty PATH.
