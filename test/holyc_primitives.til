@@ -200,4 +200,18 @@ calls = 0
 values[counted_index(calls)].inc()
 values[counted_index(calls)].dec()
 if calls != 2 || values[0] != 7 { panic("primitive step receiver evaluation") }
+StepI32 := I32
+StepI64 := I64
+StepU32 := U32
+mut step32 : StepI32 = I32.MAX
+mut step64 : StepI64 = I64.MAX
+mut unsigned_step : StepU32 = U32.MAX
+step32.inc()
+step64.inc()
+unsigned_step.inc()
+if step32 != I32.MIN || step64 != I64.MIN || unsigned_step != 0 { panic("aliased primitive step wrap") }
+step32.dec()
+step64.dec()
+unsigned_step.dec()
+if step32 != I32.MAX || step64 != I64.MAX || unsigned_step != U32.MAX { panic("aliased primitive step reverse wrap") }
 println("Primitive integers and Booleans passed")

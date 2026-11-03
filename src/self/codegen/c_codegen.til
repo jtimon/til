@@ -4607,15 +4607,37 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     f.write(divmod_c_op)
                     f.write(" _cf_b)); })")
                 } else if core_op.eq("inc").or(core_op.eq("dec")) {
-                    // Bind the receiver once and step with unsigned arithmetic:
-                    // signed C ++/-- overflow lets optimization erase wrapping.
-                    f.write("({ __typeof__(&(")
-                    emit_deref(f, e.children[1], depth, ctx)
-                    f.write(")) til_step_target = &(")
-                    emit_deref(f, e.children[1], depth, ctx)
-                    f.write("); *til_step_target = (__typeof__(*til_step_target))((U64)*til_step_target ")
-                    if core_op == "inc" { f.write("+") } else { f.write("-") }
-                    f.write(" 1ULL); })")
+                    step_name := callee_param_type_name(flat, 0, ctx)
+                    step_type := til_type_name_c(type_from_name_init_name(step_name, ctx.scope, ctx.symbols), ctx.symbols)
+                    // Unsigned steps wrap natively. I8/I16 promote to C int,
+                    // where the addition/subtraction cannot overflow either.
+                    if step_type.eq("I32").or(step_type.eq("I64")).not() {
+                        f.write("(")
+                        if core_op == "inc" { f.write("++") } else { f.write("--") }
+                        emit_deref(f, e.children[1], depth, ctx)
+                        f.write(")")
+                    } else {
+                        mut unsigned_type := "U32"
+                        if step_type == "I64" { unsigned_type = "U64" }
+                        simple_receiver := e.children[1].node_type.is(NodeType.Ident)
+                            .and(builder_fa_is_ptr(e.children[1], ctx).not())
+                        if simple_receiver {
+                            f.write("(")
+                            emit_deref(f, e.children[1], depth, ctx)
+                            f.write(" = (").write(step_type).write(")((").write(unsigned_type).write(")(")
+                            emit_deref(f, e.children[1], depth, ctx)
+                            f.write(") ")
+                        } else {
+                            // A ref-returning receiver must still run once.
+                            f.write("({ __typeof__(&(")
+                            emit_deref(f, e.children[1], depth, ctx)
+                            f.write(")) til_step_target = &(")
+                            emit_deref(f, e.children[1], depth, ctx)
+                            f.write("); *til_step_target = (__typeof__(*til_step_target))((").write(unsigned_type).write(")*til_step_target ")
+                        }
+                        if core_op == "inc" { f.write("+") } else { f.write("-") }
+                        if simple_receiver { f.write(" 1U))") } else { f.write(" 1U); })") }
+                    }
                 } else if core_op == "is" {
                     // The auto-generated enum `is` core_func: the typed
                     // tag compare, exactly the is_n lowering -- every
@@ -4645,18 +4667,26 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     f.write("((")
                     f.write(core_ret_c)
                     f.write(")(")
-                    wrapping_integer := is_primitive_type(core_ret_c)
+                    mut unsigned_type := ""
+                    if core_op.eq("add").or(core_op.eq("sub")).or(core_op.eq("mul")) {
+                        // One unsigned operand is enough for C's usual
+                        // conversions. Narrow signed arithmetic already fits
+                        // C int; only U16 multiplication can overflow it.
+                        if core_ret_c == "I32" { unsigned_type = "U32" }
+                        else if core_ret_c == "I64" { unsigned_type = "U64" }
+                        else if core_ret_c.eq("U16").and(core_op.eq("mul")) { unsigned_type = "U32" }
+                    } else if core_op.eq("shl").and(is_primitive_type(core_ret_c))
                         .and(core_ret_c.starts_with("I").or(core_ret_c.starts_with("U")))
-                        .and(core_op.eq("add").or(core_op.eq("sub")).or(core_op.eq("mul")).or(core_op.eq("shl")))
-                    if wrapping_integer { f.write("(U64)(") }
+                        .and(core_ret_c.neq("U64")) {
+                        unsigned_type = "U64"
+                    }
+                    if unsigned_type.len() > 0 { f.write("(").write(unsigned_type).write(")(") }
                     emit_deref(f, e.children[1], depth, ctx)
-                    if wrapping_integer { f.write(")") }
+                    if unsigned_type.len() > 0 { f.write(")") }
                     f.write(" ")
                     f.write(core_c_op)
                     f.write(" ")
-                    if wrapping_integer { f.write("(U64)(") }
                     emit_deref(f, e.children[2], depth, ctx)
-                    if wrapping_integer { f.write(")") }
                     f.write("))")
                 }
             } else if builder_is_inline_simd_memory(sname, mname.field_access_name(ctx.symbols.names), ctx) {

@@ -397,8 +397,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I8 = a
         ref bu : I8 = b
-        if au <= bu { return bu.to_u64() - au.to_u64() }
-        return au.to_u64() - bu.to_u64()
+        if au <= bu { return (bu.cast(I64) - au.cast(I64)).cast(U64) }
+        return (au.cast(I64) - bu.cast(I64)).cast(U64)
     }
     delete := func(own self: I8, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -448,8 +448,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I16 = a
         ref bu : I16 = b
-        if au <= bu { return bu.to_u64() - au.to_u64() }
-        return au.to_u64() - bu.to_u64()
+        if au <= bu { return (bu.cast(I64) - au.cast(I64)).cast(U64) }
+        return (au.cast(I64) - bu.cast(I64)).cast(U64)
     }
     delete := func(own self: I16, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -553,8 +553,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I32 = a
         ref bu : I32 = b
-        if au <= bu { return bu.to_u64() - au.to_u64() }
-        return au.to_u64() - bu.to_u64()
+        if au <= bu { return (bu.cast(I64) - au.cast(I64)).cast(U64) }
+        return (au.cast(I64) - bu.cast(I64)).cast(U64)
     }
     delete := func(own self: I32, call_free: Bool = true) {
         if call_free { free(own self) }

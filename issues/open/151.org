@@ -1315,6 +1315,45 @@
   the same source/compiler. This is a Two-pass commit so boot/ includes the
   compiler's corrected C lowering self-applied.
 
+**** Primitive lowering performance follow-up
+
+  The first scalar conformance change protected every integer operation with
+  U64 operand casts and every step with a pointer temporary. That was broader
+  than C overflow correctness requires, particularly in the compiler's opt=0
+  build. The follow-up retains the boundary fixes with narrower lowering:
+
+  - Unsigned arithmetic keeps its native C operations. Signed I8/I16 arithmetic
+    already fits the C int promotion. Signed I32/I64 arithmetic needs only one
+    operand converted to U32/U64; U16 multiplication uses one U32 conversion.
+  - Unsigned and narrow signed steps use native ++/--. Signed I32/I64 local
+    identifiers use direct wrapping assignments; more complex receivers retain
+    a single-evaluation pointer binding with the appropriate unsigned width.
+  - Left shifts keep their wide unsigned left operand where needed, without
+    the redundant conversion of the shift count.
+  - Narrow signed distance widens via inline casts before subtracting, keeping
+    full-range correctness without two external to_u64 conversion calls.
+
+  Local A/B timings on master ~742677606~, five interleaved runs per case,
+  matching checksums throughout (100M-iteration U32/I64 LCG loops and a
+  20M-iteration I16 distance loop):
+
+  | Case          | opt | Before median | After median | Change |
+  |---------------+-----+---------------+--------------+--------|
+  | U32 loop      |   0 |      0.09350s |     0.07917s | -15.3% |
+  | I64 loop      |   0 |      0.09376s |     0.08191s | -12.6% |
+  | I16 distance  |   0 |      0.08880s |     0.06816s | -23.2% |
+  | I16 distance  |   2 |      0.06180s |     0.03104s | -49.8% |
+
+  Optimized integer-loop timings were within 1.5% of their baseline.
+  Interleaved self-translation of the same ~src/til.til~ source at USize32,
+  three-run medians, improved from 13.962s with HEAD's boot compiler to 13.519s
+  with the self-applied follow-up compiler (3.2%). The layout is unchanged.
+
+  Verification: clean two-pass hosted suite 514/514, including clang and the
+  opt=0/2 primitive checks at USize32/64. Four focused native primitive/float
+  cases pass at both USize widths. Alias-step bounds and ref-returning receiver
+  evaluation remain covered; this follow-up does not rerun the full guest matrix.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,
