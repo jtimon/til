@@ -77,7 +77,9 @@ compiling it does.
     doc/ffi.org and in each generated class.
   - The JVM checks run in ~make test~, like the Python ones: the ~jni~ test
     (jni_lib) and library_namespace (library_namespace_a, beside its Python
-    check), each with a Linux ASAN leak run; the suite needs a JDK.
+    check), each with a Linux ASAN leak run. A JDK is an optional
+    dependency: ~make test NO_JVM=1~ (~bin/tests --no-jvm~) skips the JDK
+    runs on hosts without one.
   - Open: whether ~til build~ should compile the bridge, Java packaging (a
     jar), Android packaging (#462); then the BEAM half (NIFs).
 

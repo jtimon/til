@@ -1903,6 +1903,40 @@ take_expr := func(mut e: Expr) returns Expr {
 }
 
 // parse_primary: literals, identifiers, calls, field access, grouping parens
+// A string literal's text in source form, the representation every
+// Literal.Str consumer expects (the C emitter writes it into a C literal,
+// the interpreter and constfolder decode its escapes, and constfolder's
+// str_to_source_form writes the same form): a literal may span lines, but a
+// raw newline or carriage return becomes its \n / \r escape. A backslash
+// directly before one is an escape C would read as a line splice and the
+// interpreter as a literal backslash; it is spelled \\ so both keep the
+// backslash.
+priv str_lit_source_form := func(text: Str) returns Str {
+    if text.contains("\n").or(text.contains("\r")).not() { return text.clone() }
+    mut out := ""
+    mut i : USize = 0
+    n := text.len()
+    while i < n {
+        ref c : I8 = text.unsafe_get(i)
+        if c.eq('\\').and(i.add(1).lt(n)) {
+            ref next : I8 = text.unsafe_get(i + 1)
+            if next.eq('\n').or(next.eq('\r')) {
+                out = format(out, "\\\\")
+                i = i + 1
+                continue
+            }
+            out = format(out, text.substr(i, 2))
+            i = i + 2
+            continue
+        }
+        if c.eq('\n') { out = format(out, "\\n") }
+        else if c.eq('\r') { out = format(out, "\\r") }
+        else { out = format(out, text.substr(i, 1)) }
+        i = i + 1
+    }
+    return out
+}
+
 priv parse_primary := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
@@ -1927,7 +1961,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         e_set = true
     case .StringTok:
         advance(p)
-        e = Expr.new(own NodeType.Literal(Literal.Str(tok_text(p, t).clone())), t_line, t_col)
+        e = Expr.new(own NodeType.Literal(Literal.Str(str_lit_source_form(tok_text(p, t)))), t_line, t_col)
         e_set = true
     case .Number:
         advance(p)

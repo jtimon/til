@@ -122,7 +122,13 @@ check_binding_composition := proc(compiler: Str) {
     }
 }
 
-main := proc() {
+main := proc(args: ..Str) {
+    // --no-jvm (bin/tests --no-jvm): a host without a JDK skips the JNI run.
+    mut run_jvm := true
+    for arg : Str in args {
+        if arg != "--no-jvm" { panic("test/library_namespace.til: unknown argument ", arg) }
+        run_jvm = false
+    }
     til_bin := "bin/til"
     build_a := Cmd.new(til_bin, "build", "test/library_namespace_a.til")
     build_b := Cmd.new(til_bin, "build", "test/library_namespace_b.til")
@@ -406,7 +412,7 @@ main := proc() {
     require_absent(output, "panic:")
     require_absent(output, "error:")
 
-    check_jvm()
+    if run_jvm { check_jvm() }
 }
 
 // #463: the same library from the JVM, through its generated JNI binding --

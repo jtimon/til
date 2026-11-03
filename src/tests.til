@@ -1030,12 +1030,15 @@ run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
 main := proc(args: ..Str) {
     wall_start := clock_ms()
 
-    // Parse args: -jN, -no-interp, -no-run, --no-gui, --til-bin <path>, --asan,
-    // --usize=32|64
+    // Parse args: -jN, -no-interp, -no-run, --no-gui, --no-jvm, --til-bin <path>,
+    // --asan, --usize=32|64
     mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
     mut en_gui := 1
+    // --no-jvm: for hosts without a JDK. The JNI binding tests still check
+    // the generated Java and C as text; only their JDK runs are skipped.
+    mut en_jvm := 1
     mut til_bin := TIL
     mut asan := 0
     mut usize_flag := ""
@@ -1049,6 +1052,7 @@ main := proc(args: ..Str) {
         if arg == "-no-interp" { en_interp = 0 }
         if arg == "-no-run" { en_run = 0 }
         if arg == "--no-gui" { en_gui = 0 }
+        if arg == "--no-jvm" { en_jvm = 0 }
         if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
             i++
             ref val : Str = args[i]
@@ -1261,8 +1265,10 @@ main := proc(args: ..Str) {
     // #90: independently generated libraries own separate C namespaces.
     // The driver checks combined headers, static/shared links, both Til
     // bindings, and the Python and Java (JNI) bindings of library_namespace_a.
+    mut jvm_arg := ""
+    if en_jvm == 0 { jvm_arg = " --no-jvm" }
     add_single(tests, "library_namespace", "build", 0, "",
-        format(TIL, " run test/library_namespace.til"))
+        format(TIL, " run test/library_namespace.til", jvm_arg))
     // #313: an interpreted call marshals a returned library struct whose
     // last field is a 4-byte own pointer without running past it. Under
     // the native opt-out (make check_usize64) the same row
@@ -1291,8 +1297,8 @@ main := proc(args: ..Str) {
 
     // #463: every library also gets a JNI bridge and Java class. The test
     // checks them as text, then runs a Java caller through them (plus, on
-    // Linux, an ASAN leak run): the suite needs a JDK as it needs python3.
-    add_single(tests, "jni", "build", 0, "", format(TIL, " run test/jni.til"))
+    // Linux, an ASAN leak run), which needs a JDK unless --no-jvm.
+    add_single(tests, "jni", "build", 0, "", format(TIL, " run test/jni.til", jvm_arg))
 
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`

@@ -957,9 +957,10 @@ parameters, other collections, variadics, callbacks that throw or take
 class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
 in the generated source.
 
-~make test~ runs the binding the way it runs the Python one, so the suite
-needs a JDK (~$JAVA_HOME~, else the one ~javac~ on ~PATH~ belongs to) as it
-needs ~python3~. The ~jni~ test checks the generated text for
+~make test~ runs the binding the way it runs the Python one, with a JDK
+(~$JAVA_HOME~, else the one ~javac~ on ~PATH~ belongs to; an optional
+dependency, see README.org). Without one, ~make test NO_JVM=1~
+(~bin/tests --no-jvm~) keeps the text checks and skips the JDK runs. The ~jni~ test checks the generated text for
 test/jni_lib.til, then compiles the classes with ~javac --release 8~, builds
 the bridge and runs ~test/JniLibTest.java~ through it;
 test/library_namespace.til does the same with

@@ -125,10 +125,10 @@ $(DELEGATED): .til-delegate
 ifneq ($(BOOTSTRAP_AS_USER),)
 .til-delegate:
 	$(BOOTSTRAP_AS_USER) $(MAKE) bin/make
-	bin/make $(if $(J),-j$(J)) $(DELEGATED)
+	bin/make $(if $(J),-j$(J)) $(if $(NO_JVM),--no-jvm) $(DELEGATED)
 else
 .til-delegate: bin/make
-	bin/make $(if $(J),-j$(J)) $(DELEGATED)
+	bin/make $(if $(J),-j$(J)) $(if $(NO_JVM),--no-jvm) $(DELEGATED)
 endif
 endif
 

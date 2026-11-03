@@ -604,3 +604,18 @@ test_own_arg_literal_tagged_local := test() {
     assert_eq(Str, v[0], "lit")
     assert_eq(Str, v[1], "")
 }
+
+test_multiline_literal := test() {
+    // A literal may span lines. Literal.Str is source form, so the parser
+    // spells each raw newline as \n; the C emitter used to copy it into a
+    // C string literal raw, which does not compile. A backslash right
+    // before a raw newline stays a backslash on both backends.
+    two := "first
+second"
+    assert_eq(Str, two, "first\nsecond")
+    assert_eq(USize, two.len(), 12)
+    spliced := "a\
+b"
+    assert_eq(Str, spliced, "a\\\nb")
+    assert_eq(USize, spliced.len(), 4)
+}

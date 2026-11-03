@@ -125,6 +125,8 @@ Build := struct {
     host : Host
     // -jN for the test runner. Empty means "the runner's own default".
     jobs := ""
+    // --no-jvm for the test runner: a host without a JDK.
+    no_jvm := false
     // No distro ships a riscv32 gcc, so the compiler is a parameter:
     // --riscv32-cc=<path>, or RISCV32_CC in the environment.
     riscv32_cc := ""
@@ -775,6 +777,7 @@ suite_cmd := proc(b: Build, extra: ..Str) returns Cmd {
     if b.jobs.is_empty().not() {
         c.arg(format("-j", b.jobs))
     }
+    if b.no_jvm { c.arg("--no-jvm") }
     return c
 }
 
@@ -852,6 +855,7 @@ run_test_nogui := proc(mut b: Build) {
     build_tests(b)
     c := Cmd.new("bin/tests", "--no-gui")
     if b.jobs.is_empty().not() { c.arg(format("-j", b.jobs)) }
+    if b.no_jvm { c.arg("--no-jvm") }
     c.run_checked()
 }
 
@@ -2364,6 +2368,7 @@ usage := proc() {
     println("")
     println("Options:")
     println(format("  ", pad("-jN", 22), "Run the test suite with N jobs"))
+    println(format("  ", pad("--no-jvm", 22), "Skip the suite's JDK runs (no JDK installed)"))
     println(format("  ", pad("--riscv32-cc=<path>", 22), "riscv32 gcc for the riscv32 GUI archives"))
     println(format("  ", pad("--linux-x64-cc=<path>", 22), "linux-x64 cross gcc off a linux-x64 host"))
     println(format("  ", pad("", 22), "(default x86_64-linux-gnu-gcc)"))
@@ -2528,6 +2533,8 @@ main := proc(args: ..Str) {
         ref arg : Str = args[i]
         if arg.starts_with("-j") {
             b.jobs = arg.strip_prefix("-j").clone()
+        } else if arg == "--no-jvm" {
+            b.no_jvm = true
         } else if arg.starts_with("--riscv32-cc=") {
             b.riscv32_cc = arg.strip_prefix("--riscv32-cc=").clone()
         } else if arg.starts_with("--linux-x64-cc=") {
@@ -2554,6 +2561,7 @@ main := proc(args: ..Str) {
             command := build_user_command(build_uid)
             command.arg(self_bin(host))
             if b.jobs.len() > 0 { command.arg(format("-j", b.jobs)) }
+            if b.no_jvm { command.arg("--no-jvm") }
             if b.riscv32_cc.len() > 0 {
                 command.arg(format("--riscv32-cc=", b.riscv32_cc))
             }

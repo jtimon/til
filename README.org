@@ -81,8 +81,19 @@ This is more predictable, but sill not completely deterministic. And can be more
 - ~make~
 - ~gcc~
 - ~xvfb~ (for GUI tests)
-- a JDK (for the JNI binding tests; ~$JAVA_HOME~, else the ~javac~ on
-  ~PATH~), e.g. ~sudo apt install default-jdk-headless~
+
+** Optional: a JDK
+
+The JNI binding tests compile and run Java callers, so ~make test~ uses a
+JDK: ~$JAVA_HOME~, else the one the ~javac~ on ~PATH~ belongs to. On Ubuntu:
+
+#+begin_src sh
+sudo apt install default-jdk-headless
+#+end_src
+
+Without one, run ~make test NO_JVM=1~ (~bin/make test --no-jvm~,
+~bin/tests --no-jvm~): the binding tests still check the generated Java and C,
+and only their JDK runs are skipped.
 
 ** Optional LLVM/MLIR development tools
 

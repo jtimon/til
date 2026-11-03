@@ -72,10 +72,15 @@ check_text := proc() {
 
 EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\nloop ok\n"
 
-main := proc() {
+main := proc(args: ..Str) {
     Cmd.new("bin/til", "build", "test/jni_lib.til").run_checked()
     check_text()
     println("jni text ok")
+    // --no-jvm (bin/tests --no-jvm): a host without a JDK stops at the text.
+    for arg : Str in args {
+        if arg != "--no-jvm" { panic("test/jni.til: unknown argument ", arg) }
+        return
+    }
 
     java_home := jni_java_home()
     jni_build_bridge(java_home, "jni_lib", false)
