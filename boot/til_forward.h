@@ -2175,6 +2175,7 @@ typedef struct TypeBinding {
     Str declared_type_name;
     Vec__BorrowRoot borrow_roots;
     Bool is_external_global;
+    Bool aliases_global_storage;
 } TypeBinding;
 
 

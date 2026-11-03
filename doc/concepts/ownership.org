@@ -109,6 +109,11 @@ and still retain a dangling reference to a caller's local. The typer checks
 the actual source owners at typed call sites, following global-retention
 effects through helpers, generic instances, namespace members and container
 deposits. It also checks direct stores of local borrows into global storage.
+Global destinations remain global through ref-returning getters, wrapper
+calls, local ref aliases and rebinding. This includes a local created inside
+the storing function, which has no caller-parameter escape bit to propagate.
+A cloned carrier is separate local storage; borrowing the global through a
+getter does not make a subsequent owned copy global.
 
 For example, a helper storing ~value.clone()~ in a global may accept a carrier
 that borrows a global owner, but rejects a carrier borrowing a local Vec that

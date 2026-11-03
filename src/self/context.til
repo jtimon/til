@@ -238,6 +238,10 @@ TypeBinding := struct {
     // Reads and writes are ordinary lvalue operations; borrows may take its
     // address, but scope teardown never owns it.
     is_external_global := false
+    // A ref local may name global storage through a getter even when no
+    // parameter-relative BorrowRoot names that storage. Union on rebinding,
+    // just like borrow_roots, so conditional aliases retain every destination.
+    aliases_global_storage := false
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name

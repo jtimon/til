@@ -85,6 +85,50 @@ bad_global_runtime_type := proc(n: I64) {
     store_global_runtime_type(I64, GlobalEscapeRef.Some(local.unsafe_get(0)))
 }
 
+// The owner is local to the storing function, not one of its parameters.
+// Parameter-relative escape summaries alone cannot diagnose these writes.
+bad_global_getter_direct := proc(n: I64) {
+    noop_proc()
+    local := vec(I64, n)
+    global_record_target().value = local.unsafe_get(0)
+}
+bad_global_getter_alias := proc(n: I64) {
+    local := vec(I64, n)
+    ref mut target: GlobalEscapeRecord = global_record_target()
+    ref mut alias: GlobalEscapeRecord = target
+    noop_proc()
+    alias.value = local.unsafe_get(0)
+}
+global_record_identity := func(value: GlobalEscapeRecord) returns ref GlobalEscapeRecord { return value }
+bad_global_getter_wrapper := proc(n: I64) {
+    noop_proc()
+    local := vec(I64, n)
+    ref mut alias: GlobalEscapeRecord = global_record_identity(global_record_target())
+    alias.value = local.unsafe_get(0)
+}
+bad_global_getter_rebind := proc(n: I64) {
+    noop_proc()
+    local := vec(I64, n)
+    mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
+    ref mut alias: GlobalEscapeRecord = holder
+    alias.value = global_escape_owner.unsafe_get(0)
+    alias = global_record_target()
+    alias.value = local.unsafe_get(0)
+}
+global_many_target := func() returns ref Vec(GlobalEscapeRef) { return global_escape_many }
+bad_global_getter_assign := proc(n: I64) {
+    noop_proc()
+    local := vec(I64, n)
+    carrier := GlobalEscapeRecord(value = local.unsafe_get(0))
+    ref mut alias: GlobalEscapeRecord = global_record_target()
+    alias = carrier
+}
+bad_global_getter_container := proc(n: I64) {
+    noop_proc()
+    local := vec(I64, n)
+    global_many_target().push(own GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+
 Cell := struct { number: I64 = 0 }
 borrow := func(cell: Cell) returns ref Cell { return cell }
 main := proc() {

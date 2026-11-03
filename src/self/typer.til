@@ -7225,8 +7225,11 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // #393: a borrow-carrying value assigned into a field parks its
     // borrows in the base binding's storage -- the direct-assign form of
     // the deposit a call performs through its pairs.
-    if stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref).or(type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols)) {
-        field_borrow := stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref)
+    // Raw address fields are the erased boundary, including the literal zero
+    // before its destination-guided null rewrite below.
+    field_borrow := stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref)
+        .and(type_is_null_quarantine(type_from_name_init_name(field_type_name, scope, ctx.symbols)).not())
+    if field_borrow.or(type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols)) {
         apply_call_deposit(scope, obj, rhs, stmt, field_borrow, field_borrow, ctx)
     }
     obj_sname_o := expr_type_name_ref(obj, ctx.symbols)
@@ -8416,6 +8419,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             // field aliases that field's storage, not every borrow the
             // whole value happens to carry through its other fields.
             decl_b.borrow_roots = lvalue_write_roots(scope, rhs, ctx.symbols)
+            decl_b.aliases_global_storage = expr_names_global_storage(scope, rhs, ctx)
             if sdecl.is_mut {
                 switch rhs.node_type {
                 case .Ident(rid):
@@ -10428,7 +10432,10 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             if db_o.is_some() {
                 ref mut db : TypeBinding = db_o.unwrap()
                 if binding_is_storage(scope, db, ctx.symbols) {
-                    if root_is_global(scope, borrow_root_of_binding(db), ctx.symbols) {
+                    if db.aliases_global_storage.and(reference_assignment_rebinds(stmt, scope, ctx.symbols).not()) {
+                        mut reported := Set(Str).new()
+                        report_global_escape_roots(scope, stmt, deposited_393, reported, ctx)
+                    } else if root_is_global(scope, borrow_root_of_binding(db), ctx.symbols) {
                         check_interface_deposit_lifetimes(scope, db, deposited_393, stmt, ctx)
                     }
                     if type_is_interface(rhs.til_type(), scope, ctx.symbols) {
@@ -10491,6 +10498,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         ref mut target : TypeBinding = scope.get_binding_name(aname, ctx.symbols).unwrap()
         check_reference_rebind_lifetime(scope, target, roots, stmt, ctx)
         target.written = true
+        target.aliases_global_storage = target.aliases_global_storage.or(expr_names_global_storage(scope, rhs, ctx))
         // Rebinding changes the borrow, not either pointee. Retain the union
         // for branches/loops, as with the existing carried-borrow summaries.
         for root : BorrowRoot in roots { push_root_unique(target.borrow_roots, root) }
@@ -11968,7 +11976,8 @@ priv check_global_escape_call := proc(scope: TypeScope, e: Expr, fd: FunctionDef
         if arg.is_none() { continue }
         if effect.alias.bor(effect.into).band(bit) != 0 {
             roots := expr_borrow_roots(scope, arg.unwrap(), ctx.symbols)
-            if roots.len() == 0 && arg.unwrap().til_type().is(Type.Dynamic).not() {
+            if roots.len() == 0 && arg.unwrap().til_type().is(Type.Dynamic).not()
+                && expr_names_global_storage(scope, arg.unwrap(), ctx).not() {
                 e.type_error("cannot store a borrow of a temporary in global storage", ctx)
             }
             report_global_escape_roots(scope, e, roots, reported, ctx)
@@ -13105,6 +13114,41 @@ priv root_is_global := func(scope: TypeScope, r: BorrowRoot, symbols: SymbolPool
     return gb.line.eq(r.line).and(gb.col == r.col).and(gb.path == r.path)
 }
 
+// Typed destination provenance. Return/deposit parameter masks cannot name a
+// getter's global result; preserve its separate origin through local aliases
+// and ref-returning wrappers instead of treating an empty root set as local.
+priv expr_names_global_storage := func(scope: TypeScope, e: Expr, ctx: Context) returns Bool {
+    switch e.node_type {
+    case .Ident(id):
+        binding := scope.get_binding_sym(id.ident_sym())
+        if binding.is_none() { return false }
+        ref b : TypeBinding = binding.unwrap()
+        return b.aliases_global_storage.or(root_is_global(scope, borrow_root_of_binding(b), ctx.symbols))
+    case .FieldAccess:
+        return expr_names_global_storage(scope, e.children[0], ctx)
+    case .FCall:
+        // Erased pointers loaded from global slots need not point at globals.
+        if raw_borrow_source(e, ctx.symbols).is_some() { return false }
+        callee := fcall_callee_fdef(e, scope, ctx.symbols)
+        if callee.is_none() { return false }
+        ref fd : FunctionDef = funcdef_of(callee.unwrap())
+        if fd.sig.return_own_type.is(OwnType.Ref).not() { return false }
+        key := word_bits(to_ptr(fd)).to_uptr()
+        if ctx.global_borrow_escapes.has(key) {
+            if ctx.global_borrow_escapes[key].global_storage { return true }
+        }
+        for pi in 0..fd.sig.params.len() {
+            if fd.ref_return_params.bor(fd.ref_return_into_params).band(summary_param_bit(pi)) == 0 { continue }
+            arg := summary_fcall_arg_for_param(e, fd, pi, scope, ctx.symbols)
+            if arg.is_some() {
+                if expr_names_global_storage(scope, arg.unwrap(), ctx) { return true }
+            }
+        }
+    case:
+    }
+    return false
+}
+
 priv push_root_unique := func(mut out: Vec(BorrowRoot), r: BorrowRoot) {
     for have : BorrowRoot in out {
         if BorrowRoot.eq(have, r) { return }
@@ -13645,27 +13689,40 @@ priv ref_container_source_stable := func(source: Expr, scope: TypeScope, symbols
 
 priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, source_borrowed: Bool, address_borrow: Bool, mut ctx: Context) {
     mut bo := deposit_sink_binding(scope, sink, ctx.symbols)
-    if bo.is_none() { return }
-    ref mut b : TypeBinding = bo.unwrap()
+    global_sink := expr_names_global_storage(scope, sink, ctx)
+    if bo.is_none().and(global_sink.not()) { return }
     source_type := resolved_type_name(src.til_type(), ctx.symbols)
     // A mixed container can own one occurrence of a type and borrow another.
     // The callee's effect and parameter ownership decide which source is lent.
-    retains_source := source_borrowed.and(address_borrow.or(type_is_interface(src.til_type(), scope, ctx.symbols)))
-        .and(aggregate_borrows_type(scope, sink.til_type(), source_type, ctx)
-            .or(aggregate_borrows_type(scope, b.type, source_type, ctx)))
+    mut borrows_source := aggregate_borrows_type(scope, sink.til_type(), source_type, ctx)
+    if bo.is_some() { borrows_source = borrows_source.or(aggregate_borrows_type(scope, bo.unwrap().type, source_type, ctx)) }
+    // A declared ref field retains the source address directly. The generic
+    // container qualifier is only needed for a callee's deposit relation.
+    retains_source := source_borrowed.and(site.node_type.is(NodeType.FieldAssign)
+        .or(address_borrow.or(type_is_interface(src.til_type(), scope, ctx.symbols)).and(borrows_source)))
     mut deposited := deposit_src_roots(scope, src, ctx.symbols)
     if retains_source {
         deposited = expr_borrow_roots(scope, src, ctx.symbols)
-        if ref_container_source_stable(src, scope, ctx.symbols).not().or(deposited.len() == 0) {
-            site.type_error("cannot store a borrow of a temporary in a ref-qualified container", ctx)
+        if ref_container_source_stable(src, scope, ctx.symbols).not()
+            .or(deposited.len().eq(0).and(expr_names_global_storage(scope, src, ctx).not())) {
+            if site.node_type.is(NodeType.FieldAssign) {
+                site.type_error("cannot store a borrow of a temporary in a ref field", ctx)
+            } else {
+                site.type_error("cannot store a borrow of a temporary in a ref-qualified container", ctx)
+            }
             return
         }
     }
     if deposited.len() == 0 { return }
-    if root_is_global(scope, borrow_root_of_binding(b), ctx.symbols)
-        .or(type_is_interface(src.til_type(), scope, ctx.symbols)).or(retains_source)
+    if global_sink {
+        mut reported := Set(Str).new()
+        report_global_escape_roots(scope, site, deposited, reported, ctx)
+    }
+    if bo.is_none() { return } // A direct getter has no caller-local binding.
+    ref mut b : TypeBinding = bo.unwrap()
+    if global_sink.not().and(type_is_interface(src.til_type(), scope, ctx.symbols).or(retains_source)
         .or(aggregate_borrows_type(scope, sink.til_type(), "", ctx))
-        .or(aggregate_borrows_type(scope, b.type, "", ctx)) {
+        .or(aggregate_borrows_type(scope, b.type, "", ctx))) {
         check_interface_deposit_lifetimes(scope, b, deposited, site, ctx)
     }
     deposit_roots_into_binding(scope, b, deposited, ctx.symbols)

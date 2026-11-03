@@ -54,7 +54,13 @@ main := proc(compiler: Str) {
         "mut retained_borrow := ReplBorrow.None\n",
         "retain_borrow := proc(value: ReplBorrow) { noop_proc(); retained_borrow = value.clone() }\n",
         "escape_borrow := proc(n: I64) { local := vec(I64, n); retain_borrow(ReplBorrow.Some(local.unsafe_get(0))) }\n",
-        "println(\"REPL_GLOBAL_ESCAPE_REJECTED\")\n"))
+        "println(\"REPL_GLOBAL_ESCAPE_REJECTED\")\n",
+        "ReplHolder := struct { ref value: I64 }\n",
+        "repl_owner := vec(I64, 41)\n",
+        "mut repl_holder := ReplHolder(value = repl_owner.unsafe_get(0))\n",
+        "repl_target := func() returns ref ReplHolder { return repl_holder }\n",
+        "escape_getter := proc(n: I64) { noop_proc(); local := vec(I64, n); ref mut alias: ReplHolder = repl_target(); alias.value = local.unsafe_get(0) }\n",
+        "println(\"REPL_GETTER_ESCAPE_REJECTED\")\n"))
     cmd := format("XDG_STATE_HOME=tmp/repl_ownership_state HOME=tmp/repl_ownership_home '",
         compiler, "' < tmp/repl_ownership_input > tmp/repl_ownership_output 2>&1")
     status := wait_cmd(spawn_cmd(cmd))
@@ -73,8 +79,9 @@ main := proc(compiler: Str) {
     require_count(output, "REPL272_FULL_RAN", 0)
     require_count(output, "proc println(parts: ..Str)", 1)
     require_count(output, "refresh272 is a I64", 1)
-    require_count(output, "cannot store a borrow of local 'local' in global storage", 1)
+    require_count(output, "cannot store a borrow of local 'local' in global storage", 2)
     require_count(output, "REPL_GLOBAL_ESCAPE_REJECTED", 1)
-    require_count(output, "error:", 1)
+    require_count(output, "REPL_GETTER_ESCAPE_REJECTED", 1)
+    require_count(output, "error:", 2)
     println("repl_ownership PASS")
 }

@@ -120,6 +120,27 @@ test_local_shadow_is_not_a_global_escape := test() {
     }
 }
 
+safe_holder_identity := func(value: RefOwnedCarrier) returns ref RefOwnedCarrier { return value }
+safe_global_number := func() returns ref I64 { return global_safe_owner.unsafe_get(0) }
+test_global_getter_destination := test() {
+    ref mut target: RefOwnedCarrier = safe_holder_identity(global_safe_target())
+    ref mut alias: RefOwnedCarrier = target
+    alias.value = safe_global_number()
+    store_safe_number(safe_global_number())
+    ref value: I64 = global_safe_holder.value
+    assert(ptr_eq(value, global_safe_owner.unsafe_get(0)))
+
+    // Copying the global's carrier creates local storage. Its ref field may
+    // borrow a local owner that outlives the copy.
+    local := vec(I64, 73)
+    mut copy := global_safe_target().clone()
+    ref mut local_alias: RefOwnedCarrier = safe_holder_identity(copy)
+    local_alias.value = local.unsafe_get(0)
+    ref local_value: I64 = copy.value
+    assert(ptr_eq(local_value, local.unsafe_get(0)) && local_value == 73)
+    assert(value == 41)
+}
+
 SafeGlobalThunk := func() returns I64
 safe_global_zero := func() returns I64 { return 0 }
 mut safe_global_function: SafeGlobalThunk = safe_global_zero
