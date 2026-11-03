@@ -1,0 +1,47 @@
+mode cli
+
+// Issues #469 / #470: an auto-shallow parameter is the callee's by-value
+// copy, so an own transfer (here an index store) consumes it like a local
+// of the same type. Using it afterwards read a moved binding: the
+// interpreter had released it (null deref), C still held the copy, and a
+// `func` crashed the compiler through compile-time evaluation. Each case
+// below is one "after ownership transfer" error (4 in all). The working
+// clone forms are in test/bug469.til.
+
+// One machine word: small enough to be auto-shallow.
+Word := struct { x: I64 = 0 }
+
+returns_moved := proc(seed: I64) returns I64 {
+    mut values := Array(I64).new(2)
+    values[0] = seed
+    println(values.len().to_str())
+    return seed
+}
+
+folded_moved := func(seed: I64) returns I64 {
+    mut values := Array(I64).new(2)
+    values[0] = seed
+    return seed
+}
+
+sum_after_move := proc(mut total: I64, seed: I64) {
+    mut values := Array(I64).new(2)
+    values[0] = seed
+    values[1] = seed + 1
+    total = values[0] + values[1]
+    println(total.to_str())
+}
+
+struct_moved := proc(p: Word) {
+    mut points := Array(Word).new(1)
+    points[0] = p
+    println(p.x.to_str())
+}
+
+main := proc() {
+    println(returns_moved(4).to_str())
+    println(folded_moved(4).to_str())
+    mut total := 0
+    sum_after_move(total, 4)
+    struct_moved(Word(x=1))
+}

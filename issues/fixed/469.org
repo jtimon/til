@@ -1,0 +1,79 @@
+# priority: medium
+# category: bugs
+** FIXED #469 Interpreter null deref after a throwing store in a value-returning function
+
+*** Post-mortem
+
+  Root cause: not the interpreter, and not the throwing store itself. An
+  index store (~values[0] = seed~) is an ~own~ transfer of its value, and
+  the garbager rejects a later use of the moved binding ("use of 'x' after
+  ownership transfer") -- but only for the bindings
+  ~collect_scope_locals~ gathers, which skips every non-Own parameter
+  because those own nothing to delete. A Shallow parameter (#223
+  auto-shallow: a primitive or one-word value struct) is the callee's own
+  by-value copy, so the transfer really consumes it; the interpreter
+  released the binding at the transfer and the later read (~return seed~,
+  ~seed + 1~) dereferenced the released slot, while C still held its copy
+  and printed a value. A ~func~ crashed the compiler because it is
+  constant-folded through the interpreter.
+
+  Semantics chosen: the existing rule for locals. The same program with a
+  local ~s := seed~ in place of the parameter was already rejected, and an
+  ~own~ parameter too; a by-value parameter now is as well, on every
+  backend. The fix is a clone (~values[0] = seed.clone()~). A transfer on a
+  path that leaves before the use stays legal (the check is the same
+  path-sensitive one).
+
+  Fix (~src/self/garbager.til~): ~collect_shallow_param_transfers~ builds a
+  separate LocalInfo list of Shallow parameters that are transferred, and
+  ~insert_free_calls~ runs ~check_use_after_own_transfer~ on it. Nothing
+  schedules deletes from that list. No existing program in the suite or the
+  compiler relied on the old behavior.
+
+  Regression tests: ~test/bug469_error.til~ (4 rejected shapes: #469's
+  proc and func, #470's sum, a one-word struct parameter; counted for
+  interpret and build) and ~test/bug469.til~ (the clone forms, a transfer
+  on an exiting path, a transfer at the last use).
+
+Found while writing the [[../fixed/468.org][#468]] regression test. A
+function that returns a value and contains a throwing store (implicit
+bang, here ~values[0] = seed~ via ~Array.set~) crashes the interpreter
+with ~panic: null deref~ after the store. C runs the same program
+correctly. Declared as a ~func~, the compiler itself crashes for every
+backend -- probably the same interpreter bug reached through compile-time
+evaluation of ~fill(4)~.
+
+*** Reproduction
+
+  ~tmp/bug469.til~:
+
+  #+begin_src til
+  mode cli
+  fill := proc(seed: I64) returns I64 {
+      mut values := Array(I64).new(2)
+      values[0] = seed
+      println(values.len().to_str())
+      return seed
+  }
+  main := proc() {
+      println(fill(4).to_str())
+  }
+  #+end_src
+
+  Observed on master ~f36bb7e~ + the #468 fix (also with the pre-#468
+  ~til_boot~), USize32 and USize64:
+
+  - ~bin/til interpret tmp/bug469.til~: prints ~2~, then ~panic: null
+    deref~ (stderr), exit 1.
+  - ~bin/til run --backend=c tmp/bug469.til~: prints ~2~ then ~4~.
+
+  Same body as a ~func~ (drop the ~println~ line, ~fill := func(...)~):
+  ~panic: null deref~ from both ~interpret~ and ~run --backend=c~.
+
+*** Notes
+
+  - Without ~returns~ (a plain ~proc(seed: I64)~ with the same store) the
+    interpreter works, as does reading ~values[0]~ without the store.
+  - Suspect the interpreter's handling of the hoisted store / ~_err_kind~
+    check interacting with the function's return slot. Compare with
+    #470, which crashes the same way with a ~mut~ parameter and no return.

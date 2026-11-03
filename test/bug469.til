@@ -1,0 +1,63 @@
+mode cli
+
+// Issues #469 / #470: storing a by-value parameter and using it again
+// needs a clone, exactly as for a local; a transfer on a path that leaves
+// before the use is fine. The rejected shapes are in test/bug469_error.til.
+
+// One machine word: small enough to be auto-shallow.
+Word := struct { x: I64 = 0 }
+
+returns_kept := proc(seed: I64) returns I64 {
+    mut values := Array(I64).new(2)
+    values[0] = seed.clone()
+    println(values.len().to_str())
+    return seed
+}
+
+folded_kept := func(seed: I64) returns I64 {
+    mut values := Array(I64).new(2)
+    values[0] = seed.clone()
+    return seed + values[0]
+}
+
+sum_kept := func(mut total: I64, seed: I64) {
+    mut values := Array(I64).new(2)
+    values[0] = seed.clone()
+    values[1] = seed + 1
+    total = values[0] + values[1]
+}
+
+struct_kept := proc(p: Word) returns I64 {
+    mut points := Array(Word).new(1)
+    points[0] = p.clone()
+    println(points[0].x.to_str())
+    return p.x
+}
+
+moved_on_exit_path := func(seed: I64, early: Bool) returns I64 {
+    mut values := Array(I64).new(1)
+    if early {
+        values[0] = seed
+        return I64.clone(values[0])
+    }
+    return seed * 2
+}
+
+last_use_move := proc(seed: I64) {
+    mut values := Array(I64).new(1)
+    values[0] = seed
+    println(values[0].to_str())
+}
+
+main := proc() {
+    assert(returns_kept(4) == 4)
+    assert(folded_kept(4) == 8)
+    mut total := 0
+    sum_kept(total, 4)
+    assert(total == 9)
+    assert(struct_kept(Word(x=1)) == 1)
+    assert(moved_on_exit_path(3, true) == 3)
+    assert(moved_on_exit_path(3, false) == 6)
+    last_use_move(5)
+    println("by-value parameter transfers passed")
+}

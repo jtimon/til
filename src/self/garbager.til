@@ -2880,6 +2880,41 @@ priv check_view_escapes := proc(body: Expr, locals: Vec(LocalInfo), scope: TypeS
     }
 }
 
+// #469/#470: a Shallow parameter is the callee's own by-value copy, so an
+// own transfer (an index store, a call taking `own`) consumes it exactly as
+// it consumes a local of the same type, and a later use reads a moved
+// value -- the interpreter releases the binding at the transfer, while C
+// still holds the copy. collect_scope_locals skips non-Own parameters
+// (they own nothing to delete), so this list exists only to run the same
+// use-after-transfer check on them; nothing schedules deletes from it.
+priv collect_shallow_param_transfers := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex, symbols: SymbolPool, mut out: Vec(LocalInfo)) {
+    for bi in 0..scope.bindings.keys.count {
+        ref b : TypeBinding = scope.bindings.values.unsafe_get(bi)
+        if b.is_param.not().or(b.own_type.is(OwnType.Shallow).not()) { continue }
+        bbit_s := fact_bit_search(fi.idx, b.name)
+        if bbit_s < 0 { continue }
+        bbit := bbit_s.to_usize()
+        mut last_use : I64 = -1
+        mut own_transfer : I64 = -1
+        for j in 0..body.children.len() {
+            if facts.directives.unsafe_get(j) { continue }
+            fbase := j.mul(facts.words)
+            if fact_bit_test(facts.uses, fbase, bbit) { last_use = j.to_i64() }
+            if own_transfer.eq(-1).and(fact_bit_test(facts.transfers, fbase, bbit)) { own_transfer = j.to_i64() }
+        }
+        if own_transfer < 0 { continue }
+        mut li := LocalInfo(name = b.name.clone())
+        li.type = b.type
+        li.decl_index = -1
+        li.last_use = last_use
+        li.own_transfer = own_transfer
+        li.has_transfer = true
+        li.skip_scope_delete = true
+        li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name, symbols)
+        out.push(own li)
+    }
+}
+
 priv check_use_after_own_transfer := proc(mut body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context, mut facts: BodyFacts, fi: FactIndex) {
     for mut local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
@@ -4473,6 +4508,9 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         check_use_after_own_transfer(body, locals_vec, scope, ctx, facts, fidx)
         check_view_escapes(body, locals_vec, scope, facts, fidx, ctx)
     }
+    mut shallow_params := Vec(LocalInfo).new()
+    collect_shallow_param_transfers(body, scope, facts, fidx, ctx.symbols, shallow_params)
+    if shallow_params.len() > 0 { check_use_after_own_transfer(body, shallow_params, scope, ctx, facts, fidx) }
     if insert.not() { return false }
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
