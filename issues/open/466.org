@@ -1,0 +1,93 @@
+# priority: high
+# category: bugs
+** OPEN #466 C enum-reference assignment to a namespace variant leaves stale payload storage
+
+Found during the FASM enum work in [[./453.org][#453]], on investigated base
+~c721fbbf2~. Assigning a namespace variant value such as ~Choice.None~
+through an ordinary enum reference can delete the old payload and retarget
+the reference variable instead of overwriting its referenced enum slot.
+The original owner can retain a pointer to the freed payload and later
+destroy it again. This is a C-emitter correctness/memory-safety bug.
+
+*** Reproduction
+
+  Save this as ~tmp/bug466.til~:
+
+  #+begin_src til
+  mode cli
+  Box := struct { text: Str = "" }
+  Choice := enum { Some: Box, None }
+  main := proc() {
+      mut values := Array(Choice).new(1)
+      values[0] = Choice.Some(Box(text=format("owned", " payload")))
+      ref mut alias : Choice = values[0]
+      alias = Choice.None
+      assert(values[0].is(Choice.None))
+      println("enum slot replaced")
+  }
+  #+end_src
+
+  Run with a freshly built compiler:
+
+  #+begin_src sh
+  bin/til run --backend=c --usize=32 tmp/bug466.til
+  bin/til run --backend=c --usize=64 tmp/bug466.til
+  bin/til translate -c tmp/bug466.c tmp/bug466.til
+  #+end_src
+
+  Expected: replace the array element with None, destroy its old owned Box
+  exactly once, and print ~enum slot replaced~. The assertion observes the
+  stale slot without requiring allocator-dependent failure. Omitting that
+  assertion and reaching normal array cleanup exercises repeated destruction
+  through the stale pointer; use an ASAN C build to diagnose that path.
+
+  Rechecked this exact snippet on ~1f4e72b83~: C at USize32 and USize64 both
+  fail the assertion on line 9. This recheck establishes the wrong-slot
+  behavior; an ASAN recheck of the later cleanup path was not run here.
+
+*** Observed generated C
+
+  In the original owned-niche array probe, the relevant output was:
+
+  #+begin_src c
+  EnumTemplate_delete(changed_constant, 0);
+  changed_constant = &(EnumTemplate){.data = NULL};
+  Array__EnumTemplate_delete(&owned_constants, 0);
+  #+end_src
+
+  ~changed_constant~ points into ~owned_constants~. The first call destroys
+  the old payload, but the second line only changes the reference variable;
+  the array's element is never overwritten. Its subsequent cleanup still
+  sees the old non-null payload pointer. Non-ASAN cage allocation can mask
+  invalid accesses, so a successful uninstrumented run is not proof of safety.
+
+*** Investigation
+
+  In ~src/self/codegen/c_codegen.til~, the Assign arm of ~emit_stmt~ groups a
+  namespace enum FieldAccess with pointer-rebinding RHS forms and emits
+  ~alias = ...~.
+  Namespace variant constants are values, not borrowed field places. Compare
+  this branch with ~reference_assignment_rebinds~ in ~src/self/typer.til~,
+  which excludes namespace accesses from ordinary field-reference rebinding.
+  Also inspect how prior old-value deletion and ~save_old_delete~ interact:
+  changing only the destination syntax must not delete the payload twice.
+
+  The FASM enum change excludes namespace constants from its field-place
+  retargeting rule. The shared template regression instead uses the working
+  ~values[0] = Choice.None~ Array.set replacement path, so that test does not
+  establish that the C reference-assignment branch is fixed.
+
+  Preserve the actual reference-rebinding semantics fixed in #453: assigning
+  another reference or a borrowed field/ref-returning call retargets an
+  ordinary reference without destroying its old pointee. Value replacement
+  through a reference and reference retargeting are different operations.
+
+*** Acceptance
+
+  - Add regression coverage observing the original enum slot after assigning
+    a namespace variant through its reference, including an array element
+    containing an owned-niche payload and a tagged enum with an owned payload.
+  - Count custom payload destructors across replacement and enclosing-owner
+    cleanup; verify exactly-once destruction and ASAN-clean C execution.
+  - Compare interpretation/C/FASM at both USize widths, and retain the existing
+    ref-to-ref/field/ref-returning-call rebinding tests.

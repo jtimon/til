@@ -1,0 +1,84 @@
+# priority: medium
+# category: bugs
+** OPEN #465 Enum switch payload binding reevaluates a side-effecting scrutinee
+
+Found during the FASM enum work in [[./453.org][#453]], while comparing the same
+source through interpretation, C and FASM. On the investigated base
+~c721fbbf2~, switching directly on an enum-returning call with a payload
+binder called the function twice under both interpretation and C. This is
+a shared preparation/lowering defect, not a FASM-only dispatch problem.
+
+*** Reproduction
+
+  Save this as ~tmp/bug465.til~:
+
+  #+begin_src til
+  mode cli
+  Choice := enum { Empty, Number: I64 }
+  choose := func(mut calls: I64, seed: I64) returns Choice {
+      calls++
+      return Choice.Number(seed)
+  }
+  main := proc() {
+      mut calls := 0
+      mut seed : I64 = 6
+      seed++
+      mut observed : I64 = 0
+      switch choose(calls,seed) {
+      case .Number(n): observed = n
+      case .Empty: observed = -1
+      }
+      println(calls.to_str(), ":", observed.to_str())
+  }
+  #+end_src
+
+  Run with a freshly built compiler:
+
+  #+begin_src sh
+  bin/til interpret tmp/bug465.til
+  bin/til run --backend=c --usize=32 tmp/bug465.til
+  bin/til run --backend=c --usize=64 tmp/bug465.til
+  #+end_src
+
+  Expected: ~1:7~. Rechecked this exact snippet on ~1f4e72b83~: interpretation
+  and C at both USize widths all print ~2:7~. If the callee returns
+  different values or variants on successive calls, this can also select a
+  tag from one value and bind a payload from another; it is not just wasted
+  computation.
+
+*** Investigation
+
+  Inspect switch subject stabilization and payload-binding construction in
+  ~src/self/desugarer.til~, especially ~collect_switch_case_bindings~,
+  ~make_switch_case_condition~ and the C-like switch path that builds
+  ~get_payload~ bindings from a cloned scrutinee expression. The tag test and
+  payload extraction must refer to the same evaluated value, not separately
+  evaluate copies of the original call. Confirm the exact ownership and
+  hoisting boundary before changing those paths.
+
+  The temporary workaround used by ~test/aggregate_control.til::check_enums~
+  is explicit stabilization:
+
+  #+begin_src til
+  selected := choose(calls,seed)
+  switch selected {
+  case .Number(n): observed = n
+  case .Empty: observed = -1
+  }
+  #+end_src
+
+  FASM executes the prepared subject and payload expressions, so an emitter-
+  specific workaround would leave interpretation/C inconsistent. Fix the
+  shared cause and keep the stabilized value alive through the arm's payload
+  uses and cleanup.
+
+*** Acceptance
+
+  - Add shared regression coverage for a direct call scrutinee, with an
+    observable call counter and payload; verify one call in interpretation,
+    C and FASM at both USize widths.
+  - Include a callee whose result changes between calls, nested payload
+    patterns, and a resource-owning payload so tag selection, binding and
+    destruction demonstrably use the same value.
+  - Preserve mutable payload writes, guard ordering, early exits and cleanup;
+    check the C result under ASAN as well as ordinary differential execution.

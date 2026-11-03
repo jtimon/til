@@ -1,6 +1,7 @@
 * Bugs
 ** High
 *** [[./open/450.org][#450]] A struct field named like a global function shadows it inside the struct's methods
+*** [[./open/466.org][#466]] C enum-reference assignment to a namespace variant leaves stale payload storage
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it
@@ -9,6 +10,7 @@
 *** [[./open/448.org][#448]] Same top-level function name in two units compiles silently; last definition wins everywhere
 *** [[./open/452.org][#452]] C keyword used as a til local name breaks C emission
 *** [[./open/457.org][#457]] til names that collide with C macros or keywords break the C backend
+*** [[./open/465.org][#465]] Enum switch payload binding reevaluates a side-effecting scrutinee
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade

@@ -273,6 +273,8 @@ existing C and MLIR backends.
   payload pointer. The shared template test uses the Array.set value-replacement
   path instead. FASM's field-place classifier now excludes namespace constants;
   this does not claim to repair the C emitter or shared call reevaluation.
+  These defects are now tracked separately as [[./465.org][#465 (scrutinee reevaluation)]]
+  and [[./466.org][#466 (stale payload after C reference assignment)]].
 
   Verification: ~make clean && make test~ passed 517/517, including the expanded
   shared corpus and assembler-free translation. Both optional FASM native/runtime
