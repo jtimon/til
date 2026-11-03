@@ -1,8 +1,60 @@
 # priority: low
 # category: features
-** FIXED #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 
-*** Post-mortem
+*** Reopened: reference compression remains incomplete
+
+Reopened after reviewing c721fbbf2 (shared I64 references in fixed callback
+record inputs). The earlier implementation compressed stored ~own~ fields,
+but left stored ~ref~ fields native-width. On a 64-bit C host:
+
+| Selected layout | Stored own pointers | Stored ref pointers today |
+|-----------------+---------------------+---------------------------|
+| --usize=32      | 32-bit cage offsets | 64-bit native pointers    |
+| --usize=64      | 64-bit native       | 64-bit native pointers    |
+
+The intended 32-bit pointer-layout goal is therefore not complete. Stored
+references should follow the selected layout too; ~I64~ in ~ref I64~ names
+the pointee's value type, not a request for a 64-bit reference representation.
+Dynamic values, UPtr and references to native/stack/foreign storage also need
+an explicit representation plan: truncating an arbitrary address to a cage
+offset is not a solution. Preserve the already-delivered own-field work and
+its measurements below while completing the reference side.
+
+The callback bridge currently copies reference fields with ~Dynamic.size()~
+bytes and loads them as native pointers in
+~src/self/interpreter.til::interp_callback_error_copy~ and
+~interp_callback_shared_input_valid~. Those assumptions agree with today's
+layout, but must become layout-aware with compressed reference storage.
+Audit ref fields, borrowed enum payloads and ref-container slots together,
+including generated C, interpreter layouts/accesses, reflection and FFI.
+
+Acceptance for the remaining representation work:
+
+- Verify stored-reference sizes under both --usize layouts, including records,
+  borrowed enum payloads and ref containers, with explicit native-boundary rules.
+- Preserve aliasing, interior references, mutation and lifetime behavior;
+  exercise host/guest and shared-library boundaries under both layouts.
+- Measure memory and time, distinguishing representation gains from unrelated
+  runtime validation or sanitizer changes.
+
+**** Separate callback validation cost
+
+The #370 shared-cell restriction checks that an incoming borrowed address is
+exactly the receiving VM's owned cell, so the guest may retain it safely.
+It is a lifetime/provenance rule, independent of pointer width. A valid offset
+inside the process-wide cage is not proof that the allocation belongs to this
+VM or lives until its teardown. Reference compression does not remove that
+check by itself.
+
+c721fbbf2 also added a scan of every fixed record argument's fields (including
+records without references), repeated for mutable copy-back, with layout
+lookups for reference fields. That work is in the callback bridge, not general
+compiled field access. Avoiding scans for reference-free records and moving
+schema-dependent work out of the per-call path is a separate optimization;
+do not attribute the overhead to an intrinsic cost of compressed references.
+
+*** Delivered own-field work: historical post-mortem
 
   Delivered as ~--cptr=32~ (64-bit C targets): every ~own~ pointer field is
   stored as a 32-bit byte offset into a 4GB allocation cage. It is the
