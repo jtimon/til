@@ -9,7 +9,7 @@ import("../src/self/install")
 // execution. install.til covers rebuilding the compiler through `til install`.
 
 run_families := proc(work: Str, fixture: Str) {
-    families := array(Str, "lifecycle", "calls", "lookup", "values")
+    families := array(Str, "lifecycle", "calls", "lookup", "references", "values")
     mut children := Vec(Cmd).new()
     for family : Str in families {
         directory := format(work, "/", family)

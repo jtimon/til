@@ -5,5 +5,8 @@ import("./tilvm_cases")
 // Values crossing the callback boundary: record/enum ownership and
 // variadic/keyword argument packing, mutation, and failure recovery.
 main := proc(root: Str) returns I64 {
+    // Preserve this standalone entry point's full original coverage/order.
+    // The installed suite runs the two families in separate guest directories.
+    reference_callback_tests(root)
     return run_tilvm_family(root, "values")
 }

@@ -1714,6 +1714,15 @@ kwargs_callback_tests := proc(root: Str) {
     assert(snapshot == "snapshot")
 }
 
+// Shared aliases/writeback are separate from value-copy marshalling. Keep
+// checking that error payloads survive teardown of their originating VMs.
+reference_callback_tests := proc(root: Str) {
+    record_error := shared_record_callback_tests(root)
+    assert(record_error.message == "record borrow error")
+    shared_error := shared_cell_callback_tests(root)
+    assert(shared_error.code == 21 && shared_error.message == "shared error")
+}
+
 // Shared dispatch for the once-built host and the standalone family hosts.
 // A family is always run in a fresh process with its own guest directory.
 run_tilvm_family := proc(root: Str, family: Str) returns I64 {
@@ -1727,11 +1736,9 @@ run_tilvm_family := proc(root: Str, family: Str) returns I64 {
     case "lookup":
         checked_lookup(root)
         typed_callback_tests(root)
+    case "references":
+        reference_callback_tests(root)
     case "values":
-        record_error := shared_record_callback_tests(root)
-        assert(record_error.message == "record borrow error")
-        shared_error := shared_cell_callback_tests(root)
-        assert(shared_error.code == 21 && shared_error.message == "shared error")
         kwargs_callback_tests(root)
         variadic_callback_tests(root)
         nested_callback_tests(root)
