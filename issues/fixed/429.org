@@ -1,6 +1,24 @@
 # priority: low
 # category: cleanups
-** OPEN #429 no-shell-antipatterns.sh: tail -f check has false positives
+** FIXED #429 no-shell-antipatterns.sh: tail -f check has false positives
+
+*** Post-mortem
+
+Root cause: the hook's ~[^|;]*~ ran across ~&&~ into later commands,
+so any later ~-f~ (e.g. ~--force-with-lease~) matched. The check only
+existed because a never-exiting ~tail -f~ was auto-backgrounded into a
+ghost task.
+
+Change: ~CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1~, already set in
+~.claude/settings.json~, makes a command that reaches its timeout stop
+instead of moving to the background, so the reason for the check is
+gone. ~no-shell-antipatterns.sh~ is deleted (its ~git stash~ block is
+now a ~permissions.deny~ rule), and the doc/bots/lessons_learned.org
+workaround bullet is removed. No regression test: hooks are not part
+of the suite; ~tail -1 && git push --force-with-lease~ was checked by
+hand against the remaining ~block-background-bash.sh~ and passes.
+
+*** Original report
 
 ~.claude/hooks/no-shell-antipatterns.sh~ blocks ~tail -f~ with
 

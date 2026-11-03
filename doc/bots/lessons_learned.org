@@ -72,17 +72,13 @@
     ~master~ can be less painful than carrying a long-lived worktree
     branch that must be rebased repeatedly.
 
-** Remote sessions: git recovery and the shell hook
+** Remote sessions: git recovery
 
-  - ~no-shell-antipatterns.sh~ blocks every command line containing
-    ~git stash~, including ~pop~ and ~list~. If a stash happens anyway,
-    recover it without naming the command:
+  - ~.claude/settings.json~ denies every ~git stash~ command, including
+    ~pop~ and ~list~. If a stash happens anyway, recover it without
+    naming the command:
     ~git diff refs/stash^1 refs/stash > tmp/recover.patch~, then
     ~git apply tmp/recover.patch~.
-  - The same hook's ~tail -f~ check also fires on ~tail -1 && git push
-    --force-with-lease~ (it scans past ~&&~ to the ~-f~ of ~--force~) and
-    on any first line merely mentioning that text, e.g. as a grep
-    pattern. Put the push, or the search, on its own command.
   - The auto-mode permission check refuses ~git rebase --skip~ and
     ~git checkout -B~. When a rebase stops on a commit master already
     carries (re-committed by the merge script), resolve each conflict to

@@ -5,6 +5,13 @@
         "BASH_DEFAULT_TIMEOUT_MS": "1800000",
         "BASH_MAX_TIMEOUT_MS": "3600000"
     },
+    "permissions": {
+        "deny": [
+            "Bash(git stash)",
+            "Bash(git stash *)",
+            "Monitor"
+        ]
+    },
     "hooks": {
         "PreToolUse": [
             {
@@ -13,10 +20,6 @@
                     {
                         "type": "command",
                         "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-background-bash.sh"
-                    },
-                    {
-                        "type": "command",
-                        "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/no-shell-antipatterns.sh"
                     }
                 ]
             }

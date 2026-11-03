@@ -22,7 +22,6 @@
 *** [[./open/455.org][#455]] Replace --usize with source-level configuration while preserving cross-width use cases
 *** [[./open/464.org][#464]] Restore ASAN as the default of make test (temporarily off since #313)
 ** Low
-*** [[./open/429.org][#429]] no-shell-antipatterns.sh: tail -f check has false positives
 *** [[./open/449.org][#449]] Map and set literal nodes have no type slot; the instance name lives on the Decl
 * Optimizations
 ** Medium

@@ -1,38 +1,20 @@
 #!/bin/bash
-# PreToolUse(Bash) hook: enforce ONE long-running task at a time.
+# PreToolUse(Bash) hook: refuse shell-level backgrounding.
 #
-# Background: Claude Code Web auto-backgrounds any foreground bash
-# exceeding the hardcoded ~120s sandbox timeout (Anthropic Issue
-# #11716, #58662, #59900). When a Claude session keeps issuing tool
-# calls while a previous build/test is still auto-backgrounded, the
-# old task lingers as a Wait ghost in the sidebar with no way to
-# dismiss it -- ghost tasks accumulate ("a million background tasks
-# again, half of them for waiting") and the human has to hand-kill
-# everything.
-#
-# This hook makes that impossible at the source:
-#   1. Reject any explicit run_in_background=true.
-#   2. Reject any trailing & / nohup / disown / setsid.
-#   3. Reject ANY new Bash call when a long-running task (make, cc,
-#      bin/til, gdb, ...) from a previous tool call is still alive.
-# The Claude turn ends after the rejection. There is NO completion
-# notification in this harness: at every wake-up (user message or
-# stop-hook poke) check the job's state yourself
-# from its log/output files. Never wait passively.
-input=$(cat)
-
-bg=$(python3 -c "import sys,json; d=json.loads(sys.argv[1]); print(d.get('tool_input',{}).get('run_in_background'))" "$input" 2>/dev/null)
-cmd=$(python3 -c "import sys,json; d=json.loads(sys.argv[1]); print(d.get('tool_input',{}).get('command',''))" "$input" 2>/dev/null)
+# CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1 in .claude/settings.json
+# removes the run_in_background parameter and makes a command that
+# reaches its timeout stop instead of moving to the background, so
+# Claude Code itself never leaves a background task behind. What the
+# setting cannot stop is the shell backgrounding a process on its own:
+# a trailing & or nohup/disown/setsid returns at once and leaves an
+# untracked orphan. Permission deny rules match command prefixes and
+# cannot see a trailing &, so this one check stays a hook.
+cmd=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null)
 # Only inspect the first line of the command -- heredoc bodies and
 # multi-line string literals on subsequent lines are content, not
 # shell-executed code, and matching them produces false positives
 # (e.g., a commit message that mentions "nohup" or ends with "&").
 first_line=$(printf '%s\n' "$cmd" | sed -n '1p')
-
-if [ "$bg" = "True" ]; then
-    echo "BLOCKED: run_in_background=true creates a ghost task entry that can't be dismissed from the sidebar (Anthropic Issue #58662, #59900). Run synchronously; the harness auto-backgrounds long bash anyway, and the in-flight check below prevents a second call from stacking on top." >&2
-    exit 2
-fi
 
 # Block trailing & (process backgrounding) but not && or | logical/pipe
 # operators.
@@ -47,45 +29,3 @@ if echo "$first_line" | grep -qP '(^|[;&|()]|\&\&|\|\|)\s*(nohup|disown|setsid)\
     echo "BLOCKED: nohup/disown/setsid backgrounds the command. Run in the foreground." >&2
     exit 2
 fi
-
-# Universal one-task-at-a-time guard:
-#
-# Walk every process on the system and look for long-running tasks
-# that match the kinds the harness auto-backgrounds. If one is alive
-# AND it isn't an ancestor / sibling of THIS hook's process tree
-# (i.e., it's a leftover from a previous tool call), refuse the new
-# Bash call.
-#
-# Patterns checked (extend the regex when new long jobs land):
-#   - GNU make
-#   - gcc/cc/clang compile drivers
-#   - bin/til, bin/til_boot, bin/til_asan, bin/til_debug
-#   - gdb (long batch runs)
-self_pgid=$(awk '{print $5}' /proc/$$/stat 2>/dev/null)
-match_regex='(^|[/[:space:]])(make|cc|gcc|clang|gdb|bin/til|bin/til_boot|bin/til_asan|bin/til_debug)([[:space:]]|$)'
-
-for cmdline_file in /proc/[0-9]*/cmdline; do
-    [ -r "$cmdline_file" ] || continue
-    pid_dir=${cmdline_file%/cmdline}
-    pid=${pid_dir#/proc/}
-    # Skip our own process and our direct shell parent (the hook tree).
-    [ "$pid" = "$$" ] && continue
-    [ "$pid" = "$PPID" ] && continue
-    other_pgid=$(awk '{print $5}' "/proc/$pid/stat" 2>/dev/null)
-    # Skip anything in the same process group as the hook (its own
-    # forks: the python invocations above, etc).
-    [ -n "$self_pgid" ] && [ "$other_pgid" = "$self_pgid" ] && continue
-    # Skip the Claude CLI harness itself. Its argv carries user prompt
-    # text (--replay-user-messages, -p "make clean && make test", ...),
-    # so the build regex below matches that TEXT rather than a real
-    # build, and every Bash call in the session is blocked forever.
-    argv0=$(tr '\0' '\n' < "$cmdline_file" 2>/dev/null | sed -n '1p')
-    [ "${argv0##*/}" = "claude" ] && continue
-    # cmdline is NUL-separated; convert to spaces for grep.
-    other_cmdline=$(tr '\0' ' ' < "$cmdline_file" 2>/dev/null)
-    if echo "$other_cmdline" | grep -qE "$match_regex"; then
-        offender=$(echo "$other_cmdline" | head -c 120)
-        echo "BLOCKED: a long-running task from a previous tool call is still alive (pid $pid: ${offender}...). END THIS TURN now -- no further calls. There is NO completion notification: at your next wake-up (user message or stop-hook poke), check the job yourself via its log/output file and only then continue. Piling more calls on top creates the ghost tasks the human has to hand-kill." >&2
-        exit 2
-    fi
-done

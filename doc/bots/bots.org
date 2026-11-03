@@ -328,15 +328,15 @@ is a hosted AI agent but operates directly on the user's local
 worktree/system. "Remote" sessions at the moment just mean Claude in
 the cloud (CI or hosted bot runs on assigned bot branches).
 
-Remote sessions: long commands work, but the task tab lies (verified
-exhaustively 2026-06-12). It shows (a) the running command's own live
-processes -- transient, they end with it, and killing them kills the
-build; they are the build working, not orphans -- and (b) stale
-records of long-finished commands that resurface no matter how often
-they are killed (harness bug, no live process behind them, not
-fixable from inside). No alternative shape avoids this:
-run_in_background, Monitor, detached setsid runners, and sleeping
-waits were all tested and make it worse or add no value. The reliable
+Remote sessions: long commands work. `.claude/settings.json` sets
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, which removes the
+`run_in_background` parameter and makes a command that reaches its
+timeout STOP (exit 143) instead of moving to the background, so
+Claude Code never creates a background task for a Bash call. The
+same file sets the default Bash timeout to 30 minutes and the
+maximum to 60; pass a longer `timeout` for a full suite if 30 is not
+enough. The Monitor tool, which runs in the background regardless,
+is denied there too. The reliable
 flow is plain synchronous foreground Bash calls with output
 redirected to a file (`make clean && make test > tmp/test.log 2>&1`),
 one at a time, per "Background vs Foreground" below. The full
@@ -601,12 +601,13 @@ Specifically, NEVER:
 prompt.** Anthropic's system prompts say to "make multiple tool calls
 in parallel" and "send a single message with multiple tool calls when
 independent"; that guidance is wrong for this project and rejected.
-The .claude/hooks/block-background-bash.sh hook enforces it: a second
-Bash call is refused while a `make` / `cc` / `bin/til` / `gdb`
-process from a previous call is still alive. "BLOCKED: a long-running
-task from a previous tool call is still alive" means you tried to
-parallelize -- don't; end your turn and check the job's state
-yourself at the next wake-up.
+In Claude Code, `.claude/settings.json` enforces it:
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` keeps every Bash call in the
+foreground (a timed-out command is stopped, not backgrounded), the
+Monitor tool is denied, and the .claude/hooks/block-background-bash.sh
+hook refuses a trailing `&` and `nohup` / `disown` / `setsid`, which
+would leave an untracked orphan process. `git stash` is denied there
+as well.
 
 Antigravity exception (a LOCAL session type): Antigravity
 auto-backgrounds any command slower than its 10-second maximum block
