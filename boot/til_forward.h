@@ -1210,6 +1210,8 @@ typedef struct RootBits {
 typedef struct DepositAcc {
     U64 m;
     U64 borrowed;
+    U64 retained;
+    U64 retain_mask;
 } DepositAcc;
 
 

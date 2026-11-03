@@ -1,0 +1,54 @@
+mode cli
+
+// Issue #468: a throwing call inside a bare block `{ ... }` was hoisted
+// out in front of the block by the throw/catch lowering, before the
+// block's own local declarations, so those locals read as undefined.
+// The block's statements must be lowered in place, like an if body.
+
+fill := proc(mut total: I64, seed: I64) {
+    {
+        mut values := Array(I64).new(2)
+        values[0] = seed
+        total = values[0]
+        println(total.to_str())
+    }
+}
+
+catch_inside := proc() returns Bool {
+    mut caught := false
+    {
+        values := Array(I64).new(1)
+        text := values.get(5)?.to_str()
+        catch (e: OutOfBounds) { caught = true; return caught }
+        println(text)
+    }
+    return caught
+}
+
+main := proc() {
+    {
+        v := Array(I64).new(1)
+        println(v[0].to_str())
+    }
+    {
+        mut v := Vec(I64).new()
+        v.push(own 3)
+        ref x : I64 = v.get(0)!
+        {
+            v.push(own x + 1)
+            println(v[1].to_str())
+        }
+        assert(v.len() == 2)
+    }
+    {
+        {
+            w := Array(I64).new(1)
+            assert(w[0] == 0)
+        }
+    }
+    mut total := 0
+    fill(total, 4)
+    assert(total == 4)
+    assert(catch_inside())
+    println("bare block bangs passed")
+}

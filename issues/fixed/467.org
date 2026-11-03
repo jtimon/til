@@ -1,6 +1,44 @@
 # priority: medium
 # category: bugs
-** OPEN #467 C copies a non-mut struct parameter, losing destructor writes through ref fields built from it
+** FIXED #467 C copies a non-mut struct parameter, losing destructor writes through ref fields built from it
+
+*** Post-mortem
+
+  Root cause: #223 auto-shallow passes a borrowed (non-~mut~) parameter of
+  a primitive or small value-struct type BY VALUE in C. That is only sound
+  while nothing can observe the copy, so it was already withheld when a
+  borrow of the parameter escapes through the return value
+  (~fdef_return_carries_borrow~, #344/#357) or is deposited into another
+  parameter (~fdef_deposits_param~, #393). A third escape was missed: a
+  value built INSIDE the body pointing into the parameter's storage -- a
+  struct's ref field (~Tracked(drops=drops)~), a callee returning into its
+  argument (~make_tracked(drops)~), a store into a ref field. Ref fields
+  are writable, so writes through them (here a destructor's) hit the
+  callee's copy compiled and the caller's storage interpreted.
+
+  Semantics chosen: the interpreter's. A borrowed parameter is the
+  caller's storage; the by-value copy is an ABI optimization that must
+  stay unobservable, as for the earlier escapes.
+
+  Fix (~src/self/typer.til~): the borrow summary walk now records in
+  ~DepositAcc.retained~ every candidate parameter some call's value points
+  INTO (~summary_expr_bits(...).into~, for every call in the body,
+  temporaries included) and every source stored into a resolvable ref
+  field. ~update_retained_params~ runs that walk ONCE per function with an
+  auto-shallow candidate parameter (~summary_retain_candidates~), after the
+  return/deposit fixed point in ~compute_ref_return_summaries~ has settled
+  the callee summaries it reads, and records a retained candidate on the
+  DIAGONAL of ~deposit_borrow_matrix~ ("the parameter deposits its address
+  into the function's own storage"). No other path sets the diagonal and
+  every deposit-mapping reader ignores it (they are gated on
+  ~deposit_matrix~), so it feeds no other summary. ~fdef_deposits_param~
+  already keeps any parameter with a bit in its column by-reference, so no
+  FunctionDef field was added (FunctionDef's size sets sizeof(Expr)).
+  Self-translate time is unchanged within noise.
+
+  Regression test: ~test/bug467.til~ (constructor, callee-returned
+  carrier, UFCS method form, ref-field store, temporary, generic
+  instance), run interpreted and compiled by ~make test~.
 
 Found while writing the [[../fixed/466.org][#466]] regression test. A
 non-~mut~ struct parameter is passed BY VALUE in C (~static void

@@ -1,0 +1,45 @@
+# priority: medium
+# category: bugs
+** OPEN #470 Interpreter null deref assigning two indexed reads to a mut parameter after stores
+
+Found while writing the [[../fixed/468.org][#468]] regression test. After
+throwing stores into a local ~Array~, assigning the sum of two indexed
+reads of that array to a ~mut~ parameter crashes the interpreter with
+~panic: null deref~. C prints the right value.
+
+*** Reproduction
+
+  ~tmp/bug470.til~:
+
+  #+begin_src til
+  mode cli
+  fill := proc(mut total: I64, seed: I64) {
+      mut values := Array(I64).new(2)
+      values[0] = seed
+      values[1] = seed + 1
+      total = values[0] + values[1]
+      println(total.to_str())
+  }
+  main := proc() {
+      mut total := 0
+      fill(total, 4)
+      println(total.to_str())
+  }
+  #+end_src
+
+  Observed on master ~f36bb7e~ + the #468 fix (also with the pre-#468
+  ~til_boot~), USize32 and USize64:
+
+  - ~bin/til interpret tmp/bug470.til~: ~panic: null deref~, nothing
+    printed.
+  - ~bin/til run --backend=c tmp/bug470.til~: ~9~, ~9~.
+
+*** Notes
+
+  Each of these variants works in the interpreter:
+  - one store + one read: ~values[0] = seed; total = values[0]~;
+  - no stores, two reads: ~total = values[0] + values[1] + seed~;
+  - two reads split across two assignments.
+  So it takes stores before the read and two bang-hoisted reads in one
+  expression assigned to the ~mut~ parameter. Possibly the same root cause
+  as #469.

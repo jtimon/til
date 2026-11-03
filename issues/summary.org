@@ -10,8 +10,9 @@
 *** [[./open/452.org][#452]] C keyword used as a til local name breaks C emission
 *** [[./open/457.org][#457]] til names that collide with C macros or keywords break the C backend
 *** [[./open/465.org][#465]] Enum switch payload binding reevaluates a side-effecting scrutinee
-*** [[./open/467.org][#467]] C copies a non-mut struct parameter, losing destructor writes through ref fields built from it
-*** [[./open/468.org][#468]] A throwing call inside a bare block makes the block's locals undefined
+*** [[./open/469.org][#469]] Interpreter null deref after a throwing store in a value-returning function
+*** [[./open/470.org][#470]] Interpreter null deref assigning two indexed reads to a mut parameter after stores
+*** [[./open/471.org][#471]] Indexing a block-local that shadows an outer name of another type resolves against the outer binding
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade

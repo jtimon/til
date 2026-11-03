@@ -1,0 +1,45 @@
+# priority: medium
+# category: bugs
+** OPEN #471 Indexing a block-local that shadows an outer name of another type resolves against the outer binding
+
+Found while writing the [[../fixed/468.org][#468]] regression test.
+Inside a nested body, indexing a local that shadows an outer local of a
+different type fails to type-check: the throwing indexed read seems to
+be resolved against the OUTER binding's type.
+
+*** Reproduction
+
+  ~tmp/bug471.til~:
+
+  #+begin_src til
+  mode cli
+  main := proc() {
+      v := 10
+      if true {
+          v := Array(I64).new(1)
+          assert(v[0] == 0)
+      }
+      assert(v == 10)
+      println("shadowed index ok")
+  }
+  #+end_src
+
+  Observed on master ~f36bb7e~ + the #468 fix, interpreter and C, USize32
+  and USize64:
+
+  #+begin_src text
+  tmp/bug471.til:6:17: error: missing argument for parameter '_err_kind'
+  tmp/bug471.til:6:21: error: no method 'eq' for type 'unknown'
+  2 type error(s) found
+  #+end_src
+
+  Expected: prints ~shadowed index ok~. The same happens with a bare
+  block instead of ~if true~. Without the outer ~v := 10~ it works.
+
+*** Notes
+
+  The missing ~_err_kind~ argument suggests the throw/catch lowering in
+  ~src/self/desugarer.til~ (~find_callee_throws_key~ /
+  ~validate_one_fcall_consolidated~) looks the receiver up in a scope that
+  still sees the outer ~v : I64~, so ~v.get~ is not recognized as the
+  throwing ~Array.get~ and its error out-args are never injected.

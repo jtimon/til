@@ -14131,8 +14131,17 @@ priv fdef_may_deposit := func(fd: FunctionDef) returns Bool {
 DepositAcc := struct {
     m : U64 = 0
     borrowed : U64 = 0
+    // #467: parameters whose own storage some value built in the body
+    // points INTO (a constructor's ref field, a ref enum payload, a callee
+    // returning into its argument, a store into a ref field). Such a
+    // parameter cannot be copied by value: writes through that pointer must
+    // reach the caller's storage, as they do interpreted.
+    retained : U64 = 0
+    // Candidates worth tracking (summary_retain_candidates); with none,
+    // the walk skips the per-call retained work entirely.
+    retain_mask : U64 = 0
 namespace:
-    eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m.eq(b.m).and(a.borrowed == b.borrowed) }
+    eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m.eq(b.m).and(a.borrowed == b.borrowed).and(a.retained == b.retained) }
     to_str := func(self: DepositAcc) returns Str { return self.m.to_str() }
 }
 
@@ -14290,6 +14299,37 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
     }
 }
 
+// #467: note every call in an expression tree whose value points INTO a
+// parameter's storage. Nested FuncDefs belong to their own summary.
+priv summary_note_retained := func(e: Expr, roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool, ctx: Context) {
+    if acc.retain_mask == 0 { return }
+    if e.node_type.is(NodeType.FuncDef) { return }
+    if e.node_type.is(NodeType.FCall) {
+        acc.retained = acc.retained.bor(summary_expr_bits(e, roots, scope, self_type, params, symbols, ctx).into)
+    }
+    for c : Expr in e.children { summary_note_retained(c, roots, acc, scope, self_type, params, symbols, ctx) }
+}
+
+// #467: does this FieldAssign store into a REF field? Resolvable pre-typing
+// for the receivers summary_receiver_type knows; anything else answers no.
+priv summary_fieldassign_targets_ref := func(e: Expr, scope: TypeScope, self_type: Str, receivers: Vec(Declaration), symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .FieldAssign(fad):
+        btn := summary_receiver_type(e.children[0], scope, self_type, receivers, symbols)
+        if btn.len() == 0 { return false }
+        bdef_o := scope.get_struct(btn, symbols)
+        if bdef_o.is_none() { return false }
+        switch bdef_o.unwrap().node_type {
+        case .StructDef(bsd):
+            fo := member_get(bsd.fields_index, bsd.fields, fad.name)
+            if fo.is_none() { return false }
+            return fo.unwrap().own_type.is(OwnType.Ref)
+        case: return false
+        }
+    case: return false
+    }
+}
+
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
 priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
@@ -14299,6 +14339,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
     case .Return:
         if e.children.len() == 0 { return RootBits() }
         summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, receivers, symbols, ctx)
+        summary_note_retained(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
         return summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
     case .Decl(d):
         // A BORROW forwards its roots whole: the binding IS a window onto
@@ -14309,6 +14350,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         // no longer drops the provenance on the floor.
         if e.children.len() > 0 {
             summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, receivers, symbols, ctx)
+            summary_note_retained(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
             if d.own_type.is(OwnType.Ref) {
                 // The Case pattern already says whether this payload is
                 // inline or borrowed. Its synthesized get_payload binding
@@ -14365,6 +14407,9 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         if e.children.len().gte(2).and(summary_fieldassign_stores_no_borrow(e, scope, self_type, receivers, symbols).not()) {
             src_bits := summary_expr_bits(e.children[1], roots, scope, self_type, params, symbols, ctx)
             if src_bits.is_zero().not() {
+                if acc.retain_mask.neq(0).and(summary_fieldassign_targets_ref(e, scope, self_type, receivers, symbols)) {
+                    acc.retained = acc.retained.bor(summary_ctor_wrap(src_bits).into)
+                }
                 sink_bits := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
                 acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
                 summary_note_local_deposit(summary_deposit_base_name(e.children[0], symbols), src_bits, roots)
@@ -14372,6 +14417,10 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         }
     case .FCall:
         summary_fcall_deposits(e, roots, acc, scope, self_type, params, receivers, symbols, ctx)
+        // Nested calls are reached by the child recursion below.
+        if acc.retain_mask != 0 {
+            acc.retained = acc.retained.bor(summary_expr_bits(e, roots, scope, self_type, params, symbols, ctx).into)
+        }
     case:
     }
     mut bits := RootBits()
@@ -14425,6 +14474,59 @@ priv summary_receiver_declarations := func(body: Expr, params: Vec(Declaration),
         declarations.push(own Declaration(name = d.name.clone(), til_type = Type.Custom(name)))
     }
     return declarations
+}
+
+// #467: parameters the body could make addressable-by-value-copy: plain
+// til functions' borrowed, non-mut parameters of an auto-shallow type (a
+// primitive or small value struct), not already recorded as retained.
+// Every other parameter is passed by pointer anyway.
+priv summary_retain_candidates := func(fd: FunctionDef, scope: TypeScope, ctx: Context) returns U64 {
+    if fd.sig.func_type.is_plain().or(fd.sig.func_type.is_lazy()).not() { return 0 }
+    mut out : U64 = 0
+    for pi in 0..fd.sig.params.len() {
+        if pi >= DEPOSIT_PARAMS { break }
+        if pi.to_i32().eq(fd.sig.variadic_index).or(pi.to_i32() == fd.sig.kwargs_index) { continue }
+        ref p : Declaration = fd.sig.params[pi]
+        if p.is_mut { continue }
+        if p.own_type.is(OwnType.Ref).or(p.auto_shallow).not() { continue }
+        if fd.deposit_borrow_matrix.band(deposit_bit(pi, pi)) != 0 { continue }
+        if is_auto_shallow_type(declaration_resolved_type(p, scope, ctx.symbols), decl_type_name(p, ctx.symbols), scope, ctx).not() { continue }
+        out = out.bor(summary_param_bit(pi))
+    }
+    return out
+}
+
+// #467: record which auto-shallow candidate parameters a value built in
+// the body points INTO, on the DIAGONAL of deposit_borrow_matrix -- the
+// parameter deposits its address into the function's own storage.
+// fdef_deposits_param then keeps it by-reference, exactly as for an
+// address deposited into another parameter. The diagonal is never set
+// otherwise (deposit_cross skips self-pairs), and every reader that maps
+// deposits onto call arguments is gated on deposit_matrix, whose diagonal
+// stays clear -- so this feeds no other function's summary and runs once,
+// after the return/deposit fixed point has settled the callees it reads.
+priv update_retained_params := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str, ctx: Context) {
+    switch fd_expr.node_type {
+    case .FuncDef(fd):
+        if fd_expr.children.len() == 0 { return }
+        candidates := summary_retain_candidates(fd, scope, ctx)
+        if candidates == 0 { return }
+        mut roots := Map(Str, RootBits).new()
+        for pi in 0..fd.sig.params.len() {
+            ref p : Declaration = fd.sig.params[pi]
+            if p.name.len() == 0 { continue }
+            roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
+        }
+        mut acc := DepositAcc(retain_mask = candidates)
+        receiver_declarations := summary_receiver_declarations(fd_expr.children[0], fd.sig.params, scope, ctx.symbols)
+        _ := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, receiver_declarations, ctx.symbols, ctx)
+        for pi in 0..DEPOSIT_PARAMS {
+            if candidates.band(acc.retained).band(summary_param_bit(pi)) != 0 {
+                fd.deposit_borrow_matrix = fd.deposit_borrow_matrix.bor(deposit_bit(pi, pi))
+            }
+        }
+    case:
+    }
 }
 
 // OR this function's freshly computed summary into the recorded one.
@@ -14545,10 +14647,11 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
 // they need their own descent; a FuncDef is never descended into, because
 // init_declarations_unit hoists nested definitions to file scope and
 // typer_lift_lambdas has already lifted the anonymous ones.
-priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, ctx: Context) returns Bool {
+priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, retained_pass: Bool, ctx: Context) returns Bool {
     mut changed := false
     switch e.node_type {
     case .FuncDef:
+        if retained_pass { update_retained_params(e, scope, self_type, ctx); return false }
         return update_ref_return_summary(e, scope, self_type, ctx)
     case .Decl(dd):
         // A type definition names the `self` its namespace methods take;
@@ -14556,23 +14659,23 @@ priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, 
         if e.children.len() > 0 {
             ref mut drhs : Expr = e.children[0]
             if drhs.node_type.is(NodeType.StructDef).or(drhs.node_type.is(NodeType.EnumDef)) {
-                return summarize_unit_walk(drhs, scope, dd.name, ctx)
+                return summarize_unit_walk(drhs, scope, dd.name, retained_pass, ctx)
             }
         }
     case .StructDef(sd):
         for mut nd : Declaration in sd.ns_decls {
             if nd.default_value.is_none() { continue }
-            if summarize_unit_walk(nd.default_expr(), scope, self_type, ctx) { changed = true }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type, retained_pass, ctx) { changed = true }
         }
     case .EnumDef(ed):
         for mut nd : Declaration in ed.ns_decls {
             if nd.default_value.is_none() { continue }
-            if summarize_unit_walk(nd.default_expr(), scope, self_type, ctx) { changed = true }
+            if summarize_unit_walk(nd.default_expr(), scope, self_type, retained_pass, ctx) { changed = true }
         }
     case:
     }
     for mut c : Expr in e.children {
-        if summarize_unit_walk(c, scope, self_type, ctx) { changed = true }
+        if summarize_unit_walk(c, scope, self_type, retained_pass, ctx) { changed = true }
     }
     return changed
 }
@@ -14592,8 +14695,10 @@ priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, 
 priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope, ctx: Context) {
     mut changed := true
     while changed {
-        changed = summarize_unit_walk(program, scope, "", ctx)
+        changed = summarize_unit_walk(program, scope, "", false, ctx)
     }
+    // #467: one pass once the callees' summaries are final.
+    _ := summarize_unit_walk(program, scope, "", true, ctx)
 }
 
 // Asap-destruction helpers (LocalInfo, alias_used_in_stmts,

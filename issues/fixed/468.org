@@ -1,6 +1,26 @@
 # priority: medium
 # category: bugs
-** OPEN #468 A throwing call inside a bare block makes the block's locals undefined
+** FIXED #468 A throwing call inside a bare block makes the block's locals undefined
+
+*** Post-mortem
+
+  Root cause: ~process_throw_catch_in_body~ (~src/self/desugarer.til~) had
+  no case for a bare block statement. Step 1 handed the whole ~Body~ to
+  ~hoist_nested_bangs_consolidated~, which walked its statements as one
+  expression tree and hoisted every bang (~_bang_ret_N := <call>?~ plus
+  its panic checks) into the ENCLOSING body's statement list, in front of
+  the block -- before the block's own local declarations, so those locals
+  were undefined. Step 2 never recursed into the block either. An ~if~
+  body worked because ~hoist_walk_consolidated~ stops at nested ~Body~
+  children and step 2 lowers them in place.
+
+  Fix: a bare ~Body~ statement is skipped by the step-1 hoist and by the
+  step-4 validate/inject walk, and step 2 lowers it in place with
+  ~process_throw_catch_in_body~, like the other nested bodies.
+
+  Regression test: ~test/bug468.til~ (implicit and explicit bangs, nested
+  bare blocks, a bare block in a non-main proc, and a ~?~ + ~catch~ inside
+  a bare block), run interpreted and compiled by ~make test~.
 
 Found while writing the [[../fixed/466.org][#466]] regression test. Inside
 a bare ~{ ... }~ block, an implicit or explicit ~!~ (bang) on a throwing

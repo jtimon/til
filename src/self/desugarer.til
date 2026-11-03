@@ -2602,20 +2602,26 @@ priv process_throw_catch_in_body := proc(
         mut nested_questions := Vec(Str).new()
         if find_bang_fcall(stmt).is_some() { collect_question_types(stmt, root_body, scope, ctx, nested_questions) }
 
-        // 1. Hoist nested bangs in stmt's expression tree.
+        // 1. Hoist nested bangs in stmt's expression tree. A bare block
+        // `{ ... }` is not an expression: its statements are lowered in
+        // place by step 2, after its own local declarations (#468).
         mut pre_stmts := Vec(Expr).new()
-        hoist_nested_bangs_consolidated(scope, ctx, stmt, root_body, pre_stmts, types_to_declare, seen)
+        if stmt.node_type.is(NodeType.Body).not() {
+            hoist_nested_bangs_consolidated(scope, ctx, stmt, root_body, pre_stmts, types_to_declare, seen)
+        }
         npre := pre_stmts.len()
         for pi in 0..npre {
             new_ch.push_take(pre_stmts, pi)
         }
 
-        // 2. Recurse into nested bodies (if / while / for / switch / catch arms).
-        // For a Catch, the two flags step 6 needs are read here, before the
-        // body is lowered (see the .Catch arm).
+        // 2. Recurse into nested bodies (bare block / if / while / for /
+        // switch / catch arms). For a Catch, the two flags step 6 needs are
+        // read here, before the body is lowered (see the .Catch arm).
         mut catch_diverges := false
         mut catch_rethrows := false
         switch stmt.node_type {
+        case .Body:
+            process_throw_catch_in_body(scope, ctx, stmt, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
         case .If:
             for ci in 1..stmt.children.len() {
                 ref mut sub : Expr = stmt.children[ci]
@@ -2755,6 +2761,7 @@ priv process_throw_catch_in_body := proc(
             validate_and_inject_expr_consolidated(scope, ctx, hoisted_call_decl, root_body, pending, seen, types_to_declare, path)
         }
         switch stmt.node_type {
+        case .Body:
         case .Decl, .Assign, .FieldAssign:
             for mut sub : Expr in stmt.children {
                 validate_and_inject_expr_consolidated(scope, ctx, sub, root_body, pending, seen, types_to_declare, path)

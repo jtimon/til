@@ -1,0 +1,76 @@
+mode cli
+
+// Issue #467: a borrowed (non-mut) parameter of an auto-shallow type is
+// copied by value in C. When a value built in the body points INTO that
+// parameter (a ref field, a callee returning into its argument, a store
+// into a ref field), writes through the pointer -- here a destructor's --
+// landed in the copy compiled while reaching the caller interpreted. The
+// borrow summary now keeps such a parameter by-reference.
+
+Drops := struct { count: I64 = 0 }
+Tracked := struct {
+    ref drops: Drops
+    active := false
+namespace:
+    delete := func(own self: Tracked, call_free: Bool = true) {
+        if self.active { self.drops.count++ }
+        if call_free { free(own self) }
+    }
+}
+make_tracked := func(drops: Drops) returns Tracked {
+    return Tracked(drops=drops, active=true)
+}
+consume := func(own t: Tracked) { assert(t.active) }
+
+ctor_direct := func(drops: Drops) {
+    mut t := Tracked(drops=drops, active=true)
+    t = Tracked(drops=drops)
+    assert(t.active.not())
+}
+via_call := func(drops: Drops) {
+    mut t := make_tracked(drops)
+    t = Tracked(drops=drops)
+    assert(t.active.not())
+}
+via_ufcs := func(drops: Drops) {
+    mut t := drops.make_tracked()
+    t = Tracked(drops=drops)
+    assert(t.active.not())
+}
+via_store := func(drops: Drops, other: Drops) {
+    mut t := Tracked(drops=other)
+    t.drops = drops
+    t.active = true
+}
+temp_only := func(drops: Drops) {
+    consume(own Tracked(drops=drops, active=true))
+}
+generic_drop := func(T: Type, drops: T) {
+    mut t := Tracked(drops=drops, active=true)
+    t = Tracked(drops=drops)
+    assert(t.active.not())
+}
+
+main := proc() {
+    direct := Drops()
+    ctor_direct(direct)
+    assert(direct.count == 1)
+    called := Drops()
+    via_call(called)
+    assert(called.count == 1)
+    method := Drops()
+    via_ufcs(method)
+    assert(method.count == 1)
+    stored := Drops()
+    untouched := Drops()
+    via_store(stored, untouched)
+    assert(stored.count == 1)
+    assert(untouched.count == 0)
+    temporary := Drops()
+    temp_only(temporary)
+    assert(temporary.count == 1)
+    generic := Drops()
+    generic_drop(Drops, generic)
+    assert(generic.count == 1)
+    println("caller observed every destructor write")
+}
