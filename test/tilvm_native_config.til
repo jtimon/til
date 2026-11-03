@@ -4,5 +4,5 @@ import("./tilvm_native_cases")
 
 // Mutable native records, borrowed aliases, and string ownership across VMs.
 main := proc(root: Str) {
-    native_config_tests(root)
+    run_native_tilvm_family(root, "config")
 }

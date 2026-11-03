@@ -4,5 +4,5 @@ import("./tilvm_native_cases")
 
 // Native-library loading and shared state across the host and multiple VMs.
 main := proc(root: Str) {
-    native_state_tests(root)
+    run_native_tilvm_family(root, "state")
 }

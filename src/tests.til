@@ -1237,14 +1237,11 @@ main := proc(args: ..Str) {
     // One installed ASAN host build serves all public-API families. The
     // driver runs each in its own process/guest directory with an empty PATH.
     add_single(tests, "install_tilvm", "build", 0, "", format(TIL, " interpret test/install_tilvm.til tilvm"))
-    // The native driver calls the host C ABI directly (realpath_str). Keep
-    // its original compiled execution, with distinct outputs for each row.
-    for family : Str in array(Str, "state", "config", "prelude", "reload") {
-        add_single(tests, format("install_tilvm_native_", family), "build", 0, "",
-            format(TIL, " run -o bin/c/install_tilvm_native_", family,
-                " -c gen/c/install_tilvm_native_", family,
-                ".c test/install_tilvm_native.til tilvm_native_", family))
-    }
+    // The native driver likewise shares one build, but preserves a private
+    // set of libraries per family process. Keep the driver compiled: it
+    // calls the host C ABI directly (realpath_str).
+    add_single(tests, "install_tilvm_native", "build", 0, "",
+        format(TIL, " run test/install_tilvm_native.til tilvm_native"))
     // #313: the cage's leak report (LeakSanitizer cannot see the cage's
     // blocks). A compiled program that loses one allocation must exit 1,
     // under the cage from the cage's own report and under --usize=64 from

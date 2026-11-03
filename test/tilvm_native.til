@@ -2,8 +2,14 @@ mode cli
 
 import("./tilvm_native_cases")
 
-// Standalone all-cases entry point; the suite runs the independent families.
-main := proc(root: Str) {
+// Preserve the all-cases ordering when no family is selected. The suite
+// reuses this executable for isolated family processes after one build.
+main := proc(root: Str, families: ..Str) {
+    if families.len() > 1 { panic("expected at most one native TilVm family") }
+    if families.len() == 1 {
+        run_native_tilvm_family(root, families[0])
+        return
+    }
     native_state_tests(root, true)
     host_prelude_test(root)
     native_enum_test(root)

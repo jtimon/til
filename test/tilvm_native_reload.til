@@ -5,5 +5,5 @@ import("./tilvm_native_cases")
 // Failed config candidates preserve the active editor callback and buffer;
 // successful reloads transfer ownership without losing native state.
 main := proc(root: Str) {
-    editor_buffer_test(root)
+    run_native_tilvm_family(root, "reload")
 }

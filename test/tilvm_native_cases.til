@@ -542,3 +542,17 @@ native_config_tests := proc(root: Str) {
     native_config_test(root)
     assert_eq(I64, native.native_get(), 48)
 }
+
+// Both the shared installed host and standalone family entry points use the
+// same dispatch, keeping stateful scenarios and their assertions together.
+run_native_tilvm_family := proc(root: Str, family: Str) {
+    switch family {
+    case "state": native_state_tests(root)
+    case "config": native_config_tests(root)
+    case "reload": editor_buffer_test(root)
+    case "prelude":
+        host_prelude_test(root)
+        native_enum_test(root)
+    case: panic("unknown native TilVm family: ", family)
+    }
+}
