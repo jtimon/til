@@ -80,6 +80,9 @@ compiling it does.
     check), each with a Linux ASAN leak run. A JDK is an optional
     dependency: ~make test NO_JVM=1~ (~bin/tests --no-jvm~) skips the JDK
     runs on hosts without one.
+  - Vec(T) of a scalar as the primitive array (parameters, ~mut~ holders,
+    results, fields, globals, callbacks) and of a struct or enum as a handle
+    array (element clones in, owned handles or borrowed views out).
   - Open: whether ~til build~ should compile the bridge, Java packaging (a
     jar), Android packaging (#462); then the BEAM half (NIFs).
 

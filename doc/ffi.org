@@ -896,6 +896,8 @@ Values cross as
 | ~Bool~ | ~boolean~ |
 | ~Str~ | ~String~ (UTF-8 bytes across JNI) |
 | ~Vec(Str)~ | ~String[]~ |
+| ~Vec(T)~ of a scalar ~T~ | the primitive array (~long[]~, ~double[]~, ~boolean[]~, ...) |
+| ~Vec(T)~ of a public struct or enum ~T~ | ~<Cls>.T[]~ |
 | a public struct or enum ~T~ | the nested handle class ~<Cls>.T~ |
 | a public FuncSig ~F~ | the nested functional interface ~<Cls>.F~ |
 
@@ -911,6 +913,14 @@ throws. A struct or enum argument passes its handle's box: borrowed and
 ~mut~ parameters see and keep the library's writes; ~own~ moves the box into
 the library, so the Java object is spent and using it again throws
 ~IllegalStateException~, as does any use after ~close()~.
+
+A ~Vec~ crosses as a Java array. One of scalars is copied both ways, with
+~mut~ taking a one-element holder (~long[][]~). One of structs or enums is
+built from clones of the elements the caller's handles hold, so the
+caller's handles stay theirs to close, ~own~ included; a ~mut~ one is not
+bound, since writing back would leave the caller's old handles orphaned. A
+returned ~Vec~ of structs or enums hands each element to Java as a new owned
+handle, and ~returns ref~ gives borrowed views of the elements.
 
 *Results.* A returned ~Str~ / ~Vec(Str)~ is copied to Java and deleted; a
 returned struct or enum is an owned handle. ~returns ref~ copies a scalar or
@@ -965,7 +975,8 @@ default on 64-bit targets -- and reaches own pointers through
 layout.
 
 Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
-parameters, other collections, variadics, callbacks that throw or take
+parameters, other collections, ~mut~ and non-function uses of ~Vec~s of
+structs or enums, variadics, callbacks that throw or take
 ~own~ / ~mut~ parameters, ~mut~ callback parameters -- is listed in the
 class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
 in the generated source.

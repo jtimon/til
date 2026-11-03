@@ -122,3 +122,75 @@ jni_count := func(f: JniVecFn, text: Str) returns I64 {
     parts := text.split(",")
     return f(parts)
 }
+
+jni_sum := func(xs: Vec(I64)) returns I64 {
+    mut total : I64 = 0
+    for x : I64 in xs { total = total + x }
+    return total
+}
+
+jni_range := func(n: I64) returns Vec(I64) {
+    mut out := Vec(I64).new()
+    for i in 0..n { out.push(own i.mul(i)) }
+    return out
+}
+
+jni_scale := func(mut xs: Vec(F64), k: F64) {
+    for i in 0..xs.len() { xs[i] = xs[i] * k }
+    xs.push(own k)
+}
+
+jni_flags := func(xs: Vec(Bool)) returns I64 {
+    mut n : I64 = 0
+    for x : Bool in xs { if x { n = n + 1 } }
+    return n
+}
+
+jni_people := func(names: Vec(Str)) returns Vec(JniPerson) {
+    mut out := Vec(JniPerson).new()
+    for i in 0..names.len() { out.push(own JniPerson(name = names[i].clone(), age = i.to_i64())) }
+    return out
+}
+
+jni_oldest := func(people: Vec(JniPerson)) returns Str {
+    mut best : I64 = -1
+    mut name := ""
+    for p : JniPerson in people {
+        if p.age > best { best = p.age; name = p.name.clone() }
+    }
+    return name
+}
+
+jni_adopt := func(own people: Vec(JniPerson)) returns I64 { return people.len().to_i64() }
+
+jni_age_all := func(mut people: Vec(JniPerson)) {
+    people.push(own JniPerson(name = "new", age = 1))
+}
+
+JniTeam := struct {
+    people : Vec(JniPerson) = Vec(JniPerson).new()
+    scores : Vec(I64) = Vec(I64).new()
+}
+
+jni_team := func(names: Vec(Str)) returns JniTeam {
+    mut t := JniTeam()
+    for i in 0..names.len() {
+        t.people.push(own JniPerson(name = names[i].clone(), age = 20))
+        t.scores.push(own i.to_i64())
+    }
+    return t
+}
+
+jni_team_people := func(t: JniTeam) returns ref Vec(JniPerson) { return t.people }
+
+JniSumFn := func(Vec(I64)) returns Vec(I64)
+
+jni_map_sum := func(f: JniSumFn) returns I64 {
+    mut xs := Vec(I64).new()
+    xs.push(own 5)
+    xs.push(own 7)
+    ys := f(xs)
+    mut total : I64 = 0
+    for y : I64 in ys { total = total + y }
+    return total
+}

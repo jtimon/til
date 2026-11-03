@@ -1,6 +1,7 @@
 // JVM caller for the generated JNI binding of test/jni_lib.til; run by
 // test/jni.til. Non-ASCII round trips are checked with
 // equals() so the result does not depend on the JVM's stdout encoding.
+import java.util.Arrays;
 import til.jni_lib.JniLib;
 
 public class JniLibTest {
@@ -145,6 +146,35 @@ public class JniLibTest {
             check(JniLib.jni_split("a,b").length == 2, "split loop");
             check(JniLib.jni_count(v -> v.length, "a,b,c") == 3, "vec callback loop");
             try (JniLib.JniHolder d = new JniLib.JniHolder()) { check(d.count() == 0, "holder loop"); }
+        }
+        // Vec of scalars as primitive arrays, Vec of structs as handle arrays.
+        System.out.println(JniLib.jni_sum(new long[] { 1, 2, 3, 40 }));
+        System.out.println(Arrays.toString(JniLib.jni_range(5)) + " " + JniLib.jni_range(0).length);
+        double[][] ds = { new double[] { 1.5, 2.0 } };
+        JniLib.jni_scale(ds, 2.0);
+        System.out.println(Arrays.toString(ds[0]));
+        System.out.println(JniLib.jni_flags(new boolean[] { true, false, true }));
+        JniLib.JniPerson[] ps = JniLib.jni_people(new String[] { "a", "bb", "ccc" });
+        System.out.println(ps.length + " " + ps[2].name() + " " + ps[2].age() + " " + JniLib.jni_oldest(ps));
+        // own: the library gets clones; the Java handles stay the caller's.
+        System.out.println(JniLib.jni_adopt(ps) + " " + ps[0].name());
+        for (JniLib.JniPerson p : ps) { p.close(); }
+        // A ref Vec of handles comes back as views; a scalar Vec field and a
+        // callback taking and returning a scalar Vec copy.
+        try (JniLib.JniTeam team = JniLib.jni_team(new String[] { "p", "q" })) {
+            JniLib.JniPerson[] views = JniLib.jni_team_people(team);
+            views[1].age(99);
+            System.out.println(JniLib.jni_oldest(JniLib.jni_team_people(team)) + " "
+                + Arrays.toString(team.scores()));
+            team.scores(new long[] { 4, 5, 6 });
+            System.out.println(Arrays.toString(team.scores()));
+        }
+        System.out.println(JniLib.jni_map_sum(v -> { long[] w = new long[v.length + 1]; for (int i = 0; i < v.length; i++) { w[i] = v[i] * 10; } w[v.length] = 1; return w; }));
+        for (int i = 0; i < 100000; i++) {
+            check(JniLib.jni_sum(JniLib.jni_range(4)) == 14, "vec loop");
+            JniLib.JniPerson[] loop = JniLib.jni_people(new String[] { "x", "y" });
+            check(JniLib.jni_oldest(loop).equals("y") && JniLib.jni_adopt(loop) == 2, "handle vec loop");
+            for (JniLib.JniPerson p : loop) { p.close(); }
         }
         // Repeated calls: borrowed temporaries, owned boxes and results are
         // all released by the bridge or the library, never by the JVM.

@@ -1533,6 +1533,8 @@ typedef struct priv___src_self_codegen_c_codegen_til__JniTypes {
     Set__Str callbacks;
     Str class_path;
     Bool has_strvec;
+    Set__Str vecs;
+    Set__Str hvecs;
 } priv___src_self_codegen_c_codegen_til__JniTypes;
 
 

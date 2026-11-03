@@ -1,0 +1,45 @@
+# priority: low
+# category: experiments
+** OPEN #477 JVM bindings through one generic JNI shim plus libffi (JNA-like)
+
+Today (#463) every ~mode lib~ library gets its own generated C bridge,
+~gen/til/<name>_jni.c~, which has to be compiled against ~jni.h~ into
+~lib<name>_jni~ for each target. That compile step is why a JDK (or the
+Android NDK) is needed at build time, and why building and installing the
+bridge from ~til build~ / ~til install~ is still an open question.
+
+JNA avoids the per-library step: one prebuilt JNI stub, linked with libffi,
+calls any C function from a signature described in Java at run time. til
+already vendors libffi (~vendor/libffi~), so it could do the same:
+
+- Ship one generic shim, ~libtil_jni~, written once against ~jni.h~ and
+  libffi, built per target like the runtime libraries.
+- Generate pure Java per library, the way the Python binding is pure
+  ~ctypes~: each til function described by its symbol and argument and
+  return types, called through the shim. No per-library C, no compile step
+  for library users.
+
+*** Costs to weigh
+
+- Slower calls: libffi dispatch plus generic marshalling on every call,
+  instead of a direct call from a type-specific JNI function.
+- Ownership, ~own~/~mut~ write-back, ~throws~, struct/enum handles, Vec
+  copies, and callbacks (libffi closures) move from generated, type-specific
+  C into generic code in the shim plus Java-side descriptions; that code is
+  harder to check per type.
+- The shim and libffi have to be built and shipped for every target,
+  Android ABIs included.
+
+*** Not inspiration: libffi's Java raw API
+
+libffi's ~ffi_java_raw_call~ / ~ffi_prep_java_raw_closure~ (deprecated
+since 3.3, "Raw java (gcj) API deprecated") are unrelated: they let a Java
+runtime written in C (gcj) call natives with arguments in Java stack-slot
+layout. HotSpot and ART only reach native code through JNI (or FFM on
+desktop Java 22+), so that API offers nothing here. It lost its only user
+when GCC 7 removed gcj and libjava.
+
+*** Decide
+
+Whether to keep the per-library bridge (#463, with the bridge build added to
+~til build~), replace it with the shim, or offer both.
