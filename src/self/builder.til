@@ -815,19 +815,32 @@ priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
         destination = format("gen/lib/", paths.name, ".o")
         flags = " -c -fPIC"
     }
-    // pipefail is essential: a lowering failure must never be hidden by a
-    // later tool accepting empty input. No intermediate IR files or cache.
+    // LLVM 18 drops call-site ABI attributes. Stage its exported IR under the
+    // caller's tmp/, restore those attributes from declarations, then optimize.
+    // This is regenerated scratch storage, not a compilation cache.
+    llvm_path := format("tmp/mlir-",process_id().to_str(),".ll")
     pipeline := format("mlir-opt-18 ", mlir_shell_quote(paths.c_path),
         " --convert-vector-to-llvm --convert-arith-to-llvm --reconcile-unrealized-casts",
-        " | mlir-translate-18 --mlir-to-llvmir | clang-18 -x ir -",
-        " -O", lp.opt_level.to_str(), " ", lp.cpu.c_flags,
-        " -ffp-contract=off", flags, " -o ", mlir_shell_quote(destination))
+        " | mlir-translate-18 --mlir-to-llvmir > ",mlir_shell_quote(llvm_path))
     shell := Cmd.new()
     shell.args("bash", "-o", "pipefail", "-c", pipeline)
     shell.env("TMPDIR", temporary_directory)
     if shell.run() != 0 {
+        File.remove(llvm_path)
         File.remove(destination)
         println("error: MLIR compilation failed (requires matching LLVM 18 tools)")
+        return 1
+    }
+    llvm_ir := File.readfile(llvm_path)
+    File.writefile(llvm_path,mlir_llvm_call_attributes(llvm_ir))
+    compile := Cmd.new("bash","-o","pipefail","-c",format("clang-18 -x ir ",mlir_shell_quote(llvm_path),
+        " -O",lp.opt_level.to_str()," ",lp.cpu.c_flags," -ffp-contract=off",flags," -o ",mlir_shell_quote(destination)))
+    compile.env("TMPDIR",temporary_directory)
+    compile_status := compile.run()
+    File.remove(llvm_path)
+    if compile_status != 0 {
+        File.remove(destination)
+        println("error: MLIR LLVM compilation failed")
         return 1
     }
     if paths.do_lib {

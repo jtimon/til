@@ -159,6 +159,44 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Scalar/nested POD structs and LLVM 18 ABI export (base 959dff083)
+
+POD structs with Bool, I32/U32, I64/U64, F32 and nested scalar POD fields now
+support construction/defaults, auto-generated clone/size, field reads/writes,
+mutable locals, whole-value assignment and borrowed/mutable field aliases.
+The shared typer's ordinary borrow/auto-shallow decision is preserved; explicit
+shallow parameters and value returns use native SysV classification. Nested
+fields merge INTEGER/SSE classes per eightbyte. Values up to 16 bytes use
+register chunks; larger returns use sret and memory arguments use byval, with
+both register banks rolled back when a mixed-class value cannot fit.
+
+Bool fields use byte storage, borrowed aggregate loads retain safe alignment,
+and coercion slots cover the full ABI chunks. This increment excludes owning,
+reference/raw-pointer and SIMD fields, empty structs, custom clone behavior,
+heap-outer owning parameters and user borrowed returns. User POD bodies remain
+MLIR; there are no new C implementation wrappers for these structs.
+
+The expanded padded-POD forwarding regression exposed an export defect that
+the previous SIMD cases had not caught. LLVM 18 emits byval/sret on functions
+but drops call-site attributes. O0 passed; O2 optimized away the outgoing
+copy and read uninitialized stack data. Restoring the call attributes in the
+exported IR made the same failing native test pass. Callee attributes alone
+are NOT a correct optimized-call contract.
+
+Builds now stage LLVM IR in tmp/mlir-<pid>.ll. mlir-translate writes it, til
+restores direct-call ABI attributes from the declarations, Clang compiles it,
+and til removes it after compilation. This is per-build scratch I/O, not a
+cache or alternate source of truth; no install artifact or dependency is added.
+Remove the adapter when a selected LLVM exporter preserves the call attributes.
+
+Integration compares 14 POD layouts through interpreter/C references, native
+C and ASAN til/C callers at O0/O2/O3. Coverage includes small auto-shallow types,
+mixed-class rollback, register and sret returns, nested aliases and mutation,
+padding, raw float bits, array element alignment, snapshots and bounded-stack
+copies. A quoted/nested LLVM signature fixture checks attribute repair and
+idempotence, and build checks verify staging-file cleanup. Normal translation
+tests cover POD emission and rejecting owning structs without LLVM tools.
+
 *** SysV aggregate stack arguments (base e9c9d59e7)
 
 The old eight-SSE/six-INTEGER SIMD argument limits are removed. A shared
@@ -169,10 +207,10 @@ scalars or masks can use its remaining register. The banks stay independent.
 
 Stack arguments use LLVM byval pointers to scalar-layout structs, alignment 8,
 with source snapshots stored in fixed entry-block slots. Register and return
-ABIs stay as before. An LLVM 18 probe confirmed that direct-call codegen derives
-byval from the callee declaration: MLIR call arg_attrs are not translated by
-that version. No toolchain change or additional C wrapper is needed. Indirect
-calls remain outside the subset.
+ABIs stay as before. The original LLVM 18 instruction-selection probe consulted
+the callee's attributes, but that is insufficient under optimization; the POD
+follow-up above corrects the exported call-site contract. No toolchain change
+or additional C wrapper is needed. Indirect calls remain outside the subset.
 
 Integration covers 0..10 leading SSE scalars and 0..8 leading INTEGER scalars,
 two numeric vectors and trailing scalars, both direct and forwarded calls.

@@ -151,6 +151,93 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_pods := proc(compiler: Str, work: Str) {
+    // This exercises the LLVM 18 export adapter's balanced-type parsing and
+    // idempotence, independently of the native ABI matrix below.
+    module_path:="../../src/self/codegen/mlir_codegen"
+    declaration:="declare void @\"call,(abi)\"(ptr sret(%\"shape,(nested)\"), ptr byval({ float, [2 x i64], <2 x float> }) align 8)\n"
+    call:="  call void @\"call,(abi)\"(ptr %out, ptr %input)\n"
+    corrected:="  call void @\"call,(abi)\"(ptr sret(%\"shape,(nested)\") %out, ptr byval({ float, [2 x i64], <2 x float> }) align 8 %input)\n"
+    input:=format(declaration,call).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
+    expected:=format(declaration,corrected).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
+    File.writefile(format(work,"/llvm_attributes.til"),format("mode cli\nimport(\"../../src/self/interpreter\")\nimport(\"",module_path,"\")\nmain:=proc(){input:=\"",input,"\";expected:=\"",expected,"\";actual:=mlir_llvm_call_attributes(input);assert_eq(Str,actual,expected);assert_eq(Str,mlir_llvm_call_attributes(actual),actual);scope_pool_drain();println(\"LLVM attributes PASS\")}\n"))
+    attribute_probe:=Cmd.new(compiler,"interpret","llvm_attributes.til")
+    checked(attribute_probe,work)
+    definitions:=format(
+        "OneInt:=struct{value:I32=3}\nOneFloat:=struct{value:F32=2}\nFlag:=struct{enabled:Bool=true}\n",
+        "FPair:=struct{a:F32=1;b:F32=2}\nFTriple:=struct{a:F32=1;b:F32=2;c:F32=3}\nFQuad:=struct{a:F32=1;b:F32=2;c:F32=3;d:F32=4}\n",
+        "IntFloat:=struct{a:I32=3;b:F32=2}\nFloatInt:=struct{a:F32=2;b:I32=3}\nFloatWide:=struct{a:F32=2;b:I64=3}\nWideFloat:=struct{a:I64=3;b:F32=2}\n",
+        "Point:=struct{n:I32=3;enabled:Bool=true;value:F32=2}\nNested:=struct{lead:Bool=false;point:Point;tail:I64=7}\nDeep:=struct{left:Nested;flag:Bool=false;right:Point}\nPairNested:=struct{left:OneFloat;right:OneInt}\n")
+    types:=array(Str,"OneInt","OneFloat","Flag","FPair","FTriple","FQuad","IntFloat","FloatInt","FloatWide","WideFloat","Point","Nested","Deep","PairNested")
+    equalities:=array(Str,
+        "assert(a->value==b->value);","assert(memcmp(&a->value,&b->value,4)==0);","assert(a->enabled==b->enabled);",
+        "assert(memcmp(a,b,8)==0);","assert(memcmp(a,b,12)==0);","assert(memcmp(a,b,16)==0);",
+        "assert(a->a==b->a && memcmp(&a->b,&b->b,4)==0);","assert(memcmp(&a->a,&b->a,4)==0 && a->b==b->b);",
+        "assert(memcmp(&a->a,&b->a,4)==0 && a->b==b->b);","assert(a->a==b->a && memcmp(&a->b,&b->b,4)==0);",
+        "assert(a->n==b->n && a->enabled==b->enabled && memcmp(&a->value,&b->value,4)==0);",
+        "assert(a->lead==b->lead && a->tail==b->tail);equal_Point(&a->point,&b->point);",
+        "equal_Nested(&a->left,&b->left);assert(a->flag==b->flag);equal_Point(&a->right,&b->right);",
+        "equal_OneFloat(&a->left,&b->left);equal_OneInt(&a->right,&b->right);")
+    initializers:=array(Str,"{-123}","{raw}","{1}","{raw,-0.0f}","{raw,-0.0f,9}","{raw,-0.0f,9,-7}","{-123,raw}","{raw,-123}","{raw,INT64_MIN+7}","{INT64_MAX-1,raw}","{-17,1,raw}","{1,{-17,1,raw},INT64_MIN+9}","{{1,{-17,1,raw},INT64_MIN+9},0,{32,0,-0.0f}}","{{raw},{INT32_MIN}}")
+    // The shared typer auto-shallows these small PODs; larger ordinary
+    // parameters borrow. Explicit shallow cases below exercise both sizes.
+    borrowed:=array(Bool,false,false,false,false,true,true,false,false,true,true,true,true,true,false)
+    mut source:=format("mode lib\n",definitions)
+    mut consumer:=format("mode cli\nlink(\"gen/lib/libpods.so\")\n",definitions)
+    mut csource:=format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <string.h>\n#include <stddef.h>\n",
+        "typedef struct{int32_t value;}OneInt;typedef struct{float value;}OneFloat;typedef struct{bool enabled;}Flag;typedef struct{float a,b;}FPair;typedef struct{float a,b,c;}FTriple;typedef struct{float a,b,c,d;}FQuad;typedef struct{int32_t a;float b;}IntFloat;typedef struct{float a;int32_t b;}FloatInt;typedef struct{float a;int64_t b;}FloatWide;typedef struct{int64_t a;float b;}WideFloat;typedef struct{int32_t n;bool enabled;float value;}Point;typedef struct{bool lead;Point point;int64_t tail;}Nested;typedef struct{Nested left;bool flag;Point right;}Deep;typedef struct{OneFloat left;OneInt right;}PairNested;\n")
+    mut cchecks:="int main(void){const uint32_t patterns[]={0,0x80000000,0x7f800001,0xffc12345,1,0x3f800000};for(unsigned pattern=0;pattern<6;pattern++){float raw;memcpy(&raw,&patterns[pattern],4);\n"
+    for i in 0..types.len() {
+        ref t:Str=types[i]
+        source=format(source,"clone_",t,":=func(p:",t,") returns ",t," {return p.clone()}\nvalue_",t,":=func(shallow p:",t,") returns ",t," {return p.clone()}\nrelay_",t,":=func(shallow p:",t,") returns ",t," {return value_",t,"(p)}\n")
+        consumer=format(consumer,"clone_",t,":=ext_func(p:",t,") returns shallow ",t," {}\nvalue_",t,":=ext_func(shallow p:",t,") returns shallow ",t," {}\nrelay_",t,":=ext_func(shallow p:",t,") returns shallow ",t," {}\n")
+        mut parameter:=t.clone();mut argument:="original"
+        if borrowed[i] {parameter=format("const ",t,"*");argument="&original"}
+        csource=format(csource,"extern ",t," clone_",t,"(",parameter,"),value_",t,"(",t,"),relay_",t,"(",t,");static void equal_",t,"(const ",t,"*a,const ",t,"*b){",equalities[i],"}\n")
+        cchecks=format(cchecks,"{",t," original=",initializers[i],",a=clone_",t,"(",argument,"),b=value_",t,"(original),c=relay_",t,"(original);equal_",t,"(&a,&original);equal_",t,"(&b,&original);equal_",t,"(&c,&original);}\n")
+    }
+    source=format(source,
+        "make_point:=func(n:I32,value:F32,enabled:Bool) returns Point {return Point(value=value,n=n,enabled=enabled)}\n",
+        "make_nested:=func(n:I32) returns Nested {return Nested(point=Point(n=n))}\n",
+        "local_alias:=func(n:I32) returns Nested {mut v:=Nested(point=Point(n=n));ref mut p:Point=v.point;p.n=p.n+3;ref mut enabled:Bool=p.enabled;enabled=enabled.not();return v}\n",
+        "snapshot:=func(n:I32) returns I32 {mut p:=Point(n=n);copy:=p.clone();p.n=p.n+9;return copy.n}\n",
+        "assign_local:=func(n:I32) returns Point {mut p:=Point();p=Point(n=n,value=4);return p}\n",
+        "mutate_nested:=func(mut p:Nested,n:I32){p.point.n=n;p.point.enabled=p.point.enabled.not();p.tail=p.tail+1}\n",
+        "replace_point:=func(mut p:Nested,replacement:Point){p.point=replacement.clone()}\n",
+        "read_nested:=func(p:Nested) returns I64 {ref point:Point=p.point;return point.n.cast(I64)+p.tail}\n",
+        "widen_point:=func(p:Point) returns I64 {wide:I64=p.n;return wide}\n",
+        "layout_point:=func() returns USize {return Point.size()}\nlayout_nested:=func() returns USize {return Nested.size()}\n",
+        "pod_gpr:=func(a:I64,b:I64,c:I64,d:I64,e:I64,f:I64,shallow p:FloatWide,last:F32,tag:I64) returns I64 {return a+b+c+d+e+f+p.b+p.a.cast(I64)+last.cast(I64)+tag}\n",
+        "pod_gpr_relay:=func(a:I64,b:I64,c:I64,d:I64,e:I64,f:I64,shallow p:FloatWide,last:F32,tag:I64) returns I64 {return pod_gpr(a,b,c,d,e,f,p,last,tag)}\n",
+        "pod_sse:=func(a:F32,b:F32,c:F32,d:F32,e:F32,f:F32,g:F32,h:F32,shallow p:FloatWide,last:I64) returns I64 {return (a+b+c+d+e+f+g+h).cast(I64)+p.b+p.a.cast(I64)+last}\n",
+        "pod_sse_relay:=func(a:F32,b:F32,c:F32,d:F32,e:F32,f:F32,g:F32,h:F32,shallow p:FloatWide,last:I64) returns I64 {return pod_sse(a,b,c,d,e,f,g,h,p,last)}\n",
+        "copy_loop:=func(n:USize) returns I32 {mut p:=Point(n=0);mut i:USize=0;while i<n {q:=relay_Point(p);p.n=q.n+1;i++};return p.n}\n")
+    csource=format(csource,"extern Point make_point(int32_t,float,bool),assign_local(int32_t);extern Nested make_nested(int32_t),local_alias(int32_t);extern int32_t snapshot(int32_t),copy_loop(uint64_t);extern void mutate_nested(Nested*,int32_t),replace_point(Nested*,const Point*);extern int64_t read_nested(const Nested*),widen_point(const Point*),pod_gpr(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,FloatWide,float,int64_t),pod_gpr_relay(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,FloatWide,float,int64_t),pod_sse(float,float,float,float,float,float,float,float,FloatWide,int64_t),pod_sse_relay(float,float,float,float,float,float,float,float,FloatWide,int64_t);extern uint64_t layout_point(void),layout_nested(void);\n")
+    cchecks=format(cchecks,"Point made=make_point(-7,raw,1);assert(made.n==-7 && made.enabled && memcmp(&made.value,&raw,4)==0 && widen_point(&made)==-7);}\n",
+        "assert(sizeof(Point)==12 && offsetof(Point,enabled)==4 && offsetof(Point,value)==8 && layout_point()==sizeof(Point));assert(sizeof(Nested)==24 && offsetof(Nested,point)==4 && offsetof(Nested,tail)==16 && layout_nested()==sizeof(Nested));Point rows[3]={{1,1,2},{3,0,4},{5,1,6}};for(unsigned i=0;i<3;i++){Point copy=clone_Point(&rows[i]);equal_Point(&copy,&rows[i]);}\n",
+        "Nested n=make_nested(-11);assert(!n.lead && n.point.n==-11 && n.point.enabled && n.point.value==2 && n.tail==7);Nested alias=local_alias(-11);assert(alias.point.n==-8 && !alias.point.enabled && alias.tail==7);assert(snapshot(-11)==-11);Point assigned=assign_local(-11);assert(assigned.n==-11 && assigned.enabled && assigned.value==4);mutate_nested(&n,-19);assert(n.point.n==-19 && !n.point.enabled && n.tail==8 && read_nested(&n)==-11);Point replacement={32,1,-0.0f};replace_point(&n,&replacement);equal_Point(&n.point,&replacement);assert(n.tail==8);FloatWide mixed={7.25f,31};assert(pod_gpr(1,2,3,4,5,6,mixed,9.75f,3)==71 && pod_gpr_relay(1,2,3,4,5,6,mixed,9.75f,3)==71);assert(pod_sse(1,2,3,4,5,6,7,8,mixed,3)==77 && pod_sse_relay(1,2,3,4,5,6,7,8,mixed,3)==77);assert(copy_loop(1000000)==1000000);return 0;}\n")
+    consumer=format(consumer,
+        "make_point:=ext_func(shallow n:I32,shallow value:F32,shallow enabled:Bool) returns shallow Point {}\nmake_nested:=ext_func(shallow n:I32) returns shallow Nested {}\nlocal_alias:=ext_func(shallow n:I32) returns shallow Nested {}\nsnapshot:=ext_func(shallow n:I32) returns shallow I32 {}\nassign_local:=ext_func(shallow n:I32) returns shallow Point {}\nmutate_nested:=ext_func(mut p:Nested,shallow n:I32) {}\nreplace_point:=ext_func(mut p:Nested,replacement:Point) {}\nread_nested:=ext_func(p:Nested) returns shallow I64 {}\n")
+    checks:="main:=proc(){p:=make_point(-7,-0.0,true);a:=clone_Point(p);b:=value_Point(p);c:=relay_Point(p);assert_eq(I32,a.n,-7);assert_eq(I32,b.n,-7);assert_eq(I32,c.n,-7);assert(c.enabled);mut n:=make_nested(-11);assert_eq(I32,n.point.n,-11);assert_eq(I64,n.tail,7);mutate_nested(n,-19);assert_eq(I32,n.point.n,-19);assert(n.point.enabled.not());assert_eq(I64,read_nested(n),-11);replace_point(n,p);assert_eq(I32,n.point.n,-7);alias:=local_alias(-11);assert_eq(I32,alias.point.n,-8);assert(alias.point.enabled.not());assert_eq(I32,snapshot(-11),-11);assigned:=assign_local(-11);assert_eq(I32,assigned.n,-11);copy:=relay_Nested(n);assert_eq(I32,copy.point.n,-7);println(\"POD PASS\")}\n"
+    File.writefile(format(work,"/pods.til"),source)
+    File.writefile(format(work,"/pod_caller.c"),format(csource,cchecks))
+    File.writefile(format(work,"/pod_reference.til"),format("mode cli\nimport(\"pods\")\n",checks))
+    File.writefile(format(work,"/pod_consumer.til"),format(consumer,checks))
+    for command in array(Str,"interpret","run") {reference:=Cmd.new(compiler,command,"--usize=64","pod_reference.til");checked(reference,work)}
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"pods.til")
+        build.cwd(work).capture()
+        pid:=build.start()
+        build_status:=build.wait()
+        expect(build_status==0,build.out(),build.err())
+        expect(File.exists(format(work,"/tmp/mlir-",pid.to_str(),".ll")).not(),"LLVM staging file was not removed")
+        cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","pod_caller.c","gen/lib/libpods.a","-lm","-o","pod_caller");checked(cc,work)
+        run:=Cmd.new("./pod_caller");checked(run,work)
+        client:=Cmd.new(compiler,"run","--usize=64","--asan","pod_consumer.til");checked(client,work)
+    }
+}
+
 priv check_stack_abi := proc(compiler: Str, work: Str) {
     mut source := "mode lib\nF4:=Simd(F32,4)\nI4:=Simd(I32,4)\nM4:=Simd(Bool,4)\n"
     mut prototypes := "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\ntypedef struct{float v[4];}F4;typedef struct{int32_t v[4];}I4;typedef struct{uint8_t v[4];}M4;typedef struct{int32_t *data;uint64_t cap;}Buffer;typedef struct{char *data;uint64_t count,cap;}Str;\n"
@@ -794,5 +881,6 @@ main := proc(compiler_arg: Str) {
     check_extrema(compiler, work)
     check_casts(compiler, work)
     check_stack_abi(compiler, work)
+    check_pods(compiler, work)
     println("mlir PASS")
 }

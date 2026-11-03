@@ -87,6 +87,19 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
                 ref lane : Str = decl_type_name_ref(sd.fields[0], lp.ctx.symbols)
                 if lane == "I32" || lane == "U32" { return "vector<4xi32>" }
             }
+            if sd.simd_width > 0 || sd.is_interface || sd.fields.len() == 0 { return "" }
+            if init_delete_is_noop(name, lp.ctx.scope, lp.ctx.symbols).not() { return "" }
+            mut fields := ""
+            for i in 0..sd.fields.len() {
+                ref field : Declaration = sd.fields[i]
+                if field.own_type.is(OwnType.Shallow).not() { return "" }
+                ft := mlir_type(declaration_resolved_type(field, lp.ctx.scope, lp.ctx.symbols), lp)
+                if ft != "i1" && ft != "i32" && ft != "i64" && ft != "f32" && mlir_pod(ft).not() { return "" }
+                if i > 0 { fields = format(fields, ", ") }
+                if ft == "i1" { fields = format(fields, "i8") }
+                else { fields = format(fields, ft) }
+            }
+            return format("!llvm.struct<\"til.mlir.pod.", name, "\", (", fields, ")>")
         }
     }
     return ""
@@ -105,7 +118,10 @@ priv mlir_value := func(mut state: MlirState, expression: Str) returns Str {
 }
 
 priv mlir_alignment := func(t: Str) returns Str {
-    if t == "i1" { return "1" }
+    // A borrowed POD can have only scalar alignment (including nested values
+    // in arrays). Do not promise the stronger alignment of our own slots.
+    if mlir_pod(t) { return "1" }
+    if t == "i1" || t == "i8" { return "1" }
     if t == "i64" || t == "!llvm.ptr" || mlir_record(t) { return "8" }
     return "4"
 }
@@ -114,7 +130,70 @@ priv mlir_record := func(t: Str) returns Bool { return t.starts_with("!llvm.stru
 
 priv mlir_sret := func(t: Str) returns Bool { return t == "!llvm.struct<(!llvm.ptr, i64, i64)>" }
 
+priv mlir_pod := func(t: Str) returns Bool { return t.starts_with("!llvm.struct<\"til.mlir.pod.") }
+
+priv mlir_pod_name := func(t: Str) returns Str {
+    rest := t.strip_prefix("!llvm.struct<\"til.mlir.pod.")
+    return rest.substr(0, rest.find("\"").to_usize())
+}
+
+priv mlir_return_sret := func(t: Str, lp: LoadedProgram) returns Bool {
+    if mlir_sret(t) { return true }
+    if mlir_pod(t) { return lp.ctx.struct_layouts[mlir_pod_name(t)].total_size > 16 }
+    return false
+}
+
+// SysV's INTEGER class dominates SSE within each eightbyte, including nested
+// fields. This subset has no pointers, packed fields, vectors or x87 classes.
+priv mlir_pod_classify := func(t: Str, offset: USize, mut parts: Vec(Str), lp: LoadedProgram) {
+    name := mlir_pod_name(t)
+    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())
+    ref layout : StructLayout = lp.ctx.struct_layouts[name]
+    for i in 0..sd.fields.len() {
+        ft := mlir_type(declaration_resolved_type(sd.fields[i], lp.ctx.scope, lp.ctx.symbols), lp)
+        position := offset+layout.fields[i].offset
+        if mlir_pod(ft) { mlir_pod_classify(ft, position, parts, lp) }
+        else {
+            chunk := position/8
+            if ft == "f32" { if parts[chunk].len() == 0 { parts.set(chunk, own "vector<2xf32>")! } }
+            else { parts.set(chunk, own "i64")! }
+        }
+    }
+}
+
+priv mlir_pod_parts := func(t: Str, lp: LoadedProgram) returns Vec(Str) {
+    size := lp.ctx.struct_layouts[mlir_pod_name(t)].total_size
+    mut parts := Vec(Str).new()
+    if size > 16 { return parts }
+    for _ in 0..(size+7)/8 { parts.push(own "") }
+    mlir_pod_classify(t, 0, parts, lp)
+    return parts
+}
+
+priv mlir_pod_abi := func(t: Str, lp: LoadedProgram) returns Str {
+    parts := mlir_pod_parts(t, lp)
+    if parts.len() == 1 { return parts[0].clone() }
+    return format("!llvm.struct<(", parts[0], ", ", parts[1], ")>")
+}
+
+priv mlir_pod_pack := func(value: Str, t: Str, mut state: MlirState, lp: LoadedProgram) returns Str {
+    abi := mlir_pod_abi(t, lp)
+    // Coercion chunks can include trailing padding. Allocate the full ABI
+    // width, not the smaller source struct, before loading those chunks.
+    slot := mlir_slot(abi, state, "8")
+    mlir_store(slot, value, t, state)
+    return mlir_value(state, format("llvm.load ", slot, " {alignment = 8 : i64} : !llvm.ptr -> ", abi))
+}
+
+priv mlir_pod_unpack := func(value: Str, t: Str, mut state: MlirState, lp: LoadedProgram) returns Str {
+    abi := mlir_pod_abi(t, lp)
+    slot := mlir_slot(abi, state, "8")
+    mlir_store(slot, value, abi, state)
+    return mlir_value(state, format("llvm.load ", slot, " {alignment = 1 : i64} : !llvm.ptr -> ", t))
+}
+
 priv mlir_byval_type := func(t: Str) returns Str {
+    if mlir_pod(t) { return t.clone() }
     scalar := mlir_vector_scalar(t)
     return format("!llvm.struct<(", scalar, ", ", scalar, ", ", scalar, ", ", scalar, ")>")
 }
@@ -129,7 +208,7 @@ priv mlir_stack_arguments := func(fd: FunctionDef, lp: LoadedProgram) returns Ve
     mut sse_slots : USize = 0
     if fd.sig.return_type.len() > 0 {
         ret := mlir_type(type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols), lp)
-        if mlir_sret(ret) { integer_slots = 1 }
+        if mlir_return_sret(ret, lp) { integer_slots = 1 }
     }
     mut stack := Vec(Bool).new()
     for p : Declaration in fd.sig.params {
@@ -137,6 +216,13 @@ priv mlir_stack_arguments := func(fd: FunctionDef, lp: LoadedProgram) returns Ve
         mut spilled := false
         if p.own_type.is(OwnType.Ref) || mlir_record(t) || t == "!llvm.ptr" {
             if integer_slots < 6 { integer_slots++ }
+        } else if mlir_pod(t) {
+            parts := mlir_pod_parts(t, lp)
+            mut integers : USize = 0
+            mut floats : USize = 0
+            for part : Str in parts { if part == "i64" { integers++ } else { floats++ } }
+            if parts.len() == 0 || integer_slots+integers > 6 || sse_slots+floats > 8 { spilled = true }
+            else { integer_slots=integer_slots+integers; sse_slots=sse_slots+floats }
         } else if t == "vector<4xf32>" {
             if sse_slots <= 6 { sse_slots = sse_slots+2 }
             else { spilled = true }
@@ -307,6 +393,7 @@ priv mlir_slot := func(t: Str, mut state: MlirState, alignment: Str = "") return
     state.next++
     mut actual_alignment := alignment.clone()
     if actual_alignment.len() == 0 { actual_alignment = mlir_alignment(t) }
+    if mlir_pod(t) && alignment.len() == 0 { actual_alignment = "8" }
     state.allocations = format(state.allocations, "    ", name,
         " = llvm.alloca %alloc_count x ", t, " {alignment = ", actual_alignment,
         " : i64} : (i64) -> !llvm.ptr\n")
@@ -860,6 +947,34 @@ priv mlir_cast := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
     return mlir_convert(converted, target, mlir_type(e.til_type(), lp), signed_target, e, state, lp)
 }
 
+priv mlir_pod_field_address := proc(parent: Expr, field: Str, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    t := mlir_type(parent.til_type(), lp)
+    if mlir_pod(t).not() { return mlir_error(parent, "field access requires a supported scalar/nested POD struct", lp) }
+    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(t), lp.ctx.symbols).unwrap())
+    ref index : USize = sd.fields_index[field]
+    address := mlir_expr(parent, state, lp, true)
+    return mlir_value(state, format("llvm.getelementptr ", address, "[0, ", index.to_str(), "] : (!llvm.ptr) -> !llvm.ptr, ", t))
+}
+
+priv mlir_construct_pod := proc(e: Expr, t: Str, borrow: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(t), lp.ctx.symbols).unwrap())
+    if e.children.len() != sd.fields.len()+1 { return mlir_error(e, "POD constructor fields were not lowered positionally", lp) }
+    mut value := mlir_value(state, format("llvm.mlir.undef : ", t))
+    for i in 0..sd.fields.len() {
+        ft := mlir_type(declaration_resolved_type(sd.fields[i], lp.ctx.scope, lp.ctx.symbols), lp)
+        raw := mlir_expr(e.children[i+1], state, lp)
+        mut field := mlir_coerce(raw, e.children[i+1], ft, state, lp)
+        if ft == "i1" { field = mlir_value(state, format("arith.extui ", field, " : i1 to i8")) }
+        value = mlir_value(state, format("llvm.insertvalue ", field, ", ", value, "[", i.to_str(), "] : ", t))
+    }
+    if borrow {
+        slot := mlir_slot(t, state)
+        mlir_store(slot, value, t, state)
+        return slot
+    }
+    return value
+}
+
 priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, borrow: Bool = false) returns Str {
     if borrow && e.node_type.is(NodeType.Literal) {
         value := mlir_expr(e, state, lp)
@@ -883,15 +998,33 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             }
             mut value := binding.value.clone()
             if binding.is_mut || binding.is_ref {
-                t := binding.type_name.clone()
+                mut t := binding.type_name.clone()
+                if binding.is_ref && t == "i1" { t = "i8" }
                 value = mlir_value(state, format("llvm.load ", binding.value,
                     " {alignment = ", mlir_alignment(t), " : i64} : !llvm.ptr -> ", t))
+                if binding.is_ref && binding.type_name == "i1" { value = mlir_value(state, format("arith.trunci ", value, " : i8 to i1")) }
             }
             // Alias elimination can leave a wider type on this identifier.
             // Convert the actual binding value, not an imagined wider load.
             return mlir_convert(value, binding.type_name, mlir_type(e.til_type(), lp), binding.is_signed, e, state, lp)
         }
         return mlir_error(e, format("unsupported global or value '", name, "'"), lp)
+    case .FieldAccess(field):
+        parent_type := mlir_type(e.children[0].til_type(), lp)
+        if mlir_pod(parent_type).not() { return mlir_error(e, "field access requires a supported scalar/nested POD struct", lp) }
+        ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
+        field_type := declaration_resolved_type(sd.fields[sd.fields_index[field.field_access_name(lp.ctx.symbols.names)]], lp.ctx.scope, lp.ctx.symbols)
+        address := mlir_pod_field_address(e.children[0], field.field_access_name(lp.ctx.symbols.names), state, lp)
+        if borrow { return address }
+        // As with identifier loads, memory retains its declared width even if
+        // a consuming expression has stamped a wider value type on this read.
+        t := mlir_type(field_type, lp)
+        mut value := ""
+        if t == "i1" {
+            byte := mlir_value(state, format("llvm.load ", address, " {alignment = 1 : i64} : !llvm.ptr -> i8"))
+            value = mlir_value(state, format("arith.trunci ", byte, " : i8 to i1"))
+        } else { value = mlir_value(state, format("llvm.load ", address, " {alignment = ", mlir_alignment(t), " : i64} : !llvm.ptr -> ", t)) }
+        return mlir_convert(value,t,mlir_type(e.til_type(),lp),mlir_signed(field_type),e,state,lp)
     case .Literal(Literal.Str(text)): return mlir_string_literal(text, state, lp)
     case .Literal(Literal.Bool(value)):
         mut literal := "0"
@@ -924,6 +1057,10 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 owner_type := type_from_name_init_name(id.ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
                 t := mlir_type(owner_type, lp)
                 ref op : Str = field.field_access_name(lp.ctx.symbols.names)
+                if mlir_pod(t) && op == "size" && e.children.len() == 1 {
+                    size := lp.ctx.struct_layouts[mlir_pod_name(t)].total_size
+                    return mlir_value(state, format("arith.constant ", size.to_str(), " : ", mlir_count_type(lp)))
+                }
                 if mlir_record(t) || op == "to_str" {
                     found := resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols)
                     if found.is_none() { return mlir_error(e, "unresolved runtime method", lp) }
@@ -1090,6 +1227,10 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     }
                 }
                 if op == "clone" && e.children.len() == 2 {
+                    if mlir_pod(t) {
+                        ref method : Expr = resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols).unwrap()
+                        if funcdef_of(method).auto_generated.not() { return mlir_error(e, "custom POD clone methods are not supported", lp) }
+                    }
                     // The typer also uses clone for a widened declaration,
                     // e.g. I64.clone(an_i32); it is not always an identity.
                     value := mlir_expr(e.children[1], state, lp)
@@ -1139,6 +1280,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             }
             constructor_type := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
             constructor_mlir_type := mlir_type(constructor_type, lp)
+            if mlir_pod(constructor_mlir_type) { return mlir_construct_pod(e, constructor_mlir_type, borrow, state, lp) }
             if mlir_vector(constructor_mlir_type) && e.children.len() == 5 {
                 // The constant folder materializes SIMD values as positional
                 // struct constructors, rather than calls to .new/.splat.
@@ -1178,13 +1320,22 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     // Each source call site has entry-block storage, reused
                     // across loop iterations. Store the snapshot before later
                     // operands run; byval makes the callee's copy independent.
-                    // LLVM 18 obtains byval from the directly called function;
-                    // its MLIR call op does not translate arg_attrs. Indirect
-                    // calls would need explicit call-site ABI attributes too.
+                    // LLVM 18's exporter omits call-site attributes. The build
+                    // adapter restores them from the callee before optimization;
+                    // relying on instruction selection alone is not sufficient.
                     slot := mlir_slot(t, state, "8")
                     mlir_store(slot, value, t, state)
                     args = format(args, slot)
                     types = format(types, "!llvm.ptr")
+                } else if mlir_pod(t) {
+                    packed := mlir_pod_pack(value, t, state, lp)
+                    parts := mlir_pod_parts(t, lp)
+                    for j in 0..parts.len() {
+                        mut chunk := packed.clone()
+                        if parts.len() > 1 { chunk = mlir_value(state, format("llvm.extractvalue ", packed, "[", j.to_str(), "] : ", mlir_pod_abi(t, lp))) }
+                        if j > 0 { args=format(args, ", "); types=format(types, ", ") }
+                        args=format(args, chunk); types=format(types, parts[j])
+                    }
                 } else if t == "vector<4xf32>" {
                     lo := mlir_half(value, false, state)
                     hi := mlir_half(value, true, state)
@@ -1216,7 +1367,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             if ret == "vector<4xi1>" { abi_ret = "i32" }
             mut record_result := ""
             if mlir_record(ret) { abi_ret = mlir_record_abi(ret) }
-            if mlir_sret(ret) {
+            if mlir_pod(ret).and(mlir_return_sret(ret, lp).not()) { abi_ret = mlir_pod_abi(ret, lp) }
+            if mlir_return_sret(ret, lp) {
                 record_result = mlir_slot(ret, state)
                 if args.len() > 0 { args = format(record_result, ", ", args); types = format("!llvm.ptr, ", types) }
                 else { args = record_result.clone(); types = "!llvm.ptr" }
@@ -1226,7 +1378,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             if fd.sig.throw_types.len() > 0 { mlir_error_write(state) }
             if abi_ret == "void" {
                 state.text = format(state.text, "    llvm.call @\"", call_name, "\"(", args, ") : (", types, ") -> ()\n")
-                if mlir_sret(ret) { result = mlir_value(state, format("llvm.load ", record_result, " {alignment = 8 : i64} : !llvm.ptr -> ", ret)) }
+                if mlir_return_sret(ret, lp) { result = mlir_value(state, format("llvm.load ", record_result, " {alignment = ", mlir_alignment(ret), " : i64} : !llvm.ptr -> ", ret)) }
             } else {
                 result = mlir_value(state, format("llvm.call @\"", call_name, "\"(", args, ") : (", types, ") -> ", abi_ret))
                 if ret == "vector<4xf32>" {
@@ -1242,6 +1394,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     result = mlir_value(state, format("arith.trunci ", result, " : i8 to i1"))
                 }
                 else if mlir_record(ret) { result = mlir_record_cast(result, abi_ret, ret, state) }
+                else if mlir_pod(ret) { result = mlir_pod_unpack(result, ret, state, lp) }
             }
             return result
         case: return mlir_error(e, "indirect calls are not supported", lp)
@@ -1281,7 +1434,7 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             t := mlir_type(local_type, lp)
             if t.len() == 0 || t == "void" { mlir_error(stmt, "unsupported local type", lp); break }
             if local.own_type.is(OwnType.Ref) {
-                if t != "f32" && t != "i32" && t != "!llvm.ptr" && mlir_record(t).not() { mlir_error(stmt, "unsupported borrowed local", lp); break }
+                if t != "f32" && t != "i32" && t != "i64" && t != "i1" && t != "!llvm.ptr" && mlir_record(t).or(mlir_pod(t)).not() { mlir_error(stmt, "unsupported borrowed local", lp); break }
                 address := mlir_expr(stmt.children[0], state, lp, true)
                 state.values.set(local.name, own MlirBinding(value = address, type_name = t.clone(),
                     is_mut = local.is_mut && t != "!llvm.ptr", is_ref = t != "!llvm.ptr", is_signed = mlir_signed(local_type)))
@@ -1309,11 +1462,23 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
                 if integer.is_some() { state.integers.set(local.name, own integer.unwrap().clone()) }
                 if boolean.is_some() { state.booleans.set(local.name, own boolean.unwrap().clone()) }
             }
-            if local.is_mut || mlir_record(t) {
+            if local.is_mut || mlir_record(t) || mlir_pod(t) {
                 slot := mlir_slot(t, state)
                 mlir_store(slot, value, t, state)
-                state.values.set(local.name, own MlirBinding(value = slot, type_name = t.clone(), is_mut = local.is_mut, is_ref = mlir_record(t), is_signed = mlir_signed(local_type)))
+                state.values.set(local.name, own MlirBinding(value = slot, type_name = t.clone(), is_mut = local.is_mut, is_ref = mlir_record(t).or(mlir_pod(t)), is_signed = mlir_signed(local_type)))
             } else { state.values.set(local.name, own MlirBinding(value = value, type_name = t.clone(), is_signed = mlir_signed(local_type))) }
+        case .FieldAssign(assignment):
+            parent_type := mlir_type(stmt.children[0].til_type(), lp)
+            if mlir_pod(parent_type).not() { mlir_error(stmt, "field assignment requires a supported POD struct", lp); break }
+            ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
+            ft := mlir_type(declaration_resolved_type(sd.fields[sd.fields_index[assignment.name]], lp.ctx.scope, lp.ctx.symbols), lp)
+            address := mlir_pod_field_address(stmt.children[0], assignment.name, state, lp)
+            raw := mlir_expr(stmt.children[1], state, lp)
+            value := mlir_coerce(raw, stmt.children[1], ft, state, lp)
+            if ft == "i1" {
+                byte := mlir_value(state, format("arith.extui ", value, " : i1 to i8"))
+                mlir_store(address, byte, "i8", state)
+            } else { mlir_store(address, value, ft, state) }
         case .Assign(assignment):
             if state.values.has(assignment.name).not() { mlir_error(stmt, "assignment requires a local", lp); break }
             ref binding : MlirBinding = state.values[assignment.name]
@@ -1326,7 +1491,10 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             }
             raw_value := mlir_expr(stmt.children[0], state, lp)
             value := mlir_coerce(raw_value, stmt.children[0], binding.type_name, state, lp)
-            mlir_store(binding.value, value, binding.type_name, state)
+            if binding.is_ref && binding.type_name == "i1" {
+                byte := mlir_value(state, format("arith.extui ", value, " : i1 to i8"))
+                mlir_store(binding.value, byte, "i8", state)
+            } else { mlir_store(binding.value, value, binding.type_name, state) }
             if old.len() > 0 {
                 mut destructor := "Array__Str_delete"
                 if binding.type_name == "!llvm.struct<(!llvm.ptr, i32, i32)>" || mlir_sret(binding.type_name) { destructor = "Str_delete" }
@@ -1352,6 +1520,16 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
                 else if ret == "vector<4xi32>" { value = mlir_pack_i4(value, state); abi_ret = mlir_i4_type() }
                 else if ret == "vector<4xi1>" { value = mlir_pack_mask(value, state); abi_ret = "i32" }
                 else if ret == "i1" { value = mlir_value(state, format("arith.extui ", value, " : i1 to i8")); abi_ret = "i8" }
+                else if mlir_pod(ret) {
+                    if mlir_return_sret(ret, lp) {
+                        mlir_store("%result", value, ret, state)
+                        state.text = format(state.text, "    llvm.return\n")
+                        state.terminated = true
+                        continue
+                    }
+                    value = mlir_pod_pack(value, ret, state, lp)
+                    abi_ret = mlir_pod_abi(ret, lp)
+                }
                 else if mlir_record(ret) {
                     switch stmt.children[0].node_type {
                     case .Ident(id):
@@ -1493,6 +1671,13 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
+        if mlir_pod(t) && p.own_type.is(OwnType.Ref) {
+            if i > 0 { signature = format(signature, ", ") }
+            arg := format("%p", i.to_str())
+            signature = format(signature, arg, ": !llvm.ptr")
+            state.values.set(p.name, own MlirBinding(value=arg, type_name=t.clone(), is_ref=true, is_mut=p.is_mut))
+            continue
+        }
         if mlir_record(t) {
             if p.own_type.is(OwnType.Shallow) { return mlir_error(decl, "shallow record parameters are unsupported", lp) }
             if i > 0 { signature = format(signature, ", ") }
@@ -1525,6 +1710,19 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
             signature = format(signature, arg, ": !llvm.ptr {llvm.byval = ", mlir_byval_type(t), ", llvm.align = 8 : i64}")
             value := mlir_value(state, format("llvm.load ", arg, " {alignment = 4 : i64} : !llvm.ptr -> ", t))
             state.values.set(p.name, own MlirBinding(value = value, type_name = t.clone()))
+        } else if mlir_pod(t) {
+            parts := mlir_pod_parts(t, lp)
+            abi := mlir_pod_abi(t, lp)
+            mut value := ""
+            if parts.len() > 1 { value = mlir_value(state, format("llvm.mlir.undef : ", abi)) }
+            for j in 0..parts.len() {
+                chunk := format(arg, "c", j.to_str())
+                if j > 0 { signature = format(signature, ", ") }
+                signature = format(signature, chunk, ": ", parts[j])
+                if parts.len() == 1 { value = chunk.clone() }
+                else { value = mlir_value(state, format("llvm.insertvalue ", chunk, ", ", value, "[", j.to_str(), "] : ", abi)) }
+            }
+            state.values.set(p.name, own MlirBinding(value=mlir_pod_unpack(value,t,state,lp), type_name=t.clone()))
         } else if t == "vector<4xf32>" {
             signature = format(signature, arg, "lo: vector<2xf32>, ", arg, "hi: vector<2xf32>")
             state.values.set(p.name, own MlirBinding(value = mlir_join(format(arg, "lo"), format(arg, "hi"), state), type_name = t.clone()))
@@ -1565,7 +1763,7 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
     mut linkage := ""
     if dd.is_priv || dd.name == "main" { linkage = "internal " }
     mut result := format("  llvm.func ", linkage, "@\"", name, "\"(", signature, ")")
-    if mlir_sret(ret) {
+    if mlir_return_sret(ret, lp) {
         if signature.len() > 0 { signature = format(", ", signature) }
         result = format("  llvm.func ", linkage, "@\"", name, "\"(%result: !llvm.ptr {llvm.sret = ", ret, "}", signature, ")")
     }
@@ -1574,7 +1772,8 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
     else if ret == "i1" { result = format(result, " -> i8") }
     else if ret == "vector<4xi1>" { result = format(result, " -> i32") }
     else if mlir_record(ret).and(mlir_sret(ret).not()) { result = format(result, " -> ", mlir_record_abi(ret)) }
-    else if ret != "void" && mlir_sret(ret).not() { result = format(result, " -> ", ret) }
+    else if mlir_pod(ret).and(mlir_return_sret(ret, lp).not()) { result = format(result, " -> ", mlir_pod_abi(ret, lp)) }
+    else if ret != "void" && mlir_return_sret(ret, lp).not() { result = format(result, " -> ", ret) }
     mut entry := ""
     if state.allocations.len() > 0 { entry = format("    %alloc_count = llvm.mlir.constant(1 : i64) : i64\n", state.allocations) }
     for symbol : Str in state.externals.keys { externals.set(symbol, own state.externals[symbol].clone()) }
@@ -1623,4 +1822,153 @@ mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_function
     if lp.ctx.errors > 0 { return 1 }
     File.writefile(path, format(text, "}\n"))
     return 0
+}
+
+// LLVM 18 exports parameter ABI attributes on functions, but not llvm.call.
+// Lowering alone can appear to work because the instruction selector consults
+// the callee; optimizers require the attributes on the call itself. Restore
+// them from the actual exported declarations before Clang runs any passes.
+priv MlirLlvmSignature := struct {
+    name := ""
+    open : USize = 0
+    close : USize = 0
+}
+
+priv mlir_llvm_close := func(text: Str, open: USize) returns USize {
+    mut depth : I64 = 0
+    mut quoted := false
+    for i in open..text.len() {
+        ref byte : I8 = text.unsafe_get(i)
+        if byte == '"' { quoted = quoted.not() }
+        if quoted { continue }
+        if byte == '(' { depth++ }
+        if byte == ')' { depth--; if depth == 0 { return i } }
+    }
+    panic("unclosed LLVM function/ABI attribute signature")
+}
+
+priv mlir_llvm_signature := func(line: Str) returns Option(MlirLlvmSignature) {
+    at := line.find("@")
+    if at < 0 { return Option(MlirLlvmSignature).None }
+    mut quoted := false
+    for i in at.to_usize()+1..line.len() {
+        ref byte : I8 = line.unsafe_get(i)
+        if byte == '"' { quoted = quoted.not() }
+        if byte == '(' && quoted.not() {
+            return Option(MlirLlvmSignature).Some(MlirLlvmSignature(
+                name=line.substr(at.to_usize()+1,i-at.to_usize()-1).trim(),
+                open=i,close=mlir_llvm_close(line,i)))
+        }
+    }
+    panic("LLVM direct function has no parameter list")
+}
+
+priv mlir_llvm_parameters := func(text: Str) returns Vec(Str) {
+    mut parameters := Vec(Str).new()
+    if text.trim().len() == 0 { return parameters }
+    mut depth : I64 = 0
+    mut quoted := false
+    mut start : USize = 0
+    for i in 0..text.len() {
+        ref byte : I8 = text.unsafe_get(i)
+        if byte == '"' { quoted = quoted.not() }
+        if quoted { continue }
+        if byte == '(' || byte == '{' || byte == '[' || byte == '<' { depth++ }
+        if byte == ')' || byte == '}' || byte == ']' || byte == '>' { depth-- }
+        if byte == ',' && depth == 0 {
+            parameters.push(own text.substr(start,i-start).trim())
+            start=i+1
+        }
+    }
+    if quoted || depth != 0 { panic("unbalanced LLVM parameter types") }
+    parameters.push(own text.substr(start,text.len()-start).trim())
+    return parameters
+}
+
+priv mlir_llvm_parameter_abi := func(parameter: Str) returns Str {
+    for kind in array(Str,"byval","sret") {
+        position := parameter.find(format(" ",kind,"("))
+        if position < 0 { continue }
+        start := position.to_usize()+1
+        close := mlir_llvm_close(parameter,start+kind.len())
+        mut result := parameter.substr(start,close-start+1)
+        tail := parameter.substr(close+1,parameter.len()-close-1)
+        alignment := tail.find(" align ")
+        if alignment >= 0 {
+            digits := tail.substr(alignment.to_usize()+7,tail.len()-alignment.to_usize()-7)
+            mut end : USize = 0
+            while end < digits.len() {
+                ref byte : I8 = digits.unsafe_get(end)
+                if byte < '0' || byte > '9' { break }
+                end++
+            }
+            if end == 0 { panic("LLVM ABI alignment has no value") }
+            result=format(result," align ",digits.substr(0,end))
+        }
+        return result
+    }
+    return ""
+}
+
+mlir_llvm_call_attributes := func(text: Str) returns Str {
+    lines := text.split("\n")
+    mut functions := Map(Str,Vec(Str)).new()
+    for line : Str in lines {
+        trimmed := line.trim()
+        if trimmed.starts_with("define ").or(trimmed.starts_with("declare ")).not() { continue }
+        signature := mlir_llvm_signature(line).unwrap()
+        parameters := mlir_llvm_parameters(line.substr(signature.open+1,signature.close-signature.open-1))
+        mut attributes := Vec(Str).new()
+        mut any := false
+        for parameter : Str in parameters {
+            abi := mlir_llvm_parameter_abi(parameter)
+            any=any.or(abi.len()>0)
+            attributes.push(own abi)
+        }
+        if any { functions.set(signature.name,own attributes) }
+    }
+    mut rendered_lines := Vec(Str).new()
+    mut total : USize = 0
+    for i in 0..lines.len() {
+        ref line : Str = lines[i]
+        trimmed := line.trim()
+        is_call := trimmed.starts_with("call ").or(trimmed.starts_with("tail call ")).or(trimmed.starts_with("musttail call "))
+            .or(trimmed.starts_with("%").and(trimmed.contains(" = call ").or(trimmed.contains(" = tail call ")).or(trimmed.contains(" = musttail call "))))
+        mut rendered := line.clone()
+        if is_call {
+            signature := mlir_llvm_signature(line)
+            if signature.is_some() {
+                call := signature.unwrap()
+                if functions.has(call.name) {
+                    ref attributes : Vec(Str) = functions[call.name]
+                    parameters := mlir_llvm_parameters(line.substr(call.open+1,call.close-call.open-1))
+                    if parameters.len() != attributes.len() { panic("LLVM call ABI argument count mismatch: ",call.name) }
+                    mut arguments := ""
+                    for j in 0..parameters.len() {
+                        ref parameter : Str = parameters[j]
+                        ref abi : Str = attributes[j]
+                        if j > 0 { arguments=format(arguments,", ") }
+                        if abi.len() == 0 { arguments=format(arguments,parameter); continue }
+                        if parameter.contains(" byval(").or(parameter.contains(" sret(")) {
+                            if parameter.contains(abi).not() { panic("LLVM call ABI attributes disagree: ",call.name) }
+                            arguments=format(arguments,parameter)
+                        } else {
+                            if parameter.starts_with("ptr ").not() { panic("LLVM ABI argument is not an opaque pointer: ",call.name) }
+                            arguments=format(arguments,"ptr ",abi," ",parameter.strip_prefix("ptr "))
+                        }
+                    }
+                    rendered=format(line.substr(0,call.open+1),arguments,line.substr(call.close,line.len()-call.close))
+                }
+            }
+        }
+        if i > 0 { total++ }
+        total=total+rendered.len()
+        rendered_lines.push(own rendered)
+    }
+    mut output := Str.with_capacity(total)
+    for i in 0..rendered_lines.len() {
+        if i > 0 { output.push_str("\n") }
+        output.push_str(rendered_lines[i])
+    }
+    return output
 }

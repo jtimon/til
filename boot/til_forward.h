@@ -434,6 +434,7 @@ typedef struct Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites
 typedef struct Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState priv___src_self_codegen_mlir_codegen_til__MlirState;
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
 typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct Map__Str_U64 Map__Str_U64;
 enum {
@@ -446,6 +447,7 @@ enum {
     Option__Bool_TAG_Some
 };
 typedef struct Option__Bool Option__Bool;
+typedef struct Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
 typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmGlobal priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
@@ -1607,6 +1609,13 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding {
 } priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
+    Str name;
+    USize open;
+    USize close;
+} priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
+
+
 typedef struct Map__Str_U64 {
     Vec__Str keys;
     Vec__U64 values;
@@ -1627,6 +1636,10 @@ struct Option__Bool {
         Bool Some;
         void *_til_payload_align;
     } data;
+};
+
+struct Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
+    priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature *data;
 };
 
 typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding {

@@ -356,7 +356,9 @@
   ~Simd(I32,4)~, ~Simd(U32,4)~,
   ~Simd(Bool,4)~ masks,
   Bool, I32/U32 and I64/U64 values, including USize/UPtr aliases resolved
-  through the existing target configuration. Value parameters are immutable;
+  through the existing target configuration. Scalar/nested POD structs support
+  construction, field access/update and value returns as described below.
+  Value parameters are immutable;
   locals may be mutable. Borrowed ~Array(F32)~, ~Array(I32)~ and ~Array(U32)~ parameters support read-only
   inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
@@ -427,9 +429,11 @@
   aggregates use LLVM byval pointers to four-scalar structs with alignment 8,
   not native-vector parameter types. Each call site's source snapshot has an
   aligned entry-block slot, so repeated loop calls do not grow local storage.
-  LLVM 18's direct-call lowering obtains byval from the callee declaration;
-  its MLIR call op does not translate an arg_attrs array. Indirect calls remain
-  unsupported and would need explicit call-site attributes.
+  LLVM 18 exports byval/sret on declarations but drops call-site arg_attrs.
+  The export adapter described below restores those attributes BEFORE any
+  optimization. Instruction selection consulting the callee is not sufficient:
+  padded POD forwarding passed O0 but failed O2 until the call was annotated.
+  Indirect calls remain unsupported.
 
   Tests exercise register exhaustion and rollback, subsequent scalar/mask
   arguments, mixed-bank spills, stack scalars, sret and error-out pointers,
@@ -522,6 +526,39 @@
   pointer domain. It does not attach ~inbounds~ or ~noalias~ assumptions.
   Failed stores write no elements; earlier successful stores remain visible.
 
+*** Scalar and nested POD structs
+
+  POD structs may contain Bool, I32/U32, I64/U64, F32 and nested structs from
+  that same set. Constructors use the shared frontend's positional/default
+  field lowering. Mutable locals, whole-value assignment, field reads/writes,
+  nested field aliases, auto-generated clone and size are supported. These
+  values have no owning/reference/raw-pointer fields or nontrivial destructor;
+  SIMD fields, empty structs and custom clone implementations are not yet
+  supported in this increment. Heap-outer owning parameters and borrowed user
+  returns remain outside this slice.
+
+  The existing typer decides whether an ordinary parameter borrows or is an
+  auto-shallowed small value. Borrowed/mut parameters use pointers, and explicit
+  shallow parameters use the native value ABI. Struct layout preserves native
+  field offsets and padding, with Bool stored as a normalized byte. Borrowed
+  whole-struct loads make no stronger alignment promise than their source;
+  compiler-owned slots remain aligned and live in the entry block.
+
+  For values up to 16 bytes, recursive SysV eightbyte classification merges
+  nested fields: INTEGER dominates SSE within an eightbyte. Parameters and
+  returns use the corresponding integer/SSE register chunks. Larger returns
+  use sret; larger shallow arguments, or small arguments whose required banks
+  do not all fit, use whole-aggregate byval stack copies. A spill rolls back
+  both banks. ABI coercion storage covers the full chunks, even when the source
+  struct is smaller, so return padding never causes an out-of-bounds load.
+
+  Tests compare 14 scalar/mixed/nested layouts with native C and til/C callers
+  at O0/O2/O3, including small-value auto-shallowing, pointer borrows, mutable
+  nested fields, Bool aliases, default construction, reassignment and snapshots.
+  Cases cover mixed-class register rollback, hidden returns, raw NaN/zero bits,
+  scalar-aligned array elements and a million-iteration bounded-stack copy loop.
+  User POD bodies are emitted as MLIR, not additional C wrappers.
+
 *** Temporary C-core runtime bridge
 
   MLIR now emits Str literals, locals, borrowed/mutable/own parameters and
@@ -570,10 +607,20 @@
   til writes ~gen/mlir/<source>.mlir~, preserving the same normalized source
   hierarchy as C output. ~mlir-opt-18~ lowers vector/arith operations to the
   LLVM dialect; ~mlir-translate-18~ produces LLVM IR; ~clang-18~ compiles it.
-  Lowered MLIR and LLVM IR flow through pipes, not stored intermediates.
-  On Linux the pipeline uses Bash with ~pipefail~ so a failed stage cannot
-  be hidden by a succeeding downstream process. All outputs are regenerated
-  from til source on each invocation; no persistent compilation cache exists.
+  Lowered MLIR flows through a pipe. LLVM 18's exporter omits call-site byval
+  and sret attributes, so builds stage its LLVM IR in caller-local
+  ~tmp/mlir-<pid>.ll~. Til reads that file, restores the required call attributes
+  from the exported function declarations, and rewrites it; Clang then reads
+  it, and til removes it after compilation (including a Clang failure).
+  Balanced type parsing handles named/quoted types and nested aggregate
+  signatures; inconsistent argument counts/attributes fail loudly.
+
+  This temporary LLVM 18 adapter replaces fully streamed LLVM IR with scratch
+  file I/O and an in-memory rewrite. It adds no installed artifact or dependency.
+  The file is regenerated on every build, never reused as a cache, and can be
+  removed when the selected exporter preserves call-site ABI attributes. On
+  Linux lowering still uses Bash ~pipefail~ so a failing stage is not hidden.
+  Translation-only output remains the .mlir and approved C-support files.
 
   Executables retain ~bin/<source>~ or the existing ~-o~ override. Library
   builds use ~gen/lib/<name>.o~, ~gen/lib/lib<name>.so~ and
