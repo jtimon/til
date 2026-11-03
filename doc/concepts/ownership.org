@@ -91,10 +91,14 @@ share ownership of the VM. Each handle can be destroyed independently;
 the guest globals still belong to their common VM. No reference counters
 are involved. The callback's ~close~ helper is private, called by ~delete~.
 
-Typed callback arguments/results use an explicit snapshot boundary: the input
-Tuple keeps its ownership, borrowed mut parameters copy back even on failure,
-and results are independent host values. This differs from borrowing a native
-configuration record through FFI. Both contracts are documented in
+Typed callbacks use the same ref/own rules as ordinary calls and native FFI.
+Borrowed parameters alias the input Tuple element directly; own parameters
+consume copies made from that caller-owned packet. Result/error carriers own
+their copied contents, but ref fields and enum payloads still borrow their
+original referents. An owning carrier or VM does not extend a different owner's
+lifetime: the host/guest must keep every referent alive for its uses, including
+retained references. The callback boundary does not enforce a separate
+VM-address whitelist or perform borrowed-mutation copy-back. Details are in
 [[../ffi.org][FFI: retained guest callbacks and mutable native configuration records]].
 
 ** Destruction by context and qualifier

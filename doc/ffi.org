@@ -78,17 +78,21 @@ ref text : Str = result.get(0)
 accepts a mutable Tuple of checked native values and a borrowed keyword map.
 Omitting arguments supplies an empty Tuple,
 so existing ~callback.call()~ sites still work. A guest with no result returns
-an empty Tuple; otherwise it returns one independently owned value.
+an empty Tuple; otherwise it returns one owned value. Owning that value does
+not own any referents it borrows.
 
-This boundary uses snapshots:
+The boundary uses the ordinary Til ref/own rules:
 
-- Each input is copied into guest storage. An ~own~ parameter consumes that
-  guest snapshot, not the host Tuple element. An ~own mut~ parameter changes
-  its transferred snapshot without writing back to the host input.
-- A borrowed ~mut~ parameter copies changes back to the input Tuple, including
-  when the guest later panics or exits. Earlier effects are not rolled back.
+- A ~ref~ parameter borrows the host Tuple element directly. Mutable writes
+  and reference rebindings are visible immediately, including through aliases
+  during the same call. There is no end-of-call copy-back phase.
+- An ~own~ parameter consumes an independent copy made from the caller-owned
+  packet, not the packet element itself. Its own value fields are copied;
+  ref fields/payloads keep borrowing their original referents, just as with
+  an ordinary Til clone. Owning a carrier does not own what it references.
 - Results copy strings even when the guest returned a borrow, literal or view.
-  Host results remain valid after the inputs, callback and VM are destroyed.
+  Owned contents remain independent of the VM. References INSIDE a result or
+  declared error retain their borrowed lifetime instead of being made owned.
 - Signature, argument-count, type and width errors execute no guest code.
   Guest runtime errors preserve the loaded VM and callback for another call.
 
@@ -99,8 +103,10 @@ instead converts an error into a host panic. Guest output uses host stdio.
 The call boundary supports core scalars, Str, and nested shared records
 and enums, with at most 63 declared parameters. Variadic and kwargs calls are
 supported; variadic element and keyword entry counts are not limited to 63.
-Fixed record inputs can also carry ~ref I64~ fields pointing to the VM-owned
-cell described below; other pointer/reference-bearing fields remain unsupported.
+Records and enums can borrow any supported scalar/Str/record/enum type, at
+any nesting depth, in arguments, results and declared errors. There is no
+VM-specific address or I64-only restriction. Explicit own-pointer record
+fields and callable payloads remain unsupported by this marshaller.
 Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
@@ -117,8 +123,8 @@ with source defaults; this boundary does not evaluate omitted default arguments.
 For ~proc(mut prefix: Str, parts: ..Str, mut suffix: Str = "!")~, a Tuple
 containing ~prefix, part1, part2, suffix~ supplies two tail elements; a Tuple
 containing only ~prefix, suffix~ supplies an empty tail. Mutable fixed parameters
-on either side copy back to their corresponding Tuple elements on success,
-declared throw, panic and exit.
+on either side borrow their corresponding Tuple elements directly; writes
+remain visible on success, declared throw, panic and exit.
 
 A typed ~..T~ tail requires every element to have type ~T~ and its validated
 host width/schema. The bridge packs independent snapshots into the guest's
@@ -130,7 +136,8 @@ nested-record and enum values as fixed arguments.
 
 The guest owns the carrier and its snapshots; the host's tail values remain
 owned by the input Tuple and are not copied back. Results and declared errors
-retain their independent ownership after carrier/callback/VM destruction.
+retain independent owned contents; any references they contain still borrow
+their original owners. Moving/copying a tail carrier does not own its referents.
 All count, element type/width and schema checks finish before carrier creation
 or guest execution. A kwargs collector consumes no positional Tuple entry.
 
@@ -169,12 +176,13 @@ supported shared schema and the correct native byte width. Untyped Dynamic/raw
 pointers and unknown schemas are rejected. The collector has no per-key type
 declarations: the guest determines its accepted keys and how to interpret them.
 
-The bridge makes an owned guest map with independent copies of keys and values,
-including keys or strings that were host views. The host retains its original
-map; keyword values are not copied back. The guest can retain its snapshots
-using ordinary ownership. Fixed mutable arguments still copy back on success,
-declared throw, panic and exit. Results and errors survive input/callback/VM
-destruction, and earlier effects are not rolled back.
+The bridge makes an owned guest map with independent copies of keys and owned
+value contents, including keys or value strings that were host views. Reference
+fields/payloads are copied as borrows, not snapshots of their referents. The
+host retains its original map; replacing a guest keyword value does not replace
+the host entry. Guest retention follows ordinary ownership and borrowed
+referents must remain alive. Fixed mutable arguments are borrowed directly;
+their writes persist on success, declared throw, panic and exit.
 
 ~test/tilvm.til::kwargs_callback_tests~ covers empty and populated maps, nested
 record/enum values, fixed-plus-variadic-plus-kwargs calls, both throwing adapter
@@ -202,14 +210,15 @@ ref updated : Request = arguments.get(0)
 ref returned : Request = result.get(0)
 #+end_src
 
-Records use field-wise snapshots in both directions. Each Str field gets
-independent storage, including guest literals and views. A borrowed mutable
-record copies back after success, declared throw, panic or exit. An owned
-record parameter consumes its guest snapshot; even ~own mut~ leaves the host
-input unchanged. Record results, including borrowed results, are owned copies
-that survive input, callback and VM destruction. This is copy-in/copy-out, not
-an alias to a native host record; the native-reference route below remains
-available when shared identity is required.
+Borrowed record parameters alias the Tuple element itself. Owned record
+parameters, results and errors are copied field-wise: inline fields and Str
+contents receive independent storage, including literals/views, while ref
+fields preserve the pointer and aliasing of their original referents. An
+~own mut~ parameter changes its copied carrier without replacing the host
+packet element; writes through its references still affect the original
+pointees. A returned carrier survives VM destruction only to the extent that
+all of its borrowed referents also survive. The native-library reference route
+below uses the same ownership rules.
 
 ~test/tilvm.til::record_callback_tests~ covers these cases through the installed
 ASAN host with empty PATH, as well as argument/result schema rejection and
@@ -222,8 +231,8 @@ Shared enums can cross as arguments, results or declared errors. Supported
 variants are payload-free, scalar/Str-bearing, or carry another shared record
 or enum. Both tagged unions and owned-box niche enums (such
 as an optional record) retain their normal representation. Callable payloads
-remain rejected. Borrowed-reference payloads are rejected except for the fixed
-~ref I64~ enum inputs described below.
+remain rejected. Borrowed-reference payloads preserve ordinary Til reference
+semantics, including nested values and non-I64 referents.
 
 Checked lookup compares tag type/width, ordered variant names, discriminant
 values, payload types and qualifiers, and each record payload's schema. A
@@ -231,18 +240,37 @@ matching total size is insufficient: two enums can have the same union size
 and different tag widths. Existing enum reflection now preserves tag type and
 callable-payload metadata for this check.
 
-Copying reads only the active variant. String bytes, record fields and owned
-niche boxes are independently copied, so host results/errors cannot retain
-guest literals, views or heap boxes. Mutable enum arguments copy back after
-success, declared throw, panic or exit, including changes of active variant.
-Borrowed enum results become owned snapshots, as with records.
+Copying reads only the active variant. Owned string bytes, record fields and
+niche boxes are copied; borrowed payloads copy the pointer instead. Borrowed
+mutable enum arguments alias the packet element and can change its active
+variant directly. Such writes remain visible after success, throw, panic or
+exit. Materializing a returned enum owns the carrier, not a borrowed payload.
 
 ~test/tilvm.til::enum_callback_tests~ exercises explicit-width/discriminant
 enums, scalar/Str/record variants, optional records, borrowed results, enum
 errors, variant replacement, teardown and incompatible-schema rejection in
 the installed ASAN host with empty PATH.
 
-**** VM-owned shared scalar
+**** Borrowed lifetimes and optional VM-owned storage
+
+References have the same meaning in compiled Til, interpret, the REPL and
+TilVm: a ref borrows storage owned elsewhere. A carrier's clone or ownership
+transfer does not extend its referents' lifetimes. Checked lookup verifies
+schema and calling contract, not the lifetime of an arbitrary native address.
+There is no per-call field scan or VM-cell address whitelist.
+
+At the separately compiled host/guest boundary, the caller must keep borrowed
+storage alive for every guest use, including retention in guest globals or
+closures. Similarly, a host must keep a guest owner/VM alive when using a
+returned reference to guest-owned storage. Host-owned references do not depend
+on the VM's lifetime. A different VM can use the same host reference if its
+owner remains alive for both. Tuple elements borrowed directly must not be
+removed or relocated while guest references to those elements remain live.
+
+This is the same native ownership responsibility as the FFI route, not a
+promise that the incomplete language escape analysis catches every dangling
+reference. Ordinary use-after-free is invalid in every execution path; neither
+pointer compression nor owning a reference-bearing carrier makes it valid.
 
 ~vm.shared_i64() returns ref I64~ exposes one shared scalar per VM, initially
 zero and allocated lazily. Repeated calls return the same storage. The host
@@ -261,35 +289,25 @@ arguments.push(SharedScalar, own SharedScalar.Some(cell))
 callback.call(arguments)!
 #+end_src
 
-The guest declares the identical enum schema and may retain its reference in
-guest globals between calls. Both sides read/write the SAME scalar; this
-payload is not a snapshot. Fixed top-level enum and record inputs can use this
-contract, with ~ref I64~ variants/fields pointing exactly to the receiving VM's cell.
-Both pointer-niche and tagged enums are supported. Empty variants need no
-pointer; other owning variants retain their ordinary snapshot semantics.
-Arbitrary host pointers and another VM's cell are rejected before invocation.
-Nested inputs, variadic tails, keyword maps, returned values and declared
-errors continue to reject reference-bearing schemas.
+The shared cell is a convenience, not the only valid reference source. The
+same enum/record can instead borrow a host local, a long-lived host allocation,
+guest storage or another VM's cell, with the owner lifetime described above.
 
 The cell stays alive until its VM object is destroyed, including across a
 failed load and retry; guest state is torn down before the cell. Destroying an
 input Tuple or a callback does not invalidate guest references already retained
 by that VM. Constructing a candidate VM for reload creates an independent
-cell; references cannot be transferred to that candidate.
+cell. An explicitly shared reference to the old cell remains a borrow of the
+old VM and must not be used after that VM is destroyed.
 
-Guest mutations remain visible after a declared throw, panic or exit, and
-the callback remains usable. A mutable enum argument may copy back the shared
-cell reference or an owning/empty variant. If the guest replaces it with a
-different borrowed address, invocation reports ~TilVmError~ and leaves that
-host Tuple element unchanged, rather than exporting a guest-owned borrow.
-Earlier shared-cell effects and other ordinary copy-back effects remain.
+Guest mutations remain visible after a declared throw, panic or exit, and the
+callback remains usable. Rebinding a borrowed record field or enum payload
+follows the same rules as ordinary Til: the new referent must outlive its use.
 
-Fixed record inputs may combine one or more direct ~ref I64~ fields with
-ordinary snapshot fields, including nested values. Every reference field is
-checked against the same receiving VM cell before execution. Repeated fields
-preserve their aliasing: writing through one is immediately visible through
-the others and to the host. Bind a field as a typed reference to read/write
-its pointee using normal til reference semantics.
+Records may combine reference fields with inline values, including nested
+values. Aliased fields stay aliased: writing through one is immediately visible
+through the others and to the owner. Bind a field as a typed reference to
+read/write its pointee using normal Til reference semantics.
 
 #+begin_src til
 SharedRequest := struct { label := ""; ref count: I64 }
@@ -301,43 +319,37 @@ mut callback := vm.lookup("use_request", UseRequest)!
 callback.call(arguments)!
 #+end_src
 
-The record shell and its ordinary value fields still cross by deep snapshot.
-The guest may clone/retain that record without retaining host-owned string
-buffers. An owned record argument consumes only its guest snapshot, so its
-ordinary field changes do not copy back; its cell writes are shared regardless
-of argument ownership. A mutable record copies back its ordinary fields and
-validated reference pointers. Replacing any reference with a different address
-reports ~TilVmError~ and leaves that entire host Tuple element unchanged.
-Reference-bearing records remain rejected as results/errors, nested inputs,
-typed/heterogeneous variadic elements and keyword values.
-
 ~test/tilvm_cases.til::shared_cell_callback_tests~ runs in the installed
 ~tilvm_values~ ASAN host with empty PATH. It covers retained guest borrows,
-cross-VM/native-pointer rejection, nested/erased rejection, failed-load retry,
+native/cross-VM pointers, nested and erased carriers, failed-load retry,
 mutation on error paths and recovery. ~test/tilvm_lifetime_error.til~ verifies
 host escape, destruction and replacement rejection for the cell reference.
 ~test/tilvm_cases.til::shared_record_callback_tests~ adds mixed-layout record
 inputs, aliasing fields, retained record clones, owned-input isolation,
-copy-back on failures, invalid replacement, native/cross-VM pointer rejection,
-and schema/erased-input rejection in the same installed ASAN host.
+mutation on failures, reference replacement, and schema checks in that host.
+~ordinary_borrow_callback_tests~ additionally checks non-I64 and nested borrows,
+same-call alias visibility, declared errors, guest retention and returned
+host-owned references used after VM destruction.
 
 **** Nested values
 
 Records in records, enums in records, records in enums and enums in enums all
-use the same checked snapshot boundary. Only active enum payloads are copied;
-every reachable string and owned niche box receives independent storage. Copy-in,
-mutable copy-back and returned/declared-error values follow the same recursion.
+use the same ownership-aware boundary. Only active enum payloads are copied;
+owned contents receive independent storage while reference fields/payloads
+keep their pointers. Argument copies and returned/declared-error values follow
+the same recursion. Borrowed fixed parameters alias their host elements.
 Narrow tag-only enums occupy their native field width inside an aggregate,
 even when the interpreter uses a wider standalone scratch slot.
 
 Recursive type graphs through owned optional boxes are supported. Validation
 visits each distinct schema once per traversal and checks all its members; this
 does not create a persistent schema cache. Copying follows the finite owned
-value tree. Explicit pointer/reference fields and borrowed/callable enum
-payloads remain outside this nested snapshot contract.
+value tree, without traversing borrowed pointees. Nested borrowed references
+are supported; explicit own-pointer record fields and callable enum payloads
+remain outside this marshalling contract.
 
 ~test/tilvm.til::nested_callback_tests~ covers mixed nesting, a recursive
-owned-node schema, mutable copy-back on success/throw/panic/exit, owned-input
+owned-node schema, borrowed mutation on success/throw/panic/exit, owned-input
 isolation, borrowed results, post-VM reads and mismatches deep inside argument,
 result and error schemas, through the installed ASAN host with empty PATH.
 
@@ -347,8 +359,8 @@ This extension follows the completed #370 contract. A host and guest may share
 declared error schemas: scalars/Str, the shared enums above, or structs with inline supported
 fields (including an empty marker struct). Checked lookup compares the signature
 and, for error structs, field names/order, types, mutability and ownership, plus
-host layout size, recursively. Pointer/reference fields remain
-outside this slice. The shared type name and validated
+host layout size, recursively. Borrowed fields/payloads keep their referent's
+lifetime rather than becoming owned through the throw. The shared type name and validated
 schema identify the error; a guest's numeric throw tag is never exposed as a
 host type identity.
 
@@ -388,9 +400,10 @@ host error value. Validation, panic, exit and evaluator failures throw
 ~TilVmError~ instead. The macro copies the typed error from the Tuple and throws
 it through the host's normal error ABI.
 
-Error strings are independently copied, including guest literals and views.
-Errors and results survive callback/VM teardown. Borrowed mutable arguments
-copy back after success, declared throw, panic or exit. A caught error leaves
+Owned error strings are independently copied, including guest literals and
+views. Owned error/result contents survive callback/VM teardown; borrowed
+referents still require their owners to remain alive. Borrowed mutable arguments
+are changed in place on success, declared throw, panic or exit. A caught error leaves
 the callback and VM usable; earlier guest/native effects are not rolled back.
 Signature/schema, adapter-type and argument rejection execute no guest code.
 The installed ASAN host in ~test/tilvm.til~ exercises these distinctions with
@@ -611,18 +624,11 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- ~TilVmCallback.call(Tuple)~ only admits direct ~ref I64~ fields in fixed
-  record inputs when they reference its VM-owned cell; other pointer/reference
-  fields remain unsupported. Typed and heterogeneous variadic calls, keyword maps and nested
-  shared records/enums are
-  supported. A fixed ~ref I64~ enum input may borrow the VM-owned shared cell;
-  other borrowed and callable enum payloads remain outside this boundary.
-  The ~call_throwing(E)~ adapter supports the same nested error schemas,
-  including multiple declared errors
-  through its signature-based form. Extending
-  it requires checked marshalling and ownership/error-path coverage in the
-  installed host tests. Native-library record references and native throws
-  already work; they do not provide these guest-callback contracts.
+- Explicit own-pointer fields in user record schemas are not yet marshalled
+  through ~TilVmCallback.call(Tuple)~. Nested borrowed fields/payloads already
+  follow ordinary reference semantics in fixed, variadic and keyword inputs,
+  results and declared errors. The ~call_throwing(E)~ adapter supports the same
+  schemas, including multiple errors through its signature-based form.
 - Callable enum payloads cannot cross the native FFI boundary. Supporting them
   requires a defined native callable representation and capture/code lifetime
   contract, rather than treating interpreter closures as native function pointers.

@@ -500,8 +500,9 @@ namespace:
         return TilVmCallback(session = safe_ref(InterpSession, session), callable = slot)
     }
 
-    /// Inputs remain host-owned snapshots; borrowed mut inputs copy back,
-    /// including on failure. Results are owned copies independent of the VM.
+    /// Ref parameters borrow the host Tuple element directly. Own parameters
+    /// consume independent copies from that caller-owned packet. References
+    /// inside values remain borrows; copying a carrier never owns its referents.
     /// Panic/exit preserve this handle and session; earlier effects remain.
     call := proc(mut self: TilVmCallback, mut arguments: Tuple = Tuple.new(), keywords: KwargsMap = KwargsMap.new()) returns Tuple throws TilVmError {
         if self.session.is_none() {
@@ -6846,8 +6847,7 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
         // Kwargs likewise validate each concrete entry at invocation.
         if i.to_i32() == expected.kwargs_index { continue }
         if i.to_i32() == expected.variadic_index && expected.params[i].type_name() == "Dynamic" { continue }
-        allow_shared := i.to_i32() != expected.variadic_index
-        if interp_callback_error_schema(expected.params[i].type_name(), lp.ctx, allow_shared).not() {
+        if interp_callback_error_schema(expected.params[i].type_name(), lp.ctx).not() {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
                 declaration.path, declaration.line, declaration.col,
                 format("unsupported or mismatched shared callback argument schema: ", expected.params[i].type_name()))
@@ -6869,19 +6869,17 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
 // The visited set belongs to this one validation, not to the VM. An owned
 // niche can close a type-graph cycle; every distinct schema still has all its
 // fields/variants checked before the root succeeds.
-priv interp_callback_error_schema := proc(name: Str, mut ctx: Context, allow_shared: Bool = false) returns Bool {
+priv interp_callback_error_schema := proc(name: Str, mut ctx: Context) returns Bool {
     mut visited := Set(Str).new()
-    return interp_callback_schema_visit(name, visited, ctx, allow_shared)
+    return interp_callback_schema_visit(name, visited, ctx)
 }
 
-priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut ctx: Context, allow_shared: Bool = false) returns Bool {
+priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut ctx: Context) returns Bool {
     if is_scalar_type_name(name).or(name == "Str") { return true }
     if visited.has(name) { return true }
     guest_o := ctx.scope.get_struct(name, ctx.symbols)
     if guest_o.is_none() { return false }
-    // A root-only shared-reference allowance is not proof that the same
-    // schema is legal nested inside another variant/field.
-    if allow_shared.not() { visited.add(own name.clone()) }
+    visited.add(own name.clone())
     if guest_o.unwrap().node_type.is(NodeType.EnumDef) {
         ref def : Expr = guest_o.unwrap()
         ref guest : EnumDef = enumdef_of(def)
@@ -6894,10 +6892,6 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
             if gv.payload_const != hv.payload_const { return false }
             if gv.payload_funcsig.or(hv.payload_funcsig) { return false }
             if gv.payload_ref != hv.payload_ref { return false }
-            if gv.payload_ref {
-                if allow_shared.not().or(gv.payload_type != "I64") { return false }
-                continue
-            }
             if gv.payload_type.len() == 0 { continue }
             if interp_callback_schema_visit(gv.payload_type, visited, ctx).not() { return false }
             pt := type_from_name_init_name(gv.payload_type, ctx.scope, ctx.symbols)
@@ -6917,11 +6911,7 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
         if gn.len() == 0 { return false }
         if hf.name != gf.name || hf.type_name() != gn || hf.is_mut != gf.is_mut { return false }
         if hf.own_type != gf.own_type { return false }
-        if gf.own_type.is(OwnType.Ref) {
-            if allow_shared.not().or(gn != "I64") { return false }
-            continue
-        }
-        if gf.own_type.is(OwnType.Shallow).not() { return false }
+        if gf.own_type.is(OwnType.Shallow).or(gf.own_type.is(OwnType.Ref)).not() { return false }
         if interp_callback_schema_visit(gn, visited, ctx).not() { return false }
     }
     ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
@@ -6974,8 +6964,8 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         ref field : Declaration = sd.fields[i]
         ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
         if field.own_type.is(OwnType.Ref) {
-            // This fixed input's ref I64 address was validated against the
-            // VM-owned cell before invocation (and before mutable copy-back).
+            // Ordinary Til clone semantics: copy the borrow, not its pointee.
+            // The referent's owner, not the callback/VM, controls its lifetime.
             memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), Dynamic.size())
             continue
         }
@@ -7109,49 +7099,11 @@ priv interp_callback_pack_keywords := proc(keywords: KwargsMap, mut ctx: Context
     return storage
 }
 
-// Fixed enum/record arguments may borrow exactly this session's scalar cell. Check
-// the address before copying/dereferencing it; no arbitrary native pointer
-// becomes a guest borrow. Results, errors and nested/erased inputs still use
-// the ordinary snapshot-only schema validation.
-priv interp_callback_shared_input_valid := proc(name: Str, data: Dynamic, mut session: InterpSession, mut ctx: Context) returns Bool {
-    def_o := ctx.scope.get_struct(name, ctx.symbols)
-    if def_o.is_none() { return true } // Scalar/Str input, already schema-checked.
-    ref def : Expr = def_o.unwrap()
-    if def.node_type.is(NodeType.StructDef) {
-        ref sd : StructDef = structdef_of(def)
-        for index in 0..sd.fields.len() {
-            ref field : Declaration = sd.fields[index]
-            if field.own_type.is(OwnType.Ref).not() { continue }
-            ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
-            // Use the schema's field index, not a packed sequence of ref
-            // fields: inline value fields can add padding between pointers.
-            ref offset : U64 = ptr_add(layout.offsets, index.mul(8))
-            ref pointer : Dynamic = deref(ptr_add(data, offset.to_usize()))
-            if session.shared_i64_storage.is_none() { return false }
-            if pointer.ptr_eq(session.shared_i64()).not() { return false }
-        }
-        return true
-    }
-    index := enum_variant_index_for_tag(def, enum_data_tag_key(data, def))
-    if index < 0 { panic("callback enum input has an invalid tag: ", name) }
-    ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
-    if variant.payload_ref.not() { return true }
-    if session.shared_i64_storage.is_none() { return false }
-    ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
-    mut slot : Dynamic = data
-    if enum_is_niche(def).not() {
-        ref offset : U64 = ptr_add(layout.offsets, 8)
-        slot = ptr_add(data, offset.to_usize())
-    }
-    ref pointer : Dynamic = deref(slot)
-    return pointer.ptr_eq(session.shared_i64())
-}
-
-// Internal call boundary using the existing typed Tuple storage. Host inputs
-// stay owned by arguments: the guest receives independent snapshots, transfers
-// those snapshots to own parameters, and writes borrowed mut snapshots back to the Tuple
-// after evaluation (also on abort). This is not native ref borrowing. A returned
-// reference is copied out before temporary argument storage is destroyed.
+// Internal call boundary using existing typed Tuple storage. Ref parameters
+// borrow its elements directly; own/value parameters receive independent
+// copies. As in ordinary Til calls, a carrier's refs still belong to their
+// original owners. A direct ref result is materialized into the result Tuple,
+// but references INSIDE that result retain their ordinary borrowed lifetime.
 // None means validation/evaluation failed; diagnostics and the unconsumed abort
 // state remain on Context for the host driver to apply its failure policy.
 interp_session_call_function := proc(mut session: InterpSession, mut lp: LoadedProgram,
@@ -7218,13 +7170,6 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
                 format("guest argument ", (i + 1).to_str(), " type/width mismatch: expected ", want, ", received ", got))
             return Option(Tuple).None
         }
-        if param_index.to_i32() != expected.variadic_index {
-            if interp_callback_shared_input_valid(want, arguments.get(i), session, lp.ctx).not() {
-                context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-                    "borrowed I64 input must reference this VM's shared_i64 cell")
-                return Option(Tuple).None
-            }
-        }
     }
     for key, value in keywords.items {
         if value.len() != 1 {
@@ -7259,6 +7204,8 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     call.set_til_type(ret_type)
     mut temps := scope_new(safe_ref(session_global(session)))
     for i in 0..expected.params.len() {
+        ref param : Declaration = fd.sig.params[interp_callback_param_index(fd, i)]
+        arg_name := format("TilVm.argument.", i.to_str())
         mut name := expected.params[i].type_name()
         mut copy : Dynamic = 0
         if i.to_i32() == expected.variadic_index {
@@ -7269,12 +7216,17 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
             copy = interp_callback_pack_keywords(keywords, lp.ctx)
         } else {
             input_index := interp_callback_param_argument(expected, arguments.len(), i)
+            if param.own_type.is(OwnType.Ref) {
+                t := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
+                scope_set_heap_owned(temps, arg_name, arguments.get(input_index), interp_intern_type(t, lp.ctx),
+                    OwnType.Ref, lp.ctx, false, true)
+                continue
+            }
             copy = interp_callback_error_copy(name, arguments.get(input_index), lp.ctx, true)
         }
         t := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
         // Dots cannot occur in a source identifier, so these evaluator-only
         // argument slots cannot shadow a user global inside a static function.
-        arg_name := format("TilVm.argument.", i.to_str())
         scope_set_raw_owned(temps, arg_name, copy, interp_intern_type(t, lp.ctx), OwnType.Own, lp.ctx)
     }
     mut source_index : USize = 0
@@ -7336,30 +7288,9 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         heap_drop_by_type(ret_type, destination, lp.ctx)
         EvalHeap.heap_free(own destination)
     }
-    mut invalid_copyback := false
-    for i in 0..expected.params.len() {
-        if i.to_i32() == expected.variadic_index || i.to_i32() == expected.kwargs_index { continue }
-        ref param : Declaration = fd.sig.params[interp_callback_param_index(fd, i)]
-        if param.is_mut.and(param.own_type.is(OwnType.Ref)) {
-            arg_name := format("TilVm.argument.", i.to_str())
-            ref source : HeapBinding = scope_lookup_heap_binding(temps, arg_name).unwrap()
-            if interp_callback_shared_input_valid(expected.params[i].type_name(), source.ptr, session, lp.ctx).not() {
-                context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
-                    "guest replaced a borrowed I64 input with a reference outside this VM's shared_i64 cell")
-                invalid_copyback = true
-                continue
-            }
-            copied : Dynamic = interp_callback_error_copy(expected.params[i].type_name(), source.ptr, lp.ctx)
-            input_index := interp_callback_param_argument(expected, arguments.len(), i)
-            ref mut slot : Dynamic = arguments.get(input_index)
-            dyn_call(arguments.type_at(input_index), "delete", 2, slot, false)
-            memcpy(slot, copied, arguments.size_at(input_index).to_uptr())
-            EvalHeap.heap_free(own copied)
-        }
-    }
     scope_drop_owned_bindings(temps)
     scope_free(own temps)
-    if lp.ctx.eval.eval_aborted.or(invalid_copyback) { return Option(Tuple).None }
+    if lp.ctx.eval.eval_aborted { return Option(Tuple).None }
     return Option(Tuple).Some(own values)
 }
 

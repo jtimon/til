@@ -22,9 +22,9 @@ offset is not a solution. Preserve the already-delivered own-field work and
 its measurements below while completing the reference side.
 
 The callback bridge currently copies reference fields with ~Dynamic.size()~
-bytes and loads them as native pointers in
-~src/self/interpreter.til::interp_callback_error_copy~ and
-~interp_callback_shared_input_valid~. Those assumptions agree with today's
+bytes in ~src/self/interpreter.til::interp_callback_error_copy~. It also
+borrows fixed ref parameters directly from the host argument Tuple. Those
+native-pointer assumptions agree with today's
 layout, but must become layout-aware with compressed reference storage.
 Audit ref fields, borrowed enum payloads and ref-container slots together,
 including generated C, interpreter layouts/accesses, reflection and FFI.
@@ -40,19 +40,24 @@ Acceptance for the remaining representation work:
 
 **** Separate callback validation cost
 
-The #370 shared-cell restriction checks that an incoming borrowed address is
+The initial #370 shared-cell restriction checked that an incoming borrowed address was
 exactly the receiving VM's owned cell, so the guest may retain it safely.
 It is a lifetime/provenance rule, independent of pointer width. A valid offset
 inside the process-wide cage is not proof that the allocation belongs to this
 VM or lives until its teardown. Reference compression does not remove that
-check by itself.
+check by itself. The follow-up aligning callback ref/own behavior with ordinary
+Til removes that VM-specific restriction instead: referent lifetime belongs
+to its owner, as at the existing native boundary. The optional shared cell is
+still available as one owner, but is no longer a mandatory provenance source.
 
 c721fbbf2 also added a scan of every fixed record argument's fields (including
 records without references), repeated for mutable copy-back, with layout
 lookups for reference fields. That work is in the callback bridge, not general
-compiled field access. Avoiding scans for reference-free records and moving
-schema-dependent work out of the per-call path is a separate optimization;
-do not attribute the overhead to an intrinsic cost of compressed references.
+compiled field access. The same ref/own follow-up removes both that field scan
+and the borrowed-input snapshot/copy-back pass. Schema checks remain at lookup;
+own/value arguments and result carriers still need their ownership-aware copies.
+Do not attribute the former validation overhead to an intrinsic cost of
+compressed references, or treat its removal as completing reference compression.
 
 *** Delivered own-field work: historical post-mortem
 

@@ -40,6 +40,33 @@ test_ref_from_param := test() {
 
 # --- ref from owned compound local ---
 
+RefOwnedCarrier := struct { label := ""; ref value: I64 }
+copy_owned_carrier := func(own carrier: RefOwnedCarrier) returns RefOwnedCarrier { return carrier.clone() }
+RefRequiredError := struct { ref value: I64 }
+throw_required_borrow := func(mut value: I64, fail: Bool) returns I64 throws RefRequiredError {
+    if fail { throw RefRequiredError(value = value) }
+    value = value + 1
+    return value
+}
+
+test_own_carrier_keeps_borrowed_referent := test() {
+    mut values := vec(I64, 41)
+    ref mut n: I64 = values.unsafe_get(0)
+    copied := copy_owned_carrier(own RefOwnedCarrier(label = format("owned ", "carrier"), value = n))
+    ref alias: I64 = copied.value
+    assert(ptr_eq(alias, n) && copied.label == "owned carrier")
+    n = 42
+    assert(alias == 42)
+    assert(throw_required_borrow(n, false)! == 43)
+    mut caught := false
+    throw_required_borrow(n, true)?
+    catch (error: RefRequiredError) {
+        ref borrowed: I64 = error.value
+        caught = ptr_eq(borrowed, n) && borrowed == 43
+    }
+    assert(caught && values[0] == 43)
+}
+
 RefPoint := struct {
     x := 0
     y := 0

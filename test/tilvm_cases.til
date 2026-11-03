@@ -60,39 +60,46 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     mut reader := vm.lookup("read_calls", SharedTick)?
     catch (error: TilVmError) { panic(error.to_str()) }
     mut tick := vm.lookup("tick", SharedTick)!
-    expect_lookup_failure(vm, "return_cell", "result schema", signature = SharedReturn)
-    expect_lookup_failure(vm, "throw_cell", "error schema", signature = SharedThrow)
-    expect_lookup_failure(vm, "tail", "argument schema", signature = SharedTail)
-    expect_lookup_failure(vm, "nested", "argument schema", signature = SharedNestedInput)
-    expect_lookup_failure(vm, "cycle", "argument schema", signature = SharedCycleInput)
+    mut return_cell := vm.lookup("return_cell", SharedReturn)!
+    mut throw_cell := vm.lookup("throw_cell", SharedThrow)!
+    mut tail_cell := vm.lookup("tail", SharedTail)!
+    mut nested_cell := vm.lookup("nested", SharedNestedInput)!
+    mut cycle_cell := vm.lookup("cycle", SharedCycleInput)!
+    mut cycle_args := Tuple.new()
+    cycle_args.push(SharedCycle, own SharedCycle.Empty)
+    cycle_cell.call(cycle_args)!
+    mut nested_args := Tuple.new()
+    nested_args.push(SharedNested, own SharedNested(value = SharedScalar.Some(cell)))
+    nested_cell.call(nested_args)!
+    ref nested_result: SharedNested = nested_args.get(0)
+    assert(nested_result.value.is(SharedScalar.None))
     mut erased := vm.lookup("dynamic", SharedDynamic)!
     mut keyword := vm.lookup("keywords", SharedKeywords)!
     mut erased_args := Tuple.new()
     erased_args.push(SharedScalar, own SharedScalar.Some(cell))
-    erased_error := expect_call_failure(erased, erased_args, "unsupported variadic element schema", path = "guest.til")
-    assert(erased_error.exit_status.is_none())
+    erased.call(erased_args)!
+    tail_result := tail_cell.call(erased_args)!
+    ref tail_count: I64 = tail_result.get(0)
+    assert(tail_count == 1)
     mut keyword_args := KwargsMap.new()
     keyword_args.set("cell", "SharedScalar", SharedScalar.size(), own SharedScalar.Some(cell))
     mut empty_args := Tuple.new()
-    keyword_error := expect_call_failure(keyword, empty_args, "unsupported keyword schema", path = "guest.til", keywords = keyword_args)
-    assert(keyword_error.exit_status.is_none())
+    keyword.call(empty_args, keywords = keyword_args)!
     mut native_input := Tuple.new()
     native_input.push(I64, own 20)
     ref mut native: I64 = native_input.get(0)
-    mut invalid := Tuple.new()
-    invalid.push(SharedScalar, own SharedScalar.Some(native))
-    invalid_error := expect_call_failure(retain, invalid, "this VM's shared_i64", path = "guest.til")
-    assert(invalid_error.exit_status.is_none())
+    mut native_args := Tuple.new()
+    native_args.push(SharedScalar, own SharedScalar.Some(native))
+    retain.call(native_args)!
     mut other_vm := TilVm.new(root)
     ref mut other_cell: I64 = other_vm.shared_i64()
     other_cell = 30
     mut foreign := Tuple.new()
     foreign.push(SharedScalar, own SharedScalar.Some(other_cell))
-    foreign_error := expect_call_failure(retain, foreign, "this VM's shared_i64", path = "guest.til")
-    assert(foreign_error.exit_status.is_none())
+    retain.call(foreign)!
     before := reader.call()!
     ref count: I64 = before.get(0)
-    assert(count == 0 && native == 20 && other_cell == 30)
+    assert(count == 4 && native == 20 && other_cell == 30)
     // Guest retention survives destruction of the input Tuple and callback.
     mut input := Tuple.new()
     input.push(SharedScalar, own SharedScalar.Some(cell))
@@ -114,17 +121,39 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
         call_throwing(SharedBorrow)(borrow, args)?
         catch (error: TransformError) { assert(action == 1); kept_error = error; caught = true }
         catch (error: TilVmError) {
-            assert(action >= 2)
+            assert(action == 2 || action == 3)
             if action == 2 { assert(error.to_str().contains("shared panic")) }
             if action == 3 { assert(error.exit_status.unwrap() == 0) }
-            if action == 4 { assert(error.to_str().contains("guest replaced")) }
             caught = true
         }
-        if action != 0 { assert(caught) }
+        if action == 1 || action == 2 || action == 3 { assert(caught) }
+        if action == 4 {
+            ref replaced: SharedScalar = args.get(0)
+            switch replaced {
+            case .Some(n): assert(n == 123)
+            case: panic("borrow replacement was lost")
+            }
+        }
     }
     assert(cell == 51)
     tick.call()!
     assert(cell == 52)
+    borrowed_result := return_cell.call()!
+    ref borrowed: SharedScalar = borrowed_result.get(0)
+    switch borrowed {
+    case .Some(n): assert(ptr_eq(n, cell) && n == 52)
+    case: panic("returned borrow was lost")
+    }
+    mut threw_borrow := false
+    call_throwing(SharedThrow)(throw_cell)?
+    catch (error: SharedScalar) {
+        switch error {
+        case .Some(n): threw_borrow = n == 123
+        case:
+        }
+    }
+    catch (error: TilVmError) { panic(error.to_str()) }
+    assert(threw_borrow)
     mut tagged_args := Tuple.new()
     tagged_args.push(SharedTagged, own SharedTagged.Cell(cell))
     tagged_result := tagged.call(tagged_args)!
@@ -136,13 +165,18 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     none.push(I64, own 0)
     call_throwing(TransformError)(borrow, none)!
     own tagged_args.delete()
+    own return_cell.delete()
+    own throw_cell.delete()
+    own tail_cell.delete()
+    own nested_cell.delete()
+    own cycle_cell.delete()
     own erased_args.delete()
     own keyword_args.delete()
     own erased.delete()
     own keyword.delete()
     own none.delete()
     own foreign.delete()
-    own invalid.delete()
+    own native_args.delete()
     own tick.delete()
     own reader.delete()
     own tagged.delete()
@@ -184,7 +218,7 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
         "noop_proc(); calls = calls + 1; ref mut first: I64 = value.first; ref second: I64 = value.second; first = first + 2; assert(first == second);\n",
         "value.label = \"updated label\"; value.data.text = \"updated data\"; value.count = 19;\n",
         "if action == 1 { throw SharedRecordError(message = \"record borrow error\") }; if action == 2 { panic(\"record borrow panic\") }; if action == 3 { exit(0) };\n",
-        "if action == 4 { value = SharedRecord(label = \"invalid replacement\", first = saved.first, second = other.unsafe_get(0)) }; return second.clone() }\n",
+        "if action == 4 { value = SharedRecord(label = \"replacement\", first = saved.first, second = other.unsafe_get(0)) }; return second.clone() }\n",
         "consume_record := proc(own mut value: SharedRecord) returns Str { noop_proc(); ref mut first: I64 = value.first; first = first + 3; value.label = \"owned label\"; value.data.text = \"owned data\"; return value.label.clone() }\n",
         "return_record := func() returns SharedRecord { return saved.clone() }\n",
         "throw_record := proc() throws SharedRecord { noop_proc(); error: SharedRecord = saved.clone(); throw error }\n",
@@ -202,38 +236,45 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     mut consume := vm.lookup("consume_record", SharedRecordOwned)!
     mut reader := vm.lookup("read_calls", SharedTick)!
     mut tick := vm.lookup("tick_record", SharedTick)!
-    expect_lookup_failure(vm, "return_record", "result schema", signature = SharedRecordReturn)
-    expect_lookup_failure(vm, "throw_record", "error schema", signature = SharedRecordThrow)
-    expect_lookup_failure(vm, "tail_record", "argument schema", signature = SharedRecordTail)
-    expect_lookup_failure(vm, "nested_record", "argument schema", signature = SharedRecordNestedInput)
+    mut return_record := vm.lookup("return_record", SharedRecordReturn)!
+    mut throw_record := vm.lookup("throw_record", SharedRecordThrow)!
+    mut tail_record := vm.lookup("tail_record", SharedRecordTail)!
+    mut nested_record := vm.lookup("nested_record", SharedRecordNestedInput)!
     mut native_values := Tuple.new()
     native_values.push(I64, own 20)
     ref native: I64 = native_values.get(0)
     mut other_vm := TilVm.new(root)
     ref mut other_cell: I64 = other_vm.shared_i64()
     other_cell = 30
-    mut invalid := Tuple.new()
-    invalid.push(SharedRecord, own SharedRecord(first = cell, second = native))
-    invalid_error := expect_call_failure(retain, invalid, "this VM's shared_i64", path = "guest.til")
-    assert(invalid_error.exit_status.is_none())
+    mut native_args := Tuple.new()
+    native_args.push(SharedRecord, own SharedRecord(first = cell, second = native))
+    retain.call(native_args)!
     mut foreign := Tuple.new()
     foreign.push(SharedRecord, own SharedRecord(first = cell, second = other_cell))
-    foreign_error := expect_call_failure(retain, foreign, "this VM's shared_i64", path = "guest.til")
-    assert(foreign_error.exit_status.is_none())
+    retain.call(foreign)!
     mut dynamic := vm.lookup("dynamic", SharedDynamic)!
     mut keywords := vm.lookup("keywords", SharedKeywords)!
     mut erased := Tuple.new()
     erased.push(SharedRecord, own SharedRecord(first = cell, second = cell))
-    erased_error := expect_call_failure(dynamic, erased, "unsupported variadic element schema", path = "guest.til")
-    assert(erased_error.exit_status.is_none())
+    dynamic.call(erased)!
+    tail_result := tail_record.call(erased)!
+    ref tail_count: I64 = tail_result.get(0)
+    assert(tail_count == 1)
+    mut nested := Tuple.new()
+    nested.push(SharedRecordNested, own SharedRecordNested(record = SharedRecord(first = cell, second = native)))
+    nested_record.call(nested)!
+    ref nested_result: SharedRecordNested = nested.get(0)
+    assert(nested_result.record.count == 7)
+    ref nested_first: I64 = nested_result.record.first
+    ref nested_second: I64 = nested_result.record.second
+    assert(ptr_eq(nested_first, cell) && ptr_eq(nested_second, native))
     mut options := KwargsMap.new()
     options.set("record", "SharedRecord", SharedRecord.size(), own SharedRecord(first = cell, second = cell))
     mut empty := Tuple.new()
-    keyword_error := expect_call_failure(keywords, empty, "unsupported keyword schema", path = "guest.til", keywords = options)
-    assert(keyword_error.exit_status.is_none())
+    keywords.call(empty, keywords = options)!
     before := reader.call()!
     ref count: I64 = before.get(0)
-    assert(count == 0 && cell == 10 && native == 20 && other_cell == 30)
+    assert(count == 4 && cell == 10 && native == 20 && other_cell == 30)
     retain_shared_record(retain, vm)
     own retain.delete()
     observed := tick.call()!
@@ -252,20 +293,20 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
         call_throwing(SharedRecordBorrow)(borrow, args)?
         catch (error: SharedRecordError) { assert(action == 1); kept_error = error; caught = true }
         catch (error: TilVmError) {
-            assert(action >= 2)
+            assert(action == 2 || action == 3)
             if action == 2 { assert(error.to_str().contains("record borrow panic")) }
             if action == 3 { assert(error.exit_status.unwrap() == 0) }
-            if action == 4 { assert(error.to_str().contains("guest replaced")) }
             caught = true
         }
-        if action != 0 { assert(caught) }
+        if action == 1 || action == 2 || action == 3 { assert(caught) }
         ref updated: SharedRecord = args.get(0)
         ref updated_first: I64 = updated.first
         ref updated_second: I64 = updated.second
-        assert(updated_first == updated_second)
         if action == 4 {
-            assert(updated.label == "host label" && updated.data.text == "host data" && updated.count == 0)
+            assert(updated_first == 51 && updated_second == 123)
+            assert(updated.label == "replacement" && updated.data.text.len() == 0 && updated.count == 0)
         } else {
+            assert(updated_first == updated_second)
             assert(updated.label == "updated label" && updated.data.text == "updated data" && updated.count == 19)
         }
     }
@@ -281,17 +322,35 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     assert(original_first == 54 && original_second == 54 && cell == 54)
     tick.call()!
     assert(cell == 55)
+    returned := return_record.call()!
+    ref returned_value: SharedRecord = returned.get(0)
+    ref returned_first: I64 = returned_value.first
+    ref returned_second: I64 = returned_value.second
+    assert(ptr_eq(returned_first, cell) && ptr_eq(returned_second, cell))
+    mut caught_record := false
+    call_throwing(SharedRecordThrow)(throw_record)?
+    catch (error: SharedRecord) {
+        ref first: I64 = error.first
+        ref second: I64 = error.second
+        caught_record = ptr_eq(first, cell) && ptr_eq(second, cell) && error.label == "retained label"
+    }
+    catch (error: TilVmError) { panic(error.to_str()) }
+    assert(caught_record)
     own owned_input.delete()
     own erased.delete()
     own options.delete()
     own dynamic.delete()
     own keywords.delete()
-    own invalid.delete()
+    own native_args.delete()
     own foreign.delete()
     own consume.delete()
     own tick.delete()
     own reader.delete()
     own borrow.delete()
+    own return_record.delete()
+    own throw_record.delete()
+    own tail_record.delete()
+    own nested_record.delete()
     ref owned_text: Str = owned_result.get(0)
     assert(owned_text == "owned label")
     // Each schema mismatch must be caught before the guest is invoked.
@@ -305,6 +364,124 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
         expect_lookup_failure(bad_schema, "retain_record", "argument schema", signature = SharedRecordRetain)
     }
     return kept_error
+}
+
+BorrowedData := struct { message := ""; count: I32 = 0 }
+BorrowedTextView := enum { None, Some: ref Str }
+BorrowedDataView := enum { None, Some: ref BorrowedData }
+BorrowedBundle := struct { label := ""; ref number: U64; ref text: Str; ref data: BorrowedData; view := BorrowedTextView.None }
+TouchBorrowed := proc(own mut BorrowedBundle, I64) returns BorrowedBundle throws BorrowedBundle
+ReadBorrowed := func() returns BorrowedBundle
+InspectBorrowed := proc(values: ..Dynamic, options: ...) returns Str
+AliasedBorrowed := proc(mut I64, SharedScalar) returns I64
+ViewBorrowedData := func(BorrowedData) returns BorrowedDataView
+
+ordinary_borrow_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format(
+        "mode lib\nBorrowedData := struct { message := \"\"; count: I32 = 0 }\n",
+        "BorrowedTextView := enum { None, Some: ref Str }\n",
+        "BorrowedDataView := enum { None, Some: ref BorrowedData }\n",
+        "SharedScalar := enum { None, Some: ref I64 }\n",
+        "BorrowedBundle := struct { label := \"\"; ref number: U64; ref text: Str; ref data: BorrowedData; view := BorrowedTextView.None }\n",
+        "mut saved := Option(BorrowedBundle).None\n",
+        "touch_borrowed := proc(own mut value: BorrowedBundle, action: I64) returns BorrowedBundle throws BorrowedBundle {\n",
+        "noop_proc(); ref mut number: U64 = value.number; ref mut text: Str = value.text; ref mut data: BorrowedData = value.data;\n",
+        "number = number + 1; text.push_str(\"!\"); data.count = data.count + 1; data.message = format(data.message, \"+\");\n",
+        "value.label = \"guest label\"; value.view = BorrowedTextView.Some(text); saved = Option(BorrowedBundle).Some(value.clone());\n",
+        "if action == 1 { throw BorrowedBundle.clone(value) }; return value.clone() }\n",
+        "read_borrowed := func() returns BorrowedBundle { return saved.unwrap() }\n",
+        "inspect_borrowed := proc(values: ..Dynamic, options: ...) returns Str { noop_proc(); ref value: BorrowedBundle = values.get(0);\n",
+        "ref text: Str = value.text; ref data: BorrowedData = value.data; ref view: BorrowedTextView = options.get(\"view\");\n",
+        "switch view { case .Some(other): assert(ptr_eq(other, text)); case: panic(\"borrow lost\") }; return format(text, \"/\", data.message) }\n",
+        "aliased_borrowed := proc(mut number: I64, view: SharedScalar) returns I64 { noop_proc(); number = number + 1; switch view { case .Some(n): assert(n == number); return n.clone(); case: return -1 } }\n",
+        "view_borrowed_data := func(value: BorrowedData) returns BorrowedDataView { return BorrowedDataView.Some(value) }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut touch := vm.lookup("touch_borrowed", TouchBorrowed)!
+    mut read := vm.lookup("read_borrowed", ReadBorrowed)!
+    mut inspect := vm.lookup("inspect_borrowed", InspectBorrowed)!
+    mut aliased := vm.lookup("aliased_borrowed", AliasedBorrowed)!
+    mut aliases := Tuple.new()
+    aliases.push(I64, own 5)
+    aliases.push(SharedScalar, own SharedScalar.None)
+    // Bind only after packing: growing Tuple may move its backing storage.
+    ref aliased_number: I64 = aliases.get(0)
+    ref mut view: SharedScalar = aliases.get(1)
+    move(SharedScalar, view, own SharedScalar.Some(aliased_number))
+    alias_result := aliased.call(aliases)!
+    ref alias_value: I64 = alias_result.get(0)
+    assert(alias_value == 6 && aliased_number == 6)
+    own aliased.delete()
+    mut view_data := vm.lookup("view_borrowed_data", ViewBorrowedData)!
+    mut record_packet := Tuple.new()
+    record_packet.push(BorrowedData, own BorrowedData(message = format("packet", " data")))
+    record_view := view_data.call(record_packet)!
+    ref mut packet_value: BorrowedData = record_packet.get(0)
+    packet_value.count = 8
+    mut owner := Tuple.new()
+    owner.push(U64, own 4)
+    owner.push(Str, own Str.with_capacity(64))
+    ref mut number: U64 = owner.get(0)
+    ref mut text: Str = owner.get(1)
+    number = 5
+    text.push_str("host text start")
+    mut data := BorrowedData(message = format("host", " data"))
+    data.count = 1
+    mut arguments := Tuple.new()
+    arguments.push(BorrowedBundle, own BorrowedBundle(label = format("host", " label"),
+        number = number, text = text, data = data, view = BorrowedTextView.Some(text)))
+    arguments.push(I64, own 0)
+    result := call_throwing(TouchBorrowed)(touch, arguments)!
+    assert(number == 6 && text == "host text start!" && data.count == 2 && data.message == "host data+")
+    ref original: BorrowedBundle = arguments.get(0)
+    assert(original.label == "host label") // The owned guest snapshot is distinct from the host input.
+    mut errors := Tuple.new()
+    errors.push(BorrowedBundle, own BorrowedBundle(label = format("second", " label"), number = number, text = text, data = data))
+    errors.push(I64, own 1)
+    mut caught := Option(BorrowedBundle).None
+    call_throwing(TouchBorrowed)(touch, errors)?
+    catch (error: BorrowedBundle) { caught = Option(BorrowedBundle).Some(error.clone()) }
+    catch (error: TilVmError) { panic(error.to_str()) }
+    assert(caught.is_some() && number == 7 && data.count == 3)
+    retained := read.call()!
+    mut erased := Tuple.new()
+    erased.push(BorrowedBundle, own original.clone())
+    mut keywords := KwargsMap.new()
+    keywords.set("view", "BorrowedTextView", BorrowedTextView.size(), own BorrowedTextView.Some(text))
+    summary := inspect.call(erased, keywords = keywords)!
+    own inspect.delete()
+    own view_data.delete()
+    own read.delete()
+    own touch.delete()
+    own vm.delete()
+    ref packet_borrow: BorrowedDataView = record_view.get(0)
+    switch packet_borrow {
+    case .Some(value): assert(ptr_eq(value, packet_value) && value.count == 8 && value.message == "packet data")
+    case: panic("borrow of the host argument was lost")
+    }
+    // Host-owned referents remain live independently of the VM. Own labels
+    // were copied, while the reference fields still alias their original owners.
+    ref returned: BorrowedBundle = result.get(0)
+    ref retained_value: BorrowedBundle = retained.get(0)
+    ref returned_number: U64 = returned.number
+    ref returned_text: Str = returned.text
+    ref returned_data: BorrowedData = returned.data
+    ref retained_text: Str = retained_value.text
+    assert(ptr_eq(returned_number, number) && ptr_eq(returned_text, text) && ptr_eq(returned_data, data))
+    assert(ptr_eq(retained_text, text) && returned.label == "guest label" && retained_value.label == "guest label")
+    number = 99
+    text.push_str(" later")
+    data.count = 123
+    assert(returned_number == 99 && returned_text == "host text start!! later" && returned_data.count == 123)
+    switch caught {
+    case .Some(error):
+        ref borrowed: Str = error.text
+        assert(ptr_eq(borrowed, text) && borrowed == text && error.label == "guest label")
+    case: panic("declared borrowed error was lost")
+    }
+    ref snapshot: Str = summary.get(0)
+    assert(snapshot == "host text start!!/host data++")
 }
 
 // Shared cases for the installed SDK hosts. Each host runs in its own
@@ -1714,9 +1891,10 @@ kwargs_callback_tests := proc(root: Str) {
     assert(snapshot == "snapshot")
 }
 
-// Shared aliases/writeback are separate from value-copy marshalling. Keep
-// checking that error payloads survive teardown of their originating VMs.
+// Direct borrows are separate from own/value-copy marshalling. Owned error
+// contents survive VM teardown; borrowed referents retain their own lifetime.
 reference_callback_tests := proc(root: Str) {
+    ordinary_borrow_callback_tests(root)
     record_error := shared_record_callback_tests(root)
     assert(record_error.message == "record borrow error")
     shared_error := shared_cell_callback_tests(root)

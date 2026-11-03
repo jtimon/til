@@ -7,6 +7,7 @@ import("./tilvm_cases")
 main := proc(root: Str, families: ..Str) returns I64 {
     if families.len() > 1 { panic("expected at most one TilVm test family") }
     if families.len() == 1 { return run_tilvm_family(root, families[0]) }
+    ordinary_borrow_callback_tests(root)
     record_error := shared_record_callback_tests(root)
     assert(record_error.message == "record borrow error")
     shared_error := shared_cell_callback_tests(root)

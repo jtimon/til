@@ -1238,7 +1238,12 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
     for i in 0..nfields {
         if field_vals[i].is(CtorArg.Filled).not() {
             ref fld_d : Declaration = ctor_sdd.field_at(i)
-            if fld_d.default_value.is_none() {
+            if fld_d.default_value.is_none().and(fld_d.own_type.is(OwnType.Ref)).and(fcall_of(e).is_throw_default) {
+                // An unfilled error/result slot has no live value yet. Its
+                // borrowed fields start as null storage until the callee
+                // writes the actual value; this is not a user constructor.
+                field_vals[i] = CtorArg.Filled(Expr.new(own NodeType.Literal(Literal.Null), e.line, e.col))
+            } else if fld_d.default_value.is_none() {
                 // #242: a field with no default is required at
                 // instantiation; it must be supplied by name.
                 e.type_error(format("missing required field '", ctor_sdd.field_name_at(i), "' in '", name, "(...)'"), ctx)
