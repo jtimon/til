@@ -169,3 +169,102 @@ The CI sequence is:
 - [ ] Report remaining host/target/backend gaps and measured runner costs;
   full compiler, vendor-library and additional-target coverage expands from
   the demonstrated cells rather than being assumed from target names.
+
+*** Next implementation handoff: artifact completeness before equality
+
+Planning baseline: master ~4190f4ae3~. Re-read the workflow on the actual
+implementation base; file names and jobs below are verified at this revision.
+This milestone needs neither #472 completion nor new toolchains or compiler
+changes. Its claim is "the declared artifacts were produced, delivered and
+tested", not "the builds are deterministic".
+
+**** First slice: one existing producer/consumer pair
+
+Use ~windows-x64-build~ -> ~windows-x64-run~, which already cross-builds on
+Linux and executes x64/x86 programs on Windows. Keep the existing
+~hello_script-windows~ artifact name and its current eight-file payload:
+
+| Program | x64 file under bin/ | x86 file under bin/ |
+|---------+---------------------+---------------------|
+| hello | hello_script.exe | hello_script-x86.exe |
+| crypto | crypto.exe | crypto-x86.exe |
+| libffi | ffi_prep.exe | ffi_prep-x86.exe |
+| nng | nng_pair.exe | nng_pair-x86.exe |
+
+The download currently places those basenames in the consumer's working
+directory. GUI/editor binaries built by the producer are not in this upload;
+do not silently add them to its execution contract.
+
+- Validate every required path as a nonempty regular file before upload,
+  report every missing/empty member, and fail the producer on any omission.
+  Retain the existing architecture/file-format checks.
+- Set ~if-no-files-found: error~ for the required upload, but do not mistake
+  that setting for per-file validation: it catches a completely empty match,
+  not an eight-file list with one missing member and seven present.
+- Validate all eight basenames immediately after download, before executing
+  the first program. Keep the existing native Windows execution/vector checks
+  and their failure propagation. A complete payload is not proof it runs.
+- Define the expected set once per job's validation step and keep it visibly
+  aligned with the existing upload list. Check both sides against the table
+  above during review; do not introduce a persistent manifest, registry or
+  generic CI framework for this first pair.
+- Use existing step logs for the expected/actual paths and failures. Required
+  build outputs and optional failure diagnostics have different contracts;
+  do not change the latter's ~if-no-files-found: ignore~ indiscriminately.
+
+**** Failure matrix for the implementation session
+
+| Injected condition | Required result |
+|--------------------+-----------------|
+| All eight valid files present | Completeness passes; execution still decides functional success |
+| One expected file absent, others present | Per-file validation fails and names the absent file |
+| One expected file empty or a directory | Validation fails and identifies it |
+| No expected files present | Validation fails; required upload cannot silently succeed |
+| x86 file renamed to an unexpected basename | Missing expected basename fails; an unrelated file does not satisfy it |
+| A downloaded member missing | Consumer validation fails before running the partial set |
+| Files complete but an executable/test fails | Consumer and workflow remain failed |
+| Producer build fails before upload | Producer fails; ordinary dependent execution may skip, never claim success |
+
+Exercise validation with disposable fixtures under repository ~tmp/~ and
+review the actual upload/download paths. Local fixtures do not validate GitHub
+Actions scheduling or Windows execution. Report those separately and obtain
+an authorized workflow run for end-to-end evidence. Follow the repository's
+full verification rules for a workflow/configuration commit; do not classify
+it as documentation-only because the compiler source did not change.
+
+**** Second slice: completeness collector, separately approved
+
+After the first pair works, propose a collecting job in the existing workflow
+that consumes the existing artifacts and producer/consumer results. It should
+write a completeness table to existing Actions logs/job summary, not create a
+new persisted manifest. Its purpose is to expose missing or skipped producers
+in one place even when dependent execution jobs could not start. This adds a
+job/required-check surface and runner time, so agree its exact job identity,
+dependencies and required-check policy before implementation.
+
+- Enumerate the required jobs explicitly in ~needs~ and use a job-level
+  status condition that allows reporting after upstream failures. Inspect
+  each required result: failed, cancelled and unexpectedly skipped are not
+  success. A whole workflow cancelled before the collector starts cannot
+  promise a final report; it must not be interpreted as a passing check.
+- Keep downloads isolated by producer/artifact identity. Do not merge payloads
+  into one directory where a file from one host could mask another's absence.
+- Report available artifacts and all omissions, then fail if any required
+  result/file is missing. Do not rely solely on download failure, which may
+  stop before reporting the rest, or solely on a successful producer status,
+  which does not prove a complete payload.
+- Cover the existing Windows/Mac executable and support-library bundles in
+  successive steps. Re-read each upload's root and each consumer's destination
+  before writing its checks. The earlier inventory gives job relationships,
+  not a blanket claim that every uploaded payload has the same shape.
+- Add comparison levels only when #472 supplies the corresponding contract.
+  Before then, hashes may identify transported bytes but no equality result
+  should be invented. Preserve target/backend/width/build-stage identities.
+
+**** Completion report
+
+For each slice, record the exact producer/consumer/artifact contract, injected
+failure results, local versus real CI verification, and any remaining coverage
+gaps here. The first slice can land independently; leave #473 open for the
+collector, additional hosts/targets and eventual equality gates. Do not expand
+this handoff into compiler determinism, TempleOS porting or JIT implementation.
